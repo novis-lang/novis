@@ -306,7 +306,7 @@ pub use closure::{
 };
 pub use ctx::{
     AssertionOutcome, CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Ctx,
-    DEADLINE_OFFSET, DEBUG_FLAGS_OFFSET, DebugFlags, ErrorClass, FaultSite, HOT_LINE_BYTES,
+    DEADLINE_OFFSET, DEBUG_FLAGS_OFFSET, DebugFlags, ErrorClass, FaultSite, HOT_LINE_BYTES, Limit,
     OutputSink, SAFEPOINT_OFFSET, STACK_CEILING, STACK_LIMIT_OFFSET, STACK_RESERVE, STATICS_OFFSET,
     SafepointFlags, TraceEvent, is_carrier, nvs_probe_call_enter, nvs_probe_call_exit,
     nvs_probe_stmt, nvs_safepoint, nvs_stack_check,

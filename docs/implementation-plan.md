@@ -54,8 +54,8 @@
 > `Core\File::read`/`::write` and inside a `spawn script` target's resolution,
 > `registry::CAPABILITIES` names the two, and `nvs.toml` grants the examples. ADR 0020 § 1's memory
 > cap is enforced: `budget` counts in every build, `Ctx` holds the ceiling, a breach is a `FATAL`,
-> and `examples/limits.nvs` exits 1; § 1's tier 1 fires once for the memory and CPU stops alike,
-> inside a reserve `[limits] fatal_reserve_memory` carves out. **Stage 8 is closed at both counts**:
+> and `examples/limits.nvs` exits 1; § 1's tier 1 is handed a report naming the limit, and fires
+> once for either stop inside `fatal_reserve_memory`'s slice. **Stage 8 is closed at both counts**:
 > conformance is 1011, differential is 206 over its 205 floor , and `isolation.rs` measures
 > `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where its code
 > is: item 18's `Core\Secret::reveal()` is not in the registry; `Live::admit`'s same-class check is

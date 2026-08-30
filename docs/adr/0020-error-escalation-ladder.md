@@ -77,6 +77,13 @@ to ordinary execution — new `System`-class `nvs.toml` directives, illustrative
 safety net, and a script choosing its own net's size is exactly the case where the choice most needs to be
 made by someone other than the code that might be about to need it.
 
+**`LimitReport` is an array, not a class.** The handler is handed one array whose `limit` key names the
+limit in the `nvs.toml` directive's own spelling — `memory`, `cpu_time` — because the report is built
+where the breach is, in `nvs-runtime`, which holds no `Core` class descriptor to instantiate one from, and
+because a keyed array takes a later field without changing the signature of a handler already written.
+[ADR 0031](0031-callable-is-the-only-closure-type.md) § 4 leaves `callable` opaque either way, so the
+registry row is `callable` and a handler declaring no parameter runs unchanged.
+
 **Zero retries.** If the handler itself throws, panics, or exceeds its own reserved slice, it is abandoned
 immediately — no second call, straight to tier 3.
 

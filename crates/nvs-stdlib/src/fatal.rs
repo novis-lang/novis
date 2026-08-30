@@ -16,12 +16,13 @@
 //! here would be the exact thing that section refuses: one request's safety net
 //! still armed while another request runs on the same core.
 //!
-//! **`LimitReport` is not on disk yet.** § 1 spells the parameter
+//! **The row is `callable` whatever the report is.** § 1 spells the parameter
 //! `closure(LimitReport): void`, but ADR 0031 § 4 makes `callable` the only
-//! closure type there is and it says nothing about what a closure takes, so the
-//! registry row is `callable` and would be `callable` whatever the report
-//! looked like. What the handler is *handed* is decided at the call, which is
-//! the slice that builds the report.
+//! closure type there is and it says nothing about what a closure takes, so
+//! what the handler is *handed* is decided at the call rather than here. It is
+//! an array with a `limit` key naming the limit that stopped the request, and
+//! `nvs_runtime::Limit` is that decision's home — including why an array and
+//! not a `Core` class. A handler declaring no parameter at all still runs.
 
 use nvs_runtime::{Fault, Tag, Value};
 
@@ -56,9 +57,10 @@ const ON_LIMIT_DOC: MethodDoc = MethodDoc {
             observes a `FATAL` a `catch` never sees.",
     params: &[ParamDoc {
         name: "handler",
-        desc: "What to run. It is called with a report of which limit was reached and answers \
-               nothing; a handler that throws, or that exhausts the reserved slice itself, is \
-               abandoned where it stands.",
+        desc: "What to run. It is handed one array whose `limit` key names the limit that stopped \
+               the request — `memory` or `cpu_time`, the directive's own spelling — and answers \
+               nothing; declaring no parameter is allowed. A handler that throws, or that \
+               exhausts the reserved slice itself, is abandoned where it stands.",
         shape: &[],
     }],
     ret: "Nothing. Registering is request-local and a second call replaces the first: the handler \

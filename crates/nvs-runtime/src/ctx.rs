@@ -825,6 +825,48 @@ pub const STACK_CEILING: usize = 8 << 20;
 /// allocates no further calls cannot cross the floor.
 pub const STACK_RESERVE: usize = 256 << 10;
 
+/// Which of [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+/// § 1's resource limits stopped the request, as the tier-1 handler is told it.
+///
+/// § 1 spells that handler's parameter `LimitReport`, and this is what the
+/// report is built from: [`Ctx::run_limit_handler`] hands the closure an array
+/// whose `limit` key is [`Limit::name`]. **An array and not a class**, because
+/// the report is built where the breach is — in this crate, which holds no
+/// `Core` class descriptor to instantiate one from and would have to reach into
+/// `nvs-stdlib` to get one — and because a keyed array is the one shape a later
+/// field can be added to without changing the signature of a handler already
+/// written. What it spends is two allocations out of § 1's reserved slice, once
+/// per request that both registers a handler and is stopped.
+///
+/// **Two variants, because two limits are enforced.** § 1 lists five; wall
+/// time, `max_script_depth` and call-stack depth each gain a variant in the
+/// slice that gives them a breach to report, since a variant nothing can
+/// produce is a word in this report's vocabulary that no handler could see.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Limit {
+    /// `[limits] memory`, reached at a helper boundary ([`crate::run_helper`])
+    /// or at the safepoint poll.
+    Memory,
+    /// `[limits] cpu_time`, reached at the safepoint poll.
+    CpuTime,
+}
+
+impl Limit {
+    /// The `nvs.toml` directive's own spelling, which is what the report
+    /// carries.
+    ///
+    /// The directive's name rather than a sentence: the one thing a handler can
+    /// do with the report that reading the `FATAL`'s message cannot is branch on
+    /// it, and the name an operator would raise is the name they already know.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Memory => "memory",
+            Self::CpuTime => "cpu_time",
+        }
+    }
+}
+
 impl Ctx {
     /// A context writing to the given sink, with nothing pending and every
     /// flag clear.
@@ -1062,17 +1104,18 @@ impl Ctx {
     /// caller records *its* fault after this returns, over any pending status
     /// the handler set.
     ///
-    /// It is handed no arguments yet. § 1 spells the parameter
-    /// `closure(LimitReport)`, and building that report is the slice after this
-    /// one; until then a handler declaring a parameter is one
-    /// [`crate::call_closure`] refuses, which this abandons like any other
-    /// failure of the handler's own.
+    /// It is handed § 1's `LimitReport`: one array, whose `limit` key names the
+    /// limit that stopped the request in the spelling [`Limit::name`] owns. A
+    /// handler declaring no parameter still runs — [`crate::call_closure`] trims
+    /// the call to the arity the closure recorded — so the report costs nothing
+    /// to a program that does not read it beyond the two allocations building it.
     #[expect(
         unsafe_code,
         reason = "this context owned the reference it just took out of the \
-                  slot, and owns the answer the call produced"
+                  slot, owns the report it built, and owns the answer the call \
+                  produced"
     )]
-    pub fn run_limit_handler(&mut self) {
+    pub fn run_limit_handler(&mut self, limit: Limit) {
         if !self.has_limit_handler() {
             return;
         }
@@ -1098,17 +1141,30 @@ impl Ctx {
             // should say so rather than name a slice still being held for it.
             self.fatal_reserve = 0;
         }
-        let answer = crate::call_closure(self, handler, &[]);
+        // Built here rather than by either caller, and *after* the reserve is
+        // in force: it allocates, and a report the ladder could not afford to
+        // build would be a tier that says nothing for the same reason a handler
+        // that cannot allocate is.
+        let mut report = crate::NvsArray::new();
+        report.set(
+            crate::NvsStr::new(b"limit"),
+            Value::str(crate::NvsStr::new(limit.name().as_bytes())),
+        );
+        let report = Value::array(report);
+        let answer = crate::call_closure(self, handler, &[report]);
         self.memory_limit = ordinary;
         self.fatal_reserve = reserve;
         // SAFETY: the slot held one owned reference, which this frame now
-        // holds; `call_closure` took its own for the callee to release. An
-        // `Ok` answer is a fresh value this frame owns, and releasing a `null`
-        // — which is what a `void` closure returns — is a no-op.
+        // holds; `call_closure` took its own of every slot for the callee to
+        // release, so the report's reference here is still this frame's however
+        // the call went. An `Ok` answer is a fresh value this frame owns, and
+        // releasing a `null` — which is what a `void` closure returns — is a
+        // no-op.
         unsafe {
             if let Ok(answer) = answer {
                 answer.release();
             }
+            report.release();
             handler.release();
         }
     }
@@ -2314,7 +2370,7 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         // boundary asks the memory question, not this one), a loop does not,
         // and either way the request is abandoned exactly as § 1's zero-retry
         // rule already says a handler overrunning its slice is.
-        ctx.run_limit_handler();
+        ctx.run_limit_handler(Limit::CpuTime);
         ctx.set_pending("the request exceeded its CPU-time limit");
         return crate::FATAL;
     }
@@ -2330,7 +2386,7 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         // is overwritten by `set_pending` below rather than reported in place
         // of the limit that stopped the request. `Ctx::run_limit_handler` owns
         // the zero-retry rule.
-        ctx.run_limit_handler();
+        ctx.run_limit_handler(Limit::Memory);
         ctx.set_pending(message);
         return crate::FATAL;
     }

@@ -14,9 +14,10 @@
 //! `extern "C"` function are a whole one. `nvs-stdlib`'s `allocation_policy.rs`
 //! owns that shape and the reason the table is leaked.
 
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use nvs_runtime::{Ctx, OutputSink, Value, nvs_safepoint};
+use nvs_runtime::{Ctx, NvsStr, OutputSink, Value, nvs_safepoint};
 
 /// How many times the handler below has been entered, across every test in
 /// this binary. Each test asserts on a *difference* it reads for itself, so
@@ -85,12 +86,64 @@ unsafe extern "C" fn answers_nothing(_ctx: *mut Ctx, args: *const Value, out: *m
     nvs_runtime::OK
 }
 
+/// What the handler below read out of § 1's report, or `None` before it has
+/// run. One test uses it, so nothing here has to survive another running beside
+/// it.
+static SEEN_LIMIT: Mutex<Option<String>> = Mutex::new(None);
+
+/// A handler that declares § 1's `LimitReport` parameter and records the limit
+/// it names — the callee side of a report that has to arrive as an argument
+/// rather than as a message the ladder prints afterwards.
+#[expect(
+    unsafe_code,
+    reason = "the callee contract of `counts_its_entry`, over two live values \
+              this time: the receiver and the report, both of which this owes a \
+              release"
+)]
+unsafe extern "C" fn records_the_report(
+    _ctx: *mut Ctx,
+    args: *const Value,
+    out: *mut Value,
+) -> i32 {
+    unsafe {
+        let report = *args.add(1);
+        let array = report
+            .array_ptr()
+            .expect("§ 1's report reaches the handler as one array");
+        // Borrowed out of the array, which owns it for the length of this call.
+        let key = NvsStr::new(b"limit").into_raw();
+        let mut named = Value::null();
+        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        *SEEN_LIMIT.lock().expect("no test panics holding this") =
+            named.as_text().map(str::to_owned);
+        drop(NvsStr::from_raw(key));
+
+        (*args).release();
+        report.release();
+        *out = Value::null();
+    }
+    nvs_runtime::OK
+}
+
 /// A zero-parameter closure calling `invoke`, owned by the caller.
+fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
+    closure_taking(invoke, 0)
+}
+
+/// A closure declaring one parameter of any representation, which is what a
+/// handler written to § 1's `closure(LimitReport)` signature is: `callable`
+/// carries no parameter list (ADR 0031 § 1), so the nibble a written `fn`
+/// literal would record is the only thing `call_closure` checks against.
+fn closure_taking_the_report(invoke: nvs_runtime::NvsFn) -> Value {
+    closure_taking(invoke, 1)
+}
+
+/// A closure of `arity` parameters calling `invoke`, owned by the caller.
 ///
 /// The table is leaked because a descriptor's address is its identity and it
 /// must outlive every instance made from it; the process exiting is what
 /// reclaims it.
-fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
+fn closure_taking(invoke: nvs_runtime::NvsFn, arity: i64) -> Value {
     let mut table = nvs_runtime::ClassTable::new();
     let id = table.define("{closure}", &["arity", "params"], &[]);
     table.set_methods(
@@ -112,8 +165,15 @@ fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
                   instance made from it — `NvsObj::new`'s whole obligation"
     )]
     let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
-    object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(0));
-    object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+    object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(arity));
+    // One nibble per parameter, and `ANY` in each: what this file's callees
+    // read off their argument slots is the report's own tag, so the check the
+    // nibbles exist for has nothing to add here.
+    let mut tags: i64 = 0;
+    for slot in 0..arity {
+        tags |= i64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY) << (slot * 4);
+    }
+    object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(tags));
     Value::object(object)
 }
 
@@ -190,6 +250,46 @@ fn a_cpu_cap_terminates_a_runaway_script_as_a_fatal() {
         !ctx.has_limit_handler(),
         "the CPU branch reaches § 1's tier 1 rather than returning above it",
     );
+}
+
+/// ADR 0020 § 1's `closure(LimitReport)`: the handler is handed a report, and
+/// the report names the limit that stopped *this* request rather than the one
+/// the ladder happens to be written around.
+///
+/// Both stops are asserted in one case because the claim is that they differ:
+/// a ladder building the report at one shared point would answer `memory` to a
+/// request stopped for CPU time and look right against either half alone.
+#[test]
+fn a_limit_handler_is_handed_a_report_naming_the_limit() {
+    let seen = || {
+        SEEN_LIMIT
+            .lock()
+            .expect("no test panics holding this")
+            .take()
+    };
+
+    let (mut ctx, hog) = breached();
+    ctx.set_limit_handler(closure_taking_the_report(records_the_report));
+    #[expect(
+        unsafe_code,
+        reason = "as above: the safepoint's ABI takes a context pointer, and \
+                  this one is a live local"
+    )]
+    let status = unsafe { nvs_safepoint(&raw mut ctx) };
+    assert_eq!(status, nvs_runtime::FATAL);
+    assert_eq!(seen().as_deref(), Some("memory"));
+    drop(hog);
+
+    let mut ctx = Ctx::new(OutputSink::Sink);
+    ctx.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
+    ctx.set_limit_handler(closure_taking_the_report(records_the_report));
+    #[expect(
+        unsafe_code,
+        reason = "the same live local, one branch of the poll further down"
+    )]
+    let status = unsafe { nvs_safepoint(&raw mut ctx) };
+    assert_eq!(status, nvs_runtime::FATAL);
+    assert_eq!(seen().as_deref(), Some("cpu_time"));
 }
 
 /// ADR 0020 § 1: the registered handler runs, it runs *before* the breach

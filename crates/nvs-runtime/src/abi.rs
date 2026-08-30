@@ -328,7 +328,7 @@ where
         // in place of the limit. `Ctx::run_limit_handler` owns the zero-retry
         // rule that keeps the handler's own first helper call from arriving
         // back here and calling it a second time.
-        ctx.run_limit_handler();
+        ctx.run_limit_handler(crate::Limit::Memory);
         return record_fault(ctx, fault);
     }
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
