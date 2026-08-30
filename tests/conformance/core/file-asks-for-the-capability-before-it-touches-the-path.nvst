@@ -1,0 +1,38 @@
+--TEST--
+Core\File::read and Core\File::write ask for the capability before they touch the path — a path no open could ever succeed on is still refused as a capability and never as an `IOError`, so the difference between a missing file and an existing one leaks nothing to a program that was not granted the root — ADR 0118 § 2
+--FILE--
+<?nvs
+// The door performs the effect, so the order inside it is observable: a member
+// that opened first and asked afterwards would answer `IOError` for the two
+// paths below, because neither can be read or written by any process. Catching
+// `IOError` *first* is what makes the assertion two-sided -- the clause that
+// fires names which half of the door ran.
+array<string> $impossible = ["no-such-dir/no-such-file.txt", "."];
+
+int $i = 0;
+for (; $i < Core\Arr::count($impossible) as int; $i = $i + 1) {
+    string $path = $impossible[$i];
+
+    try {
+        string $content = Core\File::read($path);
+        echo "read ", $path, ": opened\n";
+    } catch (IOError $touched) {
+        echo "read ", $path, ": the os answered first\n";
+    } catch (RuntimeError $refused) {
+        echo "read ", $path, ": refused before the os\n";
+    }
+
+    try {
+        Core\File::write($path, "x");
+        echo "write ", $path, ": created\n";
+    } catch (IOError $touched) {
+        echo "write ", $path, ": the os answered first\n";
+    } catch (RuntimeError $refused) {
+        echo "write ", $path, ": refused before the os\n";
+    }
+}
+--EXPECT--
+read no-such-dir/no-such-file.txt: refused before the os
+write no-such-dir/no-such-file.txt: refused before the os
+read .: refused before the os
+write .: refused before the os

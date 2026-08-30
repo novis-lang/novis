@@ -1,0 +1,60 @@
+--TEST--
+Core\File::read and Core\File::write refuse every spelling of a path with no grant behind it — counted over a sweep of relative, dotted, nested and parent-walking forms rather than read off one line, so a door that resolved one spelling into an allowance still fails here — ADR 0118 §§ 1-2
+--FILE--
+<?nvs
+// A refusal asserted one path at a time is a refusal a member can pass by
+// answering plausibly for the path in the case. The claim is the *invariant* --
+// with nothing granted, no spelling is readable and none is writable -- so the
+// sweep is counted and the counts are what print. A door that let a single form
+// through moves a number here whatever it printed for the others.
+//
+// The forms are the ones a path arrives in: bare, dot-prefixed, nested, and one
+// walking out through `..`, which is the spelling ADR 0118 § 4's canonicalise-
+// then-prefix rule exists for once a root *is* granted.
+array<string> $paths = [
+    "notes.txt",
+    "./notes.txt",
+    "docs/notes.txt",
+    "../notes.txt",
+    "../../etc/notes.txt",
+];
+int $total = Core\Arr::count($paths) as int;
+
+int $readsRefused = 0;
+int $readsNamingFsRead = 0;
+int $writesRefused = 0;
+int $writesNamingFsWrite = 0;
+
+int $i = 0;
+for (; $i < $total; $i = $i + 1) {
+    string $path = $paths[$i];
+
+    try {
+        string $content = Core\File::read($path);
+    } catch (RuntimeError $refused) {
+        $readsRefused = $readsRefused + 1;
+        // The capability's own name, in the spelling `nvs.toml` grants it
+        // under, is what an operator pastes into a file -- so it is counted
+        // rather than assumed from the fact that something threw.
+        if ($refused->message == "Core\\File::read needs the capability `fs.read` for " . $path . ", which is not granted") {
+            $readsNamingFsRead = $readsNamingFsRead + 1;
+        }
+    }
+
+    try {
+        Core\File::write($path, "x");
+    } catch (RuntimeError $refused) {
+        $writesRefused = $writesRefused + 1;
+        if ($refused->message == "Core\\File::write needs the capability `fs.write` for " . $path . ", which is not granted") {
+            $writesNamingFsWrite = $writesNamingFsWrite + 1;
+        }
+    }
+}
+
+echo "paths: ", $total as string, "\n";
+echo "reads refused: ", $readsRefused as string, ", naming fs.read: ", $readsNamingFsRead as string, "\n";
+echo "writes refused: ", $writesRefused as string, ", naming fs.write: ", $writesNamingFsWrite as string, "\n";
+--EXPECT--
+paths: 5
+reads refused: 5, naming fs.read: 5
+writes refused: 5, naming fs.write: 5

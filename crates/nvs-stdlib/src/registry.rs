@@ -995,6 +995,11 @@ pub const CLASSES: &[CoreClass] = &[
     crate::encoding::CLASS,
     crate::bytes::CLASS,
     crate::path::CLASS,
+    // No spec § of its own, and here beside `Core\Path` because that is where a
+    // reader looks for it: § 8's class splits a path lexically and this one
+    // reaches the filesystem behind it. What it needs to do that is
+    // [`CAPABILITIES`], and ADR 0118 § 2's doors are what make it need one.
+    crate::file::CLASS,
     crate::time::TIME,
     crate::time::INSTANT,
     crate::time::DATETIME,
@@ -1079,11 +1084,15 @@ pub const CLASSES: &[CoreClass] = &[
 /// [`CoreClass::name`] and [`CoreMethod::name`] use;
 /// `every_capability_entry_names_a_member` fails on one naming neither.
 ///
-/// It is empty, and that is the tree's state rather than a placeholder: no
-/// `Core` member reaches the operating system yet, which is exactly what makes
-/// it possible to put the door in front of the first one instead of retrofitting
-/// it behind forty.
-pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[];
+/// Two entries, which is the whole of what this runtime can currently do to a
+/// machine: read a file and write one. Every other `Core` member reaches no
+/// spelling that performs an effect, which
+/// `nvs_stdlib_reaches_the_os_only_through_the_gate` holds mechanically rather
+/// than by this table being kept honest.
+pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
+    (crate::file::NAME, "read", nvs_config::Cap::FsRead),
+    (crate::file::NAME, "write", nvs_config::Cap::FsWrite),
+];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
 /// The `Core` classes that declare a `tryParse` beside their `parse` —
