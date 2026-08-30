@@ -1,0 +1,57 @@
+--TEST--
+`Core\Config::set("mode.default", …)` re-derives the five directives the mode selects, leaving every explicit line alone — ADR 0091 §§ 3-5
+--FILE--
+<?nvs
+// § 4: the mode is read and written at `mode.default`, and reading it is the
+// same string-in/string-out API every other directive has.
+echo "start=", Core\Config::get("mode.default") ?? "unset", "\n";
+
+// § 3's first property: an explicit line beside the mode is legal and means
+// what it reads like, so this is what the tree wrote and not a mode default.
+echo "format=", Core\Config::get("log.format") ?? "unset", "\n";
+
+// § 5: the ceiling is `development` here, so the flip is allowed.
+echo "flip=", Core\Config::set("mode.default", "development") ? "true" : "false", "\n";
+echo "mode=", Core\Config::get("mode.default") ?? "unset", "\n";
+
+// § 4's last bullet: the flip is the five defaults, or it changes nothing
+// observable at all. Four of the rows had no line in the file.
+echo "level=", Core\Config::get("log.level") ?? "unset", "\n";
+echo "detail=", Core\Config::get("http.errors.detail") ?? "unset", "\n";
+echo "inline=", Core\Config::get("debug.inline") ?? "unset", "\n";
+echo "access=", Core\Config::get("log.access") ?? "unset", "\n";
+
+// The fifth had one, and the written value still stands.
+echo "format=", Core\Config::get("log.format") ?? "unset", "\n";
+
+// Flipping back re-derives nothing already in the overlay: a row this request
+// set — by the flip or by hand — is a choice, and § 4 leaves it alone.
+echo "back=", Core\Config::set("mode.default", "production") ? "true" : "false", "\n";
+echo "level=", Core\Config::get("log.level") ?? "unset", "\n";
+
+// A mode nobody defined is outside every ceiling and moves nothing.
+echo "bogus=", Core\Config::set("mode.default", "staging") ? "true" : "false", "\n";
+echo "mode=", Core\Config::get("mode.default") ?? "unset", "\n";
+--FILE nvs.toml--
+# One host, mixed applications — § 5's third row: production by default, and
+# an application may select development for its own request.
+[mode]
+default = "production"
+ceiling = "development"
+
+[log]
+format = "json"
+--EXPECT--
+start=production
+format=json
+flip=true
+mode=development
+level=Debug
+detail=full
+inline=true
+access=true
+format=json
+back=true
+level=Debug
+bogus=false
+mode=production

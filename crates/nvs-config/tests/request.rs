@@ -441,3 +441,69 @@ read = [\"nvs.toml\"]
 
     assert!(request.set("log.level", "debug"));
 }
+
+/// ADR 0091 § 3's table is **closed**, and this is what makes that word mean something.
+///
+/// The section's second property is that *what exactly does development mode change?* has a
+/// complete, mechanical answer at any moment; a sixth row added without an ADR amendment would take
+/// that away silently, and every other case here would still pass. Asserting the key set — rather
+/// than the count — also fails a row renamed to a directive nobody spelled.
+#[test]
+fn the_mode_table_is_exactly_the_five_directives_the_adr_lists() {
+    let keys: Vec<&str> = nvs_config::mode::DERIVED
+        .iter()
+        .map(|row| row.key)
+        .collect();
+
+    assert_eq!(
+        keys,
+        [
+            "debug.inline",
+            "log.format",
+            "log.level",
+            "log.access",
+            "http.errors.detail",
+        ],
+    );
+    for row in nvs_config::mode::DERIVED {
+        assert_ne!(
+            row.production, row.development,
+            "a row whose two modes agree is a default the mode does not select",
+        );
+    }
+}
+
+/// ADR 0091 §§ 4-5 through the API a program actually holds: the flip is bounded by the ceiling, it
+/// carries § 3's rows with it, and it is request-local like every other `set`.
+///
+/// The last clause is the one a shared registry would get wrong, and it is asked here for the same
+/// reason `config_set_is_invisible_to_the_next_request_on_the_same_core` asks it of a limit: a mode
+/// that leaked would be one request putting another into development.
+#[test]
+fn a_mode_flip_is_bounded_derived_and_request_local() {
+    let snapshot = snapshot_of("[mode]\ndefault = \"production\"\nceiling = \"development\"\n");
+    let mut request = Request::new(Arc::clone(&snapshot));
+    let beside = Request::new(Arc::clone(&snapshot));
+
+    assert!(request.set(nvs_config::mode::KEY, "development"));
+    assert_eq!(request.get("log.level").as_deref(), Some("Debug"));
+    assert_eq!(request.get("http.errors.detail").as_deref(), Some("full"));
+    assert_eq!(
+        beside.get("log.level"),
+        None,
+        "a flip is this request's own"
+    );
+    assert_eq!(
+        beside.get(nvs_config::mode::KEY).as_deref(),
+        Some("production")
+    );
+
+    // The ceiling is read off the snapshot and never off the overlay, so having flipped once does
+    // not raise it — this tree's ceiling still refuses a mode it never named.
+    assert!(!request.set(nvs_config::mode::KEY, "staging"));
+    assert_eq!(
+        request.get(nvs_config::mode::KEY).as_deref(),
+        Some("development"),
+        "a refused flip leaves the mode in force exactly where it was",
+    );
+}
