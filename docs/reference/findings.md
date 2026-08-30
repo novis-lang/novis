@@ -192,10 +192,14 @@ in that goal. An item's owner is the row it sits in.
 
 ## Binary and docs disagree on behaviour (D)
 
-- [ ] **D1** The time types do **not** implement `Comparable`: `$i < $j` on two `Core\Time\Instant`,
+- [x] **D1** The time types do **not** implement `Comparable`: `$i < $j` on two `Core\Time\Instant`,
       `Duration`, `Date` or `TimeOfDay` values is `E0411 … does not implement Comparable`, while the
       cards say `compareTo` is "as `Comparable` requires" and spec § 4 says `<`/`>` work directly.
       *coretime-probes `t_instant`, `t_duration_echo`, `t_date`, `t_tod_lt`*
+      They order now, and the conformance is read off the `compareTo` row rather than a roster —
+      `nvs_stdlib::registry::implements_comparable`, seeded by `nvs_types::core_lib`. `Core\Uri`
+      gains it by the same rule (spec § 12). `crates/nvs-stdlib/src/time.rs`'s module doc owns why a
+      `Core` class satisfies an interface by member at all.
 - [ ] **D2** `Core\Time\Duration ==` is identity: `90m == 1h30m` is false; `compareTo` answers `0`.
       *types-probes*
 - [ ] **D3** `Core\Weekday as int` is zero-based (`Friday` → `4`); the enum card says the cases are

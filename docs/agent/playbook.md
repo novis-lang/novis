@@ -1421,6 +1421,12 @@ is why" — is this file.
   once is the fix, and the header of `bench.py` says why the harness refuses to build anything itself.
   A release binary older than `crates/` still measures: the staleness warning goes to stderr and the
   check stays green, so a start-up regression can hide behind a binary nobody rebuilt.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh <fixture>` run through a Git Bash shell does
+  nothing and reports success.** Git Bash rewrites the `/mnt/...` argument before `wsl.exe` sees it,
+  so bash answers `C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory` —
+  and the call still exits 0, which reads as a clean leak check on a fixture that was never run. Send
+  that command through a PowerShell call instead, which is the spelling the script's own header
+  already carries. The same rewrite applies to any WSL-side absolute path passed as an argument.
 
 ## Writing a test case
 
