@@ -52,6 +52,9 @@ struct Disk {
     real: Vec<PathBuf>,
     /// A symlink, as the path it is written and the canonical path it lands on.
     links: Vec<(PathBuf, PathBuf)>,
+    /// What a relative path is resolved against, empty until a case says otherwise — which leaves
+    /// every relative path spelled as it was written, the way this fake behaved before it had one.
+    cwd: PathBuf,
 }
 
 impl Disk {
@@ -60,12 +63,20 @@ impl Disk {
         Self {
             real: paths.iter().map(|path| p(path)).collect(),
             links: Vec::new(),
+            cwd: PathBuf::new(),
         }
     }
 
     /// The same disk, plus a symlink at `at` landing on `target`.
     fn linking(mut self, at: &str, target: &str) -> Self {
         self.links.push((p(at), p(target)));
+        self
+    }
+
+    /// The same disk, seen from `dir` — the current directory a relative argument is resolved
+    /// against, which a process always has and only a case with a relative path in it needs.
+    fn at(mut self, dir: &str) -> Self {
+        self.cwd = p(dir);
         self
     }
 }
@@ -76,7 +87,14 @@ impl Files for Disk {
     }
 
     fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
-        let asked = lexical(path);
+        // The empty path names nothing, on every platform `std::fs::canonicalize` runs on. Saying so
+        // here is what makes a case over a bare relative name mean anything: `Path::parent` hands the
+        // resolver this, and a fake that quietly answered the current directory for it would pass
+        // whether or not `capability.rs` spells it `.` itself.
+        if path.as_os_str().is_empty() {
+            return Err("the empty path names nothing".to_string());
+        }
+        let asked = lexical(&self.cwd.join(path));
         if let Some((_, target)) = self.links.iter().find(|(at, _)| *at == asked) {
             return Ok(target.clone());
         }
@@ -178,6 +196,65 @@ fn spawn_script_without_the_capability_fails() {
         assert!(
             !granted.allows(Cap::ScriptSpawn, Scope::Path(outside.as_path()), &disk),
             "`script.spawn = [\"/srv/app\"]` reached {} through {why}",
+            outside.display(),
+        );
+    }
+}
+
+/// § 4's argument side reaches the current directory for a **bare** relative name, so a grant of `.`
+/// covers the ordinary spelling of a path a program writes.
+///
+/// `Path::parent` of `copy.txt` is `""`, which canonicalizes nowhere, and a resolver that ran out of
+/// components there denied every bare name under every grant — `Core\File::read("missing.txt")` and
+/// `Core\File::write("copy.txt")` alike, both of them against a tree that granted the directory they
+/// are in. The two halves are asserted together because a grant that resolves a relative name has to
+/// place it, not merely accept it: the last row climbs out of the grant and is still refused.
+#[test]
+fn a_bare_relative_path_resolves_against_its_grant() {
+    let disk = Disk::of(&[
+        "/srv",
+        "/srv/app",
+        "/srv/app/data",
+        "/srv/app/data/note.txt",
+    ])
+    .at("/srv/app");
+    let granted = granting("[fs]\nread = [\".\"]\nwrite = [\".\"]\n", &disk);
+
+    for (why, cap, path) in [
+        (
+            "a file that does not exist yet, which is every write",
+            Cap::FsWrite,
+            raw("copy.txt"),
+        ),
+        (
+            "a file that will never exist, which is a read that is about to fail",
+            Cap::FsRead,
+            raw("missing.txt"),
+        ),
+        (
+            "a bare name under a directory that does exist",
+            Cap::FsRead,
+            raw("data/note.txt"),
+        ),
+        (
+            "a bare name under a directory that does not",
+            Cap::FsWrite,
+            raw("out/report.txt"),
+        ),
+    ] {
+        assert!(
+            granted.allows(cap, Scope::Path(path.as_path()), &disk),
+            "a grant of `.` refused {} — {why}",
+            path.display(),
+        );
+    }
+
+    // Resolving a relative name against the current directory is not resolving every relative name
+    // *into* the grant: one that climbs above it lands outside and is refused as it was before.
+    for outside in [raw("../escape.txt"), raw("../app-next-door/x.txt")] {
+        assert!(
+            !granted.allows(Cap::FsWrite, Scope::Path(outside.as_path()), &disk),
+            "a grant of `.` reached {}",
             outside.display(),
         );
     }

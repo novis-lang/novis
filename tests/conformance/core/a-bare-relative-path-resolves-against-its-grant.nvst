@@ -1,0 +1,44 @@
+--TEST--
+a bare relative path is resolved against the current directory before it is compared to a grant, so `.` covers the file a program is about to create — ADR 0118 §§ 1-2
+--FILE--
+<?nvs
+// A bare name has no parent to canonicalise -- `Path::parent` of `missing.txt`
+// is `""` -- so the argument side of the comparison has to reach the current
+// directory on its own, or a grant of `.` covers nothing a program actually
+// spells. Catching `IOError` first names which half of the door ran, exactly as
+// `file-asks-for-the-capability-before-it-touches-the-path.nvst` does: the
+// capability is granted here, so the operating system is what has to answer.
+try {
+    string $missing = Core\File::read("missing.txt");
+    echo "read missing.txt: opened\n";
+} catch (IOError $touched) {
+    echo "read missing.txt: the os answered first\n";
+} catch (RuntimeError $refused) {
+    echo "read missing.txt: refused before the os\n";
+}
+
+// A write creates the path it names, so there is never anything to canonicalise
+// and the deepest existing ancestor *is* the current directory. This is the
+// spelling `write = ["."]` exists for.
+Core\File::write("copy.txt", "copied\n");
+echo Core\File::read("copy.txt");
+
+// The bound on the other side: resolving a bare name against the current
+// directory is not resolving every relative name into the grant. One that
+// climbs out of it lands outside `.` and is still refused.
+try {
+    Core\File::write("../escape.txt", "x");
+    echo "write ../escape.txt: created\n";
+} catch (IOError $reached) {
+    echo "write ../escape.txt: the os answered first\n";
+} catch (RuntimeError $denied) {
+    echo "write ../escape.txt: refused\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+read missing.txt: the os answered first
+copied
+write ../escape.txt: refused

@@ -253,6 +253,11 @@ fn canonical_root(root: &mut String, files: &dyn Files) {
 /// unresolved is `..` — [`Path::file_name`] is `None` for one, so the loop exits on it. That is the
 /// single component that could still escape after the ancestor is pinned, and there is no legitimate
 /// spelling of a new file's path that needs one.
+///
+/// A **bare** relative name — `copy.txt` — has [`Path::parent`] `""`, which is not a path any
+/// canonicalizer can answer for; [`here`] spells it `.` so that the ancestor walk reaches the
+/// current directory instead of running out of components and denying. That is the ordinary
+/// spelling of a path a program writes, so denying it denied a grant of `.` its whole point.
 fn resolved(path: &Path, files: &dyn Files) -> Option<PathBuf> {
     if let Ok(found) = files.canonical(path) {
         return Some(found);
@@ -261,7 +266,7 @@ fn resolved(path: &Path, files: &dyn Files) -> Option<PathBuf> {
     let mut cursor = path;
     loop {
         let name = cursor.file_name()?;
-        let parent = cursor.parent()?;
+        let parent = here(cursor.parent()?);
         tail.push(name);
         if let Ok(base) = files.canonical(parent) {
             let mut resolved = base;
@@ -269,5 +274,20 @@ fn resolved(path: &Path, files: &dyn Files) -> Option<PathBuf> {
             return Some(resolved);
         }
         cursor = parent;
+    }
+}
+
+/// The empty parent, spelled as the current directory; every other parent unchanged.
+///
+/// `Path::new("copy.txt").parent()` is `Some("")`, and an empty path canonicalizes on no platform —
+/// so without this the walk in [`resolved`] pins nothing, [`Path::file_name`] of `""` is `None`, and
+/// a bare relative name is denied under every grant including `.`. Substituting `.` asks the same
+/// canonicalizer the same question the operating system will answer when the path is opened, which
+/// keeps the resolution on the one seam § 4 puts it on rather than reading a current directory here.
+fn here(parent: &Path) -> &Path {
+    if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
     }
 }
