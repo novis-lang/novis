@@ -1180,6 +1180,36 @@ pub fn current_task() -> Option<TaskId> {
     RUNNING.get().map(|running| running.id)
 }
 
+/// How many children the running task still has: spawned and not yet ended,
+/// whether they are on the run queue, parked under a wait, or still pending a
+/// coroutine.
+///
+/// ADR 0072 § 4's "control does not leave the call with work still running" is
+/// the promise `Core\Task::all` and `::map` keep by construction. This is how
+/// a caller that is *not* one of those members reads the same fact off the
+/// tree — [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+/// § 16's runner, which fails a test whose task tree outlived it rather than
+/// letting the teardown cancel it silently. A child that has ended is already
+/// out of the tree ([`Scheduler::orphan`], run the moment its coroutine
+/// returns and before whatever was awaiting it is resumed), so a task joined
+/// by an `await` is not counted here.
+///
+/// `0` with no task running and `0` with no scheduler turning: neither is a
+/// child still going, and a caller with nowhere to spawn one had no tree to
+/// leave dirty.
+#[must_use]
+pub fn children_still_running() -> usize {
+    let Some(id) = current_task() else {
+        return 0;
+    };
+    current_tree().map_or(0, |tree| {
+        tree.borrow()
+            .nodes
+            .get(&id)
+            .map_or(0, |node| node.children.len())
+    })
+}
+
 /// Suspends the running task without a [`Ctx`] to reach the yielder through,
 /// reporting whether there was one.
 ///

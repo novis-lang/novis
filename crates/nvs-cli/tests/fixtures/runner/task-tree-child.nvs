@@ -1,0 +1,5 @@
+<?nvs
+// The child `task-tree.nvs` spawns and never awaits. It is never resumed — the
+// test returns first and the scheduler cancels it — so what it does is beside
+// the point; it exists so that the spawn resolves a real file.
+echo "the child ran", "\n";

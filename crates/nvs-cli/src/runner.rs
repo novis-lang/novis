@@ -62,6 +62,24 @@
 //! child's program captured, because ADR 0006's `Completion` carries a value,
 //! bytes and a failure and none of those is a ledger.
 //!
+//! # The runner owns the test's task tree
+//!
+//! § 16's first half is [`run_suite_in_a_task`]: the whole suite runs inside
+//! one task, so a test's isolate is a *child* of it and a `Core\Task::all`
+//! written in a test has a calling task to put its own children under. That
+//! function owns why it is one task for the suite rather than one per test,
+//! and what has to be moved into it to make the scheduler's signature work.
+//!
+//! The second half is read off that tree at the one point it means anything —
+//! the moment the test's body returns, on the test's own stack, in
+//! [`run_in_isolate`]'s program closure. **A task still running then is a
+//! failure named as such** ([`Outcome::with_tasks_left_running`]), because the
+//! alternative is what the scheduler does on its own: cancel the leftovers as
+//! the task retires and report a green test that never waited for its work.
+//! ADR 0072 § 4 makes that bound reachable rather than aspirational — `::all`
+//! and `::map` return with nothing still running — so the only way to fail
+//! this is a `spawn script` the test never awaited.
+//!
 //! # What is owed
 //!
 //! § 2's parallelism is not built: the isolates are made and joined one at a
@@ -151,6 +169,33 @@ impl Outcome {
         }
     }
 
+    /// § 16's second half folded in: `running` children the test left behind
+    /// when it returned turn any verdict a report could call green into a
+    /// failure naming them.
+    ///
+    /// A skip never ran and an `exit(n)` ended the whole program rather than
+    /// the test, so neither is an outcome this can say anything about; every
+    /// other one gains the line, a flaky test included — a test that leaks a
+    /// task is not one retrying made honest.
+    fn with_tasks_left_running(self, running: usize) -> Self {
+        if running == 0 {
+            return self;
+        }
+        let named = format!(
+            "it left {running} task(s) still running when it returned: ADR 0079 § 16 \
+             fails a test whose task tree outlives it — `Core\\Task::all` and `::map` \
+             return with nothing still running, and a `spawn script` is finished by `await`"
+        );
+        match self {
+            Self::Passed => Self::Failed(vec![named]),
+            Self::Failed(mut failures) | Self::Flaky { mut failures, .. } => {
+                failures.push(named);
+                Self::Failed(failures)
+            }
+            settled @ (Self::Skipped(_) | Self::Exited(_)) => settled,
+        }
+    }
+
     /// What went wrong, in the one line a machine format's `message` carries —
     /// `None` for a test that did not fail. Several failed assertions read as
     /// the first, the whole list staying available in the document's own
@@ -185,8 +230,8 @@ struct Case {
 
 /// Compiles `checked` and runs every `#[Test]` it declares, reporting in
 /// `format`.
-pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
-    let unit = match compile(checked) {
+pub(crate) fn run(checked: crate::Checked, format: Format) -> ExitCode {
+    let unit = match compile(&checked) {
         Ok(unit) => unit,
         Err(error) => {
             eprintln!("error: {error}");
@@ -203,7 +248,13 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
     unit.install_in(&mut ctx);
 
     let started = Instant::now();
-    let suite = run_suite(&unit, &mut ctx, checked, format);
+    let (suite, mut ctx) = match run_suite_in_a_task(&unit, ctx, checked, format) {
+        Ok(both) => both,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
     let Suite {
         cases,
         counts,
@@ -239,6 +290,79 @@ pub(crate) fn run(checked: &crate::Checked, format: Format) -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+/// Runs the whole suite **inside one task**, on a [`nvs_host::Scheduler`] of
+/// this run's own with a reactor and an isolate resolver installed over it —
+/// ADR 0079 § 16's "the runner owns the test's task tree", and the same three
+/// installations `nvs run` makes (`crate::main`, § *What `run` executes*).
+///
+/// Without it there is no task beneath a test at all: `nvs_host::Wake::current`
+/// answers `None`, so a test's own isolate runs on this stack rather than as a
+/// child (`nvs_host::isolate::Isolate::start`), a `Core\Task::all` in a test
+/// has no calling task to put children under (ADR 0072 § 1), and § 16 has no
+/// tree to read a leftover off. One task and not one per test: the tests are a
+/// *suite*, and each test's own isolate is a child of it.
+///
+/// `checked` and the unit are moved in rather than borrowed, because a task's
+/// body outlives the call that spawns it as far as the scheduler's signature
+/// is concerned. What comes back out comes back by the two routes `nvs run`
+/// already uses: the [`Suite`] through a cell the body captured, the `Ctx`
+/// through the `Finished` the scheduler hands over, since it was moved into
+/// the task rather than lent to it.
+///
+/// `Err` is the message to render — an internal failure of the run itself,
+/// never a verdict about a test.
+fn run_suite_in_a_task(
+    unit: &Rc<nvs_codegen::Unit>,
+    ctx: nvs_runtime::Ctx,
+    checked: crate::Checked,
+    format: Format,
+) -> Result<(Suite, nvs_runtime::Ctx), String> {
+    let mut sched = nvs_host::Scheduler::new();
+    let filed: Rc<RefCell<Option<Suite>>> = Rc::new(RefCell::new(None));
+    let collected = Rc::clone(&filed);
+    let suite_unit = Rc::clone(unit);
+    let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, move |ctx| {
+        *collected.borrow_mut() = Some(run_suite(&suite_unit, ctx, &checked, format));
+    });
+
+    // The reactor is what a parked task is woken by, and a test that sleeps or
+    // reads a socket parks exactly as any other program does — `run_until_idle`
+    // refuses a scheduler with no reactor on its thread.
+    let reactor = nvs_host::Reactor::new()
+        .map_err(|error| format!("could not start the reactor: {error}"))?;
+    let installed = nvs_host::reactor::install(reactor);
+    // A test's own isolate is built by this crate directly, but a `spawn script`
+    // *inside* a test goes through the seam and needs the same resolver
+    // `nvs run` installs — one per run, so two tests spawning one path share
+    // the compiled unit (`crate::script`).
+    let resolver = nvs_runtime::script::install(crate::script::Compiler::leaked());
+    let ran = nvs_host::run_until_idle(&mut sched);
+    drop(resolver);
+    drop(installed);
+    ran.map_err(|error| format!("the scheduler stopped: {error}"))?;
+
+    let Some(finished) = sched
+        .take_finished()
+        .into_iter()
+        .find(|finished| finished.id == root)
+    else {
+        // Nothing can cancel the suite's task: it is the root, and the run is
+        // over by the time this is read.
+        return Err("internal error: the suite's task did not finish".to_owned());
+    };
+    if let Err(panic) = finished.outcome {
+        // ADR 0106 § 2's boundary contained a panic under the task root. For a
+        // test run that is this process's failure and not a verdict — the
+        // runner is what broke, so there is no suite to report.
+        return Err(format!("the test run panicked: {}", panic.message()));
+    }
+    let suite = filed
+        .borrow_mut()
+        .take()
+        .ok_or_else(|| "internal error: the suite's task ran nothing".to_owned())?;
+    Ok((suite, finished.ctx))
 }
 
 /// Lowers and compiles `checked` into the **one** unit every test isolate of
@@ -616,14 +740,14 @@ fn run_in_isolate(
         // Both owners go down with the isolate, after the call that borrowed
         // their values has returned.
         let (_crossed, _materialized) = (crossed, materialized);
-        *verdict.borrow_mut() = Some(run_with_retries(
-            &child_unit,
-            child,
-            &class_name,
-            &method,
-            &args,
-            allowance,
-        ));
+        let outcome = run_with_retries(&child_unit, child, &class_name, &method, &args, allowance);
+        // § 16, read off the tree from inside the test's own task and nowhere
+        // else: a child spawned here is a child of *this* task, and once this
+        // closure returns the scheduler cancels whatever is left rather than
+        // reporting it. `nvs_host::children_still_running` owns why an awaited
+        // child is already gone from the count.
+        *verdict.borrow_mut() =
+            Some(outcome.with_tasks_left_running(nvs_host::children_still_running()));
         nvs_runtime::Value::null()
     });
     // `Output::Inherit`: what a test echoed is appended to the runner's own
@@ -1065,7 +1189,7 @@ fn xml_text(text: &str, out: &mut String) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Format, Outcome, compile, run_suite};
+    use super::{Format, Outcome, compile, run_suite_in_a_task};
 
     /// A program under `tests/fixtures/runner/`, which `cargo test` does not
     /// run in — hence the manifest directory.
@@ -1089,7 +1213,11 @@ mod tests {
         let unit = compile(&checked).expect("the fixture compiles");
         let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
         unit.install_in(&mut ctx);
-        let suite = run_suite(&unit, &mut ctx, &checked, Format::Json);
+        // Through the same entry `run` takes, scheduler and all: a suite run
+        // off a bare stack would be a different runner from the one shipped,
+        // and § 16 is a claim about the one with a task tree under it.
+        let (suite, _ctx) = run_suite_in_a_task(&unit, ctx, checked, Format::Json)
+            .expect("the suite's own task runs");
         assert_eq!(
             std::rc::Rc::strong_count(&unit),
             1,
@@ -1133,6 +1261,43 @@ mod tests {
                 .iter()
                 .flat_map(|(_, _, failures)| failures.clone())
                 .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn the_runner_owns_the_tests_task_tree() {
+        // ADR 0079 § 16, both halves, from the language surface. The first
+        // test's `Core\Task::all` has children only because the suite is
+        // itself a task (ADR 0072 § 1's "a child of the calling task"), so a
+        // runner that ran off a bare stack fails it rather than passing it
+        // differently. The second leaves a `spawn script` unawaited: § 16 says
+        // that is a failure and says it by name, where the scheduler on its own
+        // would cancel the child at the retire and report green.
+        let verdicts = verdicts("task-tree.nvs");
+        assert_eq!(
+            verdicts
+                .iter()
+                .map(|(method, verdict, _)| (method.as_str(), *verdict))
+                .collect::<Vec<_>>(),
+            vec![
+                ("itRunsInsideATaskOfTheRunners", "passed"),
+                ("itLeavesAnUnawaitedChildRunning", "failed"),
+            ],
+            "failures: {:?}",
+            verdicts
+                .iter()
+                .flat_map(|(_, _, failures)| failures.clone())
+                .collect::<Vec<_>>()
+        );
+        let (_, _, left) = &verdicts[1];
+        assert_eq!(
+            left.len(),
+            1,
+            "the leftover task is the only thing reported: {left:?}"
+        );
+        assert!(
+            left[0].starts_with("it left 1 task(s) still running when it returned"),
+            "the failure names the tree it left behind: {left:?}"
         );
     }
 }

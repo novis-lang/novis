@@ -784,7 +784,7 @@ fn run_test(
             return ExitCode::FAILURE;
         };
         return match front_end(path) {
-            Ok(checked) => runner::run(&checked, format),
+            Ok(checked) => runner::run(checked, format),
             Err(code) => code,
         };
     }
