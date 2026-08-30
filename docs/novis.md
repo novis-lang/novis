@@ -91,6 +91,7 @@ Conventions the whole file uses:
 | [`Core\Task`](#core-core-task) | structured concurrency — run a fixed set or a whole array of closures as child tasks and get every result back before the call returns |
 | [`Core\Task\Channel<T>`](#core-core-task-channel) | a bounded queue between two tasks whose `send` waits at the bound — backpressure instead of a growing buffer |
 | [`Core\Script\Handle`](#core-core-script-handle) | what `spawn script` answers — a handle on a running child script that `await` collects exactly once |
+| [`Core\Script`](#core-core-script) |  |
 | [`Core\Program`](#core-core-program) | what the compiler knows about the whole program — every class implementing an interface, enumerated at compile time |
 | [`Core\Cli\Text`](#core-core-cli-text) | the value a captured terminal write comes back as — bytes that have already been through the output sink |
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
@@ -13716,6 +13717,26 @@ a handle is awaited once
 
 | Member | Signature |
 |---|---|
+
+<a id="core-core-script"></a>
+### `Core\Script`
+
+Keywords: args
+
+| Member | Signature |
+|---|---|
+| [`Core\Script::args`](#core-core-script-args) | `args(): mixed` |
+
+<a id="core-core-script-args"></a>
+#### `Core\Script::args`
+
+```nvs skip
+Core\Script::args(): mixed
+```
+
+Answers the value this script was spawned with — `spawn script … with(args: …)` as the child sees it, already copied into this isolate's own arena.
+
+**Returns** `mixed` — Whatever the parent passed, unchanged in shape; `null` for a child spawned with no `args:` and for the root script, which nothing spawned.
 
 <a id="core-core-program"></a>
 ### `Core\Program`

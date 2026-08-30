@@ -152,9 +152,13 @@ suppress it the way it does for request state.
 [ADR 0006](0006-isolated-script-execution.md) introduced `$_ARGS` as "a fresh superglobal" for a spawned
 isolate to receive its arguments — Novis's own construct, not inherited from PHP, but the identical shape of
 ambient, undeclared variable this ADR closes for every PHP one. Consistency, not a PHP compatibility
-concern, is the reason it changes too: `Core\Script::args(): array<mixed>` is the deep-copied argument map
-the current isolate was spawned with (empty for the root request isolate, which was not spawned by
-anything). [ADR 0006](0006-isolated-script-execution.md)'s provisional-syntax caveat already says the exact
+concern, is the reason it changes too: `Core\Script::args(): mixed` is the deep-copied value the current
+isolate was spawned with, and `null` where there was none — a child spawned without the option, and the
+root script, which nothing spawned. The type is `mixed` rather than `array<mixed>` because `spawn script`'s
+`args:` accepts any value that can cross ([ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) § 2
+decides that at run time, so nothing narrows the option at the call site), and `null` rather than an empty
+array because a program that wrote `args: []` said something a program that wrote no option did not.
+[ADR 0006](0006-isolated-script-execution.md)'s provisional-syntax caveat already says the exact
 spelling is a M5 question; this ADR fixes that the spelling is a method call, not a variable, matching every
 other row in this table.
 

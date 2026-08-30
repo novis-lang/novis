@@ -1048,6 +1048,10 @@ pub const CLASSES: &[CoreClass] = &[
     // which is where `spawn script`'s grammar already is. The one class here
     // with no members at all; [`crate::script`] owns why that is the point.
     crate::script::HANDLE,
+    // ADR 0012 § 6's `Core\Script::args()`, which replaced ADR 0006's `$_ARGS`
+    // — the read half of `spawn script`'s `args:` option, and a class beside
+    // the handle for the same reason `Core\Time` sits beside `Core\Time\Instant`.
+    crate::script::CLASS,
     // § 13, and the second row after `Core\Attributes` whose members never
     // run: ADR 0061 § 3 expands `implementing<T>()` while checking, so
     // [`crate::program`] registers a signature and an aborting body.

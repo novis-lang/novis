@@ -41,7 +41,7 @@
 //!
 //! [`SPAWN_SYMBOL`] and [`AWAIT_SYMBOL`] are reached by `nvs-ir` through
 //! `nvs_types`, exactly as `Core\Router::url`'s prepared-path helper is, and
-//! neither has a [`CoreMethod`](crate::registry::CoreMethod) row. That is the
+//! neither has a [`CoreMethod`] row. That is the
 //! point: `spawn script` and `await` are *syntax*, so the only thing that may
 //! call either is the lowering of the construct that spells it, and a row would
 //! make both reachable as `Core\Script\Handle::…()` from source. A symbol with
@@ -49,19 +49,45 @@
 //! `conformance_coverage.rs` for the same reason, and the construct's own
 //! `.nvst` cases are what cover it instead.
 //!
-//! `Core\Script` itself — item 22's `args()` and the `valueOrThrow($result)`
-//! that a shape cannot carry as a method — lands in this module beside its
-//! handle, the way `Core\Task` and `Core\Task\Channel<T>` already sit together
-//! under [ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md).
+//! `Core\Script` itself lands in this module beside its handle, the way
+//! `Core\Task` and `Core\Task\Channel<T>` already sit together under
+//! [ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md).
+//! [`CLASS`] is that class; `args()` is its one row so far, and the
+//! `valueOrThrow($result)` that a shape cannot carry as a method is still owed.
+//!
+//! # `args()` answers `mixed`, and `null` for a script nobody spawned
+//!
+//! [ADR 0012](../../../../docs/adr/0012-no-superglobals.md) § 6 is what
+//! replaced ADR 0006's `$_ARGS` with a method call, and its body states the
+//! return type this module implements: **`mixed`**, not an array of anything.
+//! `spawn script`'s `args:` is checked against no expected type at all —
+//! `nvs_types::expr::isolate`'s `check_spawn_script` says why, and it is
+//! ADR 0023 § 2's rule that whether a graph may cross is a run-time question —
+//! so `with(args: 5)` is accepted where it is written, and an `array<mixed>`
+//! return type would be a lie at the one position anybody reads it from.
+//!
+//! A child that was passed nothing reads **`null`** rather than an empty array.
+//! That is `nvs_ir::lower::expr`'s lowering of a missing option, which already
+//! records why: a program that wrote `args: []` said something a program that
+//! wrote no option at all did not, and an empty array collapses the two. The
+//! root script reads `null` for the same reason — nothing spawned it, so there
+//! is no argument rather than an empty one.
+//!
+//! The value is already on this side of the boundary by the time the member
+//! runs: `nvs_host::Isolate::start` copied the graph at the spawn, and the
+//! child's program discharged that one reference into
+//! [`Ctx::set_isolate_argument`](nvs_runtime::Ctx::set_isolate_argument), whose
+//! own doc owns the accounting. So a read is a retain and nothing else — no
+//! second crossing, and no copy per call, however often the child asks.
 
 use nvs_runtime::host::{Completion, Output};
 use nvs_runtime::script::ResolveError;
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
-use crate::registry::CoreClass;
+use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc};
 
 /// The handle class's fully-qualified name, as
-/// [`CoreTy::Instance`](crate::registry::CoreTy::Instance) spells it.
+/// [`CoreTy::Instance`] spells it.
 ///
 /// `pub` because `nvs-types` names this class when it types a `spawn script`
 /// expression, and a name written out in two crates is a name that can drift.
@@ -79,6 +105,43 @@ pub(crate) const HANDLE: CoreClass = CoreClass {
 /// [`HANDLE`]'s one slot: the key of the started isolate this handle names, or
 /// `0` for a spawn that never started one.
 const PENDING: usize = 0;
+
+/// `Core\Script`'s registry row — the class [ADR 0012] § 6 named when it
+/// replaced `$_ARGS` with a method call. See [`crate::registry::CLASSES`].
+///
+/// A class in its own right beside `Core\Script\Handle`, exactly as
+/// `Core\Time` sits beside `Core\Time\Instant`: the handle is what a spawn
+/// answers with, and this is what the child asks.
+///
+/// [ADR 0012]: ../../../../docs/adr/0012-no-superglobals.md
+pub(crate) const CLASS: CoreClass = CoreClass {
+    name: r"Core\Script",
+    methods: &[CoreMethod {
+        name: "args",
+        names: &[],
+        params: &[],
+        defaults: &[],
+        return_ty: CoreTy::Mixed,
+        symbol: ARGS_SYMBOL,
+        doc: Some(&ARGS_DOC),
+    }],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\Script::args`'s reference card — ADR 0117.
+const ARGS_DOC: MethodDoc = MethodDoc {
+    short: "Answers the value this script was spawned with — `spawn script … with(args: …)` as \
+            the child sees it, already copied into this isolate's own arena.",
+    params: &[],
+    ret: "Whatever the parent passed, unchanged in shape; `null` for a child spawned with no \
+          `args:` and for the root script, which nothing spawned.",
+    errors: &[],
+};
+
+/// The symbol [`CLASS`]'s one row is reached through.
+const ARGS_SYMBOL: &str = "nvs_core_script_args";
 
 /// The symbol `spawn script <path> with(…)` lowers to.
 pub const SPAWN_SYMBOL: &str = "nvs_core_script_spawn";
@@ -105,6 +168,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         SPAWN_SYMBOL => (nvs_core_script_spawn as *const ()).cast(),
         AWAIT_SYMBOL => (nvs_core_script_await as *const ()).cast(),
+        ARGS_SYMBOL => (nvs_core_script_args as *const ()).cast(),
         _ => return None,
     })
 }
@@ -238,6 +302,31 @@ nvs_runtime::nvs_helper! {
             ));
         };
         Ok(result_of(running.join(ctx)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Script::args(): mixed` — ADR 0012 § 6's replacement for `$_ARGS`,
+    /// and the read half of `spawn script <path> with(args: …)`.
+    ///
+    /// The module doc is the one home of what this answers and why the type is
+    /// `mixed`. What is here is only the accounting: the isolate's context
+    /// holds one reference, that reference is the arena's rather than this
+    /// call's, and a caller keeping the value needs one of its own.
+    fn nvs_core_script_args(ctx, _args: [0]) {
+        let held = ctx.isolate_argument();
+        #[expect(
+            unsafe_code,
+            reason = "the value belongs to this isolate's ownership root, which \
+                      outlives the call, so the reference handed back has to be \
+                      a second one"
+        )]
+        // SAFETY: `Ctx::isolate_argument` borrows and hands over nothing; the
+        // context keeps its own reference until the isolate's wholesale release.
+        unsafe {
+            held.retain();
+        }
+        Ok(held)
     }
 }
 

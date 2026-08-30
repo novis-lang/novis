@@ -2018,9 +2018,10 @@ impl Ctx {
     /// in hand. Calling it twice releases what it replaces, and a context that
     /// is never handed one holds `null` and releases nothing.
     ///
-    /// The child's own surface for *reading* it is item 20's and does not exist
-    /// yet; until it does, this is the slot that keeps the argument accounted
-    /// for rather than leaked.
+    /// The child's own surface for *reading* it is `Core\Script::args()`, and
+    /// `nvs_stdlib::script`'s module doc is the one home of what that answers.
+    /// It reads through [`Self::isolate_argument`] and retains, so this slot
+    /// stays the only owner however often the child asks.
     #[expect(
         unsafe_code,
         reason = "this context owned the reference it is replacing, having \
