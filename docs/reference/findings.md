@@ -250,7 +250,7 @@ in that goal. An item's owner is the row it sits in.
       (E0731) with `Attributes::get`/`all`.
 - [ ] **D22** `inout` accepts only a local: `M::bump(inout $a["k"])` is E0439 "cannot be passed to
       an `inout` parameter **yet**". *ref30*
-- [ ] **D23** ADR 0031 § 3's named-closure recursion (`fn fact(int $n): int => … fact($n - 1)`)
+- [x] **D23** ADR 0031 § 3's named-closure recursion (`fn fact(int $n): int => … fact($n - 1)`)
       parses, but the recursive call resolves as a free function (E0320). *ref30*
 - [x] **D24** `1.0 / 0` answers `INF` without throwing; ADR 0007 § 4's `/ 0` row is the integer one.
       *ref30*
