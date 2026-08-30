@@ -24,6 +24,7 @@ in and nothing the host populates.
 | `<?` short tag | none; the file stays in HTML mode and the tag is copied to the output | — |
 | `namespace A;` then `use A\B as C;` | `use A\B;` — an import cannot be renamed; use the short name or the full path | `E0212` |
 | `use A\{B, C};` | one `use` per name | `E0238` |
+| `namespace A { … }` (the braced form), two namespaces in one file | `namespace A;` once, before any declaration — one file is one namespace | `E0243` |
 | `use function …;`, `use const …;` | nothing to import: functions and constants are class members | `E0306` |
 | `\Core\Str::length($s)` (leading `\`) | `Core\Str::length($s)` — a name with a `\` in it is already absolute | `E0240` |
 | `$obj->{$name}`, `$obj->$name` | write the member; hold run-time keys in an `array<string, T>` | `E0235` |
@@ -81,9 +82,10 @@ in and nothing the host populates.
 | `` `ls` `` | none; a backtick is not a token, and no member takes a shell string | `E0001` |
 | `&$x` in a parameter, a `foreach`, or `$b = &$a` | `inout int $x` at the declaration **and** `f(inout $n)` at the call; `&` is bitwise AND only | `E0237` |
 | `f(...$args)` into fixed parameters | only into a `...$rest` variadic; otherwise write the arguments out | `E0489` |
+| `$a <> $b` | `!=` — the same comparison, and inequality has one spelling (ADR 0090 § 1) | `E0241` |
 
-`<>` for `!=`, `<=>`, `**`, `??`, `??=`, `?:`, `?->`, `.=` and `instanceof` against a written
-class name all work as in PHP.
+`<=>`, `**`, `??`, `??=`, `?:`, `?->`, `.=` and `instanceof` against a written class name all work
+as in PHP.
 
 # Control flow
 
@@ -97,6 +99,7 @@ class name all work as in PHP.
 | `list($a, $b) = $p;` | `[int $a, int $b] = $p;` — every leaf declares its type | `E0230` |
 | `yield $k => $v;` | `yield $v;` — an iterator has no key half | `E0448` |
 | `yield from $gen;` | `foreach ($gen as T $v) { yield $v; }` | `E0448` |
+| `try { … }` with no clause | add `catch (Throwable $e) { … }` or `finally { … }` — PHP refuses this too, and this parser accepted it only by omission | `E0242` |
 | `catch (A \| B $e)` | two `catch` clauses, each with its **own** variable name | not lowered in this build; a reused `$e` is `E0406` |
 | `catch (Exception $e)`, `new Exception("x")` | the tree is `Throwable` → `LogicError`, `RuntimeError`, `ArithmeticError`; extend `RuntimeError` | `E0303` |
 | `$e->getMessage()` | `$e->message`; also `previous`, `backtrace`, `location` | `E0405` |
@@ -119,7 +122,7 @@ the end of a file is fine.
 | any name starting with `_` | no identifier starts with `_` | `E0111` |
 | `function f()` inside a class (no visibility) | `public function f(): T` — every member writes `public`, `protected` or `private` | `E0122` |
 | `trait T {}`, `use T;` inside a class | an interface method with a body for behaviour; `implements I by $field;` for state | `E0227` |
-| `new class { … }` | a named class; anonymous classes stop the compiler with an internal error in this build | — |
+| `new class { … }` | a named class in the same file, or a closure where the class is one method — an anonymous class has no name for the static class table to hold | `E0244` |
 | `readonly class A` | not a class modifier; `readonly` on a property parses | parse error `E0102` |
 | `enum E: string { case A = "a"; }` | `enum E: int { A = 1 }` or `enum E { A, B }` — cases only, no `case` keyword, no methods or constants inside | `E0219`, `E0220` |
 | `$n instanceof A` on a declared scalar, array or enum | the type already answers; declare the subject `mixed`, `object` or a class | `E0497` |

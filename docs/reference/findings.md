@@ -53,7 +53,9 @@ in that goal. An item's owner is the row it sits in.
       object"). *ref30*
 - [ ] **P9** `new $className()` with a `string` variable panics ("`new` … has no resolved class");
       likewise `$className::f()`. *ref30; php-diff probes*
-- [ ] **P10** Anonymous classes `new class { … }` pass the checker and panic in `nvs-ir`. *probes p03*
+- [x] **P10** Anonymous classes `new class { … }` pass the checker and panic in `nvs-ir`. *probes p03*
+      `E0244` at `new class` stops the pipeline before `nvs-ir`; the declaration is still parsed whole,
+      so `nvs_syntax::casing` reaches its members as it reaches a named class's.
 - [ ] **P11** An enum case as an array key — `$m[E::A] = "a"` — panics in lowering. *probes p25*
 - [x] **P12** Calling a member the registry does not hold on a `Core` instance — `$uuid->version()` —
       panics (`lower/expr.rs:2681`, "instance method call … has no resolved target") instead of the
@@ -123,9 +125,15 @@ in that goal. An item's owner is the row it sits in.
 - [ ] **U16** `#[Test(db: …)]` and `#[Test(server: …)]` are accepted and have no reader in the runner.
 - [x] **U17** `array $a = [1, 2];` with no `<T>` is accepted (ground rules: every array declares its
       element type). *php-diff probes*
-- [ ] **U18** `<>` parses as `!=` — ADR 0090 § 1 says `==`/`!=` are the whole set. *ref30*
-- [ ] **U19** `try { … }` with neither `catch` nor `finally` is accepted (PHP refuses it). *ref30*
-- [ ] **U20** `namespace A { class B {…} echo B::f(); }` (the braced form) parses and resolves. *php-diff*
+- [x] **U18** `<>` parses as `!=` — ADR 0090 § 1 says `==`/`!=` are the whole set. *ref30* The lexer now
+      reports `E0241` at the two characters and still pushes the token `<>` means, so a file that writes
+      it reports the rest of its own problems in the same run — the recovery `===` and `!==` already had.
+- [x] **U19** `try { … }` with neither `catch` nor `finally` is accepted (PHP refuses it). *ref30* The
+      parser reports `E0126` at the `try` keyword, where the missing clause would be written, and still
+      builds the statement.
+- [x] **U20** `namespace A { class B {…} echo B::f(); }` (the braced form) parses and resolves. *php-diff*
+      The parser reports `E0243` at the `{` and parses the block anyway, so the declarations inside it
+      still report their own problems in the same run.
 - [ ] **U21** `Iterator::current()` outside the protocol does not throw on a generator (ADR 0053 § 1
       says it does): `0` before the first `advance()`, the last value after exhaustion. *p44*
 
