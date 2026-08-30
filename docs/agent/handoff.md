@@ -2,66 +2,61 @@
 
 ## State
 
-**Stage 8's corpus half is closed.** All eleven `.nvst` cases the `conformance` check names in
-`docs/agent/loop-goal.toml` are written and green; `tests/conformance/task/` is new and holds five of
-them. Conformance is **986**, differential 200, and the check's other half — `min_passing = 1000` —
-is the 14 cases still to come. `python tools/gaps.py` is the worklist for those.
+**Stage 8 is closed but for the corpus count.** Its benchmark half landed this session:
+`benches/abi-probe/benches/isolation.rs` has a third arm, `isolate/spawn_to_result`, measuring
+`nvs_host::Isolate` itself, and `a_spawn_to_result_round_trip_stays_in_the_microsecond_class`
+guards it at M5's own number — 10 us, against 0.44 us measured on x86_64-pc-windows-msvc. The
+operation both compile is `benches/abi-probe/shared/isolate.rs`, reached by `#[path]` from the bench
+and from the guard because this package keeps every compiler crate in `[dev-dependencies]`. What is
+left of Stage 8 is `min_passing = 1000` against conformance **986** — 14 cases, and
+`python tools/gaps.py` is the worklist.
 
-**One code change came with the corpus**, and it is the smallest of the nine slices: `spawn script`'s
-`args:` now reaches ADR 0033 § 4's refusal. `nvs_types::expr::quals::reject_secret_boundary_argument`
-had said in its own doc that the spawn forms would come through it once they lowered; they lowered
-and nothing connected them, so a `secret` value crossed to a child unrefused. The shared tail is
-`reject_secret_crossing`, which both carriers call with a clause naming where the copy went — that
-function's doc is the one home for why the message is shared rather than duplicated.
+**The valgrind sweep was red on all 33 fixtures and is green again.** One 56-byte definite loss per
+process, from `Compiler::leaked()`: a `Box::leak` that existed only to widen a borrow to the
+`&'static` `nvs_runtime::script::install` takes. `script::scoped` is the scoped form — one
+`#[expect(unsafe_code)]` whose proof is in its own reason string — and both `nvs run` and `nvs test`
+now hold the resolver on their own stack. This was a *regression* in the acceptance sense and it
+outranked the group, so it was taken first.
 
-**Three gaps found while writing the cases**, none of them taken:
+**Three known gaps carry forward unchanged**, each recorded where its code is: item 18's
+`Core\Secret::reveal()` is not in the registry (`nvs_types::expr::quals`); `Live::admit`'s same-class
+check is asked of the answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known
+gaps*); item 22's `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`).
 
-- An object does not cross the isolate boundary even when both files declare the identical class
-  (playbook, *Writing a test case*). Same root as the plan's `Live::admit` gap.
-- A `secret` value *inside an array* crosses both carriers unrefused — `quals::is_secret` reads the
-  top-level qualifier only, and `nvs_runtime::graph`'s `field_is_secret` covers an object's
-  properties, not an array's elements. `crates/nvs-types/src/expr/quals.rs` should own the note.
-- `Core\Task::map`'s `fn` argument accepts a `callable` variable where `Core\Task::all`'s field is
-  E0774. ADR 0072 § *Verification* names only the `all` side, so this may be intended; nothing says.
-
-**Orientation gap, three sessions old and still unfixed:** `[context] modules` has no pattern for
-`crates/nvs-cli/src/`. This session also needed `benches/abi-probe/`, which nothing in the manifest
-selects — the previous handoff and the plan both said `benches/isolation.rs` did not exist and it has
-existed all along, at `benches/abi-probe/benches/isolation.rs`.
+**Orientation gaps, now four sessions old:** `[context] modules` still has no pattern for
+`crates/nvs-cli/src/` and none for `benches/abi-probe/`. Both were needed again this session.
 
 ## Next group
 
-**Stage 8's benchmark half, and its guard — one file set: `benches/abi-probe/`.** The previous
-handoff's framing was wrong about the tree; what follows is what is actually missing.
+**The corpus count: 986 to 1000, taken as the four thinnest classes `gaps.py` ranks.** One file set,
+`tests/conformance/core/`, and no Rust changes — so several fit in one session under the 120k gate.
+`python tools/gaps.py` re-derives the ranking; these are its top rows at this commit, and each names
+the *shape* the case should take from conventions.md's four (edges, invariance over a sweep, a bound
+asserted on both sides, agreement).
 
-- [ ] **`isolation.rs` measures a proxy, not an isolate.** Its two arms are `os_process/noop` and
-      `task/create_and_finish` (`benches/abi-probe/benches/isolation.rs:29`, the group; its module
-      doc at line 17 says the real figure "belongs here next to the baseline it beats" once M5/M6
-      land — they have). Add the third arm: `nvs_host::Isolate::new(...).run(ctx)`, the same three
-      lines as `crates/nvs-cli/src/runner.rs:797`. `nvs-abi-probe` depends on neither `nvs-host` nor
-      `nvs-runtime` today, so this slice starts in `benches/abi-probe/Cargo.toml:47` where the four
-      `[[bench]]` sections are. M5's acceptance (`python tools/plan.py --show M5:verify`) is the
-      specification.
-- [ ] **`a_spawn_to_result_round_trip_stays_in_the_microsecond_class` does not exist.** It is the
-      second of the three names in the `abi-probe (isolation cost)` check
-      (`docs/agent/loop-goal.toml:1675`); the other two are green.
-      `benches/abi-probe/tests/perf_guards.rs:423` is
-      `an_os_process_costs_orders_of_magnitude_more_than_a_task`, the shape to copy, and
-      `ns_per_op` at line 50 is the helper every guard there measures through.
-- [ ] **The corpus count, after those two.** 986 of 1000, so 14 cases. `python tools/gaps.py` ranks
-      the candidates; `docs/agent/conventions.md` § *A `.nvst` test case* names the four shapes a
-      depth case takes.
+- [ ] **`Core\Task\Channel` is the thinnest class in the tree** — depth 4.0, floor 4, and `close` and
+      `send` are its least-asked members (`crates/nvs-stdlib/src/channel.rs`). ADR 0072 § 4's "nothing
+      is still running when the call returns" is the invariant; a *bound asserted on both sides* — the
+      last `send` a bounded channel accepts and the first one that suspends — is the shape with the
+      most room.
+- [ ] **`Core\Serialize`, depth 6.0 over two members** (`decode` 6, `encode` 6,
+      `crates/nvs-stdlib/src/serialize.rs`). ADR 0023 § 2 is the specification and its § 2 is already
+      in the goal's `[context] adrs`; the untested half is *refusal* — bytes that are not Novis's own
+      format, and a class whose declared properties no longer match.
+- [ ] **`Core\Debug`, depth 5.0 with `dump` at 3** (`crates/nvs-stdlib/src/debug.rs`). ADR 0033's
+      refusal is the edge worth pinning: a `secret` value reaching `dump` or `render`.
+- [ ] **`Core\Csv` and `Core\Hash\Stream`, both depth 5.0 over 5 cases**
+      (`crates/nvs-stdlib/src/{csv,hash}.rs`). `gaps.py --errors` lists `csv.rs:610`'s
+      `Core\Csv::format()` throw as unasserted — a `thrown`, so a case can catch and echo it.
 
 ## Backlog
 
-- A `secret` inside an array crosses both graph-copy carriers unrefused —
-  `crates/nvs-types/src/expr/quals.rs`.
-- An object cannot cross the isolate boundary at all — `crates/nvs-runtime/src/graph.rs` § *Known
-  gaps*.
-- `Core\Task::map` accepts a `callable` variable where `::all` refuses one — ADR 0072 § *Verification*.
-- Item 18's `Core\Secret::reveal()` is not in the registry, so the refusal above has no way out —
-  `nvs_types::expr::quals`.
-- Item 22's `Core\Script` members are unwritten, so a child cannot read its `args:` —
-  `crates/nvs-stdlib/src/script.rs`.
-- `[context] modules` selects neither `crates/nvs-cli/src/` nor `benches/abi-probe/` —
-  `docs/agent/loop-goal.toml`.
+- A `secret` value *inside an array* crosses both copy carriers unrefused — `quals::is_secret` reads
+  the top-level qualifier only (`crates/nvs-types/src/expr/quals.rs` should own the note).
+- An object does not cross the isolate boundary even when both files declare the identical class;
+  same root as `Live::admit` (playbook, *Writing a test case*).
+- `Core\Task::map`'s `fn` argument accepts a `callable` variable where `::all`'s field is E0774;
+  ADR 0072 § *Verification* names only the `all` side, so nothing says whether that is intended.
+- `[context] modules` needs `crates/nvs-cli/src/` and `benches/abi-probe/` (`docs/agent/loop-goal.toml`).
+- M5's acceptance still owes 100k concurrent tasks, a deliberate deadlock, `Core\Task::map` near-linear
+  across cores and a ThreadSanitizer-clean run (`python tools/plan.py --show M5:verify`).

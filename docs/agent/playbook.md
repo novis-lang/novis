@@ -1274,6 +1274,23 @@ is why" — is this file.
   not a keyword — it is nowhere in `nvs-syntax`'s AST, so the example does not even parse past it.
   One `nvs check` of a failing `exact` check's own file, before planning the group that closes it,
   is the difference between a group and a milestone.
+- **A valgrind sweep that goes red on *every* fixture at once is one allocation on the startup path,
+  and the stack names it in one call.** After the run that landed the script-resolver seam, all 33
+  targets reported the same `56 bytes in 1 blocks are definitely lost`; a single
+  `valgrind --leak-check=full -q <binary> run examples/hello.nvs` printed
+  `nvs::script::Compiler::leaked (script.rs:66)` at the top of the allocating stack, and that was the
+  whole diagnosis. The trap is the *shrug*: the leak was deliberate, documented in the module doc, one
+  per process and inside ADR 0004's bound, so it reads like something to accept — but the sweep is
+  all-or-nothing and a gate with one known-red fixture is a gate nobody reads. A `Box::leak` that
+  exists only to widen a borrow to `&'static` has a scoped form that costs nothing
+  (`nvs_runtime::script::scoped`); reach for that before reaching for a suppression.
+- **`Wake::current()` decides which of two isolate boundaries you just measured**, and a
+  `#[test]` or a criterion `b.iter` has no scheduler under it, so it takes the inline one:
+  `nvs_host::Isolate::run` outside a task runs the child on the caller's stack and reads about
+  **80 ns**, against **0.44 us** for the real path with a stack of its own. Both figures are true and
+  only the second is about the boundary a program crosses. The shape that fixes it is
+  `benches/abi-probe/shared/isolate.rs`: build the scheduler and the task outside the clock, run the
+  timing loop *inside* the task body, and hand criterion a batch through `iter_custom`.
 
 ## Writing a test case
 
