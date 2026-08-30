@@ -1,0 +1,58 @@
+--TEST--
+Every spelling of a `Core\Task::all` field that is not a written `fn` literal is refused by name — a local, a parameter, a first-class callable and one read out of an array — while the literal beside them compiles — ADR 0072 § *Verification*, ADR 0031
+--FILE--
+<?nvs
+// `Core\Task::all`'s result is a shape carrying each field's own return type,
+// and `callable` carries no signature (ADR 0031), so a field holding one has
+// no result type to read. ADR 0072 names this as a compile error rather than
+// a `mixed` fallback: a silently widened field would make the whole shape's
+// types depend on how the caller happened to spell a closure.
+//
+// This is the agreement shape (`docs/agent/conventions.md`): four different
+// ways of *not* writing a literal, asked one question each, so a checker that
+// grew a special case for one of them fails here while still looking right on
+// the others.
+class Held {
+    public static function job(): int {
+        return 1;
+    }
+
+    // A parameter is the spelling that looks most like it should work, because
+    // the caller did write a literal — one frame up, where this site cannot
+    // see it.
+    public static function fromParameter(callable $held): void {
+        var $a = Core\Task::all({param: $held});
+        echo $a->param;
+    }
+}
+
+// The other side of the bound, first: a written literal is accepted and its
+// field is typed `int`, which is the whole reason the four below cannot be.
+var $ok = Core\Task::all({literal: fn(): int => 1});
+echo $ok->literal;
+
+callable $held = fn(): int => 1;
+var $b = Core\Task::all({local: $held});
+echo $b->local;
+
+// A first-class callable has a signature the *reader* can see and the type
+// system still does not: `Ty::CallableShapeTo`'s doc owns why the binding
+// happens at the literal or not at all.
+var $c = Core\Task::all({firstClass: Held::job(...)});
+echo $c->firstClass;
+
+array<callable> $bag = [fn(): int => 1];
+var $d = Core\Task::all({fromArray: $bag[0]});
+echo $d->fromArray;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0774]: the field `param` must be written as an `fn` literal
+%A
+error[E0774]: the field `local` must be written as an `fn` literal
+%A
+error[E0774]: the field `firstClass` must be written as an `fn` literal
+%A
+error[E0774]: the field `fromArray` must be written as an `fn` literal
+%A
+error: aborting due to 4 errors
