@@ -219,9 +219,11 @@ the loop's one line. `python tools/session.py --help` is the format in full.
 
 It is applied in a fixed order — plan, playbook, handoff, commits, status — so the docs are on disk before
 anything is staged, and **nothing is applied unless every section validates**: an unknown plan field, a
-commit subject that is not `type(scope): subject`, a handoff missing `## Next group` or its `file.rs:NN`
-anchors, a status line that does not start `CONTINUE`/`DONE`/`BLOCKED`, all refuse the whole file and
-write nothing. A half-finished tail is the one failure mode worth designing out.
+commit subject that is not `type(scope): subject`, a handoff missing `## Next group` or an open item in it
+without a repo-rooted `crates/.../file.rs:NN` anchor (a bare `file.rs:NN` is refused too — `orient.py`
+expands only the rooted form, and only from the item), a status line that does not start
+`CONTINUE`/`DONE`/`BLOCKED`, all refuse the whole file and write nothing. A half-finished tail is the one
+failure mode worth designing out.
 
 That order is also why **one wrap writes the docs and commits them**: the handoff, the playbook and the plan
 are on disk before the first commit is staged, so a `## commit:` may name them in the same file that writes

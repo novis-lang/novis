@@ -135,6 +135,7 @@ PACK_NOTE_AT = 1_500
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import plan as planmod  # noqa: E402  -- the status block's one home; never reimplemented here
+import orient  # noqa: E402  -- its ANCHOR_RE is what the next pack expands, so it is what we gate on
 
 
 def say(line: str = "") -> None:
@@ -516,14 +517,62 @@ def validate_commit(s: Section) -> list[str]:
     return errors
 
 
+#: An anchor written without its directory -- `ctx.rs:2285` -- which reads fine and resolves to
+#: nothing: `orient.ANCHOR_RE` needs the repo-rooted path, so the next pack silently skips it.
+BARE_ANCHOR_RE = re.compile(r"(?<![\w/.-])([\w-]+\.(?:rs|py|md|toml)):(\d+)\b")
+
+
 def validate_handoff(body: str) -> list[str]:
     errors = []
     for required in HANDOFF_REQUIRED:
         if not re.search(rf"^{re.escape(required)}\b", body, flags=re.M):
             errors.append(f"`## handoff` -- missing the required `{required}` heading")
-    if not re.search(r"\.rs:\d+|\.md:\d+|\.py:\d+", body):
-        errors.append("`## handoff` -- `## Next group` carries no `file:NN` anchor. "
-                      "They are not optional; resolve them with `python tools/peek.py --locate`.")
+    errors.extend(validate_anchors(body))
+    return errors
+
+
+def next_group_items(body: str) -> list[tuple[int, str]]:
+    """The `- [ ]` checklist items under `## Next group`, (ordinal, text with continuation lines)."""
+    span = heading_index(body, "Next group")
+    if span is None:
+        return []
+    lines = body.split("\n")[span[0] + 1 : span[1]]
+    items: list[list[str]] = []
+    for ln in lines:
+        if re.match(r"^\s*- \[", ln):
+            items.append([ln])
+        elif items:
+            items[-1].append(ln)
+    return [(n + 1, "\n".join(blk)) for n, blk in enumerate(items)]
+
+
+def validate_anchors(body: str) -> list[str]:
+    """Every unticked item must carry an anchor the next session's driver will actually expand.
+
+    The gate this replaced accepted one `file:NN` anywhere in the handoff, and measured over one
+    run the handoffs it passed carried 1 anchor against 10 files named -- in `## State`, or as a
+    bare `ctx.rs:NN` -- while `discovery` was 14% of the run's context: every session re-derived
+    with `grep` what the previous one had open. `orient.run_anchors` inlines the code at each
+    anchor into the pack for nothing, but only from the current item and only when the path is
+    repo-rooted, so that is exactly what is checked, per item, and nothing looser. A refusal
+    here costs one `--locate` call now; the anchor's absence costs the next session ten."""
+    errors = []
+    for n, item in next_group_items(body):
+        if re.match(r"^\s*- \[[xX]\]", item):
+            continue
+        head = re.sub(r"^\s*- \[.\]\s*", "", item.split("\n")[0])
+        claim = re.sub(r"\s+", " ", re.sub(r"[`*_]", "", head)).strip()[:60]
+        for name, line in BARE_ANCHOR_RE.findall(item):
+            errors.append(
+                f"`## handoff` -- `## Next group` item {n} ({claim!r}) anchors `{name}:{line}` "
+                f"without its directory, which orient.py cannot expand. Write it repo-rooted, "
+                f"as `crates/.../{name}:{line}`.")
+        if not orient.ANCHOR_RE.search(item):
+            errors.append(
+                f"`## handoff` -- `## Next group` item {n} ({claim!r}) carries no repo-rooted "
+                f"`file:NN` anchor. They are not optional: orient.py inlines the code at each one "
+                f"into the next session's pack, from the item and nowhere else. Resolve them with "
+                f"`python tools/peek.py --locate <symbol> ...`.")
     return errors
 
 
@@ -975,7 +1024,7 @@ def check() -> int:
         for p in problems:
             say(f"  - {p}")
         if not problems:
-            say("  shape OK: State / Next group / Backlog, with file:NN anchors")
+            say("  shape OK: State / Next group / Backlog, every open item with a repo-rooted file:NN anchor")
 
     say()
     say("== TREE")
