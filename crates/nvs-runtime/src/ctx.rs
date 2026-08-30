@@ -908,10 +908,10 @@ pub const STACK_RESERVE: usize = 256 << 10;
 /// written. What it spends is two allocations out of § 1's reserved slice, once
 /// per request that both registers a handler and is stopped.
 ///
-/// **Two variants, because two limits are enforced.** § 1 lists five; wall
-/// time, `max_script_depth` and call-stack depth each gain a variant in the
-/// slice that gives them a breach to report, since a variant nothing can
-/// produce is a word in this report's vocabulary that no handler could see.
+/// **Three variants, because three limits are enforced.** § 1 lists five; wall
+/// time and call-stack depth each gain a variant in the slice that gives them a
+/// breach to report, since a variant nothing can produce is a word in this
+/// report's vocabulary that no handler could see.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Limit {
     /// `[limits] memory`, reached at a helper boundary ([`crate::run_helper`])
@@ -919,6 +919,11 @@ pub enum Limit {
     Memory,
     /// `[limits] cpu_time`, reached at the safepoint poll.
     CpuTime,
+    /// `[limits] max_script_depth`, reached where a `spawn script` would build
+    /// a child past the ceiling — the one limit in this list that is not
+    /// reached in flight, since nothing is over it until an isolate is asked
+    /// for. [`Ctx::script_depth_breach`] is where the question is asked.
+    ScriptDepth,
 }
 
 impl Limit {
@@ -933,6 +938,7 @@ impl Limit {
         match self {
             Self::Memory => "memory",
             Self::CpuTime => "cpu_time",
+            Self::ScriptDepth => "max_script_depth",
         }
     }
 }
@@ -1302,6 +1308,41 @@ impl Ctx {
             "the request exceeded its memory limit — {} bytes held against a ceiling of {}{reserved}",
             self.memory_used(),
             self.memory_limit.saturating_add(self.fatal_reserve),
+        )))
+    }
+
+    /// The `FATAL` a `spawn script` from this context owes, or `None` where the
+    /// child it is about to build is still under the ceiling.
+    ///
+    /// Asked of the *child's* depth rather than this one's, and asked before
+    /// the child exists: a context is never itself over `max_script_depth`,
+    /// because whatever built it asked this question first. That is what makes
+    /// this a refusal rather than a stop — there is no task to interrupt and no
+    /// safepoint to interrupt it at, so unlike [`Self::memory_breach`] the
+    /// answer is not polled but taken once, at the one call that could widen
+    /// the tree. [`Limit::ScriptDepth`] is the report it becomes.
+    ///
+    /// A ceiling of `0` is [ADR 0005]'s no-ceiling-at-all and answers `None`
+    /// however deep the chain already is — see [`Self::max_script_depth`]'s
+    /// field doc, which owns why only an explicit `false` reads that way here.
+    ///
+    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+    #[must_use]
+    pub fn script_depth_breach(&self) -> Option<crate::Fault> {
+        let ceiling = self.max_script_depth;
+        if ceiling == 0 {
+            return None;
+        }
+        let child = self.script_depth.saturating_add(1);
+        if child <= ceiling {
+            return None;
+        }
+        // Both numbers, for the reason `memory_breach` names both of its own:
+        // the ceiling is the number the operator wrote and the only one they
+        // can recognise, and the depth beside it is what says whether the
+        // program recursed or the ceiling is simply low.
+        Some(crate::Fault::fatal(format!(
+            "the request exceeded its `spawn script` nesting limit — a script spawned at depth {child} against a ceiling of {ceiling}",
         )))
     }
 

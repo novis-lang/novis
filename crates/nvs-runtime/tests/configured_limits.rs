@@ -2,17 +2,19 @@
 //! § 1's ceilings, resolved once by `Ctx::set_config` and read as bare integers
 //! everywhere after it.
 //!
-//! The cases here ask only the *reader*: a directive written as a string with a
+//! The cases here ask the *reader*: a directive written as a string with a
 //! suffix becomes the number the enforcement path compares against, and — for
 //! the one ceiling that describes a tree rather than a request — what a child
-//! context inherits of it. What each ceiling then does to a request in flight is
-//! `nvs-host`'s `tests/limits.rs`, which needs a task to stop and a safepoint to
-//! stop it at.
+//! context inherits of it. They ask a breach only where the question is one a
+//! `Ctx` answers on its own, which is `max_script_depth` alone: nothing is over
+//! that ceiling until an isolate is asked for, so the refusal needs no task.
+//! What each of the others does to a request in flight is `nvs-host`'s
+//! `tests/limits.rs`, which needs a task to stop and a safepoint to stop it at.
 
 use std::sync::Arc;
 
 use nvs_config::Snapshot;
-use nvs_runtime::{Ctx, OutputSink};
+use nvs_runtime::{Ctx, Fault, Limit, OutputSink};
 
 /// The snapshot `written` resolves to — both halves of it, because the typed tree and the table a
 /// directive is read out of are two readers over one file and a case built on half of it would be
@@ -221,4 +223,54 @@ fn a_child_context_is_one_deeper_than_its_parent_and_inherits_the_ceiling() {
         .isolate(OutputSink::Buffer(Vec::new()));
     assert_eq!(under.max_script_depth(), 2, "not the 8 the file still says");
     assert_eq!(under.script_depth(), 2);
+}
+
+/// The refusal that ceiling owes, asked of the child that does not exist yet — `Ctx::script_depth_breach`'s
+/// own doc owns why the question is asked at the parent rather than polled at a safepoint.
+///
+/// **Both sides of the bound, named together**: the deepest context that may still spawn and the
+/// first that may not. A check written one off answers plausibly against either half alone, and the
+/// half it would get wrong is the one an operator only meets in production. The message is asserted
+/// for both numbers rather than for its wording, because `max_script_depth = 2` and "a chain three
+/// deep" are the two facts a reader needs and the sentence around them is not a promise.
+#[test]
+fn a_spawn_past_max_script_depth_is_a_breach_naming_the_depth_and_the_ceiling() {
+    let request = ctx_reading("[limits]\nmax_script_depth = 2\n");
+    assert!(
+        request.script_depth_breach().is_none(),
+        "the request itself is depth 0, and the child it would build is 1"
+    );
+
+    let child = request.isolate(OutputSink::Buffer(Vec::new()));
+    assert!(
+        child.script_depth_breach().is_none(),
+        "at depth 1 the child would be 2 — the ceiling itself, which is allowed"
+    );
+
+    let grandchild = child.isolate(OutputSink::Buffer(Vec::new()));
+    let Some(Fault::Fatal(message)) = grandchild.script_depth_breach() else {
+        panic!("a spawn from depth 2 under a ceiling of 2 is the first one refused");
+    };
+    assert!(
+        message.contains("depth 3"),
+        "the depth the refused child would have reached: {message}"
+    );
+    assert!(
+        message.contains("ceiling of 2"),
+        "the number the operator wrote: {message}"
+    );
+
+    // What makes the report branchable rather than only readable: the handler ADR 0020 § 1 hands a
+    // report to sees the directive's own spelling, not a sentence it would have to match against.
+    assert_eq!(Limit::ScriptDepth.name(), "max_script_depth");
+
+    // `false` is no ceiling at all, and a tree under one is never over it however deep the chain
+    // already runs — the asymmetry the case above this one pins on the reader, asserted here on the
+    // enforcement side so the two cannot drift apart.
+    let mut uncapped = ctx_reading("[limits]\nmax_script_depth = false\n");
+    for _ in 0..4 {
+        uncapped = uncapped.isolate(OutputSink::Buffer(Vec::new()));
+    }
+    assert_eq!(uncapped.script_depth(), 4);
+    assert!(uncapped.script_depth_breach().is_none());
 }
