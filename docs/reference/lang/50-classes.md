@@ -110,6 +110,11 @@ leaves one unassigned is a compile error, and so is declaring a property with no
 class that has no constructor.
 <!-- src: ADR 0022 -->
 
+A `return` inside a constructor carries no value: a bare `return;` may leave early once every
+property is assigned on that path, and `return $value;` does not compile — the object under
+construction is the result and nothing else can be.
+<!-- src: ADR 0124 -->
+
 ```nvs error
 <?nvs
 class Box {
@@ -215,7 +220,9 @@ only allowed on a class- or interface-typed property
 
 `readonly` promises a property is assigned exactly once, while the object is being built. The
 declaring class's own `constructor` is the one place that assignment may happen — a promoted
-parameter carries the modifier the same way a declaration does.
+parameter carries the modifier the same way a declaration does. A `readonly` property therefore
+declares no default: a value already known at the declaration is a `const`, not a property.
+<!-- src: ADR 0124 -->
 
 ```nvs
 <?nvs

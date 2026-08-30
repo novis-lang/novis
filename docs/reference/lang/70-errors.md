@@ -225,8 +225,10 @@ try {
   next enclosing `try`.
 - `finally` runs however the region is left: after the body, after a `catch`, and on the way out
   through `return`, `break`, `continue` or an unhandled throw. Nested `finally` blocks run
-  innermost first. A `return` inside `finally` replaces whatever the region was leaving with —
-  including a throw in flight, which is then lost.
+  innermost first. A `return` written inside `finally` does not compile: it would replace whatever
+  the region was leaving with — silently discarding a throw in flight — so the result is changed
+  in a `catch`, or after the region. The same holds for a `break` or `continue` whose target lies
+  outside the `finally`; a loop wholly inside the block keeps both.
 - A `try` with neither `catch` nor `finally` is accepted and changes nothing.
 
 ```nvs

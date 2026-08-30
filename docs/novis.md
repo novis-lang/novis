@@ -2430,6 +2430,10 @@ A property with no default must be assigned on every path out of the constructor
 leaves one unassigned is a compile error, and so is declaring a property with no default in a
 class that has no constructor.
 
+A `return` inside a constructor carries no value: a bare `return;` may leave early once every
+property is assigned on that path, and `return $value;` does not compile — the object under
+construction is the result and nothing else can be.
+
 ```nvs error
 <?nvs
 class Box {
@@ -2534,7 +2538,8 @@ only allowed on a class- or interface-typed property
 
 `readonly` promises a property is assigned exactly once, while the object is being built. The
 declaring class's own `constructor` is the one place that assignment may happen — a promoted
-parameter carries the modifier the same way a declaration does.
+parameter carries the modifier the same way a declaration does. A `readonly` property therefore
+declares no default: a value already known at the declaration is a `const`, not a property.
 
 ```nvs
 <?nvs
@@ -4476,8 +4481,10 @@ try {
   next enclosing `try`.
 - `finally` runs however the region is left: after the body, after a `catch`, and on the way out
   through `return`, `break`, `continue` or an unhandled throw. Nested `finally` blocks run
-  innermost first. A `return` inside `finally` replaces whatever the region was leaving with —
-  including a throw in flight, which is then lost.
+  innermost first. A `return` written inside `finally` does not compile: it would replace whatever
+  the region was leaving with — silently discarding a throw in flight — so the result is changed
+  in a `catch`, or after the region. The same holds for a `break` or `continue` whose target lies
+  outside the `finally`; a loop wholly inside the block keeps both.
 - A `try` with neither `catch` nor `finally` is accepted and changes nothing.
 
 ```nvs
@@ -15524,6 +15531,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `base_convert` | member | `Core\Math::fromBase` then `Core\Math::toBase` |
 | `bindec` | member | `Core\Math::fromBase` with base 2 |
 | `ceil` | member | `Core\Math::ceil` |
+| `clamp` | member | `Core\Math::clamp` — PHP 8.6's addition, already present; Novis's is generic over any naturally ordered type |
 | `cos` | member | `Core\Math::cos` |
 | `cosh` | member | `Core\Math::cosh` |
 | `decbin` | member | `Core\Math::toBase` with base 2 |

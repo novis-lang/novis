@@ -297,6 +297,7 @@ either are gone.
 | `base_convert` | member | `Core\Math::fromBase` then `Core\Math::toBase` |
 | `bindec` | member | `Core\Math::fromBase` with base 2 |
 | `ceil` | member | `Core\Math::ceil` |
+| `clamp` | member | `Core\Math::clamp` — PHP 8.6's addition, already present; Novis's is generic over any naturally ordered type |
 | `cos` | member | `Core\Math::cos` |
 | `cosh` | member | `Core\Math::cosh` |
 | `decbin` | member | `Core\Math::toBase` with base 2 |
