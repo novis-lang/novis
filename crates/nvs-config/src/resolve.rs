@@ -4,8 +4,12 @@
 //! [ADR 0103] is the whole of this module's specification. § 1 picks the root, § 2 expands
 //! `[[include]]`, § 3 flattens the tree to one sequence where a later assignment wins, § 4 splits
 //! replacing from appending, and § 5 resolves every relative path against the file it is written in.
-//! What is **not** here is § 6's ownership check, which is a property of the bytes' provenance
-//! rather than of the tree's shape and lands with [`Files`]'s disk implementation.
+//! § 6's ownership check is not here either: it is a property of the bytes' provenance rather than
+//! of the tree's shape, so it belongs to the reader as [`Files::trust`] and [`mod@crate::trust`]
+//! holds what it means on each platform. What this module owes it is the *order* — nothing is
+//! compared, read or resolved against until it has passed — and the two places the tree's shape
+//! decides where the check falls: the directory a `dir` include lists, and the directory an absent
+//! `optional` include would have appeared in.
 //!
 //! **Later wins is only acceptable because every override is recorded.** § 3 states that as an
 //! obligation and not a permission: without the record it is the silent-shadowing failure
@@ -32,12 +36,14 @@ use std::path::{Component, Path, PathBuf};
 use nvs_diagnostics::{Diagnostic, SourceId, SourceMap, code};
 
 use crate::tree::Config;
+use crate::trust::{self, Untrusted};
 
 /// How deep `[[include]]` may nest — ADR 0103 § 2.
 ///
-/// It is also the backstop for a cycle built out of symlinks, which [`same_file`]'s lexical
-/// comparison cannot see. § 6's canonicalization is what closes that properly, and until it lands
-/// this cap is what stops the recursion.
+/// A cycle is caught by name, not by depth: [`Files::trust`] hands back the canonical path, so a
+/// ring built out of symlinks closes on a name [`same_file`] has already seen. This is therefore a
+/// cap on nesting and nothing else — an include tree eight files deep is one no operator can read,
+/// whether or not it ever closes.
 pub const MAX_INCLUDE_DEPTH: usize = 8;
 
 /// Where a configuration file's bytes come from.
@@ -49,6 +55,20 @@ pub const MAX_INCLUDE_DEPTH: usize = 8;
 /// order decide the answer and a capability grant settled by `readdir` order is not a design — so
 /// [`list`](Files::list) is allowed to return entries in any order and the sort is this module's.
 pub trait Files {
+    /// ADR 0103 § 6's trust check on `path`, and the **canonical** path it names.
+    ///
+    /// This is the trust boundary. Everything the resolver does with a path afterwards — comparing
+    /// it against the chain it was reached through, reading it, resolving an include against its
+    /// directory — is a statement about a file that passed here, which is why it runs first and
+    /// why a reader may not decline to implement it.
+    ///
+    /// # Errors
+    ///
+    /// [`Untrusted`]: `Unreadable` when the path could not be examined at all, which the resolver
+    /// reports as `E0605` like any other unreadable file, and `Breach` when it was examined and
+    /// the boundary does not hold, which is `E0607`.
+    fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted>;
+
     /// The file's text, or a message describing why not.
     ///
     /// # Errors
@@ -73,6 +93,10 @@ pub trait Files {
 pub struct Disk;
 
 impl Files for Disk {
+    fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
+        trust::check(path)
+    }
+
     fn read(&self, path: &Path) -> Result<String, String> {
         std::fs::read_to_string(path).map_err(|err| err.to_string())
     }
@@ -190,6 +214,13 @@ fn read_into(
     chain: &mut Vec<PathBuf>,
     depth: usize,
 ) -> Result<(), Diagnostic> {
+    // § 6 first, because everything after this line is a statement about a file this process has
+    // decided to trust — and because the canonical path it hands back is what makes the cycle test
+    // below see one file through two spellings of it rather than compare the spellings.
+    let trusted = files
+        .trust(path)
+        .map_err(|why| untrusted(path, &why, "the configuration reads it"))?;
+    let path = trusted.as_path();
     if let Some(cycle) = chain.iter().position(|seen| same_file(seen, path)) {
         return Err(cycle_refusal(&chain[cycle..], path));
     }
@@ -252,8 +283,11 @@ fn include_targets(
             let target = absolute(base, Path::new(one));
             if !files.exists(&target) {
                 if optional {
-                    // § 6: absence is the whole of what `optional` covers. The ownership check on
-                    // the directory that would hold it is that section's and lands with it.
+                    // § 6: absence is the whole of what `optional` covers, and an absent file
+                    // offers nothing to check — so the check falls on the directory it would
+                    // appear in, which is the only place a promise about a file that does not
+                    // exist yet can be kept.
+                    trust_slot(&target, files)?;
                     return Ok(Vec::new());
                 }
                 return Err(
@@ -268,6 +302,7 @@ fn include_targets(
             let target = absolute(base, Path::new(dir));
             if !files.exists(&target) {
                 if optional {
+                    trust_slot(&target, files)?;
                     return Ok(Vec::new());
                 }
                 return Err(
@@ -275,6 +310,12 @@ fn include_targets(
                         .with_note(format!("included from `{}`", written_in.display())),
                 );
             }
+            // § 6 on the directory itself. Every file below it is checked as it is read, but an
+            // empty one is checked by nothing at all — and a directory anyone can write is a slot
+            // in exactly the sense that section means, whether or not it holds a file today.
+            files.trust(&target).map_err(|why| {
+                untrusted(&target, &why, "an `[[include]]` reads every `*.toml` in it")
+            })?;
             let mut entries: Vec<PathBuf> = files
                 .list(&target)
                 .map_err(|err| unreadable(&target, &err, "an `[[include]]` names it"))?
@@ -290,6 +331,45 @@ fn include_targets(
                 .to_string(),
         )
         .with_note(format!("written in `{}`", written_in.display()))),
+    }
+}
+
+/// § 6's check on the directory an absent `optional` include would have appeared in — the nearest
+/// one that exists, because the promise is only as strong as the shallowest directory an attacker
+/// would have to write to keep it, and a directory nobody has created is not a slot yet.
+fn trust_slot(target: &Path, files: &dyn Files) -> Result<(), Diagnostic> {
+    let mut slot = target.parent();
+    while let Some(dir) = slot {
+        if files.exists(dir) {
+            files.trust(dir).map_err(|why| {
+                untrusted(
+                    dir,
+                    &why,
+                    "an absent `optional` `[[include]]` would appear in it, which is a standing \
+                     slot anyone able to write that directory may later fill",
+                )
+            })?;
+            return Ok(());
+        }
+        slot = dir.parent();
+    }
+    Ok(())
+}
+
+/// What a failed § 6 check reports: `E0605` when the path could not be examined at all, which is
+/// the same "cannot read" every other reader failure gets, and `E0607` when it was examined and the
+/// boundary does not hold. Keeping those apart is the whole point of the split — an operator told
+/// "cannot read" goes looking for a typo, and the answer is a mode.
+fn untrusted(path: &Path, why: &Untrusted, who: &str) -> Diagnostic {
+    match why {
+        Untrusted::Unreadable(message) => unreadable(path, message, who),
+        Untrusted::Breach(message) => Diagnostic::error(code::E_UNTRUSTED_CONFIG, message.clone())
+            .with_note(format!(
+                "{who}, and ADR 0103 § 6 leaves no file in the tree writable by any account but \
+                 this one: whoever can write one of them can grant themselves every capability the \
+                 configuration carries"
+            ))
+            .with_help(trust::REMEDY.to_string()),
     }
 }
 
@@ -444,10 +524,10 @@ fn is_array_of_tables(array: &[toml::Value]) -> bool {
 
 /// Whether two paths name the same file, lexically.
 ///
-/// **Lexical and not `fs::canonicalize`**, which means a cycle assembled out of symlinks is invisible
-/// here and is caught by [`MAX_INCLUDE_DEPTH`] instead. § 6's ownership check has to `stat` every
-/// file anyway and canonicalization comes with it; doing it here first would `stat` twice and would
-/// still leave the depth cap as the backstop.
+/// **Lexical**, and it does not have to be more: every path that reaches this has come back from
+/// [`Files::trust`] canonical, so a symlinked ring closes on a name already in the chain and what
+/// is left here is folding away the `.` and `..` a reader is free to hand back. The check `stat`s
+/// every file anyway, so canonicalizing there costs nothing this would not have cost twice.
 fn same_file(a: &Path, b: &Path) -> bool {
     normalize(a) == normalize(b)
 }

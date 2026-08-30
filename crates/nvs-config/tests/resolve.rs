@@ -6,10 +6,11 @@
 //! `readdir`'s, so a case that got its order from a real filesystem would pass by accident on the
 //! host that happens to return entries sorted and prove nothing.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use nvs_config::resolve::{Files, MAX_INCLUDE_DEPTH, Resolved, Roots, resolve, roots};
+use nvs_config::trust::Untrusted;
 use nvs_config::{Setting, tree};
 use nvs_diagnostics::{Diagnostic, SourceMap, code};
 
@@ -22,6 +23,7 @@ fn p(path: &str) -> PathBuf {
 #[derive(Default)]
 struct Fake {
     files: BTreeMap<PathBuf, String>,
+    untrusted: BTreeSet<PathBuf>,
 }
 
 impl Fake {
@@ -31,11 +33,34 @@ impl Fake {
                 .iter()
                 .map(|(path, text)| (p(path), (*text).to_string()))
                 .collect(),
+            untrusted: BTreeSet::new(),
         }
+    }
+
+    /// The paths whose § 6 check fails, the way a group-writable file's does.
+    fn untrusting(mut self, paths: &[&str]) -> Self {
+        self.untrusted = paths.iter().map(|path| p(path)).collect();
+        self
     }
 }
 
 impl Files for Fake {
+    /// Exactly the paths a case named, and never their parents: the real reader checks the
+    /// containing directory too, so a fake that inferred it would leave a case unable to say which
+    /// of the two it meant.
+    fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
+        if self.untrusted.contains(path) {
+            return Err(Untrusted::Breach(format!(
+                "`{}` is group-writable (mode 0775, gid 1000)",
+                path.display()
+            )));
+        }
+        if !self.exists(path) {
+            return Err(Untrusted::Unreadable("no such file".to_string()));
+        }
+        Ok(path.to_path_buf())
+    }
+
     fn read(&self, path: &Path) -> Result<String, String> {
         self.files
             .get(path)
@@ -441,5 +466,93 @@ fn two_files_setting_different_keys_of_one_block_both_survive() {
     assert!(
         resolved.overrides.is_empty(),
         "neither key replaced the other, so there is nothing to report",
+    );
+}
+
+/// § 6: a file some other account can write refuses the boot rather than being read, and the
+/// refusal is `E0607` naming **that** file — not the `E0605` an unreadable one gets, because an
+/// operator told "cannot read" goes looking for a typo when the answer is a mode.
+#[test]
+fn a_file_outside_the_trust_boundary_refuses_the_boot() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\npath = \"local.toml\"\n"),
+        ("etc/local.toml", "[limits]\nmemory = \"128M\"\n"),
+    ])
+    .untrusting(&["etc/local.toml"]);
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_UNTRUSTED_CONFIG));
+    assert!(
+        diagnostic
+            .message
+            .contains(&p("etc/local.toml").display().to_string()),
+        "the refusal names the file that fails the check, not the root that pulled it in: {}",
+        diagnostic.message,
+    );
+}
+
+/// § 6: an absent `optional` include puts the check on the directory that would hold it — asserted
+/// on both sides, because a check that refused every optional include would pass the first half of
+/// this alone. The directory is a standing slot, and the promise that a file appearing there later
+/// will be trusted is only keepable where the file is not.
+#[test]
+fn an_absent_optional_include_checks_the_directory_that_would_hold_it() {
+    let tree = &[
+        (
+            "etc/nvs.toml",
+            "[[include]]\npath = \"conf.d/local.toml\"\noptional = true\n\n\
+             [limits]\nmemory = \"128M\"\n",
+        ),
+        ("etc/conf.d/other.toml", ""),
+    ];
+
+    let resolved = tree_of(&Fake::with(tree), "etc/nvs.toml");
+    assert_eq!(
+        memory(&resolved),
+        Some(&Setting::Text("128M".to_string())),
+        "with the directory inside the boundary, the absent file is simply absent",
+    );
+
+    let diagnostic = refusal(
+        &Fake::with(tree).untrusting(&["etc/conf.d"]),
+        "etc/nvs.toml",
+    );
+    assert_eq!(diagnostic.code, Some(code::E_UNTRUSTED_CONFIG));
+    assert!(
+        diagnostic
+            .message
+            .contains(&p("etc/conf.d").display().to_string()),
+        "the refusal is about the slot, so it names the directory: {}",
+        diagnostic.message,
+    );
+    assert!(
+        diagnostic
+            .notes
+            .iter()
+            .any(|note| note.contains("standing slot")),
+        "and says why a directory is being checked for an absent file: {:?}",
+        diagnostic.notes,
+    );
+}
+
+/// § 6, continued: when the directory an `optional` include names does not exist either, the check
+/// walks up to the nearest one that does. The promise is only as strong as the shallowest directory
+/// an attacker would have to write to keep it.
+#[test]
+fn an_optional_include_below_an_absent_directory_checks_the_nearest_one_that_exists() {
+    let fs = Fake::with(&[(
+        "etc/nvs.toml",
+        "[[include]]\npath = \"conf.d/local.toml\"\noptional = true\n",
+    )])
+    .untrusting(&["etc"]);
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_UNTRUSTED_CONFIG));
+    assert!(
+        diagnostic.message.contains(&p("etc").display().to_string()),
+        "`etc/conf.d` is not there to check, so the check is on `etc`: {}",
+        diagnostic.message,
     );
 }

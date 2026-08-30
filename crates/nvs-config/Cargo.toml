@@ -16,5 +16,32 @@ nvs-diagnostics.workspace = true
 serde.workspace = true
 toml.workspace = true
 
-[lints]
-workspace = true
+# ADR 0103 § 6's ownership check is the platform's own question, and `std` asks
+# neither half of it: `src/trust.rs` owns what each one is.
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
+# `unsafe_code` is `deny` rather than the workspace's `forbid` because § 6's
+# check is four `advapi32` calls and a `geteuid`, each carrying its own
+# `#[expect]` with the reason it is sound.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"

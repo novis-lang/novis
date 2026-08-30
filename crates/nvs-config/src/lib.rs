@@ -15,15 +15,20 @@
 //! log line — it is what makes later-wins acceptable in a file that grants capabilities, and its
 //! module doc owns the reasoning.
 //!
-//! What is **not** here yet, in the order the milestone lands them: ADR 0103 § 6's ownership check
-//! on every file the tree reads, the per-app block's matching and layering (ADR 0104 § 2), and the
-//! immutable snapshot a request clones at start (ADR 0078 § 1). Until those land `nvs-host` runs on
-//! compiled-in defaults and says so at each site.
+//! [`mod@trust`] is ADR 0103 § 6, the boundary all of that rests on: no file the tree reads may be
+//! writable by an account other than this one, and neither may the directory holding it. It reaches
+//! the tree through [`resolve::Files::trust`] rather than being called from the resolver, because
+//! whether there is a filesystem to ask is the reader's question and not the tree's.
+//!
+//! What is **not** here yet, in the order the milestone lands them: the per-app block's matching and
+//! layering (ADR 0104 § 2) and the immutable snapshot a request clones at start (ADR 0078 § 1).
+//! Until those land `nvs-host` runs on compiled-in defaults and says so at each site.
 
 pub mod directive;
 pub mod file;
 pub mod resolve;
 pub mod tree;
+pub mod trust;
 
 pub use directive::{Apply, Class, DIRECTIVES, Directive};
 pub use resolve::{Origin, Override, Resolved, Roots};

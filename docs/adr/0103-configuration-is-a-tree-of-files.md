@@ -21,6 +21,10 @@
   [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) § 2 — `config` joins the
   namespace list and the non-hostable subcommands, and an install whose config comes from the working
   directory is refused.
+- **Validated by:** [crates/nvs-config/tests/resolve.rs](../../crates/nvs-config/tests/resolve.rs) —
+  §§ 1-5 as a tree over an in-memory reader, and where § 6's check falls;
+  [crates/nvs-config/tests/trust.rs](../../crates/nvs-config/tests/trust.rs) — § 6 itself, against a
+  real filesystem.
 
 > **In short:** the configuration is a **tree of TOML files**, not one file. A root file is named by
 > `--config` (repeatable) or found as `./nvs.toml`, and pulls in more with `[[include]]`, by `path` or by
@@ -183,11 +187,26 @@ rule never has to be applied in a reader's head.
 ### 6. Ownership is the trust boundary, and `optional` moves the check to the directory
 
 **Every file the configuration reads must be owned by the account the runtime runs as or by root, and
-must not be group- or world-writable.** Its containing directory must not be group- or world-writable
-either. This is the same check [0042 § 5](0042-on-disk-artifact-cache-format.md) applies to the cache
+must not be group- or world-writable.** Its containing directory must pass that same check, ownership
+included and not only the mode: an entry can be replaced by whoever can write the directory holding it,
+whatever the file's own bits say. This is the same check
+[0042 § 5](0042-on-disk-artifact-cache-format.md) applies to the cache
 directory and [0078 § 3](0078-config-reload-and-control-socket.md) to the socket directory, applied where
 it matters most; a failure is a refusal to start, naming the path and the mode, and it is re-run on every
-`nvs ctl reload`. On Windows the equivalent is an ACL check, and which ACEs it accepts is M6's to state.
+`nvs ctl reload`.
+
+**On Windows the equivalent is the DACL, and it accepts exactly this:** the owner is the account the
+runtime runs as, `BUILTIN\Administrators` or `NT AUTHORITY\SYSTEM`, and no *effective* write right —
+`FILE_WRITE_DATA`, `FILE_APPEND_DATA`, `FILE_WRITE_EA`, `FILE_WRITE_ATTRIBUTES`, `DELETE`, `WRITE_DAC` or
+`WRITE_OWNER` — reaches `Everyone`, `NT AUTHORITY\Authenticated Users`, `BUILTIN\Users`, `BUILTIN\Guests`
+or `ANONYMOUS LOGON`. Those five principals are the Windows spelling of "the group and the world", and
+the two ACL rights are in the mask because either one buys all the others in a second step. The question
+asked is *effective* rights rather than the presence of an ACE, so a deny entry counts and an inherited
+grant cannot hide behind how the ACL happens to be spelled. One consequence is worth naming rather than
+discovering: Windows grants `Authenticated Users` modify rights by default on a non-system drive's root
+and on everything inheriting from it, so a configuration kept under such a path refuses until that
+inheritance is broken. That default *is* the hole this section closes, and it is far more common than the
+Unix one.
 
 Because that boundary is uniform, **any file in the tree may set any directive**, `System` class
 included: capabilities, `[limits.hard]`, `[mode] ceiling` and `[[extension]]` entries are as legitimate in
@@ -201,7 +220,7 @@ half a configuration and the server comes up looking healthy. And because an abs
 check, **the check falls on the directory that would contain it**:
 
 ```console
-E06xx: [[include]] /etc/nvs/local.toml is optional, but /etc/nvs is group-writable
+E0607: [[include]] /etc/nvs/local.toml is optional, but /etc/nvs is group-writable
        (mode 0775, group `deploy`)
        an absent optional include is a standing slot that anyone able to write that
        directory may later fill with root-owned configuration
@@ -210,7 +229,9 @@ E06xx: [[include]] /etc/nvs/local.toml is optional, but /etc/nvs is group-writab
 
 That refusal is the whole security argument for the feature. An optional include is a promise that a file
 which does not exist yet will be trusted when it appears; the only place to make that promise safely is
-the directory, and it is the one place a check can still run.
+the directory, and it is the one place a check can still run. When that directory does not exist either,
+the check walks up to the nearest ancestor that does: the promise is only as strong as the shallowest
+directory an attacker would have to write in order to keep it.
 
 ### 7. A secret arrives as a file whose content is the value
 
@@ -374,7 +395,8 @@ In M6, alongside [0064](0064-configuration-file-format.md)'s and [0005](0005-con
 own lists:
 
 - A config file that is group-writable, world-writable, or owned by a third account refuses the boot,
-  naming path and mode; so does one whose directory is group-writable. Both are re-checked on
+  naming path and mode; so does one whose directory is group-writable, and on Windows so does one whose
+  DACL grants write to any of the five principals above. Both are re-checked on
   `nvs ctl reload`, and a failure there leaves the previous snapshot serving.
 - `--config` naming a missing file refuses; `./nvs.toml` missing does not, and the shipped-defaults line
   appears in the boot log. The resolved absolute path is logged in both cases.

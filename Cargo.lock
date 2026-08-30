@@ -1495,9 +1495,11 @@ dependencies = [
 name = "nvs-config"
 version = "0.0.1"
 dependencies = [
+ "libc",
  "nvs-diagnostics",
  "serde",
  "toml",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

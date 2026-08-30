@@ -1191,6 +1191,14 @@ pub mod code {
     /// nested deeper than ADR 0103 § 2's cap of eight. The refusal names the whole
     /// chain, because the cycle is a property of the path and not of its last file.
     pub const E_INCLUDE_CYCLE: Code = Code::new("E0606");
+    /// A file the configuration tree names fails ADR 0103 § 6's trust boundary:
+    /// it is owned by an account that is neither this one nor an administrative
+    /// one, or an account outside those can write it — the file itself, or the
+    /// directory holding it, or the directory an absent `optional` include would
+    /// appear in. Whoever can write one file in the tree can grant themselves
+    /// every capability it carries, so this is a refusal to start rather than a
+    /// warning, and it is re-run on every `nvs ctl reload`.
+    pub const E_UNTRUSTED_CONFIG: Code = Code::new("E0607");
 
     // --- E07xx types, continued --------------------------------------------
     //

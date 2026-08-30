@@ -78,6 +78,24 @@ core_affinity = "0.8"
 # contract above it.
 mio = { version = "1", features = ["os-poll", "net"] }
 
+# --- the configuration's trust boundary (ADR 0103 § 6) ---
+# § 6 is "no account but this one, root or an administrator may write it", and
+# neither half of it is in `std`: the effective uid is a `libc` call, and Windows
+# has no mode bits at all, so the same question there is the owner SID plus the
+# DACL. ADR 0051 § 4's first question is "no" — what reaches these calls is a
+# path an operator wrote in `nvs.toml`, never a value a request chose, and the
+# answer is a refusal to start rather than anything a script observes. Both are
+# pure Rust with no C and no build script, and both are already in this tree's
+# lock file. `crates/nvs-config/src/trust.rs` owns which ACEs Windows accepts.
+libc = "0.2"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Threading",
+] }
+
 # --- TLS over that stream, for one test and nothing else (ADR 0115 § 3) ---
 # `nvs-host`'s stream is a plain `Read`/`Write`, and the claim that buys is that
 # an *unmodified* protocol implementation runs over it. TLS is the hardest
