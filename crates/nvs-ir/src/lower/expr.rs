@@ -286,7 +286,7 @@ impl<'a> Lowering<'a> {
                 _ => panic!(
                     "nvs-ir: a `Class::CONST` at {:?} with no value recorded in the \
                      typed-expression table — every declared constant with a constant form \
-                     records one, so this is a value that has none (`const ROWS = [1, 2];`), \
+                     records one, so this is a value that has none (an `array` value), \
                      and there is nothing to lower it to",
                     expr.span
                 ),

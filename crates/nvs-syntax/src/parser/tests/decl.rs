@@ -523,6 +523,27 @@ fn type_alias_declaration() {
     parse_stmt_ok("type Id = SomeClass;");
 }
 
+/// A constant declares its type like every other binding, so PHP 8.3's
+/// untyped spelling is refused where it is written — and only there: a
+/// top-level `const` is already `E0216` whole, and one with no visibility is
+/// already `E0122`, so neither collects a second code for one rewrite.
+#[test]
+fn a_class_constant_without_a_type_is_e0246() {
+    let (_, diags) = parse_stmt_with_diags("class C { public const LIMIT = 9; }");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_CONSTANT_WITHOUT_TYPE], "{diags:?}");
+
+    let (_, diags) = parse_stmt_with_diags("class C { public const int LIMIT = 9; }");
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let (_, diags) = parse_stmt_with_diags("const FOO = 1;");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert!(
+        !codes.contains(&code::E_CONSTANT_WITHOUT_TYPE),
+        "a top-level `const` is refused whole: {diags:?}"
+    );
+}
+
 /// An anonymous class is refused at `new class` and then parsed whole, so the
 /// members inside it are checked in the same run and nothing downstream meets
 /// a half-built declaration. docs/adr/README.md § *Decisions taken at project

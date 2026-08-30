@@ -742,12 +742,30 @@ impl<'src, 'd> Parser<'src, 'd> {
         attributes: &[AttributeGroup],
         modifiers: &[Modifier],
     ) -> Vec<ConstMember> {
-        self.bump(); // 'const'
+        let kw = self.bump().span; // 'const'
         let ty = if self.can_start_type() && !self.at_const_name_without_type() {
             Some(self.parse_type())
         } else {
             None
         };
+        // A constant declares its type like every other binding. Only a
+        // member declaration is reported here: a top-level `const` is already
+        // refused whole (`E0216`) and one with no visibility is already
+        // `E0122`, and a second code on the same line would name a third edit
+        // for what is one rewrite.
+        if ty.is_none() && !modifiers.is_empty() {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_CONSTANT_WITHOUT_TYPE,
+                    "a constant declares its type",
+                )
+                .with_primary(kw, "no type between `const` and the name")
+                .with_help(
+                    "write the type the value has — `public const int LIMIT = 9;`, \
+                     `public const string NAME = \"limits\";`",
+                ),
+            );
+        }
         let mut members = Vec::new();
         loop {
             let name = self.parse_decl_name("a constant name").span;

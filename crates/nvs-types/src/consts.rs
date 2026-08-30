@@ -272,7 +272,7 @@ fn type_carries_secret(ty: &Type) -> bool {
     }
 }
 
-/// One `const NAME = expr;`, folded.
+/// One `const T NAME = expr;`, folded.
 ///
 /// The accepted shapes are exactly [`crate::enums::literal_value`]'s, plus
 /// the three other literals a written value can be: a bare `int` literal, a

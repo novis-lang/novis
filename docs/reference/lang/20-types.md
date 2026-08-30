@@ -743,15 +743,15 @@ echo Core\Json::encode($xs), "\n";
 
 A property is `visibility [static] T $name [= default];` — the default is a scalar literal, `[]`,
 an enum case or a class constant, and a `?T` property takes no `null` default (assign it in the
-constructor). A class constant is `visibility const T NAME = literal;`; the type may be omitted and
-is then the literal's own. Constants are read at their declared type — `const uint WIDTH = 5` is
+constructor). A class constant is `visibility const T NAME = literal;`, and the type is written there as it is
+everywhere else (`E0246`). Constants are read at their declared type — `const uint WIDTH = 5` is
 a `uint`. The classes chapter owns everything else about members.
 
 ```nvs
 <?nvs
 class Limits {
     public const uint WIDTH = 5;
-    public const LABEL = "limits";
+    public const string LABEL = "limits";
     public int $n = 1;
     public ?string $label;
     private static uint $made = 0;

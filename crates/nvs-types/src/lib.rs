@@ -193,7 +193,7 @@
 //!   [`signatures::ConstSig`], both resolved by [`expr`]'s `ClassConstAccess`
 //!   arm, and a use in *type* position folds to ADR 0047 § 2's literal type
 //!   over [`consts`]. What is left is a constant whose value has no constant
-//!   form at all (`const ROWS = [1, 2];`), which types as `mixed` and panics
+//!   form at all (`public const array<int> ROWS = [1, 2];`), which types as `mixed` and panics
 //!   `nvs_ir::lower` if a program reads it.
 
 pub(crate) mod attributes;

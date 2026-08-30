@@ -167,7 +167,7 @@ pub(crate) fn infer_class_const(
         // of — see `signatures::ConstSig`. The value is recorded for the two
         // arms above's reason a third time: a constant is inlined at every use
         // site, so `nvs-ir` has no storage to read it back from. A constant
-        // whose value has no constant form (`const ROWS = [1, 2];`) records
+        // whose value has no constant form (`public const array<int> ROWS = [1, 2];`) records
         // none and still reads at its type, which is the one shape left
         // unlowered.
         Some(qname) => {

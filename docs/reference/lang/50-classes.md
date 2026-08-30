@@ -349,15 +349,15 @@ echo $f(3) as int, "\n";
 
 # Constants and `::class`
 
-A class constant is `public const int NAME = …;` — the type may be omitted on a class constant.
-It is reached as `self::NAME` inside the class and `Class::NAME` anywhere. `Class::class` is the
+A class constant is `public const int NAME = …;`, and like every other binding it writes its type
+(`E0246`). It is reached as `self::NAME` inside the class and `Class::NAME` anywhere. `Class::class` is the
 class's name as a string.
 
 ```nvs
 <?nvs
 class Limits {
     public const int MAX = 3;
-    public const NAME = "limits";
+    public const string NAME = "limits";
 
     public static function twice(): int {
         return self::MAX * 2;

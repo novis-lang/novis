@@ -1507,7 +1507,7 @@ pub enum PropertyHookBody {
 
 /// `modifiers const type? Name = expr;` (ADR 0007 § 1's
 /// `public const int MAX = 10;`, PHP 8.3's optional type). A declaration
-/// naming several constants at once (`public const A = 1, B = 2;`) is
+/// naming several constants at once (`public const int A = 1, B = 2;`) is
 /// flattened into one [`ClassMember`] per name at parse time, same as
 /// [`PropertyMember`].
 ///

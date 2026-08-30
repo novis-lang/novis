@@ -559,15 +559,16 @@ interface HasLimit {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// A constant declared with no annotation, which parses (PHP 8.3's own rule),
-/// takes the type of the value it folded to — the closest thing to a
-/// declaration the source contains, and the rule `signatures::ConstSig` owns.
+/// A constant reads at the type its declaration writes — the rule
+/// `signatures::ConstSig` owns. PHP 8.3's unannotated spelling, which used to
+/// read at the value it folded to instead, is now refused in the parser
+/// (`E0246`, docs/adr/README.md § *Decisions taken at project start*).
 #[test]
-fn an_unannotated_class_constant_reads_at_its_values_type() {
+fn a_class_constant_reads_at_its_declared_type() {
     let diags = check_src(
         "<?nvs
 class Limits {
-  public const BARE = \"bare\";
+  public const string BARE = \"bare\";
 }
          class T {
   function m(): void {
@@ -581,7 +582,7 @@ class Limits {
     let diags = check_src(
         "<?nvs
 class Limits {
-  public const BARE = \"bare\";
+  public const string BARE = \"bare\";
 }
          class T {
   function m(): void {

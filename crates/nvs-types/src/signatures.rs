@@ -515,7 +515,8 @@ pub struct ConstSig {
     /// `const uint MAX = 3;` yields a [`crate::defaults::ConstArg::Uint`] rather than an
     /// `Int` for `nvs-ir` to emit at the wrong representation.
     ///
-    /// `None` for a value with no constant form at all (`const ROWS = [1, 2];`),
+    /// `None` for a value with no constant form at all
+    /// (`public const array<int> ROWS = [1, 2];`),
     /// which is what leaves `nvs_ir::lower`'s `ClassConstAccess` arm a panic
     /// for that one shape rather than for every user-declared constant.
     pub value: Option<crate::defaults::ConstArg>,

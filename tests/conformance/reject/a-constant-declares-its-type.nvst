@@ -1,0 +1,20 @@
+--TEST--
+A class or interface constant writes its type, as every other binding does (ADR 0007 § 1)
+--FILE--
+<?nvs
+// PHP's untyped constant parses, and the type read off the folded value is a
+// guess the declaration never made: an interface constant has no such value
+// to read, and one whose value has no constant form has nothing to read at
+// all. Both used to reach the lowerer and panic there.
+interface Limits {
+    public const LIMIT = 9;
+}
+class Bounded implements Limits {
+}
+echo Limits::LIMIT, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0246]: a constant declares its type
+%A
+error: aborting due to 1 error

@@ -628,7 +628,7 @@ pub enum ExprInfo {
     /// `Core`'s. `crate::signatures::ConstSig` is where a user constant's
     /// value is placed in its declared type; the one shape that records
     /// nothing here is a value with no constant form at all
-    /// (`const ROWS = [1, 2];`).
+    /// (`public const array<int> ROWS = [1, 2];`).
     CoreConst {
         /// The constant's value, in its declared type.
         value: ConstArg,
