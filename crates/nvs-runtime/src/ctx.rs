@@ -325,6 +325,20 @@ pub struct Ctx {
     /// closure for a request that registers one — O(in-flight requests), per
     /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
     limit_handler: Value,
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// reserved slice, in bytes: what [`Ctx::memory_limit`] was *reduced by* so
+    /// that the tier-1 handler has somewhere to run once ordinary execution has
+    /// spent everything it may.
+    ///
+    /// Carved at request start rather than found later, because the point of a
+    /// reserve is that nothing else could have taken it. Cold in the same way
+    /// the handler slot above is: only the slow path that has already decided a
+    /// limit was breached reads it.
+    ///
+    /// **What it spends:** nothing beyond a word per request — the bytes
+    /// themselves are the operator's own `[limits] memory`, moved from one side
+    /// of the ceiling to the other, so a request's total is unchanged.
+    fatal_reserve: usize,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -834,6 +848,7 @@ impl Ctx {
             memory_base: crate::budget::live_bytes(),
             memory_limit: 0,
             limit_handler: Value::null(),
+            fatal_reserve: 0,
             pending: None,
             runtime_error_class: None,
             output,
@@ -927,7 +942,12 @@ impl Ctx {
         usize::try_from(crate::budget::live_bytes().saturating_sub(self.memory_base)).unwrap_or(0)
     }
 
-    /// This request's `[limits] memory` ceiling in bytes, `0` for no cap.
+    /// The ceiling **ordinary execution** is held to, in bytes, `0` for no cap.
+    ///
+    /// `[limits] memory` less [`Self::fatal_reserve`], because ADR 0020 § 1's
+    /// slice is carved out of the request's own budget rather than added to it
+    /// — so this is the number that moves, once, while the tier-1 handler runs
+    /// ([`Self::run_limit_handler`]).
     #[must_use]
     pub fn memory_limit(&self) -> usize {
         self.memory_limit
@@ -941,6 +961,23 @@ impl Ctx {
     /// arrives.
     pub fn set_memory_limit(&mut self, bytes: usize) {
         self.memory_limit = bytes;
+    }
+
+    /// This request's reserved slice in bytes — the bytes ordinary execution's
+    /// ceiling was reduced by, and the room
+    /// [`Self::run_limit_handler`] adds back for the length of the handler.
+    #[must_use]
+    pub fn fatal_reserve(&self) -> usize {
+        self.fatal_reserve
+    }
+
+    /// Sets the reserved slice directly, for the same callers
+    /// [`Self::set_memory_limit`] exists for and with the same division of
+    /// labour: this is the slice *on top of* the ceiling stated there, where a
+    /// request with a configuration has it carved out of `[limits] memory`
+    /// instead.
+    pub fn set_fatal_reserve(&mut self, bytes: usize) {
+        self.fatal_reserve = bytes;
     }
 
     /// Whether this request has allocated past its ceiling.
@@ -1004,6 +1041,75 @@ impl Ctx {
         self.limit_handler.tag() != Some(crate::Tag::Null)
     }
 
+    /// Runs [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// § 1's tier-1 handler, if this request registered one — the last thing a
+    /// program gets to do about a resource limit, and it happens *before* the
+    /// breach is recorded as the `FATAL` the ladder goes on to print.
+    ///
+    /// **The slot is cleared before the call and not after, and that is the
+    /// whole of "zero retries".** A handler runs with the limit still breached,
+    /// so it reaches this ladder again from inside itself at its first helper
+    /// call ([`crate::run_helper`]) or its first safepoint poll
+    /// ([`nvs_safepoint`]); both ask [`Self::has_limit_handler`] first, so
+    /// taking the registration out of the slot on the way in is what makes that
+    /// second breach find nothing and fall straight through to the next tier.
+    /// Expressing the rule as an ownership move rather than as a flag is what
+    /// stops it from depending on any path remembering to unset one.
+    ///
+    /// Whatever the handler leaves behind is dropped here. It answers nothing
+    /// by its signature, and a throw or a fault of its own is abandoned where
+    /// it stands: the breach that got here is what the request reports, so the
+    /// caller records *its* fault after this returns, over any pending status
+    /// the handler set.
+    ///
+    /// It is handed no arguments yet. § 1 spells the parameter
+    /// `closure(LimitReport)`, and building that report is the slice after this
+    /// one; until then a handler declaring a parameter is one
+    /// [`crate::call_closure`] refuses, which this abandons like any other
+    /// failure of the handler's own.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it just took out of the \
+                  slot, and owns the answer the call produced"
+    )]
+    pub fn run_limit_handler(&mut self) {
+        if !self.has_limit_handler() {
+            return;
+        }
+        // `Value::default()` is the null this leaves behind, which is the
+        // encoding of "nothing registered" [`Self::has_limit_handler`] reads.
+        let handler = std::mem::take(&mut self.limit_handler);
+        // § 1's reserved slice, added back for exactly the length of the call.
+        // The handler is entered with the ceiling already breached, so without
+        // this it could not allocate a byte or reach a single `Core` member —
+        // every one of them asks [`crate::run_helper`]'s question first — and a
+        // tier that can say nothing is not a tier. Restored afterwards because
+        // the reserve is the handler's and not the request's: what the ladder
+        // records next is the breach ordinary execution reached.
+        let ordinary = self.memory_limit;
+        let reserve = self.fatal_reserve;
+        if ordinary != 0 {
+            self.memory_limit = ordinary.saturating_add(reserve);
+            // Spent, not merely lent: a handler that breaches *again* is one
+            // that exhausted the whole budget, and the message it fails with
+            // should say so rather than name a slice still being held for it.
+            self.fatal_reserve = 0;
+        }
+        let answer = crate::call_closure(self, handler, &[]);
+        self.memory_limit = ordinary;
+        self.fatal_reserve = reserve;
+        // SAFETY: the slot held one owned reference, which this frame now
+        // holds; `call_closure` took its own for the callee to release. An
+        // `Ok` answer is a fresh value this frame owns, and releasing a `null`
+        // — which is what a `void` closure returns — is a no-op.
+        unsafe {
+            if let Ok(answer) = answer {
+                answer.release();
+            }
+            handler.release();
+        }
+    }
+
     /// The [`crate::Fault`] a request past its memory ceiling owes, or `None`
     /// while it is inside it.
     ///
@@ -1019,10 +1125,19 @@ impl Ctx {
         if !self.over_memory_limit() {
             return None;
         }
+        // The ceiling named is the request's **whole** budget, not the reduced
+        // one it was measured against: `[limits] memory` is the number the
+        // operator wrote and the only one they can recognise. Where a slice of
+        // it is ADR 0020 § 1's reserve, saying so is what keeps the sentence
+        // from reading as a reading below its own ceiling.
+        let reserved = match self.fatal_reserve {
+            0 => String::new(),
+            bytes => format!(", of which {bytes} is reserved for the limit handler"),
+        };
         Some(crate::Fault::fatal(format!(
-            "the request exceeded its memory limit — {} bytes held against a ceiling of {}",
+            "the request exceeded its memory limit — {} bytes held against a ceiling of {}{reserved}",
             self.memory_used(),
-            self.memory_limit
+            self.memory_limit.saturating_add(self.fatal_reserve),
         )))
     }
 
@@ -1033,7 +1148,54 @@ impl Ctx {
     /// which is why [`Self::memory_limit`]'s field doc calls the value cached
     /// rather than derived.
     pub fn refresh_limits(&mut self) {
-        self.memory_limit = self.configured_memory_limit();
+        let ceiling = self.configured_memory_limit();
+        self.fatal_reserve = Self::reserve_within(ceiling, self.configured_fatal_reserve());
+        // ADR 0020 § 1: the slice is *carved out of* the request's own budget
+        // and unavailable to ordinary execution, so the ceiling everything but
+        // the handler is measured against is what is left after it. An
+        // uncapped request has nothing to carve and reserves nothing: there is
+        // no ceiling for a handler to be given room past.
+        self.memory_limit = ceiling.saturating_sub(self.fatal_reserve);
+    }
+
+    /// `[limits] fatal_reserve_memory` as bytes, or `None` where the
+    /// configuration does not state it.
+    ///
+    /// A malformed value is `None` and takes the default below, for the reason
+    /// [`Self::configured_memory_limit`] answers "no cap": the file was already
+    /// parsed and refused at the boundary that can name the line.
+    fn configured_fatal_reserve(&self) -> Option<usize> {
+        let written = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("fatal_reserve_memory"))?;
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("fatal_reserve_memory", nvs_config::Unit::Bytes, &setting)
+        {
+            Ok(nvs_config::Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(0)),
+            _ => None,
+        }
+    }
+
+    /// The reserved slice a request with this `ceiling` gets, given what its
+    /// configuration asked for.
+    ///
+    /// **The default is 1 MiB, and a quarter of the ceiling where a quarter is
+    /// less** — enough for a handler to format a message and write it, and the
+    /// clamp is what keeps a small ceiling from being mostly reserve rather
+    /// than mostly program. ADR 0020 § 1 states that the slice exists and that
+    /// it is `System`-class, and states no number; this is the number, and an
+    /// operator who wants another writes it.
+    ///
+    /// An **asked-for** reserve is clamped the same way for the same reason,
+    /// and not refused: a reserve larger than the ceiling would leave ordinary
+    /// execution nothing at all, which is a configuration that cannot run a
+    /// program rather than one that runs it carefully.
+    fn reserve_within(ceiling: usize, asked: Option<usize>) -> usize {
+        if ceiling == 0 {
+            return 0;
+        }
+        asked.unwrap_or(1 << 20).min(ceiling / 4)
     }
 
     /// `[limits] memory` as bytes, or `0` when there is no configuration, no
@@ -2127,7 +2289,10 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         unsafe_code,
         reason = "the caller guarantees `ctx` is valid for this call; nothing \
                   here can panic, so no `catch_unwind` is needed to keep the \
-                  unwind out of the JIT frame above"
+                  unwind out of the JIT frame above — the one thing reached \
+                  from here that is not a load and a compare is ADR 0020 § 1's \
+                  handler, whose own helper calls are each contained by \
+                  `run_helper`"
     )]
     let ctx = unsafe { &mut *ctx };
 
@@ -2141,6 +2306,13 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
     // allocating without calling anything. `crate::budget`'s module doc owns
     // which allocations that reaches today and which it does not.
     if let Some(crate::Fault::Fatal(message)) = ctx.memory_breach() {
+        // ADR 0020 § 1's tier 1, ahead of the status this returns: the handler
+        // is the last thing the program gets to run, and it runs before the
+        // breach becomes the message the ladder prints — so a throw of its own
+        // is overwritten by `set_pending` below rather than reported in place
+        // of the limit that stopped the request. `Ctx::run_limit_handler` owns
+        // the zero-retry rule.
+        ctx.run_limit_handler();
         ctx.set_pending(message);
         return crate::FATAL;
     }

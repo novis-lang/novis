@@ -2935,6 +2935,15 @@ is why" — is this file.
   like a bug in the member under test rather than in the fixture. Whatever the closure has to report,
   it has to `echo` from inside itself, or the case has to count on the outside. The counting shape
   conventions.md recommends still works; it just cannot run its counter through a capture.
+- **A `loop-goal.toml` check naming a crate with no `tests/` directory is not the wrong-`args` trap
+  next to this one.** Stage 4's `-p nvs-host` block names seven tests and `crates/nvs-host` had no
+  integration-test directory at all, which reads like the check was filed against the wrong crate —
+  it was not. A package's ordinary `[dependencies]` are on the extern list of its test targets too,
+  so a new `crates/nvs-host/tests/limits.rs` can `use nvs_runtime::{Ctx, nvs_safepoint}` and drive
+  the ABI compiled code calls with no compiler and no `dev-dependencies` edit. The question that
+  separates the two cases is *can this crate reach the thing the test asks about*, never *does a
+  test like it already live here*: `nvs-hir` genuinely could not ask `required() > 0`, and `nvs-host`
+  can reach every seam a request's limits are enforced at.
 
 ## Splitting a file that got too big
 

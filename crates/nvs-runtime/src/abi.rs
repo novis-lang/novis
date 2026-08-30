@@ -321,6 +321,14 @@ where
     if let Some(fault) = breach {
         #[expect(unsafe_code, reason = "same contract, and the borrow above has ended")]
         let ctx = unsafe { &mut *ctx };
+        // ADR 0020 § 1's tier 1, ahead of the record: the handler is what the
+        // program gets instead of the member this call was for, and it runs
+        // before the breach becomes the status the caller sees, so a fault of
+        // its own is overwritten by `record_fault` below rather than reported
+        // in place of the limit. `Ctx::run_limit_handler` owns the zero-retry
+        // rule that keeps the handler's own first helper call from arriving
+        // back here and calling it a second time.
+        ctx.run_limit_handler();
         return record_fault(ctx, fault);
     }
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
