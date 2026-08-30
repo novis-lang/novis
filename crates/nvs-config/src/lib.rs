@@ -62,6 +62,7 @@ pub mod directive;
 pub mod file;
 pub mod request;
 pub mod resolve;
+pub mod schedule;
 pub mod secret;
 pub mod snapshot;
 pub mod tree;

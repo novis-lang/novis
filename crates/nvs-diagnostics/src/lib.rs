@@ -1233,6 +1233,18 @@ pub mod code {
     /// parser both this check and `Core\Config::set` share (ADR 0064 § 5).
     pub const E_APP_ABOVE_CEILING: Code = Code::new("E0610");
 
+    /// A `[[schedule]]` entry the scheduler could not arm: no `name` or a
+    /// duplicate one, no `scope`, a `cron` outside ADR 0073 § 2's five-field
+    /// dialect, a `script` outside the `script.spawn` roots, or `scope =
+    /// "fleet"` with no shared store to hold § 3's lease. Every one of them is
+    /// refused at boot rather than at the first fire, because a schedule's
+    /// failure mode is silence: an entry that never fires looks exactly like
+    /// one whose interval has not come round yet, and the operator finds out
+    /// from the work that did not happen. A path outside the roots is this
+    /// code and not `E0602` — nothing has been denied at a door yet, the
+    /// configuration simply does not say the file may be run.
+    pub const E_BAD_SCHEDULE: Code = Code::new("E0611");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

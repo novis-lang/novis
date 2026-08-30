@@ -299,16 +299,20 @@ fn a_dir_include_is_sorted_shallow_and_toml_only() {
 /// § 4, both sides of the split named together: `key = [...]` is one value and is replaced
 /// wholesale, so the last file that mentions a grant states the whole grant; `[[table]]` entries
 /// accumulate, because two of them in one file already mean two.
+///
+/// The appending block is `[[extension]]` rather than `[[schedule]]` because ADR 0073 refuses a
+/// half-written schedule entry at boot ([`nvs_config::schedule`]), and a case about the merge must
+/// not be able to fail for a reason the merge had no part in.
 #[test]
 fn a_value_array_replaces_where_a_table_appends() {
     let fs = Fake::with(&[
         (
             "etc/nvs.toml",
-            "[[include]]\npath = \"local.toml\"\n\n[capabilities]\nscript.spawn = [\"/srv/a\", \"/srv/b\"]\n\n[[schedule]]\nname = \"one\"\n",
+            "[[include]]\npath = \"local.toml\"\n\n[capabilities]\nscript.spawn = [\"/srv/a\", \"/srv/b\"]\n\n[[extension]]\npath = \"one.nvsx\"\n",
         ),
         (
             "etc/local.toml",
-            "[capabilities]\nscript.spawn = [\"/srv/c\"]\n\n[[schedule]]\nname = \"two\"\n",
+            "[capabilities]\nscript.spawn = [\"/srv/c\"]\n\n[[extension]]\npath = \"two.nvsx\"\n",
         ),
     ]);
     let resolved = tree_of(&fs, "etc/nvs.toml");
@@ -325,11 +329,11 @@ fn a_value_array_replaces_where_a_table_appends() {
     assert_eq!(
         resolved
             .config
-            .schedule
+            .extension
             .iter()
-            .filter_map(|entry| entry.name.as_deref())
+            .filter_map(|entry| entry.path.as_deref())
             .collect::<Vec<_>>(),
-        vec!["one", "two"],
+        vec!["one.nvsx", "two.nvsx"],
     );
 }
 
@@ -684,5 +688,161 @@ fn an_optional_include_below_an_absent_directory_checks_the_nearest_one_that_exi
         diagnostic.message.contains(&p("etc").display().to_string()),
         "`etc/conf.d` is not there to check, so the check is on `etc`: {}",
         diagnostic.message,
+    );
+}
+
+/// A tree whose only variable is its `[[schedule]]` block: one granted root with a script under it,
+/// and a second script outside every root for the cases that need somewhere to point at.
+fn scheduling(block: &str) -> Fake {
+    let root = format!("[capabilities]\nscript.spawn = [\"etc/jobs\"]\n\n{block}");
+    Fake::with(&[
+        ("etc/nvs.toml", root.as_str()),
+        ("etc/jobs/report.nvs", "<?nvs\n"),
+        ("etc/elsewhere/report.nvs", "<?nvs\n"),
+    ])
+}
+
+/// One entry with every key § 1 requires, `scope` last so a case can replace or drop it.
+fn entry(scope: &str) -> String {
+    format!(
+        "[[schedule]]\nname = \"nightly\"\ncron = \"0 3 * * *\"\nscript = \"jobs/report.nvs\"\n{scope}"
+    )
+}
+
+/// ADR 0073 §§ 1, 3: `scope` has no default, so an entry without one refuses the boot rather than
+/// having this file pick a coordination model for the operator. Asserted on both sides and with the
+/// third answer beside them — a check that only refused the *absent* key would pass just as well if
+/// `scope` were read as free text, and `"cluster"` is what that bug would look like.
+#[test]
+fn a_schedule_entry_with_no_scope_refuses_the_boot() {
+    let fs = scheduling(&entry(""));
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_SCHEDULE));
+    assert!(
+        diagnostic.message.contains("nightly") && diagnostic.message.contains("scope"),
+        "the refusal names the entry and the key it wants: {}",
+        diagnostic.message,
+    );
+
+    let fs = scheduling(&entry("scope = \"cluster\"\n"));
+    assert_eq!(
+        refusal(&fs, "etc/nvs.toml").code,
+        Some(code::E_BAD_SCHEDULE),
+        "`fleet` and `host` are the whole set, so a third word is not a scope either",
+    );
+
+    let fs = scheduling(&entry("scope = \"host\"\n"));
+    assert_eq!(
+        tree_of(&fs, "etc/nvs.toml").config.schedule.len(),
+        1,
+        "the same entry with the key it was missing is armed",
+    );
+}
+
+/// § 2: the dialect is five-field POSIX cron plus the five shorthands, and the exclusions are the
+/// decision. Asserted by **counting** over both tables rather than by reading one expression, so a
+/// validator that happens to answer plausibly for the first row still fails here.
+#[test]
+fn a_malformed_cron_refuses_the_boot() {
+    let refused = [
+        "0 3 * * * *",   // a seconds field: the dialect is five, and a sixth makes it a timer
+        "0 3 * *",       // and four is not the dialect either
+        "60 3 * * *",    // minutes are 0-59, so 60 is the off-by-one a bound catches
+        "0 3 * * 7",     // Sunday is 0; `7` is Vixie's second spelling for it
+        "*/0 3 * * *",   // a step of nothing never comes round
+        "5/15 3 * * *",  // Quartz's "every 15 from 5"; § 2 takes the range it is short for
+        "0 3 * * MON#2", // and none of Quartz's `L`/`W`/`#`/`?`
+        "@fortnightly",  // not one of the five shorthands
+    ];
+    let accepted = [
+        "0 3 * * *",
+        "*/15 * * * *",
+        "0 0 1-5,10 JAN-MAR MON-FRI",
+        "59 23 31 12 6",
+        "@daily",
+    ];
+
+    let caught = refused
+        .iter()
+        .filter(|expression| {
+            let fs = scheduling(&format!(
+                "[[schedule]]\nname = \"j\"\ncron = \"{expression}\"\nscript = \"jobs/report.nvs\"\nscope = \"host\"\n"
+            ));
+            refusal(&fs, "etc/nvs.toml").code == Some(code::E_BAD_SCHEDULE)
+        })
+        .count();
+    assert_eq!(
+        caught,
+        refused.len(),
+        "every expression outside the dialect refuses the boot, and refuses it as E0611",
+    );
+
+    let armed = accepted
+        .iter()
+        .filter(|expression| {
+            let fs = scheduling(&format!(
+                "[[schedule]]\nname = \"j\"\ncron = \"{expression}\"\nscript = \"jobs/report.nvs\"\nscope = \"host\"\n"
+            ));
+            tree_of(&fs, "etc/nvs.toml").config.schedule.len() == 1
+        })
+        .count();
+    assert_eq!(
+        armed,
+        accepted.len(),
+        "the dialect is what § 2 says it is, names and steps and bounds included",
+    );
+}
+
+/// § 1: a scheduled script is checked against the same `[capabilities] script.spawn` roots a `spawn
+/// script` target is, at boot rather than at the first fire. The `..` row is the one that matters:
+/// the comparison is canonicalize-then-prefix, so a path that *spells* itself inside a root and
+/// resolves outside one is refused on where it lands.
+#[test]
+fn a_scheduled_script_outside_the_spawn_roots_refuses_the_boot() {
+    let inside = scheduling(&entry("scope = \"host\"\n"));
+    assert_eq!(tree_of(&inside, "etc/nvs.toml").config.schedule.len(), 1);
+
+    for script in ["elsewhere/report.nvs", "jobs/../elsewhere/report.nvs"] {
+        let fs = scheduling(&format!(
+            "[[schedule]]\nname = \"nightly\"\ncron = \"@daily\"\nscript = \"{script}\"\nscope = \"host\"\n"
+        ));
+
+        let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+        assert_eq!(diagnostic.code, Some(code::E_BAD_SCHEDULE));
+        assert!(
+            diagnostic.message.contains("script.spawn"),
+            "`{script}` is refused for being outside the roots, and the refusal says which list it \
+             failed: {}",
+            diagnostic.message,
+        );
+    }
+}
+
+/// § 3: `fleet` fires once across the deployment under a lease in the shared store, and a tree with
+/// no store configured refuses rather than degrading to one run per host — which is the exact
+/// failure the key exists to prevent. **No block spells a shared store yet**, so today every
+/// `fleet` entry refuses; `nvs_config::schedule::configures_a_shared_store` is where that stops
+/// being true, and this case is what will hold it when it does.
+#[test]
+fn a_fleet_scope_with_no_shared_store_refuses_the_boot() {
+    let fs = scheduling(&entry("scope = \"fleet\"\n"));
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_SCHEDULE));
+    assert!(
+        diagnostic.message.contains("shared store"),
+        "the refusal names what is missing rather than the key that asked for it: {}",
+        diagnostic.message,
+    );
+
+    let fs = scheduling(&entry("scope = \"host\"\n"));
+    assert_eq!(
+        tree_of(&fs, "etc/nvs.toml").config.schedule.len(),
+        1,
+        "the store is `fleet`'s dependency and nothing else's",
     );
 }
