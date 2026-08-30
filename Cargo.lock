@@ -1445,6 +1445,7 @@ dependencies = [
  "nvs-codegen",
  "nvs-diagnostics",
  "nvs-hir",
+ "nvs-host",
  "nvs-ir",
  "nvs-runtime",
  "nvs-stdlib",
