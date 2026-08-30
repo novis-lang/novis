@@ -125,8 +125,8 @@ TASKS: list[Task] = [
         "`src/Inventory/Stock.nvs` declaring `App\\Inventory\\Stock` which holds items, can `add` one, "
         "and answers `total(): decimal` (sum of `qty * price`). The entry reaches the classes through "
         "an `autoload` declaration, never `require`, adds three items -- `A1` 2 x 9.99, `B2` 1 x 0.01, "
-        "`C3` 10 x 1.50 -- and prints `items=3` and `total=35.00` (two decimals).",
-        exact="items=3\ntotal=35.00",
+        "`C3` 10 x 1.50 -- and prints `items=3` and `total=34.99` (two decimals).",
+        exact="items=3\ntotal=34.99",
     ),
     Task(
         "generator", "A generator",

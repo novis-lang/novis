@@ -10,7 +10,9 @@ as a string-keyed array — and throws `ParseError` on a malformed or too-deep d
 no `json_last_error`. `decodeAs<T>` reads a document straight into a class that carries
 `#[Core\Json\Derive]`, checking every declared field against its type — `?T` is the only way a
 field admits `null` — and reporting every failure at once in one `ParseError`'s `issues`.
-`#[Core\Json\Field(name: "…")]` gives one field its wire name.
+`#[Core\Json\Field(name: "…")]` gives one field its wire name. `decodeAs<T>` names a class and
+nothing else: a document whose top level is a JSON *array* of objects has no typed decode — read it
+with `decode` as `array<mixed>` and convert each element yourself.
 
 ```nvs
 <?nvs

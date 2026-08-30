@@ -161,6 +161,27 @@ Output inside a request or on a terminal goes through a *sink*, and the terminal
 control bytes visibly rather than passing them through; that is covered with qualifiers in the
 types chapter.
 
+Code mode and HTML mode alternate freely, and a brace block may span them — the ordinary way to
+render a loop or a condition around raw HTML:
+
+```nvs
+<?nvs
+array<string> $products = ["pen", "ink", "paper"];
+?>
+<ul>
+<?nvs foreach ($products as string $name) { ?>
+  <li><?= $name ?></li>
+<?nvs } ?>
+</ul>
+```
+```output
+<ul>
+  <li>pen</li>
+  <li>ink</li>
+  <li>paper</li>
+</ul>
+```
+
 ### Comments
 
 ```nvs
@@ -1838,7 +1859,7 @@ Keywords: statement, block, scope, definite assignment, if, elseif, else if, els
 
 A statement is an expression followed by `;`, a declaration, a block, or one of the control-flow forms below. A discarded expression still runs — a call for its effect, an assignment for its write. `;` on its own is an empty statement.
 
-A local is declared once, with a type or `var`, and every local is **function-scoped**: a block `{ … }` groups statements and opens no scope, so a name declared inside one is the same name after it, and declaring it again anywhere in the function — a second `int $n`, a second `for (int $i …)`, a second `catch (… $e)` — is a compile error. What a block *does* affect is definite assignment: a local may be read only where every path has assigned it, so a declaration inside an `if` cannot be read after the `if`, and `int $n;` with no initializer is readable once both branches assign it. The declaration forms themselves are the types chapter's.
+A local is declared once, with a type or `var`, and every local is **function-scoped**: a block `{ … }` groups statements and opens no scope, so a name declared inside one is the same name after it, and declaring it again anywhere in the function — a second `int $n`, a second `for (int $i …)`, a second `catch (… $e)` — is a compile error. "Once" counts declaration *statements*, not executions: a declaration inside a loop body is one statement and runs on every iteration, initialising the local afresh each time. What a block *does* affect is definite assignment: a local may be read only where every path has assigned it, so a declaration inside an `if` cannot be read after the `if`, and `int $n;` with no initializer is readable once both branches assign it. The declaration forms themselves are the types chapter's.
 
 ```nvs
 <?nvs
@@ -7793,7 +7814,9 @@ language's and have no member here. `abs`, `sign`, `min`, `max` and `clamp` take
 `float` or a `decimal` and answer in the argument's own type; the rounding, root, exponential,
 logarithmic and trigonometric members take and answer `float`; `intDiv`, `gcd`, `lcm`, `toBase` and
 `fromBase` work over `int`. `round` names its tie rule as a `Core\RoundMode` case and defaults to
-`HalfUp`; `format` groups digits only when asked, since there is no locale. A refusal throws —
+`HalfUp` — and answers a `float`, so `round(6.0, {decimals: 2})` prints `6`; a number shown with a
+fixed count of decimals is `format`'s job, not `round`'s. `format` groups digits only when asked,
+since there is no locale. A refusal throws —
 `fromBase` on a digit outside the base, `format` on an infinity — never answers `false`. The
 constants are class constants: `Core\Math::PI`, `INT_MAX`, `EPSILON`, `NAN`, `INFINITY`.
 
@@ -8499,7 +8522,8 @@ Keywords: preg_match, preg_match_all, preg_replace, preg_replace_callback, preg_
 
 A `Core\Regex` pattern is a plain string — no `/…/` delimiters and no trailing modifiers; the
 flags are options to `Core\Regex::compile`, which answers a `Core\Regex\Pattern` every other
-member also takes in place of the string. A pattern runs on a linear-time engine; one that needs
+member also takes in place of the string. A single-quoted literal is the cheap spelling — `'\d+'`
+has no escapes to double, where `"\\d+"` does. A pattern runs on a linear-time engine; one that needs
 a lookaround or a backreference runs on a backtracking engine under a step budget, and exhausting
 that budget throws rather than answering `false`. A pattern neither engine can compile throws too.
 `match` answers `?Core\Regex\Match` — `null` when nothing matched — and `matchAll` a list of them;
@@ -8830,7 +8854,9 @@ as a string-keyed array — and throws `ParseError` on a malformed or too-deep d
 no `json_last_error`. `decodeAs<T>` reads a document straight into a class that carries
 `#[Core\Json\Derive]`, checking every declared field against its type — `?T` is the only way a
 field admits `null` — and reporting every failure at once in one `ParseError`'s `issues`.
-`#[Core\Json\Field(name: "…")]` gives one field its wire name.
+`#[Core\Json\Field(name: "…")]` gives one field its wire name. `decodeAs<T>` names a class and
+nothing else: a document whose top level is a JSON *array* of objects has no typed decode — read it
+with `decode` as `array<mixed>` and convert each element yourself.
 
 ```nvs
 <?nvs
@@ -10456,7 +10482,8 @@ Answers whether the value's year has a 29 February, replacing `date("L")` and `c
 Keywords: checkdate, date, cal_days_in_month, calendar date, day-month-year, zone-free, at, format, plus, minus, with, compareTo
 
 A `Date` is the year, month and day alone — no time of day and no zone — built by `Date::at` or read
-off a `DateTime` with `->date()`. A date that does not exist throws where it is built, which is all
+off a `DateTime` with `->date()`. There is no `Date::parse`: text is read with `Core\Time::parse`
+(a pattern and a zone), and the `DateTime` it answers gives up its date. A date that does not exist throws where it is built, which is all
 `checkdate` did. It steps by `Core\Unit::Day` and larger, with the same month-end clamping as
 `DateTime::plus`; a smaller unit is refused. `format` takes the date letters of the CLDR grammar
 `DateTime::format` uses, and a time or zone letter in the pattern is refused because a `Date` has

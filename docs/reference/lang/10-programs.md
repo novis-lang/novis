@@ -52,6 +52,27 @@ Output inside a request or on a terminal goes through a *sink*, and the terminal
 control bytes visibly rather than passing them through; that is covered with qualifiers in the
 types chapter.
 
+Code mode and HTML mode alternate freely, and a brace block may span them — the ordinary way to
+render a loop or a condition around raw HTML:
+
+```nvs
+<?nvs
+array<string> $products = ["pen", "ink", "paper"];
+?>
+<ul>
+<?nvs foreach ($products as string $name) { ?>
+  <li><?= $name ?></li>
+<?nvs } ?>
+</ul>
+```
+```output
+<ul>
+  <li>pen</li>
+  <li>ink</li>
+  <li>paper</li>
+</ul>
+```
+
 # Comments
 
 ```nvs

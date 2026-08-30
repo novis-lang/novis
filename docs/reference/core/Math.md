@@ -8,7 +8,9 @@ language's and have no member here. `abs`, `sign`, `min`, `max` and `clamp` take
 `float` or a `decimal` and answer in the argument's own type; the rounding, root, exponential,
 logarithmic and trigonometric members take and answer `float`; `intDiv`, `gcd`, `lcm`, `toBase` and
 `fromBase` work over `int`. `round` names its tie rule as a `Core\RoundMode` case and defaults to
-`HalfUp`; `format` groups digits only when asked, since there is no locale. A refusal throws —
+`HalfUp` — and answers a `float`, so `round(6.0, {decimals: 2})` prints `6`; a number shown with a
+fixed count of decimals is `format`'s job, not `round`'s. `format` groups digits only when asked,
+since there is no locale. A refusal throws —
 `fromBase` on a digit outside the base, `format` on an infinity — never answers `false`. The
 constants are class constants: `Core\Math::PI`, `INT_MAX`, `EPSILON`, `NAN`, `INFINITY`.
 

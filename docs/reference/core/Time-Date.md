@@ -4,7 +4,8 @@ keywords: checkdate, date, cal_days_in_month, calendar date, day-month-year, zon
 ---
 
 A `Date` is the year, month and day alone — no time of day and no zone — built by `Date::at` or read
-off a `DateTime` with `->date()`. A date that does not exist throws where it is built, which is all
+off a `DateTime` with `->date()`. There is no `Date::parse`: text is read with `Core\Time::parse`
+(a pattern and a zone), and the `DateTime` it answers gives up its date. A date that does not exist throws where it is built, which is all
 `checkdate` did. It steps by `Core\Unit::Day` and larger, with the same month-end clamping as
 `DateTime::plus`; a smaller unit is refused. `format` takes the date letters of the CLDR grammar
 `DateTime::format` uses, and a time or zone letter in the pattern is refused because a `Date` has
