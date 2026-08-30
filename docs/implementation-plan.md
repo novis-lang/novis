@@ -567,8 +567,25 @@
 > through values what they used to read out of a `static` across a test boundary: the retry case
 > drops its tallying class, each test counting its own entries, and the fixture case stamps the
 > build count into the `Schema` and `Repo` it returns, asserted as an invariant across the sweep.
-> The other three names — the task tree, the fixed clock and the seed — are still unwritten, which
-> is the item-25 work that check still reports as open.
+> **The second of Stage 7's four names is green: the runner owns the test's task tree.**
+> `crates/nvs-cli/src/runner.rs`'s `run_suite_in_a_task` is the three installations `nvs run`
+> already makes — one `Scheduler`, a reactor over it, and the isolate resolver — with the whole
+> suite spawned into a single `TaskRoot::Request` task, so a test's own isolate is a *child* of that
+> task rather than a program run on the caller's stack, and a `Core\Task::all` written in a test has
+> a calling task to put its children under (ADR 0072 § 1). Without it there was no host installed at
+> all, so that member reached `Fault::fatal` rather than a wrong answer. `checked` and the unit are
+> moved into the task because a scheduler's body is `'static`, and what comes back out comes back
+> the two ways `nvs run` already takes it: the `Suite` through a cell the body captured, the `Ctx`
+> out of the `Finished`. § 16's second half is read on the test's own stack at the one moment it
+> means anything — `nvs_host::children_still_running()`, called in `run_in_isolate`'s program
+> closure the instant the body returns, and `Outcome::with_tasks_left_running` turning any leftover
+> into a **named** failure rather than letting the scheduler cancel it at the retire and report
+> green. An awaited child is already out of the tree by then, because `Scheduler::orphan` runs the
+> moment a coroutine returns and before whatever was awaiting it is resumed, so the only way to fail
+> this is a `spawn script` a test never awaited — which is exactly what the guard's fixture writes.
+> The other two names — the fixed clock and the seed, both ADR 0079 § 12 — are still unwritten, and
+> the option keys are already in the checker's table (`nvs_types::testing`), so what is missing is
+> the runner reading them.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
