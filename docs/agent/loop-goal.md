@@ -85,8 +85,8 @@ below: the abort first, then what a working program hits, then the refusals, the
     it. U14: a stray `#[Access]` is refused beside the three sibling stray checks. U6: `#[Command]` requires
     a `static` method returning `void` or `uint` (ADR 0086 § 6). U4: `Core\Json::encode` refuses a `secret`
     anywhere in its value (ADR 0033 § 4's new bullet), and `echo` and interpolation refuse one (its terminal
-    bullet). U5: the E0422/E0724 help texts name `Core\Secret::reveal()`, which is goal 4's — until it ships
-    they name the rewrite that exists. P5: an `array<T>` class constant is folded the way ADR 0057 folds the
+    bullet). U5: `Core\Secret::reveal`/`::revealBytes` exist — ADR 0033 § 3's escape hatch, brought forward
+    from goal 4 because every § 4 refusal's help text already names the call. P5: an `array<T>` class constant is folded the way ADR 0057 folds the
     scalar ones — one shared value per constant per process, a memory cost the folding module's doc states.
 34. **The lowering and library gaps.** P1 `Class::method(...)` / `$obj->method(...)` has a checker record
     and no lowering arm (`crates/nvs-ir/src/lower/expr.rs:2874`; ADR 0027 keeps the spelling). P4 a

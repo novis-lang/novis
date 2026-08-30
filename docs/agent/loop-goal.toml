@@ -313,6 +313,10 @@ cases = [
   "tests/conformance/reject/json-encode-refuses-a-secret.nvst",
   "tests/conformance/reject/echo-refuses-a-secret.nvst",
   "tests/conformance/core/an-array-constant-folds.nvst",
+  "tests/conformance/core/a-reveal-drops-the-secret-qualifier.nvst",
+  "tests/conformance/core/reveal-is-the-identity-on-the-value.nvst",
+  "tests/conformance/core/a-revealed-value-is-accepted-by-every-secret-sink.nvst",
+  "tests/conformance/reject/reveal-removes-secret-and-not-tainted.nvst",
 ]
 
 [[check]]

@@ -118,9 +118,13 @@ in that goal. An item's owner is the row it sits in.
       is refused with the bare value. A written `["token" => $pw]` still reaches neither: an array
       literal with no expectation infers `array<mixed>`, which is ADR 0033's unmodelled container
       axis and is fixed at the literal rather than at either sink.
-- [ ] **U5** `Core\Secret::reveal` does not exist (E0405), yet the E0422/E0724 help texts tell the
+- [x] **U5** `Core\Secret::reveal` does not exist (E0405), yet the E0422/E0724 help texts tell the
       user to call it. No member returns `tainted` or `secret`; a value is qualified only where a
-      declaration spells it. *types-probes*
+      declaration spells it. *types-probes* `Core\Secret` is registered —
+      `crates/nvs-stdlib/src/secret.rs`'s `reveal` and `revealBytes`, the only rows that write
+      `Qual::Reveal`, brought forward from goal 4 because every ADR 0033 § 4 refusal's help text
+      already named the call. The mark admits a `secret` argument and the answer drops the
+      qualifier by not declaring it; `tainted` still crosses, so `reveal` launders one axis only.
 - [x] **U6** `#[Command]` accepts an instance method and an `int` return — ADR 0086 § 6 says static and
       `void`/`uint`. (A positional parameter is *not* required to be `tainted`; that half of the original
       finding was wrong.) *ref-attr `command-*`* `E0789` now refuses both from
