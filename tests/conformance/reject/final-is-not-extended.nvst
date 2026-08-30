@@ -1,0 +1,34 @@
+--TEST--
+A `final` class is not extended and a `final` method is not redeclared, while an ordinary override beside it still compiles
+--FILE--
+<?nvs
+// `final` is the author's statement that a declaration is not specialized
+// further. Both halves are refused where the offending declaration is
+// written, which is the same place PHP refuses them.
+final class Sealed {
+    public function name(): string { return "sealed"; }
+}
+
+class Widened extends Sealed {}
+
+class Base {
+    public final function id(): uint { return 1; }
+
+    // Not `final`, and the override of it below is legal — the refusal is
+    // per member and not a property of having a `final` sibling.
+    public function label(): string { return "base"; }
+}
+
+class Sub extends Base {
+    public function id(): uint { return 2; }
+
+    public function label(): string { return "sub"; }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0783]: `Sealed` is `final`, so no class extends it
+%A
+error[E0784]: `Base::id` is `final`, so no subclass redeclares it
+%A
+error: aborting due to 2 errors

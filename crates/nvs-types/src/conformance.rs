@@ -45,7 +45,7 @@
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::{QName, implements_interface};
-use nvs_syntax::ast::{ClassDecl, Modifier};
+use nvs_syntax::ast::{ClassDecl, ClassMemberKind, Modifier};
 use rustc_hash::FxHashSet;
 
 use crate::Env;
@@ -97,6 +97,80 @@ pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut
             .with_help(format!(
                 "declare `{method}` here, or give `{interface}` a default body for it \
                  (ADR 0043 § 2)"
+            )),
+        );
+    }
+}
+
+/// The two promises `final` makes, checked where the declaration that breaks
+/// one is written: no class extends a `final` class (`E0783`), and no class
+/// redeclares a method an ancestor declared `final` (`E0784`).
+///
+/// Here rather than in a module of its own because it asks this module's own
+/// question from the other side — what a class's ancestors impose on it — and
+/// reads the same two tables ([`resolve_method`] and the class graph) to do
+/// it. The modifier itself is recorded per declaration
+/// ([`crate::signatures::ClassSignature::final_methods`]), so both halves are
+/// a lookup against the declaring class rather than a walk of the source.
+///
+/// The **class** half asks the direct superclass and nothing further: a
+/// `final` class cannot be extended at all, so an ancestor two links up was
+/// already refused where it was named, and reporting again here would name a
+/// class the author never wrote.
+pub(crate) fn check_class_finality(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
+    let Some(links) = env.graph.get(qname) else {
+        return;
+    };
+    let parent = links.extends.first().cloned();
+    let ancestors: Vec<QName> = links
+        .extends
+        .iter()
+        .chain(links.implements.iter())
+        .cloned()
+        .collect();
+
+    if let (Some(parent), Some(written)) = (parent, decl.extends.as_ref())
+        && crate::signatures::class_is_final(&parent, env.signatures)
+    {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_FINAL_CLASS_EXTENDED,
+                format!("`{parent}` is `final`, so no class extends it"),
+            )
+            .with_primary(
+                written.span,
+                format!("`{qname}` names it as its superclass"),
+            )
+            .with_help(format!(
+                "drop the `final` from `{parent}`'s own declaration if it was meant to be a base \
+                 class, or hold a `{parent}` in a property of `{qname}` and forward to it — \
+                 `implements … by $field` (ADR 0043 § 4) writes the forwards for you"
+            )),
+        );
+    }
+
+    for member in &decl.members {
+        let ClassMemberKind::Method(m) = &member.kind else {
+            continue;
+        };
+        let name = span_text(env.src, m.name).to_owned();
+        let owner = ancestors
+            .iter()
+            .find_map(|ancestor| resolve_method(ancestor, &name, env.signatures, env.graph))
+            .map(|(owner, _)| owner);
+        let Some(owner) = owner else { continue };
+        if !crate::signatures::method_is_final(&owner, &name, env.signatures) {
+            continue;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_FINAL_METHOD_OVERRIDDEN,
+                format!("`{owner}::{name}` is `final`, so no subclass redeclares it"),
+            )
+            .with_primary(m.name, format!("`{qname}` declares it again here"))
+            .with_help(format!(
+                "give this method a name of its own, or drop the `final` from `{owner}`'s \
+                 declaration of it"
             )),
         );
     }
