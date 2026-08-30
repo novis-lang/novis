@@ -3058,6 +3058,13 @@ is why" — is this file.
   `nvs test tests/conformance/`, long after the edit looks finished. `grep -rn` a distinctive phrase
   of the help under `tests/` before changing it; the pin is one line of the case's expectation and
   updating it is the whole fix.
+- **A `reject` case pins the *first* diagnostic, and the recovery type behind it writes the second
+  one.** `check_read` answers `mixed` after reporting, so a `static` method declared `: int` whose
+  body reads `$this->size` reports the refusal *and* `E0403 declares int but returns mixed`, and
+  `%A` does not cover the trailing `aborting due to 2 errors` line. Two ways out, and the choice is
+  about what the case is for: declare the surrounding position `mixed` so the recovery satisfies it
+  (what `this-is-not-read-in-a-static-method.nvst` does, in a comment saying why), or pin both
+  errors deliberately. Writing the case against one error and discovering the second costs a build.
 
 ## Splitting a file that got too big
 
