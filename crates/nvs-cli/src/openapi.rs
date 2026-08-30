@@ -39,10 +39,16 @@
 //!    `#[Json\Derive]` exists to decide.
 //! 2. **Request body schemas**, for the same reason and one more: which
 //!    parameter *is* the body is a question the row does not answer either.
-//! 3. **Everything `#[Api]` supplies** (§ 2) — `tags`, `errors`, `security`,
-//!    `example`. The attribute exists and `nvs_types::routes`' `check_api` holds
-//!    it to § 2's *may add and may not contradict*; what is missing is the other
-//!    half, which is a row that carries the four values here.
+//! 3. **`components.securitySchemes`.** § 2's `security` names reach the
+//!    operation ([`operation`] writes them), but *what* a named scheme is —
+//!    bearer, an API key, OAuth2 and its flows — is nowhere in the tree:
+//!    nothing in this compiler or in `nvs.toml` declares one, which is the same
+//!    absence `nvs_types::routes`' `check_api` records for the half of § 2's
+//!    scheme rule it cannot ask. So the document names schemes it does not
+//!    define, and a strict validator says so. Writing a guessed definition
+//!    would be the emitter stating a fact about deployment that no one wrote,
+//!    which is the one thing ADR 0085 is against; the component object lands
+//!    here, with no change to [`operation`], on the day a scheme has a home.
 //! 4. **`info.version`.** The document has to carry one (3.1 requires it) and
 //!    nothing in the program declares one, so it is a fixed `0.0.0` until
 //!    `nvs.toml` grows the key M6's reader would own.
@@ -58,7 +64,7 @@
 
 use std::collections::BTreeMap;
 
-use nvs_types::{ParamIn, Route, RouteParam, RouteTable};
+use nvs_types::{ConstArg, ParamIn, Route, RouteParam, RouteTable};
 use serde_json::{Map, Value, json};
 
 /// The OpenAPI version every document claims. The ADR's consequence list makes
@@ -152,6 +158,12 @@ fn base_id(row: &Route) -> &str {
 fn operation(row: &Route, id: &str) -> Value {
     let mut operation = Map::new();
     operation.insert("operationId".to_owned(), json!(id));
+    // § 2's `tags`, in the order they were written: the row carries them
+    // already grouped, and an empty list is written as no member for
+    // `parameters`' reason above.
+    if !row.tags.is_empty() {
+        operation.insert("tags".to_owned(), json!(row.tags));
+    }
     // § 1's last row, already split into its two halves by
     // `nvs_types::routes`'s `doc_comment`: a method with no doc comment carries
     // neither member, for `parameters`' reason above.
@@ -165,17 +177,41 @@ fn operation(row: &Route, id: &str) -> Value {
         let params: Vec<Value> = row.params.iter().map(parameter).collect();
         operation.insert("parameters".to_owned(), Value::Array(params));
     }
-    operation.insert("responses".to_owned(), responses(row.returns.as_deref()));
+    // § 2's `security`, as 3.1's Security Requirement Object: one object per
+    // scheme name, each holding the empty scope list. The scopes are empty
+    // because a scheme name is all the row carries and all the compiler ever
+    // saw — `nvs_types::routes`' `check_api` owns why a name is uninterpreted —
+    // and an OAuth2 scope list is a fact about a configured scheme, which is
+    // the same thing that is missing there.
+    if !row.security.is_empty() {
+        let schemes: Vec<Value> = row
+            .security
+            .iter()
+            .map(|name| {
+                let mut requirement = Map::new();
+                requirement.insert(name.clone(), Value::Array(Vec::new()));
+                Value::Object(requirement)
+            })
+            .collect();
+        operation.insert("security".to_owned(), Value::Array(schemes));
+    }
+    operation.insert("responses".to_owned(), responses(row));
     Value::Object(operation)
 }
 
-/// § 1's response body: the handler's declared return type, as the one response
-/// the route table can speak for.
+/// § 1's response body: the handler's declared return type, plus § 2's
+/// `errors` — the responses the declared type cannot state.
 ///
-/// **`200` and nothing else.** The other status codes an operation answers with
-/// are § 2's `errors`, which the row does not carry yet; inventing a `4xx` here
-/// would be the emitter holding an opinion the code never stated, which is the
-/// one thing ADR 0085 is against.
+/// **`200` is § 1's and outranks an `errors` entry that names it.** § 2 may add
+/// and may not contradict, so where both speak for one status the declared
+/// return type is the one the code stated; the entry is dropped rather than
+/// reported, because this module is a renderer and every diagnostic ADR 0085
+/// has is the front end's.
+///
+/// An error response carries its class as the `description` and no `content`.
+/// The class is what the row knows about that response, and a *schema* for one
+/// is gap 1 above — a class's fields are ADR 0071's codec, which does not reach
+/// this module for an error type any more than it does for a success type.
 ///
 /// `description` is required of every response object in 3.1, and `success` is
 /// what a generated one can honestly say: the *prose* about an operation is its
@@ -188,16 +224,89 @@ fn operation(row: &Route, id: &str) -> Value {
 /// the codec a return type reaches this document through is
 /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s, and that codec is
 /// JSON.
-fn responses(returns: Option<&str>) -> Value {
+fn responses(row: &Route) -> Value {
+    let returns = row.returns.as_deref();
     let mut success = Map::new();
     success.insert("description".to_owned(), json!("success"));
     if !matches!(returns, None | Some("void")) {
+        let mut media = Map::new();
+        media.insert("schema".to_owned(), schema(returns, None));
+        // § 2's `example` sits beside the schema it is an example of, which is
+        // 3.1's own place for one. A handler answering with nothing has no
+        // media type to hang it on, so an example written there reaches no
+        // document — as it should: `nvs_types::routes`' `check_api_example`
+        // holds an example to the return type's fields, and `void` has none.
+        if let Some(example) = row.example.as_ref().and_then(example_value) {
+            media.insert("example".to_owned(), example);
+        }
         success.insert(
             "content".to_owned(),
-            json!({"application/json": {"schema": schema(returns, None)}}),
+            json!({"application/json": Value::Object(media)}),
         );
     }
-    json!({"200": Value::Object(success)})
+    let mut responses = Map::new();
+    responses.insert("200".to_owned(), Value::Object(success));
+    for error in &row.errors {
+        responses
+            .entry(error.status.to_string())
+            .or_insert_with(|| json!({"description": error.class}));
+    }
+    Value::Object(responses)
+}
+
+/// § 2's `example` as JSON, or `None` where some part of it has no JSON form at
+/// all.
+///
+/// **All of it or none of it.** A folded value with no JSON form is a `Core`
+/// instance or a `bytes` constant — [`nvs_types::ConstArg`] names which
+/// variants those are — and rendering one as `null` would be the document
+/// stating a value the code did not; dropping the field alone would be an
+/// example that is missing a member the class declares, which is a worse lie
+/// than no example. So the whole member is absent, which is this module's
+/// answer everywhere else it has less than the document wants.
+///
+/// An array renders as a JSON list when its keys are `0, 1, …, n-1` and as an
+/// object otherwise. That is the test `nvs_stdlib::json`'s encoder applies to a
+/// runtime array — its own docs own the rule — asked here of a folded one,
+/// because an example is decoded by the codec that would apply that test and
+/// the two have to agree about what the author wrote.
+fn example_value(value: &ConstArg) -> Option<Value> {
+    Some(match value {
+        ConstArg::Null => Value::Null,
+        ConstArg::Bool(value) => json!(value),
+        ConstArg::Int(value) => json!(value),
+        ConstArg::Uint(value) => json!(value),
+        ConstArg::Float(value) => json!(value),
+        ConstArg::Str(value) => json!(value),
+        ConstArg::EmptyArray => Value::Array(Vec::new()),
+        ConstArg::Shape(fields) => Value::Object(members(fields)?),
+        ConstArg::Array(entries) => {
+            if entries
+                .iter()
+                .enumerate()
+                .all(|(index, (key, _))| *key == index.to_string())
+            {
+                let mut list = Vec::with_capacity(entries.len());
+                for (_, value) in entries {
+                    list.push(example_value(value)?);
+                }
+                Value::Array(list)
+            } else {
+                Value::Object(members(entries)?)
+            }
+        }
+        ConstArg::Bytes(_) | ConstArg::Options(_) | ConstArg::Built { .. } => return None,
+    })
+}
+
+/// The keyed half of [`example_value`], which owns why a member with no JSON
+/// form takes the whole example with it.
+fn members(fields: &[(String, ConstArg)]) -> Option<Map<String, Value>> {
+    let mut object = Map::new();
+    for (name, value) in fields {
+        object.insert(name.clone(), example_value(value)?);
+    }
+    Some(object)
 }
 
 /// One parameter object, in declaration order within its route.
