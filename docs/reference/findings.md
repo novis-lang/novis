@@ -110,9 +110,12 @@ in that goal. An item's owner is the row it sits in.
 - [ ] **U5** `Core\Secret::reveal` does not exist (E0405), yet the E0422/E0724 help texts tell the
       user to call it. No member returns `tainted` or `secret`; a value is qualified only where a
       declaration spells it. *types-probes*
-- [ ] **U6** `#[Command]` accepts an instance method and an `int` return — ADR 0086 § 6 says static and
+- [x] **U6** `#[Command]` accepts an instance method and an `int` return — ADR 0086 § 6 says static and
       `void`/`uint`. (A positional parameter is *not* required to be `tainted`; that half of the original
-      finding was wrong.) *ref-attr `command-*`*
+      finding was wrong.) *ref-attr `command-*`* `E0789` now refuses both from
+      `commands.rs`'s `check_command_shape`, worded from what the declaration did as the `#[Test]` and
+      `#[Fixture]` shape refusals are. A method writing no return type at all is left to the diagnostic
+      that already refuses that, rather than told it returns the `mixed` it never wrote.
 - [ ] **U7** Under `nvs run` only `[limits] memory` is enforced: `wall_time = "1s"` with an infinite
       loop ran past 60 s, `cpu_time = "1s"` completed a 7 s loop, `max_output = "10"` let 28 bytes
       through. `Core\Fatal::onLimit`'s card lists all of them. *refp/cpu, refp/wall, refp/out*
@@ -137,8 +140,11 @@ in that goal. An item's owner is the row it sits in.
       hook reads, which is how such a property holds a value. The differences page carries the row.
 - [ ] **U13** `$e->message = "b"` on a throwable is accepted and reads back — the properties are not
       read-only, though a conformance case calls `location` "readonly". *ref-errors `write_message`*
-- [ ] **U14** `#[Access]` on a method with no `#[Route]` compiles (no stray-marker refusal, unlike
-      `#[Query]`/`#[Option]`/`#[Api]`). *ref-attr*
+- [x] **U14** `#[Access]` on a method with no `#[Route]` compiles (no stray-marker refusal, unlike
+      `#[Query]`/`#[Option]`/`#[Api]`). *ref-attr* `E0788` now refuses it from the same per-method
+      walk those three are asked in — ADR 0096 § 1's sibling rule read from the other side, and a
+      refusal rather than a silence because § 2 keeps the compiler from interpreting `allow`, so the
+      route table is the decision's only reader.
 - [x] **U15** `nvs test --filter` does not select `#[Test]` methods — `--filter clock` ran all four
       tests; it filters `.nvst` paths only. *ref-probe/t1* The flag now selects on both sides by one
       containment rule (`nvs-cli`'s `runner::selected`), over `Class::method` for a program's tests;

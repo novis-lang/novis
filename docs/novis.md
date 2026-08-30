@@ -5467,7 +5467,10 @@ access decision does not compile, so an open route says so with `Core\Audience::
 than by omission. `allow:` is any constant — `Core\Audience::Public` or the application's own
 enum case or class constant; the compiler records the decision and does not interpret it. One
 `#[Access]` per method, covering every `#[Route]` the method carries; two are refused, and one
-without `allow:` is refused. `csrf: false` opts the method out of the CSRF check that covers
+without `allow:` is refused. The requirement runs both ways: an `#[Access]` on a method that
+carries no `#[Route]` is refused too (`E0788`), because the route table is the only thing that ever
+reads a decision, so one written away from a route guards nothing and never will.
+`csrf: false` opts the method out of the CSRF check that covers
 `Post`, `Put`, `Patch` and `Delete`, and is refused on a method whose routes are all safe verbs.
 
 ```nvs error
@@ -5614,9 +5617,10 @@ greet: Say hello
 - An option or positional parameter must have a type an argument's text converts to — the same
   list a route capture accepts (`string`, `int`, `uint`, `decimal`, `bool`, an enum, a union of
   literals, `Core\Uuid`); anything else is refused.
-- The method returns `void` (exit status 0) or `uint` (the exit status). The compiler also
-  accepts a `#[Command]` on an instance method and other return types; the examples use the
-  static, `void`/`uint` form.
+- The method is **`static`** and returns `void` (exit status 0) or `uint` (the exit status). Both
+  are refused where they are not met (`E0789`): a command is dispatched by name off the compiled
+  table, which holds no instance to call a handler on, and what a handler answers with is the
+  status `Core\Command::run` returns.
 
 ```nvs error
 <?nvs
