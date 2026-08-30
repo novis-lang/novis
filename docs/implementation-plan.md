@@ -52,16 +52,15 @@
 > now resolves the tree for and a request reads under `Core\Config`. Stage 2 closed with ADR 0103 §
 > 9's `nvs config check`/`dump`. Stage 4 has its first doors: 0118's check sits inside
 > `Core\File::read`/`::write` and inside a `spawn script` target's resolution,
-> `registry::CAPABILITIES` names the two, and `nvs.toml` grants the examples. **Stage 8 is closed at
-> both counts**: conformance is 1006, differential is 206 over its 205 floor with six
-> `Core\Serialize` round-trips against PHP's own pair, and `isolation.rs` measures
-> `nvs_host::Isolate` itself with a guard beside it. Three known gaps, each recorded where its code
-> is: item 18's `Core\Secret::reveal()` is not in the registry, though how a `secret` parameter is
-> spelled on a row is decided (`Qual::Reveal`); `Live::admit`'s same-class check is asked of the
+> `registry::CAPABILITIES` names the two, and `nvs.toml` grants the examples. ADR 0020 § 1's memory
+> cap is enforced: `budget` counts in every build, `Ctx` holds the ceiling, a breach is a `FATAL`,
+> and `examples/limits.nvs` exits 1. **Stage 8 is closed at both counts**: conformance is 1006,
+> differential is 206 over its 205 floor , and `isolation.rs` measures `nvs_host::Isolate` itself
+> with a guard beside it. Three known gaps, each recorded where its code is: item 18's
+> `Core\Secret::reveal()` is not in the registry; `Live::admit`'s same-class check is asked of the
 > answer and not of the argument (`crates/nvs-runtime/src/graph.rs` § *Known gaps*); item 22's
-> `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`). The program is measured
-> by `python tools/check-migration.py` at 100% classified — 25% when it was scheduled, 34% now — and
-> `gaps.py`, `holes.py` and `check-migration.py --report` are the worklists no session re-derives.
+> `Core\Script` members are unwritten (`crates/nvs-stdlib/src/script.rs`). `gaps.py`, `holes.py` and
+> `check-migration.py --report` are the worklists no session re-derives.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

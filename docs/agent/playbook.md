@@ -1525,13 +1525,17 @@ is why" — is this file.
   relink and never returned in four subsequent runs, including the full workspace sweep; the
   `.loop` logs hold an identical one-off in `--test strings`. The deterministic cause below (an
   empty argument slice) reproduces every time, which is how the two are told apart.
-- **A test binary outside `nvs-runtime` cannot reach `counting_alloc`** — that module is `#[cfg(test)]` and
-  its `allocated_bytes` is `pub(crate)`, so a `nvs-codegen` or `nvs-stdlib` integration test that wants to
-  measure allocations installs **its own** `#[global_allocator]` in the test file, gated
-  `#[cfg(debug_assertions)]`. The gate is not decoration: `nvs-runtime` registers its pooled allocator in
-  every `not(test)` *optimized* build, so an ungated one makes `cargo test --release` fail to link rather
-  than fail a test. `crates/nvs-stdlib/tests/allocation_policy.rs:135` and
-  `crates/nvs-codegen/tests/arrays.rs`'s `Counting` are the two copies of the shape.
+- **A test binary outside `nvs-runtime` measures allocations through `nvs_runtime::budget`, and may not
+  install a `#[global_allocator]` of its own.** `budget::live_bytes`, `::allocated_bytes` and
+  `::allocations` are `pub` and maintained in *every* profile, because the memory limit is read off the
+  same counters — so there is nothing left to re-implement, and re-implementing it now fails the build
+  rather than duplicating it: `nvs-runtime` registers `budget::Accounting` in every `not(test)` build,
+  debug included, and a second global allocator in the test file is
+  `error: the #[global_allocator] in this crate conflicts with global allocator in: nvs_runtime`.
+  `crates/nvs-codegen/tests/{arrays,closures,throwing}.rs` and
+  `crates/nvs-stdlib/tests/allocation_policy.rs` all read the shared counters now; they keep their
+  `#[cfg(debug_assertions)]` gates, but only because their numbers are pinned against an unoptimized
+  build's inlining, never because a counter is missing.
 
 - **Measure compiled code's allocations as a difference between two run lengths, never as an absolute
   zero.** A run allocates its array, its locals and its output buffer once whatever the loop count is, so
