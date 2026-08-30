@@ -143,6 +143,9 @@ that a reader of `nvs.toml` has one place to start:
 | `[http.headers]`, `[http.cors]`, `[http.cookies]`, `[http.client]` | [0074](0074-http-defaults-safe-and-finite.md) |
 | `[metrics]`, `[trace]` | [0076](0076-observability-export.md) |
 | `[server]`, `[[server.mount]]` | [0097](0097-development-server-and-proxied-origin.md) |
+| `[cache]` | [0042](0042-on-disk-artifact-cache-format.md) |
+| `[control]` | [0078](0078-config-reload-and-control-socket.md) § 3 |
+| `[opcache]` | [0017](0017-hot-reload-without-restart.md), and its file-cache half [0042](0042-on-disk-artifact-cache-format.md) § 9 |
 
 `[[schedule]]` is an array-of-tables for § 2's stated reason — a repeated record with several fields — and
 is the second such block after `[[extension]]`.

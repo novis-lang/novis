@@ -187,16 +187,17 @@ jiff = "0.2"
 # pure Rust with no build script, and driveable *without* its own `Value` tree
 # — `Core\Json::decode` builds an `NvsArray` straight from a visitor, so no
 # document is ever materialized twice. `serde` itself is the visitor trait it
-# is driven through; nothing here uses its derive macro, though `serde_core`
-# names `serde_derive` as a never-built `cfg(any())` dependency, so the
-# generated notice attributes it anyway.
+# is driven through. `derive` is on for exactly one consumer, `nvs-config`'s
+# block tree: ADR 0064 § 3's unknown-key refusal *is* `deny_unknown_fields`, an
+# attribute on a struct rather than machinery we write, so the macro replaces
+# code here rather than adding any.
 # `raw_value` is what lets an ADR 0054 `decimal` be written as an exact JSON
 # number rather than a lossy `f64`, and `unbounded_depth` is what lets section
 # 6 of docs/spec/01-core-library.md have its own `maxDepth` be the bound
 # rather than the crate's fixed 128.
 # `crates/nvs-stdlib/src/json.rs` owns why this crate and not another, and what
 # keeps an unbounded depth safe.
-serde = "1"
+serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
 
 # --- configuration (ADR 0064 § 1: `nvs.toml` is TOML, read through `serde`) ---

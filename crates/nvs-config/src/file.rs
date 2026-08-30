@@ -8,7 +8,11 @@
 //! refuses the duplicate and `deny_unknown_fields` refuses the unknown key — so what this module
 //! owns is the *reporting*: the file is registered in the caller's [`SourceMap`] before it is
 //! parsed, so a failure renders through ADR 0092's one diagnostic record with the offending line
-//! under it, exactly as a compiler error does.
+//! under it, exactly as a compiler error does — plus the one thing `serde` cannot say, which is
+//! which **block** the key was found in ([`block_at`]).
+//!
+//! The typed tree is [`crate::tree::Config`]; this function stays generic over it so a caller
+//! wanting the raw table still has one.
 //!
 //! Across an `[[include]]` the same key set twice is an override and not a duplicate, which is
 //! [`crate::directive`]'s neighbour and ADR 0103 § 3's; this module answers about one file.
@@ -43,9 +47,13 @@ pub fn parse<T: DeserializeOwned>(
     let id = sources.add(name, text);
     let parsed = toml::from_str::<T>(text).map_err(|err| {
         let message = err.message().to_string();
+        let range = err.span();
         let mut diagnostic = Diagnostic::error(code_for(&message), message);
-        if let Some(span) = span_of(id, err.span()) {
+        if let Some(span) = span_of(id, range.clone()) {
             diagnostic = diagnostic.with_primary(span, "here");
+        }
+        if let Some(block) = range.and_then(|range| block_at(text, range.start)) {
+            diagnostic = diagnostic.with_note(format!("in `{block}`"));
         }
         diagnostic
     });
@@ -65,6 +73,29 @@ fn code_for(message: &str) -> Code {
     } else {
         code::E_BAD_DIRECTIVE
     }
+}
+
+/// The header of the block `offset` is written inside — `[limits.hard]`, `[[app]]` — or `None` when
+/// it is in the root table.
+///
+/// A refusal names the *line*, which [ADR 0064 § 3] requires and `serde` supplies for free. It does
+/// not name the **block**, and that is the half an operator needs: an unknown key is nearly always a
+/// key written under the wrong header, and `unknown field \`memory\`` reads as nonsense until you
+/// know it was found under `[metrics]`. `serde` cannot supply it, because by the time a field is
+/// rejected the deserializer knows only the struct it was rejected by and not what the file called
+/// it — so the answer comes from the text, by scanning back to the nearest header line.
+///
+/// It is a scan of the file so far, run only on the failure path, so a boot that succeeds pays
+/// nothing for it.
+///
+/// [ADR 0064 § 3]: ../../../docs/adr/0064-configuration-file-format.md
+fn block_at(text: &str, offset: usize) -> Option<&str> {
+    text.get(..offset)?
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|line| line.starts_with('['))
+        .map(|line| line.split('#').next().unwrap_or(line).trim())
 }
 
 /// The failure's byte range as a span in `id`, dropped rather than clamped when it does not fit —
