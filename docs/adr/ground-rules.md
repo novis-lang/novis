@@ -312,6 +312,10 @@ spellings rejected, and the reasoning.
   the nested call produces, and it is not PHP 8.5's callable-applying `|>`**
   ([0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md)); scalars still gain no methods
   ([0063](0063-core-api-conventions.md) R19).
+- **`expr catch (Class $e) => value` guards one expression and lowers to the block form** — arms chain
+  like clauses, an arm holds an expression so `throw` is in and `return` is out, the result type is the
+  union of the sides, and `finally` stays the block form's alone
+  ([0119](0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)).
 - **One grammar and one tree: the resilient parse is the AST plus a trivia layer and an offset index,
   `nvs-lsp` is synchronous on `lsp-server`/`lsp-types` so no async runtime enters the workspace, an LSP
   answer is frozen as a `.lspt` case, and syntax highlighting is two layers with two tests**

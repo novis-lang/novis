@@ -135,6 +135,42 @@ The one file set the next four items share: a directive's declaration, and how a
 20. **A bundled executable runs identically to `nvs run` against the same source, on all three platforms.**
     ADR 0048's own verification list.
 
+## Stage 9 — the expression-level `catch`
+
+Added on 2026-08-30 by the user's decision, and **it runs before the rest of stage 8**: every `.nvst`
+case and reference example written after it can use the form, so it is cheaper first than later.
+[ADR 0119](../adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md) is the
+whole design and this file does not restate it; each item names the ADR section it lands.
+
+21. **The front end — the node, the parser, every walker, and `E0126`.** ADR 0119 §§ 1–3. A
+    `CatchArm` beside `MatchArm` (`crates/nvs-syntax/src/ast.rs:582`) and an `ExprKind` variant beside
+    `Match` (`:907`); `parse_catch` inserted between `parse_assignment` and `parse_ternary`
+    (`crates/nvs-syntax/src/parser/expr.rs:232`), with the arm's `( Type $var? )` parsed the way
+    `parse_catch_clause` parses a clause's (`crates/nvs-syntax/src/parser/stmt.rs:670`) and the body
+    parsed at the ternary level so a following `catch` is the next arm; `E0126` declared beside `E0125`
+    (`crates/nvs-diagnostics/src/lib.rs:195`) for `return`/`break`/`continue` at the head of an arm.
+    **Every file that matches on `ExprKind::Match` gains the arm** — `crates/nvs-syntax/src/casing.rs`,
+    `crates/nvs-hir/src/members.rs:792`, `crates/nvs-hir/src/requires.rs:1169`,
+    `crates/nvs-ir/src/lower/control.rs:2272` — and `nvs-ir`'s dispatch (`crates/nvs-ir/src/lower/expr.rs:99`)
+    gets a `panic!` naming ADR 0119 § 6 until item 23 replaces it. Parser tests in
+    `crates/nvs-syntax/src/parser/tests/expr.rs`. Same file set as item 22.
+22. **The checker — the union, the binding, the pre-guard state, and `E0778`.** ADR 0119 §§ 4–5. The
+    result type is `make_union` over the guard and the arms exactly as the `ExprKind::Match` arm does
+    it (`crates/nvs-types/src/expr/mod.rs:593`); the arm's class and variable go through the clause's
+    own checks and binding rule (`crates/nvs-types/src/locals.rs:1091`, and its `catch`-binding
+    doc at `:654`); each arm is checked from the pre-guard `live` state, as a clause is; `E0778`
+    declared beside `E0777` (`crates/nvs-diagnostics/src/lib.rs:2336`) and reported for an unbound
+    `Throwable` arm whose body is not a `throw`. Fixtures under `crates/nvs-types/tests/`.
+23. **The lowering, the corpus and the reference.** ADR 0119 § 6 and *Verification*. `lower_try`'s
+    region push, handler block, `TakeThrown` and `lower_catch_clauses` dispatch
+    (`crates/nvs-ir/src/lower/exception.rs:114`) carried into a value-producing twin that writes the
+    guard's and each arm's value to one temporary and joins them by a phi the way `lower_match` does
+    (`crates/nvs-ir/src/lower/expr.rs:1573`) — no new runtime mechanism, no codegen change. Then the
+    four `.nvst` cases the acceptance check names, and a section in
+    `docs/reference/lang/40-statements.md:293` beside the block form's whose examples
+    `python tools/reference.py` runs (`verify.py` regenerates `docs/novis.md` from it). Different
+    file set from items 21–22.
+
 ## The harness this goal owes
 
 Two acceptance checks name a tool flag that does not exist yet, and writing it is part of the item
@@ -152,6 +188,10 @@ rather than a follow-up to it. Neither is a new tool:
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
 - **Decide and record; never `BLOCKED` for a design call.**
+- **The expression `catch` is ADR 0119 as written.** Its grammar, precedence, the expression-only
+  arm, the union result type and the `Throwable` warning are decided; a session that finds the
+  lowering wants a different shape records that in `nvs-ir`'s module doc and puts the redesign in
+  `## Backlog`.
 - **One ADR slot: the capability enforcement points** (Stage 4, item 10), and it is the first slice of
   that stage. What a capability *is* at the point of a call, where the check sits so that no member can
   route around it, what it costs on a hot path, and how the closure test in item 16 knows a member needs

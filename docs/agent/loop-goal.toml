@@ -75,9 +75,19 @@ modules = [
   # deciding where a capability check sits.
   "crates/nvs-cli/src/config.rs",
   "crates/nvs-cli/src/runner.rs",
+  # Stage 9 -- the expression-level `catch`, ADR 0119. The parser chain and the arm shapes it copies
+  # (item 21), the checker's `match` union and the clause binding it reuses (item 22), and the `try`
+  # lowering it grows a value-producing twin of (item 23).
+  "crates/nvs-syntax/src/ast.rs",
+  "crates/nvs-syntax/src/parser/expr.rs",
+  "crates/nvs-syntax/src/parser/stmt.rs",
+  "crates/nvs-types/src/expr/mod.rs",
+  "crates/nvs-types/src/locals.rs",
+  "crates/nvs-ir/src/lower/exception.rs",
+  "crates/nvs-ir/src/lower/expr.rs",
 ]
 
-rules = ["0005", "0064", "0103", "0104", "0078", "0042", "0020", "0048", "0073", "0074", "0024", "0051"]
+rules = ["0005", "0064", "0103", "0104", "0078", "0042", "0020", "0048", "0073", "0074", "0024", "0051", "0119"]
 
 # The sections EVERY session reads. 0103 § 3 and § 6 are the merge rule and the trust boundary and half
 # the stages touch one of them; 0078 § 2 is the field that makes a directive boot-only and is the thing
@@ -87,6 +97,9 @@ adrs = [
   "0103 §6",
   "0078 §2",
   "0042 §3",
+  # Stage 9 -- the grammar and the one-word rule for what an arm holds; §§ 4-6 are per item.
+  "0119 §1",
+  "0119 §3",
 ]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
@@ -1950,3 +1963,41 @@ stage = "8 corpus and guards"
 name = "check-migration at 36%"
 argv = ["python", "tools/check-migration.py", "--min", "36"]
 want = ["inventory:", "classified:"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the expression-level `catch`, ADR 0119. Added 2026-08-30; the handoff runs it ahead of
+# the rest of stage 8. Three checks, one per item: the parser, the checker, the lowered corpus.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "9 catch expression"
+name = "nvs-syntax (the expression catch)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "an_expression_catch_is_arms_on_one_guarded_expression",
+  "a_statement_keyword_in_a_catch_arm_is_e0126",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 catch expression"
+name = "nvs-types (the expression catch)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "an_expression_catch_types_as_the_union_of_its_sides",
+  "an_unbound_throwable_arm_warns_e0778",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "9 catch expression"
+name = "conformance (the expression catch)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/lang/an-expression-catch-yields-the-arm-where-the-guard-threw.nvst",
+  "tests/conformance/lang/catch-arms-are-tried-in-order-and-the-rest-is-rethrown.nvst",
+  "tests/conformance/lang/a-throw-arm-leaves-through-the-enclosing-finally.nvst",
+  "tests/conformance/reject/a-return-in-a-catch-arm-is-refused-naming-the-block-form.nvst",
+]
