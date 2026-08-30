@@ -192,7 +192,7 @@ fn a_root_matches_on_component_boundaries_and_never_on_part_of_a_name() {
 /// § 2's ordering, asserted as the whole sequence: least-specific first, and the `entry` block
 /// last of all because its path is the longest of the three that match.
 #[test]
-fn every_matching_block_applies_least_specific_first() {
+fn every_matching_app_block_applies_least_specific_first() {
     let fs = shop();
     let resolved = tree_of(&fs, "nvs.toml");
 
@@ -212,10 +212,13 @@ fn an_entry_matched_by_no_block_is_not_an_error() {
     assert!(blocks_for(&fs, &resolved, "srv/other/x.nvs").is_empty());
 }
 
-/// § 1's reason for canonicalizing, in the shape M6's acceptance names it: a path that *reaches*
-/// an application's tree through `..` is not inside it, so it inherits none of its capabilities.
+/// § 1's reason for canonicalizing, in the shape M6's acceptance names it, and both halves of it in
+/// one case because they are one rule: a path that *reaches* an application's tree through `..` is
+/// not inside it, and neither is a symlink *planted inside* that tree — the one an attacker writes —
+/// because the name a path resolves to is what is compared. Asserted together so an implementation
+/// that canonicalizes only the written components still fails here.
 #[test]
-fn an_entry_reaching_a_root_through_dotdot_does_not_match_it() {
+fn an_entry_path_reaching_an_app_root_through_dotdot_or_a_symlink_does_not_match() {
     let fs = shop();
     let resolved = tree_of(&fs, "nvs.toml");
 
@@ -224,18 +227,12 @@ fn an_entry_reaching_a_root_through_dotdot_does_not_match_it() {
         Vec::<String>::new(),
         "the path canonicalizes to `srv/other/x.nvs`, which no block covers",
     );
-}
 
-/// The other half of the same rule, and the one an attacker writes: a symlink *planted inside* an
-/// application's tree does not inherit that application's grants, because the name it resolves to
-/// is what is compared.
-#[test]
-fn a_symlink_planted_inside_a_root_does_not_inherit_it() {
-    let fs = shop().linking("srv/www/shop/back-door.nvs", "srv/other/x.nvs");
-    let resolved = tree_of(&fs, "nvs.toml");
+    let linked = shop().linking("srv/www/shop/back-door.nvs", "srv/other/x.nvs");
+    let resolved = tree_of(&linked, "nvs.toml");
 
     assert_eq!(
-        blocks_for(&fs, &resolved, "srv/www/shop/back-door.nvs"),
+        blocks_for(&linked, &resolved, "srv/www/shop/back-door.nvs"),
         Vec::<String>::new(),
         "the link resolves out of `srv/www/shop`, so the `shop` block does not cover it",
     );
@@ -454,7 +451,7 @@ fn bounded(asked: &str) -> Fake {
 /// `[limits.hard]`, and the first value past it is refused. A check that is off by one prints
 /// plausibly against either half alone, so the two are one case.
 #[test]
-fn a_block_widens_up_to_the_hosts_ceiling_and_no_further() {
+fn an_app_block_may_widen_bounded_by_the_global_ceiling() {
     let at_the_ceiling = bounded("[app.limits]\nmemory = \"512M\"\n");
     assert_eq!(
         tree_of(&at_the_ceiling, "nvs.toml").config.app.len(),
