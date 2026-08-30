@@ -4014,6 +4014,17 @@ sibling in the same namespace unqualified.
   on there is the executable itself, which `run_run` now substitutes. Before changing a byte
   source, `grep -n 'canonicalize\|read_to_string' crates/` for the *other* readers — there were
   three, in three crates, and only one of them was in `nvs-hir`.
+- **A `Known gap` paragraph in a module doc can outlive the gap, and it reads exactly like a
+  decision rather than like a report.** `crates/nvs-types/src/defaults.rs`'s said a written
+  `= null` stayed refused because "a type that admits both `null` and a `T` has no IR
+  representation yet" — while `?int $absent = null` is a landed conformance case for a *local*,
+  `?int $rank` is a parameter several `Core` cases already pass, and `?int $length = null` is a
+  live `Core` default reaching `ConstArg::Null` through `core_lib`. The representation had landed
+  underneath the paragraph, so the finding it produced (D25) arrived reading like a decision to
+  overturn and was one missing match arm. One `grep` for the shape the paragraph says is
+  impossible is the whole check — the same check the *a `loop-goal.toml` comment can be stale
+  about the tree* bullet asks for one file up, because a sentence written as a reason is still a
+  claim about the tree.
 
 ## Divergences and refusals already pinned
 
