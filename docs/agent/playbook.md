@@ -2985,6 +2985,17 @@ is why" — is this file.
   is the operator's, in the snapshot the parent already holds, and what the case asks is the
   child's side of it. The general shape: a directive that is `RuntimeTighten` in the registry is
   not thereby settable — the value has to have a quantity for the comparison to mean anything.
+- **A `cfg(unix)`-only test cannot satisfy a `cargo-named` acceptance check**, because the driver
+  reads "did not run" as a failure and this loop runs on Windows. `crates/nvs-config/tests/trust.rs`
+  gates its two negative cases on Unix and is right to — nothing names them — but stage 5's
+  `a_world_writable_cache_directory_is_refused` *is* named, so it has to construct a world-writable
+  directory on both platforms. Windows has one, and it is one line:
+  `icacls <dir> /grant *S-1-1-0:(OI)(CI)(M)` grants `Everyone` modify rights, and
+  `nvs_config::trust::check` sees it through `GetEffectiveRightsFromAclW`. Spell the principal as
+  the SID rather than as `Everyone`: `icacls` is localized, and this machine's prints German. Then
+  assert on `Untrusted::Breach` and on the directory's own last component — not on the canonical
+  path, because `fs::canonicalize` yields `\\?\C:\…` on Windows where the refusal's message does
+  not.
 
 ## Splitting a file that got too big
 
