@@ -1027,6 +1027,11 @@ is why" — is this file.
   `Path::exists` `stat`s rather than `lstat`s and an include naming a symlink was otherwise
   `E0605`. Grep `impl <Trait> for` before adding a method, and give the fake the resolving
   behaviour rather than the identity one.
+- **`peek.py` takes every target *before* any flag, and a target after one is `unrecognized
+  arguments`.** `peek.py A.rs:re:pat --window 8 B.rs:1-16` fails on `B.rs:1-16` — argparse stops
+  collecting the positional list at the first optional and will not resume — while the same call with
+  both targets first works. The failure names only the trailing target, so it reads as a bad target
+  spelling rather than as an ordering rule, and the natural fix (drop the target) is the wrong one.
 
 ## Running things
 
@@ -2944,6 +2949,14 @@ is why" — is this file.
   separates the two cases is *can this crate reach the thing the test asks about*, never *does a
   test like it already live here*: `nvs-hir` genuinely could not ask `required() > 0`, and `nvs-host`
   can reach every seam a request's limits are enforced at.
+- **A `[limits]` reader answers off `Snapshot::table`, the raw `toml::Table`, and not off the typed
+  `Config` beside it.** `Ctx::configured_memory_limit` and `::configured_cpu_time` go through
+  `nvs_config::Request::get`, which reads `self.base.table` — so a case that builds
+  `Snapshot { config: Config { limits: Some(..), .. }, ..Default::default() }` compiles, runs, and
+  reports *no ceiling*, because the half it filled in is a different reader's. Build both halves from
+  one TOML string (`written.parse::<toml::Table>()`, then `table.clone().try_into()`), which is what
+  `crates/nvs-runtime/tests/configured_limits.rs` does; that also needs `toml` as a dev-dependency of
+  the crate under test.
 
 ## Splitting a file that got too big
 
