@@ -56,6 +56,7 @@
 //! is where those meet.
 
 pub mod app;
+pub mod cache;
 pub mod capability;
 pub mod directive;
 pub mod file;

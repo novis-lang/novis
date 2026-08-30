@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
+use nvs_config::cache::{UnitKey, artifact_key, env_hash};
 use nvs_config::resolve::{Files, Resolved, Roots, resolve};
 use nvs_config::snapshot::{Current, Snapshot};
 use nvs_config::trust::Untrusted;
@@ -413,4 +414,64 @@ fn a_malformed_file_leaves_the_previous_snapshot_serving_and_names_the_line() {
 
     // Nothing was published, so the request starting now reads what the request before it read.
     assert_eq!(limits(&current.load()).memory, text("128M"));
+}
+
+/// The snapshot whose `[[extension]]` array carries `pins`, over a tree that is otherwise the same
+/// one every time — so the only thing two of these differ by is the extension set.
+fn pinned(pins: &[&str]) -> Arc<Snapshot> {
+    let mut written = String::from("[limits]\nmemory = \"128M\"\n");
+    for pin in pins {
+        written.push_str(&format!(
+            "\n[[extension]]\npath = \"ext/{pin}.nvsx\"\nsha256 = \"{pin}\"\n"
+        ));
+    }
+    let fs = Fake::with(&[("nvs.toml", &written), ("srv/www/index.nvs", "")]);
+    snapshot_of(&fs, "srv/www/index.nvs")
+}
+
+/// ADR 0078 § 4: one `env_hash` over the extension set, and **both** compiled-unit cache keys carry
+/// it — the on-disk `BLAKE3(source_content ‖ env_hash)` and the in-memory
+/// `UnitKey { path, content_hash, env_hash }`. Asked of both keys together, because § 4's whole
+/// content is that they move as one: a key that kept the pre-§ 4 shape still looks right beside a
+/// case that only asks the other one.
+#[test]
+fn env_hash_is_carried_by_both_cache_keys() {
+    let one = env_hash(&pinned(&["aa", "bb"]).config);
+    let reordered = env_hash(&pinned(&["bb", "aa"]).config);
+    let changed = env_hash(&pinned(&["aa", "cc"]).config);
+    assert_eq!(
+        one, reordered,
+        "§ 4 hashes the pins sorted, so the set is order-independent"
+    );
+    assert_ne!(one, changed, "a changed pin is a changed environment");
+    assert_ne!(
+        one,
+        env_hash(&pinned(&["aa"]).config),
+        "a dropped extension is one too",
+    );
+
+    let source = b"<?nvs\necho 1;\n";
+    let path = p("srv/www/index.nvs");
+
+    // On disk. Same source, two environments, two entries — which is the hole § 4 closes.
+    assert_ne!(
+        artifact_key(source, one),
+        artifact_key(source, changed),
+        "the on-disk key carries env_hash",
+    );
+    assert_eq!(artifact_key(source, one), artifact_key(source, reordered));
+
+    // In memory. Same path and same content, two environments, two units.
+    assert_ne!(
+        UnitKey::new(&path, source, one),
+        UnitKey::new(&path, source, changed),
+        "the in-memory key carries env_hash",
+    );
+    assert_eq!(
+        UnitKey::new(&path, source, one),
+        UnitKey::new(&path, source, reordered)
+    );
+
+    // And it is the value itself that is carried, not a second derivation of the same inputs.
+    assert_eq!(UnitKey::new(&path, source, one).env(), one);
 }

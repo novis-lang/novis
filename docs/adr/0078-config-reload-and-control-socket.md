@@ -13,6 +13,8 @@
   [0042](0042-on-disk-artifact-cache-format.md) §§ 2 and 6 — the key gains the extension set;
   [0003](0003-extension-system.md) § *Isolation, limits and loading* — the extension set is reloadable.
 - **Amended by:** 0091, 0103, 0106
+- **Validated by:** `crates/nvs-config/tests/snapshot.rs` —
+  `env_hash_is_carried_by_both_cache_keys` holds § 4's claim that the two keys carry one value.
 
 > **In short:** the parsed config is one immutable `Arc<Config>`; a request clones it at start and is
 > unaffected by anything that happens afterwards. `nvs ctl reload` re-reads `nvs.toml` over a

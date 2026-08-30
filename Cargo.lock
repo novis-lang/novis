@@ -1497,6 +1497,7 @@ dependencies = [
 name = "nvs-config"
 version = "0.0.1"
 dependencies = [
+ "blake3",
  "libc",
  "nvs-diagnostics",
  "serde",
@@ -1559,6 +1560,7 @@ dependencies = [
  "bitflags 2.13.1",
  "nvs-config",
  "subtle",
+ "toml",
  "unicode-segmentation",
 ]
 

@@ -11,7 +11,11 @@ repository.workspace = true
 # `toml` + `serde` are ADR 0064 § 1's format decision, and both refusals § 3
 # makes are their default behaviour rather than machinery of ours. Both are pure
 # Rust, so ADR 0051 § 4's two questions do not arise.
+#
+# `blake3` is ADR 0078 § 4's own spelling of both cache keys; `src/cache.rs` is
+# the only thing in this crate that hashes anything.
 [dependencies]
+blake3.workspace = true
 nvs-diagnostics.workspace = true
 serde.workspace = true
 toml.workspace = true
