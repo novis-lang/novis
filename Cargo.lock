@@ -1471,6 +1471,7 @@ dependencies = [
  "nvs-test",
  "nvs-types",
  "serde_json",
+ "toml",
 ]
 
 [[package]]

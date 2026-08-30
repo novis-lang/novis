@@ -1,6 +1,6 @@
 //! The `nvs` binary.
 //!
-//! Eight subcommands so far, one per milestone that needed one:
+//! Nine subcommands so far, one per milestone that needed one:
 //!
 //! * `nvs ast` (M1) — dump what the parser produced.
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
@@ -26,6 +26,13 @@
 //!   finished documents: breaking, additive or cosmetic per change, non-zero
 //!   exit on a breaking one. It compiles nothing, because the old side of a
 //!   diff is a released artifact rather than a program; see [`api_diff`].
+//! * `nvs config check` (M6) — resolve the configuration tree and report what
+//!   it holds, exiting non-zero on any refusal.
+//!   [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+//!   § 9's offline audit, which exists because § 3's later-wins precedence is
+//!   only safe while it is auditable. It compiles nothing and needs no server;
+//!   see [`config`], which also holds the reader `run` resolves that tree
+//!   through.
 //! * `nvs info` — build, host and third-party licensing facts, PHP's
 //!   `php -i` in shape and in purpose. Also spelled `nvs -i`, since that is
 //!   the spelling anyone arriving from PHP will try first; see [`info`].
@@ -75,6 +82,7 @@ use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
 use nvs_syntax::{check_declarations, parse_file};
 
 mod api_diff;
+mod config;
 mod info;
 mod meta;
 mod openapi;
@@ -91,6 +99,22 @@ mod script;
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
+
+    /// Read this configuration file instead of `./nvs.toml`, and repeat it to
+    /// read several in order.
+    ///
+    /// [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+    /// § 1 step 1: naming any file disables step 2 entirely, so an operator
+    /// who names a tree never gets a surprise merge with whatever `nvs.toml`
+    /// happens to be in the working directory. A path is resolved against that
+    /// directory (§ 5), and one that does not exist is a refusal rather than a
+    /// skipped root.
+    ///
+    /// Global, because it selects the tree rather than the command: `run`
+    /// resolves the snapshot its request reads, and `config check`/`config
+    /// dump` audit the same files without running anything.
+    #[arg(long, value_name = "PATH", global = true)]
+    config: Vec<PathBuf>,
 
     /// Print build, host and third-party licensing information.
     ///
@@ -198,6 +222,16 @@ enum Command {
         #[command(subcommand)]
         command: ApiCommand,
     },
+    /// Audit the configuration tree without running anything.
+    ///
+    /// A namespace beside `api`, and deliberately not part of `nvs check`,
+    /// which checks *source*:
+    /// [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+    /// § 9 separates the two. See [`config`].
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
     /// Print build, host and third-party licensing information.
     ///
     /// One call answers what this binary is and what is compiled into it,
@@ -246,6 +280,48 @@ enum ApiCommand {
     },
 }
 
+/// `nvs config`'s own subcommands.
+///
+/// ADR 0103 § 9 names three of these — `check`, `dump` and `ctl config` — and
+/// this enum holds the two that are offline. `ctl config` belongs to the
+/// control socket [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md)
+/// § 3 reserves and arrives with `nvs ctl`.
+#[derive(Subcommand)]
+enum ConfigCommand {
+    /// Resolve the configuration tree and report what it holds, exiting
+    /// non-zero on any refusal.
+    ///
+    /// Offline: it reads the files and nothing else, so a tree is validated in
+    /// CI before it is deployed. What the audit deliberately does not assert is
+    /// [`config`]'s own module doc.
+    Check {
+        /// The root files to read, in order.
+        ///
+        /// ADR 0103 § 1 step 1's list, given positionally: naming one disables
+        /// step 2 exactly as `--config` does. With none, step 2's `./nvs.toml`
+        /// is used, else step 3's shipped defaults.
+        files: Vec<PathBuf>,
+    },
+    /// Print every key in force, one per line, in dotted-key order.
+    ///
+    /// ADR 0103 § 3 permits an include to override the file that pulled it in
+    /// *on condition* that every override is recoverable; this is where it is
+    /// recovered in full. What is printed, and the one thing deliberately
+    /// absent from it, is [`config::dump`]'s own doc comment.
+    Dump {
+        /// The root files to read — `check`'s list, read the same way.
+        files: Vec<PathBuf>,
+        /// Also name the file each key was written in, and the file it
+        /// overrode.
+        #[arg(long)]
+        origin: bool,
+        /// Write the resolved configuration as one canonical TOML document
+        /// instead, for diffing two environments.
+        #[arg(long, conflicts_with = "origin")]
+        toml: bool,
+    },
+}
+
 /// The closed set of sites `--fault-inject` accepts, one per
 /// [`nvs_runtime::FaultSite`].
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -289,7 +365,7 @@ fn main() -> ExitCode {
             dump_ir,
             dump_asm,
             fault_inject,
-        } => run_run(&file, dump_ir, dump_asm, fault_inject),
+        } => run_run(&file, dump_ir, dump_asm, fault_inject, &cli.config),
         Command::Test {
             paths,
             filter,
@@ -300,6 +376,17 @@ fn main() -> ExitCode {
         Command::Api {
             command: ApiCommand::Diff { old, new },
         } => api_diff::run(&old, &new),
+        Command::Config {
+            command: ConfigCommand::Check { files },
+        } => config::check(&cli.config, &files),
+        Command::Config {
+            command:
+                ConfigCommand::Dump {
+                    files,
+                    origin,
+                    toml,
+                },
+        } => config::dump(&cli.config, &files, origin, toml),
         Command::Info { licenses } => info::run(licenses),
         Command::Meta { json: _ } => meta::run(),
     }
@@ -528,108 +615,12 @@ fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
 /// same spelling `nvs-ir`'s own snapshots use.
 const SCRIPT: &str = "<script>";
 
-/// The reader `nvs run` resolves the configuration tree through: the real
-/// filesystem, with ADR 0103 § 6's **ownership check not applied**.
-///
-/// `nvs_config::resolve::Files` exists for exactly this split — its own doc
-/// says § 6's check belongs on the reader so that "a caller that has one and a
-/// caller that does not are two implementations of one interface rather than a
-/// flag threaded through the resolver". This is the caller that does not, and
-/// it is one of two rather than a weakening of the boundary:
-///
-/// - § 6 defends a runtime that grants **configured capabilities to requests
-///   nobody at the keyboard wrote**. `nvs serve` and `nvs ctl reload` are that
-///   runtime and they use `Disk`, which checks.
-/// - A `nvs run` has no such boundary to defend. The program is named on argv
-///   and executed as the invoking account, and the configuration is `./nvs.toml`
-///   in a working directory that same person chose. Whoever can write that file
-///   is in a position to be writing the program too.
-/// - And the check would refuse nearly every Windows checkout. § 6 names the
-///   reason itself: Windows grants `Authenticated Users` modify rights by
-///   default on a non-system drive's root and on everything inheriting from it,
-///   so a repository on `D:` fails the check until an operator breaks that
-///   inheritance. That is the right price for a served host and the wrong one
-///   for `nvs run examples/hello.nvs`.
-///
-/// **This is not the whole answer, and the rest is Stage 4's.** Where a
-/// capability check sits so that no member can route around it is the one ADR
-/// slot this milestone reserved, and whether a CLI run may be granted anything
-/// out of an unchecked file belongs in it. Until then nothing here grants
-/// anything: `Core\Config` reads values and `[capabilities]` is enforced
-/// nowhere, so the split above costs no right that is currently checked.
-struct LocalFiles;
-
-impl nvs_config::resolve::Files for LocalFiles {
-    /// Canonicalization without the ownership check — see the type's own docs.
-    /// The canonical path still comes from `nvs_config::trust::canonical`,
-    /// because the resolver's cycle test compares files rather than spellings
-    /// and a second canonicalizer is how a symlinked cycle gets through.
-    fn trust(&self, path: &std::path::Path) -> Result<PathBuf, nvs_config::trust::Untrusted> {
-        nvs_config::trust::canonical(path)
-            .map_err(|err| nvs_config::trust::Untrusted::Unreadable(err.to_string()))
-    }
-
-    fn canonical(&self, path: &std::path::Path) -> Result<PathBuf, String> {
-        nvs_config::resolve::Disk.canonical(path)
-    }
-
-    fn read(&self, path: &std::path::Path) -> Result<String, String> {
-        nvs_config::resolve::Disk.read(path)
-    }
-
-    fn read_bytes(&self, path: &std::path::Path) -> Result<Vec<u8>, String> {
-        nvs_config::resolve::Disk.read_bytes(path)
-    }
-
-    fn exposure(&self, path: &std::path::Path) -> Option<String> {
-        nvs_config::resolve::Disk.exposure(path)
-    }
-
-    fn list(&self, dir: &std::path::Path) -> Result<Vec<PathBuf>, String> {
-        nvs_config::resolve::Disk.list(dir)
-    }
-
-    fn exists(&self, path: &std::path::Path) -> bool {
-        nvs_config::resolve::Disk.exists(path)
-    }
-}
-
-/// The snapshot this run's request reads — ADR 0103 § 1's roots, § 3's ordered
-/// stream, ADR 0104 § 2's `[[app]]` fold for `entry`, and ADR 0078 § 1's
-/// immutable result.
-///
-/// It replaces the hand-rolled one-key `nvs.toml` scanner that stood here for
-/// ADR 0102 § 6's origin, which said in its own doc comment that a second key
-/// added to it would be a second configuration format. This is the reader it
-/// was waiting for, so the origin now arrives through `[[app]]` matching rather
-/// than out of any block in the file.
-///
-/// `sources` is the caller's so that a refusal can be rendered with the line it
-/// came from: a `nvs.toml` diagnostic carries a span into a file this map is
-/// the only holder of.
-fn boot_snapshot(
-    entry: &std::path::Path,
-    sources: &mut SourceMap,
-) -> Result<std::sync::Arc<nvs_config::Snapshot>, nvs_diagnostics::Diagnostic> {
-    let files = LocalFiles;
-    let cwd = std::env::current_dir().map_err(|err| {
-        nvs_diagnostics::Diagnostic::error(
-            nvs_diagnostics::code::E_UNREADABLE_CONFIG,
-            format!("the working directory could not be read: {err}"),
-        )
-    })?;
-    // No `--config` yet: ADR 0103 § 1 step 1's flag is its own slice, so every
-    // run takes step 2's `./nvs.toml` or step 3's shipped defaults.
-    let roots = nvs_config::resolve::roots(&[], &cwd, &files);
-    let resolved = nvs_config::resolve::resolve(&roots, sources, &files)?;
-    nvs_config::Snapshot::build(&resolved, entry, &files)
-}
-
 fn run_run(
     path: &std::path::Path,
     dump_ir: bool,
     dump_asm: bool,
     fault_inject: Option<FaultSiteArg>,
+    config: &[PathBuf],
 ) -> ExitCode {
     let checked = match front_end(path) {
         Ok(checked) => checked,
@@ -685,7 +676,7 @@ fn run_run(
     // a refusal to start — ADR 0103 § 3's later-wins and § 6's boundary are only
     // worth anything if a tree that does not resolve stops the run.
     let mut config_sources = SourceMap::new();
-    let snapshot = match boot_snapshot(path, &mut config_sources) {
+    let snapshot = match config::boot_snapshot(config, path, &mut config_sources) {
         Ok(snapshot) => snapshot,
         Err(diagnostic) => {
             let mut diags = Diagnostics::new();

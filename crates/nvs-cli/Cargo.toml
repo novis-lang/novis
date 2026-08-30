@@ -14,7 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 # ADR 0103's tree and ADR 0078 § 1's snapshot: `nvs run` is the first caller
-# that resolves a real `nvs.toml`, and `LocalFiles` in `main.rs` owns which of
+# that resolves a real `nvs.toml`, and `LocalFiles` in `config.rs` owns which of
 # the two `Files` readers it is.
 nvs-config.workspace = true
 nvs-diagnostics.workspace = true
@@ -36,6 +36,10 @@ clap.workspace = true
 # ADR 0085's document, built and written as JSON rather than as text — the
 # workspace manifest owns why this crate and not another.
 serde_json.workspace = true
+# ADR 0103 § 9's `nvs config dump` walks the merged table `nvs_config::Resolved`
+# hands back and serializes it, so this crate names the type it is made of. The
+# format decision itself is ADR 0064 § 1's and belongs to `nvs-config`.
+toml.workspace = true
 
 [lints]
 workspace = true
