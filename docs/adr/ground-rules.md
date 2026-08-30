@@ -100,6 +100,10 @@ spellings rejected, and the reasoning.
   ([0027](0027-callable-is-closures-only.md)).
 - **`fn` is the only closure literal, closures have no `use` clause, and `callable` is the only type name**
   ([0031](0031-callable-is-the-only-closure-type.md)).
+- **What PHP 8.6 deprecates is refused outright, and its partial application is not adopted** — no `return`
+  leaves a `finally` or carries a value out of a constructor, `let`/`is` are reserved, a `readonly`
+  property has no default, and a session id the store did not issue is always rejected
+  ([0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md)).
 - **`Iterable`/`Iterator` are the only iteration interfaces, and generators lower to a state machine** —
   no `ArrayAccess`, no `Countable` ([0053](0053-iteration-and-generators.md)).
 - **`clone` is PHP's shallow copy; `serialize` shares one graph-copy operation with the `spawn` boundary** —

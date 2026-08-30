@@ -25,7 +25,7 @@
   [0011](0011-functions-and-constants-are-class-members.md) — `Core\Server`, `Core\Request`, `Core\Session`,
   `Core\Cli` and `Core\Script` join the illustrative domain-class roster its *Revisiting* section already
   says is incomplete.
-- **Amended by:** 0023, 0024, 0046, 0091
+- **Amended by:** 0023, 0024, 0046, 0091, 0124
 
 > **In short:** PHP populates `$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION`, `$_ENV` and
 > `$GLOBALS` ambiently — a script never declares them, they are simply present, and `$GLOBALS` additionally
@@ -259,7 +259,10 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
   are stdlib design, due at M2 (parser/resolver needs the shape) and M7/M8 (the classes are actually
   implemented) — this ADR fixes the architecture, not the API.
 - **`Core\Session`'s storage backend, locking and GC** are an open feature design, deferred to whichever
-  milestone builds session support; revisit this ADR only if the backend design turns out to need a second
+  milestone builds session support — except id acceptance, which
+  [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) § 6 fixes: an id the store did not
+  issue is discarded and replaced, always, so the backend must be able to answer "did I issue this id".
+  Revisit this ADR only if the backend design turns out to need a second
   ambient variable or a second storage class, which would be a new argument, not a variation on this one.
 - **Whether `Core\Cli` should instead be a set of methods on `Core\Env`**, since both are "facts about the
   process rather than the request" — deferred; splitting them for now mirrors PHP's own SAPI-specific vs.

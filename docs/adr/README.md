@@ -104,6 +104,7 @@ so you never have to open this file to route a topic.
 | PDF — HTML to PDF, `dompdf`, `mpdf`, `tcpdf`, `fpdf`, `wkhtmltopdf`, headless Chromium, invoices and reports, `Novis\Pdf`, `nvs/pdf`, the no-I/O render and its asset map, the CSS subset and the dropped-declarations report, an inert byte-reproducible output, the browser escape hatch | [0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md) |
 | Spreadsheets — xlsx, xlsm, xlsb, xls, ods, PhpSpreadsheet, uploaded workbook imports, export and report generation, `Novis\Spreadsheet`, `nvs/spreadsheet`, formulas as typed values, formula injection, the macro refusal, template fill, explicit evaluation | [0123](0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md) |
 | HTML parsing — `DOMDocument::loadHTML`, PHP 8.4's `Dom\HTMLDocument`, tag soup, scraping, sanitizing rich text, mXSS, `html5ever`, the tree shared with `Core\Xml`, why there is no HTML mode on the XML parser | [0122](0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md) |
+| PHP 8.6 — partial function application `f(?, $x)`, `return` in `finally`, `return $v` in a constructor, `let`/`is` as identifiers, defaults on `readonly` properties, `clamp`, `Time\Duration`, `Io\Poll`, `session.use_strict_mode`, everything 8.6 deprecates | [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) |
 | Whether an `if`/`while`/`?:`/`&&`/`!` condition needs an explicit `as bool`, PHP truthiness | [0035](0035-truthy-boolean-context.md) |
 | PHP's `and`/`or`/`xor` keyword operators, why they don't parse | [0045](0045-and-or-xor-keyword-operators-rejected.md) |
 | `<?php` as an open tag, PHP's `die` keyword | [0049](0049-single-open-tag-and-single-exit-keyword.md) |
@@ -345,6 +346,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md) | PDF generation is sandboxed HTML rendering with no I/O | Accepted |
 | [0122](0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md) | HTML parsing is a WHATWG entry on `Core\Html`, over `Core\Xml`'s tree | Accepted |
 | [0123](0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md) | Spreadsheet reading and generation are one sandboxed component with no I/O | Accepted |
+| [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) | PHP 8.6 lands as four compile-time refusals and one session rule | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

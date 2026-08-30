@@ -66,6 +66,7 @@ carries one row per PHP built-in and is the home for those.
 | `trait`, `use Trait;`, `insteadof` | no trait exists; interface default/private methods, plus `implements I by $field;` | [0043](0043-interface-default-methods-and-delegation-replace-traits.md) § 6 |
 | `class_alias()`, `use X as Y;` | rejected; a declaration is reachable under exactly its own name | [0015](0015-no-name-aliasing.md) |
 | a typed property may be declared-but-unset and throw on read | every constructor must definitely assign every property, checked at compile time | [0022](0022-definite-property-initialization.md) |
+| PHP 8.6 allows a default value on a `readonly` property | refused; a value known at the declaration is a `const` | [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) § 4 |
 | `__get`/`__set`/`__call`/`__callStatic` intercept undefined access | no fallback exists; an undeclared member is an error, and `PropertyObserver` observes declared ones | [0014](0014-property-observer.md) |
 | `__toString`, `__destruct`, `__isset`/`__unset`, `__debugInfo`, `__set_state` | `Stringable` replaces the first; the rest are removed, and `unset()` on a declared property is refused | [0028](0028-closing-the-remaining-magic-methods.md) |
 | `__clone`, `__serialize`/`__unserialize`, `__sleep`/`__wakeup` | no copy hook of any kind, and `unserialize` accepts only Novis's own closed format | [0023](0023-clone-serialize-and-cross-boundary-copy.md) |
@@ -74,10 +75,14 @@ carries one row per PHP built-in and is the home for those.
 | a closure inside a method always binds `$this`; `static fn` opts out | capture is implicit, by value, and `$this` is bound only when the body uses it | [0008](0008-static-and-global.md) § 4 |
 | `function () use (&$y) {}` and two closure literals | one literal, `fn`, and no `use` clause at all | [0031](0031-callable-is-the-only-closure-type.md) |
 | `callable` accepts strings, arrays and `__invoke` objects | only a closure; `$obj(...)` never resolves to a method | [0027](0027-callable-is-closures-only.md) |
+| PHP 8.6's `f(?, $x)` partially applies a function, producing a closure | not adopted; write `fn($a) => f($a, $x)` | [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) § 5 |
 | `list($a, $b) = $p;` | does not parse; `[...]` is the only destructuring spelling | [0050](0050-list-destructuring-spelling-rejected.md) |
 | `new class { … }` declares an anonymous class | refused; a named class in the same file, or a closure | [README](README.md) § *Decisions taken at project start* |
 | `catch (A \| B $e)` handles two classes in one clause | refused; two clauses, or one on the common ancestor | [README](README.md) § *Decisions taken at project start* |
 | `$e` outlives its `catch` clause and is readable after the `try` | the binding ends with its clause; only the thrown value ever assigns it | [0007](0007-explicit-type-system.md) § 1's `catch` row |
+| a `return` inside `finally` overrides the region's result (deprecated in 8.6) | does not compile; change the result in a `catch`, or after the region | [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) § 1 |
+| `return $value;` in a constructor is accepted (deprecated in 8.6) | does not compile; a bare `return;` may still leave early | [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) § 2 |
+| `let` and `is` are ordinary names (deprecated as such in 8.6) | reserved spellings; `var` declares, `instanceof` tests, `as` converts | [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) § 3 |
 | `public const X = 1;` takes the type of its value | a constant writes its type, as every other binding does | [README](README.md) § *Decisions taken at project start* |
 | `namespace X { … }` and several namespaces per file | refused; `namespace X;` once, before any declaration | [README](README.md) § *Decisions taken at project start* |
 | an `inout` (`&`) argument may be an element or a property | a local only; read it into one, pass it, store it back | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) § 5 |
