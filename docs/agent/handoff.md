@@ -2,51 +2,41 @@
 
 ## State
 
-**Stage 10 item 36 is on disk — ADR 0125 and the front end.** `class<T>` is `TypeAtom::ClassRef(Box<Type>)`
-(`crates/nvs-syntax/src/ast.rs:153`), parsed in `parse_type_atom` the way the `array<` arm is and closed
-through the same `expect_type_close_angle`, so `array<class<Animal>>` splits its `>>`. ADR 0125 is the
-decision in full — the type, `as` as its only source, covariance, the three sites, the constructor rule at
-a dynamic `new` (`E0794`, which item 37 declares) and what it costs. ADR 0007 gained the `atom` production
-line in § 3 and the `string`/`class<U>` → `class<T>` row in § 2's grid, with `0125` in its `Amended by:`.
+**Stage 10 item 37 is half on disk — the checker knows `class<T>`.** `Ty::ClassRef(TypeId)`
+(`crates/nvs-types/src/ty.rs:65`) is the interned type, lowered by `lower_class_ref`
+(`crates/nvs-types/src/lower.rs:156`) from the atom; its argument must be a `Ty::Class` and anything
+else is `E0795`, reported only when the argument's own lowering was quiet so an undeclared name stays
+one diagnostic. Covariance is the arm below `array<T>`'s in `is_assignable`
+(`crates/nvs-types/src/expr/assign.rs:173`). ADR 0125 § 1 now names `E0795` and settles the equality
+domain; § 5's `E0794` is declared in the registry, unused, so slice 4 does not have to re-derive a
+number the ADR already prints.
 
-**`class` is recognised by two tokens, in two places.** `Parser::at_class_reference`
-(`crates/nvs-syntax/src/parser/ty.rs:78`) asks for a `<` immediately after the keyword; it is called from
-`can_start_type` *and* as a guard on `parse_statement`'s class-declaration arm, because that arm sits above
-the `can_start_type` fallthrough. The playbook bullet under *Writing Novis itself* owns the trap.
+**§ 2's two conversion rows are in, and `as` really is the only source.** `ConvKind::ClassRef`
+(`crates/nvs-types/src/expr/operators.rs:1719`) is its own kind, so `conversion_row_exists` grants
+`string → class<T>` and `class<U> → class<T>` and refuses every other operand by a written-out
+`(_, ClassRef) => false` rather than by falling off the end. A `Foo::class` operand is decided where it
+stands by `reject_impossible_class_reference_conversion`
+(`crates/nvs-types/src/expr/operators.rs:129`), which reports `E_NO_CONVERSION` for a name outside the
+hierarchy; a plain string literal is deliberately *not* folded, and that function's doc says why. The
+qualifier strips through `apply_qualifier_conversion_rule` untouched, as § 2 says.
 
-**Below the parser, nothing knows the atom yet, and that is item 37/38's whole content.**
-`nvs_types::lower::lower_atom` (`crates/nvs-types/src/lower.rs:102`) has a `_ => mixed()` arm, so
-`class<Animal> $x` type-checks as `mixed` today; `nvs_ir`'s `lower_decl_type` fallback panics on it exactly
-as it already does for a shape or a literal atom used as a declared annotation. Only `nvs-hir`'s two type
-walks were taught the arm (`aliases.rs`'s `record_names`/`substitute`, `requires.rs`'s `walk_type`), so the
-argument's class name is harvested like `array<T>`'s.
+**Below the checker, nothing knows the type yet.** `nvs_ir`'s `lower_decl_type` still panics on the
+atom, so no `.nvst` case can name `class<T>` until item 38. The two remaining checker slices are what
+make a class reference *usable*: without them `new $cls()` is still `E0496`.
 
-**`orient.py`'s `[context]` gaps.** Standing, proven again: the pack prints the goal item but not the
-`[[check]]` grading it, so this session re-read `loop-goal.toml` for the stage 10 check block. No field
-selects `docs/reference/lang/*.md` (item 39 needs it) or `docs/reference/core/*.md`; `docs/adr/README.md`
-and `docs/adr/ground-rules.md` are not in `modules` either, and every ADR-writing item edits both. In
-`adrs`: **0007 §§ 2-3** — an item that amends 0007 pays for the slice every time. `orient.py` still warns
-that `crates/nvs-host/src/budget.rs` matches nothing.
+**`orient.py`'s `[context]` gaps.** Standing, unchanged and proven again: the pack prints the goal item
+but not the `[[check]]` grading it, so this session re-read `loop-goal.toml` for the stage 10 block. No
+field selects `docs/reference/lang/*.md` (item 39 needs it); `docs/adr/README.md` and
+`docs/adr/ground-rules.md` are not in `modules`. In `adrs`: **0125 §§ 1-2 and 5** — every slice of item
+37 pays for them, and this session sliced 0125 twice. `orient.py` still warns that
+`crates/nvs-host/src/budget.rs` matches nothing.
 
 ## Next group
 
-**Item 37, the checker — one file set, `crates/nvs-types/src/`, four slices in this order.** Each rests on
-the one before it, and the acceptance check
-(`nvs-types (the class reference)`) grades the last three.
+**Item 37's last two slices, then item 38 — file set `crates/nvs-types/src/expr/` plus
+`crates/nvs-hir/src/hierarchy.rs`.** The acceptance check `nvs-types (the class reference)` still wants
+its third test; the first two are green.
 
-- [ ] **`Ty::ClassRef(TypeId)` and its widening.** The variant beside `Ty::Array`
-      (`crates/nvs-types/src/ty.rs:64`), lowered from the atom in `lower_atom`
-      (`crates/nvs-types/src/lower.rs:102`, replacing the `_ => mixed()` it falls into now) — the argument
-      names a class or an interface and anything else is refused where it is written. `class<Dog>` widens
-      to `class<Animal>` wherever `Dog` widens to `Animal`, never back (ADR 0125 § 3). Test:
-      `a_class_reference_widens_to_its_supertype_and_not_back`.
-- [ ] **The two conversion rows and the compile-time fold.** `string → class<T>` and the `class<U> →
-      class<T>` narrowing in `conversion_row_exists` (`crates/nvs-types/src/expr/operators.rs:1747`),
-      checked in `infer_conversion` (`crates/nvs-types/src/expr/operators.rs:78`); a `Foo::class` operand
-      (`ExprKind::ClassNameConst`, `crates/nvs-types/src/expr/mod.rs:479`) is decided at compile time and
-      is a refusal when `Foo` is not a `T`; the qualifier strips through
-      `apply_qualifier_conversion_rule` (`crates/nvs-types/src/expr/quals.rs:220`), unchanged. ADR 0125
-      § 2. Test: `a_string_becomes_a_class_reference_only_through_as`.
 - [ ] **The three sites, and `E0496`'s help.** `NewTarget::Expr` (`crates/nvs-types/src/expr/calls.rs:1088`)
       types its arguments against `T`'s constructor as `NewTarget::StaticTy` does
       (`crates/nvs-types/src/expr/calls.rs:1076`); the `::` class side
@@ -57,19 +47,22 @@ the one before it, and the acceptance check
 - [ ] **The constructor rule, `E0794`.** At a `new` over `class<T>`, every implementor of `T`
       (`implementors`, `crates/nvs-hir/src/hierarchy.rs:530`) whose constructor fails
       `check_class_conformance` (`crates/nvs-types/src/conformance.rs:57`) is a refusal at the `new` site
-      naming that subclass; the code is declared beside `E0784`
-      (`crates/nvs-diagnostics/src/lib.rs:2460`). ADR 0125 § 5 has the wording. Test:
-      `a_dynamic_new_is_refused_naming_the_subclass_whose_constructor_differs`. Fixtures in
+      naming that subclass. The code is already declared
+      (`E_DYNAMIC_NEW_DIVERGENT_CONSTRUCTOR`, `crates/nvs-diagnostics/src/lib.rs:2586`) — do not take a
+      new number. ADR 0125 § 5 has the wording. Test:
+      `a_dynamic_new_is_refused_naming_the_subclass_whose_constructor_differs`, fixtures in
       `crates/nvs-types/tests/classes.rs`.
+- [ ] **Item 38, the lowering.** `lower_decl_type`'s panic on the atom
+      (`crates/nvs-ir/src/lower/mod.rs:2748`, beside `erase_checked_ty` at
+      `crates/nvs-ir/src/lower/mod.rs:2914`) is the first thing any `.nvst` case hits; `NewDynamic` and the
+      descriptor constant are ADR 0125 § 4's table. Tests:
+      `a_new_through_a_class_reference_lowers_to_new_dynamic`,
+      `a_folded_class_constant_lowers_to_a_descriptor_constant`.
 
 ## Backlog
 
-- Stage 8's differential floor: four oracle cases under `tests/differential/`, `min_passing = 210` against
-  206 on disk; `python tools/gaps.py --differential` ranks them. `Core\Math::fdiv` against `fdiv`
-  (`crates/nvs-stdlib/src/math.rs:1821`) is the ranked first.
-- Item 38, the lowering and the runtime lookup; item 39, the corpus and the reference tables. Both named
-  in `docs/agent/loop-goal.md` § *Stage 10*.
-- `lower_ternary` does not seal a `throw` arm's block the way `lower_catch` does, so
-  `$c ? "a" : throw …` joins at `Ty::Tagged` — a latent inefficiency, `crates/nvs-ir/src/lower/expr.rs`.
-- `docs/reference/lang/20-types.md:185` needs the `class<T>` atom beside `callable`, and `:511` the `as`
-  row — item 39 owns both.
+- Item 39, the reference page for `class<T>` — `docs/reference/lang/`, which no `[context]` field selects.
+- Stage 10's four `.nvst` cases (`docs/agent/loop-goal.toml:2193`), blocked on item 38's lowering.
+- `class<T> as string` has no row and no help of its own beyond `(ClassRef, _)`'s — ADR 0125 does not
+  decide it; revisit if a case wants the descriptor's name back.
+- Stage 8: conformance 1087, differential 206 of 210, migration 37% over its 36% floor.

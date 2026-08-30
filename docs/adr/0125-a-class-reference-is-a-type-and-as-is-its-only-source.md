@@ -51,9 +51,16 @@ applied to a class name.
 ### 1. `class<T>` is a type, and its value is the class descriptor
 
 `class<T>` is a type atom, written in every position a type is written. `T` names one class or one
-interface; anything else is refused where it is written, exactly as `array<T>`'s argument is. Its
-**value** is the run-time class descriptor — the same word `new static(...)` already allocates from —
-carrying the class's name, its parent chain, its interface set and its method table.
+interface; anything else — `class<int>`, an enum name — is **`E0795`** where it is written, and a `T`
+that resolves to nothing at all is `E0303` as any other name would be, which is why the refusal is the
+checker's and not the parser's. Its **value** is the run-time class descriptor — the same word
+`new static(...)` already allocates from — carrying the class's name, its parent chain, its interface
+set and its method table.
+
+It is its own **equality domain** ([ADR 0090](0090-comparison-is-decided-by-the-static-types.md) § 2):
+two class references compare by descriptor identity, and nothing else is ever equal to one. An instance
+is not its own class, and `$cls == "Dog"` is exactly the string-as-a-class confusion § 2 exists to keep
+out. Ordering one is refused with the other unordered types.
 
 The grammar is one line, [ADR 0007](0007-explicit-type-system.md) § 3's `atom` production reads it, and
 it is parsed only in type position, where a `<` is unambiguously a type-argument list and not a

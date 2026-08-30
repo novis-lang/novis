@@ -4290,6 +4290,14 @@ sibling in the same namespace unqualified.
   earlier in that match is a second door the new atom has to be let through. The conversion slot
   (`$x as class<Animal>`) passes with no such edit, so a test that only exercises `as` reports green on
   half a feature.
+- **Adding a `Ty` variant to `nvs-types` breaks exactly one match, and it is not one you would guess.**
+  Nearly every `match` over `Ty` in that crate has a `_` arm, so `Ty::ClassRef` compiled everywhere
+  except `expr/operators.rs`'s `equality_domain` — ADR 0090 § 2's domain partition, which is exhaustive
+  on purpose so that a new type cannot silently become comparable to everything. That is the one place a
+  new variant owes a *decision* rather than an arm, and it costs two more edits when the answer is a new
+  `EqDomain` variant (the enum, `equality_domain`, and `reject_unordered_operand`'s match; the other two
+  `EqDomain` matches already have catch-alls). Decide it in the ADR that adds the type, not at the
+  compiler error.
 
 ## Divergences and refusals already pinned
 
