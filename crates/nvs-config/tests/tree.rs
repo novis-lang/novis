@@ -91,7 +91,7 @@ fn every_block_an_adr_writes_out_is_in_the_tree() {
 /// says which **block** it was found in — `unknown field \`memory\`` is unreadable until you know it
 /// was written under `[metrics]`.
 #[test]
-fn an_unknown_key_is_refused_naming_its_block() {
+fn an_unknown_key_is_refused_naming_the_block_that_has_no_such_directive() {
     let diagnostic = refusal("[metrics]\nexporter = false\nmemory = \"256M\"\n");
 
     assert_eq!(diagnostic.code, Some(code::E_BAD_DIRECTIVE));
