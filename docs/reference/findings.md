@@ -36,11 +36,13 @@ in that goal. An item's owner is the row it sits in.
       panics in `nvs-ir` (`lower/expr.rs:2870`, "records `ExprInfo::CallableRef` … no arm"). ADR 0027
       keeps the spelling. Works only as the argument of `Core\Attributes::get/all`, where it is
       folded at check time. *probes1 `fcc`, probes2 `fcc_case`*
-- [ ] **P2** Calling an instance method statically — `class C { public function f() … } C::f();` —
+- [x] **P2** Calling an instance method statically — `class C { public function f() … } C::f();` —
       panics (`lower/expr.rs:2978`, "is not static but is reached from a frame with no `$this` —
-      nvs_types is expected to have refused that"). *probes2 `static_call_instance`*
-- [ ] **P3** `$this` inside a `static` method panics (`lower/expr.rs:138`, "undeclared local `$this`").
-      *probes2 `this_in_static`*
+      nvs_types is expected to have refused that"). *probes2 `static_call_instance`* — `E0778` where
+      the call is written, pinned by `tests/conformance/reject/an-instance-method-is-not-called-statically.nvst`.
+- [x] **P3** `$this` inside a `static` method panics (`lower/expr.rs:138`, "undeclared local `$this`").
+      *probes2 `this_in_static`* — `E0779` at the `$this`, pinned by
+      `tests/conformance/reject/this-is-not-read-in-a-static-method.nvst`.
 - [ ] **P4** A method declared `: never` panics the lowerer even when never called ("nvs-ir only
       lowers a resolved call's … return type — got Never"). *types-probes; ref30 `never`*
 - [ ] **P5** An `array<T>`-typed class constant panics at use: `public const array<int> XS = [1, 2];
@@ -49,16 +51,23 @@ in that goal. An item's owner is the row it sits in.
       echo I::LIMIT;` — the typed form works, an untyped *class* constant works. *probes q31* — the
       untyped form is now `E0246` where it is written, for a class as much as an interface, so neither
       reaches the lowerer; the class form's inference is retired with it.
-- [ ] **P7** `throw "x";` / `throw 1;` panic ("nvs-ir lowers `throw` only for an exception object")
-      instead of a diagnostic. *ref30 `throw_string`*
-- [ ] **P8** `clone` of an array — `array<int> $b = clone $a;` — panics ("lowers `clone` only for an
-      object"). *ref30*
-- [ ] **P9** `new $className()` with a `string` variable panics ("`new` … has no resolved class");
-      likewise `$className::f()`. *ref30; php-diff probes*
+- [x] **P7** `throw "x";` / `throw 1;` panic ("nvs-ir lowers `throw` only for an exception object")
+      instead of a diagnostic. *ref30 `throw_string`* — `E0780` names the operand's type against the
+      § 10 tree, pinned by `tests/conformance/reject/throw-takes-a-throwable.nvst`.
+- [x] **P8** `clone` of an array — `array<int> $b = clone $a;` — panics ("lowers `clone` only for an
+      object"). *ref30* — `E0781`, whose help says an `array<T>` is already copied on assignment
+      (ADR 0023 § 1); pinned by `tests/conformance/reject/clone-takes-an-object.nvst`.
+- [x] **P9** `new $className()` with a `string` variable panics ("`new` … has no resolved class");
+      likewise `$className::f()`. *ref30; php-diff probes* — both are `E0496` where they are written,
+      the code the third spelling `$x instanceof $className` already had: one mistake under one report
+      (`nvs_types::expr::members::reject_dynamic_class_name`), so neither reaches the lowerer.
 - [x] **P10** Anonymous classes `new class { … }` pass the checker and panic in `nvs-ir`. *probes p03*
       `E0244` at `new class` stops the pipeline before `nvs-ir`; the declaration is still parsed whole,
       so `nvs_syntax::casing` reaches its members as it reaches a named class's.
-- [ ] **P11** An enum case as an array key — `$m[E::A] = "a"` — panics in lowering. *probes p25*
+- [x] **P11** An enum case as an array key — `$m[E::A] = "a"` — panics in lowering. *probes p25* — the
+      key type check refuses it as `E0434`, beside the `float`/`bool`/`null` keys and at all three sites
+      that write a key: ADR 0010 makes a case a named integer, so the normalization would key the array
+      by a backing value two enums can share. `$case as int` is the spelling for the number.
 - [x] **P12** Calling a member the registry does not hold on a `Core` instance — `$uuid->version()` —
       panics (`lower/expr.rs:2681`, "instance method call … has no resolved target") instead of the
       E0405 a static miss gets. *coretime-probes `u_version`* — the instance path now asks the

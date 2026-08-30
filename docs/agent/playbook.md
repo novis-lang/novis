@@ -1057,6 +1057,14 @@ is why" — is this file.
   carry the value beside the table and re-apply it *inside* `retype`, which is the one place every
   deserialization goes through. Before believing a config value is lost in the resolver, check
   whether it is in `Snapshot::table` — `nvs config dump --toml` prints exactly that table.
+- **The handoff's own `## Next group` can be stale about the tree, exactly as a `loop-goal.toml`
+  comment can — and the check that costs nothing is `nvs.exe test` on the case the goal already
+  names.** Item 32's group listed P7 `throw "x"` and P8 `clone $a` as panics to refuse; both were
+  already `E0780`/`E0781` with green cases, and one `nvs run` over a four-line scratch showed P2 and
+  P3 landed too, so four findings were ticked in `docs/reference/findings.md` without writing a line
+  of Rust. A `loop-goal.toml` `[[check]]` block's `cases` list is the cheapest probe there is: run the
+  ones ahead of the failing case, because the acceptance check names only the *first* thing missing
+  and says nothing about what the rest of the list already proves.
 
 ## Running things
 
