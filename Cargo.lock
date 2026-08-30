@@ -1529,9 +1529,11 @@ dependencies = [
  "core_affinity",
  "corosensei",
  "mio",
+ "nvs-config",
  "nvs-runtime",
  "rcgen",
  "rustls",
+ "toml",
 ]
 
 [[package]]
