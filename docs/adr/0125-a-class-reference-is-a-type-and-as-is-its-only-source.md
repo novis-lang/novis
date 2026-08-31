@@ -58,7 +58,7 @@ checker's and not the parser's. Its **value** is the run-time class descriptor �
 `new static(...)` already allocates from — carrying the class's name, its parent chain, its interface
 set and its method table.
 
-It is its own **equality domain** ([ADR 0090](0090-comparison-is-decided-by-the-static-types.md) § 2):
+It is its own **equality domain** ([ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 2):
 two class references compare by descriptor identity, and nothing else is ever equal to one. An instance
 is not its own class, and `$cls == "Dog"` is exactly the string-as-a-class confusion § 2 exists to keep
 out. Ordering one is refused with the other unordered types.
