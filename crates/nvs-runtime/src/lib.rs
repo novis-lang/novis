@@ -245,6 +245,7 @@ pub mod array;
 pub mod budget;
 pub mod capability;
 pub mod closure;
+pub mod commands;
 #[cfg(test)]
 pub(crate) mod counting_alloc;
 mod ctx;

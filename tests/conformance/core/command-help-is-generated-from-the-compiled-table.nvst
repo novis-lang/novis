@@ -1,0 +1,46 @@
+--TEST--
+`Core\Command::help` renders a usage page from the table `#[Command]` built while compiling, for one command and for the program — ADR 0086 § 6
+--FILE--
+<?nvs
+// § 6 builds the table from the declaration itself, so every line below is
+// derived from the same parameter list the call is checked against — the usage
+// text and the parser cannot drift, because there is only one of them.
+class Deployer {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+    ): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "version")]
+    public static function version(): uint {
+        return 0;
+    }
+}
+
+// A `Cli\Text` renders as the bytes it already holds (ADR 0088 § 5). An option
+// that wrote a `short:` claims two spellings: the usage line summarizes it by
+// the long one and the `options:` block names both.
+echo "" . Core\Command::help("deploy");
+echo "--\n";
+// `null` is the program's own page: which commands there are, rather than what
+// one of them takes. A command that wrote no `about:` gets no invented one.
+echo "" . Core\Command::help(null);
+--EXPECT--
+usage: deploy <target> [--dryRun]
+
+Push the current build
+
+arguments:
+  <target>
+
+options:
+  -n, --dryRun  Print what would happen
+--
+usage: <command> [arguments]
+
+commands:
+  deploy   Push the current build
+  version

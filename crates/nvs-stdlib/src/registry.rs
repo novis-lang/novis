@@ -1074,6 +1074,11 @@ pub const CLASSES: &[CoreClass] = &[
     // § 13, and here only because § 12's `Core\Out::capture` answers with it —
     // ADR 0088 § 5.
     crate::cli::TEXT,
+    // § 13's other half — ADR 0086 § 6's members over the table `#[Command]`
+    // built while compiling. Beside `Core\Cli` because it answers with that
+    // class's carrier; [`crate::command`] owns the page's layout, and
+    // `nvs_runtime::commands` owns why the compiled rows cross into the runtime.
+    crate::command::CLASS,
     // ADR 0064 § 5, and no spec § of its own: `ini_get`'s family are free
     // functions in PHP, so what replaces them is decided by the configuration
     // format's ADR rather than by the library spec. [`crate::config`] owns why

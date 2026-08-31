@@ -47,9 +47,7 @@
 > goal's eight acceptance fixtures are on disk**, of which `files` and `process` print their frozen
 > output and the other six wait on their stages. **Stage 2 is closed**: `Core\IO`'s ten members are
 > rows, cards, bodies and grants over ADR 0118's doors, every path parameter is a `Qual::Sink` with
-> `within` the launderer past them, and `readText` decodes behind the read door while `lines` splits
-> behind it by `Core\Str::lines`' own rule — answering `Core\IO\Lines`, the name the registry gives
-> spec § 14's `Iterable<string>` because `CoreTy::Iterated` is parameter position only.
+> `within` the launderer past them, and `Core\IO\Lines` is what `lines` answers with.
 > `examples/files.nvs` runs green against its seven frozen lines, over an `[[app]]` block of its
 > own. **Stage 3's process half is closed**: `Core\Process::run` is a row, a card, a body and a
 > `process.exec` grant over `nvs_runtime::capability::exec`'s door, and ADR 0044 § 1's
@@ -59,9 +57,11 @@
 > two in `nvs-types` over the qualifier and the capability — beside the `.nvst` pinning both
 > spellings of a command line as a diagnostic. **Stage 3's terminal profile is closed**: ADR 0086 §
 > 3's `isTty`, `width`, `height` and `colorDepth` are rows over `nvs_runtime::terminal`, which
-> resolves the four facts once per process. `Core\Command::help` is all `examples/cli.nvs` still
-> fails on. What goals 1-3 landed is unchanged and is not re-derived here: `git log` and each
-> crate's module doc own it. Conformance 1115, differential 210 of 210, migration 37% over its 36%
+> resolves the four facts once per process. **`Core\Command::help` is a row over the compiled
+> table**: ADR 0086 § 6's rows cross into `nvs_runtime::commands` and ride on the request's `Ctx`,
+> `nvs_stdlib::command` owns the page's layout, and `examples/cli.nvs` runs green against its three
+> frozen lines. What goals 1-3 landed is unchanged and is not re-derived here: `git log` and each
+> crate's module doc own it. Conformance 1117, differential 210 of 210, migration 37% over its 36%
 > floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in

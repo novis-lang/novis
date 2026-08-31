@@ -3262,6 +3262,14 @@ is why" — is this file.
   what the stage owes. Under the corrected declaration the honest failure was two missing members,
   which is the message the next session actually needed. One `nvs run` over a fixture that has
   never compiled, before reading its failure as a statement about what is missing.
+- **A brand-new `Core` member needs its first case to ask it three times, not once.**
+  `conformance_coverage.rs`'s `every_core_class_has_a_conformance_floor_of_three` counts *asks*
+  rather than files — one case calling `Core\Command::help` twice reports "asked by 2 case(s)" —
+  and a second gate, `every_error_path_is_asserted_or_declared_unreachable`, wants any
+  `Fault::thrown_as` the body reaches asserted by a case or declared unreachable within eight lines
+  above the site. So the shape that lands green is two cases: the happy page, and one that catches
+  the refusal. Both gates run under `cargo test -p nvs-stdlib --test conformance_coverage`, which is
+  seconds, so run that before the full verify rather than after it.
 
 ## Splitting a file that got too big
 

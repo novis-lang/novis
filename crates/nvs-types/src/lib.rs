@@ -198,7 +198,10 @@
 
 pub(crate) mod attributes;
 pub mod check;
-pub(crate) mod commands;
+// Public for [`routes`]'s reason: ADR 0086 § 6's finished table is read back
+// out of [`expr_table::ExprTypeTable::commands`] by whoever runs the program,
+// which hands it to `nvs_runtime::commands` for `Core\Command` to answer from.
+pub mod commands;
 pub(crate) mod conformance;
 pub mod consts;
 pub mod core_lib;

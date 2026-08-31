@@ -533,6 +533,19 @@ pub struct Ctx {
     /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) — the tree
     /// itself is shared and is charged to the snapshot, not to the request.
     config: Option<nvs_config::Request>,
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// command table, or `None` for a program that declared no `#[Command]` —
+    /// [`crate::commands`] owns why the rows cross into the runtime at all and
+    /// why both absences answer alike.
+    ///
+    /// **Isolate configuration, written before the program runs**, exactly as
+    /// [`Self::origin`] and [`Self::config`] are: the table is a compile
+    /// product, so re-reading it mid-request could only ever produce the same
+    /// answer or a wrong one.
+    ///
+    /// **What it spends:** one `Arc` clone per request; the rows themselves are
+    /// shared and charged to whoever compiled them.
+    commands: Option<std::sync::Arc<crate::commands::CommandTable>>,
     /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
     /// § 12's fixed clock: the wall-clock reading `Core\Time::now` answers
     /// with, in nanoseconds since the Unix epoch, or `None` for a context that
@@ -1064,6 +1077,7 @@ impl Ctx {
             output,
             diagnostic: OutputSink::Stderr,
             origin: None,
+            commands: None,
             config: None,
             fixed_clock: None,
             random_state: None,
@@ -1138,6 +1152,20 @@ impl Ctx {
     pub fn set_config(&mut self, snapshot: std::sync::Arc<nvs_config::Snapshot>) {
         self.config = Some(nvs_config::Request::new(snapshot));
         self.refresh_limits();
+    }
+
+    /// This program's command table, or `None` for one that declares no
+    /// `#[Command]` — see [`Self::commands`]'s field docs, and
+    /// [`crate::commands`] for why the two absences are one case.
+    #[must_use]
+    pub fn commands(&self) -> Option<&crate::commands::CommandTable> {
+        self.commands.as_deref()
+    }
+
+    /// Hands this program the table the compiler built for it — ADR 0086 § 6,
+    /// written before the program runs exactly as [`Self::set_config`] is.
+    pub fn set_commands(&mut self, table: std::sync::Arc<crate::commands::CommandTable>) {
+        self.commands = Some(table);
     }
 
     /// How many bytes this request has allocated and not yet freed.

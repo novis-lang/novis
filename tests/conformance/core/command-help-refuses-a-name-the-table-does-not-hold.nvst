@@ -1,0 +1,29 @@
+--TEST--
+`Core\Command::help` throws for a name the program declares no `#[Command]` for, and still answers for one it does — ADR 0086 § 6
+--FILE--
+<?nvs
+class Tools {
+    #[Core\Command(name: "build", about: "Compile the project")]
+    public static function build(): uint {
+        return 0;
+    }
+}
+
+// § 6 fixes the table while compiling, so a page for a command that does not
+// exist is a mistake in the program rather than in its input — a `LogicError`,
+// and not an empty page a caller would print to somebody.
+try {
+    echo "" . Core\Command::help("deploy");
+    echo "a page was rendered for a command that does not exist\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The refusal is about the one name: the table still answers for the command
+// it does hold, and a command with no argument prints no `arguments:` heading.
+echo "" . Core\Command::help("build");
+--EXPECT--
+`Core\Command::help` was asked for `deploy`, which this program declares no `#[Command]` for
+usage: build
+
+Compile the project

@@ -98,6 +98,7 @@ Conventions the whole file uses:
 | [`Core\Program`](#core-core-program) | what the compiler knows about the whole program — every class implementing an interface, enumerated at compile time |
 | [`Core\Cli`](#core-core-cli) |  |
 | [`Core\Cli\Text`](#core-core-cli-text) | the value a captured terminal write comes back as — bytes that have already been through the output sink |
+| [`Core\Command`](#core-core-command) |  |
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
@@ -14372,6 +14373,32 @@ length=5
 
 | Member | Signature |
 |---|---|
+
+<a id="core-core-command"></a>
+### `Core\Command`
+
+Keywords: help
+
+| Member | Signature |
+|---|---|
+| [`Core\Command::help`](#core-core-command-help) | `help(?string $name): Core\Cli\Text` |
+
+<a id="core-core-command-help"></a>
+#### `Core\Command::help`
+
+```nvs skip
+Core\Command::help(?string $name): Core\Cli\Text
+```
+
+The usage page, generated from the table `#[Command]` built while compiling — one command's arguments, or the program's own list of commands. Nobody writes usage text and nobody lets it rot.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `?string` | The command to describe, or `null` for the program's own page listing every command it declares. |
+
+**Returns** `Core\Cli\Text` — The rendered page as a `Core\Cli\Text`, ending with a newline.
+
+**Throws** `LogicError` — The program declares no `#[Command]` under `$name` — a page for a command that does not exist is a mistake in the program rather than in its input, since the table is fixed at compile time.
 
 <a id="core-core-config"></a>
 ### `Core\Config`

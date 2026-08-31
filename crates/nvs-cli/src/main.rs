@@ -651,6 +651,36 @@ fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// ADR 0086 § 6's table, as the runtime carries it.
+///
+/// A copy rather than a borrow, because the context outlives the front end's
+/// own tables in every caller and a task owns what it was handed. It is a
+/// handful of `String`s per declared command, taken once per run.
+fn runtime_commands(
+    table: &nvs_types::commands::CommandTable,
+) -> nvs_runtime::commands::CommandTable {
+    nvs_runtime::commands::CommandTable::new(
+        table
+            .rows()
+            .iter()
+            .map(|row| nvs_runtime::commands::Command {
+                name: row.name.clone(),
+                about: row.about.clone(),
+                handler: row.handler.clone(),
+                args: row
+                    .args
+                    .iter()
+                    .map(|arg| nvs_runtime::commands::CommandArg {
+                        param: arg.param.clone(),
+                        spellings: arg.spellings.clone(),
+                        about: arg.about.clone(),
+                    })
+                    .collect(),
+            })
+            .collect(),
+    )
+}
+
 /// The label the script frame is compiled and looked up under.
 ///
 /// `nvs_ir::lower::lower_script` leaves the name to its caller; this is the
@@ -758,6 +788,15 @@ fn run_run(
         ctx.set_origin(&origin);
     }
     ctx.set_config(snapshot);
+    // ADR 0086 § 6: `Core\Command`'s members are generated from the table the
+    // front end already built, so the rows cross here — once, before the program
+    // starts, like everything else this context is handed.
+    // `nvs_runtime::commands` owns why they cross as a runtime value rather than
+    // being folded while checking.
+    let commands = checked.exprs.commands();
+    if !commands.rows().is_empty() {
+        ctx.set_commands(std::sync::Arc::new(runtime_commands(commands)));
+    }
     // Hands the context the unit's class table: the class a helper's
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.
