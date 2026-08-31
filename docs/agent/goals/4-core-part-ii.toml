@@ -147,9 +147,11 @@ target_dir = "/var/tmp/nvs-target-wsl"
 # started. ONE STORE SERVES BOTH LEGS, unlike `tools/origin.py`, which needs a listener inside the distro
 # because a WSL loopback is its own: Docker Desktop forwards the published `127.0.0.1:16379` into the
 # distro, so the WSL leg's `examples/cache.nvs` reaches the same container the native one does.
+# `mailpit` is stage 9's SMTP endpoint, proven ahead of that stage so it never blocks it: a catcher that
+# stores what it accepts and relays nothing, so no test can send a real email.
 [docker]
 compose = "tests/db/compose.yaml"
-services = ["redis"]
+services = ["redis", "mailpit"]
 
 
 # ---------------------------------------------------------------------------------------------------

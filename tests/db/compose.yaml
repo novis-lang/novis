@@ -1,8 +1,9 @@
-# The five servers ADR 0067's *Verification* names, as one file.
+# Every server a test needs, as one file: the five ADR 0067's *Verification* names, and the SMTP catcher
+# goal 4's stage 9 points `Core\Mail` at.
 #
 # `tools/loop.py` brings these up once per run -- `docker compose -f tests/db/compose.yaml up -d --wait
-# mysql mariadb postgres mssql redis` -- from the `[docker]` block in `docs/agent/goals/5-database.toml`,
-# and goal 6 reuses the same file for `postgres` and `redis` alone. `--wait` is why every service below
+# <services>` -- from the current goal's `[docker]` block: goal 4 names `redis` and `mailpit`, goal 5 the
+# five database servers, and goal 6 reuses `postgres` and `redis` alone. `--wait` is why every service below
 # carries a healthcheck: it makes "up" mean *healthy* rather than *started*, so a driver's first
 # connection is not racing the server's own initialisation.
 #
@@ -16,11 +17,13 @@
 # * **Host ports are non-standard and bound to `127.0.0.1`.** MySQL and MariaDB cannot both be 3306, a
 #   developer machine often already runs one of these, and a test server must never answer the LAN.
 #
-# TLS is on for all five, because ADR 0067 verifies it per driver:
+# TLS is on for all of them, because ADR 0067 verifies it per driver and `Core\Mail`'s endpoint shape
+# is 0067's:
 #
 # * MySQL 8.4 and MariaDB 11.4 generate their own self-signed certificate at first boot.
 # * SQL Server generates one too and encrypts the login packet regardless.
-# * PostgreSQL and Redis do not, so the `certs` service below makes one for them in a shared volume.
+# * PostgreSQL, Redis and Mailpit do not, so the `certs` service below makes one for them in a shared
+#   volume.
 #
 # All of them are self-signed, so a client verifies the chain or it does not connect. The CA is one
 # command away when a test wants to verify rather than merely encrypt:
@@ -184,6 +187,36 @@ services:
       - certs:/certs:ro
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -p 6379 ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------------------------------
+  # Mailpit, the SMTP endpoint goal 4's stage 9 points `Core\Mail` at. It is a catcher, not a relay: it
+  # stores what it accepts and forwards NOTHING -- no `MP_SMTP_RELAY_*` is set, so no test can cause a
+  # real email to leave this machine, and the loopback binding above means nothing off it can connect
+  # anyway. Delivery is asserted over the HTTP API on 18025 (`GET /api/v1/messages`). STARTTLS serves
+  # the shared self-signed certificate, and AUTH is fixed to the same public credentials the databases
+  # use -- allowed on the plain connection too, so a test can exercise either path.
+  # ---------------------------------------------------------------------------------------------------
+  mailpit:
+    image: axllent/mailpit:v1.31.0
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:11025:1025"
+      - "127.0.0.1:18025:8025"
+    environment:
+      MP_SMTP_TLS_CERT: /certs/server.crt
+      MP_SMTP_TLS_KEY: /certs/server.key
+      MP_SMTP_AUTH: "novis:Novis-Test-Pw1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    volumes:
+      - certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
       interval: 5s
       timeout: 5s
       retries: 30
