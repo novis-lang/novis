@@ -1,0 +1,59 @@
+--TEST--
+Core\SignedCookie::seal answers unpadded URL-safe base64 whose length is a stated function of the payload's, differs on every call, and round-trips characters a Set-Cookie header would otherwise need escaped — ADR 0060 § 1
+--FILE--
+<?nvs
+// Invariance over a sweep. A cookie's *size* is the one property an
+// application has to plan for — browsers cap a cookie at about 4 KiB — so it
+// is stated rather than discovered: the payload's octets plus 40 of AEAD
+// overhead, then base64's four-thirds. `crates/nvs-stdlib/src/signed_cookie.rs`
+// owns the layout that arithmetic comes from.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+// The empty payload is a payload: 40 octets of pure overhead, which unpadded
+// base64 spells in 54 characters.
+echo Core\Str::length(Core\SignedCookie::seal("", $ring)), "\n";
+
+// Eight characters is 48 octets sealed, which is exactly sixteen base64
+// groups and so needs no remainder handling at all.
+echo Core\Str::length(Core\SignedCookie::seal("user=ada", $ring)), "\n";
+
+// Every character of the answer is in RFC 4648 § 5's alphabet, which is a
+// subset of RFC 6265's `cookie-octet` — so nothing here needs escaping on the
+// way into a header, and nothing needs unescaping on the way back out. A
+// member that answered standard base64 would put `+` and `/` in a cookie and
+// pass every other assertion in this file.
+string $cookie = Core\SignedCookie::seal("user=ada", $ring);
+if (Core\Regex::matches($cookie, "^[A-Za-z0-9_-]+$")) {
+    echo "cookie-safe throughout", "\n";
+} else {
+    echo "outside the alphabet: ", $cookie, "\n";
+}
+
+// A fresh nonce per call, so one value sealed twice is two different cookies.
+// A member that kept a nonce would round-trip perfectly and leak whether two
+// requests carried the same payload.
+if ($cookie == Core\SignedCookie::seal("user=ada", $ring)) {
+    echo "the same cookie twice", "\n";
+} else {
+    echo "a fresh cookie", "\n";
+}
+
+// And the payload comes back character for character, including the four
+// characters a cookie value cannot carry raw and the non-ASCII that a
+// signer built on `serialize` would mangle. The sweep is what makes this an
+// invariant rather than one lucky string.
+array<string> $awkward = ["a;b", "a,b", "a b", "a=b", "€ ünïcødé", ""];
+int $intact = 0;
+foreach ($awkward as string $payload) {
+    if (Core\SignedCookie::open(Core\SignedCookie::seal($payload, $ring), $ring) == $payload) {
+        $intact = $intact + 1;
+    }
+}
+echo "intact ", $intact, " of ", Core\Arr::count($awkward), "\n";
+--EXPECT--
+54
+64
+cookie-safe throughout
+a fresh cookie
+intact 6 of 6

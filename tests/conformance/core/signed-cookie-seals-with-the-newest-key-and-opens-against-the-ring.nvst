@@ -1,0 +1,77 @@
+--TEST--
+Core\SignedCookie::seal signs with the newest key and ::open verifies against the whole ring, with one refusal for a tampered cookie and one for a retired key — ADR 0060 §§ 1 and 4
+--FILE--
+<?nvs
+// ADR 0060 § 1 asks for key rotation in five words: "verify against several
+// keys, sign with the newest". Which end of the list *newest* means is the
+// whole of what a program can get wrong, so it is pinned here from source.
+// `crates/nvs-stdlib/src/signed_cookie.rs` is the home of why it is the front.
+secret bytes $newest = Core\Crypto::generateKey();
+secret bytes $retired = Core\Crypto::generateKey();
+
+array<secret bytes> $ring = [$newest, $retired];
+string $cookie = Core\SignedCookie::seal("user=ada", $ring);
+
+if (Core\SignedCookie::open($cookie, $ring) == "user=ada") {
+    echo "round trip", "\n";
+} else {
+    echo "opened the wrong value", "\n";
+}
+
+// Sealed with `$ring[0]` and nothing else, so a ring holding only the newest
+// key still opens it. A member that sealed with the *last* entry would pass
+// every other line of this case and quietly seal every new cookie under the
+// key an operator was retiring.
+array<secret bytes> $newestOnly = [$newest];
+if (Core\SignedCookie::open($cookie, $newestOnly) == "user=ada") {
+    echo "sealed with the newest", "\n";
+} else {
+    echo "sealed with something else", "\n";
+}
+
+// The other half of rotation: a cookie sealed before the rotation, under a key
+// that is now second in the ring, still opens — and does not open against a
+// ring that has dropped it.
+array<secret bytes> $retiredOnly = [$retired];
+string $old = Core\SignedCookie::seal("user=grace", $retiredOnly);
+if (Core\SignedCookie::open($old, $ring) == "user=grace") {
+    echo "an older key still verifies", "\n";
+} else {
+    echo "an older key did not verify", "\n";
+}
+
+try {
+    string $opened = Core\SignedCookie::open($old, $newestOnly);
+    echo "a dropped key still opened, as ", $opened, "\n";
+} catch (RuntimeError $dropped) {
+    echo "a dropped key is refused", "\n";
+}
+
+// Four more base64 characters is three more octets of ciphertext: the text is
+// still the URL-safe alphabet and still a legal length, so it reaches the tag
+// check rather than the decoder. This is the assertion an unauthenticated
+// cookie fails — it would hand back whatever the extra octets decrypted to.
+string $tampered = $cookie . "AAAA";
+try {
+    string $forged = Core\SignedCookie::open($tampered, $ring);
+    echo "a tampered cookie opened, as ", $forged, "\n";
+} catch (RuntimeError $altered) {
+    echo "a tampered cookie is refused", "\n";
+}
+
+// A ring with no keys in it is a program bug rather than a message about the
+// cookie, so it is the other exception class.
+array<secret bytes> $empty = [];
+try {
+    string $impossible = Core\SignedCookie::seal("user=ada", $empty);
+    echo "an empty ring sealed, as ", $impossible, "\n";
+} catch (LogicError $noKeys) {
+    echo "an empty ring is refused", "\n";
+}
+--EXPECT--
+round trip
+sealed with the newest
+an older key still verifies
+a dropped key is refused
+a tampered cookie is refused
+an empty ring is refused
