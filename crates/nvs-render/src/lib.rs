@@ -59,21 +59,21 @@
 //!
 //! ADR 0092 § 1 puts the model in one crate that both the runtime and the
 //! compiler front end depend on, which is why it is not in `nvs-diagnostics`:
-//! `nvs-runtime` depends on no `nvs-*` crate, so the dependency has to run the
-//! other way. Today the crate has exactly one dependent, `nvs-stdlib`, and one
-//! dependency, `nvs-syntax` — [ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
-//! bidi predicate, which § 5 routes through rather than restating.
+//! `nvs-runtime` depends on no `nvs-*` crate but this one, so the dependency
+//! has to run the other way.
 //!
-//! **That edge inverts when the next producer lands.** An uncaught `Throwable`
-//! renders from `nvs-runtime`, and `nvs check` renders from `nvs-diagnostics`;
-//! both would then depend on this crate, and this crate's dependency on
-//! `nvs-syntax` (which depends on `nvs-diagnostics`) closes a cycle. The
-//! answer at that point is to **move** `nvs_syntax::bidi` down into this
-//! crate and have `nvs-syntax` read it from below — a move, not a copy, so
-//! ADR 0087's "one rule, three callers" is unchanged and this crate stays the
-//! leaf ADR 0092 § 1 describes. It is not done now because a module moves
-//! once, and doing it before there is a second dependent would be a churn with
-//! no reader.
+//! **This crate is a leaf, and that is what the second producer cost.** Its
+//! dependents are `nvs-runtime` — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+//! § 6's tier-4 floor, which renders an uncaught `Throwable` through
+//! [`json::line`] — and `nvs-stdlib`, whose `Core\Log::write` is the same
+//! render reached from the other caller. Its only dependency is `serde_json`.
+//! It used to depend on `nvs-syntax` for [ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
+//! bidi predicate, and `nvs-syntax` depends on `nvs-diagnostics`, so the floor
+//! becoming a dependent would have closed a cycle. The predicate **moved** down
+//! into [`bidi`] instead and `nvs-syntax` reads it from below — a move, not a
+//! copy, so ADR 0087's "one rule, three callers" is one implementation still.
+//! `nvs check` rendering from `nvs-diagnostics` is the third producer and needs
+//! nothing further: that edge is already the way round it has to run.
 //!
 //! # What it spends
 //!
@@ -83,6 +83,7 @@
 //! allow, which is the property that lets a dump be reached from a request
 //! path at all.
 
+pub mod bidi;
 pub mod json;
 pub mod plain;
 pub mod text;

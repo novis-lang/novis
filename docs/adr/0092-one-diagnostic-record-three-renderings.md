@@ -267,7 +267,7 @@ rendering therefore inherits identical answers, and none may weaken one.
 |---|---|---|
 | **Redaction** | a property whose *declared* type carries `secret` becomes a Redacted node; a `secret` value passed at a call site is refused by `nvs check` | [0033](0033-secret-qualifier-for-confidential-values.md) § 4 |
 | **Control bytes** | C0 except `LF`/`TAB` → its U+2400 Control Picture, `DEL` → `␡`, a C1 code point → `�` | [0086](0086-core-cli-terminal-is-a-sink.md) § 1's table, unchanged |
-| **Bidi** | an unterminated directional control → `�`; a balanced one passes through | [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md), via `nvs_syntax::bidi`'s one predicate |
+| **Bidi** | an unterminated directional control → `�`; a balanced one passes through | [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md), via `nvs_render::bidi`'s one predicate |
 | **Elision** | depth and per-node length caps, replacing what is cut with an Elided node naming how much | this ADR |
 
 - **Control-byte substitution applies to the JSON rendering too**, where framing already makes it

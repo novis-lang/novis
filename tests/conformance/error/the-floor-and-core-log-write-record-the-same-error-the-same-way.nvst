@@ -1,0 +1,24 @@
+--TEST--
+application code and the engine floor produce schema-identical records for the same error — ADR 0020 §§ 5-6
+--FILE--
+<?nvs
+// ADR 0020 § 6's load-bearing claim, asserted as *agreement* rather than as
+// two independent shapes: `Core\Log::write` is a thin binding over the same
+// native record-and-write helper tier 4 calls directly when it has no script
+// left to run, so a Loki dashboard never has to reconcile two log shapes
+// depending on which tier produced a given line.
+//
+// The two lines below are the same error reported from the two ends of the
+// ladder. They carry the same envelope keys in the same order, each field
+// nested the same way — the floor's record adds `backtrace`, which the caller
+// here has none of, and nothing else differs. What *does* differ is the
+// channel: § 6's application caller writes the program's own output, and
+// `nvs_runtime::floor` writes the diagnostic one, which is why this case has
+// both an `--EXPECT--` and an `--EXPECTF-ERROR--` section for one error.
+Core\Log::write(Core\Log\Level::Error, "boom", ["class" => "RuntimeError"]);
+
+throw new RuntimeError("boom");
+--EXPECT--
+{"level":"error","msg":"boom","fields":{"class":"RuntimeError"}}
+--EXPECTF-ERROR--
+{"level":"error","msg":"boom","fields":{"class":"RuntimeError","backtrace":"#0 <script>() at case.nvs:%d"}}

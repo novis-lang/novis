@@ -481,21 +481,13 @@ fn cancelled_completion() -> Completion {
 
 /// The rendered class name behind a [`nvs_runtime::Thrown`], or ADR 0020's
 /// generic one where there is no descriptor to read.
+///
+/// The answer is `nvs_runtime::Thrown`'s own, read from below rather than
+/// derefed a second time here: ADR 0020 § 6's tier-4 floor asks the same
+/// question of the same value, and the `unsafe` behind it belongs to the crate
+/// that publishes the descriptor.
 fn class_name(thrown: &nvs_runtime::Thrown) -> String {
-    let desc = thrown.class_desc();
-    if desc.is_null() {
-        return "Error".to_owned();
-    }
-    #[expect(
-        unsafe_code,
-        reason = "a `Thrown`'s descriptor is published by a class table that \
-                  outlives every value built from it; see `nvs_runtime::object`"
-    )]
-    // SAFETY: non-null here means the class table handed it out, and a
-    // descriptor's address is its identity for the life of that table.
-    unsafe {
-        (*desc).name().to_owned()
-    }
+    thrown.class_name()
 }
 
 /// One reference, dropped.

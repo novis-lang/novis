@@ -1678,7 +1678,6 @@ dependencies = [
 name = "nvs-render"
 version = "0.0.1"
 dependencies = [
- "nvs-syntax",
  "serde",
  "serde_json",
 ]
@@ -1690,6 +1689,7 @@ dependencies = [
  "bitflags 2.13.1",
  "libc",
  "nvs-config",
+ "nvs-render",
  "rand",
  "subtle",
  "toml",
@@ -1742,6 +1742,7 @@ version = "0.0.1"
 dependencies = [
  "insta",
  "nvs-diagnostics",
+ "nvs-render",
 ]
 
 [[package]]

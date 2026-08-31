@@ -30,6 +30,15 @@ bitflags.workspace = true
 # `nvs-config` depends on `nvs-diagnostics`, `serde` and `toml` and on nothing
 # in this crate, so the edge is one-way.
 nvs-config.workspace = true
+# ADR 0020 § 6's tier-4 floor writes the *same* record through the *same*
+# renderer `Core\Log::write` reaches, so that a log pipeline never has to
+# reconcile two shapes depending on which tier produced a line — and a floor
+# with its own JSON writer would be exactly the two-writers-that-agree-today
+# failure ADR 0092 exists to prevent. `src/floor.rs` is the caller. The edge is
+# one-way and this crate stays the bottom of the tree: `nvs-render` depends on
+# no `nvs-*` crate at all, which is what ADR 0087's bidi predicate moving down
+# into it bought.
+nvs-render.workspace = true
 # ADR 0076 § 2's trace id is drawn once per request, in `Ctx::new` — so the draw
 # has to happen in the crate that owns per-request state, not in `nvs-stdlib`
 # where `Core\Random` already uses this same generator for the same reason its

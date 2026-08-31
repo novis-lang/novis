@@ -965,26 +965,20 @@ fn run_run(
             ExitCode::from(u8::try_from(ctx.exit_code() & 0xFF).unwrap_or(0))
         }
         Err(status) => {
-            // ADR 0020's ladder is not built yet; until it is, the honest
-            // report is the status and whatever message the runtime recorded.
-            // The two spellings are the ladder's own tier names: an uncaught
-            // throw is tier 2, a `FATAL` is tier 3 and above, and nothing
-            // below the engine floor can catch either.
             let thrown = ctx.take_thrown();
-            let message = thrown.message();
             if status == nvs_runtime::THROWN {
-                eprintln!("Uncaught Exception: {message}");
-                // The frames the exception unwound out of, `#0` first —
-                // `nvs_runtime::throwable`'s own docs own the shape and why it
-                // is built on the error path rather than at construction.
-                // Empty for a `FATAL`, which has no backtrace by design
-                // (ADR 0020), so nothing is printed for one.
-                let trace = thrown.trace_as_string();
-                if !trace.is_empty() {
-                    eprintln!("{trace}");
-                }
+                // ADR 0020 § 6's floor: nothing below it caught this, so it is
+                // reported as the record `Core\Log::write` writes, rendered by
+                // the same call — `nvs_runtime::floor` owns why one shape and
+                // not two, and carries the frames as its `backtrace` field.
+                let record = nvs_runtime::floor::uncaught(&thrown);
+                nvs_runtime::floor::report(&mut ctx, &record);
             } else {
-                eprintln!("FATAL: {message}");
+                // Tier 3 and above. The ladder's handler script is not built
+                // yet, so the honest report is still the status and whatever
+                // message the runtime recorded; a `FATAL` has no backtrace by
+                // design, so there is nothing else to say about one.
+                eprintln!("FATAL: {}", thrown.message());
             }
             ExitCode::FAILURE
         }

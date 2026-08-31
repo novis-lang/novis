@@ -46,7 +46,7 @@ pub fn substitute(text: &str) -> String {
     // both are a scan. Checking first keeps a dump of ordinary text at one
     // pass and one allocation.
     let mut unterminated = Vec::new();
-    nvs_syntax::bidi::for_each_unterminated(text, |offset, _| unterminated.push(offset));
+    crate::bidi::for_each_unterminated(text, |offset, _| unterminated.push(offset));
     if unterminated.is_empty() && !text.chars().any(needs_substitution) {
         return text.to_owned();
     }

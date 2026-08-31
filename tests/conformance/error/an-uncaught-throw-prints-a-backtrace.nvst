@@ -1,5 +1,5 @@
 --TEST--
-an uncaught throw exits non-zero, naming the frames it unwound out of
+an uncaught throw exits non-zero and reaches the floor as one ADR 0020 § 6 record, class and frames included
 --FILE--
 <?nvs
 class Boom {
@@ -12,6 +12,4 @@ echo Boom::go(), "\n";
 --EXPECT--
 before
 --EXPECTF-ERROR--
-Uncaught Exception: no
-#0 Boom::go() at case.nvs:%d
-#1 <script>() at case.nvs:%d
+{"level":"error","msg":"no","fields":{"class":"RuntimeError","backtrace":"#0 Boom::go() at case.nvs:%d\n#1 <script>() at case.nvs:%d"}}

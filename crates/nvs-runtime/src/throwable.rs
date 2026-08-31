@@ -339,6 +339,31 @@ impl Thrown {
         self.borrow().map_or(std::ptr::null(), |obj| obj.class())
     }
 
+    /// The rendered name of that class, or [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)'s
+    /// generic `Error` where there is no descriptor to read.
+    ///
+    /// Here rather than beside either caller: `nvs_host::isolate` names the
+    /// class of a failed isolate's throw and [`crate::floor`] names it in the
+    /// tier-4 record, and the `unsafe` deref both need is this crate's to
+    /// state — its unsafe policy is the reason it owns the raw handle at all.
+    #[must_use]
+    pub fn class_name(&self) -> String {
+        let desc = self.class_desc();
+        if desc.is_null() {
+            return "Error".to_owned();
+        }
+        #[expect(
+            unsafe_code,
+            reason = "a `Thrown`'s descriptor is published by a class table that \
+                      outlives every value built from it; see `crate::object`"
+        )]
+        // SAFETY: non-null here means the class table handed it out, and a
+        // descriptor's address is its identity for the life of that table.
+        unsafe {
+            (*desc).name().to_owned()
+        }
+    }
+
     /// The exception's `message` property, as an owned string.
     ///
     /// Empty for an absent exception, or for one whose slot somehow does not

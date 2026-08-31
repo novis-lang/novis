@@ -8,15 +8,13 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+# This crate depends on no `nvs-*` crate, and that is the property ADR 0092 § 1
+# asks of it: the model sits below both the runtime and the compiler front end,
+# so every edge to it runs downward. ADR 0087's bidi predicate, which ADR 0092
+# § 5 routes through rather than restating, lives in `src/bidi.rs` for that
+# reason — it moved down out of `nvs-syntax` when the tier-4 floor became a
+# dependent, and `nvs-syntax` reads it from here now.
 [dependencies]
-# ADR 0092 § 5 routes the bidi transformation through ADR 0087's *one*
-# predicate rather than restating it, and that predicate is `nvs_syntax::bidi`.
-# The edge is upward for now and the crate docs' § *Where this sits* owns what
-# happens when `nvs-runtime` and `nvs-diagnostics` become dependents: the
-# predicate moves down here and `nvs-syntax` reads it from below, which is a
-# move rather than a copy.
-nvs-syntax.workspace = true
-
 # ADR 0020 § 6 chose JSON over `logfmt` because the escaping has to be correct
 # on the first and only attempt at the true floor, and JSON's is a solved,
 # mechanical problem — so the JSON rendering (`src/json.rs`) delegates every

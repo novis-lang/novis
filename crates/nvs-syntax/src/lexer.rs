@@ -238,7 +238,7 @@ impl<'a> Lexer<'a> {
         let text = &self.text[span.start as usize..span.end as usize];
         let mut line_start = span.start;
         for line in text.split_inclusive('\n') {
-            if let Some((offset, control)) = crate::bidi::first_unterminated(line) {
+            if let Some((offset, control)) = nvs_render::bidi::first_unterminated(line) {
                 let at = line_start + u32::try_from(offset).expect("offset within one token");
                 let end = at + u32::try_from(control.len_utf8()).expect("a control is 3 bytes");
                 diags.report(
@@ -247,13 +247,13 @@ impl<'a> Lexer<'a> {
                         format!(
                             "unterminated bidirectional control U+{:04X} {}",
                             control as u32,
-                            crate::bidi::control_name(control)
+                            nvs_render::bidi::control_name(control)
                         ),
                     )
                     .with_primary(self.mk_span(at, end), "opens a directional scope")
                     .with_note(format!(
                         "the scope is still open where this line ends; close it with {}",
-                        crate::bidi::terminator_of(control)
+                        nvs_render::bidi::terminator_of(control)
                     )),
                 );
             }

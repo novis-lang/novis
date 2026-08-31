@@ -14,10 +14,11 @@
 //!   declarations answer on their own: ADR 0029/0030's identifier casing and
 //!   ADR 0094's required member visibility. See its module docs for exactly
 //!   what is and isn't covered.
-//! - [`bidi`] — ADR 0087's unterminated-directional-scope predicate, the one
-//!   place that rule is written. Public because it is shared: the lexer makes
-//!   it a hard error, and `Core\Html::escape` (M7) and `Core\Cli`'s sink (M8)
-//!   substitute `U+FFFD` for what it names.
+//! - ADR 0087's unterminated-directional-scope predicate is
+//!   [`nvs_render::bidi`], not this crate's: the lexer makes it a hard error
+//!   and reads it from below. It moved there when ADR 0020 § 6's tier-4 floor
+//!   became a dependent of `nvs-render`, which ADR 0092 § 1 requires be the
+//!   leaf — that crate's own § *Where this sits* is the home of why.
 //! - [`duration`] — ADR 0070's duration grammar, the one place `30s` is
 //!   defined. Public because it is shared: `nvs-stdlib`'s
 //!   `Core\Time\Duration::parse` and (at M6) `nvs.toml`'s reader both call in,
@@ -88,7 +89,6 @@
 //!   spot-checked.
 
 pub mod ast;
-pub mod bidi;
 mod casing;
 pub mod duration;
 mod lexer;

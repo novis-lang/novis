@@ -79,6 +79,8 @@
 
 use std::time::Duration;
 
+use nvs_render::Level;
+
 use crate::ctx::Ctx;
 use crate::host::{Bounds, Job, Outcome};
 use crate::value::Value;
@@ -126,20 +128,28 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
         host.run_group(ctx, vec![job], bounds)
     });
     match outcome {
-        // § 6: an uncaught throw goes through ADR 0020's ladder to `Core\Log`,
-        // and tier 2's `onUncaughtThrow` does **not** fire, because it was the
-        // finished request's. There is no `Core\Log` at this commit, so the
-        // honest report is the diagnostic stream an uncaught throw is already
-        // reported on — and the *request's* status is not touched either way,
-        // since there is no response left for this to affect.
+        // § 6: an uncaught throw goes through ADR 0020's ladder, and tier 2's
+        // `onUncaughtThrow` does **not** fire, because it was the finished
+        // request's. So this lands at tier 4, the floor, as the same record
+        // `Core\Log::write` writes — `crate::floor` owns why one shape and not
+        // two. The *request's* status is not touched either way, since there is
+        // no response left for this to affect.
         Some(Outcome::Threw(thrown)) => {
-            report(
-                ctx,
-                &format!("Uncaught Exception in deferred work: {}", thrown.message()),
-            );
+            let mut record = crate::floor::uncaught(&thrown);
+            record
+                .envelope
+                .fields
+                .push(("origin".to_owned(), crate::floor::text(ORIGIN)));
+            crate::floor::report(ctx, &record);
         }
         Some(Outcome::TimedOut) => {
-            report(ctx, "deferred work stopped: its deadline expired");
+            let mut record =
+                crate::floor::note(Level::Error, "deferred work stopped: its deadline expired");
+            record
+                .envelope
+                .fields
+                .push(("origin".to_owned(), crate::floor::text(ORIGIN)));
+            crate::floor::report(ctx, &record);
         }
         // The tree itself was cancelled while this ran. Nothing to report and
         // nothing left to run: the remaining registrations are drained into
@@ -184,8 +194,8 @@ fn call_deferred(child: &mut Ctx, closure: Value) -> Value {
     }
 }
 
-/// Writes one line to the request's diagnostic stream, ignoring a sink that has
-/// already gone: this runs after the response, so there is nothing left to fail.
-fn report(ctx: &mut Ctx, line: &str) {
-    let _ = ctx.write_diagnostic(format!("{line}\n").as_bytes());
-}
+/// The `origin` field both failures above carry — ADR 0020 § 6's "whatever
+/// structured context that call site has", which here is the one fact a reader
+/// cannot recover from the record otherwise: the throw happened after the
+/// response, in work the request registered rather than in the request.
+const ORIGIN: &str = "deferred work";
