@@ -1912,6 +1912,48 @@ impl Ctx {
         }
     }
 
+    /// `[log] handler_reserve_memory` as bytes, or `None` where the
+    /// configuration does not state it.
+    ///
+    /// Malformed is `None` and takes [`Self::DEFAULT_HANDLER_RESERVE_MEMORY`],
+    /// for [`Self::configured_fatal_reserve`]'s reason.
+    fn configured_handler_reserve(&self) -> Option<usize> {
+        let written = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("log.handler_reserve_memory"))?;
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse(
+            "log.handler_reserve_memory",
+            nvs_config::Unit::Bytes,
+            &setting,
+        ) {
+            Ok(nvs_config::Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(0)),
+            _ => None,
+        }
+    }
+
+    /// `[log] handler_reserve_time` as nanoseconds, or `None` where the
+    /// configuration does not state it.
+    ///
+    /// Malformed is `None` and takes [`Self::DEFAULT_HANDLER_RESERVE_TIME`], for
+    /// the reader above's reason.
+    fn configured_handler_reserve_time(&self) -> Option<u64> {
+        let written = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("log.handler_reserve_time"))?;
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse(
+            "log.handler_reserve_time",
+            nvs_config::Unit::Duration,
+            &setting,
+        ) {
+            Ok(nvs_config::Quantity::Nanos(nanos)) => Some(nanos),
+            _ => None,
+        }
+    }
+
     /// The reserved slice of CPU time a request with this `ceiling` gets, given
     /// what its configuration asked for.
     ///
@@ -2219,6 +2261,76 @@ impl Ctx {
         // request's. `crate::deferred`'s known gap is where an isolate gets one.
         isolate.deferred = None;
         isolate
+    }
+
+    /// The memory ceiling [`Self::handler_isolate`] runs under where
+    /// `[log] handler_reserve_memory` states none.
+    ///
+    /// 16 MiB, and a flat number rather than [`Self::reserve_within`]'s
+    /// proportion, because there is no ceiling to take a proportion *of*: ADR
+    /// 0020 § 1's slice is carved out of the request's own `[limits] memory`,
+    /// while § 3's is the engine's and is the same whatever the request was
+    /// allowed. The size is what a whole `.nvs` costs rather than what a
+    /// message costs — this reserve compiles and runs a program, where § 1's
+    /// runs a closure the request already loaded — and 16 MiB is spent here
+    /// under [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s
+    /// ordering: a handler that cannot report is a failure nobody hears about.
+    pub const DEFAULT_HANDLER_RESERVE_MEMORY: usize = 16 << 20;
+
+    /// The CPU ceiling [`Self::handler_isolate`] runs under where
+    /// `[log] handler_reserve_time` states none.
+    ///
+    /// Five seconds, on [`Self::reserve_time_within`]'s reasoning and not its
+    /// number: a handler's time is bounded by what writing its report blocks
+    /// on, which is a log target or a socket. The number is larger than § 1's
+    /// 50 ms for the reason the memory half is larger — this one compiles a
+    /// script first — and it is a ceiling on a report, not a budget for work.
+    pub const DEFAULT_HANDLER_RESERVE_TIME: u64 = 5_000_000_000;
+
+    /// A context for [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// § 3's **tier-3 handler** — [`Self::isolate`] with the failing request's
+    /// budget left behind.
+    ///
+    /// § 3's one deliberate exception to [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md):
+    /// an ordinary isolate spends the tree's budget, which is exactly wrong for
+    /// the one isolate whose job is to report that the tree ran out of it.
+    /// Everything ADR 0006 calls request-wide still crosses — the sibling above
+    /// is the one home of that list — and three things part from it:
+    ///
+    /// - **Its own deadline word**, not the tree's. The parent's word is set
+    ///   the moment its wall clock runs out, so a handler sharing it would be
+    ///   cancelled before its first statement, for precisely the failure it was
+    ///   configured to report.
+    /// - **Its own ceilings** — [`Self::DEFAULT_HANDLER_RESERVE_MEMORY`] and
+    ///   [`Self::DEFAULT_HANDLER_RESERVE_TIME`], or what the two directives
+    ///   state — where an ordinary isolate carries none and is bounded by the
+    ///   root's reading once control returns there. Exceeding one is § 3's
+    ///   "zero retries" and nothing else: the handler fails, `nvs-host`'s
+    ///   `ladder::escalate` answers `false`, and tier 4 writes the record.
+    /// - **A fresh script depth**, because a chain that reached
+    ///   `[limits] max_script_depth` is itself one of the failures this handler
+    ///   reports, and inheriting the depth would refuse the report on the
+    ///   grounds of the thing being reported. What that ceiling guards against
+    ///   is guarded here by `nvs_host::ladder`'s thread-local instead, since
+    ///   this is the only spawn on the path.
+    ///
+    /// **What it spends:** nothing between failures. The reserve is a ceiling,
+    /// not an allocation, exactly as `[limits] fatal_reserve_memory` is —
+    /// § 3's "sized once per worker/core" is the value's *shape*, a number that
+    /// does not vary with the request, and not a pre-allocation. In flight it
+    /// is one more `Ctx`, which is [`Self::isolate`]'s accounting.
+    #[must_use]
+    pub fn handler_isolate(&self, output: OutputSink) -> Self {
+        let mut handler = self.isolate(output);
+        handler.deadline = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        handler.script_depth = 0;
+        handler.memory_limit = self
+            .configured_handler_reserve()
+            .unwrap_or(Self::DEFAULT_HANDLER_RESERVE_MEMORY);
+        handler.cpu_limit = self
+            .configured_handler_reserve_time()
+            .unwrap_or(Self::DEFAULT_HANDLER_RESERVE_TIME);
+        handler
     }
 
     /// The base of the static-property storage compiled code loads inline —

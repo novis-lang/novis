@@ -19,7 +19,8 @@
 //! caller then writes nothing: tier 4 is the floor *beneath* tier 3, not a
 //! second line beside it. Every other outcome — no `[log] handler` configured,
 //! a path the `script.spawn` capability does not cover, a handler that will not
-//! compile, a handler that threw, was cancelled or ran out of its budget — is
+//! compile, a handler that threw, was cancelled or ran out of its own reserve —
+//! is
 //! `false`, and the caller reports the same record through
 //! [`nvs_runtime::floor::report`] as it would have with no handler at all. That
 //! is § 3's **zero retries** in the only form it can take here: there is one
@@ -41,9 +42,14 @@
 //! One isolate for the length of the report, which is [`crate::isolate`]'s own
 //! accounting, plus one `bool` per thread. Nothing is O(failures reported): the
 //! handler's context is dropped as its task ends, exactly as any other child's
-//! is. Its budget is still the failing request's until ADR 0020 § 3's
-//! engine-owned reserve lands — which is the known gap in this module, and the
-//! one case where a request already at its ceiling has nothing left to lend.
+//! is.
+//!
+//! Its budget is **not** the failing request's: the spawn asks for
+//! [`Isolate::charged_to_the_engine_reserve`], so the handler runs under § 3's
+//! engine-owned allotment and a request already at its ceiling still has a
+//! report. [`nvs_runtime::Ctx::handler_isolate`] is the one home of what that
+//! reserve is and of the three things it changes; nothing about that exception
+//! is decided here.
 
 use std::cell::Cell;
 
@@ -99,7 +105,9 @@ pub fn escalate(ctx: &mut Ctx, record: &Record) -> bool {
     let args = nvs_runtime::floor::report_argument(record);
     RUNNING.with(|running| running.set(true));
     let guard = Guard;
-    let completion = Isolate::new(program, args, Output::Inherit).run(ctx);
+    let completion = Isolate::new(program, args, Output::Inherit)
+        .charged_to_the_engine_reserve()
+        .run(ctx);
     drop(guard);
     // An `Err` is the *argument* refusing to cross, which a report built by
     // `report_argument` cannot do — it is a keyed array of strings. It is

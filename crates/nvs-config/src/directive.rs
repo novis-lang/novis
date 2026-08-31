@@ -122,6 +122,13 @@ pub const DIRECTIVES: &[Directive] = &[
     // names a file to *run*. `Reload` and not `Boot`: the path is resolved when a failure reaches
     // the ladder, so a new value is in force at the next one and nothing is re-created.
     Directive { key: "log.handler", class: Class::System, apply: Apply::Reload },
+    // Its two ceilings, `System` for a reason of their own rather than by inheritance from the row
+    // above: ADR 0020 § 3's reserve exists so that the tier reporting a request's failure is not
+    // stopped by that request, and a script that could widen or narrow it would be deciding how
+    // loudly its own failure is reported. `Reload` for the handler's reason — both are read when a
+    // failure reaches the ladder, so a new value is in force at the next one.
+    Directive { key: "log.handler_reserve_memory", class: Class::System, apply: Apply::Reload },
+    Directive { key: "log.handler_reserve_time", class: Class::System, apply: Apply::Reload },
     // The four `Boot` rows ADR 0078 § 2 names, less the thread-per-core count the module doc
     // records as unspelled. `[server]`'s whole block is `Boot` per ADR 0097 § 5, which is more than
     // 0078's "the server's listen addresses" and includes them.

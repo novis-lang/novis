@@ -91,6 +91,23 @@ pub struct Isolate {
     program: Program,
     args: Value,
     output: Output,
+    charge: Charge,
+}
+
+/// Whose budget an isolate spends: ADR 0006's answer, and ADR 0020 § 3's one
+/// named exception to it.
+///
+/// Private, and a builder rather than a parameter of [`Isolate::new`], because
+/// § 3 states that the exception is not a precedent. Nothing a program writes
+/// can reach it — `nvs_runtime::host`'s seam is what `spawn script` arrives
+/// through, and it never calls the builder.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Charge {
+    /// The tree it was spawned from, which is every isolate a program spawns.
+    Tree,
+    /// The engine's own reserve, which is [`crate::ladder`]'s handler and
+    /// nothing else.
+    EngineReserve,
 }
 
 impl std::fmt::Debug for Isolate {
@@ -113,7 +130,21 @@ impl Isolate {
             program,
             args,
             output,
+            charge: Charge::Tree,
         }
+    }
+
+    /// Charges it to ADR 0020 § 3's engine-owned reserve instead of to the tree
+    /// that spawned it.
+    ///
+    /// [`Ctx::handler_isolate`] is the one home of what that changes and why
+    /// § 3 wants it. Here it changes two things and no more: the context this
+    /// isolate runs under, and the tree-depth refusal below, which is asked of
+    /// the tree only.
+    #[must_use]
+    pub fn charged_to_the_engine_reserve(mut self) -> Self {
+        self.charge = Charge::EngineReserve;
+        self
     }
 
     /// Runs it to completion and answers with what crossed back.
@@ -157,6 +188,7 @@ impl Isolate {
             program,
             args,
             output,
+            charge,
         } = self;
         // ADR 0020 § 1's ceiling on the tree, ahead of everything else in this
         // body: `Ctx::script_depth_breach` owns why the question belongs to the
@@ -164,7 +196,17 @@ impl Isolate {
         // safepoint. Nothing has been built yet at this point, which is the
         // whole reason the check stands above the crossing below — a refusal
         // costs one comparison and leaves no half-made isolate behind.
-        if let Some(Fault::Fatal(message)) = ctx.script_depth_breach() {
+        let depth_breach = match charge {
+            Charge::Tree => ctx.script_depth_breach(),
+            // ADR 0020 § 3's handler is not part of the tree this ceiling
+            // bounds, and a chain that reached the ceiling is one of the
+            // failures it exists to report — so asking here would refuse the
+            // report on the grounds of the thing being reported.
+            // `Ctx::handler_isolate` owns that reading and gives it a fresh
+            // depth to start from.
+            Charge::EngineReserve => None,
+        };
+        if let Some(Fault::Fatal(message)) = depth_breach {
             // The safepoint's memory branch, in its order and for its reason
             // (`nvs_runtime::nvs_safepoint`): § 1's tier 1 runs before the
             // breach becomes the message the ladder prints, so a throw of the
@@ -198,7 +240,10 @@ impl Isolate {
 
         // The isolate's own root. Buffered under both options; § 4's fresh
         // statics base is `Ctx::isolate`'s whole reason for existing.
-        let isolate_ctx = ctx.isolate(OutputSink::Buffer(Vec::new()));
+        let isolate_ctx = match charge {
+            Charge::Tree => ctx.isolate(OutputSink::Buffer(Vec::new())),
+            Charge::EngineReserve => ctx.handler_isolate(OutputSink::Buffer(Vec::new())),
+        };
 
         Ok(match Wake::current() {
             Some(wake) => start_as_task(
