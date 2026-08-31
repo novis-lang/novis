@@ -3271,6 +3271,19 @@ is why" — is this file.
   section, `read = true` / `write = true` is an unrestricted grant (`nvs_config::tree::Setting`), and
   `--FILE sub/keep.txt--` creates a directory to test against, which is the only way to have one
   before `makeDir` exists.
+- **Rewording a `Fault::` message breaks the cases that match a *substring* of it, and the sweep
+  that catches you prints a number rather than the sentence.** Giving
+  `Core\Encoding::decodeText`'s refusal a backslash-free literal head (the
+  `conformance_coverage.rs` stem rule, two bullets up) moved five `--EXPECT--` lines that a `grep`
+  for the old head finds at once — and a sixth site it does not:
+  `encoding-charset-conversion-names-the-character-it-cannot-spell.nvst`'s invariance sweep asserts
+  `Core\Str::contains($message, "at offset " . $j . " is")` over eight positions, so the whole
+  rewrite failed as `8 of 8` becoming `0 of 8` with no message quoted anywhere in the output. The
+  differential tree then produced a third shape, one verify later: a `--ORACLE-DIVERGES--` case's
+  helper asserting `Core\Str::startsWith($message, "Core\\Encoding::decodeText(): ")`, which prints
+  as a column of `|` with nothing after it. Grep the corpus for a *distinctive interior phrase* of
+  the old message, and for `startsWith`, as well as for its head — a case that pins a property of a
+  message deliberately holds a fragment rather than the line, and both trees carry them.
 
 ## Splitting a file that got too big
 
