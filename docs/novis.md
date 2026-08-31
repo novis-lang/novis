@@ -65,7 +65,7 @@ Conventions the whole file uses:
 | [`Core\Encoding`](#core-core-encoding) | the seam between `string` and `bytes` — charset conversion, and base64, base64url, base32 and hex spellings of a buffer |
 | [`Core\Bytes`](#core-core-bytes) | octet buffers — read, search, compare, build and lay out as a wire format with `pack`/`unpack` |
 | [`Core\Path`](#core-core-path) | path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem |
-| [`Core\File`](#core-core-file) | whole-file read and write on paths the configuration has granted |
+| [`Core\IO`](#core-core-io) | whole-file read and write on paths the configuration has granted |
 | [`Core\Time`](#core-core-time) | the clock and the constructors — an absolute `Instant`, or a civil `DateTime` built in a named `Zone` |
 | [`Core\Time\Instant`](#core-core-time-instant) | an absolute point on the timeline, to the nanosecond, with no zone |
 | [`Core\Time\DateTime`](#core-core-time-datetime) | a civil date and time in a zone — calendar arithmetic and CLDR formatting |
@@ -4871,14 +4871,14 @@ nothing is granted.
 ```nvs
 <?nvs
 try {
-    echo Core\File::read("data.txt");
+    echo Core\IO::read("data.txt");
 } catch (RuntimeError $denied) {
     echo "denied: ", $denied->message, "\n";
 }
 echo "still running\n";
 ```
 ```output
-denied: Core\File::read needs the capability `fs.read` for data.txt, which is not granted
+denied: Core\IO::read needs the capability `fs.read` for data.txt, which is not granted
 still running
 ```
 
@@ -4895,17 +4895,17 @@ hello from disk
 ```
 ```nvs
 <?nvs
-echo Core\Str::trim(Core\File::read("data.txt")), "\n";
+echo Core\Str::trim(Core\IO::read("data.txt")), "\n";
 
 try {
-    Core\File::write("out.txt", "x");
+    Core\IO::write("out.txt", "x");
 } catch (RuntimeError $denied) {
     echo "denied: ", $denied->message, "\n";
 }
 ```
 ```output
 hello from disk
-denied: Core\File::write needs the capability `fs.write` for out.txt, which is not granted
+denied: Core\IO::write needs the capability `fs.write` for out.txt, which is not granted
 ```
 
 `spawn script` needs `script.spawn` the same way; the [concurrency](#lang-concurrency) chapter
@@ -9983,12 +9983,12 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 
 **Returns** `?string` — The relative path, rendered with `Path::SEPARATOR` and never carrying a root; `.` when both name the same place; `null` when no relative path exists — one side is absolute and the other is not, the two name different drives, or `$base` still holds a `..` the answer would have to walk back into. Components compare byte for byte, except a drive letter, which ignores ASCII case.
 
-<a id="core-core-file"></a>
-### `Core\File`
+<a id="core-core-io"></a>
+### `Core\IO`
 
 Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write
 
-`Core\File` reads or replaces a whole file as text. Every call is a capability check first: the path
+`Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
 write grant. A path the configuration does not grant throws a `RuntimeError` naming the capability,
 and the program may catch it and carry on; a path the configuration allows but the operating system
@@ -10007,19 +10007,19 @@ beta
 ```
 ```nvs
 <?nvs
-string $text = Core\File::read("data.txt");
+string $text = Core\IO::read("data.txt");
 echo Core\Str::length($text), " bytes\n";
 
-Core\File::write("./copy.txt", $text . "gamma\n");
-echo Core\Str::trim(Core\File::read("./copy.txt")), "\n";
+Core\IO::write("./copy.txt", $text . "gamma\n");
+echo Core\Str::trim(Core\IO::read("./copy.txt")), "\n";
 
 try {
-    Core\File::read("./missing.txt");
+    Core\IO::read("./missing.txt");
 } catch (IOError $io) {
     echo "missing: no such file\n";
 }
 try {
-    Core\File::read("../outside.txt");
+    Core\IO::read("../outside.txt");
 } catch (RuntimeError $denied) {
     echo "outside: refused\n";
 }
@@ -10035,14 +10035,14 @@ outside: refused
 
 | Member | Signature |
 |---|---|
-| [`Core\File::read`](#core-core-file-read) | `read(string $path): string` |
-| [`Core\File::write`](#core-core-file-write) | `write(string $path, string $content): void` |
+| [`Core\IO::read`](#core-core-io-read) | `read(string $path): string` |
+| [`Core\IO::write`](#core-core-io-write) | `write(string $path, string $content): void` |
 
-<a id="core-core-file-read"></a>
-#### `Core\File::read`
+<a id="core-core-io-read"></a>
+#### `Core\IO::read`
 
 ```nvs skip
-Core\File::read(string $path): string
+Core\IO::read(string $path): string
 ```
 
 The whole content of a file, as text — `file_get_contents`. Needs the `fs.read` capability for the path, which is checked against its canonical spelling, so a symlink or a `..` that leaves the granted roots is refused.
@@ -10055,11 +10055,11 @@ The whole content of a file, as text — `file_get_contents`. Needs the `fs.read
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path; the message names the capability in the spelling `nvs.toml` grants it under.; `IOError` — The capability allowed it and the operating system did not — the file does not exist, is a directory, or could not be read.
 
-<a id="core-core-file-write"></a>
-#### `Core\File::write`
+<a id="core-core-io-write"></a>
+#### `Core\IO::write`
 
 ```nvs skip
-Core\File::write(string $path, string $content): void
+Core\IO::write(string $path, string $content): void
 ```
 
 Replaces a file's whole content, creating it if it does not exist — `file_put_contents`. Needs the `fs.write` capability for the path; being allowed to read a root is not permission to write in it.
@@ -14690,7 +14690,7 @@ read = ["data"]
 note
 --FILE--
 <?nvs
-echo Core\File::read("data/note.txt");
+echo Core\IO::read("data/note.txt");
 --EXPECT--
 note
 ```
@@ -14713,7 +14713,7 @@ its source when it starts, exactly as `nvs run` would.
 - A bundle still reads `./nvs.toml` from the directory it is *run in*, exactly like `nvs run`, and
   a malformed one refuses the run. Ship the configuration beside it or run it from a directory that
   has none.
-- Files reached only through `autoload` at run time, or opened with `Core\File`, are not in the
+- Files reached only through `autoload` at run time, or opened with `Core\IO`, are not in the
   bundle: it carries the static `require` graph and nothing else.
 
 ### nvs build --openapi
@@ -14985,8 +14985,8 @@ deny. The roster is closed:
 
 | Capability | Guards | Scope of a grant |
 |---|---|---|
-| `fs.read` | `Core\File::read` and every other read | the directories readable |
-| `fs.write` | `Core\File::write` and every other write | the directories writable |
+| `fs.read` | `Core\IO::read` and every other read | the directories readable |
+| `fs.write` | `Core\IO::write` and every other write | the directories writable |
 | `script.spawn` | `spawn script` | the directories a target script may live under |
 | `net.connect` | outbound connections | the hosts reachable |
 | `process.exec` | starting a subprocess | the programs runnable |
@@ -15023,24 +15023,24 @@ hello from data
 ```
 ```nvs
 <?nvs
-echo Core\Str::trim(Core\File::read("data/greeting.txt")), "\n";
+echo Core\Str::trim(Core\IO::read("data/greeting.txt")), "\n";
 
 try {
-    Core\File::write("data/out.txt", "x");
+    Core\IO::write("data/out.txt", "x");
 } catch (RuntimeError $denied) {
     echo $denied->message, "\n";
 }
 
 try {
-    echo Core\File::read("main.nvs");
+    echo Core\IO::read("main.nvs");
 } catch (RuntimeError $denied) {
     echo $denied->message, "\n";
 }
 ```
 ```output
 hello from data
-Core\File::write needs the capability `fs.write` for data/out.txt, which is not granted
-Core\File::read needs the capability `fs.read` for main.nvs, which is not granted
+Core\IO::write needs the capability `fs.write` for data/out.txt, which is not granted
+Core\IO::read needs the capability `fs.read` for main.nvs, which is not granted
 ```
 
 ### `[[app]]` — per-application blocks
