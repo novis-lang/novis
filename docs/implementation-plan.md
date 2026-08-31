@@ -59,9 +59,9 @@
 > members; `truncate` and `lock` are owed, and `writeStream` streams a chunk at a time. **`[2
 > filesystem]` is green**: ADR 0052 § 2's closed door on scheme dispatch is asserted over the roster
 > and the path modules' own sources. **Stage 3's terminal is a sink with a raw path, a styling type,
-> § 4's prompts and § 5's region**: § 2 is `Cli\Color`, `Cli\Style` and `Text::styled`, the four
+> § 4's prompts and § 5's region**: § 2 is `Cli\Color`, `Cli\Style` and `Text::styled`, § 4's five
 > prompts read under a deadline, and `live<T>`/`progress<T>` open a region a `Drop` restores.
-> Conformance 1220, differential 210 of 210, migration 37% over its 36% floor.
+> Conformance 1221, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

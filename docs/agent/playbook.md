@@ -3648,6 +3648,15 @@ is why" — is this file.
   carriage return as the continuation's newline, which is what let both of `Core\Cli\Live`'s
   refusals be matched to their cases at all); the leading-hole half is a property of the stem rule
   and is not going away.
+- **A `Core` member's `T` does not bind from an array literal written inline at the call site, and
+  the diagnostic reads as if the member were wrong.** `string $one = Core\Cli::select("q", ["a",
+  "b"])` is `E0401: expected string, found mixed` — not because `select<T>`'s row is broken, but
+  because ADR 0007 § 2 leaves an untyped literal unplaced and a type variable is the one position
+  with nothing to place it against, so `crate::generics::bind` reads `array<mixed>` off the first
+  pass. `array<string> $choices = [...]` on its own line binds `T` correctly, and both spellings
+  behave identically at run time — a case only notices when it *asserts the type* by binding the
+  result to a declared local. Cost a full conformance run to a row that was right: check the
+  spelling against a typed local before suspecting the registry.
 
 ## Splitting a file that got too big
 

@@ -14468,7 +14468,7 @@ Expands, at compile time, to an array literal of `new` expressions — one per n
 <a id="core-core-cli"></a>
 ### `Core\Cli`
 
-Keywords: escape, isTty, width, height, colorDepth, ask, confirm, select, secret, live, progress
+Keywords: escape, isTty, width, height, colorDepth, ask, confirm, select, multiSelect, secret, live, progress
 
 | Member | Signature |
 |---|---|
@@ -14480,6 +14480,7 @@ Keywords: escape, isTty, width, height, colorDepth, ask, confirm, select, secret
 | [`Core\Cli::ask`](#core-core-cli-ask) | `ask(string $question, {default?: string, validate?: callable}): tainted string` |
 | [`Core\Cli::confirm`](#core-core-cli-confirm) | `confirm(string $question, {default?: bool}): bool` |
 | [`Core\Cli::select`](#core-core-cli-select) | `select(string $question, array<T> $choices, {labels?: callable, default?: T}): T` |
+| [`Core\Cli::multiSelect`](#core-core-cli-multiselect) | `multiSelect(string $question, array<T> $choices, {labels?: callable}): array<T>` |
 | [`Core\Cli::secret`](#core-core-cli-secret) | `secret(string $question): secret tainted string` |
 | [`Core\Cli::live`](#core-core-cli-live) | `live(callable $body): T` |
 | [`Core\Cli::progress`](#core-core-cli-progress) | `progress(uint $total, callable $body): T` |
@@ -14603,6 +14604,25 @@ Offers `$choices` as a numbered list and answers the one chosen — the value it
 **Returns** `T` — The chosen element of `$choices`, with that array's element type.
 
 **Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, its input ended, or nobody answered within the prompt deadline — and the call named no `default`.; `LogicError` — `$choices` is empty, so there is nothing that could be chosen.
+
+<a id="core-core-cli-multiselect"></a>
+#### `Core\Cli::multiSelect`
+
+```nvs skip
+Core\Cli::multiSelect(string $question, array<T> $choices, {labels?: callable}): array<T>
+```
+
+Offers `$choices` as a numbered list and answers every one chosen, as the values themselves — `select` where the answer is a set, so the numbers are typed together on one line and an empty line names none of them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$question` | `string` (neutral) | What to write above the list, substituted as `ask` substitutes it. The accepted range and separator are appended to it, the way `confirm` appends `[y/n]`. |
+| `$choices` | `array<T>` | The values to choose between, listed in their own order. An empty array is a `LogicError`: there is nothing that could be chosen. |
+| `{labels: …}` | `callable` (default `null`) | Called with each option to produce the line shown for it. Absent renders each option as text the way `echo` would. |
+
+**Returns** `array<T>` — The chosen elements of `$choices`, in that array's own order and each at most once, whatever order they were typed in. An empty line answers an empty array; there is no `default`, so a run with no terminal throws instead.
+
+**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, its input ended, or nobody answered within the prompt deadline. Unlike the other prompts this one has no `default` to fall back on.; `LogicError` — `$choices` is empty, so there is nothing that could be chosen.
 
 <a id="core-core-cli-secret"></a>
 #### `Core\Cli::secret`
