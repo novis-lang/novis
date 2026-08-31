@@ -256,6 +256,68 @@ fn a_literal_patterns_tier_is_settled_while_checking() {
 }
 
 #[test]
+fn a_regex_pattern_argument_refuses_a_tainted_operand() {
+    // ADR 0056 § 4 over ADR 0024 § 3. A pattern is a sink because an
+    // attacker-authored one is two vectors at once: a denial-of-service one,
+    // and a logic-injection one that turns a validation check into an
+    // approval by matching everything. § 4 states outright that there is no
+    // laundering function for an arbitrary pattern, so the refusal is the
+    // whole of the rule and there is nothing to reach for after it.
+    //
+    // `compile`'s row says so with `Qual::Sink`; every other member takes the
+    // pattern as a `Pattern`-or-`string` union carrying no mark at all, which
+    // refuses the same operand at the same position. Both are asserted here
+    // because a rule stated on `compile` alone would leave the seven members
+    // that accept a pattern string open.
+    let compiled = check_call(
+        "    tainted string $t = \"[a-z]+\" as tainted string;\n    \
+         Core\\Regex\\Pattern $p = Core\\Regex::compile($t);\n",
+    );
+    assert!(
+        reported(&compiled, code::E_TYPE_MISMATCH),
+        "a tainted pattern reached Core\\Regex::compile: {compiled:?}"
+    );
+
+    let inline = check_call(
+        "    tainted string $t = \"[a-z]+\" as tainted string;\n    \
+         bool $b = Core\\Regex::matches(\"subject\", $t);\n",
+    );
+    assert!(
+        reported(&inline, code::E_TYPE_MISMATCH),
+        "a tainted pattern reached Core\\Regex::matches: {inline:?}"
+    );
+
+    // § 4's second sentence, and the half a refusal alone would get wrong: the
+    // *subject* may be tainted. `matches` answers a `bool`, which carries no
+    // byte of its subject, while `replace` is contagious and hands the
+    // qualifier on — ADR 0024 § 2's rule that a substring matched out of a
+    // tainted subject is tainted, spelled as the mark on the row.
+    let subject = check_call(
+        "    tainted string $s = \"input\" as tainted string;\n    \
+         bool $b = Core\\Regex::matches($s, '[a-z]+');\n    \
+         tainted string $r = Core\\Regex::replace($s, '[a-z]+', \"x\");\n",
+    );
+    assert!(
+        !subject.has_errors(),
+        "a tainted subject was refused: {subject:?}"
+    );
+
+    // And the one route that does exist, which is not an exception to § 4:
+    // `quote` escapes every metacharacter, so what comes back is a pattern
+    // matching the tainted text *literally* rather than a pattern the tainted
+    // text authored. That is ADR 0024 § 3's sink-named launderer exactly, and
+    // it is why `Core\Taint::assertTrusted` is not the only way out.
+    let quoted = check_call(
+        "    tainted string $t = \"a.b\" as tainted string;\n    \
+         string $q = Core\\Regex::quote($t);\n",
+    );
+    assert!(
+        !quoted.has_errors(),
+        "Core\\Regex::quote did not launder its literal: {quoted:?}"
+    );
+}
+
+#[test]
 fn a_literal_uri_is_validated_while_checking() {
     // § 1's row 2. Both of `Core\Uri::parse`'s throwing steps are folded, so
     // the two texts it refuses are two compile errors here: a byte RFC 3986
