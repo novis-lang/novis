@@ -619,6 +619,9 @@ mod tests {
         // A `Core\Time` pattern is declared on three classes — `DateTime`,
         // `Date` and `TimeOfDay` — so the grammar is named by its prefix and
         // not by one of them.
+        //
+        // The `secret` axis's own roster is asked separately, in
+        // `reveal_and_the_password_helpers_are_the_only_launderers_of_secret`.
         for grammar in [r"Core\Regex", r"Core\Str", r"Core\Bytes", r"Core\Time"] {
             assert!(
                 sinks_by_class.iter().any(|name| name.starts_with(grammar)),
@@ -626,6 +629,70 @@ mod tests {
                  among {sinks_by_class:?}"
             );
         }
+    }
+
+    /// ADR 0033 § 3, asked of the whole registry rather than of one row: which
+    /// parameters may be handed a `secret` at all?
+    ///
+    /// [`Qual::Reveal`] is the only mark that admits one, and the roster of
+    /// members that write it is **four rows across two classes** —
+    /// `Core\Secret`, whose two members are the escape hatch itself, and
+    /// `Core\Password`, whose `hash` and `verify` are the one operation that
+    /// takes a password and answers something deliberately not a password
+    /// (`nvs_stdlib::registry`'s `Qual` doc comment is the home of why the
+    /// roster is closed at two).
+    ///
+    /// Asserted as a **set**, because a third class quietly gaining the mark is
+    /// invisible from any one row: every individual `Reveal` looks exactly like
+    /// the four legitimate ones, and the whole confidentiality claim is that
+    /// there are no others. A member added here on purpose fails this test and
+    /// is meant to — the edit that adds it is the edit that decides the roster
+    /// grew.
+    #[test]
+    fn reveal_and_the_password_helpers_are_the_only_launderers_of_secret() {
+        use crate::expr::quals::admits_secret_argument;
+        use std::collections::BTreeSet;
+
+        let mut interner = TypeInterner::new();
+        let mut launderers: BTreeSet<(&'static str, &'static str)> = BTreeSet::new();
+        for class in CLASSES {
+            for method in class.members() {
+                let sig = method_sig(method, true, &mut interner);
+                if sig
+                    .param_quals
+                    .iter()
+                    .flatten()
+                    .any(|qual| matches!(qual, Qual::Reveal))
+                {
+                    launderers.insert((class.name, method.name));
+                }
+            }
+        }
+        assert_eq!(
+            launderers,
+            BTreeSet::from([
+                (r"Core\Password", "hash"),
+                (r"Core\Password", "verify"),
+                (r"Core\Secret", "reveal"),
+                (r"Core\Secret", "revealBytes"),
+            ]),
+            "the roster of members that may be handed a `secret` is closed"
+        );
+
+        // The other half of the claim, and the reason the set above is the
+        // whole answer: no other mark admits a `secret`, so a row that wanted
+        // to launder one quietly would have to write `Reveal` and land in it.
+        for qual in [Qual::Contagious, Qual::Sink, Qual::Neutral, Qual::Launder] {
+            assert!(
+                !admits_secret_argument(Some(qual)),
+                "{qual:?} refuses a `secret` argument"
+            );
+        }
+        assert!(
+            !admits_secret_argument(None),
+            "an unclassified parameter refuses a `secret` argument"
+        );
+        assert!(admits_secret_argument(Some(Qual::Reveal)));
     }
 
     /// ADR 0044 § 1, asked of the resolved signature the way a call site asks

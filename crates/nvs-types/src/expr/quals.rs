@@ -136,8 +136,8 @@ pub(crate) fn untainted(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
 /// axis over, spelled the same way and for the same reason.
 ///
 /// The one caller is [`Qual::Reveal`]'s argument admission: ADR 0033 § 3's
-/// escape hatch is a *narrowing* at one parameter of one class, so it clears
-/// the bit on the argument before [`is_assignable`] sees it rather than
+/// escape hatch is a *narrowing* at four parameters of two classes, so it
+/// clears the bit on the argument before [`is_assignable`] sees it rather than
 /// widening what `Core\Secret::reveal` declares. Nothing else in the checker
 /// removes `secret` — a checked conversion goes through
 /// [`apply_qualifier_conversion_rule`], which decides both axes at once.
@@ -215,7 +215,8 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
 /// decision ADR 0088 owes an answer to, and being over-strict costs a refusal
 /// rather than a leak. [`Qual::Reveal`] is the one mark that answers
 /// differently — ADR 0033 § 3's named escape hatch, written by
-/// `nvs_stdlib::secret`'s rows and by no others — and its `secret` admission is
+/// `nvs_stdlib::secret`'s rows and `nvs_stdlib::password`'s two and by no
+/// others — and its `secret` admission is
 /// [`admits_secret_argument`]'s, so that one question is asked in one place
 /// rather than folded in here.
 pub(crate) fn admits_tainted_argument(
@@ -231,7 +232,12 @@ pub(crate) fn admits_tainted_argument(
 }
 
 /// Whether a parameter classified `qual` accepts a `secret` argument — ADR
-/// 0033 § 3, which is one mark and one class wide.
+/// 0033 § 3, which is one mark and, in the registry that writes it, two
+/// classes wide: `Core\Secret`, which is the escape hatch, and `Core\Password`,
+/// whose `hash` and `verify` are the one *operation* on a password that
+/// legitimately answers something that is not one. That roster is closed and
+/// checked, in `crate::core_lib`'s
+/// `reveal_and_the_password_helpers_are_the_only_launderers_of_secret`.
 ///
 /// [`admits_tainted_argument`]'s counterpart, and deliberately not a clause
 /// inside it: the two axes are independent bits and a caller asking about one
