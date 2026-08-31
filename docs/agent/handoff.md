@@ -2,55 +2,66 @@
 
 ## State
 
-**Goal 4 — `Core`'s capability-bearing half — is running. Stage 3's process half is closed, including
-the four checks the goal names for it.** `Core\Process::run` is the five-edit shape over
-`nvs_runtime::capability::exec`; `crates/nvs-stdlib/src/process.rs`'s module doc owns why the result
-is an instance and carries its two known gaps. The four checks are green:
-`there_is_no_shell_string_form_of_run_or_spawn` and `a_windows_batch_or_powershell_target_is_refused`
-in that module's new `mod tests`, `a_tainted_path_or_argv_element_is_a_compile_time_diagnostic` and
-`process_exec_is_deny_by_default` beside the qualifier sweeps in `crates/nvs-types/src/core_lib.rs`,
-plus `tests/conformance/reject/there-is-no-shell-string-form-of-process-run.nvst`.
+**Goal 4 — `Core`'s capability-bearing half — is running. Stage 3's terminal *profile* is closed;
+its sink half and `Core\Command` are not.** ADR 0086 § 3's four facts are `Core\Cli::isTty`,
+`::width`, `::height` and `::colorDepth`, four registry rows over `nvs_runtime::terminal`, which
+resolves stream tty-ness, the window size and the colour depth into one `OnceLock` and hands back
+reads of it. That module's own doc comment owns the caching, what it spends, and why **no
+capability gates it** — the streams are open before the program runs a line, so reporting how wide
+one is grants nothing. `crates/nvs-stdlib/src/cli.rs` holds the surface and the ordinal mapping
+between the runtime's Rust `ColorDepth` and `Core\Cli\ColorDepth`; its gaps 2 and 3 own what § 13
+still owes.
 
-**Stage 3's terminal half has not started, and `examples/cli.nvs` is now honest about what it needs.**
-The fixture had never compiled for a reason unrelated to its stage — the playbook's new bullet owns
-that — and now fails on exactly `Core\Command::help` and `Core\Cli::width`. The compiled command
-table it reads from already exists: `nvs_types::commands::CommandTable`, recorded on `ExprTypeTable`.
+`tty_colour_depth_and_width_resolve_once_per_process` is green in that module's `mod tests`, beside
+three `.nvst` cases under `tests/conformance/core/cli-*.nvst`. `libc` and `windows-sys` are now
+`nvs-runtime` dependencies for the two window-size calls — no new crate entered the graph, only the
+`Win32_System_Console` feature.
+
+**`examples/cli.nvs` now fails on `Core\Command::help` alone**; its third frozen line's members all
+resolve. The compiled table `help` reads exists but is **not public**:
+`nvs_types::commands` is `pub(crate)` (`crates/nvs-types/src/lib.rs:201`).
 
 Three fixtures still owe configuration their stage must write, unchanged: `examples/http.nvs` names
-`http://127.0.0.1:8099` and stage 5 owes that origin; `examples/logging.nvs` needs an `[[app]]` block
-naming `examples/logging/handler.nvs`; every remaining fixture that reaches the world still owes its
-`net.connect` grant. `orient.py` still prints two dead `[context] modules` selectors —
-`crates/nvs-host/src/pool.rs` and `crates/nvs-host/src/stream.rs` match no module. Nothing is blocked.
+`http://127.0.0.1:8099` and stage 5 owes that origin; `examples/logging.nvs` needs an `[[app]]`
+block naming `examples/logging/handler.nvs`; every remaining fixture that reaches the world still
+owes its `net.connect` grant. `orient.py` still prints two dead `[context] modules` selectors —
+`crates/nvs-host/src/pool.rs` and `crates/nvs-host/src/stream.rs` match no module; add
+`crates/nvs-runtime/src/terminal.rs` to that manifest, since this session had to name it blind.
+Nothing is blocked.
 
 ## Next group
 
-**Stage 3's terminal half, worked inward from the fixture's two missing members.** One file set:
-`crates/nvs-stdlib/src/cli.rs`, `crates/nvs-stdlib/src/registry.rs` and
-`crates/nvs-types/src/expr_table.rs`.
+**`Core\Command`, worked outward from the table the compiler already builds.** One file set:
+`crates/nvs-types/src/commands.rs`, `crates/nvs-types/src/expr_table.rs`,
+`crates/nvs-stdlib/src/registry.rs` and a new `crates/nvs-stdlib/src/command.rs`.
 
-- [ ] **`Core\Cli::width`, and § 3's once-per-process terminal facts under it** — stream, tty-ness,
-      colour depth and width resolved once for the process and cached, so two reads are the same
-      number by construction rather than by luck. The class goes beside the carrier at
-      `crates/nvs-stdlib/src/cli.rs:55`, its rows into `crates/nvs-stdlib/src/registry.rs:984`.
-      Closes `tty_colour_depth_and_width_resolve_once_per_process` and the third frozen line of
-      `examples/cli.nvs`. ADR 0086 § 3.
-- [ ] **`Core\Command::help(?string $name): Cli\Text`, off the table that already exists** —
-      `nvs_types::commands::CommandTable` at `crates/nvs-types/src/commands.rs:163`, reached through
-      `crates/nvs-types/src/expr_table.rs:1075`'s `commands()`. **First decide the direction**:
-      `nvs-types` depends on `nvs-stdlib`, so a native member cannot read that table, and § 6's
-      "generated from the table" therefore has to be a compile-time fold (ADR 0057) or a lowered
-      constant. Closes `help_and_completions_are_generated_from_the_same_table` and the fixture's
-      second line. ADR 0086 § 6.
-- [ ] **`terminal_output_substitutes_a_control_sequence_visibly` and
-      `styling_is_a_value_type_and_never_a_grammar`**, over the carrier at
-      `crates/nvs-stdlib/src/cli.rs:55` — assertions over the sink both members above write through,
-      once they exist. ADR 0086 §§ 1-2.
+- [ ] **`Core\Command::help(?string $name): Cli\Text`, off the table that already exists** — the
+      `CommandTable` at `crates/nvs-types/src/commands.rs:163`, read back through
+      `crates/nvs-types/src/expr_table.rs:1075`, has to become reachable from a running program
+      first: `crates/nvs-types/src/lib.rs:201` declares the module `pub(crate)`. Register the class
+      beside `crate::cli::CLASS` at `crates/nvs-stdlib/src/registry.rs:984`. Closes the second
+      frozen line of `examples/cli.nvs`, `usage: greet <name> [--loud]`. ADR 0086 § 6.
+- [ ] **`command_run_dispatches_through_the_compiled_table`** — `Core\Command::run()` is the
+      dispatching entry point, unlike `Core\Router`, because a CLI has one. Same table at
+      `crates/nvs-types/src/commands.rs:163`; the row goes in the same `CLASS` the slice above
+      declares, registered at `crates/nvs-stdlib/src/registry.rs:984`. ADR 0086 § 6.
+- [ ] **`help_and_completions_are_generated_from_the_same_table`** — the check that the usage page
+      and the shell completions are two renderings of one table rather than two writers that agree
+      today. Add the three `.nvst` cases each new member owes while the renderings are open:
+      `crates/nvs-stdlib/tests/conformance_coverage.rs:268`'s `BELOW_THE_FLOOR` is empty, so a
+      member with fewer than three fails `cargo test -p nvs-stdlib`. ADR 0086 § 6.
 
 ## Backlog
 
-- `Core\Process::spawn` — ADR 0044 §§ 2-3's streamed half, over the same door.
-- The wait moves to goal 2's blocking pool — ADR 0044 § 5, `crates/nvs-stdlib/src/process.rs`'s
-  known gap 1; it is the one stage 3 process check still open.
-- `[limits] max_output` bounds a capture — ADR 0044 § 1; nothing in the tree reads that directive.
-- `Core\Command::run`'s dispatch and § 4's prompts — the four stage 3 `Core\Cli` names left over.
-- The two dead `[context] modules` selectors in `docs/agent/loop-goal.toml`.
+- Stage 3's sink half — `Core\Cli::write`, `displayWidth`, and § 1's substitution table on `echo`,
+  which is `crates/nvs-runtime/src/helpers.rs:1649`'s `value_to_string`. `crates/nvs-stdlib/src/cli.rs`'s
+  gap 2 owns the split and gap 1 the sink's own debt.
+- `styling_is_a_value_type_and_never_a_grammar` — `Cli\Style`/`Cli\Color` beside the carrier at
+  `crates/nvs-stdlib/src/cli.rs:84`. ADR 0086 § 2.
+- § 4's prompts and § 5's scoped regions — four more named checks in stage 3's `cargo-named` list.
+  ADR 0086 §§ 4, 5, 8.
+- `displayWidth` owes a UAX #11 table this tree does not carry; ADR 0051 § 4 pre-authorizes picking
+  the crate. `docs/agent/loop-goal.md` § *Standing decisions*.
+- The three fixture configuration debts in `## State`, each owed by its own stage.
+- `docs/agent/loop-goal.toml`'s `[context] modules` has two dead selectors and is missing
+  `nvs-runtime`'s new `terminal` module.

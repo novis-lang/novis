@@ -4417,6 +4417,17 @@ sibling in the same namespace unqualified.
   not `array<string>`. Third, cheaper but the same shape: a `MethodDoc` field may not cite an
   ADR — `no_registry_card_cites_an_adr` fails the whole `-p nvs-stdlib` lib run over one `ret:`
   string, because `nvs meta --json` ships a card verbatim to a reader with no ADR tree.
+- **A `Core` member may not reach the operating system, and the gate that says so is a list of
+  *spellings* rather than a list of effects.** `nvs_stdlib_reaches_the_os_only_through_the_gate`
+  (`crates/nvs-stdlib/tests/capability.rs`) forbids nine literals in this crate's `src/` —
+  `std::fs`, `std::process::Command`, `std::env::var` and six more — so a member that reads an
+  environment variable fails it while `std::io::stdin().is_terminal()` and a raw `libc::ioctl`
+  beside it pass unremarked. Neither the pass nor the fail is a judgement about capabilities:
+  ADR 0118 § 2's rule is that the *reaching* lives in `nvs-runtime`, and the answer to a failure is
+  a module there, **not** a `registry::CAPABILITIES` row. `nvs_runtime::terminal` is the shape —
+  a module beside `capability` rather than inside it, because a door that asks no `Cap` is not a
+  door. Writing the OS half in `nvs-stdlib` first and moving it afterwards costs a whole rewrite of
+  the file; decide which crate it belongs in before the first line.
 
 ## Divergences and refusals already pinned
 

@@ -57,11 +57,12 @@
 > streams `bytes`. `examples/process.nvs` runs green against its three frozen lines, and stage 3's
 > four named checks over the member are on disk — two in `nvs-stdlib` over the rows and the door,
 > two in `nvs-types` over the qualifier and the capability — beside the `.nvst` pinning both
-> spellings of a command line as a diagnostic. `Core\Cli` and `Core\Command` are what stage 3 still
-> owes: `examples/cli.nvs` now declares its handler as the `public static` method ADR 0011 requires,
-> so it fails on those two members and nothing else. What goals 1-3 landed is unchanged and is not
-> re-derived here: `git log` and each crate's module doc own it. Conformance 1112, differential 210
-> of 210, migration 37% over its 36% floor.
+> spellings of a command line as a diagnostic. **Stage 3's terminal profile is closed**: ADR 0086 §
+> 3's `isTty`, `width`, `height` and `colorDepth` are rows over `nvs_runtime::terminal`, which
+> resolves the four facts once per process. `Core\Command::help` is all `examples/cli.nvs` still
+> fails on. What goals 1-3 landed is unchanged and is not re-derived here: `git log` and each
+> crate's module doc own it. Conformance 1115, differential 210 of 210, migration 37% over its 36%
+> floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
