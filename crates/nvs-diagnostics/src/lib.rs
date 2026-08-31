@@ -2607,6 +2607,17 @@ pub mod code {
     /// without complaint of its own.
     pub const E_CLASS_REF_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0795");
 
+    /// ADR 0074 § 7: a request member whose verb repeats an effect —
+    /// `Core\Http\Client::post` — asking for retries without
+    /// `retryIdempotencyKey`.
+    ///
+    /// Reportable while compiling because both halves are written: the verb is
+    /// the member's own name, and ADR 0063 R2 makes the options bag a literal
+    /// at the call site. Distinct from [`E_UNKNOWN_OPTION`], which is the
+    /// mistake of naming an option that does not exist; here every option
+    /// named is real and it is the *absent* one that is the defect.
+    pub const E_RETRY_WITHOUT_IDEMPOTENCY_KEY: Code = Code::new("E0796");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

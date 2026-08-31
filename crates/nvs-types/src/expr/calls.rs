@@ -335,6 +335,12 @@ pub(crate) fn infer_static_call(
         // `Core\Json::encode` declares `mixed` too, and what it walks is the
         // whole value. See [`reject_secret_encoded_argument`].
         reject_secret_encoded_argument(owner, name, args, &arg_types, env);
+        // ADR 0074 § 7's non-idempotent retry, and this is the only call path
+        // that can reach it: every member carrying the obligation is a static
+        // one (`nvs_stdlib::http`'s `CLIENT` writes an empty `instance`), so
+        // [`infer_method_call`] has no arm of this hook rather than a missing
+        // one. See [`reject_keyless_retry`].
+        reject_keyless_retry(owner, name, args, env);
         // ADR 0057 § 1's closed list — [`infer_method_call`]'s arm of the same
         // hook, for the `Core\Str::format(…)` / `Core\Regex::compile(…)` half
         // of the roster. See [`crate::intrinsics`].

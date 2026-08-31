@@ -1634,6 +1634,45 @@ pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {
     ENUMS.iter().find(|found| found.name == name)
 }
 
+/// [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 7's
+/// obligation, as the two option names it is written over: a member whose verb
+/// repeats an *effect* may ask for retries only alongside an idempotency key.
+///
+/// Two names rather than a `bool` so that the checker reporting it holds no
+/// copy of either spelling — the rows and the rule read the same
+/// `crate::http` constants, which is the arrangement [`CoreOption`]'s own docs
+/// ask for wherever a name is stated twice.
+#[derive(Clone, Copy, Debug)]
+pub struct IdempotentRetry {
+    /// The option that turns retries on. Written at a call site, it is what
+    /// makes the key compulsory; **left out it obliges nothing**, because an
+    /// omitted count is not a retry — no `[http.client]` figure turns one on
+    /// behind the call, so there is no second attempt for a key to identify.
+    pub asks: &'static str,
+    /// The option that must accompany it, sent as `Idempotency-Key` and
+    /// identical across attempts.
+    pub key: &'static str,
+}
+
+/// Whether `class::member` carries [`IdempotentRetry`]'s obligation — `None`
+/// for every member that retries freely, which is every other one in `Core`.
+///
+/// Asked by name for [`implements_comparable`]'s reason: a `Core` row has no
+/// cell for a rule this narrow, and a flag on [`CoreMethod`] would be a column
+/// six hundred rows wide to say one thing about one of them. `patch` is named
+/// though `Core\Http\Client` has no such row yet — § 7's roster is the two
+/// verbs that repeat an effect, and stating half of it here would leave the
+/// other half to be rediscovered by whoever lands the row.
+#[must_use]
+pub fn idempotent_retry_rule(class: &str, member: &str) -> Option<IdempotentRetry> {
+    (class == crate::http::CLIENT_NAME && matches!(member, "post" | "patch")).then_some(
+        IdempotentRetry {
+            asks: crate::http::RETRY_ATTEMPTS_OPTION,
+            key: crate::http::RETRY_KEY_OPTION,
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;

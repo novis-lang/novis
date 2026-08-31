@@ -647,6 +647,82 @@ pub(crate) fn check_options_arg(
     options_ty
 }
 
+/// ADR 0074 § 7 at its compile-time half: a request member whose verb repeats
+/// an *effect* — `Core\Http\Client::post` — may not ask for retries without an
+/// idempotency key.
+///
+/// **This is reportable at all only because of ADR 0063 R2.** The verb is the
+/// member's own name and the bag has to be written out as a literal at the call
+/// site ([`check_options_arg`] is the refusal that makes it so), so both halves
+/// of § 7's question are in hand while compiling — which is the payoff R2 was
+/// designed for, arriving in a place nobody planned it for. Where the verb is
+/// genuinely dynamic, § 7 moves the check to the send itself, which is the
+/// spec's `send(Core\Http\Request)` row and throws before the *first* attempt.
+///
+/// Which members carry the obligation, and the two option names it is written
+/// over, are `nvs_stdlib::registry::idempotent_retry_rule`'s — this pass holds
+/// no copy of either spelling, so a renamed option cannot leave the rule
+/// looking for a name no row writes.
+///
+/// **Asked of every object literal in the call, not of the trailing argument.**
+/// A bag written by name (`options: {...}`) is not last, and the alternative —
+/// re-deriving which argument filled the [`Ty::Options`] parameter — is the
+/// slot mapping this function is deliberately not handed. The overreach that
+/// buys is an object literal at the *URL* position naming `retryAttempts`,
+/// which is an `E_TYPE_MISMATCH` in the same breath.
+///
+/// An omitted `retryAttempts` obliges nothing, and that is the registry's
+/// judgement rather than this pass's leniency: `IdempotentRetry::asks` owns
+/// why.
+pub(crate) fn reject_keyless_retry(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    env: &mut Env<'_>,
+) {
+    let Some(rule) = nvs_stdlib::registry::idempotent_retry_rule(&qname.to_string(), member) else {
+        return;
+    };
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    for arg in list {
+        let ExprKind::ObjectLiteral(fields) = &arg.value.kind else {
+            continue;
+        };
+        let Some(asked) = fields
+            .iter()
+            .find(|field| span_text(env.src, field.name) == rule.asks)
+        else {
+            continue;
+        };
+        if fields
+            .iter()
+            .any(|field| span_text(env.src, field.name) == rule.key)
+        {
+            return;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_RETRY_WITHOUT_IDEMPOTENCY_KEY,
+                format!(
+                    "`{qname}::{member}` asks for retries without `{}`",
+                    rule.key
+                ),
+            )
+            .with_primary(asked.span, "retries asked for here")
+            .with_help(format!(
+                "a repeated `{}` is a second effect rather than a second question, so an attempt \
+                 needs an identity the server can recognise: add `{}: \"...\"` to the same bag, \
+                 sent as `Idempotency-Key` and identical across attempts",
+                member.to_uppercase(),
+                rule.key
+            )),
+        );
+        return;
+    }
+}
+
 /// The declared option names, comma-separated — the help text every
 /// [`check_options_arg`] diagnostic ends with, so a typo is answered with the
 /// list rather than with a type spelling nobody wrote.

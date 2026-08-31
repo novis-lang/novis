@@ -58,6 +58,15 @@
 //! call site and costs seven characters at each of them; § 5's own type block is amended to say so,
 //! because the ADR's body is the home of the rule and an overlay a reader has to apply is not.
 //!
+//! **§ 7's refusal is a diagnostic, and so it is not in this module.** A `post` that asks for
+//! retries needs [`RETRY_KEY_OPTION`], and both halves of that question are written at the call
+//! site — the verb is the member's own name, the bag is an ADR 0063 R2 literal — so
+//! `nvs_types::expr::args`' `reject_keyless_retry` reports it while compiling and the body has
+//! nothing left to judge. What this module owns is the two option names the rule is written over,
+//! handed to the checker by [`crate::registry::idempotent_retry_rule`] rather than copied into it.
+//! The dynamic half § 7 also names — a verb chosen at run time — arrives with the spec's
+//! `send(Core\Http\Request)` row and throws before the first attempt rather than before the second.
+//!
 //! # What is not here yet, and why each is deliberate rather than forgotten
 //!
 //! **The transport.** Every row resolves, pins and judges its options exactly as it will, and then
@@ -262,6 +271,14 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Http\Response";
 /// The `Duration` every time bound in [`OPTIONS`] is spelled as, once.
 const DURATION: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
 
+/// The two [`OPTIONS`] names ADR 0074 § 7's refusal is written over, spelled
+/// once so the rule and the rows cannot drift apart —
+/// [`crate::registry::idempotent_retry_rule`] hands these to the checker rather
+/// than the checker holding its own copy of them.
+pub(crate) const RETRY_ATTEMPTS_OPTION: &str = "retryAttempts";
+/// See [`RETRY_ATTEMPTS_OPTION`].
+pub(crate) const RETRY_KEY_OPTION: &str = "retryIdempotencyKey";
+
 /// ADR 0058 § 1's outbound sink, as the one parameter every request member
 /// takes: a URL the program itself authored, or a [`TARGET`] the launderer
 /// already approved.
@@ -316,7 +333,7 @@ const OPTIONS: &[CoreOption] = &[
         default: Const::Null,
     },
     CoreOption {
-        name: "retryAttempts",
+        name: RETRY_ATTEMPTS_OPTION,
         ty: CoreTy::Uint,
         default: Const::Null,
     },
@@ -326,7 +343,7 @@ const OPTIONS: &[CoreOption] = &[
         default: Const::Null,
     },
     CoreOption {
-        name: "retryIdempotencyKey",
+        name: RETRY_KEY_OPTION,
         ty: CoreTy::Text(Qual::Neutral),
         default: Const::Null,
     },

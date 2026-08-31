@@ -194,6 +194,41 @@ fn a_repeated_option_is_diagnosed() {
     );
 }
 
+/// ADR 0074 § 7, asked of four calls rather than of one, because **it is the
+/// verb that decides**: the same bag is a diagnostic on `post` and accepted on
+/// `get`, since a repeated `GET` is a second question rather than a second
+/// effect.
+///
+/// The refusal is reportable at all only because of ADR 0063 R2 — the verb is
+/// the member's own name and the bag has to be a literal — which is
+/// `reject_keyless_retry`'s own subject. The two accepted retries pin the
+/// halves a refusal written one condition too wide would take with it, and the
+/// fourth call pins the one this rule deliberately does not reach: an omitted
+/// `retryAttempts` is not a retry, so a `post` that writes none owes no key.
+#[test]
+fn a_post_retried_without_an_idempotency_key_is_a_compile_error() {
+    let keyless = check_in_method(
+        "var $r = Core\\Http\\Client::post(\"https://example.test/pay\", {retryAttempts: 3});\n",
+    );
+    let refused = keyless
+        .iter()
+        .find(|d| d.code == Some(code::E_RETRY_WITHOUT_IDEMPOTENCY_KEY))
+        .unwrap_or_else(|| panic!("{keyless:?}"));
+    assert!(
+        format!("{refused:?}").contains("retryIdempotencyKey"),
+        "the refusal names the field that is missing: {refused:?}"
+    );
+    for accepted in [
+        "var $r = Core\\Http\\Client::post(\"https://example.test/pay\", \
+         {retryAttempts: 3, retryIdempotencyKey: \"order-7\"});\n",
+        "var $r = Core\\Http\\Client::get(\"https://example.test/pay\", {retryAttempts: 3});\n",
+        "var $r = Core\\Http\\Client::post(\"https://example.test/pay\", {deadline: 30s});\n",
+    ] {
+        let diags = check_in_method(accepted);
+        assert!(!diags.has_errors(), "{accepted} produced {diags:?}");
+    }
+}
+
 /// The bag is not a shape *target* either: `{...}` written anywhere else
 /// still means ADR 0036's anonymous object, width subtyping and all, so
 /// this change is scoped to the one parameter position it describes.
