@@ -15453,11 +15453,12 @@ Copies the entry stored under `$key` back into this request, or answers `null` w
 <a id="core-core-ratelimit"></a>
 ### `Core\RateLimit`
 
-Keywords: consume
+Keywords: consume, shed
 
 | Member | Signature |
 |---|---|
 | [`Core\RateLimit::consume`](#core-core-ratelimit-consume) | `consume(string $key, uint $limit, Core\Time\Duration $per, {burst?: uint, cost?: uint}): Core\RateLimit\Decision` |
+| [`Core\RateLimit::shed`](#core-core-ratelimit-shed) | `shed(string $key, uint $limit, Core\Time\Duration $per, {burst?: uint, cost?: uint}): Core\RateLimit\Decision` |
 
 <a id="core-core-ratelimit-consume"></a>
 #### `Core\RateLimit::consume`
@@ -15479,6 +15480,27 @@ Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in the s
 **Returns** `Core\RateLimit\Decision` — A `Core\RateLimit\Decision`. Its `retryAfter` is `null` exactly when it is allowed, and is the exact wait until the arrival would be admitted otherwise — never an estimate, and never rounded up to the next window.
 
 **Throws** `IOError` — The shared store cannot be reached or refused the command. It is never answered as `allowed`: whether this limiter fails open or closed is knowledge only the call site has, so the decision is thrown to it.; `RuntimeError` — No `[cache.shared] url` is configured, or `net.connect` is not granted for its host — a deployment mistake rather than the world saying no, and deliberately not the class the fail-open `catch` around this member holds. Also `$limit`, `$per` or `$burst` at zero, and a period too short to divide into `$limit` units.
+
+<a id="core-core-ratelimit-shed"></a>
+#### `Core\RateLimit::shed`
+
+```nvs skip
+Core\RateLimit::shed(string $key, uint $limit, Core\Time\Duration $per, {burst?: uint, cost?: uint}): Core\RateLimit\Decision
+```
+
+Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in this core's own memory, and answers whether this arrival is inside the limit — the approximate tier, for dropping load rather than for enforcing a promise.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | What the allowance is per. `tainted` is admitted and a `secret` refused, for `consume`'s reasons. |
+| `$limit` | `uint` | How many units `$per` admits **on this core**: a limit of 100 across eight cores admits up to 800, which is why a number somebody was promised belongs to `consume` instead. |
+| `$per` | `Core\Time\Duration` | The period `$limit` units are admitted over. |
+| `{burst: …}` | `uint` (default `null`) | How much may arrive at once; defaults to `$limit`. |
+| `{cost: …}` | `uint` (default `1`) | What this one call weighs; defaults to 1. |
+
+**Returns** `Core\RateLimit\Decision` — A `Core\RateLimit\Decision`, answered from this core's memory and so reaching no store: there is nothing to be unreachable, and this member does not throw for one. Its arrivals are held in `Core\Cache`'s local tier, which may forget an entry at any time — a forgotten key admits a burst, which is the approximation the tier is chosen for.
+
+**Throws** `RuntimeError` — `$limit`, `$per` or `$burst` at zero, and a period too short to divide into `$limit` units — the same refusals `consume` makes, since both derive one window.
 
 <a id="core-core-ratelimit-decision"></a>
 ### `Core\RateLimit\Decision`
