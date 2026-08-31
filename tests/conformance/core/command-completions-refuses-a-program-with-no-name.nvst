@@ -1,0 +1,41 @@
+--TEST--
+`Core\Command::completions` refuses a program that was not started from a command line, because a completion script has nothing to register against — ADR 0086 § 6
+--RUN--
+test
+--FILE--
+<?nvs
+use Core\Test;
+
+final class CompletionsTest {
+    // `--RUN--` above is what makes this reachable: a `#[Test]` method runs
+    // under `nvs test`, which builds the program's context without a command
+    // line, and `nvs_runtime::Ctx::program_name` is empty for exactly that
+    // reason — the name a script registers against is a fact about how the
+    // process was started, and a run that started no process has none.
+    //
+    // A served request is the other context with no name, and it is the one
+    // this rule exists for: the member says so rather than inventing a name
+    // that would produce a script completing something nobody can type.
+    #[Test]
+    public function itRefusesAProgramWithNoName(): void {
+        try {
+            string $script = Core\Command::completions(Core\Cli\Shell::Bash);
+            echo "a script was written for a program with no name\n";
+        } catch (LogicError $refused) {
+            echo $refused->message, "\n";
+        }
+        // ADR 0079 § 20: a test whose ledger is empty fails, and the claim
+        // here is the refusal itself — the shell it was asked for changes
+        // nothing, because the name is missing before a generator is chosen.
+        Test::assertThrows(
+            fn (): void => { Core\Command::completions(Core\Cli\Shell::Zsh); },
+            LogicError::class,
+        );
+    }
+}
+--EXPECTF--
+  CompletionsTest
+`Core\Command::completions` has no name to register a script against: this program was not started from a command line, and a served request is not something a shell completes
+    ✓ itRefusesAProgramWithNoName      %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms
