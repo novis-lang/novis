@@ -103,7 +103,15 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
     }
 
     if let Some(source) = &case.skipif {
-        match run_nvs(opts, workdir, "skipif.nvs", source, Subcommand::Run, &[]) {
+        match run_nvs(
+            opts,
+            workdir,
+            "skipif.nvs",
+            source,
+            Subcommand::Run,
+            &[],
+            &case.env,
+        ) {
             Err(error) => return Outcome::Fail(vec![format!("--SKIPIF--: {error}")]),
             Ok(output) => {
                 let text = String::from_utf8_lossy(&output.stdout);
@@ -126,13 +134,23 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         // `--CLEAN--`'s whole job is tidying up after the case; its own
         // output is not an expectation and a failure in it must not turn a
         // passing case red.
-        let _ = run_nvs(opts, workdir, "clean.nvs", source, Subcommand::Run, &[]);
+        let _ = run_nvs(
+            opts,
+            workdir,
+            "clean.nvs",
+            source,
+            Subcommand::Run,
+            &[],
+            &case.env,
+        );
     }
     outcome
 }
 
 fn judge(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
-    let output = match run_nvs(opts, workdir, "case.nvs", &case.file, case.run, &case.args) {
+    let output = match run_nvs(
+        opts, workdir, "case.nvs", &case.file, case.run, &case.args, &case.env,
+    ) {
         Ok(output) => output,
         Err(error) => return Outcome::Fail(vec![format!("could not run the case: {error}")]),
     };
@@ -175,7 +193,7 @@ fn judge(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
     }
 
     if let Some(Oracle::Php(twin)) = &case.oracle {
-        match run_php(opts, workdir, twin) {
+        match run_php(opts, workdir, twin, &case.env) {
             Err(error) => report.push(format!("--ORACLE--: could not run PHP: {error}")),
             Ok(oracle) => {
                 let theirs = String::from_utf8_lossy(&oracle.stdout).into_owned();
@@ -234,6 +252,7 @@ fn run_nvs(
     source: &str,
     sub: Subcommand,
     program_args: &[String],
+    env: &[(String, String)],
 ) -> io::Result<Output> {
     fs::write(workdir.join(name), source)?;
     let mut args: Vec<&OsStr> = sub.args().iter().map(AsRef::as_ref).collect();
@@ -244,19 +263,39 @@ fn run_nvs(
     // boundary `nvs run`'s trailing arguments have on a real command line, and
     // the reason a case's arguments can name a `--dryRun` of their own.
     args.extend(program_args.iter().map(|arg| arg.as_ref() as &OsStr));
-    spawn(&opts.nvs, &args, workdir)
+    spawn(&opts.nvs, &args, workdir, env)
 }
 
 /// Writes `source` into `workdir` as `oracle.php` and runs PHP on it.
-fn run_php(opts: &Options, workdir: &Path, source: &str) -> io::Result<Output> {
+///
+/// Under the case's own `--ENV--` as well: a differential case is only a
+/// comparison if both halves were asked the same question, and `getenv` is a
+/// question about the environment.
+fn run_php(
+    opts: &Options,
+    workdir: &Path,
+    source: &str,
+    env: &[(String, String)],
+) -> io::Result<Output> {
     fs::write(workdir.join("oracle.php"), source)?;
-    spawn(&opts.php, &["oracle.php".as_ref()], workdir)
+    spawn(&opts.php, &["oracle.php".as_ref()], workdir, env)
 }
 
-fn spawn(program: &Path, args: &[&OsStr], workdir: &Path) -> io::Result<Output> {
+fn spawn(
+    program: &Path,
+    args: &[&OsStr],
+    workdir: &Path,
+    env: &[(String, String)],
+) -> io::Result<Output> {
     Command::new(program)
         .args(args)
         .current_dir(workdir)
+        // `--ENV--`, added to the environment this process already has rather
+        // than replacing it — [`nvs_test::case::Case::env`] owns why, and the
+        // `NO_COLOR` below is set after it on purpose: a case that wanted
+        // coloured output would be pinning escape codes, which no case is
+        // about.
+        .envs(env.iter().map(|(name, value)| (name, value)))
         // A diagnostic decides on colour by asking whether stderr is a
         // terminal, which a captured pipe is not — but a CI runner that sets
         // `CLICOLOR_FORCE` would still colour it, and escape codes in an

@@ -30,7 +30,7 @@
 //! | `--CLEAN--` | a program run afterwards, whose output is ignored |
 //! | `--INI--` | configuration for the run |
 //! | `--ARGS--` | the program's own arguments, one per line |
-//! | `--ENV--` | environment variables for the run |
+//! | `--ENV--` | environment variables for the run, one `NAME=value` per line |
 //!
 //! Six are Novis's own. Two of those are the differential pair
 //! `docs/agent/loop-goal.md` names:
@@ -135,12 +135,16 @@
 //!
 //! ## What is parsed but not yet honoured
 //!
-//! `--INI--` and `--ENV--` parse — that is what keeps the M11 importer
-//! mechanical — but nothing can act on them yet: `nvs.toml` is not read until
-//! M6 ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)), and
-//! the environment is unreachable until `Core\Env` lands at M8. A case that
-//! uses one is reported as a **failure** naming the milestone, never
+//! `--INI--` parses — that is what keeps the M11 importer mechanical — but
+//! nothing can act on it yet: `nvs.toml` is not read until M6
+//! ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)). A case
+//! that uses it is reported as a **failure** naming the milestone, never
 //! run-and-half-ignored.
+//!
+//! `--ENV--` **is** honoured, since `Core\Env` landed at M8 and a program can
+//! now read back what the section set. Its pairs are added to the environment
+//! the runner already holds rather than replacing it, and both halves of a
+//! differential case get them — [`case::Case::env`] owns both rules.
 //!
 //! `--ARGS--` **is** honoured, since
 //! [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's

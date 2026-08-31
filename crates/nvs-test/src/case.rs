@@ -138,6 +138,21 @@ pub struct Case {
     /// section written with a blank line under the header the same as an absent
     /// one.
     pub args: Vec<String>,
+    /// `--ENV--`, the environment the case runs under — **one `NAME=value` per
+    /// line**, in the order they were written.
+    ///
+    /// Added to the environment the runner already has rather than replacing
+    /// it: a case says what it needs, never what the machine may keep, so a
+    /// `PATH` or a `TMPDIR` the toolchain depends on survives. That also makes
+    /// a case's own claim narrow — it can pin the variable it set, and nothing
+    /// about the rest of the environment.
+    ///
+    /// The value is the whole of the line past the first `=`, so it may itself
+    /// contain one; a line with no `=` at all is a parse error, since a
+    /// variable with no value and one set to the empty string are different
+    /// states and guessing which was meant is not the runner's to do. Empty
+    /// lines are dropped, on [`Case::args`]' rule.
+    pub env: Vec<(String, String)>,
     /// Every `--FILE <relative/path>--`, in the order they were written.
     pub aux: Vec<AuxFile>,
     /// `--EXPECT--` or `--EXPECTF--`, matched against standard output.
@@ -220,18 +235,16 @@ const KNOWN: &[&str] = &[
     "RUN",
 ];
 
-/// The three `.phpt` sections that parse for the M11 importer's sake but have
-/// nothing to act on yet, each with the milestone that changes that.
-const NOT_YET: &[(&str, &str)] = &[
-    (
-        "INI",
-        "`nvs.toml` is not read until M6 (ADR 0064), so an --INI-- section cannot be honoured",
-    ),
-    (
-        "ENV",
-        "the environment is unreachable until `Core\\Env` lands at M8, so an --ENV-- section cannot be honoured",
-    ),
-];
+/// The `.phpt` sections that parse for the M11 importer's sake but have nothing
+/// to act on yet, each with the milestone that changes that.
+///
+/// `ENV` left this list when `Core\Env` landed: a case can now set a variable
+/// and read it back, so honouring the section is what the runner owes rather
+/// than something it has to refuse.
+const NOT_YET: &[(&str, &str)] = &[(
+    "INI",
+    "`nvs.toml` is not read until M6 (ADR 0064), so an --INI-- section cannot be honoured",
+)];
 
 /// The one section name that takes an argument, and what the argument is.
 const TAKES_A_PATH: &str = "FILE";
@@ -476,6 +489,26 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         ));
     }
 
+    // Refused where it is written rather than dropped: a case that misspells
+    // the one thing it asked the runner to set would otherwise run against the
+    // environment it was trying to change and pin whatever that produced.
+    let mut env = Vec::new();
+    if let Some((header, body)) = take("ENV") {
+        for (offset, line) in body.lines().enumerate() {
+            let line = line.trim_end();
+            if line.is_empty() {
+                continue;
+            }
+            let Some((name, value)) = line.split_once('=') else {
+                return Err(err(
+                    "`--ENV--` is one `NAME=value` per line, and this line has no `=`",
+                    Some(header + 1 + offset),
+                ));
+            };
+            env.push((name.to_owned(), value.to_owned()));
+        }
+    }
+
     let unsupported = NOT_YET.iter().find_map(|(name, why)| {
         take(name).and_then(|(_, body)| (!body.trim().is_empty()).then(|| (*why).to_owned()))
     });
@@ -490,6 +523,7 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
                 .map(str::to_owned)
                 .collect()
         }),
+        env,
         skipif: take("SKIPIF")
             .map(|(_, body)| body)
             .filter(|body| !body.trim().is_empty()),
@@ -664,13 +698,41 @@ mod tests {
     }
 
     #[test]
-    fn the_two_deferred_sections_parse_but_mark_the_case_unsupported() {
-        for (name, needle) in [("INI", "M6"), ("ENV", "M8")] {
-            let text = format!("--TEST--\nt\n--{name}--\nx=1\n--FILE--\n<?nvs\n--EXPECT--\n\n");
-            let parsed = case(&text).expect("a deferred section still parses");
-            let why = parsed.unsupported.expect("it marks the case unsupported");
-            assert!(why.contains(needle), "{why}");
-        }
+    fn the_deferred_section_parses_but_marks_the_case_unsupported() {
+        let parsed = case("--TEST--\nt\n--INI--\nx=1\n--FILE--\n<?nvs\n--EXPECT--\n\n")
+            .expect("a deferred section still parses");
+        let why = parsed.unsupported.expect("it marks the case unsupported");
+        assert!(why.contains("M6"), "{why}");
+    }
+
+    /// The three halves of [`Case::env`]'s rule at once: a line is split at its
+    /// **first** `=` so a value may hold one, a blank line is not a pair, and
+    /// the section no longer marks the case unsupported.
+    #[test]
+    fn every_env_line_is_one_pair_split_at_the_first_equals() {
+        let parsed = case(
+            "--TEST--\nt\n--ENV--\nNVS_A=1\n\nNVS_B=x=y\nNVS_EMPTY=\n--FILE--\n<?nvs\n--EXPECT--\n\n",
+        )
+        .expect("an env section parses");
+        assert_eq!(
+            parsed.env,
+            [
+                ("NVS_A".to_owned(), "1".to_owned()),
+                ("NVS_B".to_owned(), "x=y".to_owned()),
+                ("NVS_EMPTY".to_owned(), String::new()),
+            ]
+        );
+        assert!(parsed.unsupported.is_none());
+    }
+
+    /// A variable with no value and one set to the empty string are different
+    /// states, so the runner refuses to guess which a `=`-less line meant.
+    #[test]
+    fn an_env_line_without_an_equals_is_refused_where_it_is_written() {
+        let e = case("--TEST--\nt\n--ENV--\nNVS_A=1\nNVS_B\n--FILE--\n<?nvs\n--EXPECT--\n\n")
+            .expect_err("a line with no `=` is a parse error");
+        assert_eq!(e.line, Some(5), "{e}");
+        assert!(e.message.contains("`NAME=value`"), "{e}");
     }
 
     #[test]
