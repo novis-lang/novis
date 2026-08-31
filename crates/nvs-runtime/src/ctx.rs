@@ -422,6 +422,24 @@ pub struct Ctx {
     /// operator's own `[limits] cpu_time`, moved from one side of the ceiling to
     /// the other, so a request's total is unchanged.
     fatal_reserve_time: u64,
+    /// Takes ownership of the closure `Core\Fatal::onUncaughtThrow` registered
+    /// — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// tier 2, and the second handler slot beside [`Self::limit_handler`].
+    ///
+    /// **Nothing is reserved for it, and that is § 2's own decision**: a throw
+    /// that reached the root means execution was healthy up to the moment it
+    /// was raised, so the request's ordinary remaining budget is what this
+    /// handler runs under. The two words [`Self::fatal_reserve`] and
+    /// [`Self::fatal_reserve_time`] hold for tier 1 have no twin here, and
+    /// [`Self::run_uncaught_handler`] widens no ceiling on the way in.
+    ///
+    /// Request-local for [`Self::limit_handler`]'s reason, and released in the
+    /// same place for it: the request ending is the only unregistration.
+    ///
+    /// **What it spends:** one word per request, and one reference to the
+    /// closure for a request that registers one — O(in-flight requests), per
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    uncaught_handler: Value,
     /// How deep a chain of `spawn script` may nest — `[limits] max_script_depth`,
     /// [`Self::DEFAULT_MAX_SCRIPT_DEPTH`] where nothing states one, and `0`
     /// (no ceiling) only where an operator wrote `false`.
@@ -993,6 +1011,9 @@ impl Drop for Ctx {
         // ADR 0020 § 1's handler is request-local, so the request ending is
         // what unregisters it — see `Ctx::set_limit_handler`.
         self.set_limit_handler(Value::null());
+        // ADR 0020 § 2's handler is request-local for the same reason and is
+        // unregistered the same way — see `Ctx::set_uncaught_handler`.
+        self.set_uncaught_handler(Value::null());
         // ADR 0072 § 6's deferred work is request-local for the same reason,
         // and a request that never returned ordinarily reaches here with its
         // registrations unrun — `crate::deferred`'s module doc owns why they
@@ -1140,6 +1161,7 @@ impl Ctx {
             fatal_reserve: 0,
             cpu_limit: 0,
             fatal_reserve_time: 0,
+            uncaught_handler: Value::null(),
             max_script_depth: Self::DEFAULT_MAX_SCRIPT_DEPTH,
             script_depth: 0,
             deferred: Some(Vec::new()),
@@ -1454,6 +1476,107 @@ impl Ctx {
     #[must_use]
     pub fn has_limit_handler(&self) -> bool {
         self.limit_handler.tag() != Some(crate::Tag::Null)
+    }
+
+    /// Takes ownership of the closure `Core\Fatal::onUncaughtThrow` registered
+    /// — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// tier 2.
+    ///
+    /// [`Self::set_limit_handler`]'s contract exactly, and deliberately: last
+    /// registration wins, there is no unregister but the request ending, and
+    /// the caller passes an **owned** reference because a `Core` helper's
+    /// arguments are borrowed from a call frame this one outlives. The two
+    /// tiers differ in what fires them and in what the handler is handed, never
+    /// in how a registration is held.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it is replacing, having \
+                  been handed it by exactly one earlier call"
+    )]
+    pub fn set_uncaught_handler(&mut self, handler: Value) {
+        let previous = std::mem::replace(&mut self.uncaught_handler, handler);
+        // SAFETY: `uncaught_handler` holds one owned reference or null, and
+        // nothing else points at it — the field is private and never handed
+        // out, since the only reader is `Self::run_uncaught_handler`.
+        unsafe { previous.release() };
+    }
+
+    /// Whether this request registered a tier-2 handler at all.
+    ///
+    /// [`Self::has_limit_handler`]'s reason for being a method rather than a
+    /// comparison: a `null` slot is the encoding of "none", and nothing outside
+    /// this file should know that.
+    #[must_use]
+    pub fn has_uncaught_handler(&self) -> bool {
+        self.uncaught_handler.tag() != Some(crate::Tag::Null)
+    }
+
+    /// Runs [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// tier 2 over `thrown`, if this request registered one.
+    ///
+    /// **The handler is handed the real exception object**, not a report built
+    /// from it, which is the one way this differs from
+    /// [`Self::run_limit_handler`]'s array. § 2 says why: this is the request's
+    /// own root rather than an isolate boundary
+    /// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) has to
+    /// copy across, so the object the program threw is still the object it
+    /// threw, with its own class, message and backtrace reachable by the
+    /// ordinary members. A handler declaring no parameter still runs, for
+    /// [`Self::run_limit_handler`]'s reason.
+    ///
+    /// **No ceiling moves.** § 2 has no reserved slice — see
+    /// [`Self::uncaught_handler`] — so a request that reached the root with its
+    /// budget nearly spent runs this handler out of what is left, and a handler
+    /// that exhausts it breaches like any other code.
+    ///
+    /// **The registration is taken out of the slot on the way in**, exactly as
+    /// [`Self::run_limit_handler`] takes tier 1's: that is the whole of "zero
+    /// retries" here too, since a handler that throws reaches an isolate root
+    /// of its own inside [`crate::script`] and would otherwise find itself.
+    ///
+    /// Whatever the handler leaves behind is dropped, and a throw or a fault of
+    /// its own is abandoned where it stands — § 3's "handler faulted" drops to
+    /// tier 3, and what tier 3 is handed is still the throw that got here. The
+    /// pending status is cleared for that reason: the request reports the
+    /// failure that reached the root, never the one its reporter had.
+    ///
+    /// **Running does not suppress the tiers below.** § 3 is the shared
+    /// catch-all and the floor beneath it is § 6's record of a request that
+    /// died, so an operator's pipeline does not lose one because the
+    /// application registered a handler — which is also how tier 1 already
+    /// behaves, since every caller of [`Self::run_limit_handler`] records its
+    /// breach afterwards regardless.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it just took out of the \
+                  slot, and owns the answer the call produced"
+    )]
+    pub fn run_uncaught_handler(&mut self, thrown: &Thrown) {
+        if !self.has_uncaught_handler() {
+            return;
+        }
+        // `Value::default()` is the null this leaves behind, which is the
+        // encoding of "nothing registered" `Self::has_uncaught_handler` reads.
+        let handler = std::mem::take(&mut self.uncaught_handler);
+        // Borrowed: the reference keeping the object alive across the call is
+        // the caller's `Thrown`, and `crate::call_closure` takes one of its own
+        // for the callee to release.
+        let answer = crate::call_closure(self, handler, &[thrown.as_value()]);
+        // Zero retries, and the failure the request reports is the one that
+        // reached the root — so a handler's own throw ends here rather than
+        // travelling on as this request's status.
+        drop(self.take_pending());
+        // SAFETY: the slot held one owned reference, which this frame now
+        // holds. An `Ok` answer is a fresh value this frame owns, and releasing
+        // a `null` — which is what a `void` closure returns — is a no-op. The
+        // exception itself is not released here: this frame never owned a
+        // reference to it.
+        unsafe {
+            if let Ok(answer) = answer {
+                answer.release();
+            }
+            handler.release();
+        }
     }
 
     /// Registers `closure` to run once this request's own frame has returned —

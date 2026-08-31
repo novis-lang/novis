@@ -324,6 +324,24 @@ impl Thrown {
         ptr
     }
 
+    /// The exception **as a value**, borrowed — `null` where there is no object
+    /// at all.
+    ///
+    /// No reference is handed over, exactly as [`crate::Ctx::limit_handler`]
+    /// hands none over: what keeps the object alive across the borrower's use
+    /// of it is the reference this `Thrown` is still holding. Its one caller is
+    /// [`crate::Ctx::run_uncaught_handler`], which is
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// "the **real `Throwable` object**, not copied data" — so this is
+    /// deliberately not a constructor that copies anything.
+    #[must_use]
+    pub fn as_value(&self) -> Value {
+        if self.ptr.is_null() {
+            return Value::null();
+        }
+        Value::from_obj_ptr(self.ptr)
+    }
+
     /// A borrowed handle on the object, or `None` if there is none.
     ///
     /// [`std::mem::ManuallyDrop`] because [`NvsObj::from_raw`] takes over a
