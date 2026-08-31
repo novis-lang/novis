@@ -3711,6 +3711,17 @@ is why" — is this file.
   `decimal $four = 4; decimal $minusFour = 0 - $four;` — which is what
   `tests/conformance/lang/decimal-arithmetic-is-exact-and-keeps-its-scale.nvst` was already doing
   with `0 - $price`, where it reads as a style choice and is in fact the only spelling.
+- **A green conformance case can be pinning the *absence* of a rule its own ADR requires, and it
+  reads as coverage rather than as a gap.** `an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst`
+  asserted `param=none` for `Core\Attributes::get<T>(Controller::show(...), "repo")` — a literal
+  member name naming no parameter — while ADR 0046 § 4's last paragraph says a *written* `$member`
+  is validated against the target's real declarations at the call site. The case was not wrong about
+  the compiler; it was pinning what the compiler did before anyone implemented the paragraph, so
+  landing the rule turned a passing case red and the case was the thing to change. Before writing a
+  rule the acceptance list names, grep the `.nvst` corpus for the *spelling* it will start refusing —
+  one `grep -rn` over `tests/` is the whole check, and finding it at the full verify instead costs a
+  build. The tell that the case is the bug rather than the rule: the ADR paragraph is prose nothing
+  in the tree implemented, not a decision the case was written against.
 
 ## Splitting a file that got too big
 

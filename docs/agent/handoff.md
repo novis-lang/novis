@@ -2,39 +2,37 @@
 
 ## State
 
-**The failing acceptance check is closed.** `nvs-stdlib (Reflect, Ast, Decimal) [8 introspection]`
-named `div_exact_throws_where_div_round_rounds`, which did not exist because the class it is about
-did not: ADR 0054's *Still owed* line puts `Core\Decimal::divExact`/`divRound`/`allocate` at M8 and
-none of the three had landed.
+**Both acceptance checks that were failing are closed.** `nvs-types (attribute retrieval folds)`
+named four tests that did not exist; `crates/nvs-types/tests/attributes.rs` is all four, over ADR
+0046 §§ 4-5's fold — the answer recorded at the call's own span as an `ExprInfo::CoreConst`, which
+is what "no runtime lookup" means and what no conformance case can see, since a fold prints nothing.
 
-**`crates/nvs-stdlib/src/decimal.rs` is on disk**, `Core\Decimal` with the first two of those:
-`divExact(decimal $value, decimal $divisor): decimal` and
-`divRound(decimal $value, decimal $divisor, uint $scale, Core\RoundMode $mode): decimal`. The mode is
-`Core\Math`'s enum, not a second one — `crate::math::RoundMode` and `round_mode` are `pub(crate)` now
-and `round_mode` takes the caller's own name for its `FATAL`.
+**The fourth of them needed a rule that was prose and nothing else.** ADR 0046 § 4's last paragraph
+— a *written* `$member` is checked against the target's real declarations, and only a computed one
+falls back to an empty result — is now `E0798` in `crates/nvs-types/src/retrieval.rs`'s
+`declares_member`, asked of `crate::signatures` rather than of the attach table so that an inherited
+declaration counts and an unattributed one does too. The module doc owns why it has to be a refusal:
+the `null` a misspelling folds to is the answer a correct retrieval of an absent attribute gives.
 
-**Neither member re-implements division.** `nvs_runtime::decimal`'s new private `long_divide` is the
-one long division: `Decimal::checked_div` is it plus half-even, `checked_div_exact` is it refusing a
-remainder, and `checked_div_at_scale` is it stopped at a named scale handing back a public `Discard`.
-`divRound` is deliberately **not** `checked_div` rounded a second time — that would carry a tie into
-the second decision that the exact quotient never had. Both those module docs own the reasoning.
+**One conformance case was pinning the absence of that rule** and now pins the rule instead — see
+the playbook bullet. The refusal's rendered text lives in
+`tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst`, which
+is five refusals now rather than four.
 
-**`allocate`, `pow`, `floor`, `ceil` and `round` are the rest of ADR 0054's roster and are not in
-this slice**; they are gap 1 of `crates/nvs-stdlib/src/decimal.rs`'s module doc, which is their home,
-and `crate::math`'s own gap note is why the four rounding members land there rather than widening
-`Core\Math`'s `float` ones.
+`E0797` has its case: `tests/conformance/reject/log-write-refuses-a-secret-field.nvst` covers all
+three arms of `reject_secret_logged_argument` — the element read off the written literal, the same
+bag as a named argument, and the argument whose own declared type carries the qualifier.
 
-`Core\Cli::displayWidth` is untouched for the second session running — the acceptance failure
-outranked it both times. `orient.py` printed no section of ADR 0054 although the item turned out to
-live entirely inside § 3: `[context] adrs` needs `0054:3`, and still needs `0019:1`, `0019:2`,
-`0014:3`, `0086:1`, `0086:3` and `0033:4`; `[context] spec` still misses
-`docs/spec/01-core-library.md` § 15.
+`Core\Cli::displayWidth` is untouched for the third session running; the acceptance failure outranked
+it each time, and nothing outranks it now. `orient.py` printed no section of ADR 0046 although the
+work lived entirely inside § 4: `[context] adrs` needs `0046:4` and `0046:5`, and still needs
+`0019:1`, `0019:2`, `0014:3`, `0086:1`, `0086:3`, `0033:4` and `0054:3`; `[context] spec` still
+misses `docs/spec/01-core-library.md` § 15.
 
 ## Next group
 
-**`Core\Cli`'s last member and the case that pins the other half, over `crates/nvs-stdlib/src/cli.rs`
-and `tests/conformance/core/`** — unchanged from the last two handoffs, and now with nothing ahead of
-it.
+**`Core\Cli`'s last member and the case that measures it against its neighbour, over
+`crates/nvs-stdlib/src/cli.rs` and `tests/conformance/core/`.**
 
 - [ ] **`Core\Cli::displayWidth`** — ADR 0086 § 3's `displayWidth(string $value): uint`, UAX #11
       columns rather than `Core\Str::length`'s graphemes. The five edits of a `Core` member, at
@@ -45,19 +43,17 @@ it.
       decision to make first is where the width table comes from: a dependency is pre-authorized
       under ADR 0051 § 4 and owes the `[workspace.dependencies]` comment, `cargo deny check` and
       `python tools/gen-attribution.py`.
-- [ ] **A `.nvst` case for `E0797`** — the refusal at
-      `crates/nvs-types/src/expr/quals.rs:658`, reached from
-      `crates/nvs-types/src/expr/calls.rs:343`. `--EXPECTF-ERROR--`, which has to reproduce the
-      diagnostic's own indentation.
+- [ ] **The case that pins the other half** — one `.nvst` asking `displayWidth` and
+      `Core\Str::length` the *same* question over a wide CJK run, a combining mark and a ZWJ
+      sequence, and asserting they disagree exactly where UAX #11 says they must. The agreement
+      shape from `docs/agent/conventions.md`, over the body written beside
+      `crates/nvs-stdlib/src/cli.rs:1286`; the three cases the member's own five edits owe are not
+      this, since each of those asks one member one question.
 
 ## Backlog
 
-- `Core\Decimal::allocate($amount, $ratios)` — ADR 0054 § 3's penny split, the member no mainstream
-  language ships; `crates/nvs-stdlib/src/decimal.rs`'s gap 1.
-- `Core\Decimal::pow`, `floor`, `ceil` and `round` — ADR 0054 §§ 3-4; same gap, and
-  `crates/nvs-stdlib/src/math.rs`'s own gap note is why they land there.
-- `nvs_object_slot_get` and `Core\Reflect\ClassInfo::get` run no `onPropertyGet` — gap 3 of
-  `crates/nvs-stdlib/src/reflect.rs`; changes a hot path, so it wants its own verify.
-- A reflective write reaches storage rather than a hooked property's hook — same gap 3.
-- `Core\IO::truncate` and `lock` — spec § 14, the two members of the handle half still owed.
-- Reading `[log] target` — ADR 0020 § 6, the last of stage 7.
+- `Core\IO::truncate` and `lock` — stage 2's handle half, `crates/nvs-stdlib/src/io.rs`.
+- Reading `[log] target` — stage 7's owed half, `crates/nvs-stdlib/src/log.rs`.
+- `Core\Decimal::allocate`, `pow`, `floor`, `ceil`, `round` — gap 1 of
+  `crates/nvs-stdlib/src/decimal.rs`'s module doc.
+- `Core\Cache`'s shared tier needs a reachable Docker daemon — the plan's `Blocking` field.
