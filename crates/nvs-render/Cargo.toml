@@ -17,5 +17,14 @@ repository.workspace = true
 # move rather than a copy.
 nvs-syntax.workspace = true
 
+# ADR 0020 § 6 chose JSON over `logfmt` because the escaping has to be correct
+# on the first and only attempt at the true floor, and JSON's is a solved,
+# mechanical problem — so the JSON rendering (`src/json.rs`) delegates every
+# quote, every escape and every number to the same crate `Core\Json::encode`
+# reaches, rather than hand-rolling a second answer in the one place there is
+# no second attempt.
+serde.workspace = true
+serde_json.workspace = true
+
 [lints]
 workspace = true

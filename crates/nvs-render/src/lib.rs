@@ -12,11 +12,21 @@
 //! # What is here, and what is not yet
 //!
 //! M4's half: the model, the plaintext rendering ([`plain`]), and § 5's four
-//! transformations. The JSON and HTML renderings are M7's, and the record's
-//! other four producers — `Core\Log::write`, a `Throwable` and its trace, a
-//! `#[Test]` result and a compiler diagnostic — arrive at their own
-//! milestones. `Core\Debug::dump` is the one producer that exists, and it
-//! lives in `nvs_stdlib::debug` for the reason § *Where this sits* gives.
+//! transformations. M8 adds the JSON one ([`json`]), which is what a log target
+//! emits; the HTML rendering and the record's other three producers — a
+//! `Throwable` and its trace, a `#[Test]` result and a compiler diagnostic —
+//! arrive at their own milestones. `Core\Debug::dump` and `Core\Log::write` are
+//! the producers that exist, and both live in `nvs-stdlib` for the reason
+//! § *Where this sits* gives.
+//!
+//! **[ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 6's
+//! record-and-write helper renders here**, not in `nvs-runtime` beside the
+//! escalation ladder. § 6 asks that ordinary application code and the tier-4
+//! floor write one shape through one implementation, and ADR 0092 § 1 has
+//! already put every rendering in this crate; a JSON writer in `nvs-runtime`
+//! for the floor plus this one for everything else would be two writers that
+//! agree today. The price is the dependency edge below, which § 1 sanctions and
+//! this section prices — it is paid when the floor lands, not before.
 //!
 //! # § 5's four transformations, and why they are the model's
 //!
@@ -73,6 +83,7 @@
 //! allow, which is the property that lets a dump be reached from a request
 //! path at all.
 
+pub mod json;
 pub mod plain;
 pub mod text;
 
@@ -105,6 +116,34 @@ pub enum Level {
 }
 
 impl Level {
+    /// Every level, quietest first — the roster [`Self::syslog_severity`] and
+    /// [`Self::name`] are total over, and the one
+    /// [`Self::from_syslog_severity`] searches.
+    pub const ALL: [Self; 5] = [
+        Self::Debug,
+        Self::Info,
+        Self::Warn,
+        Self::Error,
+        Self::Critical,
+    ];
+
+    /// The level whose [`Self::syslog_severity`] is `severity`, or `None` for a
+    /// number ADR 0092 § 2's roster does not carry — syslog's `Notice` (5) and
+    /// `Alert` (1) among them.
+    ///
+    /// It reads the mapping back by *searching* [`Self::ALL`] rather than by
+    /// matching the five integers a second time, so the severities are written
+    /// once and this direction cannot come to disagree with the other. The
+    /// caller that needs it is `Core\Log::write`, whose `Core\Log\Level` cases
+    /// are valued by these severities, so what arrives at the member is one of
+    /// these integers and nothing else.
+    #[must_use]
+    pub fn from_syslog_severity(severity: u8) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|level| level.syslog_severity() == severity)
+    }
+
     /// The syslog severity ADR 0092 § 2's table pairs with this level.
     #[must_use]
     pub const fn syslog_severity(self) -> u8 {

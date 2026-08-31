@@ -23,19 +23,21 @@
 //! ordinary application code write the same record through the same native
 //! helper, so a log pipeline never has to reconcile two shapes. The record
 //! itself — its envelope, its node model and its three renderings — is
-//! ADR 0092's and belongs to `nvs-render`; the JSON Lines rendering is § 3's
-//! entry for a log target.
+//! ADR 0092's and belongs to `nvs-render`, and **this module owns none of it**.
+//! [`record`] builds an [`nvs_render::Record`] and [`nvs_render::json::line`]
+//! renders it; which keys a line carries, that an absent one is omitted rather
+//! than written empty, and how a value JSON has no spelling for is written are
+//! all decided there, once, for both callers. That module's own doc comment
+//! owns why the rendering sits beside `nvs_render::plain::render` rather than in
+//! `nvs-runtime` beside the ladder.
 //!
-//! **Known gap: this module is still the second writer that arrangement
-//! exists to prevent.** [`Record`] below serialises `level`, `message` and
-//! `fields` here, in `nvs-stdlib`, because the floor it is supposed to share
-//! has not been written — nothing in `nvs-runtime` emits a record at all
-//! today, so there is nothing yet to reach. What is already shared is the
-//! *value* encoder: `fields` is written by [`crate::json::Encodable`], the one
-//! `Core\Json::encode` uses, so a `float` or a nested array cannot be spelled
-//! two ways depending on which member wrote it. Closing the rest means moving
-//! [`Record`] down to the floor and calling it from here, which is the slice
-//! after this one.
+//! **Known gap: the floor is the caller that does not exist yet.** Nothing in
+//! `nvs-runtime` emits a record today, so ADR 0020 § 6's second caller is still
+//! a claim about one that will be written rather than about one that is — but
+//! the thing it has to reach is now a `Record` and a rendering it can call,
+//! rather than a serialiser private to this crate. What that caller costs is the
+//! `nvs-runtime` → `nvs-render` dependency edge, which ADR 0092 § 1 sanctions
+//! and `nvs-render`'s own § *Where this sits* prices.
 //!
 //! **The envelope is `level` and `msg` and stops there.** § 6 lists `ts`,
 //! `request_id`, `trace_id` and `span_id` as well; none of them has a source
@@ -57,14 +59,11 @@
 //! instead; `[log] target`'s `stderr`/`file:`/`syslog` routing is that side's,
 //! and it arrives with the floor.
 
-use nvs_runtime::{Fault, ThrownClass, Value};
-use serde::ser::SerializeMap;
-use serde::{Serialize, Serializer};
+use nvs_render::{Level, Node, Record, Rendered};
+use nvs_runtime::{Fault, Value};
 
-use crate::json::Encodable;
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
-    ParamDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// This class's fully-qualified name, in one place so the registry row and
@@ -166,18 +165,15 @@ const WRITE_DOC: MethodDoc = MethodDoc {
             name: "fields",
             desc: "Structured context, written as a `fields` object beside the message rather \
                    than pasted into it. Omitted from the record entirely when it is empty, so an \
-                   ordinary call costs no key.",
+                   ordinary call costs no key. Nothing a bag can hold makes a write fail: a \
+                   value the format has no spelling for — `bytes`, a closure, a cycle — is \
+                   rendered as what it is rather than refused.",
             shape: &[],
         },
     ],
     ret: "Nothing. A record that cannot be written is dropped rather than retried: the log is not \
           the program's storage.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "A `fields` value has no JSON encoding — a closure, or a value nested past the \
-               depth `Core\\Json::encode` accepts. The bag was built by the program, so an \
-               unwritable one is a bug in it.",
-    }],
+    errors: &[],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
@@ -199,7 +195,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_log_write(ctx, args: [3]) {
         let level = level_of(&args[0])?;
         let message = message_of(&args[1])?;
-        let line = render(level, message, args[2])?;
+        let line = nvs_render::json::line(&record(level, message, args[2]));
         // Unreachable from source, for the reason `Core\Debug::dump`'s own
         // write is: the only output sink that can fail is the process's
         // stdout, and nothing in the language moves the channel or closes the
@@ -211,51 +207,19 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The five cases, as the thing this module dispatches on.
+/// The `Core\Log\Level` case in slot 0, as the record model's own level.
 ///
-/// A Rust enum rather than the raw severity so that [`Self::tag`] and
-/// [`LEVEL`] are held together by `the_levels_and_their_tags_agree` below: a
-/// case added to one alone is either surface with no rendering or a rendering
-/// nothing can reach.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Level {
-    Debug,
-    Info,
-    Warn,
-    Error,
-    Critical,
-}
-
-impl Level {
-    /// The case whose syslog severity is `severity`, or `None` for a number
-    /// [`LEVEL`] does not declare.
-    fn from_severity(severity: i64) -> Option<Self> {
-        Some(match severity {
-            7 => Self::Debug,
-            6 => Self::Info,
-            4 => Self::Warn,
-            3 => Self::Error,
-            2 => Self::Critical,
-            _ => return None,
-        })
-    }
-
-    /// How the record spells this level — the case's own name, lowercased,
-    /// which is what every log pipeline in this ecosystem already reads.
-    fn tag(self) -> &'static str {
-        match self {
-            Self::Debug => "debug",
-            Self::Info => "info",
-            Self::Warn => "warn",
-            Self::Error => "error",
-            Self::Critical => "critical",
-        }
-    }
-}
-
-/// The `Core\Log\Level` case in slot 0.
+/// [`LEVEL`]'s cases are valued by their syslog severities, so what arrives
+/// here is one of ADR 0092 § 2's five integers and
+/// [`Level::from_syslog_severity`] reads it back — this module holds no second
+/// enum and no second table, which is what keeps a case added to one from being
+/// either surface with no rendering or a rendering nothing can reach.
 fn level_of(value: &Value) -> Result<Level, Fault> {
-    if let Some(level) = value.as_int().and_then(Level::from_severity) {
+    if let Some(level) = value
+        .as_int()
+        .and_then(|severity| u8::try_from(severity).ok())
+        .and_then(Level::from_syslog_severity)
+    {
         return Ok(level);
     }
     // Unreachable from source: the row's parameter is `CoreTy::Enum`, so
@@ -285,77 +249,73 @@ fn message_of(value: &Value) -> Result<&str, Fault> {
     })
 }
 
-/// One record, as the line that carries it — the newline included, because a
-/// JSON Lines record without its terminator is not one.
-fn render(level: Level, message: &str, fields: Value) -> Result<String, Fault> {
-    let record = Record {
-        level: level.tag(),
-        msg: message,
-        fields: encodable(fields),
-    };
-    let mut line = serde_json::to_string(&record).map_err(|why| {
-        Fault::thrown_as(ThrownClass::Logic, format!("Core\\Log::write(): {why}"))
-    })?;
-    line.push('\n');
-    Ok(line)
-}
-
-/// The `fields` bag as something to write, or `None` for one carrying nothing.
+/// This call as ADR 0092 § 1's record — the envelope fields this crate has a
+/// source for, and the bag as named nodes.
 ///
-/// An empty bag is an absent key rather than `{}`: § 6's own `trace_id` rule
-/// is that a field with no content is omitted, and a record is read by people
-/// far more often than it is parsed.
-fn encodable(fields: Value) -> Option<Encodable> {
-    let ptr = fields.array_ptr()?;
-    if crate::arr::borrowed(ptr).is_empty() {
-        return None;
-    }
-    Some(Encodable::document(fields))
+/// Everything past building it belongs to `nvs-render`: which keys a rendering
+/// writes, that an absent one is omitted rather than empty, and the JSON Lines
+/// line itself. That is ADR 0020 § 6's *one implementation, two callers* — the
+/// engine floor builds the same `Record` and calls the same [`nvs_render::json::line`].
+fn record(level: Level, message: &str, fields: Value) -> Record {
+    let mut record = Record::at(level);
+    record.envelope.message = Some(Rendered::new(message));
+    record.envelope.fields = named(fields);
+    record
 }
 
-/// ADR 0020 § 6's record, as far as this crate can fill it — the module doc
-/// owns which of § 6's envelope fields are absent and why.
+/// The `fields` bag as the envelope's named nodes.
 ///
-/// Serialised by hand rather than by `derive` for the one thing a derive
-/// cannot express: `fields` is omitted when there is nothing in it, and the
-/// key order is the reading order rather than a struct's declaration order
-/// being trusted to stay one.
-struct Record<'a> {
-    level: &'static str,
-    msg: &'a str,
-    fields: Option<Encodable>,
-}
-
-impl Serialize for Record<'_> {
-    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        let mut map = ser.serialize_map(None)?;
-        map.serialize_entry("level", self.level)?;
-        map.serialize_entry("msg", self.msg)?;
-        if let Some(fields) = self.fields.as_ref() {
-            map.serialize_entry("fields", fields)?;
-        }
-        map.end()
+/// Walked by [`crate::debug::node`] — the *one* walk — rather than by a second
+/// traversal written here, so a value carried as a log field and the same value
+/// dumped are the same node, and ADR 0092 § 5's substitution, redaction and
+/// elision reach a log record without this module applying any of them itself.
+///
+/// A bag walks to whichever of the two array shapes its keys make it: a map
+/// keeps its own keys, and a list — which `["a", "b"]` is — takes its indices
+/// back as names, because the envelope's fields are named and an array's list
+/// shape is exactly the one whose names are `"0"`, `"1"`, ….
+fn named(fields: Value) -> Vec<(String, Node)> {
+    match crate::debug::node(fields) {
+        Node::Map(entries) => entries
+            .into_iter()
+            .map(|(key, node)| (key.as_str().to_owned(), node))
+            .collect(),
+        Node::Sequence(items) => items
+            .into_iter()
+            .enumerate()
+            .map(|(index, node)| (index.to_string(), node))
+            .collect(),
+        // Unreachable from source: the row's parameter is a `CoreTy::Array`, so
+        // `E0401` refuses anything that is not one at the call, and the walk
+        // answers one of the two shapes above for every array — the third
+        // answer it has, `Node::Elided(Elision::Depth)`, needs a depth this is
+        // the root of.
+        _ => Vec::new(),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{LEVEL, Level};
+    use nvs_render::Level;
 
-    /// [`LEVEL`]'s rows and [`Level`]'s dispatch name the same five cases, and
-    /// each row's integer is the severity the dispatch reads it back by. These
+    use super::LEVEL;
+
+    /// [`LEVEL`]'s rows and the record model's roster name the same five cases,
+    /// and each row's integer is the severity the model reads it back by. These
     /// are the pair that would otherwise drift: the enum is what a program
-    /// writes and the `match` is what the record is rendered from, so a case
-    /// in one alone is either surface with no rendering or a rendering nothing
-    /// can reach.
+    /// writes and the roster is what the record is rendered from, so a case in
+    /// one alone is either surface with no rendering or a rendering nothing can
+    /// reach.
     #[test]
     fn the_levels_and_their_tags_agree() {
         assert_eq!(LEVEL.cases.len(), 5, "ADR 0092 § 2's roster is five cases");
         for (case, severity) in LEVEL.cases {
-            let level = Level::from_severity(*severity)
-                .unwrap_or_else(|| panic!("`Core\\Log\\Level::{case}` has no dispatch"));
+            let severity = u8::try_from(*severity)
+                .unwrap_or_else(|_| panic!("`Core\\Log\\Level::{case}` is not a syslog severity"));
+            let level = Level::from_syslog_severity(severity)
+                .unwrap_or_else(|| panic!("`Core\\Log\\Level::{case}` has no level"));
             assert_eq!(
-                level.tag(),
+                level.name(),
                 case.to_lowercase(),
                 "`Core\\Log\\Level::{case}` renders as its own name, lowercased"
             );
@@ -368,9 +328,9 @@ mod tests {
     /// rejected, so they are the ones asked for here.
     #[test]
     fn an_undeclared_severity_is_not_a_case() {
-        for absent in [0, 1, 5, 8, -1] {
+        for absent in [0, 1, 5, 8, 255] {
             assert!(
-                Level::from_severity(absent).is_none(),
+                Level::from_syslog_severity(absent).is_none(),
                 "{absent} is not one of ADR 0092 § 2's five severities"
             );
         }

@@ -210,6 +210,17 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// One value as a node at a record's root, under this crate's own [`Caps`].
+///
+/// The entry point for a producer outside this module — [`crate::log`]'s
+/// `fields` bag is walked through here — so that a value written as a log field
+/// and the same value dumped are the same node, with § 5's transformations
+/// applied once and in one place. Everything else about the walk, including
+/// what it cannot see, is [`node_of`]'s.
+pub(crate) fn node(value: Value) -> Node {
+    node_of(value, &Caps::default(), 0, &mut Seen::default())
+}
+
 /// ADR 0092 § 6's *"a record at `Debug`, one node per argument"* — the whole
 /// of what `dump` produces, and the shape M8's log record is built from too.
 fn record_of(tail: &Value) -> Result<Record, Fault> {
