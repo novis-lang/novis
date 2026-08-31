@@ -1,0 +1,37 @@
+--TEST--
+Core\Test::scriptAnswers writes the queue every Core\Cli prompt drains, so an interactive flow is assertable — ADR 0086 § 4, ADR 0079 § 12
+--FILE--
+<?nvs
+// This case runs with every standard stream redirected, which is § 4's "no
+// controlling terminal" — so every answer below is the scripted one, and each
+// line is what a person would have typed at that prompt.
+Core\Test::scriptAnswers(["Ada", "y", "2"]);
+
+echo Core\Cli::ask("Your name?"), "\n";
+echo Core\Cli::confirm("Continue?") ? "yes" : "no", "\n";
+// A scripted answer is an answer, so `select` numbers its options and reads the
+// number — the menu an unattended run does not build at all.
+echo Core\Cli::select("Pick one", ["alpha", "beta", "gamma"]), "\n";
+
+// A queue with nothing left in it is the unattended run again, which is what
+// makes "the flow asked one more question than the test scripted" something a
+// test asserts rather than something it hangs on.
+try {
+    Core\Cli::ask("Anything else?");
+} catch (Core\Cli\NotInteractive $drained) {
+    echo $drained->message, "\n";
+}
+
+// The tail, not a replacement: a flow scripted in two calls is read in one
+// order, so what the second call added is still behind what the first did.
+Core\Test::scriptAnswers(["first"]);
+Core\Test::scriptAnswers(["second"]);
+echo Core\Cli::ask("One?"), "\n";
+echo Core\Cli::ask("Two?"), "\n";
+--EXPECT--
+Ada
+yes
+beta
+no answer for Core\Cli::ask: there is no controlling terminal
+first
+second

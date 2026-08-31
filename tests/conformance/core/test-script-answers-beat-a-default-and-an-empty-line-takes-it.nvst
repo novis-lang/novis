@@ -1,0 +1,26 @@
+--TEST--
+A scripted answer is taken over a prompt's default, and a scripted empty line takes that default — ADR 0086 § 4
+--FILE--
+<?nvs
+// A queued line is what a person typed, so it wins over the `default` the
+// unattended run would have taken: scripting an answer that made no difference
+// would be a queue nothing could assert.
+Core\Test::scriptAnswers(["Ada"]);
+echo Core\Cli::ask("Your name?", {default: "nobody"}), "\n";
+
+// An empty line is what pressing Enter does, and that is the default rather
+// than an empty answer — the same reading for each prompt that takes one.
+Core\Test::scriptAnswers(["", ""]);
+echo Core\Cli::ask("Your name?", {default: "nobody"}), "\n";
+echo Core\Cli::confirm("Continue?", {default: true}) ? "yes" : "no", "\n";
+
+// `select` reads it the same way, so a scripted flow that steps past a menu
+// does not have to know the menu's numbering to leave it alone.
+array<string> $choices = ["alpha", "beta"];
+Core\Test::scriptAnswers([""]);
+echo Core\Cli::select("Pick one", $choices, {default: "beta"}), "\n";
+--EXPECT--
+Ada
+nobody
+yes
+beta

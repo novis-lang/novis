@@ -272,6 +272,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_test_advance",
             doc: Some(&ADVANCE_DOC),
         },
+        CoreMethod {
+            name: "scriptAnswers",
+            names: &["answers"],
+            params: &[CoreTy::Array(&CoreTy::Text(Qual::Neutral))],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_script_answers",
+            doc: Some(&SCRIPT_ANSWERS_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -300,6 +309,23 @@ const ADVANCE_DOC: MethodDoc = MethodDoc {
             desc: "The moved reading lies outside the representable range, about ±9999 years.",
         },
     ],
+};
+
+/// `Core\Test::scriptAnswers`'s reference card — ADR 0117.
+const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
+    short: "Writes down what the next `Core\\Cli` prompts will be answered with, so an \
+            interactive flow is assertable instead of untestable — each prompt takes the oldest \
+            line still queued rather than reading a terminal.",
+    params: &[ParamDoc {
+        name: "answers",
+        desc: "One line per prompt, in the order the subject asks them — what a person would \
+               have typed, without its ending. A `select` reads the menu number, a `confirm` \
+               reads `y` or `n`, and an empty line is an empty answer rather than a silence.",
+        shape: &[],
+    }],
+    ret: "Nothing. The lines join the tail of the queue, so scripting a flow in two calls reads \
+          in one order; what no prompt drained is discarded with the test.",
+    errors: &[],
 };
 
 /// `Core\Test::assertSame`'s reference card — ADR 0117.
@@ -654,11 +680,88 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The `array<string>` a scripted flow is written as, copied out line by line.
+///
+/// Owned `String`s for [`crate::process`]'s `argv_of` reason: the queue outlives
+/// this call, and a slot's `Value` is borrowed from the caller's array rather
+/// than retained.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for an element that is not text — unreachable from
+/// source, since the row declares `array<string>` and `E0401` refuses anything
+/// else a phase earlier.
+fn lines_of(value: Value) -> Result<Vec<String>, Fault> {
+    let array = value.array_ptr().ok_or_else(|| {
+        // Unreachable from source: the row declares `array<string>` here, so
+        // `E0401` refuses any other argument a phase before this runs.
+        Fault::fatal(format!(
+            "Core\\Test::scriptAnswers expected an `array`, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    let array = crate::arr::borrowed(array);
+    let mut lines = Vec::new();
+    let mut from = 0_usize;
+    while let Some(slot) = array.next_slot(from) {
+        from = slot + 1;
+        let element = array
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        let line = element.as_text().ok_or_else(|| {
+            // Unreachable from source, for the element as for the array: the
+            // declared `array<string>` is what `E0401` checks, so a non-text
+            // element never reaches this crate.
+            Fault::fatal(format!(
+                "Core\\Test::scriptAnswers expected a `string` answer, got tag {}",
+                element.tag_byte()
+            ))
+        })?;
+        lines.push(line.to_owned());
+    }
+    Ok(lines)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::scriptAnswers(array<string> $answers): void` — ADR 0086
+    /// § 4's last paragraph, which is the whole of what makes an interactive
+    /// flow assertable: prompts drain a queue the test supplied rather than
+    /// reading a terminal.
+    ///
+    /// **One member for all five prompts, and it names none of them.** The
+    /// queue is drained in `nvs_stdlib::cli`'s `ask_terminal`, which every
+    /// prompt already goes through, so `ask`, `confirm`, `select`,
+    /// `multiSelect` and `secret` gain this at once and a sixth prompt would
+    /// gain it by construction. A per-member spelling — `answerAsk`,
+    /// `answerSelect` — would make the test say which member asked, which is
+    /// exactly the coupling to the subject's internals a test should not have.
+    ///
+    /// **Why it lives here rather than on `Core\Cli`.** Scripting an answer is
+    /// something a *test* does to its subject, and `Core\Cli`'s own members are
+    /// what the subject calls; a filler on `Core\Cli` would be a way for
+    /// production code to answer its own prompts, which is a door ADR 0086 § 4
+    /// has no reason to open. The state is on `nvs_runtime::Ctx` beside the
+    /// fixed clock, and ADR 0079 § 2's per-test isolate is what scopes it —
+    /// that field's docs are the home of both decisions.
+    ///
+    /// **No refusal for a call outside a test**, which is where this differs
+    /// from `Core\Test::advance`. `advance` has a precondition it can check —
+    /// a clock something else fixed — while a queue nothing drains is simply a
+    /// queue nothing drains: there is nothing to be wrong about, and the honest
+    /// answer to "who else could reach this" is the class name it is spelled
+    /// under.
+    fn nvs_core_test_script_answers(ctx, args: [1]) {
+        ctx.script_answers(lines_of(args[0])?);
+        Ok(Value::null())
+    }
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_test_advance" => (nvs_core_test_advance as *const ()).cast(),
+        "nvs_core_test_script_answers" => (nvs_core_test_script_answers as *const ()).cast(),
         "nvs_core_test_assert_same" => (nvs_core_test_assert_same as *const ()).cast(),
         "nvs_core_test_assert_equals" => (nvs_core_test_assert_equals as *const ()).cast(),
         "nvs_core_test_assert_equals_deep" => {
@@ -1445,10 +1548,12 @@ mod tests {
         })
     }
 
-    /// Every assertion — every row but the two that are not one, each of which
-    /// has its own test below: § 5's `expectFailure`, which takes a body rather
-    /// than a subject, and § 12's `advance`, which asserts nothing at all and
-    /// is the fixed clock's mutator.
+    /// Every assertion — every row but the three that are not one: § 5's
+    /// `expectFailure`, which takes a body rather than a subject; § 12's
+    /// `advance`, which asserts nothing at all and is the fixed clock's
+    /// mutator; and ADR 0086 § 4's `scriptAnswers`, which is the same kind of
+    /// thing as `advance` — a test declaring the world its subject runs in,
+    /// here the answers its prompts read.
     ///
     /// Named rather than derived, so that adding a member to this class has to
     /// answer "is this an assertion?" here instead of quietly joining or
@@ -1457,7 +1562,7 @@ mod tests {
         CLASS
             .methods
             .iter()
-            .filter(|method| !matches!(method.name, "expectFailure" | "advance"))
+            .filter(|method| !matches!(method.name, "expectFailure" | "advance" | "scriptAnswers"))
     }
 
     /// § 4's order, which is the opposite of the one every migrated test suite
@@ -1584,12 +1689,13 @@ mod tests {
             .expect("§ 5's member is registered");
         assert!(matches!(member.params, [CoreTy::Callable]));
         assert!(matches!(member.return_ty, CoreTy::Void));
-        // It is one of exactly two rows that assert nothing about a subject —
-        // this and § 12's `advance` — and [`asserting_members`] names both by
-        // hand. This count is what makes adding a member to this class have to
-        // answer "is it an assertion?": a new row joins § 4's shape sweep
-        // unless it is listed there, and listing it moves this number.
-        assert_eq!(asserting_members().count(), CLASS.methods.len() - 2);
+        // It is one of exactly three rows that assert nothing about a subject —
+        // this, § 12's `advance` and ADR 0086 § 4's `scriptAnswers` — and
+        // [`asserting_members`] names all three by hand. This count is what
+        // makes adding a member to this class have to answer "is it an
+        // assertion?": a new row joins § 4's shape sweep unless it is listed
+        // there, and listing it moves this number.
+        assert_eq!(asserting_members().count(), CLASS.methods.len() - 3);
         assert_eq!(equality_members().count(), 3);
     }
 }

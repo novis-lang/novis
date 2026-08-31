@@ -641,6 +641,25 @@ pub struct Ctx {
     /// **What it spends:** two words per request, and one predictable
     /// not-taken branch per draw.
     random_state: Option<u64>,
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4's
+    /// scripted answer queue: what the next `Core\Cli` prompts read instead of
+    /// a terminal, oldest first, and empty for every context outside a test.
+    ///
+    /// **Beside [`Self::fixed_clock`] because it is the same idea** — a test
+    /// declares the world its subject runs in, and the isolate is what scopes
+    /// the declaration ([ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// § 2 gives each test its own context). A queue held in a `thread_local`
+    /// would outlive the test that filled it and answer the next one's prompt,
+    /// which is the failure a fixed clock avoids the same way.
+    ///
+    /// The only writer is `Core\Test::scriptAnswers`, so a request or a
+    /// `nvs run` never has one — and a program cannot script its own prompts
+    /// into a state nobody typed, which is what keeps § 4's "it never blocks"
+    /// a statement about the terminal rather than about this field.
+    ///
+    /// **What it spends:** three words per request for the empty queue, and the
+    /// answers themselves only where a test wrote them.
+    scripted_answers: std::collections::VecDeque<String>,
     /// `Core\Out::capture`'s buffers, innermost last —
     /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 5.
@@ -1136,6 +1155,7 @@ impl Ctx {
             trace_context: crate::trace_context::TraceContext::started(),
             fixed_clock: None,
             random_state: None,
+            scripted_answers: std::collections::VecDeque::new(),
             captures: Vec::new(),
             stmt_hits: Vec::new(),
             trace: Vec::new(),
@@ -2089,6 +2109,41 @@ impl Ctx {
     /// which draw a sequence begins at.
     pub fn set_random_state(&mut self, state: u64) {
         self.random_state = Some(state);
+    }
+
+    /// Adds `answers` to the tail of this context's scripted answer queue —
+    /// ADR 0086 § 4's last paragraph, as `Core\Test::scriptAnswers`.
+    ///
+    /// The tail rather than a replacement, because a queue that discarded what
+    /// it had not reached yet would make two calls scripting two halves of one
+    /// flow depend on how far the first half got. There is no member that
+    /// empties it: a queue nothing drained dies with the isolate that holds it,
+    /// which is the same lifetime [`Self::fixed_clock`] has.
+    pub fn script_answers(&mut self, answers: impl IntoIterator<Item = String>) {
+        self.scripted_answers.extend(answers);
+    }
+
+    /// Whether a prompt asked right now would be answered from the queue rather
+    /// than from a terminal.
+    ///
+    /// Read by `nvs_stdlib::cli` where a prompt decides whether it has anyone
+    /// to ask *before* it asks — `select` builds no menu for a question nobody
+    /// can answer — so the two questions have to be askable separately from
+    /// [`Self::take_scripted_answer`], which consumes.
+    #[must_use]
+    pub fn has_scripted_answer(&self) -> bool {
+        !self.scripted_answers.is_empty()
+    }
+
+    /// Takes the oldest scripted answer, or `None` for a context with none.
+    ///
+    /// `None` is the ordinary state and not a failure: every context outside a
+    /// test has one, and a test that scripted fewer answers than its subject
+    /// asks questions gets § 4's unattended answer for the rest — the default,
+    /// or `Core\Cli\NotInteractive` — which is what makes "too few answers" a
+    /// thing a test can assert rather than a hang.
+    pub fn take_scripted_answer(&mut self) -> Option<String> {
+        self.scripted_answers.pop_front()
     }
 
     /// Arms this request's static-property storage: one slot per entry in

@@ -110,6 +110,16 @@
 //! not-interactive path by construction rather than by luck, and a case can
 //! freeze what it answers without a terminal or a person anywhere near it.
 //!
+//! A test can also *answer* them, which is ADR 0086 § 4's last paragraph and is
+//! [`ask_terminal`]'s first line: `Core\Test::scriptAnswers` writes a queue onto
+//! the request's own context, and a prompt takes its oldest line ahead of both
+//! questions above. Ahead of them, because a flow whose answers depended on
+//! whether the suite ran from a developer's shell or from CI is exactly what a
+//! scripted queue exists to remove. `select` and `multiSelect` decide whether
+//! there is anyone to ask *before* they ask — they render a menu first — so
+//! those two read [`answerable`] rather than [`watched`], and that is the whole
+//! of what the queue costs this module.
+//!
 //! # Known gaps
 //!
 //! 1. **§ 3's `write` and `displayWidth` are not here.** `write` is a second
@@ -119,11 +129,7 @@
 //!    additionally owes a UAX #11 table this tree does not carry yet.
 //! 2. **The rest of § 15 does not exist** — no `arguments`.
 //!    `docs/spec/01-core-library.md` § 15 lists it and `docs/plan/m8.md`
-//!    owns when. ADR 0086 § 4's last paragraph is owed with it: under
-//!    `nvs test` a prompt should drain a scripted answer queue rather than
-//!    read a terminal, and today it takes the not-interactive path there
-//!    instead — a test's output is a buffer, so [`watched`] answers `false` —
-//!    which makes an interactive flow assertable only through its defaults.
+//!    owns when.
 //! 3. **A `Text` cannot be plain on one stream and styled on another in the
 //!    same run.** It holds bytes, and the styling is rendered into them once —
 //!    so a program writing the same `Text` to a terminal standard output and a
@@ -1099,11 +1105,32 @@ fn watched(ctx: &nvs_runtime::Ctx) -> bool {
 /// One line off the controlling terminal, or which kind of silence came back
 /// instead — nobody to ask, or nobody answering inside
 /// [`nvs_runtime::terminal::ANSWER_DEADLINE`].
-fn ask_terminal(ctx: &nvs_runtime::Ctx, question: &str, echo: Echo) -> Answer {
+fn ask_terminal(ctx: &mut nvs_runtime::Ctx, question: &str, echo: Echo) -> Answer {
+    // ADR 0086 § 4's last paragraph, and it is *ahead* of both other answers on
+    // purpose. All five prompts reach the terminal through here, so the queue
+    // costs none of them a path of their own; and a scripted answer wins over a
+    // terminal that is there, because a test whose result depended on whether
+    // the developer ran it from a shell or from CI is the thing this exists to
+    // remove. `Core\Test::scriptAnswers` is the only filler, so outside a test
+    // this is one not-taken branch on an empty queue.
+    if let Some(scripted) = ctx.take_scripted_answer() {
+        return Answer::Line(scripted);
+    }
     if !watched(ctx) {
         return Answer::Ended;
     }
     nvs_runtime::terminal::prompt(question, echo)
+}
+
+/// Whether this call has anyone to ask *or* an answer already written down —
+/// [`watched`] for the members that decide before they ask.
+///
+/// `select` and `multiSelect` build a menu, which runs the caller's `labels`
+/// callback, so they ask this first rather than rendering lines nobody will
+/// read. Asking [`watched`] alone there would put those two members' scripted
+/// answers out of reach while the other three drained the same queue.
+fn answerable(ctx: &nvs_runtime::Ctx) -> bool {
+    ctx.has_scripted_answer() || watched(ctx)
 }
 
 /// What a prompt with nowhere to read and nothing to fall back on throws —
@@ -1330,9 +1357,9 @@ nvs_runtime::nvs_helper! {
 
         // The empty list above is refused whether or not anyone is watching —
         // it is a bug in the program either way — but the menu is only *built*
-        // where it can be read, so an unattended run calls no `labels`
-        // callback and renders no line it would then discard.
-        if !watched(ctx) {
+        // where it can be read or answered, so an unattended run calls no
+        // `labels` callback and renders no line it would then discard.
+        if !answerable(ctx) {
             return if given(fallback) {
                 Ok(handed_back(fallback))
             } else {
@@ -1442,9 +1469,9 @@ nvs_runtime::nvs_helper! {
         }
 
         // `select`'s reasoning: the empty list is a bug either way, but the
-        // menu is only built where it can be read, so an unattended run calls
-        // no `labels` callback.
-        if !watched(ctx) {
+        // menu is only built where it can be read or answered, so an unattended
+        // run calls no `labels` callback.
+        if !answerable(ctx) {
             return Err(not_interactive("multiSelect"));
         }
 
@@ -2793,10 +2820,13 @@ mod tests {
     /// behavioural test that could be written here and fail exactly this.
     #[test]
     fn a_prompt_reads_the_controlling_terminal_and_not_stdin() {
-        let ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
         assert!(!watched(&ctx));
+        // A context with nothing scripted onto it, which is every context
+        // outside a test: § 4's last paragraph adds an answer ahead of this
+        // one, never a second way to reach the terminal.
         assert!(matches!(
-            ask_terminal(&ctx, "Name? ", Echo::Shown),
+            ask_terminal(&mut ctx, "Name? ", Echo::Shown),
             Answer::Ended
         ));
         assert!(matches!(

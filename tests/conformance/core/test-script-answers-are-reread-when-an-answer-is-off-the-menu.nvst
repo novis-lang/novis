@@ -1,0 +1,31 @@
+--TEST--
+A scripted answer off the menu is asked again from the queue, and multiSelect reads one scripted line as a whole set — ADR 0086 § 4
+--FILE--
+<?nvs
+array<string> $choices = ["alpha", "beta", "gamma"];
+
+// A number outside the list is asked again rather than clamped to a neighbour,
+// and "asked again" under a scripted queue is the next line in it — so a test
+// pins the retry a person would have seen instead of only the answer that stuck.
+Core\Test::scriptAnswers(["9", "not a number", "2"]);
+string $one = Core\Cli::select("Pick one", $choices);
+echo $one, "\n";
+
+// One line of numbers is the whole set: a choice named twice is chosen once,
+// and the answer comes back in the menu's order rather than the typing's.
+Core\Test::scriptAnswers(["3,1,1"]);
+array<string> $some = Core\Cli::multiSelect("Pick some", $choices);
+foreach ($some as string $chosen) {
+    echo $chosen, "\n";
+}
+
+// An empty line is the empty set, which is why § 4's table gives this member no
+// default — and a queued empty line is a person pressing Enter at the menu.
+Core\Test::scriptAnswers([""]);
+array<string> $none = Core\Cli::multiSelect("Pick some", $choices);
+echo Core\Arr::count($none), "\n";
+--EXPECT--
+beta
+alpha
+gamma
+0

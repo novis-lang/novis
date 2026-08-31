@@ -13851,7 +13851,7 @@ Renders `$value` exactly as `dump` would and answers it as the carrier of the si
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertThrows, assertDoesNotThrow, expectFailure, advance
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertThrows, assertDoesNotThrow, expectFailure, advance, scriptAnswers
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -13921,6 +13921,7 @@ final class CartTest {
 | [`Core\Test::assertDoesNotThrow`](#core-core-test-assertdoesnotthrow) | `assertDoesNotThrow(callable $body, {message?: string}): void` |
 | [`Core\Test::expectFailure`](#core-core-test-expectfailure) | `expectFailure(callable $body): void` |
 | [`Core\Test::advance`](#core-core-test-advance) | `advance(Core\Time\Duration $by): void` |
+| [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
 
 <a id="core-core-test-assertsame"></a>
 #### `Core\Test::assertSame`
@@ -14123,6 +14124,21 @@ Moves the fixed clock a `#[Test(at: ...)]` declared forward by `$by`, so a test 
 **Returns** `void` — Nothing. The next `Core\Time::now()` reads the moved clock.
 
 **Throws** `LogicError` — The running test declared no `at:`, so there is no fixed clock to move — the host's clock is never advanced.; `RuntimeError` — The moved reading lies outside the representable range, about ±9999 years.
+
+<a id="core-core-test-scriptanswers"></a>
+#### `Core\Test::scriptAnswers`
+
+```nvs skip
+Core\Test::scriptAnswers(array<string> $answers): void
+```
+
+Writes down what the next `Core\Cli` prompts will be answered with, so an interactive flow is assertable instead of untestable — each prompt takes the oldest line still queued rather than reading a terminal.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$answers` | `array<string>` | One line per prompt, in the order the subject asks them — what a person would have typed, without its ending. A `select` reads the menu number, a `confirm` reads `y` or `n`, and an empty line is an empty answer rather than a silence. |
+
+**Returns** `void` — Nothing. The lines join the tail of the queue, so scripting a flow in two calls reads in one order; what no prompt drained is discarded with the test.
 
 <a id="core-core-task"></a>
 ### `Core\Task`

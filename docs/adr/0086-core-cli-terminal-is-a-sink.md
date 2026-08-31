@@ -252,7 +252,12 @@ cannot hang outranks one that never gives up. `nvs_stdlib::cli`'s
 
 Under `nvs test` ([0079](0079-testing-is-a-language-feature.md)), prompts drain a scripted answer queue
 supplied by the test rather than reading a terminal, so an interactive flow is assertable instead of
-untestable.
+untestable. The queue is `Core\Test::scriptAnswers(array<string> $answers)` — one member on the class the
+*test* calls rather than a filler on `Core\Cli`, which would be a way for production code to answer its
+own prompts — and it is drained where all five prompts already meet, so none of them grows a path of its
+own and a sixth would inherit it. A scripted line wins over a terminal that is there, since a test whose
+answers depended on whether it ran from a shell or from CI is what this removes; a queue with nothing left
+in it is the unattended run above, so scripting too few answers is assertable rather than a hang.
 
 ### 5. In-place output is a scoped live region
 
