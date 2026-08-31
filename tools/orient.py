@@ -93,8 +93,13 @@ problems: list[str] = []
 current_item: str = ""
 
 #: A `path:line` anchor in a checklist item, which `run_state` expands into a window of the file.
+#: `docs` is a root here for the same reason the code trees are: a group whose work is prose --
+#: a reference page, an ADR section, a table that still says a feature has no spelling -- names the
+#: paragraph it rewrites, and inlining that paragraph is exactly as useful as inlining a function
+#: body. Without it `session.py`'s per-item anchor gate cannot be satisfied by a documentation
+#: item at all, which is how it stood when stage 10's own reference half came up.
 ANCHOR_RE = re.compile(
-    r"\b((?:crates|tools|tests|benches|examples|fuzz)/[\w./-]+\.\w+):(\d+)\b"
+    r"\b((?:crates|tools|tests|benches|examples|fuzz|docs)/[\w./-]+\.\w+):(\d+)\b"
 )
 
 #: Lines of a file printed either side of an anchor. Wide enough to hold a signature and the top
