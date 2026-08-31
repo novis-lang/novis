@@ -770,6 +770,129 @@ mod tests {
         );
     }
 
+    /// ADR 0058 § 1, asked as a **closed set** rather than of one row: across
+    /// the whole registry, the only parameter that admits a `tainted` URL is
+    /// the launderer's.
+    ///
+    /// § 1 makes the URL parameter of every outbound member a sink, so a
+    /// `tainted` operand is a diagnostic there exactly as at `Core\Db`'s query
+    /// text. Asserted over every `$url` in `CLASSES` because that is the shape
+    /// the rule actually has: a *second* member accepting an outbound URL is
+    /// the thing this exists to catch, and it is invisible from any one row.
+    /// A client member added tomorrow with `CoreTy::Text(Qual::Contagious)` at
+    /// its URL — the spelling that reads most natural, since the URL is what
+    /// the request is made of — fails here rather than at a review.
+    ///
+    /// The `names` column is what identifies the parameter, and ADR 0063 R2
+    /// makes that the spec's own signature column rather than a convention
+    /// this test invented.
+    #[test]
+    fn an_outbound_url_parameter_refuses_a_tainted_operand() {
+        use std::collections::BTreeSet;
+
+        let mut interner = TypeInterner::new();
+        let mut admitting: BTreeSet<(&'static str, &'static str)> = BTreeSet::new();
+        let mut seen: BTreeSet<(&'static str, &'static str)> = BTreeSet::new();
+        for class in CLASSES {
+            for method in class.members() {
+                let Some(at) = method.names.iter().position(|name| *name == "url") else {
+                    continue;
+                };
+                seen.insert((class.name, method.name));
+                let sig = method_sig(method, true, &mut interner);
+                if crate::expr::quals::admits_tainted_argument(
+                    sig.qual_at(at),
+                    sig.return_ty,
+                    &mut interner,
+                ) {
+                    admitting.insert((class.name, method.name));
+                }
+            }
+        }
+
+        assert!(
+            seen.contains(&(r"Core\Http", "allowUrl")),
+            "the roster is read off the `names` column, so a member spelling its URL parameter \
+             something else would empty this test rather than fail it"
+        );
+        assert_eq!(
+            admitting,
+            BTreeSet::from([(r"Core\Http", "allowUrl")]),
+            "an outbound URL is a sink (ADR 0058 § 1) and `Core\\Http::allowUrl` is the one door \
+             through it (§ 2) — a second member admitting a tainted URL is a second door, and the \
+             policy is only worth what the narrowest of them enforces"
+        );
+    }
+
+    /// ADR 0058 § 2's load-bearing half: the launderer's answer is a **value**,
+    /// not a laundered `string`.
+    ///
+    /// A `Qual::Launder` that returned `CoreTy::Str` would satisfy ADR 0024 § 3
+    /// completely and still be wrong here, because what it hands back is as
+    /// resolvable as what went in — the check happens at one moment and the
+    /// connection at another, and a second DNS answer in between is the
+    /// rebinding attack. So the two halves are asserted together: the
+    /// qualifier comes off, *and* what comes back is `Core\Http\Target`.
+    ///
+    /// The target's own emptiness is the third half. It has no members at all,
+    /// so a program cannot read the approved address back out and rebuild a
+    /// request around a different one; `nvs_stdlib::http`'s module doc is the
+    /// home of why that is deliberate rather than unfinished.
+    #[test]
+    fn allow_url_pins_what_it_launders() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+
+        let (owner, sig) = resolve_method(
+            &QName::parse(r"Core\Http"),
+            "allowUrl",
+            &table,
+            &ClassGraph::default(),
+        )
+        .expect("Core\\Http::allowUrl is registered");
+        assert_eq!(owner.to_string(), r"Core\Http");
+        assert_eq!(sig.params.len(), 1);
+
+        assert_eq!(
+            sig.qual_at(0),
+            Some(Qual::Launder),
+            "ADR 0024 § 3's narrow, sink-named launderer — this one for the outbound sink"
+        );
+        assert!(
+            crate::expr::quals::admits_tainted_argument(
+                sig.qual_at(0),
+                sig.return_ty,
+                &mut interner
+            ),
+            "and it is the one outbound parameter that takes a tainted operand, since a URL that \
+             needed no laundering would not be at this door"
+        );
+
+        let answer = interner.describe(sig.return_ty);
+        assert_eq!(
+            answer, r"Core\Http\Target",
+            "the answer pins: it carries the address that was approved, so the connection is made \
+             to that address and no second resolution can answer differently"
+        );
+        assert!(
+            !answer.contains("string"),
+            "a `string` answer would have removed the qualifier and left the rebinding gap open, \
+             which is the failure ADR 0058 § 2 exists to close"
+        );
+
+        let target = CLASSES
+            .iter()
+            .find(|class| class.name == r"Core\Http\Target")
+            .expect("the launderer's answer is a registered class");
+        assert!(
+            target.members().next().is_none(),
+            "and it exposes nothing: a member answering the pinned address would let a program \
+             rebuild the request around a different one"
+        );
+        assert_eq!(target.slots, &["url", "address"]);
+    }
+
     /// ADR 0044 § 1, asked of the resolved signature the way a call site asks
     /// it: **neither half** of what `Core\Process::run` is handed can carry a
     /// tainted value into the child, and the two halves are refused by
