@@ -1208,6 +1208,18 @@ is why" — is this file.
   sentence. One `ls crates/nvs-stdlib/src/<class>.rs` separates "a row went missing" from "the stage
   is unstarted", and the second is ordinary state that a group has to be planned for rather than a
   failure to bisect.
+- **`target/release/nvs.exe` is not rebuilt by anything, and a check that measures it fails with a
+  sentence about your *config* rather than about staleness.** Stage 1's
+  `a warm-cache CLI start stays under 10ms` failed after session 0003 with
+  `error[E0601]: unknown field 'internal', expected 'connect'` at `nvs.toml:102` — which reads as a
+  config regression and is not one: `[app.capabilities.net] internal` had landed in `07075f20` and
+  the release binary on disk predated it by a day. `tools/bench.py` deliberately refuses a debug
+  build (its own § *Release against release*), and the driver only ever builds debug, so **every
+  release-measured check goes stale the moment the tree grows a field, a member or a diagnostic the
+  last `cargo build --release` did not have**. The tell is the `warning: nvs.exe is N h older than
+  the newest file under crates/` line the tool prints directly above the failure — it is one line up
+  and reads as boilerplate. `cargo build --release` and re-run before believing any part of the
+  error underneath it.
 
 ## Running things
 

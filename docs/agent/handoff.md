@@ -2,58 +2,60 @@
 
 ## State
 
-**`Core\Ast::parse` answers the compiler's own tree**, and the walk behind it is
-`nvs_syntax::walk` (`crates/nvs-syntax/src/walk.rs`) rather than anything in `nvs-stdlib`: the AST's
-enums are `#[non_exhaustive]`, so only a match inside `nvs-syntax` is checked. What crosses the
-crate boundary is `walk::Node`, a rose tree of `&'static str` kinds holding no `Expr`, no `Span` and
-no borrow of the source — which is how ADR 0019 § 3's inertness is structural here rather than
-promised. `crates/nvs-stdlib/src/ast.rs`'s module doc is the home of that argument and of the three
-known gaps (the typed per-production roster, a node's own text, `parseFile`).
+**`Core\Reflect\ClassInfo::call` is a row, a card and a body**, and the whole of ADR 0019 § 2's
+visibility rule for it is `nvs_runtime::call_erased_method`: past the two questions a description
+owes about its own subject, `call` hands the call to the path an ordinary `$value->name(...)` on a
+`mixed` receiver takes. That path already asks every question this member owes — `public`, declared
+at all, native, arity, per-parameter tag — and asks them on behalf of a site outside every class by
+construction, which is exactly a reflective call site's premise. The helper's own doc comment in
+`crates/nvs-stdlib/src/reflect.rs` is the home of why a second check written there would be the copy
+that silently stops being the rule.
 
-**A node is a statement, an expression, or a member of a declaration** — `walk`'s own module doc
-owns why the line is drawn there, and `nodes()` is `children()` closed transitively with the
-receiver excluded, which is what makes the fixture's count 4.
+**`$arguments` is required, not defaulted to `[]`** — `registry::Const` has no array variant, and the
+row's comment says so rather than approximating a signature the registry cannot express.
 
-**The driver's acceptance check for stage 8 is green**: `examples/reflect.nvs` prints all five
-lines, `Core\Arr::count($tree->nodes())` included.
+**`subject_of` is now shared by both acting members**, so the "this describes X, and the value is a
+Y" `LogicError` and the not-an-object `RuntimeError` are written once.
 
-**Stage 8's remaining named tests are the two reflective *actions*** — reflection can describe and
-read today, and `crates/nvs-stdlib/src/reflect.rs`'s known gap 3 is the home of what calling and
-writing still owe (ADR 0014's hook among them). Stage 7 still owes the schema-identity test in the
-backlog.
+**Stage 8's remaining named test is the reflective property write.** The shape of the problem is
+worth knowing before starting: ADR 0014's hook is emitted **at the call site** by
+`nvs_ir::lower::expr::emit_observer_call`, so a native member has no lowering to reach it and
+`nvs_object_field_set` is not where the hook lives either. Whatever `set` does, it cannot be
+`nvs_object_field_set` plus a retain. Stage 7 still owes the schema-identity test in the backlog.
+
+**The driver's stage-1 warm-start check was failing on a stale `target/release/nvs.exe`, not on the
+tree** — `cargo build --release` here, and it now reports `min 7.3 ms` against its 10 ms budget. The
+playbook bullet under *Tooling* is the home of why it will recur.
 
 ## Next group
 
-**The reflective actions — stage 8's last item, over `crates/nvs-stdlib/src/reflect.rs`,
-`crates/nvs-runtime/src/ctx.rs` and `tests/conformance/core/`. ADR 0019 § 2 is the specification and
-`docs/agent/loop-goal.toml:2467` is the check that names both tests.**
+**The reflective property write — stage 8's last named item, over `crates/nvs-stdlib/src/reflect.rs`
+and whatever seam ADR 0014's hook turns out to be reachable through. ADR 0014 is the specification
+and `docs/agent/loop-goal.toml:2474` is the check that names the test.**
 
-- [ ] **`Core\Reflect\ClassInfo::call` — a reflective call faces the visibility check the ordinary
-      call faces** — ADR 0019 § 2. The reader half is already written against a descriptor:
-      `crates/nvs-stdlib/src/reflect.rs:402`'s `describe` and `crates/nvs-stdlib/src/reflect.rs:600`'s
-      `get` are the shape, and the dispatch a native member reaches a program's method through is
-      `nvs_runtime::call_static` via `Ctx::class_desc` — `crates/nvs-stdlib/src/command.rs`'s
-      `dispatching` test is the worked example. The named test is
-      `a_reflective_call_to_a_private_method_from_outside_fails_like_the_ordinary_call`.
-- [ ] **A reflective property write runs the hook an ordinary write runs** — ADR 0014, whose rule is
-      that a property access runs its own hook. `crates/nvs-stdlib/src/reflect.rs:600`'s `get` is the
-      read this mirrors, and `crates/nvs-stdlib/src/reflect.rs:81` (known gap 3) is the home of what
-      the write owes beyond it. The named test is
-      `a_reflective_property_write_runs_the_hook_an_ordinary_write_runs`.
-- [ ] **Three `.nvst` cases per new member, under `tests/conformance/core/`** — the floor gate at
-      `crates/nvs-stdlib/tests/conformance_coverage.rs:331` wants three *questions*, not three
-      calls, and the error-path gate at `crates/nvs-stdlib/tests/conformance_coverage.rs:637` wants
-      each new `Fault::` message either echoed by a case or declared unreachable at its site.
-      `tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst` is the shape.
+- [ ] **Find where a native member can reach ADR 0014's observer, and decide whether `set` can exist
+      at all** — the hook is emitted at the call site by
+      `crates/nvs-ir/src/lower/expr.rs:3539`'s `emit_observer_call`, and the runtime's own write is
+      `crates/nvs-runtime/src/object.rs:2481`'s `nvs_object_field_set`, which knows nothing about it.
+      If the answer is a new runtime entry point, that is the slice; if it is that the observer must
+      be looked up off the `ClassDesc` the way `unwind` is, say so in the module doc. Decide and
+      record — a design call here is pre-authorized.
+- [ ] **`Core\Reflect\ClassInfo::set` — the five edits** — ADR 0019 § 2 and ADR 0014.
+      `crates/nvs-stdlib/src/reflect.rs:408`'s `subject_of` is the shared subject check already
+      written, `crates/nvs-stdlib/src/reflect.rs:715`'s `get` is the reader it mirrors, and the named
+      test is `a_reflective_property_write_runs_the_hook_an_ordinary_write_runs`.
+- [ ] **Three `.nvst` cases for the write, under `tests/conformance/core/`** —
+      `crates/nvs-stdlib/src/reflect.rs:800` is the Rust half's fixture and
+      `tests/conformance/core/reflect-call-runs-a-public-method-and-refuses-a-private-one.nvst` the
+      `.nvst` shape; `mixed $x = $obj;` is the spelling for an erased receiver (`var $x: mixed` is
+      `E0102`).
 
 ## Backlog
 
-- Stage 7's `application_code_and_the_engine_floor_produce_schema_identical_records` —
-  `docs/adr/0020-error-escalation-ladder.md` § 6.
-- ADR 0019 § 3's typed node roster (`Core\Ast\ClassDecl` and siblings) — known gap 1 in
-  `crates/nvs-stdlib/src/ast.rs`.
-- A node's own source text and position — known gap 2 there, and the point at which `parse`'s
-  `$source` becomes `Qual::Contagious`.
-- `Core\Ast::parseFile`, which is `fs.read` and so a capability-bearing member — known gap 3.
-- M8's fuzz target for `Core\Ast::parse` over M1's parser corpus — `docs/plan/m8.md` § *Verify*.
-- Item 35's `property<T>` ADR slot, the goal's one open ADR number.
+- Stage 7's schema-identity test — application code and the engine floor produce identical log
+  records for one error; `docs/plan/m8.md` § *Verify*.
+- Reflective *construction*, the third acting member ADR 0019 § 2 names — `crates/nvs-stdlib/src/reflect.rs`'s known gap 3.
+- § 1's remaining `*Info` classes: a description names properties and no methods, so
+  `get_class_methods` has no answer — same known-gap list.
+- `Core\Ast`'s typed per-production roster and a node's own text —
+  `crates/nvs-stdlib/src/ast.rs`'s module doc.
