@@ -70,8 +70,8 @@ modules = [
   # The gate goal 3 built. Every member in this goal declares against it.
   "crates/nvs-config/src/capability.rs",
   # The stream every network member is written over, and the pool every blocking call goes to.
-  "crates/nvs-host/src/stream.rs",
-  "crates/nvs-host/src/pool.rs",
+  "crates/nvs-host/src/net.rs",
+  "crates/nvs-host/src/blocking.rs",
   # Items 16, 23, 25 are checker work rather than member work.
   "crates/nvs-types/src/expr/quals.rs",
   "crates/nvs-types/src/retrieval.rs",
