@@ -244,6 +244,14 @@ pub enum OutputSink {
     /// This is what a test uses, and the shape an HTTP response body will
     /// reuse in M7.
     Buffer(Vec<u8>),
+    /// A file on disk, under [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// § 10's rotation and retention bound.
+    ///
+    /// What `[log] target = "file:…"` selects once something reads that
+    /// directive at run time; until then it is reachable only through
+    /// [`Ctx::set_diagnostic_sink`], which is also the whole of how the floor's
+    /// own bound is asserted.
+    File(crate::logfile::LogFile),
     /// Discarded.
     Sink,
 }
@@ -3282,7 +3290,9 @@ impl Ctx {
     pub fn take_buffered_diagnostic(&mut self) -> Option<Vec<u8>> {
         match &mut self.diagnostic {
             OutputSink::Buffer(buffer) => Some(std::mem::take(buffer)),
-            OutputSink::Stdout | OutputSink::Stderr | OutputSink::Sink => None,
+            OutputSink::Stdout | OutputSink::Stderr | OutputSink::File(_) | OutputSink::Sink => {
+                None
+            }
         }
     }
 
@@ -3299,7 +3309,9 @@ impl Ctx {
         match &mut self.output {
             OutputSink::Stdout => io::stdout().flush(),
             OutputSink::Stderr => io::stderr().flush(),
-            OutputSink::Buffer(_) | OutputSink::Sink => Ok(()),
+            // A `LogFile` writes straight through — there is no buffer of its
+            // own between `write_all` and the descriptor.
+            OutputSink::Buffer(_) | OutputSink::File(_) | OutputSink::Sink => Ok(()),
         }
     }
 
@@ -3316,9 +3328,11 @@ impl Ctx {
     #[must_use]
     pub fn carrier(&self) -> &'static str {
         match &self.output {
-            OutputSink::Stdout | OutputSink::Stderr | OutputSink::Buffer(_) | OutputSink::Sink => {
-                CARRIER_CLI_TEXT
-            }
+            OutputSink::Stdout
+            | OutputSink::Stderr
+            | OutputSink::Buffer(_)
+            | OutputSink::File(_)
+            | OutputSink::Sink => CARRIER_CLI_TEXT,
         }
     }
 
@@ -3363,7 +3377,9 @@ impl Ctx {
     pub fn take_buffered_output(&mut self) -> Option<Vec<u8>> {
         match &mut self.output {
             OutputSink::Buffer(buffer) => Some(std::mem::take(buffer)),
-            OutputSink::Stdout | OutputSink::Stderr | OutputSink::Sink => None,
+            OutputSink::Stdout | OutputSink::Stderr | OutputSink::File(_) | OutputSink::Sink => {
+                None
+            }
         }
     }
 }
@@ -3379,6 +3395,7 @@ fn write_to(sink: &mut OutputSink, bytes: &[u8]) -> io::Result<()> {
             buffer.extend_from_slice(bytes);
             Ok(())
         }
+        OutputSink::File(file) => file.write(bytes),
         OutputSink::Sink => Ok(()),
     }
 }

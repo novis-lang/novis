@@ -260,6 +260,7 @@ pub mod graphemes;
 pub mod helpers;
 pub mod host;
 pub mod identity;
+pub mod logfile;
 pub mod object;
 pub mod release;
 pub mod script;
