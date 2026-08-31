@@ -132,7 +132,7 @@ for (int $j = 0; $j < 8; $j = $j + 1) {
     try {
         Core\Encoding::decodeText(Core\Encoding::fromHex($raw), Core\Charset::Utf8);
     } catch (Throwable $sweptDec) {
-        if (Core\Str::contains($sweptDec->message, "at offset " . ($j as string) . " is")) {
+        if (Core\Str::contains($sweptDec->message, "at offset " . ($j as string) . " a byte")) {
             $decNamed = $decNamed + 1;
         }
     }
@@ -159,11 +159,11 @@ Core\Encoding::encodeText(): `Core\Charset::ShiftJis` has no spelling for '🦀'
 yes
 ff
 Core\Encoding::encodeText(): `Core\Charset::Latin1` has no spelling for 'Ā' (U+0100) at offset 0 of "Ā" — it is exact or it throws, and there is no transliterating or ignoring mode
-Core\Encoding::decodeText(): the byte sequence at offset 1 is not `Core\Charset::Utf8` — a conversion is exact or it throws, so nothing is replaced with U+FFFD or dropped
-Core\Encoding::decodeText(): the byte sequence at offset 1 is not `Core\Charset::Ascii` — a conversion is exact or it throws, so nothing is replaced with U+FFFD or dropped
-Core\Encoding::decodeText(): the byte sequence at offset 2 is not `Core\Charset::Utf16Le` — a conversion is exact or it throws, so nothing is replaced with U+FFFD or dropped
-Core\Encoding::decodeText(): the byte sequence at offset 2 is not `Core\Charset::Utf16Le` — a conversion is exact or it throws, so nothing is replaced with U+FFFD or dropped
-Core\Encoding::decodeText(): the byte sequence at offset 1 is not `Core\Charset::ShiftJis` — a conversion is exact or it throws, so nothing is replaced with U+FFFD or dropped
+a conversion is exact or it throws: Core\Encoding::decodeText() found at offset 1 a byte sequence that is not `Core\Charset::Utf8`, and nothing is replaced with U+FFFD or dropped
+a conversion is exact or it throws: Core\Encoding::decodeText() found at offset 1 a byte sequence that is not `Core\Charset::Ascii`, and nothing is replaced with U+FFFD or dropped
+a conversion is exact or it throws: Core\Encoding::decodeText() found at offset 2 a byte sequence that is not `Core\Charset::Utf16Le`, and nothing is replaced with U+FFFD or dropped
+a conversion is exact or it throws: Core\Encoding::decodeText() found at offset 2 a byte sequence that is not `Core\Charset::Utf16Le`, and nothing is replaced with U+FFFD or dropped
+a conversion is exact or it throws: Core\Encoding::decodeText() found at offset 1 a byte sequence that is not `Core\Charset::ShiftJis`, and nothing is replaced with U+FFFD or dropped
 256 of 256
 256 of 256
 128 of 256

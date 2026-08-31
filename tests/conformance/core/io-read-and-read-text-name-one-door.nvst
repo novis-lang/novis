@@ -1,0 +1,74 @@
+--TEST--
+Core\IO::read and ::readText refuse an ungranted path identically, each naming `fs.read` for it, counted over a sweep of present, absent and impossible paths — and a file whose octets are not the charset asked for is still refused as a capability rather than as a conversion, so nothing about a file's contents is learnable without the grant that covers it — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// The claim is an agreement: two members that share one door say the same thing
+// about a path with no grant behind it, and the third call adds the ordering —
+// `note.txt` is on disk and is not ASCII, so a member that decoded before it
+// asked would answer the conversion's message here instead of the door's.
+// Counting is what makes it an agreement rather than nine separate assertions.
+//
+// The paths are chosen so that no two of them fail the same way once a grant
+// does exist: one is a name nothing could be at, one is the current directory,
+// and one is a plain relative name that is really there. With nothing granted
+// the distinction has to vanish.
+array<string> $paths = [
+    "note.txt",
+    "no-such-dir/no-such-file.txt",
+    ".",
+];
+int $total = Core\Arr::count($paths) as int;
+
+int $refused = 0;
+int $namingFsRead = 0;
+int $refusedByTheConversion = 0;
+
+int $i = 0;
+for (; $i < $total; $i = $i + 1) {
+    string $path = $paths[$i];
+    string $needs = " needs the capability `fs.read` for " . $path . ", which is not granted";
+
+    try {
+        string $raw = Core\IO::read($path);
+        echo "read answered for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::read" . $needs) {
+            $namingFsRead = $namingFsRead + 1;
+        }
+    }
+
+    try {
+        string $text = Core\IO::readText($path);
+        echo "readText answered for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::readText" . $needs) {
+            $namingFsRead = $namingFsRead + 1;
+        }
+    }
+
+    try {
+        string $ascii = Core\IO::readText($path, {charset: Core\Charset::Ascii});
+        echo "ascii readText answered for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::readText" . $needs) {
+            $namingFsRead = $namingFsRead + 1;
+        } else {
+            $refusedByTheConversion = $refusedByTheConversion + 1;
+        }
+    }
+}
+
+echo "paths: ", $total as string, "\n";
+echo "refused: ", $refused as string, "\n";
+echo "naming fs.read: ", $namingFsRead as string, "\n";
+echo "refused by the conversion instead: ", $refusedByTheConversion as string, "\n";
+--FILE note.txt--
+café
+--EXPECT--
+paths: 3
+refused: 9
+naming fs.read: 9
+refused by the conversion instead: 0

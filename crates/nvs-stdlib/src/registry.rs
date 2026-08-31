@@ -1123,6 +1123,7 @@ pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
     (crate::io::NAME, "removeDir", nvs_config::Cap::FsWrite),
     (crate::io::NAME, "temporaryDir", nvs_config::Cap::FsWrite),
     (crate::io::NAME, "within", nvs_config::Cap::FsRead),
+    (crate::io::NAME, "readText", nvs_config::Cap::FsRead),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)

@@ -702,6 +702,10 @@ struct Charset {
 /// The `Core\Charset` case in slot 1, or the `FATAL` a value that is no case
 /// is.
 ///
+/// `member` is the **fully-qualified** spelling — `Core\Encoding::decodeText`,
+/// or `Core\IO::readText` for [`decode_argument`]'s caller in another class,
+/// which is why the prefix is not written into the message here.
+///
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member, for [`bytes_of`]'s reason: the
@@ -721,11 +725,41 @@ fn charset_of(args: &[Value], member: &str) -> Result<Charset, Fault> {
         })
         .ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Encoding::{member} expected a `Core\\Charset` case, got tag {} value {:?}",
+                "{member} expected a `Core\\Charset` case, got tag {} value {:?}",
                 args[1].tag_byte(),
                 args[1].as_int()
             ))
         })
+}
+
+/// The `Core\Charset` case in slot 1, applied to `raw` — the conversion whole,
+/// for a member of another class.
+///
+/// The whole of it rather than the lookup alone, because both messages a caller
+/// can meet belong beside the tables they name: a member elsewhere that did its
+/// own decode would be a second opinion about what "exact" means, which is what
+/// [`decode_exact`]'s own doc comment exists to prevent. `Core\IO::readText` is
+/// the one caller today.
+///
+/// # Errors
+///
+/// [`charset_of`]'s `FATAL` for a slot-1 value that is no case, or the
+/// catchable `RuntimeError` naming the offset of the first sequence `charset`
+/// cannot read.
+pub(crate) fn decode_argument(args: &[Value], member: &str, raw: &[u8]) -> Result<String, Fault> {
+    let charset = charset_of(args, member)?;
+    decode_exact(charset, raw).map_err(|offset| {
+        // The rule first and the member in the tail, so that the stem
+        // `conformance_coverage.rs` reads off this site is neither empty nor
+        // full of backslashes a Novis literal cannot spell — the playbook's
+        // *Writing a test case* bullet owns why both halves of that matter.
+        Fault::thrown(format!(
+            "a conversion is exact or it throws: {member}() found at offset {offset} a byte \
+             sequence that is not `Core\\Charset::{}`, and nothing is replaced with U+FFFD or \
+             dropped",
+            charset.case
+        ))
+    })
 }
 
 // ============================================================================
@@ -982,7 +1016,7 @@ nvs_runtime::nvs_helper! {
     /// they want, in their own text, where a reader can see it.
     fn nvs_core_encoding_encode_text(_ctx, args: [2]) {
         let text = text_of(args, "encodeText")?;
-        let charset = charset_of(args, "encodeText")?;
+        let charset = charset_of(args, "Core\\Encoding::encodeText")?;
         let raw = encode_exact(charset, text).map_err(|(offset, ch)| {
             Fault::thrown(format!(
                 "Core\\Encoding::encodeText(): `Core\\Charset::{}` has no spelling for {:?} \
@@ -1012,15 +1046,7 @@ nvs_runtime::nvs_helper! {
     /// for a caller who has somewhere to put a `false`.
     fn nvs_core_encoding_decode_text(_ctx, args: [2]) {
         let raw = bytes_of(args, "decodeText")?;
-        let charset = charset_of(args, "decodeText")?;
-        let text = decode_exact(charset, raw).map_err(|offset| {
-            Fault::thrown(format!(
-                "Core\\Encoding::decodeText(): the byte sequence at offset {offset} is not \
-                 `Core\\Charset::{}` — a conversion is exact or it throws, so nothing is \
-                 replaced with U+FFFD or dropped",
-                charset.case
-            ))
-        })?;
+        let text = decode_argument(args, "Core\\Encoding::decodeText", raw)?;
         Ok(Value::str(NvsStr::new(text.as_bytes())))
     }
 }
@@ -1040,7 +1066,7 @@ nvs_runtime::nvs_helper! {
     /// once per input.
     fn nvs_core_encoding_is_valid_text(_ctx, args: [2]) {
         let raw = bytes_of(args, "isValidText")?;
-        let charset = charset_of(args, "isValidText")?;
+        let charset = charset_of(args, "Core\\Encoding::isValidText")?;
         Ok(Value::bool(decode_exact(charset, raw).is_ok()))
     }
 }

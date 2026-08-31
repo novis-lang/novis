@@ -10,7 +10,7 @@ final class Refusal {
     // **where** the sequence it stopped at begins. The wording around them is
     // `nvs_stdlib::encoding`'s own and is not what these rows are about.
     public static function names(string $message, string $case, string $offset): string {
-        bool $ok = Core\Str::startsWith($message, "Core\\Encoding::decodeText(): ")
+        bool $ok = Core\Str::contains($message, "Core\\Encoding::decodeText()")
             && Core\Str::contains($message, "Core\\Charset::" . $case)
             && Core\Str::contains($message, "at offset " . $offset);
         return $ok as string;

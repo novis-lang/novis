@@ -37,13 +37,23 @@
 //! whole-file read wants the thing it can concatenate. A member for the other
 //! half — a bounded read, a stream — is a later signature over the same door,
 //! which is why `open_read` hands back a handle rather than a `Vec`.
+//!
+//! **`readText` is that same read with § 7's exact decode after it**, and not a
+//! second reader: one door, one buffer, one ceiling, and the conversion is
+//! `Core\Encoding`'s own, refusal included. `read` hands back the octets and
+//! asks nothing about them; `readText` is where a caller says what they are and
+//! gets a throw naming the first offset that is not, rather than a string with
+//! U+FFFD in it. PHP's pair is `file_get_contents` plus a hand-written
+//! `mb_convert_encoding`, and the failure is the half it leaves out.
 
 use std::io::Read;
 use std::path::Path;
 
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -141,11 +151,38 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_io_within",
             doc: Some(&WITHIN_DOC),
         },
+        CoreMethod {
+            name: "readText",
+            names: &["path"],
+            // The path is a sink like every other in this class, and the
+            // charset is the one trailing options shape ADR 0063 R3 allows —
+            // which is why `names` carries one entry and `params` two.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(READ_TEXT_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Text(Qual::Neutral),
+            symbol: "nvs_core_io_read_text",
+            doc: Some(&READ_TEXT_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
 };
+
+/// `Core\IO::readText`'s `{charset?}` — the one option, and the whole of what
+/// separates that member from [`nvs_core_io_read`].
+///
+/// UTF-8 by default because that is what Novis text already is
+/// ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 1): a caller who
+/// says nothing gets the decode that is the identity on a file written the way
+/// the language spells strings, and every other encoding has to name itself. A
+/// default of "whatever the file looks like" is the guess this member exists to
+/// refuse.
+const READ_TEXT_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "charset",
+    ty: CoreTy::Enum(crate::encoding::CHARSET_NAME),
+    default: Const::EnumCase(crate::encoding::CHARSET_NAME, "Utf8"),
+}];
 
 /// `Core\IO::read`'s reference card — ADR 0117.
 const READ_DOC: MethodDoc = MethodDoc {
@@ -376,11 +413,49 @@ const WITHIN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO::readText`'s reference card — ADR 0117.
+const READ_TEXT_DOC: MethodDoc = MethodDoc {
+    short: "The whole content of a file, decoded from the charset it is written in — \
+            `file_get_contents` and the `mb_convert_encoding` a caller writes after it, with the \
+            failure that pair does not have. Needs the `fs.read` capability for the path, exactly \
+            as `read` does.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "The file to read, absolute or relative to the working directory.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "charset",
+            desc: "The encoding the file's octets are in. `Core\\Charset::Utf8` when it is not \
+                   given, which is the decode that is the identity on text already written the \
+                   way Novis spells it.",
+            shape: &[],
+        },
+    ],
+    ret: "The file's content as a `string`, converted from `$charset` — never with a replacement \
+          character in it, because a conversion that cannot be exact throws instead.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for this path, or the file's bytes \
+                   are not `$charset` — the second message names the offset of the first sequence \
+                   that is not.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and the operating system did not — the file does not \
+                   exist, is a directory, or could not be read.",
+        },
+    ],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_io_read" => (nvs_core_io_read as *const ()).cast(),
+        "nvs_core_io_read_text" => (nvs_core_io_read_text as *const ()).cast(),
         "nvs_core_io_write" => (nvs_core_io_write as *const ()).cast(),
         "nvs_core_io_exists" => (nvs_core_io_exists as *const ()).cast(),
         "nvs_core_io_size" => (nvs_core_io_size as *const ()).cast(),
@@ -415,12 +490,45 @@ nvs_runtime::nvs_helper! {
     /// be a number an operator has to keep in step with that one.
     fn nvs_core_io_read(ctx, args: [1]) {
         let path = Path::new(text(&args[0], "read", "path")?);
-        let mut file = nvs_runtime::capability::open_read(ctx, path, "Core\\IO::read")?;
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes)
-            .map_err(|err| nvs_runtime::capability::io_failure("Core\\IO::read", path, &err))?;
-        Ok(Value::str(NvsStr::new(&bytes)))
+        Ok(Value::str(NvsStr::new(&slurp(ctx, path, "Core\\IO::read")?)))
     }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::readText(string $path, {charset?: Core\Charset}): string` —
+    /// replacing `file_get_contents` followed by `mb_convert_encoding`.
+    ///
+    /// [`slurp`] and then [`crate::encoding::decode_argument`], which is the
+    /// whole member: the door, the buffer and the ceiling are `read`'s, and § 7
+    /// already owns what an exact conversion is. The decode runs *after* the
+    /// capability check for the ordinary reason — a file this program was never
+    /// granted must refuse the same way whatever its bytes are.
+    fn nvs_core_io_read_text(ctx, args: [2]) {
+        let path = Path::new(text(&args[0], "readText", "path")?);
+        let raw = slurp(ctx, path, "Core\\IO::readText")?;
+        let text = crate::encoding::decode_argument(args, "Core\\IO::readText", &raw)?;
+        Ok(Value::str(NvsStr::new(text.as_bytes())))
+    }
+}
+
+/// A whole file's octets, from behind [`nvs_runtime::capability::open_read`]'s
+/// door — what [`nvs_core_io_read`] and [`nvs_core_io_read_text`] share, so
+/// that the second is the first plus a conversion rather than a second reader
+/// with its own idea of what a whole-file read is.
+///
+/// `member` is the fully-qualified spelling both refusals name.
+///
+/// # Errors
+///
+/// The door's catchable `RuntimeError` when `fs.read` does not cover `path`, or
+/// [`nvs_runtime::capability::io_failure`]'s `IOError` when the open or the
+/// read itself fails.
+fn slurp(ctx: &mut nvs_runtime::Ctx, path: &Path, member: &str) -> Result<Vec<u8>, Fault> {
+    let mut file = nvs_runtime::capability::open_read(ctx, path, member)?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)
+        .map_err(|err| nvs_runtime::capability::io_failure(member, path, &err))?;
+    Ok(bytes)
 }
 
 nvs_runtime::nvs_helper! {

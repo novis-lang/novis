@@ -1,0 +1,59 @@
+--TEST--
+Core\IO::readText decodes one file under two charsets and each reading encodes back to the octets on disk, so a decoder that dropped or replaced a byte moves a number here even when the string it answered still prints plausibly — omitting the option is naming `Core\Charset::Utf8`, and for a file already written that way `read` answers the same string — spec § 14, ADR 0009 § 1, ADR 0063 R3
+--FILE--
+<?nvs
+// The file is written by the program rather than dropped in as a fixture, so
+// what is on disk is exactly six octets this case can name: `caf`, the two
+// UTF-8 octets of `é`, and a newline.
+Core\IO::write("note.txt", "café\n");
+int $octets = Core\IO::size("note.txt") as int;
+echo "octets: ", $octets as string, "\n";
+
+string $utf8 = Core\IO::readText("note.txt");
+string $named = Core\IO::readText("note.txt", {charset: Core\Charset::Utf8});
+string $latin1 = Core\IO::readText("note.txt", {charset: Core\Charset::Latin1});
+
+// The claim is an agreement rather than two assertions: whatever each reading
+// answered, encoding it back under the charset it was read with has to be the
+// file's own octets again. A decoder that replaced a sequence with U+FFFD, or
+// dropped one, moves this hex while both strings still echo plausibly.
+echo "utf8 round-trip: ", Core\Encoding::toHex(Core\Encoding::encodeText($utf8, Core\Charset::Utf8)), "\n";
+echo "latin1 round-trip: ", Core\Encoding::toHex(Core\Encoding::encodeText($latin1, Core\Charset::Latin1)), "\n";
+
+// Omitting the option is naming `Utf8` and nothing else: ADR 0063 R3's trailing
+// shape carries the default, so these two calls are one call.
+if ($utf8 == $named) {
+    echo "the default is Utf8\n";
+} else {
+    echo "the default is something else\n";
+}
+
+// ...and the two readings are genuinely different, or the round-trip above
+// would be agreeing for the wrong reason.
+if ($utf8 == $latin1) {
+    echo "both charsets read the same string\n";
+} else {
+    echo "each charset read its own string\n";
+}
+
+// `read` asks nothing about the octets, so for a file already written the way
+// Novis spells text the two members answer the same string. That is what makes
+// `readText` one conversion away from `read` rather than a second reader.
+if ($utf8 == Core\IO::read("note.txt")) {
+    echo "read agrees for utf8 text\n";
+} else {
+    echo "read disagrees\n";
+}
+
+Core\IO::remove("note.txt");
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+octets: 6
+utf8 round-trip: 636166c3a90a
+latin1 round-trip: 636166c3a90a
+the default is Utf8
+each charset read its own string
+read agrees for utf8 text

@@ -1,0 +1,39 @@
+--TEST--
+Core\IO::readText throws naming the offset of the first sequence the charset cannot read, with the bound asserted on both sides of the one octet that decides it — the same file read under a charset that can spell it still answers, and `read` never asks, so what the throw is about is the conversion and not the path — spec § 14, ADR 0009 § 3
+--FILE--
+<?nvs
+// `cafe\n` is five ASCII octets and reads. One character later the file is
+// `café\n`, whose octet at index 3 is 0xC3, and the same call refuses there. A
+// member that stopped one octet early, or that reported the start of the buffer
+// instead of the start of the sequence, prints a different number below.
+Core\IO::write("plain.txt", "cafe\n");
+echo Core\IO::readText("plain.txt", {charset: Core\Charset::Ascii});
+
+Core\IO::write("accented.txt", "café\n");
+try {
+    echo Core\IO::readText("accented.txt", {charset: Core\Charset::Ascii});
+    echo "ascii read it\n";
+} catch (RuntimeError $notAscii) {
+    echo $notAscii->message, "\n";
+}
+
+// The same file and the same door, under a charset that can spell it: the
+// refusal above was the conversion's, and a file is not made unreadable by
+// having been asked the wrong question about it.
+echo Core\IO::readText("accented.txt");
+
+// And `read` asks nothing at all, which is the difference between the two
+// members stated as an assertion rather than left in a doc comment.
+echo Core\IO::read("accented.txt");
+
+Core\IO::remove("plain.txt");
+Core\IO::remove("accented.txt");
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+cafe
+a conversion is exact or it throws: Core\IO::readText() found at offset 3 a byte sequence that is not `Core\Charset::Ascii`, and nothing is replaced with U+FFFD or dropped
+café
+café
