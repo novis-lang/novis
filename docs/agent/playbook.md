@@ -3638,6 +3638,16 @@ is why" — is this file.
   `fn write_chunk(file: &mut std::fs::File, …)` fails a gate about *effects* on a signature that
   performs none, and so does a `use std::fs::File;` at the top. Make the helper generic over
   `W: Write` (or infer the type from the door that answered it) and the spelling never appears.
+- **`conformance_coverage`'s error-path gate reads a message's stem as the text *before its first
+  `{`*, and on a CRLF checkout it used to stop at the first line wrap too.** Both make a
+  `Fault::thrown` site silently ineligible rather than loudly unasserted, which is the wrong
+  direction for a ratchet: a message written as `format!("{CLASS_NAME}::set(): …")` has an empty
+  stem, falls under the fourteen-character floor, and the gate never asks for the case that catches
+  it. Write a refusal a case will assert as a **literal that opens with real text** — the name
+  constants are worth less here than the gate is. The CRLF half is fixed (`unescape` now treats a
+  carriage return as the continuation's newline, which is what let both of `Core\Cli\Live`'s
+  refusals be matched to their cases at all); the leading-hole half is a property of the stem rule
+  and is not going away.
 
 ## Splitting a file that got too big
 

@@ -502,7 +502,11 @@ fn first_literal(window: &str) -> Option<String> {
 ///
 /// A trailing backslash continues the literal onto the next line and eats the
 /// indent that follows, so a message rustfmt wrapped would otherwise be
-/// truncated at the wrap. Every other escape keeps both of its characters:
+/// truncated at the wrap. **A carriage return counts as that newline**, because
+/// a checkout with CRLF endings puts one between the backslash and the line
+/// feed — reading only `\n` there left every wrapped message on Windows with a
+/// stem no case could ever contain, which reads as an unasserted error path and
+/// is not one. Every other escape keeps both of its characters:
 /// `\n` before a format hole would be part of the stem either way, and
 /// rewriting it to a newline would only make the stem harder to grep for.
 fn unescape(raw: &str) -> String {
@@ -514,7 +518,7 @@ fn unescape(raw: &str) -> String {
             continue;
         }
         match chars.next() {
-            Some('\n') => while chars.next_if(|next| next.is_whitespace()).is_some() {},
+            Some('\n' | '\r') => while chars.next_if(|next| next.is_whitespace()).is_some() {},
             Some('"') => out.push('"'),
             Some('\\') => out.push('\\'),
             Some(other) => {
