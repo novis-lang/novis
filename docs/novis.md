@@ -101,6 +101,8 @@ Conventions the whole file uses:
 | [`Core\Cli\Text`](#core-core-cli-text) | the value a captured terminal write comes back as — bytes that have already been through the output sink |
 | [`Core\Cli\Color`](#core-core-cli-color) |  |
 | [`Core\Cli\Style`](#core-core-cli-style) |  |
+| [`Core\Cli\Live`](#core-core-cli-live) |  |
+| [`Core\Cli\Progress`](#core-core-cli-progress) |  |
 | [`Core\Command`](#core-core-command) |  |
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
 | [`Core\Env`](#core-core-env) |  |
@@ -14466,7 +14468,7 @@ Expands, at compile time, to an array literal of `new` expressions — one per n
 <a id="core-core-cli"></a>
 ### `Core\Cli`
 
-Keywords: escape, isTty, width, height, colorDepth, ask, confirm, select, secret
+Keywords: escape, isTty, width, height, colorDepth, ask, confirm, select, secret, live, progress
 
 | Member | Signature |
 |---|---|
@@ -14479,6 +14481,8 @@ Keywords: escape, isTty, width, height, colorDepth, ask, confirm, select, secret
 | [`Core\Cli::confirm`](#core-core-cli-confirm) | `confirm(string $question, {default?: bool}): bool` |
 | [`Core\Cli::select`](#core-core-cli-select) | `select(string $question, array<T> $choices, {labels?: callable, default?: T}): T` |
 | [`Core\Cli::secret`](#core-core-cli-secret) | `secret(string $question): secret tainted string` |
+| [`Core\Cli::live`](#core-core-cli-live) | `live(callable $body): T` |
+| [`Core\Cli::progress`](#core-core-cli-progress) | `progress(uint $total, callable $body): T` |
 
 <a id="core-core-cli-escape"></a>
 #### `Core\Cli::escape`
@@ -14616,6 +14620,37 @@ Asks `$question` with the terminal's echo turned off, so a password is not left 
 **Returns** `secret tainted string` — The line typed, `secret` and `tainted` at once: output, logs, dumps, `Throwable` messages and serialization all refuse it, and it still has to be laundered for any sink it reaches.
 
 **Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, its input ended, or nobody answered within the prompt deadline. `secret` takes no `default`, because a password nobody typed is not a password.
+
+<a id="core-core-cli-live"></a>
+#### `Core\Cli::live`
+
+```nvs skip
+Core\Cli::live(callable $body): T
+```
+
+Runs `$body` with a live region open on the terminal, and answers whatever `$body` answered. `$body` receives a `Core\Cli\Live` whose `set` replaces the region's rows in place — the scoped replacement for `moveUp`/`clearLine` cursor primitives, which break the moment output is piped and leave a shell unusable when a program dies holding them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$body` | `callable` | The work to do while the region is open. Its own return value is this member's, so a region costs a call site nothing in what it can compute. |
+
+**Returns** `T` — Exactly what `$body` answered, at `$body`'s own type. The terminal is restored on every path out — a return, a throw, a fatal, an internal panic — and a run whose output is not a terminal renders nothing at all rather than a smear of escape sequences.
+
+<a id="core-core-cli-progress"></a>
+#### `Core\Cli::progress`
+
+```nvs skip
+Core\Cli::progress(uint $total, callable $body): T
+```
+
+Runs `$body` with a progress bar open on the terminal, and answers whatever `$body` answered. A closed, named behaviour over `live`'s general one: the region is a bar the runtime draws, so counting toward `$total` is all a program says.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$total` | `uint` | How many units of work the bar is scaled to. A total of `0` is work already done, and draws a full bar rather than refusing. |
+| `$body` | `callable` | The work to do while the bar is open. Its own return value is this member's. |
+
+**Returns** `T` — Exactly what `$body` answered, at `$body`'s own type — `live`'s contract, since this is that member with a frame the runtime writes.
 
 <a id="core-core-cli-text"></a>
 ### `Core\Cli\Text`
@@ -14774,6 +14809,59 @@ A style, as a value — the replacement for the `"\e[1;31m"` string and the `"<b
 | `{strikethrough: …}` | `bool` (default `false`) | Whether the text is struck through. |
 
 **Returns** `Core\Cli\Style` — The style, which `Core\Cli\Text::styled` renders for the terminal this process actually has.
+
+<a id="core-core-cli-live"></a>
+### `Core\Cli\Live`
+
+Keywords: set
+
+| Member | Signature |
+|---|---|
+| [`Core\Cli\Live->set`](#core-core-cli-live-set) | `set(array<Core\Cli\Text> $lines): void` |
+
+<a id="core-core-cli-live-set"></a>
+#### `Core\Cli\Live->set`
+
+```nvs skip
+$live->set(array<Core\Cli\Text> $lines): void
+```
+
+Replaces the region's rows with `$lines`. The runtime owns the cursor: it coalesces frames on a timer rather than repainting per call, diffs against what is on screen, and writes nothing at all where the run has no terminal.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$lines` | `array<Core\Cli\Text>` | The region's rows, one `Core\Cli\Text` each, replacing whatever it held. A row wider than the terminal is clamped rather than wrapped, because a wrapped row is a region that can no longer be repainted. |
+
+**Returns** `void` — Nothing. What was drawn is on screen, or was coalesced into the next frame — a program cannot observe which, and the last frame handed in is always painted before the region closes.
+
+**Throws** `LogicError` — The handle's own region is not the one holding the terminal — it has closed, or an inner `Core\Cli::live` is open inside it. A `Cli\Live` is scoped to the call that made it and escaping one is a program bug.
+
+<a id="core-core-cli-progress"></a>
+### `Core\Cli\Progress`
+
+Keywords: advance
+
+| Member | Signature |
+|---|---|
+| [`Core\Cli\Progress->advance`](#core-core-cli-progress-advance) | `advance({by?: uint, label?: string}): void` |
+
+<a id="core-core-cli-progress-advance"></a>
+#### `Core\Cli\Progress->advance`
+
+```nvs skip
+$progress->advance({by?: uint, label?: string}): void
+```
+
+Counts `by` units of work as done and redraws the bar, optionally changing the caption beside it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{by: …}` | `uint` (default `1`) | How many units this step finished; omitted, one. |
+| `{label: …}` | `string` (default `null`, launder) | The caption beside the bar, substituted as every other terminal write is; omitted, the caption is left as it was. |
+
+**Returns** `void` — Nothing. A bar past its total reads as complete rather than as more than complete, so a loop that miscounts draws a finished bar instead of a wrong one.
+
+**Throws** `LogicError` — The handle's own region is not the one holding the terminal — it has closed, or an inner region is open inside it, exactly as `Core\Cli\Live::set` refuses.
 
 <a id="core-core-command"></a>
 ### `Core\Command`
