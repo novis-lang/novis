@@ -253,13 +253,6 @@ is why" — is this file.
   three of them orphans naming tests that no longer exist, which nothing then fails on. `git status
   --short` immediately after is the whole diagnosis: any `??` snapshot whose name you did not just
   write is one to delete.
-- **`INSTA_FORCE_UPDATE=1` rewrites every snapshot in the crate, not the failing ones.** Two
-  lowering snapshots needed new content this session; the run came back with **86** modified files,
-  because every other `.snap` still carried `source: crates/nvs-ir/src/lower.rs` from before that
-  module was carved into `lower/mod.rs` and the forced update refreshed that header too. Nothing
-  failed and nothing was wrong — it is just 84 files of churn inside a feature commit. Use plain
-  `INSTA_UPDATE=always cargo test -p <crate>` (no `FORCE`), or sort it out afterwards with
-  `git diff --numstat` per file and `git checkout --` the ones whose whole diff is two lines.
 - **An acceptance check in `loop-goal.toml` can be red on a *name* rather than on a claim, and the
   difference costs a session to tell apart.** Item 20's three tests and item 21's two were all listed
   under names predicted before anyone wrote them; the implementations had landed sessions earlier
@@ -1040,13 +1033,6 @@ is why" — is this file.
   and which was the fix here. A new module in a bin crate needs that run: with no caller yet it
   trips `unreachable_pub` on every item under `-D warnings`, and then `dead_code` on all of them
   again once they are `pub(crate)`.
-- **`INSTA_FORCE_UPDATE=1 cargo test` rewrites every snapshot in the crate, not the ones that
-  failed.** A lowering change that moved 19 of `nvs-ir`'s 158 snapshots came back as 134 files
-  modified, because insta also refreshes each file's `source:` header — and those headers have been
-  stale since the tests moved to `lower/tests.rs`. `cargo insta review` is interactive and so is
-  unusable here; the way back is to revert the header-only files by diff shape
-  (`git diff -U0 -- <f>` showing exactly two changed lines, both `source:`), which leaves the slice's
-  own 19. Check `git status` after any forced snapshot update rather than staging the directory.
 - **A `Resolved`/`Snapshot` field is not enough to make a value reach a reader: `Snapshot::retype`
   rebuilds the typed tree from the merged *table*, so anything the resolver put on
   `Resolved::config` and nowhere else is dropped at the snapshot boundary.** That is the whole of
@@ -1284,11 +1270,13 @@ is why" — is this file.
   PowerShell.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe` ever
   sees it, so the documented command arrives as `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/
   leak-check.sh: No such file or directory` — a path no document mentions, which reads as a missing
-  script rather than as the MSYS path translation it is. The script's own header shows the
+  script rather than as the MSYS path translation it is. And the call still exits 0, which reads as a
+  clean leak check on a fixture that was never run. The script's own header shows the
   invocation and cannot show this, because it is the *caller's* shell that mangles it. Run the
   identical line through the **PowerShell** tool, where the argument is passed through verbatim;
   `MSYS_NO_PATHCONV=1` in front of it is the other way and is one more thing to remember. The same
-  rewrite hits any `/mnt/...` or `/tmp/...` argument handed to `wsl.exe` from Bash. `commands.md`
+  rewrite hits any `/mnt/...` or `/tmp/...` argument handed to `wsl.exe` from Bash. The general
+  shape: any absolute POSIX path handed to a Windows `.exe` through Git Bash is a candidate. `commands.md`
   § *Fuzzing and callgrind on Windows* spells the command itself; this is only what the shell in
   front of it does to the argument. **Five sessions wrote this bullet, one each.** That is what
   `python tools/playbook.py --dupes` now exists to catch: an append-mostly file cannot notice that
@@ -1508,19 +1496,6 @@ is why" — is this file.
   once is the fix, and the header of `bench.py` says why the harness refuses to build anything itself.
   A release binary older than `crates/` still measures: the staleness warning goes to stderr and the
   check stays green, so a start-up regression can hide behind a binary nobody rebuilt.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh <fixture>` run through a Git Bash shell does
-  nothing and reports success.** Git Bash rewrites the `/mnt/...` argument before `wsl.exe` sees it,
-  so bash answers `C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory` —
-  and the call still exits 0, which reads as a clean leak check on a fixture that was never run. Send
-  that command through a PowerShell call instead, which is the spelling the script's own header
-  already carries. The same rewrite applies to any WSL-side absolute path passed as an argument.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/...` fails from the Bash tool with a path nobody wrote.** Git
-  Bash's MSYS layer rewrites a `/mnt/...` *argument* before WSL ever sees it, so the leak check
-  reports `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory`
-  and the two obvious readings — a missing script, a broken distro — are both wrong.
-  `MSYS_NO_PATHCONV=1` in front of the command is the whole fix, and the same call from PowerShell
-  needs nothing. The general shape: any absolute POSIX path handed to a Windows `.exe` through Git
-  Bash is a candidate.
 - **`verify.py` in an interactive session fails at build with `failed to remove file … nvs.exe`
   (os error 5) while the unattended loop is mid-session.** The loop's own test run holds the binary,
   and cargo cannot replace a running exe on Windows — the error is contention, not a broken tree.
@@ -2113,12 +2088,6 @@ is why" — is this file.
   `--EXPECT--` you then freeze pins that as correct. Bind the call first — `string $s = $f(1) as
   string; echo "did not throw, ", $s, "\n";` — so the negative branch prints nothing at all when the
   positive one is what happens.
-- **`echo` writes its arguments one at a time, so a throwing call inside the list prints the
-  prefix first.** `echo "did not throw ", Core\Arr::map($edge, $half), "\n";` inside a `try`
-  prints `did not throw ` and *then* lands in the `catch`, so the expected output grows a
-  fragment that reads like the case failing open. Bind the call above the `echo` —
-  `var $past = Core\Arr::map($edge, $half); echo "did not throw ", ...;` — which is why the
-  `.nvst` cases beside it do.
 - **Two `catch` bindings of the same name at file scope are fine only while they name the same
   class.** `catch (LogicError $e)` twice compiles, and so do fourteen of them — which is what makes
   a counted refusal sweep possible at all, since a closure cannot be called through the variable
