@@ -1662,6 +1662,16 @@ is why" — is this file.
   just added with `E0405: ... has no method named ...`, which reads exactly like the row not
   landing rather than like a stale binary. `--bin nvs` resolves it in one call from anywhere in the
   workspace.
+- **A `conformance_coverage` unreachability declaration has to be one line, and within eight of the
+  `Fault::` it declares.** `every_error_path_is_asserted_or_declared_unreachable` looks for the literal
+  `unreachable from source` in a single comment line inside `DECLARATION_WINDOW` — 8 — lines above the
+  site, so two ways of writing an obviously correct declaration read as no declaration at all: a sentence
+  that wraps (`// Unreachable from` / `// source: …`) matches nothing, and a well-argued paragraph placed
+  above a `match` whose trailing `.map_err` is what actually builds the `Fault` is out of range. Both
+  produce the identical failure a site nobody has judged produces, so the message does not distinguish
+  "you have not thought about this" from "you thought about it two lines too far up". Put the phrase
+  whole, on its own line, immediately above the expression that constructs the `Fault` — a comment may
+  sit between a `match`'s closing brace and its `.map_err`, which is usually the only place that fits.
 
 ## Writing a test case
 
