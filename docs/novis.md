@@ -16203,13 +16203,14 @@ Which of the language's representations `$value` currently holds. The single rep
 <a id="core-core-reflect-classinfo"></a>
 ### `Core\Reflect\ClassInfo`
 
-Keywords: name, properties, get, call
+Keywords: name, properties, get, set, call
 
 | Member | Signature |
 |---|---|
 | [`Core\Reflect\ClassInfo->name`](#core-core-reflect-classinfo-name) | `name(): string` |
 | [`Core\Reflect\ClassInfo->properties`](#core-core-reflect-classinfo-properties) | `properties(): array<string>` |
 | [`Core\Reflect\ClassInfo->get`](#core-core-reflect-classinfo-get) | `get(mixed $object, string $name): mixed` |
+| [`Core\Reflect\ClassInfo->set`](#core-core-reflect-classinfo-set) | `set(mixed $object, string $name, mixed $value): void` |
 | [`Core\Reflect\ClassInfo->call`](#core-core-reflect-classinfo-call) | `call(mixed $object, string $name, array<mixed> $arguments): mixed` |
 
 <a id="core-core-reflect-classinfo-name"></a>
@@ -16251,6 +16252,25 @@ Reads `$object`'s `$name` property, under exactly the visibility ordinary code a
 **Returns** `mixed` — The property's value, with its own declared type erased to `mixed`.
 
 **Throws** `RuntimeError` — `$object` is not an object, or `$name` names a property that is not `public` — a reflective read has the visibility ordinary code has, so the refusal is the one an ordinary out-of-class read would meet.; `LogicError` — `$object` is not an instance of the described class, or `$name` names no property of it at all. Both are mistakes in the program rather than facts about the value, which is what separates them from the refusal above.
+
+<a id="core-core-reflect-classinfo-set"></a>
+#### `Core\Reflect\ClassInfo->set`
+
+```nvs skip
+$classInfo->set(mixed $object, string $name, mixed $value): void
+```
+
+Writes `$object`'s `$name` property, under exactly the visibility ordinary code at this call site would face, and then runs the `PropertyObserver` an ordinary write runs. Replaces `ReflectionProperty::setValue`, again with no `setAccessible`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$object` | `mixed` | An instance of the described class — `get`'s own argument, for `get`'s reason. |
+| `$name` | `string` (neutral) | The property's name, `$`-sigil excluded, as `properties` spells it. |
+| `$value` | `mixed` | What to store. It is checked against what the concrete class declares the property to hold, since the declared type is not knowable here. |
+
+**Returns** `void` — Nothing. What was stored is what a following `get` answers, and what the observer was told about.
+
+**Throws** `RuntimeError` — `$object` is not an object, `$name` names a property that is not `public`, or `$value` is not of the type that property declares — the first two being the refusals an ordinary out-of-class write would meet, and the third the one a write through an erased view meets.; `LogicError` — `$object` is not an instance of the described class, or `$name` names no property of it at all — `get`'s pair, told apart from the refusals above for `get`'s reason.; `Throwable` — Whatever the class's own `onPropertySet` observer throws. It is told of the write once the value is stored, and a throw out of it still fails the write — a reflective write is not the place that changes.
 
 <a id="core-core-reflect-classinfo-call"></a>
 #### `Core\Reflect\ClassInfo->call`
