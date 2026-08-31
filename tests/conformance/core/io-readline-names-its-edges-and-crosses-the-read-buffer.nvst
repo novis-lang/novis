@@ -1,0 +1,66 @@
+--TEST--
+`Core\IO\File::readLine` at its boundaries: an empty file has no lines, a lone terminator is one empty line, an interior empty line is a line, and a line longer than the buffer one read fills is still one line — spec § 14
+--FILE--
+<?nvs
+// An empty file: the very first question gets the absence, so a program walking
+// a file never has to ask whether there is one before it starts.
+Core\IO\File $blank = Core\IO::open("blank.txt", Core\IO\FileMode::Write);
+// A handle that has written nothing is still flushable: `flush` reports on the
+// operating system's behalf and holds no opinion about whether there was
+// anything to report, so an empty one is a no-op and not a refusal.
+$blank->flush();
+$blank->close();
+Core\IO\File $none = Core\IO::open("blank.txt", Core\IO\FileMode::Read);
+echo "empty: ", $none->readLine() ?? "<end>", "\n";
+$none->close();
+
+// A lone terminator is one empty line and not none — the boundary a member
+// that looked for bytes before the newline would get wrong, and the same answer
+// `Core\Str::lines` gives for the same file.
+Core\IO\File $one = Core\IO::open("one.txt", Core\IO\FileMode::Write);
+$one->write("\n");
+$one->close();
+Core\IO\File $reader = Core\IO::open("one.txt", Core\IO\FileMode::Read);
+echo "lone: [", $reader->readLine() ?? "<end>", "]\n";
+echo "then: [", $reader->readLine() ?? "<end>", "]\n";
+$reader->close();
+
+// An interior empty line is a line, and a file that ends without a terminator
+// still ends its last one.
+Core\IO\File $gap = Core\IO::open("gap.txt", Core\IO\FileMode::Write);
+$gap->write("a\n\nb");
+$gap->close();
+Core\IO\File $walk = Core\IO::open("gap.txt", Core\IO\FileMode::Read);
+echo "1: [", $walk->readLine() ?? "<end>", "]\n";
+echo "2: [", $walk->readLine() ?? "<end>", "]\n";
+echo "3: [", $walk->readLine() ?? "<end>", "]\n";
+echo "4: [", $walk->readLine() ?? "<end>", "]\n";
+$walk->close();
+
+// And the edge the implementation has of its own: a line longer than the chunk
+// one read fills is gathered over more than one pass, and is still one line
+// with the terminator still taken off it.
+Core\IO\File $long = Core\IO::open("long.txt", Core\IO\FileMode::Write);
+$long->write(Core\Str::repeat("x", 20000));
+$long->write("\ntail\n");
+$long->close();
+Core\IO\File $over = Core\IO::open("long.txt", Core\IO\FileMode::Read);
+echo "long: ", Core\Str::length($over->readLine() ?? "") as string, "\n";
+echo "after: [", $over->readLine() ?? "<end>", "]\n";
+echo "done: [", $over->readLine() ?? "<end>", "]\n";
+$over->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+empty: <end>
+lone: []
+then: [<end>]
+1: [a]
+2: []
+3: [b]
+4: [<end>]
+long: 20000
+after: [tail]
+done: [<end>]

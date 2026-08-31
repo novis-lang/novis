@@ -1,0 +1,46 @@
+--TEST--
+`Core\IO\File::flush` hands what was written to the operating system, where a second handle reads it, and a `readLine` that answered `null` answers again once the file has grown — the end of a file is a position and not a latch — spec § 14
+--FILE--
+<?nvs
+// Novis holds no buffer of its own in front of the descriptor, so `flush` is a
+// statement about the operating system rather than about this class — and a
+// second handle on the same file is where that statement is observable.
+Core\IO\File $writer = Core\IO::open("journal.txt", Core\IO\FileMode::Write);
+$writer->write("first\n");
+$writer->flush();
+
+Core\IO\File $reader = Core\IO::open("journal.txt", Core\IO\FileMode::Read);
+echo "1: ", $reader->readLine() ?? "<end>", "\n";
+// The reader has caught up with the writer. That is an absence at a position,
+// not a state the handle enters.
+echo "2: ", $reader->readLine() ?? "<end>", "\n";
+
+$writer->write("second\n");
+$writer->flush();
+// Same handle, same position, more file: the answer changes because the file
+// did, and a program tailing one never has to reopen it.
+echo "3: ", $reader->readLine() ?? "<end>", "\n";
+echo "4: ", $reader->readLine() ?? "<end>", "\n";
+
+$writer->close();
+$reader->close();
+
+// A handle that is gone has nothing left to hand anyone, and asking is a
+// mistake in the program rather than a state of the file — which is why every
+// member of this class answers it with a `RuntimeError`.
+try {
+    $writer->flush();
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo "after close: ", $e->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+1: first
+2: <end>
+3: second
+4: <end>
+after close: Core\IO\File::flush: this handle is closed — journal.txt

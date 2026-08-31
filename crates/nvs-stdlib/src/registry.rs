@@ -1366,12 +1366,14 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // is `nvs_runtime::capability::open`, which asks per mode; this is the
     // declaration, and ADR 0118 § 2 is why the two are separate.
     (crate::io::NAME, "open", Some(nvs_config::Cap::FsWrite)),
-    // `Core\IO\File`'s three members need no row of their own: the descriptor
+    // `Core\IO\File`'s five members need no row of their own: the descriptor
     // was checked when `open` produced it, which `capability::open_read`'s own
     // doc states as the reason a door hands back a handle at all. A `None` row
     // here is the declaration that says so, per this table's own docs.
     (crate::io::FILE_NAME, "read", None),
+    (crate::io::FILE_NAME, "readLine", None),
     (crate::io::FILE_NAME, "write", None),
+    (crate::io::FILE_NAME, "flush", None),
     (crate::io::FILE_NAME, "close", None),
     // ADR 0044 § 6: starting a program is deny-by-default and path-scoped, the
     // same shape `script.spawn` already has. `Core\Process\Result`'s three

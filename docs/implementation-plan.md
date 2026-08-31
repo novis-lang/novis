@@ -43,26 +43,25 @@
 >
 > **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
 > running**, over goals 1-3, each reached at its own acceptance.   **The goal's eight acceptance
-> fixtures are on disk.**   **§ 6 is closed**: `Core\Command::help`, `::run` and `completions` are
-> rows over the compiled table, a declared default crosses on the row, and `--ARGS--` is honoured.
-> **`Core\Password` and `Core\Crypto` are closed**: Argon2id at OWASP's floor and
-> XChaCha20-Poly1305, neither with an algorithm argument, and `examples/crypto.nvs` runs green.
-> **Stage 4 is closed**: ADR 0060 § 1's roster is all four entries. **Stage 5 is closed**:
-> `Core\Http::allowUrl` answers a pinned `Core\Http\Target`, and two cases pin ADR 0058 §§ 3 and 5.
-> **Stage 6 has opened**: `Core\Cache`'s two tiers are one `Store` over ADR 0023 § 3's byte payload,
-> `shared()` the `net.connect` door onto RESP and `local()` the `None` row beside it. Both of § 1's
-> limiters are rows over them, `consume` throwing where an unreachable store would decide *allowed*;
-> `examples/cache.nvs` is green against `tests/db/compose.yaml`'s `redis`, under `[cache.local]
-> max_size`. **Stage 7 has opened**: `Core\Log::write` is a row over ADR 0020 § 6's tier-4 floor,
-> and § 3's tier 3 runs above it as `[app.log] handler`, an isolate on `Ctx::handler_isolate`'s
-> reserve; `examples/logging.nvs` is green. **Stage 8 has opened**: `Core\Reflect` is `forObject`,
-> `forClass` and `typeOf`, and `Core\Ast::parse` answers the compiler's own tree, and
-> `ClassInfo::call` acts through the ordinary erased-receiver check rather than restating it.
-> **Stage 2's handle half has opened**: `Core\IO::open` answers a `Core\IO\File` whose slot is a key
-> into the request's own table of descriptors, `Core\IO\FileMode` is R11's enum, and
-> `read`/`write`/`close` are its members; § 14's other handle members are owed, and `writeStream`
-> streams to disk a chunk at a time. Conformance 1195, differential 210 of 210, migration 37% over
-> its 36% floor.
+> fixtures are on disk.**   **§ 6 is closed**: `Core\Command`'s three members are rows over the
+> compiled table. **`Core\Password` and `Core\Crypto` are closed**: Argon2id at OWASP's floor and
+> XChaCha20-Poly1305, neither with an algorithm argument. **Stage 4 is closed**: ADR 0060 § 1's
+> roster is all four entries. **Stage 5 is closed**: `Core\Http::allowUrl` answers a pinned
+> `Core\Http\Target`, and two cases pin ADR 0058 §§ 3 and 5. **Stage 6 has opened**: `Core\Cache`'s
+> two tiers are one `Store` over ADR 0023 § 3's byte payload, `shared()` the `net.connect` door onto
+> RESP and `local()` the `None` row beside it; both of § 1's limiters are rows over them, and
+> `examples/cache.nvs` is green under `[cache.local] max_size`. **Stage 7 has opened**:
+> `Core\Log::write` is a row over ADR 0020 § 6's tier-4 floor, and § 3's tier 3 runs above it as
+> `[app.log] handler`, an isolate on `Ctx::handler_isolate`'s reserve; `examples/logging.nvs` is
+> green. **Stage 8 has opened**: `Core\Reflect` is `forObject`, `forClass` and `typeOf`, and
+> `Core\Ast::parse` answers the compiler's own tree, and `ClassInfo::call` acts through the ordinary
+> erased-receiver check rather than restating it. **Stage 2's handle half has opened**:
+> `Core\IO::open` answers a `Core\IO\File` whose slot is a key into the request's own table of
+> descriptors, `Core\IO\FileMode` is R11's enum, and `read`, `readLine`, `write`, `flush` and
+> `close` are its members; `seek`, `tell`, `truncate` and `lock` are owed, and `writeStream` streams
+> a chunk at a time. **`[2 filesystem]` is green**: ADR 0052 § 2's closed door on scheme dispatch is
+> asserted over the roster and over the path modules' own sources. Conformance 1198, differential
+> 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

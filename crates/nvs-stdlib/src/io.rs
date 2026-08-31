@@ -62,7 +62,7 @@
 //! the octets afterwards, which is the shape this class keeps rather than
 //! growing a reader per question.
 
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 use std::path::Path;
 
 use nvs_runtime::capability::Access;
@@ -715,6 +715,12 @@ const FILE_SLOT: usize = 0;
 /// four open handles cannot act on.
 const FILE_PATH_SLOT: usize = 1;
 
+/// How much [`nvs_core_io_file_read_line`] reads at a time before it looks for
+/// a terminator. A line longer than this costs one more read and nothing else;
+/// the buffer is on the stack, so the number is a syscall-count choice and not
+/// a footprint one.
+const LINE_CHUNK: usize = 8 * 1024;
+
 /// Spec § 14's `File` — R14's "an open file is an object and never a
 /// `resource`".
 ///
@@ -739,10 +745,10 @@ const FILE_PATH_SLOT: usize = 1;
 /// open — which is one question, answered in [`open_file`], and is the one thing
 /// a static type genuinely cannot know.
 ///
-/// # Three members so far, and the rest of § 14's roster is owed
+/// # Five members so far, and the rest of § 14's roster is owed
 ///
-/// `read`, `write` and `close`. The spec also names `readLine`, `seek`, `tell`,
-/// `truncate`, `flush` and `lock`, and each is a signature over the same slot
+/// `read`, `readLine`, `write`, `flush` and `close`. The spec also names `seek`,
+/// `tell`, `truncate` and `lock`, and each is a signature over the same slot
 /// with nothing new to decide — they are absent because nothing has needed one
 /// yet, which is the same test every row in [`crate::registry::ENUMS`] passes.
 /// `Core\IO::stdin`/`stdout`/`stderr` answer this class too and are owed with
@@ -761,6 +767,15 @@ pub(crate) const FILE: CoreClass = CoreClass {
             doc: Some(&FILE_READ_DOC),
         },
         CoreMethod {
+            name: "readLine",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "nvs_core_io_file_read_line",
+            doc: Some(&FILE_READ_LINE_DOC),
+        },
+        CoreMethod {
             name: "write",
             names: &["data"],
             // `$data` is not a path, so it is not a sink — the same reading
@@ -770,6 +785,15 @@ pub(crate) const FILE: CoreClass = CoreClass {
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_io_file_write",
             doc: Some(&FILE_WRITE_DOC),
+        },
+        CoreMethod {
+            name: "flush",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_io_file_flush",
+            doc: Some(&FILE_FLUSH_DOC),
         },
         CoreMethod {
             name: "close",
@@ -808,6 +832,27 @@ const FILE_READ_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO\File::readLine`'s reference card — ADR 0117.
+const FILE_READ_LINE_DOC: MethodDoc = MethodDoc {
+    short: "Reads the next line and moves the handle past it — `fgets`. The terminator is consumed \
+            and never returned, and `\\n`, `\\r\\n` and `\\r` all end a line, exactly as \
+            `Core\\Str::lines` and `Core\\IO::lines` divide one.",
+    params: &[],
+    ret: "The line without its terminator, or `null` at the end of the file — which is R5's \
+          spelling of an absence, and the reason this member needs no separate `eof`. A last line \
+          with no terminator on it is still a line.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The handle has already been closed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The read itself failed, or the handle was not opened for reading.",
+        },
+    ],
+};
+
 /// `Core\IO\File::write`'s reference card — ADR 0117.
 const FILE_WRITE_DOC: MethodDoc = MethodDoc {
     short: "Writes `$data` at the handle's position and moves it past what went out — `fwrite`. \
@@ -827,6 +872,28 @@ const FILE_WRITE_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "IOError",
             desc: "The write itself failed, or the handle was not opened for writing.",
+        },
+    ],
+};
+
+/// `Core\IO\File::flush`'s reference card — ADR 0117.
+const FILE_FLUSH_DOC: MethodDoc = MethodDoc {
+    short: "Hands everything written on this handle to the operating system — `fflush`. Novis \
+            writes straight to the descriptor, so there is nothing of its own left to push, and \
+            this member is the promise that a program never has to know that.",
+    params: &[],
+    ret: "Nothing. It is **not** `fsync`: reaching the operating system is not reaching the disk, \
+          and durability is not something this member promises.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The handle has already been closed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The flush itself failed. Nothing this class does can provoke one today, and \
+                   the row is here because the answer belongs to the operating system rather than \
+                   to this member.",
         },
     ],
 };
@@ -914,7 +981,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_lines" => (nvs_core_io_lines as *const ()).cast(),
         "nvs_core_io_open" => (nvs_core_io_open as *const ()).cast(),
         "nvs_core_io_file_read" => (nvs_core_io_file_read as *const ()).cast(),
+        "nvs_core_io_file_read_line" => (nvs_core_io_file_read_line as *const ()).cast(),
         "nvs_core_io_file_write" => (nvs_core_io_file_write as *const ()).cast(),
+        "nvs_core_io_file_flush" => (nvs_core_io_file_flush as *const ()).cast(),
         "nvs_core_io_file_close" => (nvs_core_io_file_close as *const ()).cast(),
         LINES_ITERATE_SYMBOL => (nvs_core_io_lines_iterate as *const ()).cast(),
         _ => return None,
@@ -1157,6 +1226,92 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\IO\File::readLine(): ?string` — replacing `fgets`.
+    ///
+    /// # Decision: a chunk is read and the tail is given back, and what a line
+    /// is comes from one place
+    ///
+    /// The descriptor lives in the request's table
+    /// ([`nvs_runtime::Ctx::hold_open_file`]) and nothing wraps it, so there is
+    /// no `BufReader` to hold a line's worth of look-ahead between two calls.
+    /// The two ways to read a line off a bare descriptor are a byte at a time —
+    /// a syscall per byte, which prices a member the whole point of which is
+    /// walking a file — or a chunk at a time with the bytes past the terminator
+    /// handed back by seeking. This does the second: two syscalls a line rather
+    /// than one a byte, and the position afterwards is exactly where a caller
+    /// interleaving [`nvs_core_io_file_read`] would need it to be. **What it
+    /// spends:** one [`LINE_CHUNK`]-byte stack buffer for the length of the
+    /// call, plus the line itself, charged to the request that asked.
+    ///
+    /// The terminator is **not** returned, which is where this parts company
+    /// with `fgets` and joins [`crate::str::line_pieces`] — the one place that
+    /// decides what a line is, so that `readLine` and `Core\IO::lines` cannot
+    /// come to disagree about a `\r\n`. PHP's answer keeps the newline and every
+    /// correct caller then writes the same `rtrim`, which is the shape ADR 0063
+    /// R5 refuses: the end of the file is `null` and nothing else has to be
+    /// looked for.
+    fn nvs_core_io_file_read_line(ctx, args: [1]) {
+        let (key, path) = handle_of(args[0], "readLine")?;
+        let failed = |err: &std::io::Error| {
+            nvs_runtime::capability::io_failure(
+                "Core\\IO\\File::readLine",
+                Path::new(path.as_text().unwrap_or("?")),
+                err,
+            )
+        };
+        let file = ctx
+            .open_file_mut(key)
+            .ok_or_else(|| already_closed("readLine", &path))?;
+
+        let mut line = Vec::new();
+        let mut buffer = [0u8; LINE_CHUNK];
+        loop {
+            let read = file.read(&mut buffer).map_err(|err| failed(&err))?;
+            if read == 0 {
+                // The end of the file. A last line with no terminator is still
+                // a line; nothing at all is the absence R5 spells `null`.
+                return Ok(if line.is_empty() {
+                    Value::null()
+                } else {
+                    Value::str(NvsStr::new(&line))
+                });
+            }
+            let chunk = &buffer[..read];
+            let Some(at) = chunk.iter().position(|byte| *byte == b'\n' || *byte == b'\r') else {
+                line.extend_from_slice(chunk);
+                continue;
+            };
+            line.extend_from_slice(&chunk[..at]);
+            let mut consumed = at + 1;
+            if chunk[at] == b'\r' {
+                if at + 1 < read {
+                    consumed += usize::from(chunk[at + 1] == b'\n');
+                } else {
+                    // A `\r` that ended the buffer: one more byte decides
+                    // whether this is a `\r\n` cluster or a lone `\r`, and the
+                    // byte is given back when it is neither.
+                    let mut next = [0u8; 1];
+                    if file.read(&mut next).map_err(|err| failed(&err))? == 1 && next[0] != b'\n' {
+                        file.seek(std::io::SeekFrom::Current(-1))
+                            .map_err(|err| failed(&err))?;
+                    }
+                }
+            }
+            // What of the chunk lies past the terminator, given back so that the
+            // handle ends this call exactly where the line ended. It is at most
+            // `LINE_CHUNK`, which is why the conversion cannot fail.
+            let tail = i64::try_from(read - consumed)
+                .expect("a chunk is `LINE_CHUNK` bytes, which fits an `i64` on every target");
+            if tail > 0 {
+                file.seek(std::io::SeekFrom::Current(-tail))
+                    .map_err(|err| failed(&err))?;
+            }
+            return Ok(Value::str(NvsStr::new(&line)));
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\IO\File::write(string $data): uint` — replacing `fwrite`.
     ///
     /// `write_all` rather than one `write`, so the answer is always every byte
@@ -1178,6 +1333,39 @@ nvs_runtime::nvs_helper! {
             )
         })?;
         Ok(Value::uint(data.len() as u64))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO\File::flush(): void` — replacing `fflush`.
+    ///
+    /// Novis holds no buffer of its own in front of the descriptor: every
+    /// [`nvs_core_io_file_write`] is a `write_all` that has already reached the
+    /// operating system by the time it returns. So this is `Write::flush` and
+    /// nothing more, and the member exists for two reasons that outlive that —
+    /// a program porting from `fflush` should not have to know which layer
+    /// buffered, and if a buffer is ever put in front of a handle this is
+    /// already the place that empties it.
+    ///
+    /// **It is deliberately not `sync_data`.** Durability is a much stronger and
+    /// much more expensive promise than the one `fflush` makes, and a member
+    /// that quietly upgraded to it would price every port from PHP at an
+    /// `fsync` per call. A member that means durability can be added when
+    /// something asks for one; it will not be spelled `flush`.
+    fn nvs_core_io_file_flush(ctx, args: [1]) {
+        let (key, path) = handle_of(args[0], "flush")?;
+        {
+            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("flush", &path))?;
+            file.flush()
+        }
+        .map_err(|err| {
+            nvs_runtime::capability::io_failure(
+                "Core\\IO\\File::flush",
+                Path::new(path.as_text().unwrap_or("?")),
+                &err,
+            )
+        })?;
+        Ok(Value::null())
     }
 }
 

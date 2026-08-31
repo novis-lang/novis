@@ -1638,6 +1638,13 @@ is why" — is this file.
   `[log]` per-application was one field on `nvs_config::tree::App` and nothing else. Grep for the
   field on `App` before assuming a block cannot carry a table — `deny_unknown_fields` is the only
   thing refusing it.
+- **A `.nvst` case run by hand needs `cargo build --bin nvs`, not `cargo build -p nvs`** — there is
+  no package called `nvs` (the binary lives in `nvs-cli`), and `cargo build -p nvs` fails with
+  *"package ID specification `nvs` did not match any packages"* while `target/debug/nvs.exe` stays
+  at whatever commit the driver last built it from. The tell is the case failing on a member you
+  just added with `E0405: ... has no method named ...`, which reads exactly like the row not
+  landing rather than like a stale binary. `--bin nvs` resolves it in one call from anywhere in the
+  workspace.
 
 ## Writing a test case
 

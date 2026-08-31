@@ -1,0 +1,68 @@
+--TEST--
+`Core\IO\File::readLine` walks a handle a line at a time, agreeing with `Core\IO::lines` about what a line is, and `flush` is a promise about the operating system rather than about the disk — spec § 14
+--FILE--
+<?nvs
+// Three terminators in one file, because a text file arriving from somewhere
+// else is the ordinary case: `\n`, `\r\n` and a lone `\r` all end a line, and
+// `Core\Str::lines` is the one place that decides so.
+Core\IO\File $out = Core\IO::open("mixed.txt", Core\IO\FileMode::Write);
+$out->write("alpha\nbeta\r\ngamma\rdelta");
+// Nothing of Novis's own is buffered in front of the descriptor, so this is a
+// statement about the operating system and not about the disk.
+$out->flush();
+$out->close();
+
+// The terminator is consumed and never handed back, which is where this parts
+// company with `fgets`: PHP's answer keeps the newline and every correct caller
+// then writes the same `rtrim`.
+Core\IO\File $in = Core\IO::open("mixed.txt", Core\IO\FileMode::Read);
+echo "1: ", $in->readLine() ?? "<end>", "\n";
+echo "2: ", $in->readLine() ?? "<end>", "\n";
+echo "3: ", $in->readLine() ?? "<end>", "\n";
+// A last line with no terminator on it is still a line.
+echo "4: ", $in->readLine() ?? "<end>", "\n";
+// And the end of the file is `null` — R5's spelling of an absence, which is why
+// this class needs no separate `eof`.
+echo "5: ", $in->readLine() ?? "<end>", "\n";
+$in->close();
+
+// The agreement that matters: a handle walked a line at a time and the whole
+// file split at once divide the same bytes the same way.
+string $joined = "";
+foreach (Core\IO::lines("mixed.txt") as string $line) {
+    $joined = $joined . $line . "|";
+}
+echo "lines: ", $joined, "\n";
+
+// `readLine` leaves the handle exactly past the terminator, so a `read` after
+// one continues where the line stopped rather than where a buffer happened to
+// end.
+Core\IO\File $mixed = Core\IO::open("mixed.txt", Core\IO\FileMode::Read);
+echo "first: ", $mixed->readLine() ?? "<end>", "\n";
+echo "then: ", $mixed->read(2), "\n";
+echo "rest: ", $mixed->readLine() ?? "<end>", "\n";
+$mixed->close();
+
+// A closed handle is a mistake in the program, reported the same way every
+// other member of this class reports it.
+try {
+    $mixed->readLine();
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo "after close: ", $e->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+1: alpha
+2: beta
+3: gamma
+4: delta
+5: <end>
+lines: alpha|beta|gamma|delta|
+first: alpha
+then: be
+rest: ta
+after close: Core\IO\File::readLine: this handle is closed — mixed.txt
