@@ -3374,6 +3374,22 @@ is why" — is this file.
   one. The gate's message says "within the 8 lines above the site" and reads as generous; it is
   measured from the `Fault::` line, not from the statement. One short declaration immediately above
   each site, each ending with its own reason, is what passes.
+- **A new `Core` class owes *three* conformance cases per member on the day it lands, and the check
+  that says so runs only in the full verify.** `every_core_class_has_a_conformance_floor_of_three`
+  in `crates/nvs-stdlib/tests/conformance_coverage.rs` counts cases per *member*, not per class, so
+  a two-member class registered with one case fails with four lines rather than one — and
+  `cargo test -p nvs-stdlib --lib` does not run it at all, because it is an integration test. Budget
+  the two extra cases into the slice rather than discovering them at the gate: the floor's own
+  message says a case asking the same question again does not count, so they have to be genuinely
+  different shapes, which is a design job and not a copy-paste one.
+- **A `?T` a `Core` member answered cannot be passed straight back into a `T` parameter, and the
+  diagnostic arrives at the *argument* rather than at the declaration.** `?int $step =
+  Core\Totp::check($code, $secret);` then `Core\Totp::check($code, $secret, $step)` is
+  `error[E0401]: expected int, found int|null` pointing at `$step` — which reads like the member's
+  row is wrong when it is the case that owes a narrowing. The fix is to put the second call inside
+  the `else` of `if ($step == null)`, where the type is narrowed; that is also what a real caller
+  writes, so the case gets more honest as well as compiling. Worth knowing before designing a
+  member's answer as `?int`: every case that round-trips the value pays one `if`.
 
 ## Splitting a file that got too big
 

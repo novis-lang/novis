@@ -105,6 +105,8 @@ Conventions the whole file uses:
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
 | [`Core\Crypto`](#core-core-crypto) | authenticated encryption with no cipher, mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted |
 | [`Core\SignedCookie`](#core-core-signedcookie) |  |
+| [`Core\Csrf`](#core-core-csrf) |  |
+| [`Core\Totp`](#core-core-totp) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -14981,6 +14983,99 @@ Authenticates `$cookie` against every key in `$keys` and answers the value that 
 **Returns** `string` — The original value, character for character.
 
 **Throws** `LogicError` — `$keys` is empty, or one of its entries is not 32 octets long.; `RuntimeError` — `$cookie` is not an authentic cookie under any key in `$keys` — it was altered, it is not base64 at all, or it was sealed under a key that has been retired. The four are one message on purpose: telling them apart tells a forger which half landed, and which key of the ring to aim at.
+
+<a id="core-core-csrf"></a>
+### `Core\Csrf`
+
+Keywords: issue, verify
+
+| Member | Signature |
+|---|---|
+| [`Core\Csrf::issue`](#core-core-csrf-issue) | `issue(string $session, secret bytes $key): string` |
+| [`Core\Csrf::verify`](#core-core-csrf-verify) | `verify(string $token, string $session, secret bytes $key): bool` |
+
+<a id="core-core-csrf-issue"></a>
+#### `Core\Csrf::issue`
+
+```nvs skip
+Core\Csrf::issue(string $session, secret bytes $key): string
+```
+
+Answers a CSRF token bound to `$session` under `$key`. Put it in the form or the header the next request will carry, and hand it back to `verify` with the same session and key.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$session` | `string` (neutral) | What the token is bound to — a session identifier, or anything else stable for as long as the token should be accepted. A token issued against one value never verifies against another. |
+| `$key` | `secret bytes` (neutral) | A 32-octet key, as `Core\Crypto::generateKey()` answers. It never reaches the token, so the same key serves every session. |
+
+**Returns** `string` — Unpadded URL-safe base64 — `A-Za-z0-9-_`, which a hidden field, a header and a query string all carry unescaped. Different on every call for the same inputs, so two tokens for one session never compare equal and a caller cannot get anywhere with `==`.
+
+**Throws** `LogicError` — `$key` is not 32 octets long — a `bytes` that was never a key.; `RuntimeError` — This process cannot spare a buffer the size of the token.
+
+<a id="core-core-csrf-verify"></a>
+#### `Core\Csrf::verify`
+
+```nvs skip
+Core\Csrf::verify(string $token, string $session, secret bytes $key): bool
+```
+
+Reports whether `$token` is a token this application issued for `$session` under `$key`. This is the only comparison the class exposes: no member answers the token that was expected, so there is nothing to write `==` against.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$token` | `string` (neutral) | The token as the request carried it. A `tainted` value is expected here — that is where a token comes from. |
+| `$session` | `string` (neutral) | The value `issue` was given. A token for a different session answers `false`, which is what "bound to the session" means. |
+| `$key` | `secret bytes` (neutral) | The key `issue` was given. Rotating it refuses every outstanding token. |
+
+**Returns** `bool` — `true` for a token this key issued against this session, `false` for every other text — altered, expired out of the key, issued for another session, or not base64 at all. The comparison is constant-time, and the four cases are one answer so that a forger learns nothing about which half landed.
+
+**Throws** `LogicError` — `$key` is not 32 octets long. A forged token is `false`, never a throw — only a program bug throws here.; `RuntimeError` — This process cannot spare the buffer the token would open into.
+
+<a id="core-core-totp"></a>
+### `Core\Totp`
+
+Keywords: code, check
+
+| Member | Signature |
+|---|---|
+| [`Core\Totp::code`](#core-core-totp-code) | `code(secret bytes $secret): string` |
+| [`Core\Totp::check`](#core-core-totp-check) | `check(string $code, secret bytes $secret, int $after = 0): ?int` |
+
+<a id="core-core-totp-code"></a>
+#### `Core\Totp::code`
+
+```nvs skip
+Core\Totp::code(secret bytes $secret): string
+```
+
+Answers the RFC 6238 code for `$secret` at this moment — the same six digits the authenticator application holding that secret is showing. For enrolment and for testing; verifying what a user typed is `check`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$secret` | `secret bytes` (neutral) | The shared secret, at least 16 octets. `Core\Random::bytes(20)` is RFC 4226 § 4's recommended length. |
+
+**Returns** `string` — Six decimal digits, zero-padded — `042311` is a code, and comparing it as a number would lose the leading zero, which is why it is text.
+
+**Throws** `LogicError` — `$secret` is shorter than 16 octets, which RFC 4226 § 4 refuses; or the clock is outside the range a step count reaches.
+
+<a id="core-core-totp-check"></a>
+#### `Core\Totp::check`
+
+```nvs skip
+Core\Totp::check(string $code, secret bytes $secret, int $after = 0): ?int
+```
+
+Reports which time step `$code` belonged to, or `null`. Accepts the current 30-second step and one either side, and nothing at or below `$after` — so storing the answer and passing it back next time is what refuses a replayed code.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$code` | `string` (neutral) | What the user typed. Anything that is not six digits is `null` rather than an error: a mistyped code is the ordinary case, not an exceptional one. |
+| `$secret` | `secret bytes` (neutral) | The same secret `code` was issued against, at least 16 octets. |
+| `$after` | `int` (default `0`) | The step this account last accepted, as a previous call answered it. Store it beside the secret. `0` accepts anything in the window, which is right exactly once, at enrolment. |
+
+**Returns** `?int` — The step number the code belonged to — pass it back as `$after` — or `null` for a code that is wrong, out of the window, or already used. There is no spelling that widens the window.
+
+**Throws** `LogicError` — `$secret` is shorter than 16 octets, which RFC 4226 § 4 refuses; or the clock is outside the range a step count reaches.
 
 <a id="core-enums"></a>
 ### `Core` enums

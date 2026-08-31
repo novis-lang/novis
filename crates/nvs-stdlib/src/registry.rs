@@ -1156,6 +1156,21 @@ pub const CLASSES: &[CoreClass] = &[
     // and why its `open` is the one verification in the language that removes
     // `tainted`.
     crate::signed_cookie::CLASS,
+    // ADR 0060 § 1's second roster entry, and the third caller of the one
+    // construction above — [`crate::csrf`] seals a domain tag and a session
+    // identifier where the cookie seals a payload, so this crate still holds
+    // one AEAD and not three. Its own module doc owns why the session arrives
+    // as an argument, why there is no key ring here, and why a class whose
+    // whole point is a missing accessor is not ADR 0063 R17's "reachable two
+    // ways" against the cookie above.
+    crate::csrf::CLASS,
+    // ADR 0060 § 1's third roster entry, and the one class in this crate that
+    // is *not* on the near side of the AEAD above: a one-time code is HMAC by
+    // RFC 6238, and [`crate::totp`]'s own module doc is the home of why the
+    // algorithm is SHA-1 when nothing else here is, why the window has no
+    // widening argument, and why "no replay" is a counter the caller stores
+    // rather than state this class keeps.
+    crate::totp::CLASS,
 ];
 
 /// Every `Core` member that needs a capability, and which one —

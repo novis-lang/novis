@@ -215,6 +215,7 @@ mod cli;
 mod command;
 mod config;
 mod crypto;
+mod csrf;
 mod csv;
 mod cursor;
 mod debug;
@@ -250,6 +251,7 @@ pub mod str;
 mod task;
 mod test;
 pub mod time;
+mod totp;
 pub mod uri;
 pub mod uuid;
 mod validate;
@@ -322,6 +324,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| command::address(symbol))
         .or_else(|| config::address(symbol))
         .or_else(|| crypto::address(symbol))
+        .or_else(|| csrf::address(symbol))
         .or_else(|| csv::address(symbol))
         .or_else(|| cursor::address(symbol))
         .or_else(|| debug::address(symbol))
@@ -349,6 +352,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| task::address(symbol))
         .or_else(|| test::address(symbol))
         .or_else(|| time::address(symbol))
+        .or_else(|| totp::address(symbol))
         .or_else(|| uri::address(symbol))
         .or_else(|| uuid::address(symbol))
         .or_else(|| validate::address(symbol))
