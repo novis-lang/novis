@@ -2,53 +2,51 @@
 
 ## State
 
-**Stage 6's local tier is bounded.** `[cache.local] max_size` is a `System`/`Reload` directive
-(`crates/nvs-config/src/directive.rs`, `crates/nvs-config/src/tree.rs`), and
-`nvs_stdlib::cache`'s `Local::put` forgets the key written longest ago until an arrival fits —
-never refusing, which is ADR 0059 § 3's "evicts rather than failing an allocation" over § 1's
-"absent at any time". The shipped cap is `DEFAULT_MAX_SIZE`, 32 MiB per core; `nvs_config::Quantity`
-is the parser, so `32M` cannot come to mean two things.
+**Stage 7 has opened.** `crates/nvs-stdlib/src/log.rs` is `Core\Log::write` and ADR 0092 § 2's
+`Core\Log\Level` — rows, cards, a body and an `address()` arm — plus the class row beside its
+ADR 0020 sibling `Core\Fatal` and a `None` row in `registry::CAPABILITIES` saying what a log write
+reaches instead of a door. The enum's integers **are** the syslog severities ADR 0092 § 2 fixes,
+so the mapping is the roster rather than a second table; that module's doc comment is its home.
 
-**Both writers of that tier are now bounded by one number.** `Core\Cache::local` and
-`Core\RateLimit::shed` pass the same `cache::local_cap(ctx)`, which is what the `None` rows in
-`registry::CAPABILITIES` claimed bounds them. The eviction order holds one slot per *live key*, not
-one per write, so `shed` rewriting a single key every request is O(in-flight) as `AGENTS.md`
-requires. The reasoning, the cost and what is still absent (a TTL, a `forget`) are that module's
-doc comment, which is their one home.
+**A record is `{"level":…,"msg":…}` plus a `fields` object when the bag is not empty**, written to
+the program's own output stream (`Ctx::write_output`, not `write_diagnostic` — the module doc owns
+the split). `fields` goes through `crate::json::Encodable`, now `pub(crate)` with a `document`
+constructor, so the value encoder is shared with `Core\Json::encode`. Three conformance cases pin
+the renderings, the empty-bag omission and the `bytes` refusal.
 
-**The driver's acceptance stops on stage 7, and it is not a regression**: `examples/logging.nvs`
-wants `Core\Log::write` and no `Core\Log` is registered. That is the group below, and it is the
-last thing between this goal and its acceptance.
+**The record itself is still written here, which is the thing ADR 0020 § 6 exists to prevent** —
+`nvs_render::Record` (`crates/nvs-render/src/lib.rs:387`) is ADR 0092 § 1's model and nothing in
+`nvs-runtime` emits a record at all yet. That is the next slice, and `log.rs`'s module doc says so
+under *Known gap*. `examples/logging.nvs` is still red: the acceptance check's third line needs
+`nvs.toml` to name `examples/logging/handler.nvs` for the child, which nothing configures yet.
 
 ## Next group
 
-**Stage 7's `Core\Log`, over `crates/nvs-stdlib/src/log.rs` (new),
-`crates/nvs-stdlib/src/registry.rs` and `crates/nvs-stdlib/src/fatal.rs`.**
+**Stage 7's remaining three, over `crates/nvs-stdlib/src/log.rs`, `crates/nvs-render/src/lib.rs`,
+`crates/nvs-types/src/expr/quals.rs` and `nvs.toml`.**
 
-- [ ] **Register `Core\Log` and the `Core\Log\Level` enum** — rows, cards, bodies and `address()`
-      arms, in a module beside its ADR 0020 sibling `crates/nvs-stdlib/src/fatal.rs:1`. The class
-      row goes with that sibling's at `crates/nvs-stdlib/src/registry.rs:1169`, and because the
-      class is door-bearing or is not, ADR 0118 § 7 owes it a row either way at
-      `crates/nvs-stdlib/src/registry.rs:1312` — a `Cap` if writing the log is an effect a grant
-      names, an explicit `None` beside the comment saying what it reaches instead if it is not.
-- [ ] **`write` reaches the engine floor's own serialiser rather than a second one** — ADR 0020
-      § 1, and the goal's standing decision that two writers agreeing today is the bug. The floor's
-      side is `crates/nvs-stdlib/src/fatal.rs:1`; a record a program writes and one the engine
-      writes have to be schema-identical because they are one walk, not because a test compares
-      them.
-- [ ] **`Core\Log::write` refuses a `secret` argument and accepts `tainted` freely** — ADR 0033 is
-      an output sink's axis and a logged field is *data* (`examples/logging.nvs:12` says so in the
-      fixture's own words). The two axes live at `crates/nvs-types/src/expr/quals.rs:1`.
-- [ ] **`examples/logging.nvs` green on its three frozen lines** — `docs/agent/loop-goal.toml:2455`
-      holds them, and the fixture's child and handler scripts are already on disk
-      (`examples/logging/throws.nvs`, `examples/logging/handler.nvs`), so nothing but the class is
-      missing.
+- [ ] **`write` reaches one serialiser rather than a second one** — ADR 0020 § 6's whole claim.
+      `crates/nvs-stdlib/src/log.rs:322`'s `Record` and `crates/nvs-stdlib/src/log.rs:289`'s
+      `render` are what move; `crates/nvs-render/src/lib.rs:387` is ADR 0092 § 1's model they
+      should become, and the floor that calls it directly is what does not exist yet. Decide there
+      whether the JSON Lines rendering belongs beside `nvs_render::plain::render` or in
+      `nvs-runtime` beside the ladder, and say which in the ADR-owning module doc.
+- [ ] **`Core\Log::write` refuses a `secret` argument and accepts `tainted` freely** — ADR 0033 § 4
+      and ADR 0024. The sibling to copy is `crates/nvs-types/src/expr/quals.rs:511`'s
+      `reject_secret_debug_argument`, which asks the same question of `Core\Debug::dump`'s open
+      `mixed`; `crates/nvs-types/src/expr/quals.rs:557`'s `contains_secret` is what reaches inside
+      the `array<string, mixed>` bag. The goal check names the test:
+      `a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type`, `-p nvs-types`.
+- [ ] **`examples/logging.nvs` green on its three frozen lines** — `docs/agent/loop-goal.toml:2455`.
+      The first two lines land already; the third is the child's handler script, so `nvs.toml`
+      needs an `[[app]]` block for `examples/logging/throws.nvs` naming
+      `examples/logging/handler.nvs` — the reader is `crates/nvs-cli/src/main.rs`'s
+      `configured_origin` neighbourhood, and ADR 0020 § 3 is the contract the block spells.
 
 ## Backlog
 
-- A TTL and a `Core\Cache\Store::forget` — `crates/nvs-stdlib/src/cache.rs`'s *What is not here yet*.
-- A `[cache.shared]` password, database index or TLS — same module doc, same section.
-- Neither `[cache.local]` nor `[cache.shared]` appears in `docs/novis.md` C.2's `nvs.toml` tour.
-- `orient.py` printed no map line for `nvs-config/src/value.rs`, which is where `Quantity`/`Unit`
-  live and the one parser every size directive shares — `[context] modules` wants it.
-- Goals 4 and 5 still need a reachable Docker daemon — `docs/implementation-plan.md`'s *Blocking*.
+- ADR 0020 § 6's `ts`, `request_id`, `trace_id`, `span_id`: no source for any of them yet — `log.rs`'s module doc.
+- `[log] target`/`format`/`level` are unimplemented directives — ADR 0020 § 4, ADR 0092 §§ 2-3.
+- ADR 0106 § 10's floor rotation and identical-record coalescing — the goal check names the test.
+- Stage 8's `Core\Reflect`/`Core\Ast`/`Core\Decimal` — `docs/agent/loop-goal.toml:2465`.
+- `Core\Debug::dump` writes to the diagnostic channel while a log record writes to output; ADR 0092 § 4 says dump goes to the log, so one of the two is wrong once the floor lands.

@@ -4718,6 +4718,20 @@ sibling in the same namespace unqualified.
   class* — `Core\RateLimit\Decision` and `Core\Process\Result` are their own `CoreClass`es and so are
   not capability-bearing at all. Settle it against ADR 0118 § 7 before writing the row, not after the
   test goes red.
+- **`every_error_path_is_asserted_or_declared_unreachable` scans *upward* for its declaration and
+  stops at the first `Fault::` it meets — including one written inside the declaration itself.** A
+  comment saying "unreachable from source: … and it is a `Fault::fatal` rather than a throw because
+  …" reads as its own site's boundary, so the real site four lines below is reported as undeclared
+  and the message names a stem you can see a declaration sitting directly above. The gate's own doc
+  comment states the stop rule and says why (a declaration must never be read as covering a site it
+  was not written for), so this is the rule working rather than a bug in it. Name the mechanism
+  without the `Fault::` prefix — "fatal rather than thrown" — and the same sentence passes. Then
+  the second half bites: `DECLARATION_WINDOW` is **8 lines from the phrase to the `Fault::`**, and
+  rustfmt decides how many lines are in between. A six-line comment over
+  `value.as_int().and_then(…).ok_or_else(|| Fault::fatal(…))` fits until `cargo fmt` breaks the
+  chain onto one method per line and pushes the site to ten. An early `if let … { return Ok(…) }`
+  with the comment directly over a bare `Err(Fault::fatal(…))` is immune to reflowing, and reads
+  better anyway: the refusal is the tail of the function rather than a closure inside its answer.
 
 ## Divergences and refusals already pinned
 
