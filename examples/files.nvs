@@ -31,7 +31,11 @@ echo "wrote ", Core\IO::size($note), " bytes\n";
 // decodes, `read` would have handed back the twelve bytes.
 echo "read back: ", Core\Str::trim(Core\IO::readText($note)), "\n";
 
-// `lines` is an `Iterable<string>`, not an array — the file is not held.
+// `lines` answers an `Iterable<string>`, not an array: what a caller is
+// promised is a forward walk and nothing else — no count, no index, no
+// second meaning for a key. Today those lines are read and held, which
+// `Core\IO\Lines`' own docs argue for; the type is the one that would not
+// change if they ever stopped being.
 string $roster = Core\Path::join($dir, "roster.txt");
 Core\IO::write($roster, "one\ntwo\nthree\n");
 int $count = 0;
