@@ -2,64 +2,70 @@
 
 ## State
 
-**ADR 0020 § 6's tier-4 floor is built, and it is one record and one serialiser reached twice.**
-`nvs_runtime::floor` builds an `nvs_render::Record` at `Level::Error` from an uncaught `Thrown` —
-message, a `class` field and, where there are frames, a `backtrace` field — and renders it with the
-same `nvs_render::json::line` `Core\Log::write` calls. That module's own doc comment is the home of
-why the envelope's `ts`/`request_id`/`trace_id` stay unset (parity with `nvs_stdlib::log`'s
-`record`: a floor filling a field its ordinary-code twin does not is the schema divergence § 6
-forbids) and of why `[log] format` is not read yet.
+**ADR 0020's ladder now has tiers 3 and 4, and tier 3 is an ordinary isolate.**
+`nvs_host::ladder::escalate` reads `[log] handler` off the context's own snapshot, resolves it
+through ADR 0118 § 2's spawn door, and runs it as `Isolate::new(program, args, Output::Inherit)`.
+It answers `true` when the handler completed, and only a `false` lets `nvs_runtime::floor::report`
+write the tier-4 line — so the floor is the floor *beneath* tier 3 and never a second copy beside
+it. That module's own doc comment is the home of the zero-retries guard (a thread-local, not a `Ctx`
+field), of why the spawn lives in `nvs-host` while the argument lives in `nvs_runtime::floor`, and
+of the reserve gap below.
 
-**Two callers, both on the diagnostic channel:** `nvs run`'s uncaught arm
-(`crates/nvs-cli/src/main.rs:967`) and after-response work that threw or timed out
-(`crates/nvs-runtime/src/deferred.rs`, which adds its own `origin` field). The `FATAL` arm is
-untouched — tier 3 and above, and seven `.nvst` cases pin its wording.
+**Two callers, both "a program's throw reached the top".** `nvs run`'s root task
+(`crates/nvs-cli/src/main.rs:891`, inside the task body rather than beside the exit code, because
+an isolate wants the scheduler, reactor and resolver the run installs and takes down) and an
+isolate's own `crates/nvs-host/src/isolate.rs:399`. The isolate caller deliberately does **not**
+fall through to tier 4: ADR 0006 already hands that failure to the parent as a value, and
+`finish`'s comment is the home of that reading.
 
-**`nvs-render` is a leaf now.** ADR 0087's bidi predicate **moved** from `nvs_syntax::bidi` to
-`nvs_render::bidi` and `nvs-syntax` reads it from below, so `nvs-runtime → nvs-render` closes no
-cycle. That was the price the item named and it is paid; `crates/nvs-render/src/lib.rs`'s
-§ *Where this sits* is rewritten as the home of the result. `Thrown::class_name` moved down the same
-way, out of `nvs_host::isolate`, because the floor asks the same question of the same value.
+**The handler's argument is a keyed `array<string, string>`**, built by
+`nvs_runtime::floor::report_argument` from the same `Record` tier 4 would have written — `level`,
+`message`, and one key per envelope field. Its doc comment owns why an array rather than a
+`Core\Fatal\ErrorReport` instance, and why a non-string node is skipped rather than stringified.
 
-**The acceptance check still fails on its third line, and only tiers 3 and 4 are between it and
-green.** `examples/logging.nvs`'s stdout is unchanged by this slice — the child's floor record goes
-to *stderr* — so `handler ran` is still owed by tier 3. Both fixtures exist:
-`examples/logging/handler.nvs` prints that line and `examples/logging/throws.nvs` is the child.
+**`[log] handler` is per application and `System`-class.** `nvs_config::tree::App` gained a `log`
+field, so `[app.log] handler` folds onto the global block through `snapshot`'s existing per-app
+merge; `directive.rs` carries `log.handler` as a more specific `System` row over its `Runtime`
+parent, because § 3 says so and because the value names a file to run. `nvs.toml`'s block is keyed
+on `examples/logging.nvs` — see the playbook bullet for why not on the child that throws.
+
+**The acceptance check on `examples/uncaught.nvs` was stale, not broken.** Its `want` still read
+`Uncaught Exception: unhandled` from before the floor rendered JSON; ADR 0020 § 6 and ADR 0092 § 3
+make JSON Lines the log target's default rendering, so the expectation was rewritten against the
+record. `examples/logging.nvs` prints its three frozen lines.
 
 ## Next group
 
-**Tier 3 — ADR 0020 § 3's handler isolate — over `crates/nvs-cli/src/main.rs`,
-`crates/nvs-host/src/isolate.rs`, `crates/nvs-config/src/tree.rs` and `nvs.toml`.**
+**ADR 0020 § 3's engine-owned reserve, over `crates/nvs-host/src/ladder.rs`,
+`crates/nvs-runtime/src/ctx.rs`, `crates/nvs-config/src/directive.rs`, `crates/nvs-config/src/tree.rs`
+and `crates/nvs-stdlib/tests/` — the same files this group touched plus the tests that pin it.**
 
-- [ ] **The floor reads `[log] handler` and spawns it as an isolate before reporting** — ADR 0020
-      § 3. The key is declared and nothing reads it: `crates/nvs-config/src/tree.rs:330` is the
-      `Log` struct, `crates/nvs-cli/src/main.rs:967` is the uncaught arm that must try tier 3
-      first, and `crates/nvs-host/src/isolate.rs:111` (`Isolate::new(program, args, output)`) and
-      `:133` (`run`) are the spawn ADR 0006 already defines. `nvs.toml` has no `[log]` block at
-      all yet; it needs one naming `examples/logging/handler.nvs` for the
-      `examples/logging/throws.nvs` app. **Zero retries**: a handler that throws or times out
-      drops straight to `crates/nvs-runtime/src/floor.rs:60`'s `uncaught`, which is already there.
-- [ ] **The isolate is charged to an engine-owned reserve, not to the failing request** — ADR 0020
-      § 3's one deliberate exception to ADR 0006, sized once per core at boot from
-      `crates/nvs-config/src/tree.rs:335`'s `handler_reserve_memory` and `:337`'s
-      `handler_reserve_time`. This is the part that makes tier 3 still run for a request already at
-      its ceiling, so a case that only proves the happy path has not proved the section.
-- [ ] **`examples/logging.nvs` green on its three frozen lines** — `docs/agent/loop-goal.toml:2455`.
-      The first two already print; the third is `handler ran` on stdout, which arrives through the
-      child's `output: 'inherit'` once the two above land. This closes the driver's standing
-      acceptance failure.
+- [ ] **The tier-3 isolate is charged to an engine-owned reserve, not to the failing request** —
+      ADR 0020 § 3's one deliberate exception to ADR 0006. Today `crates/nvs-host/src/ladder.rs:100`
+      hands `Isolate::run` the failing context, so `crates/nvs-runtime/src/ctx.rs:2192`
+      (`Ctx::isolate`) clones its budget and its `deadline` — a request at its ceiling has nothing
+      to lend and the handler dies with it. The reserve is `[log] handler_reserve_memory` and
+      `handler_reserve_time`, already fields on `crates/nvs-config/src/tree.rs:337`; they need the
+      two `System`/`Reload` rows beside `log.handler` at `crates/nvs-config/src/directive.rs:118`,
+      and `Ctx::isolate` needs a sibling that starts from the reserve rather than from the parent.
+      `crates/nvs-runtime/src/ctx.rs:1881` (`configured_fatal_reserve`) is the reader to copy.
+- [ ] **`the_configured_handler_script_runs_charged_to_the_engines_own_reserve` and
+      `the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling`** —
+      `docs/agent/loop-goal.toml:2436` names both as `-p nvs-stdlib` cases and neither exists.
+      Check they can be hosted there at all before writing them: the ladder is `nvs-host`'s and
+      `nvs-stdlib` does not depend on it, so the honest home may be `crates/nvs-host/tests/limits.rs`
+      with the goal's `args` corrected — the playbook's *a loop-goal.toml check can name a test in a
+      crate that cannot host it* bullet is this exact shape.
+- [ ] **`application_code_and_the_engine_floor_produce_schema_identical_records`** — the same
+      `cargo-named` block. `crates/nvs-stdlib/src/log.rs`'s `record` and
+      `crates/nvs-runtime/src/floor.rs:58` (`uncaught`) are the two builders, and both render through
+      `nvs_render::json::line`, so the case is one assertion over two envelopes.
 
 ## Backlog
 
-- `Core\Fatal\ErrorReport` — ADR 0020 § 3's one argument to the handler, through
-  `Core\Script::args()` (`crates/nvs-stdlib/src/script.rs:316`). Not built; tier 3 can land with a
-  record-shaped array first and gain the class with `Core\Fatal` — `docs/plan/m8.md`'s verify list.
-- `[log] format` is read by nobody. ADR 0091 § 3 (`crates/nvs-config/src/mode.rs:78`) makes it
-  `text` in development and `json` in production; the floor and `Core\Log::write` both hardcode
-  JSON. `nvs_render::plain::render` is the other rendering, already written.
-- `[log] target` — `stderr` / `file:<path>` / `syslog`, ADR 0020 § 4. Also read by nobody; the floor
-  writes `Ctx`'s diagnostic channel unconditionally.
-- ADR 0076 § 6's `trace_id`/`span_id` in the envelope, when a trace is active. `Ctx` already holds a
-  `TraceContext`; neither log caller reads it, and both must gain it together.
-- `orient.py` printed no ADR 0020 sections. Its `[context] adrs` needs `0020:3`, `0020:5` and
-  `0020:6` — this session's item cited §§ 5-6 by number and had to slice all three by hand.
+- ADR 0020 § 2's `Core\Fatal::onUncaughtThrow` receiving the real `Throwable` — `docs/plan/m8.md`.
+- `[log] format = "text"` is still unread at run time — `crates/nvs-runtime/src/floor.rs`'s module doc.
+- `[log] target` (`file:`/`syslog`) is unread; tier 4 writes to the diagnostic channel only — same doc.
+- ADR 0106's amendment: the floor rotates and rate-limits itself — `docs/agent/loop-goal.toml:2441`.
+- Stage 8, introspection: `Core\Reflect`, `Core\Ast`, `Core\Decimal` — `docs/plan/m8.md`.
+- A `FATAL` still never reaches tier 3 — `crates/nvs-cli/src/main.rs`'s `Err(_)` arm says so.

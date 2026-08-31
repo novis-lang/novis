@@ -394,6 +394,24 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     let cancelled = isolate_ctx.cancelled();
     let failed = !cancelled && isolate_ctx.pending().is_some();
     let thrown = failed.then(|| isolate_ctx.take_thrown());
+    if let Some(thrown) = &thrown {
+        // ADR 0020 § 3's tier 3, climbed here for the same reason `nvs run`
+        // climbs it at the end of a program: an isolate *is* a program, and
+        // this throw reached the top of it with nothing left to catch it. It
+        // runs **before** the buffer is taken below, so the handler's own
+        // output joins the child's and crosses at the await like every other
+        // byte the child wrote.
+        //
+        // **Tier 4 is deliberately not reached from here.** ADR 0006's
+        // failure-is-a-value already carries this throw back to the parent,
+        // which is a reporter the CLI's own root task does not have, so a line
+        // on `stderr` beside it would be a second report of one failure rather
+        // than the floor beneath a missing one. What the operator asked for is
+        // the handler; what the parent asked for is the value; neither is the
+        // floor.
+        let record = nvs_runtime::floor::uncaught(thrown);
+        crate::ladder::escalate(isolate_ctx, &record);
+    }
     let output = isolate_ctx.take_buffered_output().unwrap_or_default();
 
     if let Some(thrown) = thrown {

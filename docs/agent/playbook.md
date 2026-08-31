@@ -1587,6 +1587,17 @@ is why" — is this file.
   no-origin case gives. Hold the pipe open — `tail -f /dev/null | python -u tools/origin.py` — or run
   it in the foreground of its own call. `tools/loop.py`'s `local_origin` holds a real pipe, which is
   why the driver never meets this and a session checking the example by hand does.
+- **An isolate reads the configuration in force where it was *spawned*, so an `[[app]]` block keyed
+  on the child's own path never reaches it.** `Ctx::isolate` clones the parent's `Request` — that is
+  ADR 0006's overlay direction and its doc comment says so — and the snapshot was resolved once, for
+  the *entry* file, before the program started. So `[[app]] entry = "examples/logging/throws.nvs"`
+  is dead configuration for `nvs run examples/logging.nvs`, however obviously it names the file that
+  throws; the block that reaches a child is the one the **parent** matched. The related half is that
+  a `[[app]]` block's sub-tables need no plumbing at all: `crate::snapshot`'s per-app fold takes the
+  whole block minus `root`/`entry`/`mode`/`origin` and merges it onto the global table, so making
+  `[log]` per-application was one field on `nvs_config::tree::App` and nothing else. Grep for the
+  field on `App` before assuming a block cannot carry a table — `deny_unknown_fields` is the only
+  thing refusing it.
 
 ## Writing a test case
 
