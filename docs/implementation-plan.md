@@ -50,13 +50,13 @@
 > eight acceptance fixtures are on disk** — `examples/` gained `files`, `process`, `cli`, `crypto`,
 > `http`, `cache`, `logging` and `reflect` ; each is the program its stage will make compile, and
 > none does yet. **Stage 2 is landing `Core\IO`'s member list**: `exists`, `size`, `remove`,
-> `removeDir` and `temporaryDir` are rows, cards, bodies and grants, over five new
-> `nvs_runtime::capability` doors; `readText`, `lines` and `within` are what `examples/files.nvs`
-> still names. The acceptance list is measurable again — a program leg had been listed among a
-> `cargo test` check's test names, where nothing could ever match it, and it stopped every run after
-> four checks. What goals 1-3 landed is unchanged and is not re-derived here: `git log` and each
-> crate's module doc own it. Conformance 1099, differential 210 of 210, migration 37% over its 36%
-> floor.
+> `removeDir`, `temporaryDir` and `within` are rows, cards, bodies and grants, over six new
+> `nvs_runtime::capability` doors, and every path parameter of the class is now `Qual::Sink` with
+> `within` the launderer past it; `readText` and `lines` are what `examples/files.nvs` still names.
+> The acceptance list is measurable again — a program leg had been listed among a `cargo test`
+> check's test names, where nothing could ever match it, and it stopped every run after four checks.
+> What goals 1-3 landed is unchanged and is not re-derived here: `git log` and each crate's module
+> doc own it. Conformance 1102, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

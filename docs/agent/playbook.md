@@ -1150,6 +1150,17 @@ is why" — is this file.
   same file already measured the fixture properly, as a `contains` check on the same path. Before
   writing a test to satisfy a name, check that the name *could* be a `#[test]`; and fix
   `docs/agent/goals/<goal>.toml` alongside the live copy, or the next `goal-switch.py` restores it.
+- **A `Fault::` message whose format string *starts* with an interpolation is invisible to
+  `every_error_path_is_asserted_or_declared_unreachable`, and that is a way to fail closed by
+  accident.** `conformance_coverage.rs`'s `fault_sites` takes the message's stem as everything
+  before the first `{`, then drops any stem under 14 characters — so
+  `format!("{MEMBER} refused {arg:?}")` yields the empty stem and the site is silently never owed a
+  case, while `OWED_A_CASE` stays empty and the gate stays green. The second half of the trap is
+  the corpus match: it is `corpus.contains(&stem)` over the raw `.nvst` text, so a stem containing
+  `Core\IO::` can only be matched by a case that writes that backslash *unescaped*, which a Novis
+  double-quoted string does not. Write the literal head of a refusal as a backslash-free sentence
+  naming the rule — `"a path must stay inside the base it is resolved against: …"` — and put the
+  member name inside the interpolated tail, where both problems go away at once.
 
 ## Running things
 
