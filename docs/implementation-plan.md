@@ -43,25 +43,25 @@
 >
 > **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
 > running**, over goals 1-3, each reached at its own acceptance.   **The goal's eight acceptance
-> fixtures are on disk.** **Stages 2 and 3 are closed**: `Core\IO`'s ten members and
-> `Core\Process::run` are rows, cards, bodies and grants over ADR 0118's doors, and
-> `examples/files.nvs` and `examples/process.nvs` run green.  **§ 6 is closed**:
-> `Core\Command::help`, `::run` and `completions` are rows over the compiled table, a declared
-> default crosses on the row, and `--ARGS--` is honoured.  **`Core\Password` and `Core\Crypto` are
-> closed**: Argon2id at OWASP's floor and XChaCha20-Poly1305, neither with an algorithm argument,
-> and `examples/crypto.nvs` runs green. **Stage 4 is closed**: ADR 0060 § 1's roster is all four
-> entries. **Stage 5 is closed**: `Core\Http::allowUrl` answers a pinned `Core\Http\Target`, and two
-> cases pin ADR 0058 §§ 3 and 5.   **Stage 6 has opened**: `Core\Cache`'s two tiers are one `Store`
-> over ADR 0023 § 3's byte payload, `shared()` is the `net.connect` door onto RESP and `local()` the
-> `None` row beside it . Both of § 1's limiters are rows: `consume` GCRA over that store, throwing
-> where an unreachable one would decide *allowed*; `shed` the same GCRA over the local tier.
-> `examples/cache.nvs` prints its five lines against `tests/db/compose.yaml`'s `redis`, and
-> `[cache.local] max_size` caps the local tier `shed` shares — it forgets rather than fails. **Stage
-> 7 has opened**: `Core\Log::write` is a row, a card and a body, ADR 0020 § 6's tier-4 floor writes
-> that record through `nvs_render::json`, and § 3's tier 3 runs above it — `[app.log] handler` as an
-> isolate, from the CLI's root task and from an isolate's `finish`, reporting only when it is absent
-> or failed. `examples/logging.nvs` is green; § 3's engine-owned reserve is `Ctx::handler_isolate`.
-> Conformance 1176, differential 210 of 210, migration 37% over its 36% floor.
+> fixtures are on disk.**   **§ 6 is closed**: `Core\Command::help`, `::run` and `completions` are
+> rows over the compiled table, a declared default crosses on the row, and `--ARGS--` is honoured.
+> **`Core\Password` and `Core\Crypto` are closed**: Argon2id at OWASP's floor and
+> XChaCha20-Poly1305, neither with an algorithm argument, and `examples/crypto.nvs` runs green.
+> **Stage 4 is closed**: ADR 0060 § 1's roster is all four entries. **Stage 5 is closed**:
+> `Core\Http::allowUrl` answers a pinned `Core\Http\Target`, and two cases pin ADR 0058 §§ 3 and 5.
+> **Stage 6 has opened**: `Core\Cache`'s two tiers are one `Store` over ADR 0023 § 3's byte payload,
+> `shared()` is the `net.connect` door onto RESP and `local()` the `None` row beside it . Both of §
+> 1's limiters are rows: `consume` GCRA over that store, throwing where an unreachable one would
+> decide *allowed*; `shed` the same GCRA over the local tier. `examples/cache.nvs` prints its five
+> lines against `tests/db/compose.yaml`'s `redis`, and `[cache.local] max_size` caps the local tier
+> `shed` shares — it forgets rather than fails. **Stage 7 has opened**: `Core\Log::write` is a row,
+> a card and a body, ADR 0020 § 6's tier-4 floor writes that record through `nvs_render::json`, and
+> § 3's tier 3 runs above it — `[app.log] handler` as an isolate, from the CLI's root task and from
+> an isolate's `finish`, reporting only when it is absent or failed. `examples/logging.nvs` is
+> green; § 3's engine-owned reserve is `Ctx::handler_isolate`. **Stage 8 has opened**:
+> `Core\Reflect::forObject` describes a class, and a slot's visibility rides from
+> `nvs_types::layout` to `ClassDesc::field_is_public`, so `properties()` and `get` face the check
+> ordinary code faces. Conformance 1179, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

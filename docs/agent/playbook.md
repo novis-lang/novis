@@ -3562,6 +3562,28 @@ is why" — is this file.
   the pattern rather than what it expanded to, so the only visible difference was the extra
   `%A` line. Delete the wildcard when the output it was covering goes away; a `%A` is an
   absorber, not an optional tail.
+- **A new `Core` class owes three conformance cases *per member*, and the guard that says so fires
+  only at `cargo test -p nvs-stdlib`.** `every_core_class_has_a_conformance_floor_of_three` prices a
+  class by its thinnest member, so one case exercising all four of a new class's members leaves every
+  one of them at 1 and the class below the floor — and "a case that asks one of these a second
+  question closes it; a case that asks the same question again does not", which rules out the obvious
+  fix of copying the case three times. Budget for three cases with three different questions per
+  class before writing any of them. Two more guards in the same run cost a cycle each and are cheap
+  to satisfy up front: `no_registry_card_cites_an_adr` refuses an ADR citation anywhere in a
+  `MethodDoc` field, because `nvs meta --json` ships the card to a reader with no ADR tree — state
+  the fact instead; and `no_member_revalidates_a_string_argument` reads the *source*, so a
+  `Value::as_str_bytes` followed by any `from_utf8` spelling fails it even where the second call is a
+  `from_utf8_lossy` in an error message.
+
+- **An acceptance fixture's *source* is frozen by nothing, so it can name members that were never
+  going to exist — and the diagnostic blames the class you just added.** `examples/reflect.nvs` was
+  written ahead of `Core\Reflect` and asked for `$described->name` and `Core\Arr::length(...)`: the
+  first is a property, which `registry::CoreTy::Instance` says a `Core` instance never has, and the
+  second is `Core\Arr::count` under a name that has never been in the registry. Both surface as
+  `E0405` against the new class, which reads as "your row is wrong" rather than "the fixture is". The
+  fixture's own header says which half is frozen — for these files it is the `[[check]]`'s `want`
+  lines and never the program — so a member spelling in a fixture is a *guess* until one `grep -n
+  'name: "…"'` in the owning module confirms it.
 
 ## Splitting a file that got too big
 

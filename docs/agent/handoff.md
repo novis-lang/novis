@@ -2,53 +2,60 @@
 
 ## State
 
-**ADR 0020 § 3's engine-owned reserve is on disk.** `Ctx::handler_isolate`
-(`crates/nvs-runtime/src/ctx.rs`) is `Ctx::isolate` with three things parted from it: its own
-deadline word, its own two ceilings from `[log] handler_reserve_memory` / `handler_reserve_time`,
-and a fresh script depth. That constructor's doc comment is the one home of why each of the three,
-and of why the reserve is a ceiling rather than a pre-allocation; `Ctx::DEFAULT_HANDLER_RESERVE_MEMORY`
-and `..._TIME` own the two numbers (16 MiB, 5 s) where the configuration states neither. Both keys
-are `System`/`Reload` rows in `nvs_config::directive`, beside `log.handler` and for their own
-reason.
+**Stage 8 has opened.** `Core\Reflect::forObject` answers a `Core\Reflect\ClassInfo`, and that
+description's `name()`, `properties()` and `get($object, $name)` are rows, cards, bodies and
+`.nvst` cases (`crates/nvs-stdlib/src/reflect.rs`, whose module doc is the home of why the
+description holds *answers* rather than the described object, and why `get` refuses a value of
+another class).
 
-**The ladder asks for it and nothing else can.** `Isolate::charged_to_the_engine_reserve` is a
-builder, not an option on `Isolate::new`, because § 3 says the exception is not a precedent — the
-`spawn script` seam never calls it. `Isolate::start`'s `max_script_depth` refusal is now asked of
-the tree only: a chain at that ceiling is one of the failures tier 3 exists to report.
+**A field slot's visibility is now a carried bit, not a recomputed one.** `nvs_types::layout` decides
+it where the keyword still exists, `nvs_ir::ir::Class::public_fields` carries it, `nvs-codegen`
+installs it and `nvs_runtime::ClassDesc::field_is_public` answers it — ADR 0092 § 5's `secret` bit's
+plumbing exactly, and each of those four doc comments owns its own half. An unclassified slot reads
+as **unreadable**, which is the opposite fallback from `field_is_secret`; `field_is_public`'s doc
+says why both directions are the safe one.
 
-**Stage 7 owes one item**, the schema-identity test in the backlog below. **The driver's failing
-acceptance check is stage 8 and not a regression**: `examples/reflect.nvs` wants
-`Core\Reflect::forObject` and there is no `crates/nvs-stdlib/src/reflect.rs` at all — see the new
-playbook bullet.
+**The driver's acceptance check is still red, and still is not a regression.**
+`examples/reflect.nvs` now compiles as far as line 53 and stops at `Core\Reflect::typeOf`, which is
+the next group's first item. Two wrong spellings in that fixture were fixed on the way past
+(`->name` as a property, `Core\Arr::length`) — see the new playbook bullet.
+
+**Stage 7 still owes one item**, the schema-identity test in the backlog below.
 
 ## Next group
 
-**Stage 8's opening — `Core\Reflect`, over `crates/nvs-stdlib/src/registry.rs`, a new
-`crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-stdlib/src/lib.rs`,
-`crates/nvs-stdlib/src/instance.rs` and `tests/conformance/core/`. Stage 8's own rules and its
-frozen five lines are `docs/agent/loop-goal.toml:2463`; the fixture is `examples/reflect.nvs:25`.**
+**Stage 8's remainder — `Core\Reflect`'s last member, its enum, and `Core\Ast`, over
+`crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-stdlib/src/lib.rs`, a new `crates/nvs-stdlib/src/ast.rs` and `tests/conformance/core/`.
+Stage 8's rules and the fixture's five frozen lines are `docs/agent/loop-goal.toml:2463`.**
 
-- [ ] **`Core\Reflect::forObject`, and the described class's `name` and `properties()`** — ADR 0019's
-      first rule. The five edits of *A `Core` member* over `crates/nvs-stdlib/src/registry.rs:1054`,
-      with the returned value as a `CoreTy::Instance` per `crates/nvs-stdlib/src/instance.rs:1`.
-      `properties()` counts what ordinary code can see — two of `Point`'s three
-      (`examples/reflect.nvs:32`).
-- [ ] **`get($object, $name)` refuses a `private` read as a `RuntimeError`** — ADR 0019's visibility
-      rule, which is the half PHP's `setAccessible` gave away. The fixture's clause is deliberately
-      `RuntimeError` and not `Throwable` (`examples/reflect.nvs:41`), and the conformance case is
-      named at `docs/agent/loop-goal.toml:2591`.
-- [ ] **`Core\Ast::parse` as inert typed data** — ADR 0052's door stays shut, so the parse answers a
-      value with no path back into execution. Same registry anchor,
-      `crates/nvs-stdlib/src/registry.rs:1054`, and the fixture's last two lines at
-      `examples/reflect.nvs:25`.
+- [ ] **`Core\Reflect::typeOf(mixed): Core\Reflect\TypeKind`, and the enum it answers with** — the
+      spec's single replacement for PHP's fourteen `is_*` predicates plus `gettype`
+      (`docs/spec/01-core-library.md:964`). The member is a fifth row on
+      `crates/nvs-stdlib/src/reflect.rs:83`; the enum is one line on
+      `crates/nvs-stdlib/src/registry.rs:1545`'s `ENUMS` beside its `EnumDoc`. The goal check names
+      `type_of_is_the_single_replacement_for_the_is_predicates`, and the fixture's fourth frozen line
+      is `examples/reflect.nvs:53` — its `match` arms fix the case spellings (`Int`, `Float`, `Text`).
+- [ ] **`Core\Ast::parse` as inert typed data** — ADR 0019 § 3, and ADR 0052's door stays shut, so
+      the answer is data with no path back into execution. A new module registered on
+      `crates/nvs-stdlib/src/registry.rs:1054`, over `nvs_syntax`'s own entry point
+      `crates/nvs-syntax/src/parser/mod.rs:504`. The fixture asks `$tree->nodes()` and counts four at
+      `examples/reflect.nvs:63`; the goal check is
+      `a_parsed_ast_is_inert_data_with_no_path_back_into_execution`.
+- [ ] **`Core\Reflect::forClass`** — the spec row's other door
+      (`docs/spec/01-core-library.md:954`), reaching the compiled unit's class table rather than an
+      instance's descriptor. Same five edits on `crates/nvs-stdlib/src/reflect.rs:83`; the route from
+      a native member to a program's class is `Ctx::class_desc`, whose own doc comment says it is
+      reached through `Ctx::set_runtime_error_class`'s handle and nothing else.
 
 ## Backlog
 
-- `application_code_and_the_engine_floor_produce_schema_identical_records` — M8's *Verify*, the last
-  stage-7 item, over `crates/nvs-runtime/src/floor.rs` and `crates/nvs-stdlib/src/log.rs`.
-- `Core\Decimal` and `Core\BigInt` — stage 8's other half, `docs/agent/loop-goal.toml:2470`.
-- `nvs.toml` states neither reserve key; an operator-visible example belongs in its
-  `examples/logging.nvs` `[app...log]` block, which is where `handler` already is.
-- The reserve is a ceiling and nothing samples CPU time against `cpu_limit` yet — `Ctx::cpu_limit`'s
-  field doc owns that gap, and it bounds the handler's time half exactly as it bounds a request's.
-- `docs/agent/doc-cleanup.md`'s pass, when the user fires it.
+- Stage 7's last item: application code and the engine floor produce schema-identical log records —
+  `docs/agent/loop-goal.toml:2440`.
+- A reflective *call* to a `private` method, and a reflective property *write* running ADR 0014's
+  hook — `crates/nvs-stdlib/src/reflect.rs`'s known gap 3; two of stage 8's named checks.
+- `Core\Decimal`'s `divExact`/`divRound` split — stage 8's check
+  `div_exact_throws_where_div_round_rounds`, ADR 0054.
+- Item 35's `property<T>` and its ADR, the goal's one ADR slot — `docs/agent/loop-goal.toml:2500`.
+- § 1's remaining `*Info` classes (`MethodInfo`, `ParameterInfo`, …) —
+  `crates/nvs-stdlib/src/reflect.rs`'s known gap 1.
