@@ -1,0 +1,34 @@
+--TEST--
+`new` over a `class<T>` is refused when an implementor of `T` declares a constructor that cannot take the arguments written (ADR 0125 § 5)
+--FILE--
+<?nvs
+// A class reference may hold any implementor of its bound, so a `new` through
+// one has to be a call every implementor accepts. `Strict` demands a second
+// argument, and no `new $cls(...)` written against `Formatter`'s constructor
+// can supply it — which PHP discovers at run time and Novis refuses at the
+// `new` site, where the arguments are.
+class Formatter {
+    public function constructor(public string $prefix) {}
+}
+
+class Strict extends Formatter {
+    public function constructor(string $prefix, public int $width) {
+        parent::constructor($prefix);
+    }
+}
+
+// Refused where it is written and not at `Strict`'s declaration: a subclass
+// nothing instantiates through a class reference is nobody's problem, and the
+// fix is local to this line — `as class<Strict>` and instantiate that.
+class<Formatter> $cls = Formatter::class as class<Formatter>;
+Formatter $made = new $cls("p: ");
+echo $made->prefix, "\n";
+--EXPECTF-ERROR--
+error[E0794]: `new` over `class<Formatter>` cannot check its arguments
+   --> %s:21:19
+   |
+21 | Formatter $made = new $cls("p: ");
+   |                   ^^^^^^^^^^^^^^^ `Strict::constructor` is not compatible with `Formatter::constructor`
+   = help: a class reference may hold any implementor, so every one of them has to accept the arguments written here — give `Strict` a constructor compatible with `Formatter`'s, or narrow this to `as class<Strict>` and instantiate that
+
+error: aborting due to 1 error
