@@ -49,9 +49,9 @@
 > roster is all four entries. **Stage 5 is closed**: `Core\Http::allowUrl` answers a pinned
 > `Core\Http\Target`(ADR 0058 §§ 3 and 5). **Stage 6 has opened**: `Core\Cache`'s two tiers are one
 > `Store`, `shared()` the `net.connect` door onto RESP and `local()` the `None` row beside it; § 1's
-> limiters are rows over them. **Stage 7 has opened**: `Core\Log::write` is a row over ADR 0020 §
-> 6's tier-4 floor, and § 3's tier 3 runs above it as `[app.log] handler`, an isolate on
-> `Ctx::handler_isolate`'s reserve; `examples/logging.nvs` is green. **Stage 8 has opened**:
+> limiters are rows over them. **Stage 7 has opened**: § 6's two writers are one serialiser,
+> asserted byte-identical over one error, and § 3's tier 3 is `[app.log] handler` on
+> `Ctx::handler_isolate`'s reserve; § 2's `onUncaughtThrow` is owed. **Stage 8 has opened**:
 > `Core\Reflect` is `forObject`, `forClass` and `typeOf`, and `Core\Ast::parse` answers the
 > compiler's own tree. **Stage 2's handle half has opened**: `Core\IO::open` answers a
 > `Core\IO\File` whose slot is a key into the request's own table of descriptors, `Core\IO\FileMode`

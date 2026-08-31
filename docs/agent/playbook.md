@@ -1239,6 +1239,15 @@ is why" — is this file.
   quoted region that swallows the *next* target as well. The tell is a regex in the message that is
   visibly two targets joined. Write the pattern without `"` (`name: .[a-z]` matches the same rows),
   which costs nothing, rather than hunting for an escape that survives both layers.
+- **`docs/agent/loop-goal.toml` and `docs/agent/goals/<goal>.toml` drift, and the live one is the
+  half that is right.** They are byte-identical by construction and the next `goal-switch.py`
+  restores the goal file over the live one, so every session that improves a check and does not copy
+  it back is queueing a silent revert. Measured on 2026-08-31 the two had diverged in three places
+  no session had copied: `nvs-host`'s module paths in `[context] modules` (`stream.rs`/`pool.rs`,
+  renamed to `net.rs`/`blocking.rs`), a `mailpit` service in `[docker]` that stage 9 no longer
+  needs, and `examples/uncaught.nvs`'s expectations, which had been rewritten for ADR 0092 § 3's
+  JSON Lines rendering. `git diff docs/agent/goals/` right after the `cp` is the whole check, and
+  what it prints is other sessions' work about to be lost rather than your own.
 
 ## Running things
 
