@@ -17,7 +17,7 @@
 //! `extern "C"` function are a whole one. `nvs-stdlib`'s `allocation_policy.rs`
 //! owns that shape and the reason the table is leaked.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use nvs_config::Snapshot;
@@ -578,6 +578,178 @@ fn an_unstated_handler_reserve_is_the_engines_own_and_never_the_requests() {
     assert!(
         !handler.over_memory_limit(),
         "the request's 4 KiB ceiling is not the handler's",
+    );
+    drop(hog);
+}
+
+/// What the tier-3 handler below read, and how many times it ran. `usize::MAX`, `true` and
+/// `FATAL` are the readings of a handler that has not run, so a case that never reached one fails
+/// on every line rather than on the counter alone.
+static HANDLER_RUNS: AtomicUsize = AtomicUsize::new(0);
+static HANDLER_CEILING: AtomicUsize = AtomicUsize::new(usize::MAX);
+static HANDLER_OVER: AtomicBool = AtomicBool::new(true);
+static HANDLER_POLL: AtomicI32 = AtomicI32::new(nvs_runtime::FATAL);
+
+/// The record's own message as it reached the handler, and the path the resolver was asked for —
+/// a slot each, on [`SEEN_LIMIT`]'s reasoning.
+static HANDLER_SAW: Mutex<Option<String>> = Mutex::new(None);
+static RESOLVED_PATH: Mutex<Option<String>> = Mutex::new(None);
+
+/// The `[log] handler` script, as the [`nvs_runtime::script::Program`] a resolver answers with: it
+/// reads the record it was handed, then spends a megabyte of the reserve and polls.
+///
+/// The allocation and the poll are the point rather than decoration. A reserve is a *ceiling*, so
+/// a handler that reads one and returns cannot tell a widened ceiling from one it never needed —
+/// what separates them is whether the next safepoint lets it keep going, which is exactly what a
+/// handler running on the failing request's own budget would fail.
+///
+/// `nvs-cli`'s `program_over` is the production shape and this is its skeleton: the argument is
+/// discharged into the isolate's own ownership root the same way, which is what
+/// [`Ctx::set_isolate_argument`] is for, rather than released here.
+#[expect(
+    unsafe_code,
+    reason = "two ABIs compiled code reaches and a test cannot express otherwise: \
+              `nvs_array_get` over a raw array pointer, a borrowed key and the \
+              address of a live `Value` for the answer, and the safepoint, which \
+              takes the context by pointer"
+)]
+fn reports_from_inside_the_reserve(ctx: &mut Ctx, args: Value) -> Value {
+    HANDLER_RUNS.fetch_add(1, Ordering::SeqCst);
+    HANDLER_CEILING.store(ctx.memory_limit(), Ordering::SeqCst);
+
+    let array = args
+        .array_ptr()
+        .expect("`floor::report_argument` builds the record as one array");
+    // Borrowed out of the array, which owns it for the length of this call.
+    let key = NvsStr::new(b"message").into_raw();
+    let mut named = Value::null();
+    unsafe {
+        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        *HANDLER_SAW.lock().expect("no test panics holding this") =
+            named.as_text().map(str::to_owned);
+        drop(NvsStr::from_raw(key));
+    }
+
+    let held = vec![0_u8; 1 << 20];
+    HANDLER_OVER.store(ctx.over_memory_limit(), Ordering::SeqCst);
+    let status = unsafe { nvs_safepoint(&raw mut *ctx) };
+    HANDLER_POLL.store(status, Ordering::SeqCst);
+    drop(held);
+
+    ctx.write_output(b"reported")
+        .expect("`OutputSink::Buffer` never fails");
+    ctx.set_isolate_argument(args);
+    Value::null()
+}
+
+/// This thread's resolver for the case below: one program for whatever path `[log] handler`
+/// named, and a note of the path it was asked for.
+///
+/// A type rather than a closure because [`nvs_runtime::script::Resolver`] is a trait, and it
+/// builds a fresh program per call because `resolve` only borrows `self` while a `Program` is a
+/// `Box<dyn FnOnce>` that has to be moved out.
+#[derive(Debug)]
+struct ResolvesToTheProbe;
+
+impl nvs_runtime::script::Resolver for ResolvesToTheProbe {
+    fn resolve(&self, path: &str) -> Result<nvs_runtime::script::Program, String> {
+        *RESOLVED_PATH.lock().expect("no test panics holding this") = Some(path.to_owned());
+        Ok(Box::new(reports_from_inside_the_reserve))
+    }
+}
+
+/// `docs/plan/m8.md`'s *Verify*, ADR 0020 § 3's second clause: the configured handler **still
+/// fires** when the request reporting itself is at its own memory ceiling.
+///
+/// The sibling above asks [`Ctx::handler_isolate`] for the three fields it parts from
+/// `Ctx::isolate` on. This one asks the **ladder**, end to end and from a request that has already
+/// breached: `nvs_host::ladder::escalate` reading `[log] handler`, passing ADR 0118 § 2's spawn
+/// door, resolving the path, running the program under `Charge::EngineReserve` and answering
+/// `true` — which is its contract for "the handler reported, so tier 4 owes nothing".
+///
+/// Either half alone is green against the failure this pins. A constructor that widens correctly
+/// buys nothing if the escalation never reaches it, and an escalation that reaches a handler
+/// charged to the failing request stops that handler at its first safepoint — which is why the
+/// readings taken *inside* are a spent megabyte and the poll after it rather than the ceiling
+/// alone. [`reports_from_inside_the_reserve`] owns that reasoning.
+///
+/// The output is asserted too, because the handler's bytes are `Output::Inherit`'s: a report that
+/// appeared on a stream of its own would be the second channel ADR 0020 § 6 does not have.
+#[test]
+fn the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling() {
+    // `Buffer` rather than `breached`'s `Sink`, because the handler's own output joins this
+    // stream at the join and a discarded one cannot be read back.
+    let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+    ctx.set_config(snapshot_of(
+        "[limits]\nmemory = '1M'\n\n[log]\nhandler = 'report.nvs'\nhandler_reserve_memory = '32M'\n\n[capabilities.script]\nspawn = true\n",
+    ));
+    // Held to the end of the case: a hog freed early is a byte off the reading that puts this
+    // request over, which is the whole premise.
+    let hog = vec![0_u8; 4 << 20];
+    assert!(
+        ctx.over_memory_limit(),
+        "the case only means anything with the request already out of memory"
+    );
+
+    let record =
+        nvs_runtime::floor::note(nvs_render::Level::Error, "the request ran out of memory");
+    let before = HANDLER_RUNS.load(Ordering::SeqCst);
+    let reported = nvs_runtime::script::scoped(&ResolvesToTheProbe, || {
+        nvs_host::ladder::escalate(&mut ctx, &record)
+    });
+
+    assert!(
+        reported,
+        "the handler ran to completion, which is `ladder::escalate`'s whole answer: tier 4 is \
+         the floor beneath tier 3, not a second line beside it",
+    );
+    assert_eq!(
+        HANDLER_RUNS.load(Ordering::SeqCst) - before,
+        1,
+        "and ran once — § 3's zero retries, with nothing attempted twice",
+    );
+    assert_eq!(
+        RESOLVED_PATH
+            .lock()
+            .expect("no test panics holding this")
+            .take()
+            .as_deref(),
+        Some("report.nvs"),
+        "resolved from `[log] handler`, through the spawn door the grant above opens",
+    );
+    assert_eq!(
+        HANDLER_CEILING.load(Ordering::SeqCst),
+        32 << 20,
+        "under the reserve the operator wrote, not under what the failing request had left",
+    );
+    assert!(
+        !HANDLER_OVER.load(Ordering::SeqCst),
+        "with a megabyte of it actually spent, where the request cannot spend a byte",
+    );
+    assert_eq!(
+        HANDLER_POLL.load(Ordering::SeqCst),
+        nvs_runtime::OK,
+        "and its own safepoint lets it carry on, which is what a handler charged to the request \
+         it reports would fail: a `FATAL` here is a report that stops before it is written",
+    );
+    assert_eq!(
+        HANDLER_SAW
+            .lock()
+            .expect("no test panics holding this")
+            .take()
+            .as_deref(),
+        Some("the request ran out of memory"),
+        "the record reaches the handler as § 1's argument rather than as a sentence printed \
+         after it",
+    );
+    assert_eq!(
+        ctx.take_buffered_output(),
+        Some(b"reported".to_vec()),
+        "and what it wrote joins the failing program's own stream at the await",
+    );
+    assert!(
+        ctx.over_memory_limit(),
+        "the reserve was the handler's: the request is still the one that ran out",
     );
     drop(hog);
 }
