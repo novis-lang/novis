@@ -1,0 +1,74 @@
+--TEST--
+Core\Jwt::sign writes `exp` and `iat` itself and refuses either one in $claims, and Core\Jwt::verify answers every claim the token carries — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// Invariance over a sweep. ADR 0060 § 4's second bullet says expiry is
+// mandatory with "no flag to disable the check", and the way this class holds
+// it is that `exp` is not the caller's to write at all: the lifetime is a
+// positional `Duration` and the registered claims are the member's. So the
+// property to assert is not that one round trip works — it is that *every*
+// claim written comes back, and that the two the member adds are there on top,
+// counted rather than read off a line.
+secret bytes $key = Core\Crypto::generateKey();
+array<string> $claims = ["sub" => "ada", "role" => "admin", "tenant" => "acme"];
+string $token = Core\Jwt::sign($claims, 15m, $key);
+array<tainted string> $back = Core\Jwt::verify($token, $key);
+
+// Three claims in, five out: the caller's three unchanged, plus `iat` and
+// `exp`. A member that dropped one, or that wrote the registered pair into a
+// nested object, fails on the count while every individual line below still
+// reads correctly.
+echo Core\Arr::count($claims), " in, ", Core\Arr::count($back), " out", "\n";
+
+int $survived = 0;
+foreach ($claims as string $name => string $value) {
+    if ($back[$name] == $value) {
+        $survived = $survived + 1;
+    }
+}
+echo $survived, " of ", Core\Arr::count($claims), " claims survive the round trip", "\n";
+
+// The registered pair is present and ordered: a token is issued before it
+// expires, and by exactly the lifetime that was asked for. Compared as text
+// because that is what a claim is here — `crates/nvs-stdlib/src/jwt.rs`'s
+// module doc owns why ADR 0060 § 5's qualifier is what fixes the element
+// type.
+if (($back["exp"] as int) - ($back["iat"] as int) == 900) {
+    echo "exp is iat plus the 15m that was asked for", "\n";
+} else {
+    echo "the lifetime did not reach the token", "\n";
+}
+
+// And neither registered name may be supplied. This is the whole difference
+// between "the member checks for an expiry" and "the member owns the expiry":
+// a caller who could write `exp` could write one in the past, or in the year
+// 3000, and the check § 4 asks for would still pass.
+try {
+    string $own = Core\Jwt::sign(["sub" => "ada", "exp" => "253402300799"], 15m, $key);
+    echo "a caller-supplied exp was accepted", "\n";
+} catch (LogicError $setExpiry) {
+    echo $setExpiry->message, "\n";
+}
+try {
+    string $backdated = Core\Jwt::sign(["sub" => "ada", "iat" => "0"], 15m, $key);
+    echo "a caller-supplied iat was accepted", "\n";
+} catch (LogicError $setIssued) {
+    echo $setIssued->message, "\n";
+}
+
+// A claim needs a name, so a list is refused rather than signed under the
+// keys `0` and `1` — which is what an array whose keys are positional would
+// otherwise become on the way through JSON.
+try {
+    string $positional = Core\Jwt::sign(["ada", "admin"], 15m, $key);
+    echo "a positional claim was accepted", "\n";
+} catch (LogicError $unnamed) {
+    echo $unnamed->message, "\n";
+}
+--EXPECT--
+3 in, 5 out
+3 of 3 claims survive the round trip
+exp is iat plus the 15m that was asked for
+Core\Jwt::sign(): $claims names `exp`, which this member writes from $lifetime — expiry is not the caller's to set, so that a token this member produces always carries one it will accept.
+Core\Jwt::sign(): $claims names `iat`, which this member writes from $lifetime — expiry is not the caller's to set, so that a token this member produces always carries one it will accept.
+Core\Jwt::sign(): $claims[0] has a positional key, and a claim has a name — write `["sub" => "ada"]` rather than a list.

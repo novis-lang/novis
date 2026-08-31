@@ -1,0 +1,79 @@
+--TEST--
+Core\Jwt::verify refuses a swapped `alg`, a borrowed signature, an altered payload, another key and a shape that is not a JWT with a single sentence, and the algorithm is never selected from the token — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// Agreement, counted. Every library that ever accepted `alg: none` did so
+// because the header chose the verifier; ADR 0060 § 4's first bullet removes
+// the choice, and the observable consequence is that a header swap is not a
+// *kind* of failure at all — it is indistinguishable from a truncated token.
+// So the assertion is that six different attacks produce one sentence, which
+// a member with a helpful message per failure passes on no line at all.
+secret bytes $key = Core\Crypto::generateKey();
+secret bytes $other = Core\Crypto::generateKey();
+string $token = Core\Jwt::sign(["sub" => "ada"], 15m, $key);
+array<string> $parts = Core\Str::split($token, ".");
+
+// `alg: none` with the signature stripped, and `alg: none` carrying the
+// honest token's signature — the two shapes of the classic attack. A class
+// that read the header to pick a verifier accepts the first; one that picked
+// a verifier and *then* checked the tag accepts neither but reaches the
+// decision through attacker-supplied text, which is what § 4 refuses.
+string $none = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0";
+string $stripped = $none . "." . $parts[1] . ".";
+string $borrowed = $none . "." . $parts[1] . "." . $parts[2];
+
+// An algorithm we do not have. There is no arm for it, which is exactly why
+// there is nothing to get wrong.
+string $rs256 = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9" . "." . $parts[1] . "." . $parts[2];
+
+// The payload altered under an untouched header and signature, and a token
+// whose shape was never a JWT.
+string $altered = $parts[0] . "." . $parts[1] . "Z." . $parts[2];
+string $shapeless = "not-a-token";
+
+array<string> $attempts = [$stripped, $borrowed, $rs256, $altered, $shapeless, ""];
+string $first = "";
+int $refusals = 0;
+int $agreed = 0;
+foreach ($attempts as string $attempt) {
+    try {
+        array<tainted string> $claims = Core\Jwt::verify($attempt, $key);
+        echo "a forgery verified", "\n";
+    } catch (RuntimeError $refused) {
+        $refusals = $refusals + 1;
+        if ($first == "") {
+            $first = $refused->message;
+        }
+        if ($refused->message == $first) {
+            $agreed = $agreed + 1;
+        }
+    }
+}
+echo $refusals, " refusals, ", $agreed, " of them the same sentence", "\n";
+
+// The intact token under a key that did not sign it is the seventh, and it
+// agrees too — a wrong key is not a different kind of not-authentic.
+try {
+    array<tainted string> $wrong = Core\Jwt::verify($token, $other);
+    echo "another key verified it", "\n";
+} catch (RuntimeError $notThisKey) {
+    if ($notThisKey->message == $first) {
+        echo "and a token under another key is the same sentence", "\n";
+    } else {
+        echo "a wrong key told the caller something extra", "\n";
+    }
+}
+echo $first, "\n";
+
+// Nothing above consumed the token: it still verifies under the key that
+// signed it, so the six refusals are about the attempts and not about a
+// member that had stopped working.
+array<tainted string> $back = Core\Jwt::verify($token, $key);
+if ($back["sub"] == "ada") {
+    echo "the honest token still verifies", "\n";
+}
+--EXPECT--
+6 refusals, 6 of them the same sentence
+and a token under another key is the same sentence
+Core\Jwt::verify(): $token is not a token this key signed. Every way of not being one — a shape that is not three base64url parts, a header this class did not write, an `alg` that is not HS256, a signature under another key, and an altered payload — is this one sentence, so a forgery says nothing about which half of it failed.
+the honest token still verifies

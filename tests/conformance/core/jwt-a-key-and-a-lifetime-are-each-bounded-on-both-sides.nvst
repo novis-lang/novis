@@ -1,0 +1,69 @@
+--TEST--
+Core\Jwt refuses a key below RFC 7518 § 3.2's 32 octets and a lifetime below one whole second, and accepts the first value above each — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// A bound asserted on both sides. Both of these read plausibly from either
+// half alone: a member that refused every key would pass the refusal lines,
+// and one that refused none would pass the acceptance lines. Naming the last
+// refused value and the first accepted one together is what pins the number.
+//
+// The key bound is a *minimum* rather than `Core\Crypto`'s exact 32, and
+// `crates/nvs-stdlib/src/jwt.rs`'s module doc owns why: a JWT is an
+// interchange format, and the shared secret on the other side of it belongs
+// to a service that was never going to ask us what length to make it.
+array<string> $claims = ["sub" => "ada"];
+
+secret bytes $short = Core\Random::bytes(31);
+try {
+    string $unsignable = Core\Jwt::sign($claims, 15m, $short);
+    echo "31 octets signed", "\n";
+} catch (LogicError $tooShort) {
+    echo $tooShort->message, "\n";
+}
+
+secret bytes $exact = Core\Random::bytes(32);
+string $token = Core\Jwt::sign($claims, 15m, $exact);
+array<tainted string> $back = Core\Jwt::verify($token, $exact);
+if ($back["sub"] == "ada") {
+    echo "32 octets signs and verifies", "\n";
+}
+
+// A longer secret is accepted as it stands rather than truncated or hashed
+// down, which is what makes the bound a minimum and not a window.
+secret bytes $long = Core\Random::bytes(64);
+array<tainted string> $wide = Core\Jwt::verify(Core\Jwt::sign($claims, 15m, $long), $long);
+if ($wide["sub"] == "ada") {
+    echo "64 octets does too", "\n";
+}
+
+// The same bound on the reading side: a key too short to have signed anything
+// is a program bug, and it is reported as one rather than folded into the
+// forgery sentence every other refusal shares.
+try {
+    array<tainted string> $unopenable = Core\Jwt::verify($token, $short);
+    echo "verified under 31 octets", "\n";
+} catch (LogicError $notAKey) {
+    echo $notAKey->message, "\n";
+}
+
+// The lifetime's bound. `exp` counts whole seconds by RFC 7519 § 4.1.4, so a
+// zero-second lifetime signs a token that is already past its expiry — which
+// a member that rounded up would hide, and a member that accepted it would
+// issue.
+try {
+    string $instant = Core\Jwt::sign($claims, 0s, $exact);
+    echo "a zero lifetime signed", "\n";
+} catch (LogicError $noTime) {
+    echo $noTime->message, "\n";
+}
+array<tainted string> $second = Core\Jwt::verify(Core\Jwt::sign($claims, 1s, $exact), $exact);
+if (($second["exp"] as int) - ($second["iat"] as int) == 1) {
+    echo "and one whole second is the first lifetime there is", "\n";
+}
+--EXPECT--
+Core\Jwt::sign(): $key is 31 octets, and HS256 needs at least 32 (RFC 7518 § 3.2) — Core\Crypto::generateKey() answers one. The value is not quoted here, because a key does not belong in a log.
+32 octets signs and verifies
+64 octets does too
+Core\Jwt::verify(): $key is 31 octets, and HS256 needs at least 32 (RFC 7518 § 3.2) — Core\Crypto::generateKey() answers one. The value is not quoted here, because a key does not belong in a log.
+Core\Jwt::sign(): $lifetime is 0ns, and a token has to be valid for at least one whole second — `exp` counts seconds (RFC 7519 § 4.1.4), so anything shorter signs a token that is already past it.
+and one whole second is the first lifetime there is
