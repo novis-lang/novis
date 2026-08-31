@@ -54,9 +54,32 @@
 //! reaches nobody. This module answers "is there a terminal, and what did it
 //! say"; the surface answers "should this program be asking".
 //!
+//! # And they answer within [`ANSWER_DEADLINE`], terminal or no terminal
+//!
+//! ADR 0086 § 4's "it never blocks" is two rules, and the profile above only
+//! settles the first: with no terminal there is nothing to wait on. The second
+//! is that a terminal *nobody is sitting at* — a CI job that allocated a pty,
+//! a `docker run -t` with no keyboard behind it — must not hold the program
+//! either, which is ADR 0074's "no spelling for an unbounded wait" reaching
+//! this surface. So the read is under a clock, and there is no argument
+//! anywhere in the surface that lengthens it.
+//!
+//! The bound is a thread and a channel rather than a timed read, because a
+//! terminal in cooked mode has no portable one. `poll`/`select` on the device
+//! answers *a byte is available*, which on Windows is any console input record
+//! at all — a key release, a focus change — while the `ReadFile` behind a
+//! cooked line read still waits for `Enter`, so a wait that returns says
+//! nothing about whether the read after it will. [`ask`] therefore runs whole
+//! on its own thread, owning everything it touches, and [`answer_within`]
+//! waits on the channel: the same bound on every platform, in ten lines that
+//! need no `unsafe`.
+//!
 //! Memory: one [`Profile`] — three `bool`s, two `u32`s and an enum — for the
 //! life of the process, charged to no request, plus one answer's bytes for the
-//! length of a [`prompt`] call, bounded by `MAX_ANSWER`.
+//! length of a [`prompt`] call, bounded by `MAX_ANSWER`. A prompt that reaches
+//! its deadline leaves that thread parked in its read until the terminal ends
+//! the line or the process exits — one stack, only on the path where nobody
+//! answered, which is the price of a bound that holds on every platform.
 
 use std::io::IsTerminal;
 use std::sync::OnceLock;
@@ -373,6 +396,42 @@ pub enum Echo {
 /// footprint attributable).
 const MAX_ANSWER: usize = 4096;
 
+/// How long a prompt waits for an answer before it gives up.
+///
+/// ADR 0086 § 4 says a prompt never blocks, and
+/// [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md) says
+/// no wait may be spelled unbounded. Five minutes is what those two come to
+/// here: two orders of magnitude past the seconds a person spends answering a
+/// one-line question, and still short enough that a CI job holding a pty
+/// nobody is watching fails while its own log is being read rather than at
+/// whatever kill the runner eventually applies.
+///
+/// There is deliberately **no argument that lengthens it**. A `timeout` option
+/// on `ask` would be a spelling for "wait longer", and the value of the rule is
+/// that no program has one — the same reason ADR 0074 gives for the outbound
+/// deadline it mirrors.
+pub const ANSWER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// What one prompt got back.
+///
+/// Three cases and not two, because the surface says a different sentence for
+/// the third: [`Self::Ended`] is *nobody to ask*, which ADR 0086 § 4 answers
+/// with the `default` or with `Core\Cli\NotInteractive`, while
+/// [`Self::TimedOut`] is a terminal that was opened, written to and then said
+/// nothing for [`ANSWER_DEADLINE`]. Both are silence and both take the same
+/// fallback; only the message a program is handed distinguishes them, and a
+/// message naming a terminal that does not exist would be a lie in the second
+/// case.
+#[derive(Debug)]
+pub enum Answer {
+    /// The line typed, without its ending.
+    Line(String),
+    /// There is no terminal, its input ended, or it could not be opened.
+    Ended,
+    /// A terminal that answered nothing within [`ANSWER_DEADLINE`].
+    TimedOut,
+}
+
 /// Whether this process has a terminal to prompt at, which is not the same
 /// question as whether standard input is one.
 ///
@@ -409,12 +468,56 @@ pub fn is_interactive() -> bool {
 /// question's own bytes; a caller that wants the question neutralized has done
 /// it already (`nvs_render::text::substitute`), because this function writes
 /// what it is handed.
+///
+/// The whole of [`ask`] runs on its own thread and this one waits on a channel
+/// for [`ANSWER_DEADLINE`] — the module doc's *And they answer within
+/// `ANSWER_DEADLINE`* owns why the bound is shaped that way rather than as a
+/// timed read. A thread that cannot be spawned is [`Answer::Ended`]: the
+/// program is out of a resource this module will not block for.
 #[must_use]
-pub fn prompt(question: &str, echo: Echo) -> Option<String> {
+pub fn prompt(question: &str, echo: Echo) -> Answer {
     if !is_interactive() {
-        return None;
+        return Answer::Ended;
     }
-    ask(question, echo).ok().flatten()
+    let question = question.to_owned();
+    let (answers, from_terminal) = std::sync::mpsc::channel();
+    let asking = std::thread::Builder::new()
+        .name("nvs-prompt".to_owned())
+        .spawn(move || {
+            let answer = match ask(&question, echo) {
+                Ok(Some(line)) => Answer::Line(line),
+                Ok(None) | Err(_) => Answer::Ended,
+            };
+            // The receiver is gone whenever the deadline came first, and
+            // nothing here can act on that: the question has been asked and
+            // this thread's only remaining job is to let the terminal finish
+            // its line and put the echo back.
+            let _ = answers.send(answer);
+        });
+    if asking.is_err() {
+        return Answer::Ended;
+    }
+    answer_within(&from_terminal, ANSWER_DEADLINE)
+}
+
+/// The bounded wait itself: whatever the asking thread sent, or
+/// [`Answer::TimedOut`] once `within` has elapsed.
+///
+/// Split out of [`prompt`] because it is the half that can be *tested* — a
+/// channel nobody sends on is an unattended terminal, with no terminal and no
+/// person required, and `nvs_stdlib::cli`'s `no_prompt_blocks_without_a_deadline`
+/// drives it that way. A sender dropped without a send is [`Answer::Ended`]
+/// rather than a timeout, because the asking thread died rather than the clock.
+#[must_use]
+pub fn answer_within(
+    from_terminal: &std::sync::mpsc::Receiver<Answer>,
+    within: std::time::Duration,
+) -> Answer {
+    match from_terminal.recv_timeout(within) {
+        Ok(answer) => answer,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Answer::TimedOut,
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Answer::Ended,
+    }
 }
 
 /// One line off `file`, or `None` for a terminal that answered end-of-input.

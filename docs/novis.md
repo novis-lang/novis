@@ -14560,7 +14560,7 @@ Asks `$question` at the controlling terminal and answers the line typed back —
 
 **Returns** `tainted string` — The line typed, without its ending, and `tainted` whatever it says — it came from outside the program, exactly as a request body did.
 
-**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, or its input ended, and the call named no `default`.
+**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, its input ended, or nobody answered within the prompt deadline — and the call named no `default`.
 
 <a id="core-core-cli-confirm"></a>
 #### `Core\Cli::confirm`
@@ -14578,7 +14578,7 @@ Asks `$question` as a yes/no question, showing which way the `Enter` key goes, a
 
 **Returns** `bool` — `true` for yes and `false` for no — a plain `bool` and never a `tainted` one, because nothing of what was typed survives into a closed two-case answer.
 
-**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, or its input ended, and the call named no `default`.
+**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, its input ended, or nobody answered within the prompt deadline — and the call named no `default`.
 
 <a id="core-core-cli-select"></a>
 #### `Core\Cli::select`
@@ -14598,7 +14598,7 @@ Offers `$choices` as a numbered list and answers the one chosen — the value it
 
 **Returns** `T` — The chosen element of `$choices`, with that array's element type.
 
-**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, or its input ended, and the call named no `default`.; `LogicError` — `$choices` is empty, so there is nothing that could be chosen.
+**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, its input ended, or nobody answered within the prompt deadline — and the call named no `default`.; `LogicError` — `$choices` is empty, so there is nothing that could be chosen.
 
 <a id="core-core-cli-secret"></a>
 #### `Core\Cli::secret`
@@ -14615,7 +14615,7 @@ Asks `$question` with the terminal's echo turned off, so a password is not left 
 
 **Returns** `secret tainted string` — The line typed, `secret` and `tainted` at once: output, logs, dumps, `Throwable` messages and serialization all refuse it, and it still has to be laundered for any sink it reaches.
 
-**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, or its input ended. `secret` takes no `default`, because a password nobody typed is not a password.
+**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, its input ended, or nobody answered within the prompt deadline. `secret` takes no `default`, because a password nobody typed is not a password.
 
 <a id="core-core-cli-text"></a>
 ### `Core\Cli\Text`

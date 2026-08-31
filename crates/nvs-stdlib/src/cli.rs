@@ -96,6 +96,15 @@
 //! before anything is opened; otherwise § 4's second rule applies and the
 //! prompt answers its `default` or throws `Core\Cli\NotInteractive`.
 //!
+//! Both answers being yes is still not a promise that anyone will *type*
+//! something, so the read underneath is under a clock as well:
+//! `nvs_runtime::terminal::ANSWER_DEADLINE`, after which the prompt takes the
+//! same `default` and throws the same class with a sentence naming the
+//! deadline instead of the missing terminal ([`unanswered`]). ADR 0086 § 4's
+//! "it never blocks" is those two rules together — the terminal that is not
+//! there, and the terminal nobody is sitting at — and there is no argument on
+//! any of the four members that lengthens the second.
+//!
 //! That pair is also what makes the prompts *testable*: a `.nvst` case runs as
 //! a child with its output piped, so every prompt in one takes the
 //! not-interactive path by construction rather than by luck, and a case can
@@ -125,7 +134,7 @@
 //!    What closes it is the `Cli\Text` of runs § 2's body names as the shape a
 //!    per-stream `Cli::write` would need.
 
-use nvs_runtime::terminal::{ColorDepth, Echo, Stream};
+use nvs_runtime::terminal::{Answer, ColorDepth, Echo, Stream};
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
 use crate::registry::{
@@ -399,8 +408,8 @@ const ASK_DOC: MethodDoc = MethodDoc {
           outside the program, exactly as a request body did.",
     errors: &[ErrorDoc {
         error: "Core\\Cli\\NotInteractive",
-        desc: "There is no controlling terminal to ask, or its input ended, and the call named no \
-               `default`.",
+        desc: "There is no controlling terminal to ask, its input ended, or nobody answered within \
+               the prompt deadline — and the call named no `default`.",
     }],
 };
 
@@ -426,8 +435,8 @@ const CONFIRM_DOC: MethodDoc = MethodDoc {
           nothing of what was typed survives into a closed two-case answer.",
     errors: &[ErrorDoc {
         error: "Core\\Cli\\NotInteractive",
-        desc: "There is no controlling terminal to ask, or its input ended, and the call named no \
-               `default`.",
+        desc: "There is no controlling terminal to ask, its input ended, or nobody answered within \
+               the prompt deadline — and the call named no `default`.",
     }],
 };
 
@@ -464,8 +473,8 @@ const SELECT_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "Core\\Cli\\NotInteractive",
-            desc: "There is no controlling terminal to ask, or its input ended, and the call \
-                   named no `default`.",
+            desc: "There is no controlling terminal to ask, its input ended, or nobody answered \
+                   within the prompt deadline — and the call named no `default`.",
         },
         ErrorDoc {
             error: "LogicError",
@@ -489,8 +498,9 @@ const SECRET_DOC: MethodDoc = MethodDoc {
           sink it reaches.",
     errors: &[ErrorDoc {
         error: "Core\\Cli\\NotInteractive",
-        desc: "There is no controlling terminal to ask, or its input ended. `secret` takes no \
-               `default`, because a password nobody typed is not a password.",
+        desc: "There is no controlling terminal to ask, its input ended, or nobody answered within \
+               the prompt deadline. `secret` takes no `default`, because a password nobody typed \
+               is not a password.",
     }],
 };
 
@@ -808,11 +818,12 @@ fn watched(ctx: &nvs_runtime::Ctx) -> bool {
     ctx.output_reaches_the_terminal() && nvs_runtime::terminal::is_interactive()
 }
 
-/// One line off the controlling terminal, or `None` when there is nobody to
-/// ask or the terminal's input ended.
-fn ask_terminal(ctx: &nvs_runtime::Ctx, question: &str, echo: Echo) -> Option<String> {
+/// One line off the controlling terminal, or which kind of silence came back
+/// instead — nobody to ask, or nobody answering inside
+/// [`nvs_runtime::terminal::ANSWER_DEADLINE`].
+fn ask_terminal(ctx: &nvs_runtime::Ctx, question: &str, echo: Echo) -> Answer {
     if !watched(ctx) {
-        return None;
+        return Answer::Ended;
     }
     nvs_runtime::terminal::prompt(question, echo)
 }
@@ -824,11 +835,55 @@ fn ask_terminal(ctx: &nvs_runtime::Ctx, question: &str, echo: Echo) -> Option<St
 /// One function for all four prompts, so the sentence a program sees is the
 /// same wherever it came from; `tests/conformance/core/cli-prompts-are-not-interactive-without-a-terminal.nvst`
 /// is what freezes it.
+///
+/// It opens on the same clause as [`timed_out`] and then says which silence it
+/// was, because the two are one judgement — the question could not be answered
+/// and the call named no `default` — reached by two routes. That shared opening
+/// is also what lets one case discharge both for
+/// `tests/conformance_coverage.rs`'s error-path gate, whose own doc says a stem
+/// two sites share freezes as one line.
 fn not_interactive(member: &str) -> Fault {
     Fault::thrown_as(
         nvs_runtime::ThrownClass::CliNotInteractive,
-        format!("no controlling terminal to answer Core\\Cli::{member}"),
+        format!("no answer for Core\\Cli::{member}: there is no controlling terminal"),
     )
+}
+
+/// What a prompt that *was* asked and got no answer throws — the same class,
+/// because a program catching `Core\Cli\NotInteractive` is asking "could this
+/// question be answered", and a terminal nobody is sitting at answers no.
+///
+/// Only the second clause differs: [`not_interactive`]'s names a terminal that
+/// does not exist, which would be false here, where one was opened and written
+/// to. ADR 0086 § 4's deadline paragraph is the rule and
+/// `nvs_runtime::terminal`'s module doc owns how the bound is built.
+fn timed_out(member: &str) -> Fault {
+    Fault::thrown_as(
+        nvs_runtime::ThrownClass::CliNotInteractive,
+        format!(
+            "no answer for Core\\Cli::{member}: nothing typed within {}s",
+            nvs_runtime::terminal::ANSWER_DEADLINE.as_secs()
+        ),
+    )
+}
+
+/// What a prompt hands back for a silence: the `default` if the call named one,
+/// and otherwise the throw that says which silence it was.
+///
+/// One function for all four prompts and for both silences, so that a member
+/// cannot grow its own answer to a deadline — the failure mode ADR 0086 § 4's
+/// "it never blocks" exists to prevent is exactly a path that quietly waits
+/// instead.
+fn unanswered(quiet: &Answer, member: &str, fallback: Value) -> Result<Value, Fault> {
+    if given(fallback) {
+        return Ok(handed_back(fallback));
+    }
+    Err(match quiet {
+        Answer::TimedOut => timed_out(member),
+        // `Line` cannot arrive — a caller reaches this only where the match
+        // above it took the line — and `Ended` is the ordinary unattended run.
+        Answer::Ended | Answer::Line(_) => not_interactive(member),
+    })
 }
 
 /// Whether an option was given at all — the [`Const::Null`] an omitting call
@@ -881,12 +936,9 @@ nvs_runtime::nvs_helper! {
         let question = question_of(&args[0], "ask")?;
         let (fallback, validate) = (args[1], args[2]);
         loop {
-            let Some(answer) = ask_terminal(ctx, &question, Echo::Shown) else {
-                return if given(fallback) {
-                    Ok(handed_back(fallback))
-                } else {
-                    Err(not_interactive("ask"))
-                };
+            let answer = match ask_terminal(ctx, &question, Echo::Shown) {
+                Answer::Line(line) => line,
+                ref quiet => return unanswered(quiet, "ask", fallback),
             };
             if answer.is_empty() && given(fallback) {
                 return Ok(handed_back(fallback));
@@ -958,12 +1010,9 @@ nvs_runtime::nvs_helper! {
         };
         let question = format!("{}{shown}", question_of(&args[0], "confirm")?);
         loop {
-            let Some(answer) = ask_terminal(ctx, &question, Echo::Shown) else {
-                return if given(fallback) {
-                    Ok(handed_back(fallback))
-                } else {
-                    Err(not_interactive("confirm"))
-                };
+            let answer = match ask_terminal(ctx, &question, Echo::Shown) {
+                Answer::Line(line) => line,
+                ref quiet => return unanswered(quiet, "confirm", fallback),
             };
             match answer.trim().to_ascii_lowercase().as_str() {
                 "y" | "yes" => return Ok(Value::bool(true)),
@@ -1021,12 +1070,9 @@ nvs_runtime::nvs_helper! {
         menu.push(' ');
 
         loop {
-            let Some(answer) = ask_terminal(ctx, &menu, Echo::Shown) else {
-                return if given(fallback) {
-                    Ok(handed_back(fallback))
-                } else {
-                    Err(not_interactive("select"))
-                };
+            let answer = match ask_terminal(ctx, &menu, Echo::Shown) {
+                Answer::Line(line) => line,
+                ref quiet => return unanswered(quiet, "select", fallback),
             };
             let answer = answer.trim();
             if answer.is_empty() && given(fallback) {
@@ -1059,8 +1105,12 @@ nvs_runtime::nvs_helper! {
     /// something a configuration file could have chosen.
     fn nvs_core_cli_secret(ctx, args: [1]) {
         let question = question_of(&args[0], "secret")?;
-        let Some(answer) = ask_terminal(ctx, &question, Echo::Hidden) else {
-            return Err(not_interactive("secret"));
+        let answer = match ask_terminal(ctx, &question, Echo::Hidden) {
+            Answer::Line(line) => line,
+            // `secret` names no `default` at all, so the shared helper is
+            // reached with a `null` and always throws — which is the rule, not
+            // a shortcut: a password nobody typed is not a password.
+            ref quiet => return unanswered(quiet, "secret", Value::null()),
         };
         Ok(Value::str(NvsStr::new(answer.as_bytes())))
     }
@@ -1959,7 +2009,10 @@ mod tests {
     fn a_prompt_reads_the_controlling_terminal_and_not_stdin() {
         let ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
         assert!(!watched(&ctx));
-        assert!(ask_terminal(&ctx, "Name? ", Echo::Shown).is_none());
+        assert!(matches!(
+            ask_terminal(&ctx, "Name? ", Echo::Shown),
+            Answer::Ended
+        ));
         assert!(matches!(
             not_interactive("ask"),
             Fault::Thrown(nvs_runtime::ThrownClass::CliNotInteractive, _)
@@ -2000,6 +2053,85 @@ mod tests {
                 !prompts.contains(named),
                 "a prompt body in this module names `{named}`"
             );
+        }
+    }
+
+    /// ADR 0086 § 4: a prompt **never blocks**, which is two rules — the
+    /// terminal that is not there, and the terminal nobody is sitting at.
+    ///
+    /// The first is the other test's; this one is the second, and it is
+    /// behavioural where it can be. `nvs_runtime::terminal::answer_within` is
+    /// the whole of the bound, and a channel nobody sends on is an unattended
+    /// terminal with no terminal and no person required — so the wait can be
+    /// driven here at twenty milliseconds and asserted to end. The three
+    /// silences are then distinguished, because the surface says a different
+    /// sentence for each and a member that answered `TimedOut` where the device
+    /// merely closed would name a deadline that never elapsed.
+    ///
+    /// The last two assertions are the ones a behavioural test cannot make: the
+    /// deadline the real [`ask_terminal`] uses is finite and human-scaled, and
+    /// no prompt takes a parameter that lengthens it. A `timeout` option would
+    /// be a spelling for "wait longer", which ADR 0074's rule — the one § 4
+    /// applies to this surface — exists to deny.
+    #[test]
+    fn no_prompt_blocks_without_a_deadline() {
+        use nvs_runtime::terminal::{ANSWER_DEADLINE, answer_within};
+        use std::time::{Duration, Instant};
+
+        let (nobody, from_terminal) = std::sync::mpsc::channel::<Answer>();
+        let started = Instant::now();
+        assert!(matches!(
+            answer_within(&from_terminal, Duration::from_millis(20)),
+            Answer::TimedOut
+        ));
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "the wait ended on its own clock rather than on the sender"
+        );
+        nobody
+            .send(Answer::Line("ada".to_owned()))
+            .expect("the receiver is still here");
+        assert!(matches!(
+            answer_within(&from_terminal, Duration::from_millis(20)),
+            Answer::Line(line) if line == "ada"
+        ));
+        drop(nobody);
+        assert!(matches!(
+            answer_within(&from_terminal, Duration::from_millis(20)),
+            Answer::Ended
+        ));
+
+        // Both silences are the same class — a program catching
+        // `Core\Cli\NotInteractive` is asking whether the question could be
+        // answered — and neither sentence is the other's.
+        let said = |silence: Fault| match silence {
+            Fault::Thrown(nvs_runtime::ThrownClass::CliNotInteractive, said) => said,
+            other => panic!("a prompt's silence is `Core\\Cli\\NotInteractive`, not {other:?}"),
+        };
+        let (missing, late) = (said(not_interactive("ask")), said(timed_out("ask")));
+        assert_ne!(missing, late);
+        assert!(
+            late.contains(&ANSWER_DEADLINE.as_secs().to_string()),
+            "the sentence for a terminal nobody answered names the deadline it waited"
+        );
+
+        assert!(
+            ANSWER_DEADLINE > Duration::ZERO && ANSWER_DEADLINE <= Duration::from_secs(600),
+            "a prompt's deadline is finite and scaled to a person answering a question"
+        );
+        for prompt in ["ask", "confirm", "select", "secret"] {
+            let row = CLASS
+                .methods
+                .iter()
+                .find(|method| method.name == prompt)
+                .expect("§ 4's prompts are rows on this class");
+            for named in row.names {
+                assert!(
+                    !["timeout", "deadline", "wait", "within"].contains(named),
+                    "`Core\\Cli::{prompt}` takes a `{named}`, which is a spelling for waiting \
+                     longer than ADR 0086 § 4's deadline"
+                );
+            }
         }
     }
 

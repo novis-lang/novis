@@ -238,6 +238,18 @@ Four properties fall out of rules that already exist:
 "no spelling for an unbounded wait" applied to a second surface: a CLI that hangs in CI waiting for an
 answer nobody can give is the same failure as an outbound request with no deadline.
 
+**A terminal that is there and unattended is the same rule, so the read is under a deadline too** —
+five minutes, `nvs_runtime::terminal::ANSWER_DEADLINE`, after which the prompt takes the same
+`default` or throws the same class with a sentence naming the deadline rather than a missing device.
+Without this the rule above buys nothing on the case it was written for: a CI job that allocated a
+pty, or a `docker run -t` with no keyboard behind it, has a terminal by every test a process can
+make, and a blocking read there hangs exactly as long as the pipeline's own timeout allows. **No
+parameter lengthens it**, on any of the five members: a `timeout` option would be the spelling for an
+unbounded wait that ADR 0074 exists to deny, and the trade — a person who walks away mid-answer gets
+a throw rather than an indefinite wait — is priced at ADR 0004's ordering, where a program that
+cannot hang outranks one that never gives up. `nvs_stdlib::cli`'s
+`no_prompt_blocks_without_a_deadline` holds both halves.
+
 Under `nvs test` ([0079](0079-testing-is-a-language-feature.md)), prompts drain a scripted answer queue
 supplied by the test rather than reading a terminal, so an interactive flow is assertable instead of
 untestable.
