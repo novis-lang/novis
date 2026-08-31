@@ -1130,6 +1130,15 @@ is why" — is this file.
   a `FATAL` fixture reports as `valgrind <file>: exit 1` with its own stderr as the "error". That is
   what `[valgrind] skip` in the goal file is for, and every such fixture has to be named there. Do not
   go looking for the leak first: check whether the fixture's own `[[check]]` says `exit = "nonzero"`.
+- **A missing acceptance *fixture* aborts the whole acceptance run before a single check runs, and that
+  is the ordinary state of a goal's first session.** `loop.py`'s `begin` walks the goal's `files` list
+  and returns on the first path not on disk, so the ledger reads `0s over 1 check(s)` and every other
+  check — including the 130-odd that were green the iteration before — measures nothing. The list is
+  fixed by the goal and a fixture's *source* is not, so the fix is to write each one as the program it
+  is meant to be and let it fail its own `exact` check with a real diagnostic; goal 3 opened exactly
+  this way (`examples/config.nvs`, `error[E0405]: Core\Config has no member named get`, for four
+  sessions). Writing only the file the message names buys one iteration, because the next message names
+  the next one — write the whole `files` list in one slice.
 
 ## Running things
 

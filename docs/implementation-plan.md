@@ -41,27 +41,17 @@
 > the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Goal 4 of the parity program — the `Core` roster, M8 — is running** over goals
-> 1-3, with ADR 0056's tier routing landed.  **Stages 0b and 2–6 are closed at their acceptance**:
-> `crates/nvs-host` is on disk whole with every `cargo-named` name green, `spawn script`/`await`
-> lower, and each decision lives in its file's module doc or in ADRs 0115–0117. Goal 3 on disk:
-> `crates/nvs-config` holds the directive registry, 0064 § 2a's block roster as a typed tree with §
-> 3's two per-file refusals, ADR 0103 §§ 1-7's resolver, ADR 0104 §§ 1-3's `[[app]]` blocks on a
-> canonical key and under the host's ceiling, ADR 0064 § 5's value parser, and ADR 0078 §§ 1-2's
-> snapshot, which `nvs run` now resolves the tree for and a request reads under `Core\Config`.
-> Stage 4 has its first doors: 0118's check sits inside `Core\File::read`/`::write` and inside a
-> `spawn script` target's resolution, `registry::CAPABILITIES` names the two, and `nvs.toml` grants
-> the examples. ADR 0020 § 1's memory, output and wall-time caps are enforced: `budget` counts held
-> and written bytes, a breach is a `FATAL`, `max_script_depth` refuses the spawn past it, and one
-> store expires a whole tree; § 1's tier 1 is handed the limit's name, and fires once inside the
-> reserve; ADR 0078 § 4 keys both caches. Stage 5 has ADR 0042 §§ 1-6,  in
-> `crates/nvs-cli/src/cache.rs`, whose *Known gaps* decides a payload. **Stage 0c has no
-> implementable slice left**: `docs/reference/findings.md` § *Triage* holds the verdicts. **Stage 9
-> is closed**: 0119's front end, checker, § 6's lowering, four `.nvst` cases and a reference
-> section. **Stage 10 is closed**: ADR 0125 decides it, `class<T>` checks, § 4's three dynamic sites
-> and § 2's `as ?class<T>` lower, and the corpus and the reference are written. **Stage 8 is open**:
-> conformance 1093, differential 210 of 210, migration 37% over its 36% floor. **Stage 7 is
-> closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source payload.
+> **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
+> running**, over goals 1-3, each reached at its own acceptance. **Stage 0's compile-time half is
+> closed**: `crates/nvs-stdlib/src/regex.rs`'s `build` re-tiers a pattern only when the linear
+> engine's parser refuses a construct, `validate` now reports which tier that was, and `nvs-types`'
+> ADR 0057 fold records it on `ExprTypeTable` for `nvs-ir`. Stage 0's last item is § 4's `tainted`
+> pattern operand. **The goal's eight acceptance fixtures are on disk** — `examples/` gained
+> `files`, `process`, `cli`, `crypto`, `http`, `cache`, `logging` and `reflect` — so the driver's
+> check runs past `begin` again after one iteration measuring nothing; each is the program its stage
+> will make compile, and none does yet. What goals 1-3 landed is unchanged and is not re-derived
+> here: `git log` and each crate's module doc own it. Conformance 1093, differential 210 of 210,
+> migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
