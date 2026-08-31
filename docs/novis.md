@@ -113,6 +113,8 @@ Conventions the whole file uses:
 | [`Core\Http\Target`](#core-core-http-target) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
 | [`Core\Http\Response`](#core-core-http-response) |  |
+| [`Core\Cache`](#core-core-cache) |  |
+| [`Core\Cache\Store`](#core-core-cache-store) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -15366,6 +15368,85 @@ $response->text(): tainted string
 The reply's body as text, replacing `curl_exec`'s return value and the `CURLOPT_RETURNTRANSFER` flag that decided whether there was one.
 
 **Returns** `tainted string` — The body, `tainted`: it is bytes another host chose, and a pinned address settles where they came from rather than what is in them. A sink's own launderer is the way out of it, and there is no generic one.
+
+<a id="core-core-cache"></a>
+### `Core\Cache`
+
+Keywords: local, shared
+
+| Member | Signature |
+|---|---|
+| [`Core\Cache::local`](#core-core-cache-local) | `local(): Core\Cache\Store` |
+| [`Core\Cache::shared`](#core-core-cache-shared) | `shared(): Core\Cache\Store` |
+
+<a id="core-core-cache-local"></a>
+#### `Core\Cache::local`
+
+```nvs skip
+Core\Cache::local(): Core\Cache\Store
+```
+
+The per-core, in-process tier: one store per core, with no coherence between cores and no network behind it.
+
+**Returns** `Core\Cache\Store` — A `Core\Cache\Store` over this core's own entries. Any entry may be absent at any time, for any reason, and a write on one core is not visible on another — a program that would be incorrect if a `get` answered `null` wants `shared` instead.
+
+<a id="core-core-cache-shared"></a>
+#### `Core\Cache::shared`
+
+```nvs skip
+Core\Cache::shared(): Core\Cache\Store
+```
+
+The coherent tier: a real store over the network, shared by every core and every machine that names it.
+
+**Returns** `Core\Cache\Store` — A `Core\Cache\Store` over the configured shared store, whose entries every core sees.
+
+**Throws** `RuntimeError` — No shared store is configured, or the configured one cannot be reached — an unreachable store throws rather than answering as though the entry were absent.
+
+<a id="core-core-cache-store"></a>
+### `Core\Cache\Store`
+
+Keywords: put, get
+
+| Member | Signature |
+|---|---|
+| [`Core\Cache\Store->put`](#core-core-cache-store-put) | `put(string $key, mixed $value): void` |
+| [`Core\Cache\Store->get`](#core-core-cache-store-get) | `get(string $key): mixed` |
+
+<a id="core-core-cache-store-put"></a>
+#### `Core\Cache\Store->put`
+
+```nvs skip
+$store->put(string $key, mixed $value): void
+```
+
+Copies `$value` into the store under `$key`, replacing whatever was there — a recursive graph copy, so the entry shares nothing with the request that wrote it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | The name to store under; `tainted` is admitted, since no byte of it reaches any answer. |
+| `$value` | `mixed` | The value to copy in. A closure and a `secret` may not cross, exactly as at the isolate boundary. |
+
+**Returns** `void` — Nothing. A successful `put` is still no promise that a later `get` answers — see `Core\Cache::local`.
+
+**Throws** `LogicError` — The value cannot cross: it is or holds a closure, or an object with a `secret` property that was not revealed.
+
+<a id="core-core-cache-store-get"></a>
+#### `Core\Cache\Store->get`
+
+```nvs skip
+$store->get(string $key): mixed
+```
+
+Copies the entry stored under `$key` back into this request, or answers `null` when there is none.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | The name to read; `tainted` is admitted, as it is on `put`. |
+
+**Returns** `mixed` — The value as it was copied in, or `null` — an entry may be absent at any time, for any reason, and on the local tier that is the contract rather than a failure.
+
+**Throws** `ParseError` — The entry names a class this program cannot resolve — the same refusal `Core\Serialize::decode` makes, and the ordinary consequence of a deployment whose classes changed under a store that outlives them.
 
 <a id="core-enums"></a>
 ### `Core` enums
