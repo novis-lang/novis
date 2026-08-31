@@ -4426,6 +4426,19 @@ sibling in the same namespace unqualified.
   to that test's `HANDLES` list beside `Core\Script\Handle` — the failure names the class and not
   the rule, so it reads as a half-written class rather than as the roster it is. `Core\IO\Lines` is
   the worked example, and `crate::cursor::over` does the rest for free.
+- **A `Core` member cannot *return* a shape, and a registry row carries no nested `Qual`.** Two
+  facts the `CoreTy` enum only states by omission, each an hour of reading `registry.rs` to
+  re-derive. There is no `CoreTy::Shape`: `crate::instance::SHAPE_ROSTER` exists for values the
+  *engine* builds (`Core\Issue`, `Core\Script\Result`), which reach a program through a thrown
+  error or through `await` rather than through a row — so a member whose spec answer is a record
+  answers a `CoreTy::Instance` class with zero-argument members, as `Core\Regex\Match` and
+  `Core\Process\Result` do. And `nvs_types::core_lib::qual_of` reads `Text`/`Blob` at the top
+  level and inside a `Variadic` only, saying so in its own `_ =>` arm: an
+  `Array(&CoreTy::Text(Qual::Sink))` looks like it marks the elements and marks nothing. What
+  refuses a tainted element is the ordinary argument check, because `array<tainted string>` is
+  not `array<string>`. Third, cheaper but the same shape: a `MethodDoc` field may not cite an
+  ADR — `no_registry_card_cites_an_adr` fails the whole `-p nvs-stdlib` lib run over one `ret:`
+  string, because `nvs meta --json` ships a card verbatim to a reader with no ADR tree.
 
 ## Divergences and refusals already pinned
 
