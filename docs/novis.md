@@ -14484,10 +14484,11 @@ Expands, at compile time, to an array literal of `new` expressions — one per n
 <a id="core-core-cli"></a>
 ### `Core\Cli`
 
-Keywords: write, escape, isTty, width, height, colorDepth, ask, confirm, select, multiSelect, secret, live, progress
+Keywords: arguments, write, escape, isTty, width, height, colorDepth, ask, confirm, select, multiSelect, secret, live, progress
 
 | Member | Signature |
 |---|---|
+| [`Core\Cli::arguments`](#core-core-cli-arguments) | `arguments(): array<tainted string>` |
 | [`Core\Cli::write`](#core-core-cli-write) | `write(string\|Core\Cli\Text $value, {stream?: Core\Cli\Stream, newline?: bool}): void` |
 | [`Core\Cli::escape`](#core-core-cli-escape) | `escape(string $text): string` |
 | [`Core\Cli::isTty`](#core-core-cli-istty) | `isTty(Core\Cli\Stream $stream): bool` |
@@ -14501,6 +14502,17 @@ Keywords: write, escape, isTty, width, height, colorDepth, ask, confirm, select,
 | [`Core\Cli::secret`](#core-core-cli-secret) | `secret(string $question): secret tainted string` |
 | [`Core\Cli::live`](#core-core-cli-live) | `live(callable $body): T` |
 | [`Core\Cli::progress`](#core-core-cli-progress) | `progress(uint $total, callable $body): T` |
+
+<a id="core-core-cli-arguments"></a>
+#### `Core\Cli::arguments`
+
+```nvs skip
+Core\Cli::arguments(): array<tainted string>
+```
+
+The words this program was started with, past the program itself — PHP's `$argv` and `$argc` in one place. A program that declares a `#[Command]` reads its arguments off the table `Core\Command::run` matched them against instead; this is the raw list, for a program that parses its own.
+
+**Returns** `array<tainted string>` — An `array<tainted string>` in the order the shell wrote them, empty for a program started with none. Every element is `tainted`: the words came from outside the program's own text, so a path, a URL or a query built from one passes its own launderer first. The program's own name is not an element — nothing indexes it away, and `$argv[0]` has no spelling here.
 
 <a id="core-core-cli-write"></a>
 #### `Core\Cli::write`

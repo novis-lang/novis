@@ -2,54 +2,54 @@
 
 ## State
 
-**The failing acceptance check is closed.** `nvs-host (the tier-3 handler script)` named a test that did
-not exist; it is now in `crates/nvs-host/tests/limits.rs`, and it asks the **ladder** rather than the
-constructor its sibling asks — `nvs_host::ladder::escalate` over a request already past `[limits] memory`,
-through ADR 0118 § 2's spawn door, to a program supplied by a `nvs_runtime::script::Resolver` the case
-installs with `script::scoped`. The readings that matter are taken *inside* the handler: it spends a
-megabyte of the reserve and polls, because a reserve is a ceiling and a handler that only reads one cannot
-tell a widened ceiling from one it never needed. `Output::Inherit` puts its bytes on the failing program's
-own stream, which the case reads back through `Ctx::take_buffered_output`.
+**The failing acceptance check is closed.** `nvs-types (the open-typed argument that is still
+checked)` named a test that did not exist. `Core\Log::write` is ADR 0033 § 4's log sink now, refused
+at the **call site** because `fields` stays `array<mixed>` *by design* — the ADR says so in the
+bullet — so no parameter type can carry the question:
+`nvs_types::expr::quals::reject_secret_logged_argument` (`crates/nvs-types/src/expr/quals.rs:658`)
+is the fourth rule of `reject_secret_debug_argument`'s shape, under the new `E0797`. It is scoped to
+the `fields` argument, and `is_fields_argument` owns why the other two positions are left to their
+own declared types. It also reads the *elements* of a written literal by name off the `LocalScope`,
+which is § 4's "including inside a `fields` array literal" and which no type could answer: a literal
+checked against an `array<mixed>` expectation *is* that expectation.
 
-**`Core\Cli::write` has landed** — ADR 0086 § 3's first row, `write(string|Cli\Text $value, {stream?:
-Cli\Stream, newline?: bool}): void`. It performs § 1's substitution table rather than carrying a second
-copy, and recognises the carrier by its class exactly as `nvs_runtime`'s `nvs_echo_value` does. Its subject
-is the file's one `CoreTy::Union` of a `Text` and an `Instance`; `Qual::Neutral` is § 1's "regardless of
-qualifier" in the type system, since the neutralizing *is* the laundering. `Stream::Out` is
-`Ctx::write_output` (so a `Core\Out::capture` takes it) and `Stream::Err` is `Ctx::write_diagnostic` (so a
-capture does not); `Stream::In` throws `LogicError`, because `Cli\Stream` is one enum so that `isTty` can
-ask about all three.
+**`Core\Cli::arguments` has landed** — spec § 15's `arguments(): array<tainted string>`, the first
+row of the class in spec order. It reads no OS: ADR 0118 § 2 keeps `argv` out of `nvs-stdlib`, so it
+answers `Ctx::command_line()`, which only `nvs-cli`'s `main` writes — a served request therefore
+reads an empty array, and the module's gap 2 now says that rather than naming a missing member.
+`$argv[0]` has no spelling: the invoked name is `Ctx::program_name`'s question.
 
-**Still owed on `Core\Cli`**: `arguments` and `displayWidth` — the module's own gaps 1 and 2. Stage 7 still
-owes reading `[log] target`; nothing else changed there.
+**Still owed on `Core\Cli`**: `displayWidth`, the module's own gap 1, which owes a UAX #11 table this
+tree does not carry. Stage 7 still owes reading `[log] target`.
 
-`orient.py` printed no section of ADR 0086 although the whole item was § 1's sink half: `[context] adrs`
-needs `0086:1` and `0086:3`, and `[context] spec` (or its equivalent) still misses
-`docs/spec/01-core-library.md` § 15, which is the one place `write`'s place in the roster is written down.
+`orient.py` printed no section of ADR 0086 or ADR 0033 although both items were sections of them:
+`[context] adrs` needs `0086:1`, `0086:3` and `0033:4`, and `[context] spec` still misses
+`docs/spec/01-core-library.md` § 15.
 
 ## Next group
 
-**`Core\Cli`'s two remaining members, over one file set: `crates/nvs-stdlib/src/cli.rs` and
-`tests/conformance/core/`.**
+**`Core\Cli`'s last member and the case that pins this session's other half, over
+`crates/nvs-stdlib/src/cli.rs` and `tests/conformance/core/`.**
 
-- [ ] **`Core\Cli::arguments`** — spec § 15's `arguments(): array<tainted string>`, the raw `argv` a
-      program reads when it declares no `#[Command]`. The five edits of a `Core` member, at
-      `crates/nvs-stdlib/src/cli.rs:169` (the rows, and it goes *first* — spec order) and
-      `crates/nvs-stdlib/src/cli.rs:992` (the `address()` arm). It reads no OS: ADR 0118 § 2 keeps `argv`
-      out of this crate, so the seam is `crates/nvs-runtime/src/ctx.rs:1302`'s `Ctx::set_command_line`,
-      which `nvs-cli` already fills beside `set_program_name` (`crates/nvs-cli/src/main.rs:851`) — check
-      whether a reader exists there before adding one. Every element is `tainted`.
-- [ ] **`Core\Cli::displayWidth`** — ADR 0086 § 3's `displayWidth(string $value): uint`, UAX #11 columns,
-      sited here and not on `Core\Str` because a width is the renderer's and not the string's. The same
-      two anchors as above — `crates/nvs-stdlib/src/cli.rs:169` for the rows and
-      `crates/nvs-stdlib/src/cli.rs:992` for the `address()` arm.
-      It owes a UAX #11 table this tree does not carry: a `unicode-width` dependency is
-      pre-authorized under ADR 0051 § 4 and owes the `[workspace.dependencies]` comment, `cargo deny
-      check` and `python tools/gen-attribution.py`.
+- [ ] **`Core\Cli::displayWidth`** — ADR 0086 § 3's `displayWidth(string $value): uint`, UAX #11
+      columns rather than `Core\Str::length`'s graphemes. The five edits of a `Core` member, at
+      `crates/nvs-stdlib/src/cli.rs:213` (the rows — it goes after `colorDepth`, spec order),
+      `crates/nvs-stdlib/src/cli.rs:362` (the cards, in row order beside `WIDTH_DOC`),
+      `crates/nvs-stdlib/src/cli.rs:1020` (the `address()` arm) and
+      `crates/nvs-stdlib/src/cli.rs:1286` (`nvs_core_cli_width`, the body to write beside). The
+      decision to make first is where the width table comes from: a dependency is pre-authorized
+      under ADR 0051 § 4 and owes the `[workspace.dependencies]` comment, `cargo deny check` and
+      `python tools/gen-attribution.py`.
+- [ ] **A `.nvst` case for `E0797`** — the refusal above has a `-p nvs-types` test and no case a
+      program reaches. `tests/conformance/core/cli-arguments-elements-are-tainted-and-a-sink-refuses-one.nvst`
+      is the `--EXPECTF-ERROR--` shape to copy, and `crates/nvs-types/src/expr/quals.rs:658` is what
+      it asks about; both halves are worth pinning, the bag whose own type carries the qualifier and
+      the value written inside the literal.
 
 ## Backlog
 
-- Stage 7 § 4: something has to read `[log] target` — `docs/adr/0106` § 10, `crates/nvs-runtime/src/logfile.rs`.
-- `Text + Text` needs a row in `nvs_types`' operator table — `crates/nvs-stdlib/src/cli.rs`'s module doc.
-- `Core\IO`'s `truncate` and `lock` — `crates/nvs-stdlib/src/io.rs`.
-- ADR 0092 § 2's `Cli\Text` of runs, which is what a per-stream render would need — `cli.rs` gap 3.
+- Stage 7's last item: reading `[log] target` — `docs/adr/0020-error-escalation-ladder.md` § 4.
+- `Core\IO`'s `truncate` and `lock` — `crates/nvs-stdlib/src/io.rs`'s own module doc.
+- `Cli\Text` cannot be plain on one stream and styled on another — `crates/nvs-stdlib/src/cli.rs` gap 3.
+- ADR 0033's container axis: an array literal joins nothing, so a qualifier on an element is lost at
+  the binding — `crates/nvs-types/src/expr/quals.rs`'s `reject_secret_encoded_argument` names it.

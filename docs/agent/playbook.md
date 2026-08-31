@@ -1672,6 +1672,14 @@ is why" — is this file.
   "you have not thought about this" from "you thought about it two lines too far up". Put the phrase
   whole, on its own line, immediately above the expression that constructs the `Fault` — a comment may
   sit between a `match`'s closing brace and its `.map_err`, which is usually the only place that fits.
+- **`nvs_helper!` takes exactly one function per invocation, and a second one inside the block fails
+  naming the *next* member's doc comment rather than yours.** `crates/nvs-stdlib/src/cli.rs` reads as
+  one long list of bodies, but each is its own `nvs_runtime::nvs_helper! { … }` block, so an added
+  member written just above an existing one produces ``error: no rules expected `#` `` pointing at
+  that existing member's `///` line — "outer doc comments expand to `#[doc = "..."]`, which is what
+  this macro attempted to match" — with nothing at all pointing at what you wrote. The macro's rule
+  in `crates/nvs-runtime/src/abi.rs` is a single `fn`, no repetition. Close your block and open a new
+  one; that is also why the file has three `nvs_helper!` invocations rather than one.
 
 ## Writing a test case
 
