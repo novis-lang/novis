@@ -715,6 +715,41 @@ pub enum ExprInfo {
         /// The constant's value, in its declared type.
         value: ConstArg,
     },
+    /// `as property<T>` / `as ?property<T>` over an operand that is **not** a
+    /// written-out string —
+    /// [ADR 0126](../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+    /// § 2's `string` and `property<U>` rows, with `T`'s public roster already
+    /// resolved.
+    ///
+    /// Recorded because the roster is the one thing the erasure loses. A key's
+    /// values are `T`'s public declared property names; `property<T>` erases to
+    /// [`nvs_ir`'s `Ty::Str`](../../../crates/nvs-ir/src/ty.rs) because a key
+    /// *is* a name, and `nvs-ir` holds no class table to re-derive the set
+    /// from. So the set travels here and § 2's two checked rows lower to the
+    /// same compile-time-known membership chain ADR 0047 § 3's literal union
+    /// already does — one `BinOp::Eq` per name, and a throw where every one of
+    /// them missed.
+    ///
+    /// Keyed by the **annotation's** span rather than by the conversion
+    /// expression's, the way [`ExprTypeTable::declared_ty`] already is and for
+    /// its reason: `nvs-ir` reaches the target through the `Type` node it holds
+    /// (`nvs_ir::lower::Lowering::lower_conversion` takes `ty`, not the
+    /// expression around it), and the operand's own span keeps whatever entry
+    /// the operand itself earned. The two tables are separate maps, so a
+    /// declared type and this entry share the span without either shadowing the
+    /// other.
+    ///
+    /// A **written-out** operand records nothing at all: § 2 decides `"email"
+    /// as property<User>` where it is written, so it pays nothing at run time
+    /// and there is no set for it to be tested against.
+    PropertyKey {
+        /// The class the key is bounded by, rendered — the throw names it, and
+        /// nothing below the erasure could.
+        class: String,
+        /// `T`'s public declared property names, inherited ones included, in
+        /// `crate::expr::members::public_property_names`' own order.
+        names: Vec<String>,
+    },
     /// `Core\Program::implementing<T>()`, keyed by the call's own span —
     /// [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
     /// § 3's enumeration, already answered.

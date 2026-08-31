@@ -590,6 +590,45 @@
 //!     non-throwing form) runs no membership test either: its yield-`null`
 //!     miss arm has no shared representation with its hit arm, so it needs a
 //!     merge the throwing form does not.
+//! 21. **ADR 0126's `property<T>` is carried and converted; the *access*
+//!     through one does not lower.** A key is a name, so the type erases to
+//!     [`ty::Ty::Str`] ([`lower::lower_checked_ty`]) and a parameter, a return,
+//!     a local and a property hold one for nothing. § 2's three conversions all
+//!     run: `property<T> as string` is the free `from == to` row, and the two
+//!     rows *into* a key are the same membership chain gap 20 describes, built
+//!     from the roster `nvs_types::ExprInfo::PropertyKey` carries — the set is
+//!     what erasure loses, and that variant's own doc comment owns why the
+//!     entry is keyed by the annotation's span. A **written-out** operand
+//!     reaches no chain at all: § 2 decides it where it is written, so it costs
+//!     nothing at run time.
+//!
+//!     What panics is § 4's `$obj->$key` itself, in
+//!     [`lower::Lowering::lower_property_access`]'s catch-all, because the name
+//!     arrives when the statement runs and every entry that arm reads carries a
+//!     compile-time one. Closing it is § 5's own slice: a read is the union of
+//!     `T`'s declared types and a write is ADR 0036 § 4's checked erased store,
+//!     and both want the *dynamic-name* counterpart of the entry
+//!     `nvs_types::expr::members::check_keyed_property` records nothing at
+//!     today.
+//!
+//!     **ADR 0036 § 4's own erased access is not that counterpart**, which is
+//!     the thing to know before planning the slice: [`ir::InstKind::SlotGet`]
+//!     and [`ir::InstKind::SlotSet`] carry the field name as a `String`, and
+//!     `nvs-codegen` hands `nvs_runtime::nvs_object_slot_get` a constant byte
+//!     range built from it — so a key needs either a variant taking the name as
+//!     a value id, with the pointer and length pulled out of the
+//!     `NvsStr` at run time, or a closed-set chain over the same roster the
+//!     conversion tests, each arm an ordinary resolved read joined by a
+//!     [`ir::InstKind::Phi`]. The second needs no new instruction and no
+//!     codegen arm, and costs a comparison per name; the first is one call and
+//!     is what ADR 0036 § 4 already pays. That choice is § 5's to record.
+//!     `nvs_runtime::write_erased_property` is the write half's landing point
+//!     either way.
+//!
+//!     The refusal in `lower_property_access` deliberately does **not** say any
+//!     of this: `tests/refusals.rs`'s ceiling is a one-way ratchet over
+//!     messages that claim a lowering gap, so the claim lands in the same slice
+//!     that removes the site.
 
 pub mod ids;
 pub mod ir;

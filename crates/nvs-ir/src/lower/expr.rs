@@ -3658,6 +3658,16 @@ impl<'a> Lowering<'a> {
                 observer,
                 ..
             }) => (class, name, *ty, get.clone(), observer.clone()),
+            // ADR 0126 § 4's `$obj->$key` reaches this arm, and it is the one
+            // shape here that is a *missing lowering* rather than a checker
+            // that did not run: the name arrives when the statement runs and
+            // every entry above carries a compile-time one. It is the crate
+            // docs' known gap 21, and the wording is deliberately left as the
+            // consistency claim below rather than restating that gap, because
+            // `tests/refusals.rs`'s ceiling is a one-way ratchet: a message
+            // claiming a lowering gap *is* a refusal site, and the site may not
+            // be declared until the slice that closes it does so in the same
+            // breath. See that gap for what closing it needs.
             _ => panic!(
                 "nvs-ir: a property access at {:?} has neither a resolved declaring class \
                   nor an ADR 0036 § 4 erased entry recorded in the typed-expression table, \

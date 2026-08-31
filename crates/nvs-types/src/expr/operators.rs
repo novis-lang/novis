@@ -118,7 +118,7 @@ pub(crate) fn infer_conversion(
     reject_non_literal_markup_conversion(inner, result, expr.span, env);
     reject_impossible_literal_conversion(inner, inner_ty, result, expr.span, env);
     reject_impossible_class_reference_conversion(inner, result, expr.span, ctx, env);
-    reject_unknown_property_key_name(inner, result, expr.span, env);
+    check_property_key_conversion(inner, ty, result, expr.span, env);
     apply_qualifier_conversion_rule(inner_ty, result, env.interner)
 }
 
@@ -207,10 +207,21 @@ fn reject_impossible_class_reference_conversion(
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md) § 3's
 /// reason the sibling states — the sugar answers `null` where the checked form
 /// throws, and an operand decided here never had a throw to convert.
-fn reject_unknown_property_key_name(inner: &Expr, to: TypeId, span: Span, env: &mut Env<'_>) {
-    let ExprKind::Str(text) = &inner.kind else {
-        return;
-    };
+///
+/// **Every other operand is § 2's `string` row proper, and this is where its
+/// run-time test is prepared.** The roster resolved here is the whole content
+/// of that test, and it is the one thing erasure loses — see
+/// [`ExprInfo::PropertyKey`], which is what carries it to `nvs-ir` and why the
+/// entry is keyed by the annotation's span. Both spellings record it, since
+/// `as ?property<T>` answers `null` exactly where the checked form throws and
+/// so tests the same set.
+fn check_property_key_conversion(
+    inner: &Expr,
+    ty: &Type,
+    to: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) {
     let to = nullable_inner_target(to, env).unwrap_or(to);
     let Some(argument) = super::members::property_key_argument(to, env.interner) else {
         return;
@@ -218,8 +229,24 @@ fn reject_unknown_property_key_name(inner: &Expr, to: TypeId, span: Span, env: &
     let Ty::Class(qname, _) = env.interner.get(argument).clone() else {
         return;
     };
-    let name = crate::string_lit::cook_string_literal(env.src, *text);
     let roster = super::members::public_property_names(&qname, env);
+    let ExprKind::Str(text) = &inner.kind else {
+        // § 2's `string` and `property<U>` rows: the name arrives when the
+        // statement runs, so the set it must be one of travels to the lowering
+        // instead of being decided here. An empty roster is recorded like any
+        // other — `nvs-ir` builds a chain that always misses, which is the
+        // correct answer for a class no name can reach and matches the refusal
+        // the written-out operand below gets.
+        env.exprs.record(
+            ty.span,
+            ExprInfo::PropertyKey {
+                class: qname.to_string(),
+                names: roster,
+            },
+        );
+        return;
+    };
+    let name = crate::string_lit::cook_string_literal(env.src, *text);
     if roster.contains(&name) {
         return;
     }
@@ -1864,7 +1891,7 @@ enum ConvKind {
     /// against `T`'s roster at run time.
     ///
     /// Where the operand is written out, the pair is decided at compile time by
-    /// [`reject_unknown_property_key_name`] instead, which is § 2's second
+    /// [`check_property_key_conversion`] instead, which is § 2's second
     /// sentence and the reason a hand-written key costs nothing at run time.
     PropertyKey,
     /// More than one runtime shape — `mixed`, a `?T`, a heterogeneous union,

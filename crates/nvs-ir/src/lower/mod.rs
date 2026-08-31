@@ -2832,6 +2832,11 @@ pub(crate) fn lower_decl_type(
         // way a class name is erased one arm above — see [`Ty::ClassDesc`] for
         // why nothing below this boundary asks `class<T>` what `T` was.
         TypeKind::Atom(TypeAtom::ClassRef(_)) => Ty::ClassDesc,
+        // ADR 0126 § 1's property key, whose values are names — see
+        // [`erase_checked_ty`]'s own arm, which is the one this annotation
+        // takes whenever the checker visited it, for what the argument costs
+        // and where the set it erases went.
+        TypeKind::Atom(TypeAtom::PropertyKey(_)) => Ty::Str,
         // ADR 0031 § 4's one closure type. Its *representation* is an object
         // — see the `ExprKind::Fn` arm of `Lowering::lower_expr`, which
         // synthesizes one class per literal to hold the captured environment
@@ -2853,8 +2858,8 @@ pub(crate) fn lower_decl_type(
         TypeKind::Nullable(_) | TypeKind::Union(_) => Ty::Tagged,
         other => panic!(
             "nvs-ir only lowers bool/int/uint/float/void/string/bytes/array/`?T`/a union/`object`/\
-             `class<T>`/a plain class name as a declared type — got {other:?}; see the crate \
-             docs' known gaps"
+             `class<T>`/`property<T>`/a plain class name as a declared type — got {other:?}; see \
+             the crate docs' known gaps"
         ),
     }
 }
@@ -2942,8 +2947,8 @@ pub(crate) fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
     erase_checked_ty(id, checked_types).unwrap_or_else(|| {
         panic!(
             "nvs-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
-             class/`class<T>`/object/shape/enum/mixed/null/union parameter or return type — got \
-             {:?}; see the crate docs' known gaps",
+             class/`class<T>`/`property<T>`/object/shape/enum/mixed/null/union parameter or \
+             return type — got {:?}; see the crate docs' known gaps",
             checked_types.get(id)
         )
     })
@@ -3005,6 +3010,22 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // `new static` already carries, so it erases to that representation and
         // its argument goes the way `Class`'s identity goes one arm above.
         CheckedTy::ClassRef(_) => Ty::ClassDesc,
+        // ADR 0126 § 1: **a key is a name**, so its values are exactly the
+        // `string`s `T`'s public properties are declared under and the
+        // representation is the one a `string` already has — no descriptor
+        // field, no tag of its own, and § 2's third row (`property<T>` →
+        // `string`) free by construction.
+        //
+        // The argument is dropped here the way `class<T>`'s is one arm above,
+        // and it costs the same thing in the same place: the *set* a key may
+        // hold does not survive, so § 2's two checked rows cannot re-derive it
+        // below this boundary. They do not have to — the checker records the
+        // resolved roster at the conversion
+        // (`nvs_types::expr_table::ExprInfo::PropertyKey`) and
+        // `Lowering::property_key_set` reads it back, which is the same
+        // "record it where the type still existed" the erased member access one
+        // arm above already relies on.
+        CheckedTy::PropertyKey(_) => Ty::Str,
         // ADR 0047 § 5: a literal type and an enum-case type add **zero**
         // runtime representation. Each erases to the base it shares a tag and
         // payload with, so the singleton-ness stops at this boundary and

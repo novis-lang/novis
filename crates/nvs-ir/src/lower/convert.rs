@@ -699,6 +699,26 @@ impl<'a> Lowering<'a> {
                 {
                     return self.lower_array_restamp(v, from, tags, inner, true, env, cur);
                 }
+                // ADR 0126 § 2's two run-time rows under ADR 0066 § 3's sugar:
+                // the same set and the same chain the checked form below gets,
+                // with the miss answering `null` where that one throws. Ahead
+                // of the atom walk, which cannot answer it — `property<T>` is
+                // one atom and not a closed set of literal types, so
+                // `Self::closed_set_of_atoms` reports no set and the operand
+                // would fall through to the free `Ty::Str` → `Ty::Str` row with
+                // nothing checked at all.
+                if let Some(accepted) = self.property_key_set(ty) {
+                    return self.lower_nullable_membership(
+                        v,
+                        from,
+                        Ty::Str,
+                        &accepted,
+                        inner,
+                        ty.span,
+                        env,
+                        cur,
+                    );
+                }
                 // ADR 0066 § 3 row 2 — a literal or enum-case target, the
                 // "non-throwing twin" of the checked conversion. The target
                 // is `T|null` minus `null`, which is the one place it still
@@ -751,6 +771,32 @@ impl<'a> Lowering<'a> {
                         other => other,
                     });
                 let (v, from) = self.lower_expr(inner, placed, env, cur);
+                // ADR 0126 § 2's `string` and `property<U>` rows. Both operands
+                // are already a `Ty::Str` here — a key *is* a name, which is the
+                // whole of ADR 0126 § 1's representation — so `Self::convert`
+                // would answer this pair by its free `from == to` row and check
+                // nothing, exactly as it would hand a `class<Animal>` through a
+                // `class<Dog>` two arms above. The conversion's entire content
+                // is therefore the membership test, and its value is the
+                // operand it just proved.
+                //
+                // It owes the same retain that free row owes, and for the same
+                // reason stated there: every consumer reads `is_aliasing_read`
+                // off the `as` node and treats the result as a fresh value it
+                // owns, so handing back borrowed storage gives it a reference
+                // nobody took and the second release of the pair corrupts the
+                // heap. The chain itself releases only the name constants it
+                // makes. The retain goes after it because
+                // `Self::lower_literal_membership` moves `*cur` to the block
+                // the hit arm lands in, which is the one block the value leaves
+                // through.
+                if let Some(accepted) = self.property_key_set(ty) {
+                    self.lower_literal_membership(v, from, &accepted, ty.span, env, cur, None);
+                    if Ty::Str.is_refcounted() && self.aliasing_read(inner) {
+                        self.emit_retain(*cur, v);
+                    }
+                    return (v, Ty::Str);
+                }
                 // ADR 0007 § 6's checked way out of `mixed`, and the one row
                 // of this operator whose test is a *class* rather than a tag.
                 // It is here rather than in `Self::convert` because it
@@ -1271,6 +1317,51 @@ impl<'a> Lowering<'a> {
             _ => vec![target],
         };
         self.closed_set_of_atoms(&atoms, Some(inner), from)
+    }
+
+    /// The set of names a checked `as property<T>` accepts —
+    /// [ADR 0126](../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+    /// § 2's two run-time rows, as the same [`AcceptedSet`] ADR 0047 § 3's
+    /// literal union already tests against.
+    ///
+    /// Read off [`ExprInfo::PropertyKey`] rather than off the checked type,
+    /// because the type does not carry it: `property<T>`'s values are `T`'s
+    /// public declared property names, which needs the class hierarchy and the
+    /// signature table this crate has neither of. That variant's own doc
+    /// comment owns why the entry is keyed by the annotation's span, which is
+    /// what lets this take a `Type` and nothing else.
+    ///
+    /// `None` for every other annotation, **and for a written-out operand**:
+    /// § 2 decides `"email" as property<User>` where it is written, so the
+    /// checker records no entry for one and the conversion is the free
+    /// `Ty::Str` → `Ty::Str` row [`Self::convert`] already answers.
+    ///
+    /// The rendering is the throw's whole message past the name that failed —
+    /// `nvs_runtime`'s `nvs_literal_mismatch` writes "`x` is not one of " in
+    /// front of it — which is why the class is named here rather than left to a
+    /// bare list, and § 2 asks for exactly that.
+    fn property_key_set(&self, ty: &Type) -> Option<AcceptedSet> {
+        let ExprInfo::PropertyKey { class, names } = self.exprs.lookup(ty.span)? else {
+            return None;
+        };
+        Some(AcceptedSet {
+            members: names
+                .iter()
+                .map(|name| LiteralAtom::Str(name.clone()))
+                .collect(),
+            rendered: if names.is_empty() {
+                format!("`{class}`'s public declared properties, of which it has none")
+            } else {
+                format!(
+                    "`{class}`'s public declared properties: {}",
+                    names
+                        .iter()
+                        .map(|name| format!("`${name}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            },
+        })
     }
 
     /// [`Self::closed_literal_set`] over an atom list the caller already

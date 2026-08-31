@@ -996,16 +996,19 @@ fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
 /// so the proof that neither panic has a reachable target is here and nowhere
 /// else. The split is exhaustive over the two questions an access asks:
 ///
-/// - **The member name.** A computed one (`->$name`, `->{expr}`) still never
-///   reaches lowering, but since ADR 0126 § 4 the reason is a *type* rather
-///   than a spelling, and it is [`check_keyed_property`] that decides: an
-///   operand that is not a `property<T>` the receiver satisfies is `E0235`
-///   here, and one that is answers § 5's union of the set with no entry of its
-///   own. That second arm is unreachable in a compiled program today because
-///   no value of that type can exist in one — `nvs-ir` lowers no `property<T>`
-///   parameter, return or local, and says so with a known-gap panic naming the
-///   type — and the slice that gives § 5 its erased store is the one that
-///   records an entry here. ADR 0014 § 5 owns why every other operand is
+/// - **The member name.** A computed one (`->$name`, `->{expr}`) is decided by
+///   a *type* rather than by a spelling since ADR 0126 § 4, and it is
+///   [`check_keyed_property`] that decides: an operand that is not a
+///   `property<T>` the receiver satisfies is `E0235` here, and one that is
+///   answers § 5's union of the set with **no entry of its own**. That second
+///   arm is where this proof is currently owed rather than held. It used to be
+///   unreachable because no value of the type could exist in a compiled
+///   program; `nvs-ir` now lowers a `property<T>` parameter, return and local
+///   (a key is a name, so it erases to that crate's `Ty::Str`) and § 2's
+///   conversions produce one, so a program *can* reach the panic — which names
+///   the gap rather than miscompiling, and is that crate's known gap 21. The
+///   slice that gives § 5 its erased store is the one that records an entry
+///   here and restores the proof. ADR 0014 § 5 owns why every other operand is
 ///   refused at all.
 /// - **The receiver's type.** A [`Ty::Shape`] records [`ExprInfo::ShapeProperty`]
 ///   with the field's slot; [`Ty::Object`] and [`Ty::Mixed`] record the same
