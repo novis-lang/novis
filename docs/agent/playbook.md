@@ -3956,13 +3956,6 @@ sibling in the same namespace unqualified.
   expression's `expected` to its left, which is why the left-hand digit run was the half that
   fell over while `$u - 18446744073709551615` was already fine. The two crates have to make
   the same placement, and the checker's half alone is not the feature.
-- **A new `nvs_ir::Helper` row needs a *fourth* edit, and the three obvious ones all build
-  clean without it.** The variant, `print.rs`'s name and `emit.rs`'s `helper_symbol` string are
-  what a session looks for; what nothing points at is `nvs_runtime::helpers`' symbol table,
-  the `(name, address)` list the JIT resolves against. Miss it and the whole workspace
-  compiles, every unit test passes, and the *first program that reaches the new row* dies
-  inside cranelift with `can't resolve symbol nvs_<name>` and no Novis frame anywhere in the
-  message. `grep -n "nvs_call_closure" crates/` names all four sites at once.
 - **`inout ...$rest` does not parse, and spreading into a variadic `inout` tail is accepted in
   silence.** `Parser::parse_arg` tests for `...` *before* it eats `inout`, so the marked spelling
   eats the word and then fails on the ellipsis — `E0714` plus five lines of `E0101`/`E0102`
@@ -3973,10 +3966,12 @@ sibling in the same namespace unqualified.
 - **A new `nvs_ir::Helper` needs a *fourth* edit, and the three obvious ones build without it.**
   The variant, `nvs_ir::print`'s name and `nvs_codegen::emit`'s `helper_symbol` row all compile
   happily; what fails is at run time, `cranelift-jit` panicking with `can't resolve symbol
-  nvs_value_add` from inside `JITModule`. The missing edit is `nvs_runtime::helpers::symbols()`,
+  nvs_value_add` from inside `JITModule` and no Novis frame anywhere in the message. The missing
+  edit is `nvs_runtime::helpers::symbols()`,
   the `(name, address)` table `nvs-codegen` registers with `JITBuilder::symbol` — a `#[no_mangle]`
   helper is *not* found by name in the host process, it is found in that vector. Grep it for a
-  neighbouring helper rather than trusting the compiler to notice.
+  neighbouring helper rather than trusting the compiler to notice: `grep -n "nvs_call_closure"
+  crates/` names all four sites at once.
 - **A refusal in `nvs_types` phrased "this operand is not one of the four rows"
   does not cover a `mixed` operand, and the hole opens one crate down.**
   `reject_unary_arith_operand` decides from `equality_domain`, which answers
@@ -4063,14 +4058,6 @@ sibling in the same namespace unqualified.
   exempt the first and leave the second alone — and the tests that pin them are the ones that
   fail first: `tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst` and
   the four `json-derive-*` cases.
-- **An expression-bodied `fn (): void => <a void call>` does not lower**, and its
-  block-bodied twin does. `Core\Test::expectFailure(fn (): void => Test::assertSame(1, 2));`
-  fails the whole compilation with *"nvs-codegen does not lower an operand used before it
-  is defined"*, naming a compiler bug for a shape the checker accepted, while
-  `fn (): void => { Test::assertSame(1, 2); }` runs — the two differ by nothing else, so
-  write the braces whenever a closure's whole body is one `void` call. Bisecting to it
-  costs a scratch run per candidate, because the message names neither the closure nor the
-  call.
 - **A size check is not a loop bound.** `Core\Bytes::repeat` and `Core\Str::repeat` both
   checked the *product* — `affordable` on `len * times`, then the allocator — and then ran
   `for _ in 0..times`. An empty subject makes that product zero for every count there is,
@@ -4100,6 +4087,7 @@ sibling in the same namespace unqualified.
   it is the `void` return rather than the call or the arrow that is unlowerable. Every existing
   `Core\Out::capture` case in the corpus already uses the block body, which is why nothing had
   caught it. Write the braces; the panic names neither the closure nor its return type.
+  Bisecting to it costs a scratch run per candidate.
 - **A refusal the parser writes takes an `E02xx` code, not the `E01xx` "next free parser code."** The
   bands are by *kind*, not by which crate reports them: `E01xx` is a malformed parse, `E02xx` is
   "rejected PHP constructs", and a PHP spelling Novis declines is the second one however early it is
@@ -4446,23 +4434,14 @@ sibling in the same namespace unqualified.
   rather than a type error you can read past: Novis keeps exactly one equality operator, `==`, which
   never converts either operand, so there is nothing for a second one to distinguish. A null test is
   `$x == null`.
-- **A new `[limits]` key needs a row in `nvs_config::value::unit_of`, and without one the reader
-  answers its *default* rather than failing.** `fatal_reserve_time` had a field on the typed
-  `Limits` tree, a `DIRECTIVES` row and a `Ctx` reader, and a case asking for `"300ms"` still read
-  50 ms. `Ctx` asks for a limit by its **bare** name, and `request::canonical` only prefixes
-  `limits.` onto a name `unit_of` knows — so a key missing from that one `match` resolves as a
-  top-level key, finds nothing, and every reader falls through to whatever it does when the
-  directive is unstated. Nothing refuses: the tree accepted the value, the registry classed it, and
-  only the number was wrong. The full roster a new `[limits]` key owes is the `Limits` field, the
-  `DIRECTIVES` row, the `unit_of` arm and the `Ctx` reader; `unit_of`'s own doc calls itself the one
-  table, which is the sentence to trust over the three files that look complete without it.
 - **A new `[limits]` key needs four edits, and the one that is easy to miss makes the other three
   read as a silent default.** `max_script_depth` had its `Limits` field
   (`crates/nvs-config/src/tree.rs`), its `DIRECTIVES` row (`crates/nvs-config/src/directive.rs`) and
   its `Ctx` reader, and every written value still came back as the default: `Request::get` resolves a
   bare name to `limits.<name>` only when `nvs_config::value::unit_of` knows the leaf, so a key
   missing from that `match` has no block, never reaches `[limits]`, and the reader answers its
-  default instead. The comment above `unit_of`'s `Duration` arm already says exactly this — it is
+  default instead. Nothing refuses: the tree accepted the value, the registry classed it, and only
+  the number was wrong. The comment above `unit_of`'s `Duration` arm already says exactly this — it is
   worth reading before adding a key rather than after. The full roster is: the `Limits` field, the
   `DIRECTIVES` row, the `unit_of` arm, and the reader. Nothing fails to compile without the third.
 - **ADR 0020 § 1's roster of resource limits is restated in four places, and three of them are
