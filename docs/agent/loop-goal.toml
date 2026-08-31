@@ -169,7 +169,13 @@ plan = ["Open now", "Blocking"]
 milestones = ["M6:verify"]
 
 [valgrind]
-skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+# The sweep grades a fixture on its exit status, because `--error-exitcode=1` is the only signal
+# valgrind has left once the program itself has exited nonzero. Every fixture that exits nonzero BY
+# DESIGN therefore has to be named here, or it reports as a leak it does not have. All three below
+# have their own `[[check]]` asserting the exact failure they exist to show — `limits.nvs` is stage
+# 4's `exit = "nonzero"` with `FATAL` and `memory` on stderr — so nothing goes unasserted by sitting
+# in this list.
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/limits.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
