@@ -15299,10 +15299,34 @@ Asks `$url` for its headers alone, under the same budget a `get` would have.
 <a id="core-core-http-response"></a>
 ### `Core\Http\Response`
 
-Keywords: 
+Keywords: status, text
 
 | Member | Signature |
 |---|---|
+| [`Core\Http\Response->status`](#core-core-http-response-status) | `status(): int` |
+| [`Core\Http\Response->text`](#core-core-http-response-text) | `text(): tainted string` |
+
+<a id="core-core-http-response-status"></a>
+#### `Core\Http\Response->status`
+
+```nvs skip
+$response->status(): int
+```
+
+The reply's HTTP status code, as the origin sent it and with nothing read into it — replacing `curl_getinfo`'s `CURLINFO_RESPONSE_CODE` key.
+
+**Returns** `int` — The status line's three-digit code. A `404` and a `500` are answers, so they arrive here rather than as a throw; only a request that got no reply at all throws.
+
+<a id="core-core-http-response-text"></a>
+#### `Core\Http\Response->text`
+
+```nvs skip
+$response->text(): tainted string
+```
+
+The reply's body as text, replacing `curl_exec`'s return value and the `CURLOPT_RETURNTRANSFER` flag that decided whether there was one.
+
+**Returns** `tainted string` — The body, `tainted`: it is bytes another host chose, and a pinned address settles where they came from rather than what is in them. A sink's own launderer is the way out of it, and there is no generic one.
 
 <a id="core-enums"></a>
 ### `Core` enums
