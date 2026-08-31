@@ -2,60 +2,58 @@
 
 ## State
 
-**Stage 10 item 38 is closed: all three of ADR 0125 § 4's dynamic sites lower.** `$x instanceof $cls`
-joins `new $cls(...)` and `$cls::f(...)`, and the goal's `conformance (the class reference)` check
-passes — its four cases are on disk and green, which is what the driver's last acceptance failure was
-naming.
+**Stage 10 is closed.** ADR 0125's class reference is landed end to end: the type checks, all three
+of § 4's dynamic sites lower, the `.nvst` corpus is green, and item 39's documentation is written —
+the atom and the `as` rows in `docs/reference/lang/20-types.md`, the three sites and the `E0794` cost
+in `docs/reference/lang/50-classes.md`, and the four tables that still said the dynamic spelling did
+not exist (the PHP-differences row, findings P9, ADR 0007 § 7 row 14, ADR 0019's DI bullet).
 
-**`InstKind::InstanceOf` now takes a `TestedClass`** (`crates/nvs-ir/src/ir.rs:1408`) rather than a
-`class: String`: `Named` for every written site — both `catch` ladders, `as`'s downcast, a closure's
-parameter check — and `Descriptor` for the dynamic one. That enum's own doc comment is the home for why
-the two forms are one instruction and why the written form keeps its label rather than folding into an
-`InstKind::ClassDescConst`.
+**The driver's acceptance failure was the valgrind sweep, not the tree.** `examples/limits.nvs` exits
+nonzero by design — its own `[[check]]` asserts `exit = "nonzero"` with `FATAL` and `memory` on
+stderr — and the sweep grades on exit status, so it reported as a leak. It joins `fatal.nvs` and
+`uncaught.nvs` in `[valgrind] skip`; the playbook bullet is the general rule.
 
-**Nothing new is recorded in the typed-expression table for the dynamic site**, and
-`Lowering::lower_instanceof`'s doc comment owns why: `ExprInfo::InstanceOf` exists to carry a *resolved
-name*, and here there is no name — which of the two forms a site takes is decided by the shape of the
-right-hand side, and the checker's `E0496` is what leaves only those two shapes.
+**A dynamic `instanceof` narrows nothing, and that is now a known fact rather than a guess.**
+`crates/nvs-types/src/locals.rs:481` narrows off `ExprInfo::InstanceOf { class }`, which the dynamic
+site deliberately does not record (`Lowering::lower_instanceof`'s doc comment owns why). Nothing in
+the reference claims either way — deciding it is the next group's second item.
 
-**Known gap, unchanged and recorded on `ExprInfo::ClassRefCall`:** `$cls::f(...)` written as ADR 0027's
-first-class callable still records `ExprInfo::CallableRef`, so the `Closure` names `T`'s method rather
-than the implementor's. It needs a refusal or a descriptor-carrying closure, not a lowering.
+**Known gaps, unchanged:** `as ?class<T>` still has no row and still needs ADR 0125 § 2's
+representation decision; `$cls::f(...)` written as ADR 0027's first-class callable still records
+`ExprInfo::CallableRef`, so the `Closure` names `T`'s method rather than the implementor's.
 
-**`as ?class<T>` still has no row** and still needs the representation decision ADR 0125 § 2 promises;
-`Lowering::lower_class_reference`'s *Known gaps* names the shape.
-
-**`orient.py`'s `[context]` gaps.** The next group is documentation, so the standing one now bites: no
-field selects `docs/reference/lang/*.md` or `docs/reference/tools/*.md`, and the next session needs
-both. Also standing: `docs/adr/README.md` and `ground-rules.md` are not in `modules`, and the pack
-prints the goal item but not the `[[check]]` grading it.
+**`orient.py`'s `[context]` gaps, all hit this session.** No field selects `docs/reference/lang/*.md`,
+`docs/reference/tools/*.md` or `docs/reference/findings.md`, and this item was three of them. `adrs`
+did not name ADR 0125 §§ 1, 2, 4, 5 even though the item cites §§ 2 and 4 by number. Standing:
+`docs/adr/README.md` and `ground-rules.md` are not in `modules`, the pack prints the goal item but not
+the `[[check]]` grading it, and `modules` still names `crates/nvs-host/src/budget.rs`, which matches
+nothing.
 
 ## Next group
 
-**Item 39's second half — the reference and the tables, file set `docs/reference/lang/20-types.md`,
-`docs/reference/lang/50-classes.md`, `docs/reference/tools/30-php-differences.md`,
-`docs/reference/findings.md` and two ADRs.** The corpus half is done; every item below is prose over
-landed behaviour, and `python tools/reference.py` runs the examples.
+**The three loose ends `class<T>` left, file set `crates/nvs-types/src/expr/operators.rs`,
+`crates/nvs-types/src/locals.rs`, `crates/nvs-ir/src/lower/convert.rs` and
+`docs/reference/lang/20-types.md`.** All three are checker-and-lowering work over a landed feature;
+none needs a new ADR, and ADR 0125 §§ 2 and 4 already decide what each should do.
 
-- [ ] **The type atom and its `as` row.** `class<T>` beside `callable` and the class names at
-      `docs/reference/lang/20-types.md:185`, and the conversion row at
-      `docs/reference/lang/20-types.md:511` — the string door, the folded `Foo::class` door, and the
-      throw ADR 0125 § 2 specifies. ADR 0125 §§ 2, 4.
-- [ ] **`instanceof`'s operand and the `new` paragraph beside it** at
-      `docs/reference/lang/50-classes.md:476`: all three sites accept a class reference and nothing
-      else, and § 5's refusal is what a `new` over one costs. ADR 0125 §§ 4, 5.
-- [ ] **The four tables that still say there is no spelling.** The differences row at
-      `docs/reference/tools/30-php-differences.md:31`, `docs/reference/findings.md:61`, ADR 0007 § 2's
-      `as` table plus § 7 row 14's tail at `docs/adr/0007-explicit-type-system.md:396`, and ADR 0019's
-      DI-container sentence at
-      `docs/adr/0019-reflection-and-ast-parsing-are-core-features.md:120`.
+- [ ] **`as ?class<T>` answers `null` where `as class<T>` throws.** ADR 0125 § 2 states it and there
+      is no row: the conversion kinds at `crates/nvs-types/src/expr/operators.rs:1863`, the lowering
+      at `crates/nvs-ir/src/lower/convert.rs:880` whose *Known gaps* at
+      `crates/nvs-ir/src/lower/convert.rs:858` names the shape. Find out first whether it is refused
+      or panics today. The `as ?T` paragraph at `docs/reference/lang/20-types.md:530` gains the line.
+- [ ] **Decide what `$x instanceof $cls` narrows.** `crates/nvs-types/src/locals.rs:481` reads
+      `ExprInfo::InstanceOf { class }` and the dynamic site records none, so it narrows nothing today.
+      Either record `T` there (sound: the value is a `class<T>`) or state it in
+      `crates/nvs-ir/src/lower/expr.rs:4253`'s doc comment and in the narrowing list at
+      `docs/reference/lang/20-types.md:654`. ADR 0125 § 4.
+- [ ] **`$cls::f(...)` as a first-class callable.** `crates/nvs-types/src/expr_table.rs:412`'s
+      `ClassRefCall` is right; the callable form at `crates/nvs-types/src/expr/calls.rs:241` still
+      records `ExprInfo::CallableRef` and names `T`'s method. A refusal is the cheap correct answer;
+      a descriptor-carrying closure is the other. ADR 0027, ADR 0125 § 4.
 
 ## Backlog
 
-- `$cls::f(...)` as a first-class callable names `T`'s method — `nvs_types::expr_table::ExprInfo`'s
-  `ClassRefCall` doc owns it.
-- `as ?class<T>` has no row — `nvs_ir::lower::convert::Lowering::lower_class_reference`'s *Known gaps*.
-- A `-p nvs-ir` lowering test for `InstanceOf`'s descriptor form; the four `.nvst` cases pin the
-  behaviour end to end today.
-- ADR 0017's freeing of executable memory — `docs/plan/m6.md` carries it, no consumer until goal 6.
-- `python tools/bench.py --warm-start --max-ms 10` — the goal's own § *The harness this goal owes*.
+- Stage 8's bars: conformance 1091, differential 206 of 210, migration 37% over a 36% floor —
+  `docs/agent/loop-goal.md` § *Stage 8*.
+- `class<T>` in `Core\Reflect`'s surface: ADR 0019 now points at it, and no member takes one.
+- The `[context]` manifest gaps above, in `docs/agent/loop-goal.toml`.

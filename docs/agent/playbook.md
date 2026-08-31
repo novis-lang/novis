@@ -1124,6 +1124,12 @@ is why" — is this file.
   *not* include is an internal-consistency `panic!` ("this is a checker that did not run"), so a
   guard against the checker disagreeing with itself is free and a guard against a language shape is
   not.
+- **A fixture that exits nonzero *by design* fails the valgrind sweep, and the failure reads as a
+  leak.** `tools/loop.py`'s sweep runs `valgrind --error-exitcode=1` and grades the fixture on its
+  exit status, which is the only signal valgrind has left once the program itself exited nonzero — so
+  a `FATAL` fixture reports as `valgrind <file>: exit 1` with its own stderr as the "error". That is
+  what `[valgrind] skip` in the goal file is for, and every such fixture has to be named there. Do not
+  go looking for the leak first: check whether the fixture's own `[[check]]` says `exit = "nonzero"`.
 
 ## Running things
 

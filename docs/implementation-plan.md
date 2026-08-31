@@ -58,9 +58,9 @@
 > `crates/nvs-cli/src/cache.rs`, whose *Known gaps* decides a payload. **Stage 0c has no
 > implementable slice left**: `docs/reference/findings.md` § *Triage* holds the verdicts. **Stage 9
 > is closed**: 0119's front end, checker, § 6's lowering, four `.nvst` cases and a reference
-> section. **Stage 10 is open**: ADR 0125 decides it, `class<T>` checks, all three of § 4's dynamic
-> sites lower, and the corpus is written; item 39's reference and tables remain. **Stage 8 is
-> open**: conformance 1091, differential 206 of 210, migration 37% over its 36% floor. **Stage 7 is
+> section. **Stage 10 is closed**: ADR 0125 decides it, `class<T>` checks, § 4's three dynamic sites
+> lower, and the corpus, the reference and the four tables are written. **Stage 8 is open**:
+> conformance 1091, differential 206 of 210, migration 37% over its 36% floor. **Stage 7 is
 > closed**: `nvs build --compile` appends ADR 0048 §§ 2-5's source payload.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
