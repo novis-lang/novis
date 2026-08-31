@@ -1,0 +1,21 @@
+--TEST--
+`Core\Cli\Text::plain` neutralizes its own input, so the sink's one raw path agrees with the sink — ADR 0086 §§ 1-2
+--FILE--
+<?nvs
+// § 2: `Text::plain` applies § 1's substitution to its argument. That is what
+// makes the raw path a constructor rather than a trust assertion — `echo`
+// writes a `Cli\Text` through unchanged, and this is the only text a program
+// can put in one.
+var $raw = Core\Str::fromCodePoint(27) . "[31mred";
+echo Core\Cli\Text::plain($raw), "\n";
+
+// § 1: the same bytes reaching the sink as a plain `string` are substituted
+// there instead, and `Core\Cli::escape` is that same table asked for a value.
+// All three have to agree; a launderer that grew apart from its sink is the
+// failure ADR 0024 § 3 exists to prevent.
+echo $raw, "\n";
+echo Core\Cli::escape($raw), "\n";
+--EXPECT--
+␛[31mred
+␛[31mred
+␛[31mred

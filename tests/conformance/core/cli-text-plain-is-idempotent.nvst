@@ -1,0 +1,17 @@
+--TEST--
+`Core\Cli\Text::plain` is idempotent, so text that has already passed a sink is not escaped twice — ADR 0086 §§ 1-2
+--FILE--
+<?nvs
+// § 1's table is idempotent: a Control Picture is not a control byte, so a
+// second pass changes nothing. That is what lets `Core\Out::capture`'s already
+// neutralized bytes and `plain`'s answer be the same kind of value without
+// either of them double-escaping the other — the second escape ADR 0088 § 5
+// exists to prevent.
+var $raw = Core\Str::fromCodePoint(27) . "]0;title" . Core\Str::fromCodePoint(7);
+echo Core\Cli\Text::plain($raw), "\n";
+echo Core\Cli\Text::plain(Core\Cli::escape($raw)), "\n";
+echo Core\Cli\Text::plain(Core\Cli::escape(Core\Cli::escape($raw))), "\n";
+--EXPECT--
+␛]0;title␇
+␛]0;title␇
+␛]0;title␇

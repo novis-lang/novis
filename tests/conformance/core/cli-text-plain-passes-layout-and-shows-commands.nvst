@@ -1,0 +1,19 @@
+--TEST--
+`Core\Cli\Text::plain` passes `LF` and `TAB` through and shows every other control byte — ADR 0086 § 1
+--FILE--
+<?nvs
+// § 1's table is a substitution and not a deletion, and the bound has two
+// sides. `LF` and `TAB` are layout rather than commands, so a carrier built
+// from a whole line keeps its shape and a program can still lay a table out.
+var $tab = Core\Str::fromCodePoint(9);
+var $lf = Core\Str::fromCodePoint(10);
+echo Core\Cli\Text::plain("a" . $tab . "b" . $lf);
+
+// The other side: a bare `CR` and a `DEL` are commands a terminal consumes and
+// shows to nobody, so each comes out as its own visible glyph instead.
+var $cr = Core\Str::fromCodePoint(13);
+var $del = Core\Str::fromCodePoint(127);
+echo Core\Cli\Text::plain("c" . $cr . $del), "\n";
+--EXPECT--
+a	b
+c␍␡

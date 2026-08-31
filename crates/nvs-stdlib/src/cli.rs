@@ -44,22 +44,24 @@
 //!
 //! # What a `Text` is, and what it is not
 //!
-//! One slot, holding the bytes as they came out of the sink. **No member at
-//! all**, which is deliberate rather than unfinished: everything a program does
-//! with a `Text` today it does by producing one (`Core\Out::capture`) or by
-//! writing one out (`echo`, whose row is `nvs_runtime::value_to_string`'s
-//! carrier arm). `Text::plain`, `Text::styled`, `Text + Text`, `Cli\Style` and
-//! `Cli\Color` are ADR 0086 § 2's and are still owed. § 1's substitution, which
-//! is what makes `Text::plain` a constructor that *cannot* produce an injected
-//! escape sequence, has landed ahead of them and is at the sink.
+//! One slot, holding bytes that have already been through § 1's table, and one
+//! member: `plain`. A `Text` is **the language's one raw path** — `echo` writes
+//! a carrier through unchanged rather than substituting over it, which is what
+//! ADR 0086 § 1's *"there is exactly one raw path, `Cli\Text`"* asks for and
+//! what `nvs_runtime`'s `nvs_echo_value` implements. Keying that on the class
+//! is deliberate: a `raw` bit riding on a `Tag::Str` would leave the carrier on
+//! the first member that answered one, and `is_carrier_value`'s doc comment in
+//! `nvs-runtime` owns the reasoning.
 //!
-//! That ordering is why the carrier builder here substitutes nothing. A `Text`
-//! this module builds holds bytes the sink already neutralized; applying § 1's
-//! table to them here would be the second escape ADR 0088 § 5 exists to
-//! prevent. The substitution belongs at the sink, on the way in, and
-//! `nvs_runtime`'s `nvs_echo_str` is where it happens — that helper's own doc
-//! comment owns it, including why the table's idempotence is what makes
-//! `echo`ing a captured `Text` correct.
+//! What keeps that path from being a hole is that **no constructor accepts
+//! bytes it has not neutralized**. [`nvs_core_cli_text_plain`] substitutes over
+//! its argument, and [`built`] — the transfer builder `Core\Out::capture` uses
+//! — is handed bytes that came out of a sink already. The control bytes a
+//! `Text` may legitimately carry are `styled`'s, put there from a `Cli\Style`
+//! and never taken from a caller's string.
+//!
+//! `Text::styled`, `Text + Text`, `Cli\Style` and `Cli\Color` are ADR 0086
+//! § 2's and are still owed; gap 3 below names the one mechanism they wait on.
 //!
 //! [`nvs_core_cli_escape`] is the same table reached as a *value* rather than
 //! as an effect — ADR 0024 § 3's named launderer for this sink — and it calls
@@ -78,6 +80,15 @@
 //!    and no `Cli\Style` or `Cli\Color` beside the three enums below.
 //!    `docs/spec/01-core-library.md` § 13 lists them and `docs/plan/m8.md` owns
 //!    when.
+//! 3. **`Cli\Color` waits on a `Core` class constant that is an instance**,
+//!    which ADR 0086 § 2 calls machinery this crate already has and which it
+//!    does not: [`crate::registry::CoreConst`]'s value is a
+//!    [`Const`](crate::registry::Const), whose whole roster is scalar, and the
+//!    compiler inlines it at every use site. § 2's sixteen named colours are
+//!    class constants and `Color::rgb`/`Color::index` construct the rest, so
+//!    `Cli\Color` — and therefore `Cli\Style` and `Text::styled` — is blocked on
+//!    deciding how a constant that is an instance is spelled and when it is
+//!    built. That decision is the next slice, not this file's.
 
 use nvs_runtime::terminal::{ColorDepth, Stream};
 use nvs_runtime::{Fault, NvsStr, Value};
@@ -350,6 +361,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cli_width" => (nvs_core_cli_width as *const ()).cast(),
         "nvs_core_cli_height" => (nvs_core_cli_height as *const ()).cast(),
         "nvs_core_cli_color_depth" => (nvs_core_cli_color_depth as *const ()).cast(),
+        "nvs_core_cli_text_plain" => (nvs_core_cli_text_plain as *const ()).cast(),
         _ => return None,
     })
 }
@@ -497,20 +509,85 @@ nvs_runtime::nvs_helper! {
 /// stop happening.
 pub(crate) const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
 
-/// Spec § 13's `Core\Cli\Text`, as much of it as ADR 0088 § 5 needs — see the
-/// module docs for why that is a slot and no members.
+/// Spec § 13's `Core\Cli\Text` — ADR 0088 § 5's slot, and ADR 0086 § 2's first
+/// constructor over it. See the module docs for what is still owed.
 pub(crate) const TEXT: CoreClass = CoreClass {
     name: NAME,
-    methods: &[],
+    methods: &[CoreMethod {
+        name: "plain",
+        names: &["text"],
+        params: &[CoreTy::Text(Qual::Launder)],
+        defaults: &[],
+        return_ty: CoreTy::Instance(NAME),
+        symbol: "nvs_core_cli_text_plain",
+        doc: Some(&PLAIN_DOC),
+    }],
     instance: &[],
     slots: &["text"],
     constants: &[],
 };
 
+/// `Core\Cli\Text::plain`'s reference card — ADR 0117.
+const PLAIN_DOC: MethodDoc = MethodDoc {
+    short: "Answers `$text` as a `Core\\Cli\\Text`, with every control byte already replaced by the \
+            visible glyph `Core\\Cli::escape` gives it. This is the terminal sink's own carrier: \
+            `echo` writes a `Text` through unchanged, which is why the substitution happens here \
+            instead.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The text to carry. Its `tainted` qualifier is removed, for the same reason \
+               `Core\\Cli::escape` removes it: the terminal is the sink this neutralizes for, and \
+               nothing is left in the answer for it to act on.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Cli\\Text` carrying the neutralized form. It composes with another `Text` and \
+          is written by `echo`; it carries no styling, which is `styled`'s.",
+    errors: &[],
+};
+
 /// A `Core\Cli\Text` carrying `text`, which must be a `Tag::Str` value the
-/// caller is transferring — the one producer, called by [`crate::out`].
+/// caller is transferring.
+///
+/// **This transfers bytes; it does not neutralize them.** Every caller owes
+/// that itself, and there are two: [`crate::out`]'s `capture`, whose bytes came
+/// out of the sink already, and [`nvs_core_cli_text_plain`], which substitutes
+/// over its argument first. That is the whole of what keeps ADR 0086 § 1's raw
+/// path closed — `nvs_runtime::helpers::is_carrier_value` owns why the sink
+/// trusts the class rather than the bytes.
 pub(crate) fn built(text: nvs_runtime::Value) -> nvs_runtime::Value {
     crate::instance::build(&TEXT, [text])
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli\Text::plain(string $text): Cli\Text` — ADR 0086 § 2's first
+    /// constructor, and the half of § 1's raw path that keeps it from being a
+    /// hole.
+    ///
+    /// `echo` writes a carrier through **unchanged**, so a `Text` is the one
+    /// value in the language whose bytes the terminal sink does not inspect.
+    /// What makes that safe is that neither constructor accepts bytes it has
+    /// not neutralized: § 2's *"not a trust assertion a developer can be
+    /// tricked into making, it is a constructor that cannot produce an injected
+    /// sequence"*. So this is exactly [`nvs_core_cli_escape`]'s table with a
+    /// carrier around the answer, and the two call the same
+    /// `nvs_render::text::substitute` rather than each holding a copy.
+    ///
+    /// The control bytes a `Text` may legitimately hold are `styled`'s, which
+    /// puts them there itself from a `Cli\Style` — never from its own argument.
+    fn nvs_core_cli_text_plain(_ctx, args: [1]) {
+        // A fatal rather than a throw, for the reason `escape`'s body gives:
+        // `E0401` refuses a non-`string` argument a phase earlier, so this
+        // message is unreachable from source and a broken ABI is not catchable.
+        let text = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Cli\\Text::plain expected a `string`, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        Ok(built(Value::str(NvsStr::new(
+            nvs_render::text::substitute(text).as_bytes(),
+        ))))
+    }
 }
 
 #[cfg(test)]
@@ -584,6 +661,73 @@ mod tests {
             written.release();
             argument.release();
             laundered.release();
+        }
+    }
+
+    /// ADR 0086 § 1's *"there is exactly one raw path, `Cli\Text`"* — asserted
+    /// as the **disagreement** it has to be, over one payload.
+    ///
+    /// The same control sequence is written three ways and the sink has to
+    /// answer differently for the middle one: as a `string` it is substituted,
+    /// inside a carrier it is written through byte for byte, and back through
+    /// `Text::plain` it is substituted again. Either of the first two alone
+    /// passes while the rule is broken — a sink that substituted everything
+    /// would pass the first, and one that substituted nothing would pass the
+    /// second — so what is pinned here is that the two differ *and* that the
+    /// only constructor a program can reach lands on the substituted side.
+    /// That third assertion is the one that fails if `plain` ever becomes the
+    /// transfer [`built`] is.
+    ///
+    /// The carrier is built through `built` directly, which is
+    /// `Core\Out::capture`'s route and the only way to get raw bytes into a
+    /// `Text` until `styled` exists.
+    #[test]
+    fn the_sink_writes_a_carrier_raw_and_everything_else_substituted() {
+        let raw = "\u{1B}[31mred";
+        let visible = "\u{241B}[31mred";
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        let loose = Value::str(NvsStr::new(raw.as_bytes()));
+        nvs_runtime::call(nvs_runtime::helpers::nvs_echo_value, &mut ctx, &[loose])
+            .expect("echo succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(visible.as_bytes()),
+            "a loose `string` reached the terminal unsubstituted"
+        );
+
+        let carried = built(Value::str(NvsStr::new(raw.as_bytes())));
+        nvs_runtime::call(nvs_runtime::helpers::nvs_echo_value, &mut ctx, &[carried])
+            .expect("echo succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(raw.as_bytes()),
+            "the sink substituted over its own carrier"
+        );
+
+        let argument = Value::str(NvsStr::new(raw.as_bytes()));
+        let made = nvs_runtime::call(nvs_core_cli_text_plain, &mut ctx, &[argument])
+            .expect("plain succeeded");
+        nvs_runtime::call(nvs_runtime::helpers::nvs_echo_value, &mut ctx, &[made])
+            .expect("echo succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(visible.as_bytes()),
+            "`Text::plain` carried its argument's control bytes into the raw path"
+        );
+
+        assert!(
+            nvs_runtime::helpers::is_carrier_value(carried)
+                && !nvs_runtime::helpers::is_carrier_value(loose),
+            "the raw path is keyed on something other than the carrier class"
+        );
+
+        #[expect(unsafe_code, reason = "each value owns the reference it releases")]
+        unsafe {
+            loose.release();
+            carried.release();
+            argument.release();
+            made.release();
         }
     }
 
