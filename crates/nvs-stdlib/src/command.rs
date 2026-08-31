@@ -44,21 +44,34 @@
 //! not a page welded to the next thing written. A caller who wants the lines
 //! splits it (`Core\Str::lines`), which is what `examples/cli.nvs` does.
 //!
+//! # What a completion script completes, and why that is decided here
+//!
+//! § 6 names the four shells and says nothing about what the script does, so
+//! that is this module's call too, and this is its one home. **Every script
+//! completes two positions and no others**: the command word, from the table's
+//! own names, and the option spellings of whichever command the first word
+//! already selected. It completes no *value* — not a positional argument's and
+//! not an option's — because the table says what a parameter is called and not
+//! what it may hold (gap 1 below), so any value a script offered would be
+//! invented rather than generated.
+//!
+//! Each is written in the shell's own idiom rather than in a common shape bent
+//! four ways: a `bash` function over `COMP_WORDS` behind `complete -F`, a `zsh`
+//! `#compdef` function using `_describe` then `_arguments`, one `complete -c`
+//! line per command and per spelling for `fish`, and a
+//! `Register-ArgumentCompleter -Native` block for PowerShell. A script that
+//! reads as though a human wrote it is one its user can edit, and the four
+//! shells agree on too little for a shared skeleton to be worth its
+//! indirection.
+//!
+//! **The name every script registers against is the program's**, which is the
+//! one fact the table does not carry: [`nvs_runtime::Ctx::program_name`] owns
+//! which name that is for each way a program can be started, and why
+//! `nvs-stdlib` is handed it rather than reading `argv[0]` (ADR 0118 § 2).
+//!
 //! # Known gaps
 //!
-//! 1. **§ 6's `completions` is not here, and what it waits on is a *name*.**
-//!    `completions(Cli\Shell $shell): string` reads exactly what `help` reads,
-//!    and [`crate::cli::SHELL`] is now the enum it takes — but every one of the
-//!    four scripts registers itself **against the program's own name**
-//!    (`complete -F … myprog`, `complete -c myprog`,
-//!    `Register-ArgumentCompleter -CommandName myprog`), and nothing in this
-//!    process has one: [`nvs_runtime::Ctx::command_line`] is the words *past*
-//!    the program, the table carries command names rather than the program's,
-//!    and ADR 0118 § 2 forbids this crate reading `argv[0]` itself. So the
-//!    member owes a `Ctx` accessor filled where `set_command_line` already is,
-//!    and the layout of the four scripts is this module's call the way the
-//!    usage page above is. `docs/plan/m8.md` owns when.
-//! 2. **A page names no types.** The row carries a declared default now
+//! 1. **A page names no types.** The row carries a declared default now
 //!    (`nvs_runtime::commands::CommandArg::default`), so `[--retries]` could be
 //!    rendered as defaulting to `3`; what it still cannot say is that it is a
 //!    `uint`, because § 6's table deliberately does not carry a parameter's
@@ -104,6 +117,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_command_run",
             doc: Some(&RUN_DOC),
         },
+        CoreMethod {
+            name: "completions",
+            names: &["shell"],
+            params: &[CoreTy::Enum(crate::cli::SHELL_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Text(Qual::Neutral),
+            symbol: "nvs_core_command_completions",
+            doc: Some(&COMPLETIONS_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -148,12 +170,33 @@ const RUN_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Command::completions`'s reference card — ADR 0117.
+const COMPLETIONS_DOC: MethodDoc = MethodDoc {
+    short: "A completion script for this program, in the named shell's own syntax, generated from \
+            the same table `help` reads: every command it declares, and every option each one \
+            takes.",
+    params: &[ParamDoc {
+        name: "shell",
+        desc: "Which shell to write the script for.",
+        shape: &[],
+    }],
+    ret: "The script as plain text, ending with a newline — something to redirect into the shell's \
+          completion directory rather than something to print at a terminal.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program has no name for the script to register against, which is every \
+               context but a command-line run: a served request is not something a shell \
+               completes.",
+    }],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_command_help" => (nvs_core_command_help as *const ()).cast(),
         "nvs_core_command_run" => (nvs_core_command_run as *const ()).cast(),
+        "nvs_core_command_completions" => (nvs_core_command_completions as *const ()).cast(),
         _ => return None,
     })
 }
@@ -288,6 +331,42 @@ nvs_runtime::nvs_helper! {
                 ),
             )),
         }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Command::completions(Cli\Shell $shell): string` — § 6's second
+    /// generated artefact, over the same table [`nvs_core_command_help`]
+    /// renders.
+    ///
+    /// The module doc owns the four layouts. What is decided here is the one
+    /// thing a *page* never needs and a *script* cannot do without: the name the
+    /// script registers against, which is [`nvs_runtime::Ctx::program_name`] and
+    /// is empty for every context that is not a command-line run. Refusing there
+    /// rather than substituting something is the same call `help` makes for a
+    /// command that does not exist — the program asked for an artefact this
+    /// context cannot produce, which is a mistake in the program.
+    fn nvs_core_command_completions(ctx, args: [1]) {
+        let shell = shell_of(&args[0])?;
+        let program = ctx.program_name().to_owned();
+        if program.is_empty() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                "`Core\\Command::completions` has no name to register a script against: this \
+                 program was not started from a command line, and a served request is not \
+                 something a shell completes"
+                    .to_owned(),
+            ));
+        }
+        let empty = CommandTable::default();
+        let table = ctx.commands().unwrap_or(&empty);
+        let script = match shell {
+            Shell::Bash => bash_script(&program, table),
+            Shell::Zsh => zsh_script(&program, table),
+            Shell::Fish => fish_script(&program, table),
+            Shell::Pwsh => pwsh_script(&program, table),
+        };
+        Ok(Value::str(NvsStr::new(script.as_bytes())))
     }
 }
 
@@ -541,6 +620,289 @@ fn overview(table: &CommandTable) -> String {
         .collect();
     page.push_str(&block("commands", &commands));
     page
+}
+
+// ------------------------------------------------------ the completion scripts
+
+/// [`crate::cli::SHELL`]'s four cases, as a generator is selected.
+///
+/// The ordinals are written out rather than derived from that roster, for the
+/// reason `crate::cli`'s own `depth_ordinal` states: two rosters declared in two
+/// modules for two readers, and a cast that looked equivalent would silently
+/// answer the wrong case the first time either gained an entry.
+#[derive(Clone, Copy)]
+enum Shell {
+    Bash,
+    Zsh,
+    Fish,
+    Pwsh,
+}
+
+/// The [`Shell`] a `Core\Cli\Shell` case arrived as.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a value that is no case of the enum, which is what
+/// `crate::cli`'s own `stream_of` answers and for the same reason: it is
+/// unreachable from source, since the parameter is `CoreTy::Enum` and `E0401`
+/// refuses anything else before this body runs.
+fn shell_of(value: &Value) -> Result<Shell, Fault> {
+    match value.as_int() {
+        Some(0) => Ok(Shell::Bash),
+        Some(1) => Ok(Shell::Zsh),
+        Some(2) => Ok(Shell::Fish),
+        Some(3) => Ok(Shell::Pwsh),
+        _ => Err(Fault::fatal(format!(
+            "Core\\Command::completions expected a `Core\\Cli\\Shell` case, got tag {} value {:?}",
+            value.tag_byte(),
+            value.as_int()
+        ))),
+    }
+}
+
+/// A description on one line. Every script here is line-oriented, so a newline
+/// inside an `about:` would end the line it is written into and leave the rest
+/// of the sentence as shell code.
+fn one_line(about: Option<&str>) -> Option<String> {
+    about.map(|text| text.replace(['\n', '\r'], " "))
+}
+
+/// `text` inside a POSIX shell's single quotes — the one quoting that has no
+/// escapes inside it at all, so a `'` is closed, escaped and reopened.
+fn quoted(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
+}
+
+/// `text` inside PowerShell's single quotes, where the escape is doubling.
+fn pwsh_quoted(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "''"))
+}
+
+/// The program's name as a shell **identifier**, for the function a `bash` or
+/// `zsh` script defines. Everything that is not an ASCII letter, digit or `_`
+/// becomes `_`, and a leading digit gains one: `my-prog` is an entirely
+/// ordinary executable name and `_my-prog()` is a syntax error in both shells.
+fn identifier(program: &str) -> String {
+    let mut name: String = program
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect();
+    if name.starts_with(|ch: char| ch.is_ascii_digit()) {
+        name.insert(0, '_');
+    }
+    name
+}
+
+/// Every spelling of every option `row` declares, in declaration order — the
+/// words that may follow this command's name.
+fn spellings(row: &Command) -> Vec<&str> {
+    row.args
+        .iter()
+        .flat_map(|arg| arg.spellings.iter().map(String::as_str))
+        .collect()
+}
+
+/// A description inside a zsh spec's `[…]`, or nothing for an option that
+/// declares none. Only `]` needs the escape: it would close the bracket, and
+/// the single quotes around the whole spec take care of the rest.
+fn zsh_bracket(about: Option<String>) -> String {
+    about.map_or_else(String::new, |text| {
+        format!("[{}]", text.replace(']', "\\]"))
+    })
+}
+
+/// `bash`: one function over `COMP_WORDS`, registered with `complete -F`.
+fn bash_script(program: &str, table: &CommandTable) -> String {
+    let function = format!("_{}_complete", identifier(program));
+    let names: Vec<&str> = table.rows().iter().map(|row| row.name.as_str()).collect();
+    let mut out =
+        format!("# bash completion for {program} — generated by Core\\Command::completions\n");
+    out.push_str(&format!("{function}() {{\n"));
+    out.push_str("    local cur=\"${COMP_WORDS[COMP_CWORD]}\"\n");
+    out.push_str("    if [ \"$COMP_CWORD\" -eq 1 ]; then\n");
+    out.push_str(&format!(
+        "        COMPREPLY=($(compgen -W {} -- \"$cur\"))\n",
+        quoted(&names.join(" "))
+    ));
+    out.push_str("        return\n");
+    out.push_str("    fi\n");
+    out.push_str("    local options=''\n");
+    out.push_str("    case \"${COMP_WORDS[1]}\" in\n");
+    for row in table.rows() {
+        // A command declaring no option gets no arm: `options` is already the
+        // empty list, and an arm setting it to one again would say that this
+        // command was considered and found to have nothing, which is what
+        // falling through says anyway.
+        let options = spellings(row);
+        if !options.is_empty() {
+            out.push_str(&format!(
+                "        {}) options={} ;;\n",
+                quoted(&row.name),
+                quoted(&options.join(" "))
+            ));
+        }
+    }
+    out.push_str("    esac\n");
+    out.push_str("    COMPREPLY=($(compgen -W \"$options\" -- \"$cur\"))\n");
+    out.push_str("}\n");
+    out.push_str(&format!("complete -F {function} {}\n", quoted(program)));
+    out
+}
+
+/// `zsh`: a `#compdef` function, `_describe` for the command word and
+/// `_arguments` for one command's options.
+fn zsh_script(program: &str, table: &CommandTable) -> String {
+    let function = format!("_{}", identifier(program));
+    let mut out = format!("#compdef {program}\n");
+    out.push_str(&format!(
+        "# zsh completion for {program} — generated by Core\\Command::completions\n"
+    ));
+    out.push_str(&format!("{function}() {{\n"));
+    out.push_str("    local -a commands\n");
+    out.push_str("    commands=(\n");
+    for row in table.rows() {
+        // `_describe` splits an entry at its first colon, so the description's
+        // own colons are the ones that have to go — and a command that declared
+        // no `about:` is the bare name, never a name with an empty description
+        // hanging off a colon.
+        let entry = match one_line(row.about.as_deref()) {
+            Some(about) => format!("{}:{}", row.name, about.replace(':', " ")),
+            None => row.name.clone(),
+        };
+        out.push_str(&format!("        {}\n", quoted(&entry)));
+    }
+    out.push_str("    )\n");
+    out.push_str("    if (( CURRENT == 2 )); then\n");
+    out.push_str("        _describe 'command' commands\n");
+    out.push_str("        return\n");
+    out.push_str("    fi\n");
+    out.push_str("    case \"${words[2]}\" in\n");
+    for row in table.rows() {
+        let specs: Vec<String> = row
+            .args
+            .iter()
+            .filter(|arg| arg.is_option())
+            .flat_map(|arg| {
+                let about = zsh_bracket(one_line(arg.about.as_deref()));
+                arg.spellings
+                    .iter()
+                    .map(move |spelling| quoted(&format!("{spelling}{about}")))
+            })
+            .collect();
+        // A command declaring no option gets no arm at all: `_arguments` with
+        // nothing after it is a call with no specification, not a completion of
+        // nothing.
+        if !specs.is_empty() {
+            out.push_str(&format!(
+                "        {}) _arguments {} ;;\n",
+                quoted(&row.name),
+                specs.join(" ")
+            ));
+        }
+    }
+    out.push_str("    esac\n");
+    out.push_str("}\n");
+    out.push_str(&format!("{function} \"$@\"\n"));
+    out
+}
+
+/// `fish`: one `complete -c` line per command and per option spelling, which is
+/// the whole of that shell's completion language.
+fn fish_script(program: &str, table: &CommandTable) -> String {
+    let name = quoted(program);
+    let mut out =
+        format!("# fish completion for {program} — generated by Core\\Command::completions\n");
+    for row in table.rows() {
+        out.push_str(&format!(
+            "complete -c {name} -n '__fish_use_subcommand' -a {}",
+            quoted(&row.name)
+        ));
+        if let Some(about) = one_line(row.about.as_deref()) {
+            out.push_str(&format!(" -d {}", quoted(&about)));
+        }
+        out.push('\n');
+        let seen = quoted(&format!("__fish_seen_subcommand_from {}", row.name));
+        for arg in row.args.iter().filter(|arg| arg.is_option()) {
+            let about = one_line(arg.about.as_deref());
+            for spelling in &arg.spellings {
+                let (flag, bare) = fish_flag(spelling);
+                out.push_str(&format!(
+                    "complete -c {name} -n {seen} {flag} {}",
+                    quoted(bare)
+                ));
+                if let Some(about) = &about {
+                    out.push_str(&format!(" -d {}", quoted(about)));
+                }
+                out.push('\n');
+            }
+        }
+    }
+    out
+}
+
+/// A spelling as fish names it: that shell writes the dashes itself, taking
+/// `-l long` and `-s s` rather than the spelling a command line carries.
+fn fish_flag(spelling: &str) -> (&'static str, &str) {
+    spelling.strip_prefix("--").map_or_else(
+        || ("-s", spelling.trim_start_matches('-')),
+        |long| ("-l", long),
+    )
+}
+
+/// PowerShell: one `Register-ArgumentCompleter -Native` script block, which is
+/// how that shell completes a program it did not define as a cmdlet.
+fn pwsh_script(program: &str, table: &CommandTable) -> String {
+    let names: Vec<String> = table
+        .rows()
+        .iter()
+        .map(|row| pwsh_quoted(&row.name))
+        .collect();
+    let mut out = format!(
+        "# PowerShell completion for {program} — generated by Core\\Command::completions\n"
+    );
+    out.push_str(&format!(
+        "Register-ArgumentCompleter -Native -CommandName {} -ScriptBlock {{\n",
+        pwsh_quoted(program)
+    ));
+    out.push_str("    param($wordToComplete, $commandAst, $cursorPosition)\n");
+    out.push_str(
+        "    $words = @($commandAst.CommandElements | Select-Object -Skip 1 | ForEach-Object { $_.ToString() })\n",
+    );
+    // The word being typed is itself an element of the AST, so the command is
+    // only selected once some *other* word precedes it.
+    out.push_str(
+        "    $command = if ($words.Count -gt 0 -and $words[0] -ne $wordToComplete) { $words[0] } else { '' }\n",
+    );
+    out.push_str("    $candidates = @()\n");
+    out.push_str("    if ($command -eq '') {\n");
+    out.push_str(&format!("        $candidates = @({})\n", names.join(", ")));
+    out.push_str("    } else {\n");
+    out.push_str("        switch ($command) {\n");
+    for row in table.rows() {
+        // No arm for a command with no option, for `bash_script`'s reason.
+        let options: Vec<String> = spellings(row)
+            .iter()
+            .map(|spelling| pwsh_quoted(spelling))
+            .collect();
+        if !options.is_empty() {
+            out.push_str(&format!(
+                "            {} {{ $candidates = @({}) }}\n",
+                pwsh_quoted(&row.name),
+                options.join(", ")
+            ));
+        }
+    }
+    out.push_str("        }\n");
+    out.push_str("    }\n");
+    out.push_str(
+        "    $candidates | Where-Object { $_ -like \"$wordToComplete*\" } | ForEach-Object {\n",
+    );
+    out.push_str(
+        "        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)\n",
+    );
+    out.push_str("    }\n");
+    out.push_str("}\n");
+    out
 }
 
 #[cfg(test)]
@@ -990,6 +1352,106 @@ mod tests {
                  declares no such method"
             ),
             "the sentence names the label, so an author can grep for it"
+        );
+    }
+
+    /// The name this program's scripts register against, in the tests below.
+    const PROGRAM: &str = "deployer";
+
+    /// A second row, so that the agreement below is over a table with more than
+    /// one command in it — and one declaring neither an option nor an `about:`,
+    /// which is the row every generator has a shortcut for.
+    fn version() -> Command {
+        Command {
+            name: "version".to_owned(),
+            about: None,
+            handler: "Deployer::version".to_owned(),
+            args: Vec::new(),
+        }
+    }
+
+    /// ADR 0086 § 6's two generated artefacts read the same table, asserted as
+    /// an **agreement** rather than as four expected scripts: every command the
+    /// program's own page lists, and every spelling one command's page names,
+    /// is named by all four completion scripts as well.
+    ///
+    /// The four `.nvst` cases pin what each script *looks* like. What this pins
+    /// is that none of them grew a second view of the table — a generator
+    /// skipping the option that declared no `about:`, or listing only the
+    /// commands it happened to have a description for, renders plausibly on its
+    /// own and fails here. `fish` is the one shell that does not carry a
+    /// spelling through, since it writes the dashes itself, so a script may
+    /// name either the spelling or the bare word quoted.
+    #[test]
+    fn help_and_completions_are_generated_from_the_same_table() {
+        let table = CommandTable::new(vec![deploy(), version()]);
+        let scripts = [
+            bash_script(PROGRAM, &table),
+            zsh_script(PROGRAM, &table),
+            fish_script(PROGRAM, &table),
+            pwsh_script(PROGRAM, &table),
+        ];
+        let page = overview(&table);
+        for row in table.rows() {
+            assert!(
+                page.contains(&row.name),
+                "the program's page lists `{}`",
+                row.name
+            );
+            assert_eq!(
+                scripts
+                    .iter()
+                    .filter(|script| script.contains(&row.name))
+                    .count(),
+                scripts.len(),
+                "every shell's script names the command `{}` the page lists",
+                row.name
+            );
+            let command_page = page_for(row);
+            for spelling in spellings(row) {
+                assert!(
+                    command_page.contains(spelling),
+                    "`{}`'s page names `{spelling}`",
+                    row.name
+                );
+                let bare = quoted(spelling.trim_start_matches('-'));
+                assert_eq!(
+                    scripts
+                        .iter()
+                        .filter(|script| script.contains(spelling) || script.contains(&bare))
+                        .count(),
+                    scripts.len(),
+                    "every shell's script offers `{spelling}` under `{}`",
+                    row.name
+                );
+            }
+        }
+    }
+
+    /// A context with no program name cannot produce a script at all, and says
+    /// so rather than inventing a name: the script's whole job is to register
+    /// against one, and a served request has none.
+    #[test]
+    fn completions_refuses_a_context_with_no_program_name() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_commands(std::sync::Arc::new(CommandTable::new(vec![deploy()])));
+        assert_eq!(
+            call(
+                super::nvs_core_command_completions,
+                &mut ctx,
+                &[Value::int(0)]
+            )
+            .expect_err("a context that was never started from a command line"),
+            nvs_runtime::THROWN
+        );
+        assert_eq!(
+            ctx.take_pending().as_deref(),
+            Some(
+                "`Core\\Command::completions` has no name to register a script against: this \
+                 program was not started from a command line, and a served request is not \
+                 something a shell completes"
+            ),
+            "the sentence says what is missing rather than naming the shell"
         );
     }
 }

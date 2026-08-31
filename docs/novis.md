@@ -14377,12 +14377,13 @@ length=5
 <a id="core-core-command"></a>
 ### `Core\Command`
 
-Keywords: help, run
+Keywords: help, run, completions
 
 | Member | Signature |
 |---|---|
 | [`Core\Command::help`](#core-core-command-help) | `help(?string $name): Core\Cli\Text` |
 | [`Core\Command::run`](#core-core-command-run) | `run(): uint` |
+| [`Core\Command::completions`](#core-core-command-completions) | `completions(Core\Cli\Shell $shell): string` |
 
 <a id="core-core-command-help"></a>
 #### `Core\Command::help`
@@ -14413,6 +14414,23 @@ Matches this process's own command line against the table `#[Command]` built whi
 **Returns** `uint` — The handler's own `uint`, or `0` where it is declared `void`. A command line this program's table does not answer is a **usage error**: the page goes to standard error and the status is `2`, which is the status a command line nobody can act on has meant since `getopt`.
 
 **Throws** `LogicError` — The named command's handler is not a method this program declares, or one of its parameters is declared at a type no argument's text is converted into yet — both are mistakes in the program rather than in the command line it was given.
+
+<a id="core-core-command-completions"></a>
+#### `Core\Command::completions`
+
+```nvs skip
+Core\Command::completions(Core\Cli\Shell $shell): string
+```
+
+A completion script for this program, in the named shell's own syntax, generated from the same table `help` reads: every command it declares, and every option each one takes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$shell` | `Core\Cli\Shell` | Which shell to write the script for. |
+
+**Returns** `string` — The script as plain text, ending with a newline — something to redirect into the shell's completion directory rather than something to print at a terminal.
+
+**Throws** `LogicError` — This program has no name for the script to register against, which is every context but a command-line run: a served request is not something a shell completes.
 
 <a id="core-core-config"></a>
 ### `Core\Config`
