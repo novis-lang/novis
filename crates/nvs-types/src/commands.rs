@@ -65,10 +65,15 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A row carries no parameter *types*.** § 6's conversion during matching
-//!    reads the declared type, and the consumer of the table already holds the
-//!    signature the row's handler names; carrying a second copy across would be
-//!    a table that can disagree with the declaration it was built from.
+//! 1. **A row carries the *conversion* a parameter needs and not its type.**
+//!    § 6's matching reads the declared type, and the consumer of the table is a
+//!    native member holding no signature at all — `Core\Command::run` is reached
+//!    from a command line, not from a call site — so something about the type
+//!    has to cross. What crosses is [`ArgConv`], the answer
+//!    [`converts_from_string`] already computes for § 6's third compile error,
+//!    and not the type: a closed set of five, decided in the same walk that
+//!    builds the row, cannot disagree with the declaration the way a second copy
+//!    of the type lattice could. The rest of the signature stays where it is.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
@@ -115,6 +120,51 @@ pub struct CommandArg {
     /// The `#[Option]`'s `about:`, for the usage text § 6 generates. `None` on
     /// a positional argument, which carries no attribute to write one on.
     pub about: Option<String>,
+    /// What this argument's text becomes before the handler is called — see
+    /// [`ArgConv`], and the module's gap 1 for why this and not the type.
+    pub conv: ArgConv,
+}
+
+/// § 6's "a matched value's text is converted during matching, and its type
+/// comes from the parameter", as the one closed set a matcher needs.
+///
+/// Decided by [`conversion_of`] in the walk that builds the row, off the same
+/// resolved signature [`converts_from_string`] holds an `#[Option]` to, so the
+/// two answers are one answer: every type that section admits has a variant
+/// here, and everything else is refused where it is written.
+///
+/// `nvs_runtime::commands::ArgConv` is this set as a running program holds it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArgConv {
+    /// `string` — the argument's own text, which arrives `tainted` (§ 6).
+    Text,
+    /// `bool` — the flag § 6 gives an `#[Option]`, written rather than given.
+    Flag,
+    /// `int`.
+    Int,
+    /// `uint`.
+    Uint,
+    /// A type § 6 admits whose conversion is not written yet —
+    /// `nvs_runtime::commands`'s own gap 1, which is where it is refused.
+    Unconverted,
+}
+
+/// The conversion `ty` needs, for the row [`check_options`] is building.
+///
+/// Deliberately total rather than fallible: a type with no conversion at all is
+/// [`check_convertible`]'s diagnostic, and answering [`ArgConv::Unconverted`]
+/// here for one that has one is what keeps this walk's two questions
+/// independent.
+fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
+    match env.interner.get(ty) {
+        // A parameter written with no type at all interns as `mixed` and has
+        // already been reported for it; its text is the honest answer.
+        Ty::String | Ty::TaintedString | Ty::StringLiteral(_) | Ty::Mixed => ArgConv::Text,
+        Ty::Bool | Ty::True | Ty::False => ArgConv::Flag,
+        Ty::Int | Ty::IntLiteral(_) => ArgConv::Int,
+        Ty::Uint => ArgConv::Uint,
+        _ => ArgConv::Unconverted,
+    }
 }
 
 /// One row of ADR 0086 § 6's table: a `#[Command]` that named the one field a
@@ -429,6 +479,11 @@ fn check_options(
     let mut args: Vec<CommandArg> = Vec::with_capacity(m.params.len());
     for (index, param) in m.params.iter().enumerate() {
         let name = strip_sigil(span_text(env.src, param.name)).to_owned();
+        // Read for every parameter and not only for an `#[Option]`: a positional
+        // argument's text is converted by the same rule, and the row is what
+        // carries the answer past this crate (the module's gap 1).
+        let declared = sig.and_then(|sig| sig.params.get(index).copied());
+        let conv = declared.map_or(ArgConv::Text, |ty| conversion_of(ty, env));
         let Some(attr) =
             crate::testing::attribute_named(&param.attributes, crate::derive::OPTION, ctx, env)
         else {
@@ -438,11 +493,12 @@ fn check_options(
                 param: name,
                 spellings: Vec::new(),
                 about: None,
+                conv,
             });
             continue;
         };
         let attr = attr.clone();
-        if let Some(ty) = sig.and_then(|sig| sig.params.get(index).copied()) {
+        if let Some(ty) = declared {
             check_convertible(param, &method, ty, env);
         }
         let about = folded_option(&attr, "about", env).map(|(about, _)| about);
@@ -472,6 +528,7 @@ fn check_options(
             param: name,
             spellings: claimed,
             about,
+            conv,
         });
     }
     args

@@ -546,6 +546,21 @@ pub struct Ctx {
     /// **What it spends:** one `Arc` clone per request; the rows themselves are
     /// shared and charged to whoever compiled them.
     commands: Option<std::sync::Arc<crate::commands::CommandTable>>,
+    /// The process argument vector past the program itself — what
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// `Core\Command::run` matches against the table above, and what § 13's
+    /// `Core\Cli::arguments` will hand back unchanged.
+    ///
+    /// **Isolate configuration, written before the program runs**, for
+    /// [`Self::commands`]'s reason and one more: a command line is a fact about
+    /// how this process was started, so a request served over HTTP has none and
+    /// gets the empty vector rather than the launcher's own words.
+    ///
+    /// **What it spends:** one `String` per word a `nvs run` was given, and one
+    /// empty `Vec` — no allocation — for every context nobody wrote one onto,
+    /// which is every served request. O(in-flight requests), per
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    arguments: Vec<String>,
     /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
     /// § 12's fixed clock: the wall-clock reading `Core\Time::now` answers
     /// with, in nanoseconds since the Unix epoch, or `None` for a context that
@@ -1078,6 +1093,7 @@ impl Ctx {
             diagnostic: OutputSink::Stderr,
             origin: None,
             commands: None,
+            arguments: Vec::new(),
             config: None,
             fixed_clock: None,
             random_state: None,
@@ -1166,6 +1182,18 @@ impl Ctx {
     /// written before the program runs exactly as [`Self::set_config`] is.
     pub fn set_commands(&mut self, table: std::sync::Arc<crate::commands::CommandTable>) {
         self.commands = Some(table);
+    }
+
+    /// This process's argument vector past the program itself — see
+    /// [`Self::arguments`]'s field docs.
+    #[must_use]
+    pub fn command_line(&self) -> &[String] {
+        &self.arguments
+    }
+
+    /// Hands this program the words it was started with, before it runs.
+    pub fn set_command_line(&mut self, arguments: Vec<String>) {
+        self.arguments = arguments;
     }
 
     /// How many bytes this request has allocated and not yet freed.

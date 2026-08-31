@@ -1,0 +1,34 @@
+--TEST--
+`Core\Command::run` and `::help` read one table, so an empty command line and the program's own page agree — ADR 0086 § 6
+--FILE--
+<?nvs
+// With no `--ARGS--` there is no first word to select a row with, and § 6's
+// answer is the program's own page: the same one `help(null)` renders, because
+// both members read the one table `#[Command]` built while compiling. That is
+// the property worth asserting — not what either printed, but that a program
+// declaring two commands cannot have a `run` that knows one of them and a
+// `--help` that lists the other.
+class Tools {
+    #[Core\Command(name: "build", about: "Compile everything")]
+    public static function build(): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "clean")]
+    public static function clean(): uint {
+        return 0;
+    }
+}
+
+// `run` prints its page to standard error, which a case does not read, so the
+// agreement is asserted from the other side: `help` names every command, and
+// `run` — given none of them — answers the usage status rather than picking one.
+echo "" . Core\Command::help(null);
+echo "status: ", Core\Command::run(), "\n";
+--EXPECT--
+usage: <command> [arguments]
+
+commands:
+  build  Compile everything
+  clean
+status: 2

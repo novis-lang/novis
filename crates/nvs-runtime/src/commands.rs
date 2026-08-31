@@ -13,8 +13,10 @@
 //! fold every page the program could ask for and index them, and `run` reads
 //! the process's own argument vector, which no compile-time answer can hold.
 //!
-//! So the rows cross instead, and they cross as **strings** — the same decision
-//! `nvs_types::commands::Command`'s own docs make about crossing into `nvs-ir`.
+//! So the rows cross instead, and they cross as **strings and one closed enum**
+//! — the same decision `nvs_types::commands::Command`'s own docs make about
+//! crossing into `nvs-ir`, with [`ArgConv`] the one thing a matcher needs that
+//! no string spells: which conversion the checker picked for a parameter.
 //! Nothing below this line learns that a compiler exists: this crate has no
 //! `nvs-types` dependency and could not name one of its types if it wanted to.
 //!
@@ -32,12 +34,46 @@
 //! `about:` and spelling the program declared — tens of them for a CLI, and
 //! nothing at all for a program with no command. O(in-flight requests), per
 //! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+//!
+//! # Known gaps
+//!
+//! 1. **Four of § 6's conversions are [`ArgConv::Unconverted`].** `decimal`, an
+//!    enum, a union of literal types and `Core\Uuid` are types
+//!    `nvs_types::commands::converts_from_string` admits and no matcher turns
+//!    text into yet, so a command declaring one compiles and refuses at the
+//!    moment it is *run* rather than at the moment it is written. Each is a
+//!    conversion that already exists as a `Core` member; what is missing is the
+//!    matcher's arm, not the algorithm.
+
+/// What an argument's text becomes before the handler is called.
+///
+/// § 6's "a matched value's type comes from the parameter" as the *one* fact
+/// about that type which crosses: not the type, but the conversion the checker
+/// already picked for it. `nvs_types::commands::ArgConv` is where the choice is
+/// made and is the home of the rule; this is the same closed set with the
+/// compiler's types taken off it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArgConv {
+    /// `string` — the argument's own text, unconverted and `tainted`.
+    Text,
+    /// `bool` — § 6's flag, which an option is given by being *written* rather
+    /// than by carrying text. A positional declared `bool` has no such spelling
+    /// to be written, so it reads the words `true` and `false`.
+    Flag,
+    /// `int` — a signed decimal, and a usage error where the text is not one.
+    Int,
+    /// `uint` — as [`Self::Int`], and a usage error where the number is
+    /// negative.
+    Uint,
+    /// A type § 6 admits and [`crate::commands`]'s gap 1 does not convert yet.
+    Unconverted,
+}
 
 /// One argument of a command, in the order it was declared.
 ///
-/// `nvs_types::commands::CommandArg`'s fields that survive the crossing: the
-/// declared type is not among them, because the row is read by members that
-/// render usage text and dispatch through a signature the callee already holds.
+/// `nvs_types::commands::CommandArg`'s fields that survive the crossing. The
+/// declared *type* is not among them — [`ArgConv`] is what a matcher needs of
+/// it, and it is one closed set rather than the type lattice.
 #[derive(Clone, Debug)]
 pub struct CommandArg {
     /// The parameter's own name, sigil-less — what a positional argument is
@@ -50,6 +86,8 @@ pub struct CommandArg {
     pub spellings: Vec<String>,
     /// The `#[Option]`'s `about:`, or `None` on a positional argument.
     pub about: Option<String>,
+    /// What this argument's text becomes before the handler is called.
+    pub conv: ArgConv,
 }
 
 impl CommandArg {

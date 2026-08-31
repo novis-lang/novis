@@ -14377,11 +14377,12 @@ length=5
 <a id="core-core-command"></a>
 ### `Core\Command`
 
-Keywords: help
+Keywords: help, run
 
 | Member | Signature |
 |---|---|
 | [`Core\Command::help`](#core-core-command-help) | `help(?string $name): Core\Cli\Text` |
+| [`Core\Command::run`](#core-core-command-run) | `run(): uint` |
 
 <a id="core-core-command-help"></a>
 #### `Core\Command::help`
@@ -14399,6 +14400,19 @@ The usage page, generated from the table `#[Command]` built while compiling — 
 **Returns** `Core\Cli\Text` — The rendered page as a `Core\Cli\Text`, ending with a newline.
 
 **Throws** `LogicError` — The program declares no `#[Command]` under `$name` — a page for a command that does not exist is a mistake in the program rather than in its input, since the table is fixed at compile time.
+
+<a id="core-core-command-run"></a>
+#### `Core\Command::run`
+
+```nvs skip
+Core\Command::run(): uint
+```
+
+Matches this process's own command line against the table `#[Command]` built while compiling, calls the handler the first word names, and answers the status the process should exit with.
+
+**Returns** `uint` — The handler's own `uint`, or `0` where it is declared `void`. A command line this program's table does not answer is a **usage error**: the page goes to standard error and the status is `2`, which is the status a command line nobody can act on has meant since `getopt`.
+
+**Throws** `LogicError` — The named command's handler is not a method this program declares, or one of its parameters is declared at a type no argument's text is converted into yet — both are mistakes in the program rather than in the command line it was given.
 
 <a id="core-core-config"></a>
 ### `Core\Config`

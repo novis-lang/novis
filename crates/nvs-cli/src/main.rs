@@ -171,6 +171,18 @@ enum Command {
         /// `nvs_runtime::FaultSite` documents each site.
         #[arg(long, value_name = "SITE")]
         fault_inject: Option<FaultSiteArg>,
+        /// The program's own arguments — ADR 0086 § 6's command line, which
+        /// `Core\Command::run()` matches against the compiled table.
+        ///
+        /// Everything past the file is the program's and nothing here reads it,
+        /// which is why it is `trailing_var_arg`: a command declaring a
+        /// `--verbose` of its own must not be answered by `nvs run`.
+        #[arg(
+            trailing_var_arg = true,
+            allow_hyphen_values = true,
+            value_name = "ARGS"
+        )]
+        arguments: Vec<String>,
     },
     /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
     /// cases.
@@ -393,7 +405,15 @@ fn main() -> ExitCode {
             dump_ir,
             dump_asm,
             fault_inject,
-        } => run_run(&file, dump_ir, dump_asm, fault_inject, &cli.config),
+            arguments,
+        } => run_run(
+            &file,
+            dump_ir,
+            dump_asm,
+            fault_inject,
+            &cli.config,
+            arguments,
+        ),
         Command::Test {
             paths,
             filter,
@@ -674,6 +694,23 @@ fn runtime_commands(
                         param: arg.param.clone(),
                         spellings: arg.spellings.clone(),
                         about: arg.about.clone(),
+                        conv: match arg.conv {
+                            nvs_types::commands::ArgConv::Text => {
+                                nvs_runtime::commands::ArgConv::Text
+                            }
+                            nvs_types::commands::ArgConv::Flag => {
+                                nvs_runtime::commands::ArgConv::Flag
+                            }
+                            nvs_types::commands::ArgConv::Int => {
+                                nvs_runtime::commands::ArgConv::Int
+                            }
+                            nvs_types::commands::ArgConv::Uint => {
+                                nvs_runtime::commands::ArgConv::Uint
+                            }
+                            nvs_types::commands::ArgConv::Unconverted => {
+                                nvs_runtime::commands::ArgConv::Unconverted
+                            }
+                        },
                     })
                     .collect(),
             })
@@ -693,6 +730,7 @@ fn run_run(
     dump_asm: bool,
     fault_inject: Option<FaultSiteArg>,
     config: &[PathBuf],
+    arguments: Vec<String>,
 ) -> ExitCode {
     let checked = match front_end(path) {
         Ok(checked) => checked,
@@ -797,6 +835,11 @@ fn run_run(
     if !commands.rows().is_empty() {
         ctx.set_commands(std::sync::Arc::new(runtime_commands(commands)));
     }
+    // The words past the file are the program's own, and `Core\Command::run`
+    // matches them against the table above. Written here rather than read from
+    // `std::env` inside the member, because a served request has a command line
+    // only in the sense that the *server* was started with one.
+    ctx.set_command_line(arguments);
     // Hands the context the unit's class table: the class a helper's
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.

@@ -317,7 +317,7 @@ pub use ctx::{
 pub use decimal::Decimal;
 pub use dispatch::{
     CrossedFixtures, Fixtures, RowValues, call_erased_method, call_method, call_render,
-    construct_and_call, method_address,
+    call_static, construct_and_call, method_address,
 };
 pub use fmt::php_float_to_string;
 pub use graph::{GraphError, copy_graph, copy_graph_into, decode, encode};

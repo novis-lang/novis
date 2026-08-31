@@ -1,4 +1,5 @@
-//! Reaching a compiled instance member from native code, by name.
+//! Reaching a compiled member from native code, by name — an instance member
+//! through its receiver's descriptor, and a `static` one through its class's.
 //!
 //! A helper that has to ask an *object* something — `Comparable::compareTo`
 //! for [ADR 0013](../../../docs/adr/0013-comparable-interface.md), the
@@ -100,6 +101,46 @@ pub fn call_method(
         return Ok(None);
     };
     call_at(ctx, receiver, target, args).map(Some)
+}
+
+/// The `static` method `label` — a `Class::method` string — names, called with
+/// `args`, or `None` where this program declares no such class or no such
+/// method on it.
+///
+/// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+/// dispatch is the caller: a `#[Command]` handler is named by a string the
+/// compiler put in the table and reached from a native member, which is the one
+/// shape the receiver-keyed [`call_method`] above cannot serve — there is no
+/// instance to key on. The route is the one the *program's* own
+/// `Class::method()` call site takes: `nvs_types::layout::ClassLayout::methods`
+/// lists every method with a body, `static` ones included, so the class
+/// descriptor's method table already holds the address and nothing new has to
+/// be installed beside the table for a handler to be reachable.
+///
+/// Slot 0 is the **called class**, per [`Value::class_desc`] — late static
+/// binding's whole mechanism, and the reason this fills it from the descriptor
+/// it just looked the address up in rather than leaving it `null`.
+///
+/// # Errors
+///
+/// [`Fault::Pending`] when the method throws, carrying that call's own status
+/// so the exception reaches the request unchanged.
+pub fn call_static(ctx: &mut Ctx, label: &str, args: &[Value]) -> Result<Option<Value>, Fault> {
+    let Some((class, method)) = label.rsplit_once("::") else {
+        return Ok(None);
+    };
+    let Some(desc) = ctx.class_desc(class) else {
+        return Ok(None);
+    };
+    #[expect(
+        unsafe_code,
+        reason = "`Ctx::class_desc` answers out of the compiled unit's own class \
+                  table, which the context shares ownership of for its whole life"
+    )]
+    let Some(target) = (unsafe { &*desc }).method(method) else {
+        return Ok(None);
+    };
+    call_at(ctx, Value::class_desc(desc), target, args).map(Some)
 }
 
 /// `$m->name(...)` on a **`mixed`** receiver — `nvs_ir::Helper::CallErasedMethod`'s
