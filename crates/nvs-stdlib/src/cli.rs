@@ -23,12 +23,24 @@
 //! That module's own docs own the caching, what it spends, and why no
 //! capability gates it.
 //!
-//! What is left here is the surface: four rows, two enums, and the mapping
+//! What is left here is the surface: four rows, three enums, and the mapping
 //! between the runtime's Rust `ColorDepth` and the ordinals
 //! [`crate::registry::ENUMS`] gives `Core\Cli\ColorDepth`. The mapping is the
 //! one thing this file can get wrong on its own, so
 //! [`tests::the_two_enums_agree_with_the_runtimes_own`] holds the two rosters
 //! together.
+//!
+//! # Why `Core\Cli\Shell` is here, taken by nothing in this file
+//!
+//! [`SHELL`] is the third enum and no member of `Core\Cli` reads it: ADR 0086
+//! § 6's `Core\Command::completions` is the one thing that does, and
+//! [`crate::command`] is where that member lives. [`crate::registry::ENUMS`]
+//! asks for one line per enum *declared beside the member that takes it*, and
+//! this is the exception the rule is worth making: the name is
+//! `Core\Cli\Shell`, so the `Cli` namespace is the roster a reader looks in,
+//! and a second home for one case of it is how two rosters start disagreeing.
+//! [`crate::router::METHOD`] sits the same way for the same reason — a
+//! namespace prefix is not a module boundary.
 //!
 //! # What a `Text` is, and what it is not
 //!
@@ -63,8 +75,8 @@
 //!    calls *the profile*, which is the set that had to be cached.
 //! 3. **The rest of § 13 does not exist** — no `arguments`, no `escape`, no
 //!    prompts (`ask`, `confirm`, `select<T>`, `secret`), no scoped `live<T>` or
-//!    `progress<T>`, and no `Cli\Style`, `Cli\Color` or `Cli\Shell` beside the
-//!    two enums below. `docs/spec/01-core-library.md` § 13 lists them and
+//!    `progress<T>`, and no `Cli\Style` or `Cli\Color` beside the three enums
+//!    below. `docs/spec/01-core-library.md` § 13 lists them and
 //!    `docs/plan/m8.md` owns when.
 
 use nvs_runtime::terminal::{ColorDepth, Stream};
@@ -246,6 +258,51 @@ const COLOR_DEPTH_DOC: EnumDoc = EnumDoc {
             name: "TrueColor",
             desc: "24-bit colour, reported by `COLORTERM=truecolor` and by a Windows console \
                    that accepted virtual terminal processing.",
+        },
+    ],
+};
+
+/// `Core\Cli\Shell`'s fully-qualified name — see [`STREAM_NAME`].
+pub(crate) const SHELL_NAME: &str = r"Core\Cli\Shell";
+
+/// ADR 0086 § 6's `Cli\Shell` — the shell `Core\Command::completions` writes a
+/// script for, and a closed roster like [`crate::router::METHOD`]: § 6 names
+/// `bash`, `zsh`, `fish` and `pwsh` and nothing else.
+///
+/// The three POSIX-family shells come first and PowerShell last, which is
+/// documentation rather than a bound: unlike `METHOD`'s CSRF tail nothing reads
+/// a *range* of this roster, and `completions` answers one case at a time. A
+/// fifth shell is a case here **and** a generator beside it, because a case
+/// nothing can generate for is a name a program can write and pass nowhere,
+/// which is [`crate::registry::ENUMS`]' own test for admitting an entry.
+pub(crate) const SHELL: CoreEnum = CoreEnum {
+    name: SHELL_NAME,
+    cases: &[("Bash", 0), ("Zsh", 1), ("Fish", 2), ("Pwsh", 3)],
+    doc: Some(&SHELL_DOC),
+};
+
+/// [`SHELL`]'s reference card — ADR 0117.
+const SHELL_DOC: EnumDoc = EnumDoc {
+    short: "Which shell `Core\\Command::completions` writes a completion script for. Four cases \
+            and no catch-all: a script is generated in the named shell's own syntax, so a case \
+            with no generator behind it would complete nothing.",
+    cases: &[
+        CaseDoc {
+            name: "Bash",
+            desc: "GNU Bash, whose script registers a function with `complete -F`.",
+        },
+        CaseDoc {
+            name: "Zsh",
+            desc: "Z shell, whose script is a `#compdef` function driving `_arguments`.",
+        },
+        CaseDoc {
+            name: "Fish",
+            desc: "fish, whose script is one `complete -c` line per command and per option.",
+        },
+        CaseDoc {
+            name: "Pwsh",
+            desc: "PowerShell — 7 and Windows PowerShell alike, whose script calls \
+                   `Register-ArgumentCompleter`.",
         },
     ],
 };
@@ -496,6 +553,33 @@ mod tests {
                 .windows(2)
                 .all(|pair| pair[0].1 < pair[1].1),
             "the depths must ascend for the sink to degrade by comparison"
+        );
+    }
+
+    /// ADR 0086 § 6 names four shells and nothing else, and a case is only
+    /// reachable from source once [`crate::registry::ENUMS`] carries the enum.
+    ///
+    /// Both halves, because each fails on its own: a fifth case added ahead of
+    /// the generator that would write its script fails the roster, and a
+    /// declaration nobody registered compiles, documents itself, and then
+    /// resolves nowhere — `Core\Cli\Shell::Bash` would be a name error with a
+    /// card on disk describing it.
+    #[test]
+    fn the_shell_roster_is_the_four_adr_0086_names_and_is_registered() {
+        let names: Vec<&str> = SHELL.cases.iter().map(|(name, _)| *name).collect();
+        assert_eq!(names, ["Bash", "Zsh", "Fish", "Pwsh"]);
+        for (ordinal, (name, declared)) in SHELL.cases.iter().enumerate() {
+            assert_eq!(
+                *declared,
+                i64::try_from(ordinal).expect("four cases"),
+                "`{name}` is not at its own index"
+            );
+        }
+        assert!(
+            crate::registry::ENUMS
+                .iter()
+                .any(|declared| declared.name == SHELL_NAME),
+            "`{SHELL_NAME}` is declared but not registered, so no source can name a case"
         );
     }
 }

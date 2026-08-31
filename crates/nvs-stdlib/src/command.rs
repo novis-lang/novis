@@ -46,10 +46,18 @@
 //!
 //! # Known gaps
 //!
-//! 1. **§ 6's `completions` is not here.** `completions(Cli\Shell $shell):
-//!    string` generates for four shells and reads exactly what `help` reads, so
-//!    what it waits on is the `Cli\Shell` enum rather than anything about the
-//!    table. `docs/plan/m8.md` owns when.
+//! 1. **§ 6's `completions` is not here, and what it waits on is a *name*.**
+//!    `completions(Cli\Shell $shell): string` reads exactly what `help` reads,
+//!    and [`crate::cli::SHELL`] is now the enum it takes — but every one of the
+//!    four scripts registers itself **against the program's own name**
+//!    (`complete -F … myprog`, `complete -c myprog`,
+//!    `Register-ArgumentCompleter -CommandName myprog`), and nothing in this
+//!    process has one: [`nvs_runtime::Ctx::command_line`] is the words *past*
+//!    the program, the table carries command names rather than the program's,
+//!    and ADR 0118 § 2 forbids this crate reading `argv[0]` itself. So the
+//!    member owes a `Ctx` accessor filled where `set_command_line` already is,
+//!    and the layout of the four scripts is this module's call the way the
+//!    usage page above is. `docs/plan/m8.md` owns when.
 //! 2. **A page names no types.** The row carries a declared default now
 //!    (`nvs_runtime::commands::CommandArg::default`), so `[--retries]` could be
 //!    rendered as defaulting to `3`; what it still cannot say is that it is a

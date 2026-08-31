@@ -1296,6 +1296,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::router::AUDIENCE,
     crate::cli::STREAM,
     crate::cli::COLOR_DEPTH,
+    crate::cli::SHELL,
 ];
 
 /// Looks a class up by its fully-qualified name.
