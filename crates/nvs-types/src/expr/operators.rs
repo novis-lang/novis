@@ -118,6 +118,7 @@ pub(crate) fn infer_conversion(
     reject_non_literal_markup_conversion(inner, result, expr.span, env);
     reject_impossible_literal_conversion(inner, inner_ty, result, expr.span, env);
     reject_impossible_class_reference_conversion(inner, result, expr.span, ctx, env);
+    reject_unknown_property_key_name(inner, result, expr.span, env);
     apply_qualifier_conversion_rule(inner_ty, result, env.interner)
 }
 
@@ -182,6 +183,69 @@ fn reject_impossible_class_reference_conversion(
              names a class outside the hierarchy: convert to `class<T>` at a class the name \
              actually reaches, or make the class an implementor of the one written here",
         ),
+    );
+}
+
+/// ADR 0126 § 2: **a written-out operand is decided where it is written.**
+/// `"email" as property<User>` is a compile-time yes when `User` declares a
+/// public `$email`, and [`code::E_UNKNOWN_MEMBER`] — the diagnostic an ordinary
+/// `$user->emial` already gets — when it does not, rather than a throw the
+/// program has to reach. A hand-written key therefore pays nothing at run time
+/// and misspells at build time.
+///
+/// [`reject_impossible_class_reference_conversion`]'s shape one type over, and
+/// what differs is *which* operand is decidable. There, a plain string literal
+/// is deliberately left alone because `"Dog"` names a class through no
+/// resolution rule the language has; here the literal is the whole of the
+/// answer, since a property name is written as text and § 2's door is the
+/// `string` row itself. A computed operand is that row proper, checked where
+/// the value arrives, and reaches nothing here.
+///
+/// A name outside the set and a name naming a `private` property are one
+/// failure with one message, which is § 2's sentence: visibility is decided at
+/// the conversion, once. Under `as ?property<T>` as well, for
+/// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md) § 3's
+/// reason the sibling states — the sugar answers `null` where the checked form
+/// throws, and an operand decided here never had a throw to convert.
+fn reject_unknown_property_key_name(inner: &Expr, to: TypeId, span: Span, env: &mut Env<'_>) {
+    let ExprKind::Str(text) = &inner.kind else {
+        return;
+    };
+    let to = nullable_inner_target(to, env).unwrap_or(to);
+    let Some(argument) = super::members::property_key_argument(to, env.interner) else {
+        return;
+    };
+    let Ty::Class(qname, _) = env.interner.get(argument).clone() else {
+        return;
+    };
+    let name = crate::string_lit::cook_string_literal(env.src, *text);
+    let roster = super::members::public_property_names(&qname, env);
+    if roster.contains(&name) {
+        return;
+    }
+    let help = if roster.is_empty() {
+        format!(
+            "ADR 0126 § 2 decides a written-out operand where it is written, and `{qname}` \
+             declares no public property at all — so no name reaches a `property<{qname}>`"
+        )
+    } else {
+        let listed = roster
+            .iter()
+            .map(|property| format!("`${property}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "ADR 0126 § 2 decides a written-out operand where it is written, and a key's values \
+             are `{qname}`'s public declared properties: {listed}"
+        )
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!("`{qname}` has no public property `${name}`"),
+        )
+        .with_primary(span, "converted here")
+        .with_help(help),
     );
 }
 
@@ -1792,6 +1856,17 @@ enum ConvKind {
     /// against the descriptor — and where the pair is decidable at compile time
     /// [`reject_impossible_class_reference_conversion`] is what decides it.
     ClassRef,
+    /// `property<T>` — ADR 0126 § 2, and [`Self::ClassRef`]'s story exactly:
+    /// its own kind rather than [`Self::Str`]'s, because a key is not a string
+    /// and `as` is the only door into one. Unparameterised for that sibling's
+    /// reason too — the table asks only which rows exist, and `property<U> →
+    /// property<T>` is one row whatever `U` and `T` are, with the name checked
+    /// against `T`'s roster at run time.
+    ///
+    /// Where the operand is written out, the pair is decided at compile time by
+    /// [`reject_unknown_property_key_name`] instead, which is § 2's second
+    /// sentence and the reason a hand-written key costs nothing at run time.
+    PropertyKey,
     /// More than one runtime shape — `mixed`, a `?T`, a heterogeneous union,
     /// or a type this table does not model. **Never refused, on either side**:
     /// the row is chosen from the value's tag at run time.
@@ -1817,6 +1892,7 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
         Ty::Void => ConvKind::Void,
         Ty::Array(_) => ConvKind::Array,
         Ty::ClassRef(_) => ConvKind::ClassRef,
+        Ty::PropertyKey(_) => ConvKind::PropertyKey,
         Ty::Enum(_, backing) | Ty::EnumCase(_, backing, _) => ConvKind::Enum(*backing),
         Ty::Class(..) | Ty::Object | Ty::Shape(_) | Ty::Callable | Ty::CallableTo(_) => {
             ConvKind::Object
@@ -1843,8 +1919,8 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
 /// a judgement of its own.
 fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
     use ConvKind::{
-        Array, Bool, Bytes, ClassRef, Decimal, Enum, Float, Int, Null, Object, Str, Uint, Void,
-        Wide,
+        Array, Bool, Bytes, ClassRef, Decimal, Enum, Float, Int, Null, Object, PropertyKey, Str,
+        Uint, Void, Wide,
     };
     match (from, to) {
         // A `void` call has no value, so it is neither an operand a row can
@@ -1878,6 +1954,21 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // that keeps `Foo::class` an ordinary `string`.
         (Str | ClassRef, ClassRef) => true,
         (_, ClassRef) => false,
+        // ADR 0126 § 2's three rows, and the whole of what produces a property
+        // key — which is what makes `as` its only source, exactly as the two
+        // rows above make it a class reference's. The `string` row is the door:
+        // the text must name a public declared property of `T`, and it throws
+        // where it does not. The `property<U>` row is a narrowing, checked the
+        // same way against `T`'s roster. Refused below rather than left to the
+        // final `_ => false` for the sibling's reason: it is the decision that
+        // keeps a member name an ordinary `string` everywhere else.
+        (Str | PropertyKey, PropertyKey) => true,
+        (_, PropertyKey) => false,
+        // § 2's third row, and the direction that cannot go wrong: a checked
+        // name is still a name. Total, so it is written here rather than added
+        // to the "anything → `string`" arm below, where it would read as one of
+        // the scalars.
+        (PropertyKey, Str) => true,
         // ADR 0007 § 2's "anything → `string`" row: total for scalars, and an
         // object needs `Stringable` — which `require_stringable_object` has
         // already asked at this same span. `null` is in the row for the reason
@@ -1937,8 +2028,18 @@ fn enum_backing_kind(backing: crate::enums::EnumBacking) -> ConvKind {
 /// Ordered operand-first where the operand is the whole reason there is no row,
 /// target-first otherwise.
 fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
-    use ConvKind::{Array, Bool, Bytes, ClassRef, Enum, Null, Object, Str, Void};
+    use ConvKind::{Array, Bool, Bytes, ClassRef, Enum, Null, Object, PropertyKey, Str, Void};
     match (from, to) {
+        (_, PropertyKey) => {
+            "ADR 0126 § 2 gives `property<T>` exactly two sources: a `string` naming a public \
+             declared property of `T`, and a narrowing from another key — so make the name first \
+             and convert that"
+        }
+        (PropertyKey, _) => {
+            "a property key converts back to the `string` it names and to nothing else \
+             (ADR 0126 § 2): read the property through it — `$obj->$key` — or convert to \
+             `string` first"
+        }
         (_, ClassRef) => {
             "ADR 0125 § 2 gives `class<T>` exactly two sources: a `string` naming a class that \
              is a `T`, and a narrowing from another class reference — so make the name first \

@@ -5026,6 +5026,18 @@ sibling in the same namespace unqualified.
   half-landed atom is a **loosening** no test asks about. Add the `Ty` variant in the same slice, or
   the parser change is not a slice at all. `Ty`'s own matches are exhaustive and the compiler names
   each one: two arms, both in `expr/operators.rs`'s equality domain, were the whole cascade.
+- **A `property<T>`/`class<T>` argument's *roster* cannot be asked in `crate::lower`, because that
+  pass runs twice and the first run has no table.** `nvs_types::signatures::collect_members` lowers
+  every declared property's type at `signatures.rs:886`, while the signature table is still being
+  built — and `Env::signatures`' own doc (`lib.rs:356`) says that during collection the field points
+  at an *empty placeholder*, written to through a separate `&mut` parameter. So a rule of the shape
+  "refuse `property<T>` when `T` declares no public property", written into `lower_property_key`
+  beside the class-kind refusal it obviously belongs next to, fires on every annotation in the
+  program: every roster is empty in the first pass. The class-*kind* question is safe there only
+  because it reads `env.symbols`, which is complete before either pass. Anything reading
+  `env.signatures` or `env.graph` from a lowering has to be sited where the table is real, and the
+  two candidates are not equivalent — `check.rs:456` re-lowers a *property* annotation at check
+  time, but a method parameter's annotation is lowered once, during collection, and never again.
 
 ## Divergences and refusals already pinned
 

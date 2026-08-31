@@ -505,6 +505,71 @@ pub(crate) fn class_ref_argument(ty: TypeId, interner: &TypeInterner) -> Option<
     }
 }
 
+/// The class a `property<T>` value's names belong to, or `None` for every
+/// other type — [`class_ref_argument`]'s question asked of
+/// [ADR 0126](../../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+/// § 1's key, answered the same way and for the same reason: the argument's own
+/// [`TypeId`], since the one caller that wants a name asks [`class_qname_of`]
+/// for it. `T` is a class by construction, `crate::lower`'s
+/// `lower_property_key` having refused everything else as `E0799`.
+pub(crate) fn property_key_argument(ty: TypeId, interner: &TypeInterner) -> Option<TypeId> {
+    match interner.get(ty) {
+        Ty::PropertyKey(inner) => Some(*inner),
+        _ => None,
+    }
+}
+
+/// ADR 0126 § 1's roster — every property name a `property<T>` value may hold:
+/// `T`'s own public declarations and its ancestors', deduplicated and sorted so
+/// a diagnostic listing them reads the same way twice.
+///
+/// The walk is [`crate::signatures::resolve_property_owned`]'s run over a whole
+/// class rather than one name, and it chains `implements` for the reason that
+/// one does — the two have to agree, or a name this refuses at the conversion
+/// would still resolve at the access. An interface declares no properties
+/// today, which is why `property<SomeInterface>` is `E0799` at all, so the
+/// chain costs nothing now and keeps the two agreeing if that ever changes.
+///
+/// Visibility is read at the class that *declares* the property, which is what
+/// [`crate::signatures::property_visibility`] asks for: the keyword is written
+/// there, and a subclass neither adds one nor takes one away.
+pub(crate) fn public_property_names(qname: &QName, env: &Env<'_>) -> Vec<String> {
+    let mut names = Vec::new();
+    collect_public_properties(qname, env, &mut FxHashSet::default(), &mut names);
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
+/// [`public_property_names`]'s recursion, with the `seen` guard that keeps a
+/// cyclic `extends` — which the graph may hold, since reporting the cycle is
+/// `nvs_hir`'s job and not this walk's — from running forever.
+fn collect_public_properties(
+    qname: &QName,
+    env: &Env<'_>,
+    seen: &mut FxHashSet<QName>,
+    names: &mut Vec<String>,
+) {
+    if !seen.insert(qname.clone()) {
+        return;
+    }
+    if let Some(sig) = env.signatures.get(qname) {
+        for name in sig.properties.keys() {
+            if crate::signatures::property_visibility(qname, name, env.signatures)
+                == nvs_syntax::ast::Visibility::Public
+            {
+                names.push(name.clone());
+            }
+        }
+    }
+    let Some(links) = env.graph.get(qname) else {
+        return;
+    };
+    for parent in links.extends.iter().chain(links.implements.iter()) {
+        collect_public_properties(parent, env, seen, names);
+    }
+}
+
 /// Whether `object` is exactly the `$this` variable — the one receiver shape
 /// `nvs_hir::members` already diagnoses a missing property on, so
 /// [`infer`]'s `PropertyAccess` arm must not diagnose it a second time.

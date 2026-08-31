@@ -809,3 +809,83 @@ fn a_string_becomes_a_class_reference_only_through_as() {
         "{outside:?}"
     );
 }
+
+/// ADR 0126 §§ 1-2: a property key's values are the public properties of the
+/// class it names -- its own and its ancestors' -- and nothing else, with `as`
+/// the only door into one. The written-out operand is decided where it stands,
+/// both ways, so that "decided" is not satisfied by accepting everything, and
+/// the private name is refused with the misspelled one because visibility is
+/// decided at the conversion.
+#[test]
+fn a_property_key_ranges_over_the_public_properties_and_nothing_else() {
+    const CLASSES: &str = "<?nvs\n\
+         class Base { public int $id = 0; }\n\
+         class User extends Base {\n\
+         \x20 public string $email = \"\";\n\
+         \x20 private string $token = \"\";\n\
+         }\n";
+
+    // Every row of § 2 at once: the `string` door written out (own property and
+    // inherited one), the same door computed, the qualifier stripping as every
+    // checked conversion strips one, the key-to-key narrowing, and the total
+    // way back out.
+    let rows = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function take(property<User> $k): void {{}}\n\
+         \x20 function m(): void {{ $this->take(\"email\" as property<User>); }}\n\
+         \x20 function n(): void {{ $this->take(\"id\" as property<User>); }}\n\
+         \x20 function o(string $s): void {{ $this->take($s as property<User>); }}\n\
+         \x20 function p(tainted string $s): void {{ $this->take($s as property<User>); }}\n\
+         \x20 function q(property<User> $k): property<Base> {{ return $k as property<Base>; }}\n\
+         \x20 function r(property<User> $k): string {{ return $k as string; }}\n\
+         }}\n"
+    ));
+    assert!(!rows.has_errors(), "{rows:?}");
+
+    // `as` is the only source: a `string` does not reach the position on its
+    // own, and no row produces a key from anything but the two § 2 names.
+    let bare = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function take(property<User> $k): void {{}}\n\
+         \x20 function m(string $s): void {{ $this->take($s); }}\n\
+         }}\n"
+    ));
+    assert!(
+        bare.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{bare:?}"
+    );
+
+    let unconvertible = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(): void {{ 1 as property<User>; }}\n\
+         }}\n"
+    ));
+    assert!(
+        unconvertible
+            .iter()
+            .any(|d| d.code == Some(code::E_NO_CONVERSION)),
+        "{unconvertible:?}"
+    );
+
+    // The set is exactly the public roster: a `private` property and a name
+    // that names nothing are one failure, reported where the operand is
+    // written, and the help lists what the set actually holds.
+    for name in ["token", "emial"] {
+        let refused = check_src(&format!(
+            "{CLASSES}class T {{\n\
+             \x20 function m(): void {{ \"{name}\" as property<User>; }}\n\
+             }}\n"
+        ));
+        let unknown: Vec<_> = refused
+            .iter()
+            .filter(|d| d.code == Some(code::E_UNKNOWN_MEMBER))
+            .collect();
+        assert_eq!(unknown.len(), 1, "`{name}`: {refused:?}");
+        assert!(
+            unknown[0].notes.iter().any(|note| {
+                note.contains("`$email`") && note.contains("`$id`") && !note.contains("$token")
+            }),
+            "`{name}`: {refused:?}"
+        );
+    }
+}
