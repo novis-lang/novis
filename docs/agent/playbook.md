@@ -3302,6 +3302,26 @@ is why" — is this file.
   including that one. `crates/nvs-stdlib/src/command.rs`'s `dispatching` is the shape; unlike
   `allocation_policy.rs`'s `closure_of` it does not leak, because an `ErrorClass` holds the `Rc` for
   as long as the context lives.
+- **A `.nvst` case's program name is `case`, and that is stable enough to freeze in an
+  `--EXPECT--`.** `nvs-test` writes every case to disk as `case.nvs` and runs `nvs run case.nvs`
+  over it (`crates/nvs-test/src/run.rs:238`), so anything reading `nvs_runtime::Ctx::program_name`
+  — today `Core\Command::completions`, whose scripts register against it — answers `case` in a
+  conformance case and the file's own stem everywhere else. The four completion cases print it in
+  full. Worth knowing before writing a case around a program name: it is neither the `.nvst` file's
+  name nor `nvs`, and guessing either produces a diff that looks like a bug in the member.
+
+- **An error path only a *non-`nvs run`* context reaches still owes a case, and `--RUN--` is how one
+  reaches it.** `conformance_coverage.rs`'s `every_error_path_is_asserted_or_declared_unreachable`
+  takes exactly two answers — a case whose text carries the message, or an "unreachable from source"
+  comment naming the diagnostic that refuses the call first — and its `OWED_A_CASE` list "may only
+  shrink", so a third state is not available. `Core\Command::completions`'s refusal is neither: it is
+  genuinely reachable, but not by a program run from a command line, which is all an ordinary case
+  is. `--RUN--\ntest\n` runs the file's `#[Test]` methods instead, and *that* context has no command
+  line — so the case is a `#[Test]` that echoes `$e->message` for the corpus and closes with
+  `Core\Test::assertThrows`, because ADR 0079 § 20 fails a test whose ledger is empty. Two things
+  cost time on the way: the runner's report is the expectation, so the echoed line sits at column 0
+  above the indented `✓` row, and an empty `--EXPECTF-ERROR--` section is the claim that the run
+  *failed* rather than a section left blank.
 
 ## Splitting a file that got too big
 

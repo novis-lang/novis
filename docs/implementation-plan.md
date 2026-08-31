@@ -53,15 +53,15 @@
 > `Core\Process\Result` — three slot reads, both captured streams `bytes`. `examples/process.nvs`
 > runs green against its three frozen lines, and stage 3's four named checks over the member are on
 > disk, beside the `.nvst` pinning both spellings of a command line as a diagnostic. **Stage 3's
-> terminal profile is closed**: ADR 0086 § 3's `isTty`, `width`, `height` and `colorDepth` are rows
-> over `nvs_runtime::terminal`, which resolves the four facts once per process.
-> **`Core\Command::help` and `::run` are rows over the compiled table**: § 6's rows ride on the
-> request's `Ctx`, `run` matches `nvs run`'s trailing words against them and reaches a `static`
-> handler through its class descriptor, and `--ARGS--` is honoured. **A declared default crosses on
-> the row**, so an argument left out takes it — a flag excepted. **`Core\Cli\Shell` is a registered
-> enum**; § 6's `completions` waits on a program name no `Ctx` carries. What goals 1-3 landed is
-> unchanged and is not re-derived here: `git log` and each crate's module doc own it. Conformance
-> 1122, differential 210 of 210, migration 37% over its 36% floor.
+> terminal profile is closed**: § 3's four facts are rows over `nvs_runtime::terminal`, resolved
+> once per process. **`Core\Command::help` and `::run` are rows over the compiled table**: § 6's
+> rows ride on the request's `Ctx`, `run` matches `nvs run`'s trailing words against them and
+> reaches a `static` handler through its class descriptor, and `--ARGS--` is honoured. **A declared
+> default crosses on the row**, so an argument left out takes it — a flag excepted. **§ 6 is
+> closed**: `completions` writes the four shells' scripts from `help`'s table, against
+> `Ctx::program_name` — the script's stem for `nvs run`, the executable's for a bundle. What goals
+> 1-3 landed is unchanged and is not re-derived here: `git log` and each crate's module doc own it.
+> Conformance 1127, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
