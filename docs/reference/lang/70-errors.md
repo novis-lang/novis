@@ -444,14 +444,14 @@ nothing is granted.
 ```nvs
 <?nvs
 try {
-    echo Core\File::read("data.txt");
+    echo Core\IO::read("data.txt");
 } catch (RuntimeError $denied) {
     echo "denied: ", $denied->message, "\n";
 }
 echo "still running\n";
 ```
 ```output
-denied: Core\File::read needs the capability `fs.read` for data.txt, which is not granted
+denied: Core\IO::read needs the capability `fs.read` for data.txt, which is not granted
 still running
 ```
 
@@ -468,17 +468,17 @@ hello from disk
 ```
 ```nvs
 <?nvs
-echo Core\Str::trim(Core\File::read("data.txt")), "\n";
+echo Core\Str::trim(Core\IO::read("data.txt")), "\n";
 
 try {
-    Core\File::write("out.txt", "x");
+    Core\IO::write("out.txt", "x");
 } catch (RuntimeError $denied) {
     echo "denied: ", $denied->message, "\n";
 }
 ```
 ```output
 hello from disk
-denied: Core\File::write needs the capability `fs.write` for out.txt, which is not granted
+denied: Core\IO::write needs the capability `fs.write` for out.txt, which is not granted
 ```
 
 `spawn script` needs `script.spawn` the same way; the [concurrency](#lang-concurrency) chapter

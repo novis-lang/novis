@@ -3,7 +3,7 @@ summary: whole-file read and write on paths the configuration has granted
 keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path
 ---
 
-`Core\File` reads or replaces a whole file as text. Every call is a capability check first: the path
+`Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
 write grant. A path the configuration does not grant throws a `RuntimeError` naming the capability,
 and the program may catch it and carry on; a path the configuration allows but the operating system
@@ -22,19 +22,19 @@ beta
 ```
 ```nvs
 <?nvs
-string $text = Core\File::read("data.txt");
+string $text = Core\IO::read("data.txt");
 echo Core\Str::length($text), " bytes\n";
 
-Core\File::write("./copy.txt", $text . "gamma\n");
-echo Core\Str::trim(Core\File::read("./copy.txt")), "\n";
+Core\IO::write("./copy.txt", $text . "gamma\n");
+echo Core\Str::trim(Core\IO::read("./copy.txt")), "\n";
 
 try {
-    Core\File::read("./missing.txt");
+    Core\IO::read("./missing.txt");
 } catch (IOError $io) {
     echo "missing: no such file\n";
 }
 try {
-    Core\File::read("../outside.txt");
+    Core\IO::read("../outside.txt");
 } catch (RuntimeError $denied) {
     echo "outside: refused\n";
 }

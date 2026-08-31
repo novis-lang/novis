@@ -99,8 +99,8 @@ What each member needs is declared once, in `registry.rs`:
 
 ```rust
 pub const CAPABILITIES: &[(&str, &str, Cap)] = &[
-    ("Core\\File", "read", Cap::FsRead),
-    ("Core\\File", "write", Cap::FsWrite),
+    ("Core\\IO", "read", Cap::FsRead),
+    ("Core\\IO", "write", Cap::FsWrite),
     // …
 ];
 ```
@@ -156,7 +156,7 @@ added to [01-core-library.md](../spec/01-core-library.md) § 10's tree. The mess
 in its configuration spelling and, for a scoped one, the argument that fell outside the grant:
 
 ```
-RuntimeError: Core\File::write needs the capability `fs.write` for /var/tmp/x, which is not granted
+RuntimeError: Core\IO::write needs the capability `fs.write` for /var/tmp/x, which is not granted
 ```
 
 Naming the capability rather than the operation is deliberate: the reader of that message is usually the
@@ -181,7 +181,7 @@ because of how it is written.
 `every_capability_bearing_member_declares_its_capability` (this goal's item 16) reads the registry, not
 the bodies. A class is **capability-bearing** if any of its members has an entry in § 3's table; for
 such a class, every member must either have its own entry or appear in a frozen allowlist of members
-that genuinely need none — `Core\File::basename` manipulates a string and touches no disk.
+that genuinely need none — `Core\IO::basename` manipulates a string and touches no disk.
 
 **The allowlist may never grow.** Every entry is a bullet with its reason, and adding one to make a run
 go green is the single move this design forbids: a member that is hard to classify is a member whose

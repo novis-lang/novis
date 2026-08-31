@@ -7,7 +7,7 @@ a `Core` member whose capability the configuration does not grant throws a catch
 // I/O failure — a program that cannot tell the two apart cannot be fixed by
 // its operator.
 try {
-    echo Core\File::read('./data/note.txt');
+    echo Core\IO::read('./data/note.txt');
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
 }
@@ -20,4 +20,4 @@ write = ["./out"]
 --FILE data/note.txt--
 note
 --EXPECT--
-Core\File::read needs the capability `fs.read` for ./data/note.txt, which is not granted
+Core\IO::read needs the capability `fs.read` for ./data/note.txt, which is not granted

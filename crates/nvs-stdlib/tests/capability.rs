@@ -54,13 +54,9 @@ fn an_ungranted_capability_throws_naming_the_capability() {
     // gets, and the message an operator reads.
     let ctx = nvs_runtime::Ctx::buffered();
     let path = Path::new("/var/tmp/x");
-    let denied = nvs_runtime::capability::require(
-        &ctx,
-        Cap::FsWrite,
-        Scope::Path(path),
-        "Core\\File::write",
-    )
-    .expect_err("an unconfigured context grants nothing");
+    let denied =
+        nvs_runtime::capability::require(&ctx, Cap::FsWrite, Scope::Path(path), "Core\\IO::write")
+            .expect_err("an unconfigured context grants nothing");
     let nvs_runtime::Fault::Thrown(class, message) = denied else {
         panic!("a denial is a throw, never a fatal or a pending status — ADR 0118 § 5");
     };
@@ -70,7 +66,7 @@ fn an_ungranted_capability_throws_naming_the_capability() {
         "the message names the capability in the spelling `nvs.toml` grants it under: {message}"
     );
     assert!(
-        message.contains("Core\\File::write") && message.contains("/var/tmp/x"),
+        message.contains("Core\\IO::write") && message.contains("/var/tmp/x"),
         "and names who wanted it and what for: {message}"
     );
 }
@@ -143,7 +139,7 @@ fn every_capability_entry_names_a_member() {
 /// § *Standing decisions* saying why the member touches nothing, and adding one to make a run go
 /// green is the single move that design forbids outright: a member that is hard to classify is a
 /// member whose capability has not been thought about. The ADR's own example of what belongs here is
-/// a `Core\File::basename` that splits a string and never opens anything.
+/// a `Core\IO::basename` that splits a string and never opens anything.
 ///
 /// It is empty, and that is the strongest state it can be in: every member of every
 /// capability-bearing class on disk today declares what it needs.
@@ -165,10 +161,10 @@ fn every_capability_bearing_member_declares_its_capability() {
         .collect();
 
     // The positive control, without which the whole set claim below passes by finding nothing to
-    // check. `Core\File` is the class that made § 3's table necessary.
+    // check. `Core\IO` is the class that made § 3's table necessary.
     assert!(
-        bearing.iter().any(|class| class.name == "Core\\File"),
-        "`Core\\File` reaches the filesystem, so it is capability-bearing by construction; \
+        bearing.iter().any(|class| class.name == "Core\\IO"),
+        "`Core\\IO` reaches the filesystem, so it is capability-bearing by construction; \
          a run where it is not means the declaration table has lost its entries"
     );
 

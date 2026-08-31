@@ -999,7 +999,7 @@ pub const CLASSES: &[CoreClass] = &[
     // reader looks for it: § 8's class splits a path lexically and this one
     // reaches the filesystem behind it. What it needs to do that is
     // [`CAPABILITIES`], and ADR 0118 § 2's doors are what make it need one.
-    crate::file::CLASS,
+    crate::io::CLASS,
     crate::time::TIME,
     crate::time::INSTANT,
     crate::time::DATETIME,
@@ -1105,8 +1105,8 @@ pub const CLASSES: &[CoreClass] = &[
 /// `nvs_stdlib_reaches_the_os_only_through_the_gate` holds mechanically rather
 /// than by this table being kept honest.
 pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
-    (crate::file::NAME, "read", nvs_config::Cap::FsRead),
-    (crate::file::NAME, "write", nvs_config::Cap::FsWrite),
+    (crate::io::NAME, "read", nvs_config::Cap::FsRead),
+    (crate::io::NAME, "write", nvs_config::Cap::FsWrite),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)

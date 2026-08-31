@@ -41,14 +41,14 @@ secret
 <?nvs
 // Inherited, not granted: nothing in the child's own configuration is what
 // makes this read succeed, because the child was handed the parent's snapshot.
-echo "child read ", Core\File::read('./data/note.txt');
+echo "child read ", Core\IO::read('./data/note.txt');
 
 // Outside the parent's grant, inside the host's, and named by an `[[app]]`
 // block of the child's own — the widening, asked for in the one place a
 // configuration could still ask for it. Refused, and refused as ADR 0118 § 5's
 // catchable `RuntimeError` naming the capability rather than as a `FATAL`.
 try {
-    echo Core\File::read('./secret.txt');
+    echo Core\IO::read('./secret.txt');
 } catch (RuntimeError $denied) {
     echo "child: ", $denied->message, "\n";
 }
@@ -61,7 +61,7 @@ echo "child set = ", Core\Config::set('capabilities.fs.read', '.') ? "true" : "f
 
 // And the refusal left the grant exactly where it was.
 try {
-    Core\File::read('./secret.txt');
+    Core\IO::read('./secret.txt');
     echo "unreachable", "\n";
 } catch (RuntimeError $still) {
     echo "child still refused", "\n";
@@ -71,9 +71,9 @@ try {
 // M6's *Verify*: a child cannot widen a capability its parent narrowed. The
 // parent's own reading first, so that what the child prints is a comparison
 // against a known grant: `./data` reads, `./secret.txt` does not.
-echo "parent read ", Core\File::read('./data/note.txt');
+echo "parent read ", Core\IO::read('./data/note.txt');
 try {
-    Core\File::read('./secret.txt');
+    Core\IO::read('./secret.txt');
     echo "unreachable", "\n";
 } catch (RuntimeError $denied) {
     echo "parent refused", "\n";
@@ -91,6 +91,6 @@ parent read note
 parent refused
 ok=true
 child read note
-child: Core\File::read needs the capability `fs.read` for ./secret.txt, which is not granted
+child: Core\IO::read needs the capability `fs.read` for ./secret.txt, which is not granted
 child set = false
 child still refused

@@ -170,8 +170,8 @@ deny. The roster is closed:
 
 | Capability | Guards | Scope of a grant |
 |---|---|---|
-| `fs.read` | `Core\File::read` and every other read | the directories readable |
-| `fs.write` | `Core\File::write` and every other write | the directories writable |
+| `fs.read` | `Core\IO::read` and every other read | the directories readable |
+| `fs.write` | `Core\IO::write` and every other write | the directories writable |
 | `script.spawn` | `spawn script` | the directories a target script may live under |
 | `net.connect` | outbound connections | the hosts reachable |
 | `process.exec` | starting a subprocess | the programs runnable |
@@ -208,24 +208,24 @@ hello from data
 ```
 ```nvs
 <?nvs
-echo Core\Str::trim(Core\File::read("data/greeting.txt")), "\n";
+echo Core\Str::trim(Core\IO::read("data/greeting.txt")), "\n";
 
 try {
-    Core\File::write("data/out.txt", "x");
+    Core\IO::write("data/out.txt", "x");
 } catch (RuntimeError $denied) {
     echo $denied->message, "\n";
 }
 
 try {
-    echo Core\File::read("main.nvs");
+    echo Core\IO::read("main.nvs");
 } catch (RuntimeError $denied) {
     echo $denied->message, "\n";
 }
 ```
 ```output
 hello from data
-Core\File::write needs the capability `fs.write` for data/out.txt, which is not granted
-Core\File::read needs the capability `fs.read` for main.nvs, which is not granted
+Core\IO::write needs the capability `fs.write` for data/out.txt, which is not granted
+Core\IO::read needs the capability `fs.read` for main.nvs, which is not granted
 ```
 
 # `[[app]]` — per-application blocks

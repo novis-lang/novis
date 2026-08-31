@@ -216,7 +216,7 @@ read = ["data"]
 note
 --FILE--
 <?nvs
-echo Core\File::read("data/note.txt");
+echo Core\IO::read("data/note.txt");
 --EXPECT--
 note
 ```
@@ -239,7 +239,7 @@ its source when it starts, exactly as `nvs run` would.
 - A bundle still reads `./nvs.toml` from the directory it is *run in*, exactly like `nvs run`, and
   a malformed one refuses the run. Ship the configuration beside it or run it from a directory that
   has none.
-- Files reached only through `autoload` at run time, or opened with `Core\File`, are not in the
+- Files reached only through `autoload` at run time, or opened with `Core\IO`, are not in the
   bundle: it carries the static `require` graph and nothing else.
 
 # nvs build --openapi

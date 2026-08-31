@@ -25,7 +25,7 @@
 
 // Granted: a read under the root the operator named.
 try {
-    string $greeting = Core\File::read("examples/capability/greeting.txt");
+    string $greeting = Core\IO::read("examples/capability/greeting.txt");
     echo "granted: " . Core\Str::trim($greeting) . "\n";
 } catch (RuntimeError $refused) {
     echo "granted: refused", "\n";
@@ -35,7 +35,7 @@ try {
 // granted root on purpose — what is missing is the capability, not the
 // prefix, so a tree that checked only the path would pass the wrong half.
 try {
-    Core\File::write("examples/capability/denied.txt", "unreachable");
+    Core\IO::write("examples/capability/denied.txt", "unreachable");
     echo "allowed: fs.write", "\n";
 } catch (RuntimeError $refused) {
     echo "denied: fs.write", "\n";

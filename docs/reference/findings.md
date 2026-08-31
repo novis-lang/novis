@@ -215,7 +215,7 @@ in that goal. An item's owner is the row it sits in.
       computed argument reaches the throw, and the `DateTime::format` card names `Date::format` and
       `TimeOfDay::format` as the off-roster half `nvs_types::intrinsics` owns.
       *coretime-probes `t_format_bad_literal`, `t_parse_errors`*
-- [ ] **D5** `Core\File::read("missing.txt")` under a valid `fs.read` grant throws the **capability**
+- [ ] **D5** `Core\IO::read("missing.txt")` under a valid `fs.read` grant throws the **capability**
       `RuntimeError` ("needs the capability fs.read for missing.txt, which is not granted"), not the
       card's `IOError`; `"./missing.txt"` gets the `IOError`. Likewise `write("copy.txt", …)` with
       `write = ["."]` is refused while `"./copy.txt"` succeeds. Cause: `capability.rs:257`

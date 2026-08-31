@@ -27,7 +27,7 @@
 //! including JIT-compiled ones — stay exactly where they are. **Nothing in the
 //! call chain is marked `async`.** A helper that has to wait reaches its
 //! yielder through the [`Ctx`] it was already handed ([`suspend`]), so
-//! `Core\File::read` has the same signature whether or not there is a scheduler
+//! `Core\IO::read` has the same signature whether or not there is a scheduler
 //! beneath it, and Novis's surface never grows a colour.
 //!
 //! What it spends, as [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)

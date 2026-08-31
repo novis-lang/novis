@@ -218,13 +218,13 @@ mod cursor;
 mod debug;
 mod encoding;
 mod fatal;
-mod file;
 pub mod format;
 pub mod granularity;
 mod hash;
 mod heap;
 mod identity_store;
 mod instance;
+mod io;
 mod issue;
 pub mod json;
 pub mod math;
@@ -319,7 +319,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| debug::address(symbol))
         .or_else(|| encoding::address(symbol))
         .or_else(|| fatal::address(symbol))
-        .or_else(|| file::address(symbol))
+        .or_else(|| io::address(symbol))
         .or_else(|| hash::address(symbol))
         .or_else(|| heap::address(symbol))
         .or_else(|| json::address(symbol))

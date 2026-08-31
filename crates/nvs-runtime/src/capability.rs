@@ -25,7 +25,7 @@ use crate::{Fault, ThrownClass};
 
 /// § 1's question, asked of `ctx`'s own snapshot, and § 5's `RuntimeError` when the answer is no.
 ///
-/// `member` is what the message names as the thing that wanted the capability — `Core\File::write`,
+/// `member` is what the message names as the thing that wanted the capability — `Core\IO::write`,
 /// or `spawn script` for the language construct, which is not a `Core` member at all and is checked
 /// through the same function for exactly that reason.
 ///

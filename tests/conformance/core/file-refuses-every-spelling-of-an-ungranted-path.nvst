@@ -1,5 +1,5 @@
 --TEST--
-Core\File::read and Core\File::write refuse every spelling of a path with no grant behind it — counted over a sweep of relative, dotted, nested and parent-walking forms rather than read off one line, so a door that resolved one spelling into an allowance still fails here — ADR 0118 §§ 1-2
+Core\IO::read and Core\IO::write refuse every spelling of a path with no grant behind it — counted over a sweep of relative, dotted, nested and parent-walking forms rather than read off one line, so a door that resolved one spelling into an allowance still fails here — ADR 0118 §§ 1-2
 --FILE--
 <?nvs
 // A refusal asserted one path at a time is a refusal a member can pass by
@@ -30,22 +30,22 @@ for (; $i < $total; $i = $i + 1) {
     string $path = $paths[$i];
 
     try {
-        string $content = Core\File::read($path);
+        string $content = Core\IO::read($path);
     } catch (RuntimeError $refused) {
         $readsRefused = $readsRefused + 1;
         // The capability's own name, in the spelling `nvs.toml` grants it
         // under, is what an operator pastes into a file -- so it is counted
         // rather than assumed from the fact that something threw.
-        if ($refused->message == "Core\\File::read needs the capability `fs.read` for " . $path . ", which is not granted") {
+        if ($refused->message == "Core\\IO::read needs the capability `fs.read` for " . $path . ", which is not granted") {
             $readsNamingFsRead = $readsNamingFsRead + 1;
         }
     }
 
     try {
-        Core\File::write($path, "x");
+        Core\IO::write($path, "x");
     } catch (RuntimeError $refused) {
         $writesRefused = $writesRefused + 1;
-        if ($refused->message == "Core\\File::write needs the capability `fs.write` for " . $path . ", which is not granted") {
+        if ($refused->message == "Core\\IO::write needs the capability `fs.write` for " . $path . ", which is not granted") {
             $writesNamingFsWrite = $writesNamingFsWrite + 1;
         }
     }

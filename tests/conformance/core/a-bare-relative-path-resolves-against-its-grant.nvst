@@ -9,7 +9,7 @@ a bare relative path is resolved against the current directory before it is comp
 // `file-asks-for-the-capability-before-it-touches-the-path.nvst` does: the
 // capability is granted here, so the operating system is what has to answer.
 try {
-    string $missing = Core\File::read("missing.txt");
+    string $missing = Core\IO::read("missing.txt");
     echo "read missing.txt: opened\n";
 } catch (IOError $touched) {
     echo "read missing.txt: the os answered first\n";
@@ -20,14 +20,14 @@ try {
 // A write creates the path it names, so there is never anything to canonicalise
 // and the deepest existing ancestor *is* the current directory. This is the
 // spelling `write = ["."]` exists for.
-Core\File::write("copy.txt", "copied\n");
-echo Core\File::read("copy.txt");
+Core\IO::write("copy.txt", "copied\n");
+echo Core\IO::read("copy.txt");
 
 // The bound on the other side: resolving a bare name against the current
 // directory is not resolving every relative name into the grant. One that
 // climbs out of it lands outside `.` and is still refused.
 try {
-    Core\File::write("../escape.txt", "x");
+    Core\IO::write("../escape.txt", "x");
     echo "write ../escape.txt: created\n";
 } catch (IOError $reached) {
     echo "write ../escape.txt: the os answered first\n";

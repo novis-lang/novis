@@ -46,7 +46,7 @@
 //! Two containments, and they are not the same one. [`run`] catches the panic of
 //! the function it was given and carries it back to the *task's own stack*,
 //! where it resumes and meets the containment boundary ADR 0106 § 2 put at the
-//! task root — a panicking `Core\File` call fails one request, exactly as it
+//! task root — a panicking `Core\IO` call fails one request, exactly as it
 //! would have on the core. The pool thread catches anything that still escapes a
 //! job, because a thread lost to an unwind is a thread the bound above no longer
 //! accounts for. In both cases the [`RemoteWake`](reactor::RemoteWake) fires from its own `Drop`, so

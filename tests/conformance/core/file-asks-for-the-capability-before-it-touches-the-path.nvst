@@ -1,5 +1,5 @@
 --TEST--
-Core\File::read and Core\File::write ask for the capability before they touch the path — a path no open could ever succeed on is still refused as a capability and never as an `IOError`, so the difference between a missing file and an existing one leaks nothing to a program that was not granted the root — ADR 0118 § 2
+Core\IO::read and Core\IO::write ask for the capability before they touch the path — a path no open could ever succeed on is still refused as a capability and never as an `IOError`, so the difference between a missing file and an existing one leaks nothing to a program that was not granted the root — ADR 0118 § 2
 --FILE--
 <?nvs
 // The door performs the effect, so the order inside it is observable: a member
@@ -14,7 +14,7 @@ for (; $i < Core\Arr::count($impossible) as int; $i = $i + 1) {
     string $path = $impossible[$i];
 
     try {
-        string $content = Core\File::read($path);
+        string $content = Core\IO::read($path);
         echo "read ", $path, ": opened\n";
     } catch (IOError $touched) {
         echo "read ", $path, ": the os answered first\n";
@@ -23,7 +23,7 @@ for (; $i < Core\Arr::count($impossible) as int; $i = $i + 1) {
     }
 
     try {
-        Core\File::write($path, "x");
+        Core\IO::write($path, "x");
         echo "write ", $path, ": created\n";
     } catch (IOError $touched) {
         echo "write ", $path, ": the os answered first\n";

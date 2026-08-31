@@ -205,8 +205,8 @@ fn spawn_script_without_the_capability_fails() {
 /// covers the ordinary spelling of a path a program writes.
 ///
 /// `Path::parent` of `copy.txt` is `""`, which canonicalizes nowhere, and a resolver that ran out of
-/// components there denied every bare name under every grant — `Core\File::read("missing.txt")` and
-/// `Core\File::write("copy.txt")` alike, both of them against a tree that granted the directory they
+/// components there denied every bare name under every grant — `Core\IO::read("missing.txt")` and
+/// `Core\IO::write("copy.txt")` alike, both of them against a tree that granted the directory they
 /// are in. The two halves are asserted together because a grant that resolves a relative name has to
 /// place it, not merely accept it: the last row climbs out of the grant and is still refused.
 #[test]

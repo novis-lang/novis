@@ -1,4 +1,4 @@
-//! `Core\File` — the first `Core` class that reaches the operating system, and
+//! `Core\IO` — the first `Core` class that reaches the operating system, and
 //! so the first one written entirely behind
 //! [ADR 0118](../../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 //! §§ 2-3's doors.
@@ -35,7 +35,7 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamD
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
-pub(crate) const NAME: &str = "Core\\File";
+pub(crate) const NAME: &str = "Core\\IO";
 
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -50,7 +50,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Text(Qual::Neutral),
-            symbol: "nvs_core_file_read",
+            symbol: "nvs_core_io_read",
             doc: Some(&READ_DOC),
         },
         CoreMethod {
@@ -59,7 +59,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "nvs_core_file_write",
+            symbol: "nvs_core_io_write",
             doc: Some(&WRITE_DOC),
         },
     ],
@@ -68,7 +68,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\File::read`'s reference card — ADR 0117.
+/// `Core\IO::read`'s reference card — ADR 0117.
 const READ_DOC: MethodDoc = MethodDoc {
     short: "The whole content of a file, as text — `file_get_contents`. Needs the `fs.read` \
             capability for the path, which is checked against its canonical spelling, so a \
@@ -93,7 +93,7 @@ const READ_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\File::write`'s reference card — ADR 0117.
+/// `Core\IO::write`'s reference card — ADR 0117.
 const WRITE_DOC: MethodDoc = MethodDoc {
     short: "Replaces a file's whole content, creating it if it does not exist — \
             `file_put_contents`. Needs the `fs.write` capability for the path; being allowed to \
@@ -131,8 +131,8 @@ const WRITE_DOC: MethodDoc = MethodDoc {
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "nvs_core_file_read" => (nvs_core_file_read as *const ()).cast(),
-        "nvs_core_file_write" => (nvs_core_file_write as *const ()).cast(),
+        "nvs_core_io_read" => (nvs_core_io_read as *const ()).cast(),
+        "nvs_core_io_write" => (nvs_core_io_write as *const ()).cast(),
         _ => return None,
     })
 }
@@ -143,7 +143,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 fn text<'a>(value: &'a Value, member: &str, what: &str) -> Result<&'a str, Fault> {
     value.as_text().ok_or_else(|| {
         Fault::fatal(format!(
-            "Core\\File::{member} expected {:?} for its {what}, got tag {}",
+            "Core\\IO::{member} expected {:?} for its {what}, got tag {}",
             Tag::Str,
             value.tag_byte()
         ))
@@ -151,30 +151,30 @@ fn text<'a>(value: &'a Value, member: &str, what: &str) -> Result<&'a str, Fault
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\File::read(string $path): string` — replacing
+    /// `Core\IO::read(string $path): string` — replacing
     /// `file_get_contents`.
     ///
     /// The whole file into one buffer, with no size ceiling of its own: what
     /// bounds it is the request's memory limit, which a buffer this size is
     /// charged against like any other allocation. A second ceiling here would
     /// be a number an operator has to keep in step with that one.
-    fn nvs_core_file_read(ctx, args: [1]) {
+    fn nvs_core_io_read(ctx, args: [1]) {
         let path = Path::new(text(&args[0], "read", "path")?);
-        let mut file = nvs_runtime::capability::open_read(ctx, path, "Core\\File::read")?;
+        let mut file = nvs_runtime::capability::open_read(ctx, path, "Core\\IO::read")?;
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes)
-            .map_err(|err| nvs_runtime::capability::io_failure("Core\\File::read", path, &err))?;
+            .map_err(|err| nvs_runtime::capability::io_failure("Core\\IO::read", path, &err))?;
         Ok(Value::str(NvsStr::new(&bytes)))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\File::write(string $path, string $content): void` — replacing
+    /// `Core\IO::write(string $path, string $content): void` — replacing
     /// `file_put_contents`.
-    fn nvs_core_file_write(ctx, args: [2]) {
+    fn nvs_core_io_write(ctx, args: [2]) {
         let path = Path::new(text(&args[0], "write", "path")?);
         let content = text(&args[1], "write", "content")?;
-        nvs_runtime::capability::write(ctx, path, content.as_bytes(), "Core\\File::write")?;
+        nvs_runtime::capability::write(ctx, path, content.as_bytes(), "Core\\IO::write")?;
         Ok(Value::null())
     }
 }

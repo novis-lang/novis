@@ -1,5 +1,5 @@
 --TEST--
-Core\File::read and Core\File::write refuse the same path under their own capability, and a refusal is catchable — being granted a root to read is never permission to write in it, and a denial leaves the program running — ADR 0118 §§ 2, 5
+Core\IO::read and Core\IO::write refuse the same path under their own capability, and a refusal is catchable — being granted a root to read is never permission to write in it, and a denial leaves the program running — ADR 0118 §§ 2, 5
 --FILE--
 <?nvs
 // Nothing configured this run, so nothing is granted: ADR 0118 § 1's deny-by-
@@ -10,14 +10,14 @@ Core\File::read and Core\File::write refuse the same path under their own capabi
 string $path = "report.txt";
 
 try {
-    string $content = Core\File::read($path);
+    string $content = Core\IO::read($path);
     echo "read: allowed, ", $content, "\n";
 } catch (RuntimeError $refused) {
     echo "read: ", $refused->message, "\n";
 }
 
 try {
-    Core\File::write($path, "anything at all");
+    Core\IO::write($path, "anything at all");
     echo "write: allowed\n";
 } catch (RuntimeError $refused) {
     echo "write: ", $refused->message, "\n";
@@ -29,6 +29,6 @@ try {
 // rather than in a comment because a `FATAL` would take the line with it.
 echo "still running\n";
 --EXPECT--
-read: Core\File::read needs the capability `fs.read` for report.txt, which is not granted
-write: Core\File::write needs the capability `fs.write` for report.txt, which is not granted
+read: Core\IO::read needs the capability `fs.read` for report.txt, which is not granted
+write: Core\IO::write needs the capability `fs.write` for report.txt, which is not granted
 still running

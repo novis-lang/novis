@@ -3,7 +3,7 @@ a granted root reads while a path outside it is refused, including one that reac
 --FILE--
 <?nvs
 // Inside the granted root: this is the whole of what the grant bought.
-echo Core\File::read('./data/note.txt');
+echo Core\IO::read('./data/note.txt');
 
 // Outside it, and the file exists — so a refusal here is the capability's and
 // not the filesystem's. `nvs_runtime::capability::open_read`'s own doc owns
@@ -11,7 +11,7 @@ echo Core\File::read('./data/note.txt');
 // path outside the grant is refused whether or not it exists and the two
 // messages cannot be used to probe a directory.
 try {
-    echo Core\File::read('./secret.txt');
+    echo Core\IO::read('./secret.txt');
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
 }
@@ -20,7 +20,7 @@ try {
 // comparison done on the literal path would accept this one, which is why the
 // grant is canonicalised before it is compared.
 try {
-    echo Core\File::read('./data/../secret.txt');
+    echo Core\IO::read('./data/../secret.txt');
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
 }
@@ -33,5 +33,5 @@ note
 secret
 --EXPECT--
 note
-Core\File::read needs the capability `fs.read` for ./secret.txt, which is not granted
-Core\File::read needs the capability `fs.read` for ./data/../secret.txt, which is not granted
+Core\IO::read needs the capability `fs.read` for ./secret.txt, which is not granted
+Core\IO::read needs the capability `fs.read` for ./data/../secret.txt, which is not granted

@@ -221,7 +221,7 @@ autoload resolution is lazy too, so a class no name reaches is never parsed. The
   requirements are never consulted. A dependency may ship a database layer you never touch with no
   database grant anywhere.
 - Inside a class your program **does** name, every call site is checked, including a branch that never runs.
-  `if ($never) { Core\File::write(…); }` refuses to build.
+  `if ($never) { Core\IO::write(…); }` refuses to build.
 
 That second line is precisely why § 6 exists. Without the optional split, the rule "present, not executed"
 would make the reachability of a *class* the unit of capability granularity, which is far too coarse for a
