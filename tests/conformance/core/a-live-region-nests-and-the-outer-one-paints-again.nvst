@@ -1,0 +1,22 @@
+--TEST--
+A live region nests by call nesting, and the outer one paints again once the inner has closed -- ADR 0086 sections 5 and 8
+--FILE--
+<?nvs
+// ADR 0086 § 5 is the scoped-closure shape `Core\Out::capture` already uses,
+// so regions nest the way calls nest: the stack is an implementation detail
+// and no program can observe an unbalanced one.
+var $depth = Core\Cli::live(fn(Core\Cli\Live $outer): string => {
+    $outer->set([Core\Cli\Text::plain("outer")]);
+    var $inner = Core\Cli::live(fn(Core\Cli\Live $nested): string => {
+        $nested->set([Core\Cli\Text::plain("inner")]);
+        return "inner";
+    });
+    // The inner region has closed, so the outer one is innermost again and
+    // paints rather than refusing. Only one region owns the cursor at a time,
+    // and this is the half of that rule that is not a refusal.
+    $outer->set([Core\Cli\Text::plain("outer again")]);
+    return "outer over " . $inner;
+});
+echo $depth, "\n";
+--EXPECT--
+outer over inner

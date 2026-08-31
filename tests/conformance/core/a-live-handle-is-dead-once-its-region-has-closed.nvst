@@ -1,0 +1,20 @@
+--TEST--
+A Core\Cli\Live handle refuses to paint once the region it names has closed -- ADR 0086 sections 5 and 8
+--FILE--
+<?nvs
+// Answering the handle is the one way to get one out of the call that made it,
+// which is what makes ADR 0086 § 5's scoping reachable from source at all: the
+// region ends with the `live` call, and a handle outliving it names a region
+// that is no longer there.
+var $escaped = Core\Cli::live(fn(Core\Cli\Live $live): Core\Cli\Live => {
+    $live->set([Core\Cli\Text::plain("while it is open")]);
+    return $live;
+});
+try {
+    $escaped->set([Core\Cli\Text::plain("after it closed")]);
+    echo "painted\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+Core\Cli\Live::set(): this handle's region has closed, or an inner one is open inside it — a live region is scoped to the `Core\Cli::live` call that made it, and only the innermost open region paints

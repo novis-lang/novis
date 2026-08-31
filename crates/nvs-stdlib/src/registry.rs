@@ -1178,6 +1178,10 @@ pub const CLASSES: &[CoreClass] = &[
     // the carrier above has something to wear that is not a grammar.
     crate::cli::COLOR,
     crate::cli::STYLE,
+    // § 13's in-place output — ADR 0086 § 5's two handles, which exist because
+    // a region has to have an end for § 8's restoration to be enforceable.
+    crate::cli::LIVE,
+    crate::cli::PROGRESS,
     // § 13's other half — ADR 0086 § 6's members over the table `#[Command]`
     // built while compiling. Beside `Core\Cli` because it answers with that
     // class's carrier; [`crate::command`] owns the page's layout, and

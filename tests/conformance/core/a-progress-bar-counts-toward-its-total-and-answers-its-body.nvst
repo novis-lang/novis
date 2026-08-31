@@ -1,0 +1,28 @@
+--TEST--
+Core\Cli::progress counts toward a total, takes by and label, and answers what its body computed -- ADR 0086 section 5
+--FILE--
+<?nvs
+// ADR 0086 § 5: `progress<T>(uint $total, callable $body): T`. A closed, named
+// behaviour over `live` -- the program counts, the runtime draws.
+var $files = Core\Cli::progress(4, fn(Core\Cli\Progress $bar): int => {
+    // Omitted, `by` is one and the caption is left as it was.
+    $bar->advance();
+    $bar->advance({label: "reading"});
+    // Both options at once, and `by` past one is a step that finished more
+    // than a single unit.
+    $bar->advance({by: 2, label: "writing"});
+    return 4;
+});
+echo "files: ", $files as string, "\n";
+
+// A total of `0` is work already done rather than a refusal, and a bar has no
+// member that reads it back: the frame is the runtime's, so the only thing a
+// program can observe is that its own body ran.
+var $none = Core\Cli::progress(0, fn(Core\Cli\Progress $bar): string => {
+    $bar->advance({by: 7});
+    return "nothing to do";
+});
+echo $none, "\n";
+--EXPECT--
+files: 4
+nothing to do

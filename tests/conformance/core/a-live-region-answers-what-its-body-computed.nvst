@@ -1,0 +1,31 @@
+--TEST--
+Core\Cli::live runs its body and answers what that body answered, at the body's own type -- ADR 0086 sections 5 and 8
+--FILE--
+<?nvs
+// ADR 0086 § 5: `live<T>(callable $body): T`. The region is scenery around a
+// call that computes whatever it was going to compute, so a call site pays
+// nothing in what it can return for drawing while it works.
+var $named = Core\Cli::live(fn(Core\Cli\Live $live): string => {
+    $live->set([Core\Cli\Text::plain("scanning one")]);
+    // A region is *replaced* rather than appended to, which is what makes it a
+    // region and not a log -- so a second frame with two rows is two rows.
+    $live->set([Core\Cli\Text::plain("scanning two"), Core\Cli\Text::plain("2 of 2")]);
+    return "ada";
+});
+echo "answered: ", $named, "\n";
+
+// `T` is the body's own, so a second call at a different one needs no cast.
+var $counted = Core\Cli::live(fn(Core\Cli\Live $live): int => {
+    $live->set([Core\Cli\Text::plain("counting")]);
+    return 41 + 1;
+});
+echo "counted: ", $counted as string, "\n";
+
+// § 5's "renders nothing at all when the stream is not a terminal": every
+// frame above went to the controlling terminal or nowhere, and none of it
+// reached this program's own output.
+echo "clean\n";
+--EXPECT--
+answered: ada
+counted: 42
+clean

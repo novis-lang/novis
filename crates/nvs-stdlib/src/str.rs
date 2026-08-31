@@ -1775,8 +1775,11 @@ fn built_fallibly(
 /// and why nothing here releases one.
 ///
 /// The cursor exists as an iterator so [`nvs_core_str_join`]'s body is the join
-/// and not the walk; the `unsafe` the walk needs is stated once, here.
-struct Elements {
+/// and not the walk; the `unsafe` the walk needs is stated once, here. It is
+/// `pub(crate)` for the same reason — [`crate::cli`]'s live region walks a
+/// frame's rows with it rather than restating that obligation in a second
+/// place.
+pub(crate) struct Elements {
     /// The array being walked. Live for this iterator's whole life, which is
     /// [`Elements::of`]'s obligation on its caller.
     array: *const nvs_runtime::ArrayHeader,
@@ -1789,7 +1792,7 @@ impl Elements {
     /// as the iterator does. A helper's own `Tag::Array` argument satisfies
     /// both: it owns a reference for the length of the call, and no member
     /// reading one also writes it.
-    fn of(array: *const nvs_runtime::ArrayHeader) -> Self {
+    pub(crate) fn of(array: *const nvs_runtime::ArrayHeader) -> Self {
         Self { array, from: 0 }
     }
 }

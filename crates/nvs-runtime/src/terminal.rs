@@ -74,12 +74,28 @@
 //! waits on the channel: the same bound on every platform, in ten lines that
 //! need no `unsafe`.
 //!
+//! # A live region ends in a `Drop`, because every other ending can be skipped
+//!
+//! ADR 0086 § 5's in-place output is the module's third half: [`Region`] owns
+//! the cursor between the two ends of one `Core\Cli::live` call. § 8 makes
+//! putting the terminal back an obligation on **every** exit path — a throw, a
+//! fatal, an internal panic ([ADR 0020](../../../../docs/adr/0020-error-escalation-ladder.md)
+//! § 5), a signal — and the only construct in Rust that runs on all of them is
+//! a destructor. So restoration is [`Region`]'s `Drop` and lives nowhere else:
+//! there is no `close()` a caller can forget, no `finally` for a Novis program
+//! to write, and no second copy of the escape sequence that shows the cursor
+//! again. `nvs_stdlib::cli` holds the open regions on a stack and drops back to
+//! a depth, which is how the *scope* half is enforced above this line.
+//!
 //! Memory: one [`Profile`] — three `bool`s, two `u32`s and an enum — for the
 //! life of the process, charged to no request, plus one answer's bytes for the
 //! length of a [`prompt`] call, bounded by `MAX_ANSWER`. A prompt that reaches
 //! its deadline leaves that thread parked in its read until the terminal ends
 //! the line or the process exits — one stack, only on the path where nobody
-//! answered, which is the price of a bound that holds on every platform.
+//! answered, which is the price of a bound that holds on every platform. A
+//! [`Region`] holds two frames — the one on screen and the one waiting for the
+//! timer — each bounded by the terminal's own width times its height, for as
+//! long as the `live` call it belongs to.
 
 use std::io::IsTerminal;
 use std::sync::OnceLock;
@@ -704,6 +720,271 @@ fn show_echo(keyboard: &std::fs::File, saved: u32) {
 #[cfg(not(any(unix, windows)))]
 fn ask(_question: &str, _echo: Echo) -> std::io::Result<Option<String>> {
     Ok(None)
+}
+
+// -------------------------------------------------------------- the live region
+
+/// How long a [`Region`] holds a frame before it paints — ADR 0086 § 5's
+/// "coalesces frames on a timer rather than repainting per `set`".
+///
+/// A loop that calls `set` once per file processed calls it thousands of times
+/// a second, and a terminal repainted that often is both slower than the work
+/// and unreadable. Twenty frames a second is past what a reader resolves and
+/// well under what a terminal costs to repaint.
+pub const FRAME_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// Hide the cursor, and show it again. The pair § 8 says a region must leave
+/// balanced, written once so that no path can hold one without the other.
+const HIDE_CURSOR: &str = "\x1b[?25l";
+
+/// See [`HIDE_CURSOR`].
+const SHOW_CURSOR: &str = "\x1b[?25h";
+
+/// The terminal rows one `Core\Cli::live` call owns — ADR 0086 § 5's live
+/// region, and § 8's restoration obligation as a destructor.
+///
+/// Three of the section's five properties are here: the cursor is hidden while
+/// the region is open and shown again when it closes, a frame is coalesced onto
+/// [`FRAME_INTERVAL`] rather than painted per [`set`](Self::set), and a paint
+/// diffs against the frame already on screen so an unchanged row costs a line
+/// feed rather than a repaint. The fourth is that a region with no terminal
+/// **renders nothing at all**: [`open`](Self::open) answers an inert region
+/// where [`is_interactive`] is false, so a piped run produces clean output
+/// rather than a smear of escape sequences, and every method below is then a
+/// no-op rather than a write nobody reads.
+///
+/// The fifth — repainting on a resize — is not here yet, and the reason is § 3:
+/// the profile is resolved once for the process, so the width a region clamps
+/// to is fixed for its life and a window the reader resizes is not noticed. The
+/// signal that would say so is `Core\Signal`'s, which is not built.
+///
+/// **What is left on screen is the last frame.** A region that erased itself
+/// would take the program's own output with it, which is the opposite of what
+/// the closing `set` was for; what it restores is the *cursor*, and the row
+/// below the region is where the next `echo` lands.
+pub struct Region {
+    /// Where a frame is painted, or `None` for a region that renders nothing —
+    /// which is both the no-terminal case and every path after
+    /// [`close`](Self::close).
+    screen: Option<Box<dyn std::io::Write>>,
+    /// The frame on screen now, clamped, one entry per row.
+    painted: Vec<String>,
+    /// The frame [`set`](Self::set) was last handed and the timer has not yet
+    /// let through. Painted by [`close`](Self::close) whatever the timer says,
+    /// because a coalesced final frame that never landed is the one bug this
+    /// shape could have.
+    pending: Option<Vec<String>>,
+    /// When the next paint is allowed. Starts in the past, so the first `set`
+    /// lands at once — a program that draws once and then works for a minute
+    /// must still be on screen for it.
+    due: std::time::Instant,
+    /// The column count rows are clamped to. A wrapped row would make the line
+    /// arithmetic below wrong and leave the region unrecoverable, which is why
+    /// this is a clamp and not a courtesy.
+    width: usize,
+}
+
+impl Region {
+    /// A region on the controlling terminal, or an inert one where there is no
+    /// terminal to own.
+    ///
+    /// The device is opened **by name**, exactly as [`prompt`] opens it and for
+    /// the same reason: `myprog > log` still has a person in front of it, and
+    /// the escape sequences belong on their screen rather than in their file.
+    #[must_use]
+    pub fn open() -> Self {
+        Self::over(if is_interactive() { screen() } else { None })
+    }
+
+    /// A region painting on `screen` — what a test hands one, since the
+    /// alternative is a test that needs a terminal and a person.
+    #[must_use]
+    pub fn painting_on(screen: Box<dyn std::io::Write>) -> Self {
+        Self::over(Some(screen))
+    }
+
+    /// Both constructors' body: the cursor is hidden on the way in, and from
+    /// here on every path out runs [`close`](Self::close).
+    fn over(screen: Option<Box<dyn std::io::Write>>) -> Self {
+        let mut region = Self {
+            screen,
+            painted: Vec::new(),
+            pending: None,
+            due: std::time::Instant::now(),
+            width: profile().width() as usize,
+        };
+        region.write(HIDE_CURSOR);
+        region
+    }
+
+    /// Hands the region its next frame, painting it if the timer allows.
+    ///
+    /// Nothing is written for an inert region, and the frame is dropped rather
+    /// than held: § 5's "renders nothing at all" is a property of this method
+    /// and not only of what reaches the screen.
+    pub fn set(&mut self, lines: Vec<String>) {
+        if self.screen.is_none() {
+            return;
+        }
+        self.pending = Some(lines);
+        if std::time::Instant::now() >= self.due {
+            self.paint();
+        }
+    }
+
+    /// Paints whatever is pending, diffing against what is on screen.
+    ///
+    /// The cursor sits on the row below the region between paints, so the walk
+    /// is: up by however many rows are painted, then one line feed per row —
+    /// preceded by an erase and the row's own bytes only where the row changed.
+    /// A frame with fewer rows than the last erases the extras and comes back
+    /// up to sit below the new region.
+    fn paint(&mut self) {
+        let Some(frame) = self.pending.take() else {
+            return;
+        };
+        let frame: Vec<String> = frame.iter().map(|row| clamp(row, self.width)).collect();
+        let mut out = String::new();
+        if !self.painted.is_empty() {
+            out.push_str(&format!("\x1b[{}A", self.painted.len()));
+        }
+        for at in 0..frame.len().max(self.painted.len()) {
+            match frame.get(at) {
+                Some(row) if self.painted.get(at) != Some(row) => {
+                    out.push_str("\r\x1b[2K");
+                    out.push_str(row);
+                }
+                Some(_) => {}
+                None => out.push_str("\r\x1b[2K"),
+            }
+            out.push('\n');
+        }
+        let erased = self.painted.len().saturating_sub(frame.len());
+        if erased > 0 {
+            out.push_str(&format!("\x1b[{erased}A"));
+        }
+        self.write(&out);
+        self.painted = frame;
+    }
+
+    /// Puts the terminal back: the frame the timer was still holding lands, the
+    /// cursor comes back, and the region renders nothing after this.
+    ///
+    /// Idempotent, because [`Drop`] calls it and so may anything else.
+    fn close(&mut self) {
+        self.paint();
+        self.write(SHOW_CURSOR);
+        self.screen = None;
+    }
+
+    /// One write and one flush, or nothing at all for an inert region.
+    ///
+    /// Every failure is dropped: a region is decoration over a device the
+    /// program does not own, and a `Core\Cli::live` body that failed because
+    /// the terminal went away mid-frame would turn a cosmetic problem into the
+    /// program's outcome.
+    fn write(&mut self, bytes: &str) {
+        if let Some(screen) = self.screen.as_mut() {
+            let _ = screen.write_all(bytes.as_bytes());
+            let _ = screen.flush();
+        }
+    }
+}
+
+impl Drop for Region {
+    /// ADR 0086 § 8's restoration, and its only home — see the module docs.
+    fn drop(&mut self) {
+        self.close();
+    }
+}
+
+impl std::fmt::Debug for Region {
+    /// By hand because the screen is a `dyn Write` and has none. What it prints
+    /// is what a reader of a region would ask: whether it renders at all, and
+    /// how much it is holding.
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        out.debug_struct("Region")
+            .field("renders", &self.screen.is_some())
+            .field("painted", &self.painted.len())
+            .field("pending", &self.pending.is_some())
+            .finish()
+    }
+}
+
+/// `row`, cut to `width` visible characters.
+///
+/// Escape sequences are copied through and cost no width, because a styled
+/// `Cli\Text` carries the SGR its `Cli\Style` put there and those bytes occupy
+/// no column. A row that was cut while styled is closed with a reset, so the
+/// colour cannot leak onto the rest of the screen. The count is characters
+/// rather than display columns — `Core\Cli::displayWidth` is the member that
+/// will know the difference, and it is not built — so a row of wide glyphs is
+/// clamped short of the edge rather than past it, which is the side of the
+/// approximation that cannot wrap.
+///
+/// A row holds no newline of its own: ADR 0086 § 1's substitution has already
+/// replaced every control byte a `Cli\Text` was built from with a visible
+/// glyph, so one `Cli\Text` is one terminal row by construction.
+fn clamp(row: &str, width: usize) -> String {
+    let mut out = String::with_capacity(row.len());
+    let mut shown = 0usize;
+    let mut styled = false;
+    let mut chars = row.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' {
+            styled = true;
+            out.push(ch);
+            if let Some(next) = chars.next() {
+                out.push(next);
+                if next == '[' {
+                    for byte in chars.by_ref() {
+                        out.push(byte);
+                        if ('\x40'..='\x7e').contains(&byte) {
+                            break;
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+        if shown == width {
+            if styled {
+                out.push_str("\x1b[0m");
+            }
+            return out;
+        }
+        out.push(ch);
+        shown += 1;
+    }
+    out
+}
+
+/// The controlling terminal's screen, opened by name — `/dev/tty` on Unix.
+#[cfg(unix)]
+fn screen() -> Option<Box<dyn std::io::Write>> {
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/tty")
+        .ok()
+        .map(|tty| Box::new(tty) as Box<dyn std::io::Write>)
+}
+
+/// See the `unix` arm. `CONOUT$` is the console this process would draw on,
+/// whatever its standard streams were redirected to.
+#[cfg(windows)]
+fn screen() -> Option<Box<dyn std::io::Write>> {
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open("CONOUT$")
+        .ok()
+        .map(|console| Box::new(console) as Box<dyn std::io::Write>)
+}
+
+/// Neither Unix nor Windows: there is no terminal to draw on, so every region
+/// is inert — the same answer [`ask`]'s third arm gives.
+#[cfg(not(any(unix, windows)))]
+fn screen() -> Option<Box<dyn std::io::Write>> {
+    None
 }
 
 #[cfg(test)]

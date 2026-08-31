@@ -1,0 +1,19 @@
+--TEST--
+A Core\Cli\Progress handle refuses to advance once the bar it names has closed -- ADR 0086 sections 5 and 8
+--FILE--
+<?nvs
+// The same scoping `Core\Cli\Live` has, said in this member's own words: a bar
+// ends with the `Core\Cli::progress` call that drew it, so a handle answered
+// out of that call names a region that is no longer there.
+var $escaped = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): Core\Cli\Progress => {
+    $bar->advance({label: "while it is open"});
+    return $bar;
+});
+try {
+    $escaped->advance();
+    echo "advanced\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+Core\Cli\Progress::advance(): this handle's region has closed, or an inner one is open inside it — a progress bar is scoped to the `Core\Cli::progress` call that made it, and only the innermost open region paints

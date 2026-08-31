@@ -117,8 +117,9 @@
 //!    stream argument rather than a rule; `displayWidth` is a question about
 //!    how a renderer would lay a string out, belongs beside `Cli\Style`, and
 //!    additionally owes a UAX #11 table this tree does not carry yet.
-//! 2. **The rest of § 15 does not exist** — no `arguments`, no `multiSelect`,
-//!    and no scoped `live<T>` or `progress<T>`.
+//! 2. **The rest of § 15 does not exist** — no `arguments` and no
+//!    `multiSelect`, which is the one prompt whose answer is a set rather than
+//!    a value and so owes a second reading loop.
 //!    `docs/spec/01-core-library.md` § 15 lists them and `docs/plan/m8.md`
 //!    owns when. ADR 0086 § 4's last paragraph is owed with them: under
 //!    `nvs test` a prompt should drain a scripted answer queue rather than
@@ -149,14 +150,16 @@ pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 /// ADR 0086 § 3's profile, § 1's launderer and § 4's prompts, as registry
 /// rows. See [`crate::registry::CLASSES`].
 ///
-/// Nine members and still no `write`: the module docs' gap 1 owns that split,
+/// Eleven members and still no `write`: the module docs' gap 1 owns that split,
 /// and [`nvs_core_cli_escape`] owns why the launderer could land ahead of it.
 ///
 /// In the spec's own order (§ 15), which is why `escape` is first: `arguments`
 /// and `write` come before it and are the two rows still owed, and § 4's
 /// `multiSelect` is the third — it is the one prompt whose answer is a set
 /// rather than a value, so it owes a second reading loop rather than another
-/// row of the shape below.
+/// row of the shape below. `live` and `progress` are last because § 5 is the
+/// section after the prompts, and they are one region with two ways of writing
+/// a frame rather than two surfaces.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
     methods: &[
@@ -252,6 +255,27 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::SecretTaintedStr,
             symbol: "nvs_core_cli_secret",
             doc: Some(&SECRET_DOC),
+        },
+        CoreMethod {
+            name: "live",
+            names: &["body"],
+            // The one member here whose answer is the *body's* — ADR 0086 § 5
+            // writes `live<T>(callable $body): T`, so the region is scenery
+            // around a call that computes whatever it was going to compute.
+            params: &[CoreTy::CallableTo("T")],
+            defaults: &[],
+            return_ty: CoreTy::Var("T"),
+            symbol: "nvs_core_cli_live",
+            doc: Some(&LIVE_DOC),
+        },
+        CoreMethod {
+            name: "progress",
+            names: &["total", "body"],
+            params: &[CoreTy::Uint, CoreTy::CallableTo("T")],
+            defaults: &[],
+            return_ty: CoreTy::Var("T"),
+            symbol: "nvs_core_cli_progress",
+            doc: Some(&PROGRESS_DOC),
         },
     ],
     instance: &[],
@@ -504,6 +528,191 @@ const SECRET_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Cli::live`'s reference card — ADR 0117.
+const LIVE_DOC: MethodDoc = MethodDoc {
+    short: "Runs `$body` with a live region open on the terminal, and answers whatever `$body` \
+            answered. `$body` receives a `Core\\Cli\\Live` whose `set` replaces the region's rows \
+            in place — the scoped replacement for `moveUp`/`clearLine` cursor primitives, which \
+            break the moment output is piped and leave a shell unusable when a program dies \
+            holding them.",
+    params: &[ParamDoc {
+        name: "body",
+        desc: "The work to do while the region is open. Its own return value is this member's, so \
+               a region costs a call site nothing in what it can compute.",
+        shape: &[],
+    }],
+    ret: "Exactly what `$body` answered, at `$body`'s own type. The terminal is restored on every \
+          path out — a return, a throw, a fatal, an internal panic — and a run whose output is \
+          not a terminal renders nothing at all rather than a smear of escape sequences.",
+    errors: &[],
+};
+
+/// `Core\Cli\Live`'s fully-qualified name — see [`STREAM_NAME`].
+pub(crate) const LIVE_NAME: &str = r"Core\Cli\Live";
+
+/// [`LIVE`]'s one slot, by index: which region on this core's stack the handle
+/// names. See [`REGIONS`].
+const LIVE_DEPTH: usize = 0;
+
+/// ADR 0086 § 5's `Cli\Live` — the handle `$body` is handed, and the whole of
+/// what a program may do to a live region.
+///
+/// One member, because § 5's table writes one: a region is *replaced* rather
+/// than appended to, which is what makes it a region and not a log. There is no
+/// `close` and no `clear` — the scope is the `Core\Cli::live` call, and a
+/// member for ending one early would be the free-form cursor control that
+/// section refuses.
+pub(crate) const LIVE: CoreClass = CoreClass {
+    name: LIVE_NAME,
+    methods: &[],
+    instance: &[CoreMethod {
+        name: "set",
+        names: &["lines"],
+        // A `Cli\Text` per row rather than a `string`: the region writes to the
+        // terminal sink, and ADR 0088 § 5's carrier is what has already been
+        // through it. A `string` here would be a second, unsubstituted way onto
+        // the screen — which is ADR 0086 § 1's whole subject.
+        params: &[CoreTy::Array(&CoreTy::Instance(NAME))],
+        defaults: &[],
+        return_ty: CoreTy::Void,
+        symbol: "nvs_core_cli_live_set",
+        doc: Some(&SET_DOC),
+    }],
+    slots: &["depth"],
+    constants: &[],
+};
+
+/// `Core\Cli\Live::set`'s reference card — ADR 0117.
+const SET_DOC: MethodDoc = MethodDoc {
+    short: "Replaces the region's rows with `$lines`. The runtime owns the cursor: it coalesces \
+            frames on a timer rather than repainting per call, diffs against what is on screen, \
+            and writes nothing at all where the run has no terminal.",
+    params: &[ParamDoc {
+        name: "lines",
+        desc: "The region's rows, one `Core\\Cli\\Text` each, replacing whatever it held. A row \
+               wider than the terminal is clamped rather than wrapped, because a wrapped row is \
+               a region that can no longer be repainted.",
+        shape: &[],
+    }],
+    ret: "Nothing. What was drawn is on screen, or was coalesced into the next frame — a program \
+          cannot observe which, and the last frame handed in is always painted before the region \
+          closes.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The handle's own region is not the one holding the terminal — it has closed, or an \
+               inner `Core\\Cli::live` is open inside it. A `Cli\\Live` is scoped to the call that \
+               made it and escaping one is a program bug.",
+    }],
+};
+
+/// `Core\Cli::progress`'s reference card — ADR 0117.
+const PROGRESS_DOC: MethodDoc = MethodDoc {
+    short: "Runs `$body` with a progress bar open on the terminal, and answers whatever `$body` \
+            answered. A closed, named behaviour over `live`'s general one: the region is a bar \
+            the runtime draws, so counting toward `$total` is all a program says.",
+    params: &[
+        ParamDoc {
+            name: "total",
+            desc: "How many units of work the bar is scaled to. A total of `0` is work already \
+                   done, and draws a full bar rather than refusing.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "body",
+            desc: "The work to do while the bar is open. Its own return value is this member's.",
+            shape: &[],
+        },
+    ],
+    ret: "Exactly what `$body` answered, at `$body`'s own type — `live`'s contract, since this is \
+          that member with a frame the runtime writes.",
+    errors: &[],
+};
+
+/// `Core\Cli\Progress`'s fully-qualified name — see [`STREAM_NAME`].
+pub(crate) const PROGRESS_NAME: &str = r"Core\Cli\Progress";
+
+/// [`PROGRESS`]'s slots, by index: the region it draws in, what it counts
+/// toward, how far it has come, and the caption beside the bar.
+const PROGRESS_DEPTH: usize = 0;
+
+/// See [`PROGRESS_DEPTH`].
+const PROGRESS_TOTAL: usize = 1;
+
+/// See [`PROGRESS_DEPTH`].
+const PROGRESS_DONE: usize = 2;
+
+/// See [`PROGRESS_DEPTH`].
+const PROGRESS_LABEL: usize = 3;
+
+/// `advance`'s options — ADR 0086 § 5's `{by?: uint, label?: string}`.
+///
+/// `by` defaults to one because counting one thing at a time is what a loop
+/// does. `label` defaults to [`Const::Null`] rather than to the empty string,
+/// and the difference is observable: absent leaves the caption as it was, where
+/// an empty one would clear it on every step of a loop that only counts.
+const ADVANCE_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "by",
+        ty: CoreTy::Uint,
+        default: Const::Uint(1),
+    },
+    CoreOption {
+        name: "label",
+        // `Qual::Launder` for `Core\Cli\Text::plain`'s reason: the caption goes
+        // to the terminal sink, and § 1's substitution is what neutralizes it.
+        ty: CoreTy::Text(Qual::Launder),
+        default: Const::Null,
+    },
+];
+
+/// ADR 0086 § 5's `Cli\Progress` — the handle `progress`'s body is handed.
+///
+/// One member, as § 5's table writes it. `progress` over `live` is not an ADR
+/// 0063 R17 violation: R17 forbids a procedural twin of a class API and a class
+/// wrapper around a static, and a closed, named behaviour built on a general
+/// one is neither — which is why this class has a counter and no `set`.
+pub(crate) const PROGRESS: CoreClass = CoreClass {
+    name: PROGRESS_NAME,
+    methods: &[],
+    instance: &[CoreMethod {
+        name: "advance",
+        names: &[],
+        params: &[CoreTy::Options(ADVANCE_OPTIONS)],
+        defaults: &[],
+        return_ty: CoreTy::Void,
+        symbol: "nvs_core_cli_progress_advance",
+        doc: Some(&ADVANCE_DOC),
+    }],
+    slots: &["depth", "total", "done", "label"],
+    constants: &[],
+};
+
+/// `Core\Cli\Progress::advance`'s reference card — ADR 0117.
+const ADVANCE_DOC: MethodDoc = MethodDoc {
+    short: "Counts `by` units of work as done and redraws the bar, optionally changing the \
+            caption beside it.",
+    params: &[
+        ParamDoc {
+            name: "by",
+            desc: "How many units this step finished; omitted, one.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "label",
+            desc: "The caption beside the bar, substituted as every other terminal write is; \
+                   omitted, the caption is left as it was.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. A bar past its total reads as complete rather than as more than complete, so \
+          a loop that miscounts draws a finished bar instead of a wrong one.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The handle's own region is not the one holding the terminal — it has closed, or an \
+               inner region is open inside it, exactly as `Core\\Cli\\Live::set` refuses.",
+    }],
+};
+
 /// `Core\Cli\Stream`'s fully-qualified name, written once — [`STREAM`] declares
 /// it and the [`CoreTy::Enum`] naming it resolves against
 /// [`crate::registry::ENUMS`], so the two cannot drift apart.
@@ -640,6 +849,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cli_color_index" => (nvs_core_cli_color_index as *const ()).cast(),
         "nvs_core_cli_color_rgb" => (nvs_core_cli_color_rgb as *const ()).cast(),
         "nvs_core_cli_style_of" => (nvs_core_cli_style_of as *const ()).cast(),
+        "nvs_core_cli_live" => (nvs_core_cli_live as *const ()).cast(),
+        "nvs_core_cli_progress" => (nvs_core_cli_progress as *const ()).cast(),
+        "nvs_core_cli_progress_advance" => (nvs_core_cli_progress_advance as *const ()).cast(),
+        "nvs_core_cli_live_set" => (nvs_core_cli_live_set as *const ()).cast(),
         "nvs_core_cli_ask" => (nvs_core_cli_ask as *const ()).cast(),
         "nvs_core_cli_confirm" => (nvs_core_cli_confirm as *const ()).cast(),
         "nvs_core_cli_select" => (nvs_core_cli_select as *const ()).cast(),
@@ -1976,6 +2189,318 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+// ------------------------------------------------------------- the live region
+
+thread_local! {
+    /// The live regions open on this core, innermost last.
+    ///
+    /// A stack rather than one region, because ADR 0086 § 5's shape is a scoped
+    /// closure and closures nest — and a stack is what makes a
+    /// [`Core\Cli\Live`](LIVE) handle a plain `int`: the handle names a depth,
+    /// so a handle that outlived its region names a depth that is no longer
+    /// there instead of a pointer that is no longer valid.
+    ///
+    /// Per core and never shared: § 8 gives the terminal to the main task of a
+    /// CLI program, so a second core with a region open is a program that has
+    /// already broken that rule.
+    static REGIONS: std::cell::RefCell<Vec<nvs_runtime::terminal::Region>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// One open region's scope, as a value whose destruction closes it.
+///
+/// ADR 0086 § 8 makes restoration an obligation on **every** exit path, and
+/// [`nvs_core_cli_live`] cannot discharge that with a statement after the call:
+/// a throw from `$body` skips it, and an internal panic
+/// ([ADR 0020](../../../../docs/adr/0020-error-escalation-ladder.md) § 5) skips
+/// every statement there is. So the end of a region is a `Drop`, here and in
+/// [`nvs_runtime::terminal::Region`] both — this one ends the *scope*, that one
+/// puts the *terminal* back.
+///
+/// It truncates rather than pops: an inner region whose own guard was somehow
+/// skipped is closed by the outer one, so the stack can never keep a region
+/// nobody can reach.
+struct Open {
+    /// The stack depth this guard restores the stack to.
+    depth: usize,
+}
+
+impl Open {
+    /// Opens a region and answers the guard that closes it.
+    fn region() -> Self {
+        REGIONS.with(|regions| {
+            let mut regions = regions.borrow_mut();
+            regions.push(nvs_runtime::terminal::Region::open());
+            Self {
+                depth: regions.len() - 1,
+            }
+        })
+    }
+}
+
+impl Drop for Open {
+    fn drop(&mut self) {
+        REGIONS.with(|regions| regions.borrow_mut().truncate(self.depth));
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::live<T>(callable $body): T` — ADR 0086 § 5's scoped live
+    /// region, and § 8's restoration obligation.
+    ///
+    /// The whole member is: open a region, run `$body` with a handle to it, and
+    /// answer what `$body` answered. Nothing here inspects the outcome, because
+    /// there is nothing to do differently on a throw — [`Open`] has already
+    /// closed the region by the time the error leaves this frame, on that path
+    /// and on the two that never reach a statement at all.
+    ///
+    /// **A region never refuses for want of a terminal.** § 5's "renders
+    /// nothing at all when the stream is not a terminal" is the rule for this
+    /// member, not § 4's silence: `$body` is the program's own work, and a
+    /// piped run must do it. What throws is *claiming* the terminal, and an
+    /// inert region claims nothing.
+    fn nvs_core_cli_live(ctx, args: [1]) {
+        let open = Open::region();
+        let handle = crate::instance::build(
+            &LIVE,
+            [Value::int(i64::try_from(open.depth).unwrap_or(i64::MAX))],
+        );
+        let outcome = nvs_runtime::call_closure(ctx, args[0], &[handle]);
+        #[expect(
+            unsafe_code,
+            reason = "`call_closure` takes its own reference to each argument, \
+                      so the one this frame built is still ours to drop"
+        )]
+        unsafe {
+            handle.release();
+        }
+        // Explicit, though the guard would do it on the way out either way: the
+        // region closes *before* the body's answer is handed back, so a caller
+        // that echoes it writes below the region rather than into it.
+        drop(open);
+        outcome
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli\Live::set(array<Cli\Text> $lines): void` — ADR 0086 § 5's one
+    /// member on a region.
+    ///
+    /// # Errors
+    ///
+    /// A thrown `LogicError` for a handle that is not the region holding the
+    /// terminal. Two cases reach it and the sentence covers both, because they
+    /// are one rule: a handle that escaped its `Core\Cli::live` call, and an
+    /// outer handle painted while an inner region is open. Painting the second
+    /// would interleave two regions' rows on one cursor, which is the state
+    /// § 5 exists to make unreachable.
+    fn nvs_core_cli_live_set(_ctx, args: [2]) {
+        let receiver = crate::instance::receiver(args[0], &LIVE, "set")?;
+        let depth = crate::instance::slot(receiver, LIVE_DEPTH)
+            .as_int()
+            .and_then(|depth| usize::try_from(depth).ok());
+        // Unreachable from source: parameter 0 is `array<Core\Cli\Text>` in
+        // [`LIVE`] above, so anything else is `E0401` at the checker, and a
+        // slot this crate wrote is an `int` because nothing else writes it.
+        let (Some(depth), Some(lines)) = (depth, args[1].array_ptr()) else {
+            return Err(Fault::fatal(format!(
+                "{LIVE_NAME}::set expected a depth and an array, got tags {} and {}",
+                args[0].tag_byte(),
+                args[1].tag_byte()
+            )));
+        };
+
+        let mut frame = Vec::new();
+        for row in crate::str::Elements::of(lines) {
+            let carrier = crate::instance::receiver(row, &TEXT, "set")?;
+            let held = crate::instance::slot(carrier, nvs_runtime::CARRIER_TEXT_SLOT);
+            // Unreachable from source for the same reason: the element type is
+            // the carrier, whose one slot only [`built`] ever fills.
+            let text = held.as_text().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{LIVE_NAME}::set expected a `{NAME}` holding text, got tag {}",
+                    held.tag_byte()
+                ))
+            })?;
+            frame.push(text.to_owned());
+        }
+
+        if !innermost(depth) {
+            // A literal rather than a `format!` over the name constants,
+            // because `conformance_coverage`'s error-path gate finds a site by
+            // the stem *before* its first hole — a message that opens with one
+            // has no stem, and the case that catches it could not be matched
+            // back to it.
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                "Core\\Cli\\Live::set(): this handle's region has closed, or an inner one is \
+                 open inside it — a live region is scoped to the `Core\\Cli::live` call that \
+                 made it, and only the innermost open region paints",
+            ));
+        }
+        paint(depth, frame);
+        Ok(Value::null())
+    }
+}
+
+/// Whether the region at `depth` is the one holding the terminal.
+///
+/// Two handles ask this and both refuse in their own words: only one region
+/// owns the cursor, so painting an outer one — or one whose `Core\Cli::live`
+/// call has returned — would interleave two regions' rows on one cursor.
+fn innermost(depth: usize) -> bool {
+    REGIONS.with(|regions| depth + 1 == regions.borrow().len())
+}
+
+/// Hands `frame` to the region at `depth`, which [`innermost`] has just said is
+/// there.
+fn paint(depth: usize, frame: Vec<String>) {
+    REGIONS.with(|regions| {
+        if let Some(region) = regions.borrow_mut().get_mut(depth) {
+            region.set(frame);
+        }
+    });
+}
+
+/// How many cells the bar itself occupies. The percentage and the caption
+/// follow it, and the region clamps the row to the terminal's width — so this
+/// is the one part of the row whose size is a choice rather than an answer.
+const BAR_CELLS: u64 = 24;
+
+/// One progress bar, as the row a region is handed: `[####--------]  33% label`.
+///
+/// A total of `0` reads as complete, and so does a `done` past its total: a
+/// loop that miscounted draws a finished bar rather than a bar past its end,
+/// which is the failure that would otherwise wrap the row.
+fn bar(done: u64, total: u64, label: &str) -> String {
+    let percent = if total == 0 {
+        100
+    } else {
+        // Through `u128` so that a total near `u64::MAX` divides exactly rather
+        // than saturating into a percentage of its own.
+        u64::try_from(u128::from(done.min(total)) * 100 / u128::from(total)).unwrap_or(100)
+    };
+    let filled = usize::try_from(percent * BAR_CELLS / 100).unwrap_or(0);
+    let cells = usize::try_from(BAR_CELLS).unwrap_or(0);
+    let mut row = String::with_capacity(cells + label.len() + 8);
+    row.push('[');
+    for at in 0..cells {
+        row.push(if at < filled { '#' } else { '-' });
+    }
+    row.push_str(&format!("] {percent:>3}%"));
+    if !label.is_empty() {
+        row.push(' ');
+        row.push_str(label);
+    }
+    row
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::progress<T>(uint $total, callable $body): T` — ADR 0086 § 5's
+    /// second row, over the region [`nvs_core_cli_live`] opens.
+    ///
+    /// The whole difference from `live` is who writes the frame: here the
+    /// runtime does, from a counter, so a program says how far it has come and
+    /// never how the bar is drawn. That is why the handle has no `set` — a
+    /// progress bar a program could overwrite would be `live` with a worse
+    /// name.
+    fn nvs_core_cli_progress(ctx, args: [2]) {
+        // Unreachable from source: parameter 0 is `uint` in `CLASS` above, so
+        // anything else is `E0401: expected uint, found …` at the checker.
+        let total = args[0].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Cli::progress expected a `uint` total, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+
+        let open = Open::region();
+        let handle = crate::instance::build(
+            &PROGRESS,
+            [
+                Value::int(i64::try_from(open.depth).unwrap_or(i64::MAX)),
+                Value::uint(total),
+                Value::uint(0),
+                Value::str(NvsStr::new(b"")),
+            ],
+        );
+        // The empty bar is drawn before the body runs, so a program that takes
+        // a second to reach its first `advance` is on screen for it.
+        paint(open.depth, vec![bar(0, total, "")]);
+        let outcome = nvs_runtime::call_closure(ctx, args[1], &[handle]);
+        #[expect(
+            unsafe_code,
+            reason = "`call_closure` takes its own reference to each argument, \
+                      so the one this frame built is still ours to drop"
+        )]
+        unsafe {
+            handle.release();
+        }
+        drop(open);
+        outcome
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli\Progress::advance({by?: uint, label?: string}): void` — ADR
+    /// 0086 § 5's one member on a bar.
+    ///
+    /// # Errors
+    ///
+    /// A thrown `LogicError` for a handle that is not the region holding the
+    /// terminal, which is [`nvs_core_cli_live_set`]'s refusal for its reason —
+    /// the two are one rule and each says it in its own member's words.
+    fn nvs_core_cli_progress_advance(_ctx, args: [3]) {
+        let receiver = crate::instance::receiver(args[0], &PROGRESS, "advance")?;
+        // Unreachable from source: every slot here is one this module wrote
+        // when it built the handle, and `by` is `uint` in `ADVANCE_OPTIONS`.
+        let depth = crate::instance::slot(receiver, PROGRESS_DEPTH)
+            .as_int()
+            .and_then(|depth| usize::try_from(depth).ok())
+            .ok_or_else(|| {
+                Fault::fatal("Core\\Cli\\Progress::advance found no region depth on its handle")
+            })?;
+        let total = crate::instance::slot(receiver, PROGRESS_TOTAL)
+            .as_uint()
+            .unwrap_or(0);
+        let done = crate::instance::slot(receiver, PROGRESS_DONE)
+            .as_uint()
+            .unwrap_or(0)
+            .saturating_add(args[1].as_uint().unwrap_or(1));
+        crate::instance::set_slot(receiver, PROGRESS_DONE, Value::uint(done));
+
+        // An absent `label` leaves the caption as it was, which is what makes
+        // `advance()` inside a counting loop cheap to write.
+        let label = match args[2].as_text() {
+            Some(given) => {
+                let written = nvs_render::text::substitute(given).into_owned();
+                crate::instance::set_slot(
+                    receiver,
+                    PROGRESS_LABEL,
+                    Value::str(NvsStr::new(written.as_bytes())),
+                );
+                written
+            }
+            None => crate::instance::slot(receiver, PROGRESS_LABEL)
+                .as_text()
+                .unwrap_or_default()
+                .to_owned(),
+        };
+
+        if !innermost(depth) {
+            // A literal for [`nvs_core_cli_live_set`]'s reason.
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                "Core\\Cli\\Progress::advance(): this handle's region has closed, or an inner \
+                 one is open inside it — a progress bar is scoped to the `Core\\Cli::progress` \
+                 call that made it, and only the innermost open region paints",
+            ));
+        }
+        paint(depth, vec![bar(done, total, &label)]);
+        Ok(Value::null())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1988,6 +2513,94 @@ mod tests {
     fn the_carrier_slot_matches_the_registered_layout() {
         assert_eq!(TEXT.slot("text"), nvs_runtime::CARRIER_TEXT_SLOT);
         assert!(nvs_runtime::is_carrier(NAME));
+    }
+
+    /// ADR 0086 §§ 5 and 8 with ADR 0020 § 5: a live region has an end, and the
+    /// terminal is put back at that end on **every** path — including the one
+    /// no user code runs on.
+    ///
+    /// An internal panic is the hardest of the four and the only one testable
+    /// from Rust: a throw and a fatal both leave through `nvs_core_cli_live`'s
+    /// own `Err`, while a panic leaves through nothing at all. So the region is
+    /// held across a `catch_unwind` and its screen read back afterwards — which
+    /// is what [`Region::painting_on`](nvs_runtime::terminal::Region::painting_on)
+    /// exists for, since the alternative is a test that needs a terminal and a
+    /// person in front of it. If restoration were a statement after the call
+    /// rather than a destructor, the cursor would still be hidden here.
+    ///
+    /// The second half is the scope, over this module's own stack: [`Open`] is
+    /// what makes a region's end the `Core\Cli::live` call's end, so a panic
+    /// through one must leave nothing open. A region left on that stack is a
+    /// depth a stale handle would still resolve against, which is the failure
+    /// `Core\Cli\Live::set`'s refusal is written for.
+    #[test]
+    fn a_live_region_is_scoped_and_restores_the_terminal_on_a_panic() {
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        /// A screen a test can read back.
+        struct Screen(Arc<Mutex<Vec<u8>>>);
+
+        impl Write for Screen {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0
+                    .lock()
+                    .expect("this screen is never held across a panic")
+                    .extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let screen = Arc::new(Mutex::new(Vec::new()));
+        let painted = Arc::clone(&screen);
+        let told = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let fell = std::panic::catch_unwind(move || {
+            let mut region = nvs_runtime::terminal::Region::painting_on(Box::new(Screen(painted)));
+            region.set(vec!["scanning one".to_owned()]);
+            panic!("the body of a `Core\\Cli::live` broke an invariant");
+        });
+        std::panic::set_hook(told);
+        assert!(fell.is_err(), "the region does not swallow the panic");
+
+        let written = String::from_utf8(screen.lock().expect("the screen").clone())
+            .expect("a region writes what it was handed, and that was text");
+        assert!(
+            written.starts_with("\u{1B}[?25l"),
+            "the cursor is hidden while a region is open, and this run wrote {written:?}"
+        );
+        assert!(
+            written.ends_with("\u{1B}[?25h"),
+            "and is shown again on the way out — panic included — but this run wrote {written:?}"
+        );
+        assert!(
+            written.contains("scanning one"),
+            "the frame the region was given before the panic still landed"
+        );
+
+        // The scope half. Nothing else in this crate touches the stack, so an
+        // empty one before and after is the whole claim.
+        assert!(REGIONS.with(|regions| regions.borrow().is_empty()));
+        let told = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let fell = std::panic::catch_unwind(|| {
+            let open = Open::region();
+            assert_eq!(
+                REGIONS.with(|regions| regions.borrow().len()),
+                open.depth + 1
+            );
+            panic!("and again, with a region open on the stack");
+        });
+        std::panic::set_hook(told);
+        assert!(fell.is_err());
+        assert!(
+            REGIONS.with(|regions| regions.borrow().is_empty()),
+            "a panic through `Core\\Cli::live` leaves no region open"
+        );
     }
 
     /// ADR 0086 § 4: a prompt reads the **controlling terminal**, so

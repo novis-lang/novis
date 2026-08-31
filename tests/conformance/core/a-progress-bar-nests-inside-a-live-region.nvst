@@ -1,0 +1,22 @@
+--TEST--
+A progress bar nests inside a live region and hands the terminal back when it closes -- ADR 0086 sections 5 and 8
+--FILE--
+<?nvs
+// One region owns the cursor at a time, and `live` and `progress` are the same
+// region with two ways of writing a frame -- so they nest in each other the
+// way `Core\Out::capture` nests in itself.
+var $told = Core\Cli::live(fn(Core\Cli\Live $region): string => {
+    $region->set([Core\Cli\Text::plain("unpacking")]);
+    var $count = Core\Cli::progress(2, fn(Core\Cli\Progress $bar): string => {
+        $bar->advance({label: "one"});
+        $bar->advance({label: "two"});
+        return "2 files";
+    });
+    // The bar has closed, so the region around it is innermost again and
+    // paints rather than refusing.
+    $region->set([Core\Cli\Text::plain("done")]);
+    return "unpacked " . $count;
+});
+echo $told, "\n";
+--EXPECT--
+unpacked 2 files
