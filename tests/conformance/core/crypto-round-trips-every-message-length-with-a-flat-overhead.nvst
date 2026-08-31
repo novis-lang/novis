@@ -1,0 +1,55 @@
+--TEST--
+Core\Crypto::seal and ::open agree over a sweep of message lengths, each sealed message costing the same flat 40 octets, and every draw of Core\Crypto::generateKey sealing a message the previous key cannot open — ADR 0051 § 3
+--FILE--
+<?nvs
+// Invariance over a sweep, counted rather than read off a line. A stream
+// cipher that mishandled its last partial block, or a layout that padded to a
+// block boundary, would seal and open one of these plausibly and fail on the
+// next; asking each length separately would print six lines that each look
+// right on their own.
+secret bytes $key = Core\Crypto::generateKey();
+
+// Nothing, one octet, one short of a ChaCha block, exactly a block, one past
+// it, and a message several blocks long.
+array<bytes> $messages = [
+    Core\Bytes::fill(0, 65),
+    Core\Bytes::fill(1, 65),
+    Core\Bytes::fill(63, 65),
+    Core\Bytes::fill(64, 65),
+    Core\Bytes::fill(65, 65),
+    Core\Bytes::fill(1000, 65),
+];
+
+int $agreed = 0;
+int $flat = 0;
+foreach ($messages as bytes $message) {
+    bytes $sealed = Core\Crypto::seal($message, $key);
+    if (Core\Crypto::open($sealed, $key) == $message) {
+        $agreed += 1;
+    }
+    if (Core\Bytes::length($sealed) == Core\Bytes::length($message) + 40) {
+        $flat += 1;
+    }
+}
+echo "agreed ", $agreed, " of ", Core\Arr::count($messages), "\n";
+echo "flat ", $flat, " of ", Core\Arr::count($messages), "\n";
+
+// The other invariant a sweep can see and a single round trip cannot: each
+// draw is a different key, so a message sealed under one of them is a forgery
+// under the next. A `generateKey` that had become a constant passes every
+// assertion above.
+int $refused = 0;
+foreach (Core\Arr::range(1, 5) as int $draw) {
+    secret bytes $fresh = Core\Crypto::generateKey();
+    bytes $under = Core\Crypto::seal("attack at dawn" as bytes, $fresh);
+    try {
+        bytes $opened = Core\Crypto::open($under, $key);
+    } catch (RuntimeError $notThisKey) {
+        $refused += 1;
+    }
+}
+echo "distinct ", $refused, " of 5", "\n";
+--EXPECT--
+agreed 6 of 6
+flat 6 of 6
+distinct 5 of 5

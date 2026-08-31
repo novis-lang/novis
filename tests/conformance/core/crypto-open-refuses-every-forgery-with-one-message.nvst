@@ -1,0 +1,86 @@
+--TEST--
+Core\Crypto::open refuses an altered message, a truncated one, a buffer too short to be one and the wrong key with a single RuntimeError, while a key of the wrong length is a LogicError instead — ADR 0051 § 3, ADR 0063
+--FILE--
+<?nvs
+// The bound asserted on both sides. `openssl_decrypt` answers `false` on a
+// forgery when it notices one at all, and an unauthenticated mode hands back
+// whatever is left of the plaintext; an AEAD returns nothing. The four
+// refusals below are four different ways of not being authentic and they all
+// print the same sentence, which is the point rather than an economy: telling
+// them apart tells a forger which half of the attempt landed.
+secret bytes $key = Core\Crypto::generateKey();
+secret bytes $other = Core\Crypto::generateKey();
+bytes $sealed = Core\Crypto::seal("attack at dawn" as bytes, $key);
+
+// One octet short — the cheapest tamper there is, and `examples/crypto.nvs`'s
+// own last line.
+bytes $truncated = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
+try {
+    bytes $forged = Core\Crypto::open($truncated, $key);
+    echo "tamper accepted", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The nonce on its own: well-formed as far as the layout goes, and carrying no
+// tag at all.
+try {
+    bytes $headless = Core\Crypto::open(Core\Bytes::slice($sealed, 0, 24), $key);
+    echo "a bare nonce accepted", "\n";
+} catch (RuntimeError $noTag) {
+    echo $noTag->message, "\n";
+}
+
+// Too short to hold a nonce and a tag between them, so there is nothing to
+// split — and it is refused with the same sentence rather than a more helpful
+// one about its length.
+try {
+    bytes $stub = Core\Crypto::open("nope" as bytes, $key);
+    echo "a four-octet message accepted", "\n";
+} catch (RuntimeError $tooShort) {
+    echo $tooShort->message, "\n";
+}
+
+// An intact message under a key that did not seal it.
+try {
+    bytes $wrong = Core\Crypto::open($sealed, $other);
+    echo "opened under the wrong key", "\n";
+} catch (RuntimeError $notThisKey) {
+    echo $notThisKey->message, "\n";
+}
+
+// The one failure that is *not* about the message. A `bytes` of the wrong
+// width was never a key, so it is a program bug rather than a forgery, and it
+// gets a class and a sentence of its own — with the length named and the
+// value not.
+secret bytes $stunted = Core\Random::bytes(8);
+try {
+    bytes $unopenable = Core\Crypto::open($sealed, $stunted);
+    echo "opened under an 8-octet key", "\n";
+} catch (LogicError $notAKey) {
+    echo $notAKey->message, "\n";
+}
+
+try {
+    bytes $unsealable = Core\Crypto::seal("x" as bytes, $stunted);
+    echo "sealed under an 8-octet key", "\n";
+} catch (LogicError $stillNotAKey) {
+    echo $stillNotAKey->message, "\n";
+}
+
+// The other side of the bound: the message this class sealed opens under the
+// key that sealed it, so the six refusals above are about their arguments and
+// not about `open` having become a member that refuses everything.
+if (Core\Crypto::open($sealed, $key) == "attack at dawn" as bytes) {
+    echo "and the message it sealed opens", "\n";
+} else {
+    echo "refused its own message", "\n";
+}
+--EXPECT--
+Core\Crypto::open(): $sealed is not an authentic message under $key — it has been altered, it is too short to be one, or the key is not the one it was sealed under
+Core\Crypto::open(): $sealed is not an authentic message under $key — it has been altered, it is too short to be one, or the key is not the one it was sealed under
+Core\Crypto::open(): $sealed is not an authentic message under $key — it has been altered, it is too short to be one, or the key is not the one it was sealed under
+Core\Crypto::open(): $sealed is not an authentic message under $key — it has been altered, it is too short to be one, or the key is not the one it was sealed under
+Core\Crypto::open(): $key is 8 octets, and a key is 32 — Core\Crypto::generateKey() answers one of the right length. The value is not quoted here, because a key does not belong in a log.
+Core\Crypto::seal(): $key is 8 octets, and a key is 32 — Core\Crypto::generateKey() answers one of the right length. The value is not quoted here, because a key does not belong in a log.
+and the message it sealed opens

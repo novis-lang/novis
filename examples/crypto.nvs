@@ -49,7 +49,7 @@ if (Core\Password::verify($wrong, $stored)) {
 
 // AEAD, both directions.
 secret bytes $key = Core\Crypto::generateKey();
-bytes $message = Core\Encoding::toBytes("attack at dawn");
+bytes $message = "attack at dawn" as bytes;
 bytes $sealed = Core\Crypto::seal($message, $key);
 echo "sealed", "\n";
 
@@ -61,7 +61,7 @@ if (Core\Crypto::open($sealed, $key) == $message) {
 
 // One byte short is a forgery, and an authenticated mode says so rather
 // than returning what is left.
-bytes $tampered = Core\Bytes::slice($sealed, 0, Core\Bytes::length($sealed) - 1);
+bytes $tampered = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
 try {
     bytes $forged = Core\Crypto::open($tampered, $key);
     echo "tamper accepted", "\n";
