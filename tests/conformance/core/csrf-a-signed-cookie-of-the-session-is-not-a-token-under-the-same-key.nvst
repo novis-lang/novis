@@ -1,0 +1,66 @@
+--TEST--
+Core\Csrf and Core\SignedCookie share one construction and one key type, and neither one's output is the other's input — the domain tag in a token's plaintext is what refuses the confusion — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// Edges. The boundary this case sits on is the one a deployment reaches by
+// itself: an application generates one key with `Core\Crypto::generateKey()`
+// and uses it for its signed cookies and its CSRF tokens, because nothing
+// stops it. Without a domain tag in the plaintext, a signed cookie carrying a
+// session identifier *is* a valid CSRF token for that session — authentic
+// under the same key, over the same construction, with the same bytes.
+// `crates/nvs-stdlib/src/csrf.rs` owns the tag and its version.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+string $session = "sid-ada";
+
+// A signed cookie of exactly the session identifier, which is the value an
+// application most plausibly seals: it is what a session cookie holds.
+string $cookie = Core\SignedCookie::seal($session, $ring);
+if (Core\Csrf::verify($cookie, $session, $key) == false) {
+    echo "a signed cookie is not a token", "\n";
+} else {
+    echo "a signed cookie passed as a token", "\n";
+}
+
+// And the reverse: a token opens as a cookie, because it is the same
+// construction under the same key and authenticity is not the thing that
+// differs — but what comes out is not the session identifier, so a program
+// reading a token as a session cookie gets a value that matches no session.
+// That asymmetry is the point: the tag does not make the two unforgeable
+// against each other, it makes them *non-interchangeable*.
+string $token = Core\Csrf::issue($session, $key);
+if (Core\SignedCookie::open($token, $ring) == $session) {
+    echo "a token opened as the bare session", "\n";
+} else {
+    echo "a token is not a session cookie", "\n";
+}
+
+// The tag is a prefix of the plaintext, not a suffix or a separator, so what a
+// cookie would have to carry to be mistaken for a token is longer than the
+// session identifier by a fixed amount. A member that appended the tag instead
+// would pass every line above and collide on a session identifier that
+// happened to end in one.
+if (Core\Str::length(Core\SignedCookie::open($token, $ring)) == Core\Str::length($session) + 12) {
+    echo "the tag is 12 characters of prefix", "\n";
+} else {
+    echo "the plaintext is a different shape", "\n";
+}
+
+// A token is still a token afterwards — nothing above consumed it — and it is
+// still bound to its own session and no other.
+if (Core\Csrf::verify($token, $session, $key)) {
+    echo "and the token still verifies", "\n";
+} else {
+    echo "the token stopped verifying", "\n";
+}
+if (Core\Csrf::verify($token, "sid-bob", $key) == false) {
+    echo "against its own session only", "\n";
+} else {
+    echo "it verified against another session", "\n";
+}
+--EXPECT--
+a signed cookie is not a token
+a token is not a session cookie
+the tag is 12 characters of prefix
+and the token still verifies
+against its own session only

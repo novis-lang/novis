@@ -1,0 +1,85 @@
+--TEST--
+Core\Csrf::issue answers a token bound to one session and one key, Core\Csrf::verify is the only comparison the class exposes, and every way of not being this session's token is the same `false` — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// Agreement. `Core\Csrf` has exactly two members and the interesting property
+// is what the *pair* refuses: every question about a token that is not this
+// session's gets one answer, and no member hands back a value to compare with
+// `==`. `crates/nvs-stdlib/src/csrf.rs` owns why the binding lives inside the
+// token rather than beside the session.
+secret bytes $key = Core\Crypto::generateKey();
+secret bytes $other = Core\Crypto::generateKey();
+
+string $token = Core\Csrf::issue("sid-ada", $key);
+
+// The token is bound to the session that issued it, and to nothing else: it
+// verifies against `sid-ada` and against no neighbour of it. A member that
+// bound to the key alone would pass the first line and fail the sweep.
+if (Core\Csrf::verify($token, "sid-ada", $key)) {
+    echo "its own session", "\n";
+} else {
+    echo "refused its own session", "\n";
+}
+
+array<string> $strangers = ["sid-adam", "sid-ad", "sid-bob", "", "SID-ADA"];
+int $refused = 0;
+foreach ($strangers as string $session) {
+    if (Core\Csrf::verify($token, $session, $key) == false) {
+        $refused = $refused + 1;
+    }
+}
+echo "bound: ", $refused, " of ", Core\Arr::count($strangers), " refused", "\n";
+
+// The ways of not being a token agree on one `false` — text that is not
+// base64 at all, base64 far too short to hold a nonce and a tag, nothing, a
+// token with characters appended, and a token under a rotated key. A member
+// that threw for the unparseable ones, or that answered a distinguishable
+// value for the wrong key, would tell a forger which half of the guess landed.
+// The flipped-bit sweep belongs to the construction underneath and is already
+// `crates/nvs-stdlib/src/signed_cookie.rs`'s, over the same `open_under`.
+array<string> $forgeries = ["not base64!", "AAAA", "", $token . "AA"];
+int $agreed = 0;
+int $asked = 0;
+foreach ($forgeries as string $forgery) {
+    $asked = $asked + 1;
+    if (Core\Csrf::verify($forgery, "sid-ada", $key) == false) {
+        $agreed = $agreed + 1;
+    }
+}
+$asked = $asked + 1;
+if (Core\Csrf::verify($token, "sid-ada", $other) == false) {
+    $agreed = $agreed + 1;
+}
+echo "one refusal: ", $agreed, " of ", $asked, "\n";
+
+// Two tokens for one session are two different strings, because each seals
+// under its own nonce. This is what makes the missing accessor load-bearing:
+// a caller who reached for `==` between tokens would compare two valid ones
+// and get `false`, so there is no way to fall into writing the comparison by
+// hand rather than calling `verify`.
+string $again = Core\Csrf::issue("sid-ada", $key);
+if ($token == $again) {
+    echo "the same token twice", "\n";
+} else {
+    echo "a fresh token", "\n";
+}
+if (Core\Csrf::verify($again, "sid-ada", $key)) {
+    echo "and both verify", "\n";
+} else {
+    echo "and the second does not verify", "\n";
+}
+
+// The answer goes into a hidden field, a header and a query string unescaped,
+// so its alphabet is pinned the way the cookie's is.
+if (Core\Regex::matches($token, "^[A-Za-z0-9_-]+$")) {
+    echo "form-safe throughout", "\n";
+} else {
+    echo "outside the alphabet: ", $token, "\n";
+}
+--EXPECT--
+its own session
+bound: 5 of 5 refused
+one refusal: 5 of 5
+a fresh token
+and both verify
+form-safe throughout

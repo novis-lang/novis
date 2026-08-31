@@ -1,0 +1,59 @@
+--TEST--
+Core\Csrf::issue binds a token to any session identifier a program can hold — empty, non-ASCII, long — Core\Csrf::verify accepts each against its own and none against another, and the token's length is a stated function of the session's — ADR 0060 § 1
+--FILE--
+<?nvs
+// Invariance over a sweep, asserted by counting. A binding that worked for
+// `sid-ada` and quietly failed on a non-ASCII identifier would pass any case
+// written one line at a time: the count is what makes every row load-bearing.
+// `crates/nvs-stdlib/src/csrf.rs` owns what is sealed and in what order.
+secret bytes $key = Core\Crypto::generateKey();
+
+array<string> $sessions = [
+    "",
+    "sid-ada",
+    "€ ünïcødé",
+    "user:42|form:transfer",
+    "0",
+    "a very long session identifier of the kind a signed cookie itself carries, so that nothing here depends on it being short",
+];
+
+// Every session gets a token, and every token verifies against the session it
+// was issued for. A member that dropped the session on the floor would still
+// pass this half.
+int $own = 0;
+foreach ($sessions as string $session) {
+    if (Core\Csrf::verify(Core\Csrf::issue($session, $key), $session, $key)) {
+        $own = $own + 1;
+    }
+}
+echo "own ", $own, " of ", Core\Arr::count($sessions), "\n";
+
+// And no token verifies against any *other* session in the set — which is the
+// half a member that ignored the session would fail, and the half that makes
+// the first one mean something. Every ordered pair is asked, so a binding that
+// only distinguished lengths would fail on `""` against `"0"`.
+int $crossed = 0;
+foreach ($sessions as string $issued) {
+    string $token = Core\Csrf::issue($issued, $key);
+    foreach ($sessions as string $against) {
+        if ($issued != $against) {
+            if (Core\Csrf::verify($token, $against, $key)) {
+                $crossed = $crossed + 1;
+            }
+        }
+    }
+}
+echo "crossed ", $crossed, "\n";
+
+// The length is stated rather than discovered, because a token goes into a
+// hidden field and a URL, and a URL has a limit. Twelve octets of domain tag
+// plus the session's own plus forty of AEAD overhead, then unpadded base64's
+// four-thirds. An empty session is 52 octets, which is 70 characters.
+echo Core\Str::length(Core\Csrf::issue("", $key)), "\n";
+// Eight characters is 60 octets, which is exactly twenty base64 groups.
+echo Core\Str::length(Core\Csrf::issue("sid-adam", $key)), "\n";
+--EXPECT--
+own 6 of 6
+crossed 0
+70
+80
