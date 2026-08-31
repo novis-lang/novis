@@ -4960,3 +4960,9 @@ every session. Nothing below was reworded on the way.
   clauses on one name went in as a checked example rather than a sentence, and a chapter edit means
   `python tools/reference.py` to regenerate `docs/novis.md` in the same slice — the generator's
   `--check` mode is what would otherwise fail the verify.
+- **A class reference has no readable name: `$cls::class` is `E0702`.** A `class<T>` value is the run-time
+  descriptor and `::class` needs a class named at compile time, so the obvious way to print which
+  implementor a reference holds does not exist — `nvs-cli` reports *"this names no class the compiler can
+  resolve"* and points at `Core\Reflect` (ADR 0011). A `.nvst` case that wants to show which class was
+  selected calls an overridden member and reads the answer, which is what the three class-reference cases
+  under `tests/conformance/class/` do.
