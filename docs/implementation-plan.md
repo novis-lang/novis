@@ -52,17 +52,17 @@
 > algorithm argument, and `examples/crypto.nvs` runs green. **Stage 4 is closed**: ADR 0060 § 1's
 > roster is all four entries — `Core\SignedCookie` seals with `$keys[0]` and opens against the ring,
 > `Core\Csrf` binds a token under a domain tag, `Core\Totp` answers the step a code belonged to, and
-> `Core\Jwt` answers `array<tainted string>` off `CoreTy::TaintedStr`. **Stage 5 is open at its
-> door**: `Core\Http::allowUrl` answers a pinned `Core\Http\Target`, and ADR 0058 § 3 is whole — the
-> denied table in `nvs_config` behind `nvs_runtime::capability::pin_host`, less what `net.internal`
-> excepts. `Core\Http\Client`'s five rows are compile-time whole (§ 7's keyless `post` retry is
-> `E0796`), and `crate::http::transport` fills `Core\Http\Response`'s two slots over
-> `nvs_host::net`: hops re-pinned, retries jittered under one deadline, `https` refused.
-> **`Core\Env` is a class**: `get` and `all` over `nvs_runtime::environment`, the name a
-> `Qual::Sink` and every value `tainted`, and `.nvst`'s `--ENV--` is honoured now that a case can
-> read one back. The harness serves 8099 (`tools/origin.py`), so `examples/http.nvs` prints all five
-> lines; stage 5 owes four tests. Conformance 1162, differential 210 of 210, migration 37% over its
-> 36% floor.
+> `Core\Jwt` answers `array<tainted string>` off `CoreTy::TaintedStr`. **Stage 5 is open**:
+> `Core\Http::allowUrl` answers a pinned `Core\Http\Target`, and two cases pin ADR 0058 §§ 3 and 5 —
+> the denied table is the capability's and refuses before a socket. `Core\Http\Client`'s five rows
+> are compile-time whole (§ 7's keyless `post` retry is `E0796`), and `crate::http::transport` fills
+> `Core\Http\Response`'s two slots over `nvs_host::net`: hops re-pinned, retries jittered under one
+> deadline, `https` refused. **`Core\Env` is a class**: `get` and `all` over
+> `nvs_runtime::environment`, the name a `Qual::Sink` and every value `tainted`, and `.nvst`'s
+> `--ENV--` is honoured now that a case can read one back. The harness serves 8099
+> (`tools/origin.py`), so `examples/http.nvs` prints all five lines; stage 5 owes two tests, and
+> `traceparent` has no trace id to carry. Conformance 1162, differential 210 of 210, migration 37%
+> over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

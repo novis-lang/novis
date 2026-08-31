@@ -1578,6 +1578,15 @@ is why" — is this file.
   neither. Widening it is the point — the set is where a promise invisible from every other row
   gets looked at — but the edit is in `crates/nvs-types`, which a `-p nvs-stdlib` loop never
   compiles.
+- **`tools/origin.py` exits the moment its stdin closes, so a backgrounded launch is already gone
+  before you run the example — and the failure reads exactly like never having started one.** The
+  shutdown protocol *is* stdin EOF (`origin.py`'s own module doc says so), which is what keeps a
+  fixture origin from outliving the driver that started it; a shell that backgrounds the command
+  hands it EOF at once, so it binds, prints `origin: serving http://127.0.0.1:8099/ok`, exits 0, and
+  `examples/http.nvs` then fails with the same `connecting to 127.0.0.1:8099 failed` line the
+  no-origin case gives. Hold the pipe open — `tail -f /dev/null | python -u tools/origin.py` — or run
+  it in the foreground of its own call. `tools/loop.py`'s `local_origin` holds a real pipe, which is
+  why the driver never meets this and a session checking the example by hand does.
 
 ## Writing a test case
 
@@ -3484,6 +3493,15 @@ is why" — is this file.
   pairs into `Command::envs`. `--INI--` is the one still on that list. Before writing a case
   that sets up its own world, check `NOT_YET` rather than the section table in
   `crates/nvs-test/src/lib.rs`, which lists a section whether or not it does anything.
+- **A file in `nvs-stdlib` gets exactly one `#[cfg(test)]`, and a second one fails a test in another
+  crate's directory with no mention of the attribute you added.**
+  `crates/nvs-stdlib/tests/capability.rs`'s `nvs_stdlib_reaches_the_os_only_through_the_gate` scans
+  every `src/` file down to its *first* `#[cfg(test)]` and refuses `std::fs`, `TcpListener`,
+  `std::process::Command` and the rest above that line — so it asserts there is only one, because a
+  second one higher up would hide the whole file rather than just the tests. A `#[cfg(test)]
+  pub(crate) fn` added beside `mod tests` as a shared fixture is the natural way to trip it; put the
+  fixture **inside** `mod tests` and reach it as `crate::tests::<name>`, which costs nothing and
+  keeps the scan's boundary where it was.
 
 ## Splitting a file that got too big
 
