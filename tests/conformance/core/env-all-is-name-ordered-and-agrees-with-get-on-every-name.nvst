@@ -1,0 +1,42 @@
+--TEST--
+`Core\Env::all` is name-ordered and agrees with `get` on every name it holds — spec § 15, ADR 0024 § 1
+--ENV--
+NVS_CASE_C=third
+NVS_CASE_A=first
+NVS_CASE_B=second
+--FILE--
+<?nvs
+// `all` sweeps the whole environment, so a case can only pin the part it set
+// itself — everything else belongs to the machine this runs on.
+
+var $all = Core\Env::all();
+
+// **Name order, whatever order the environment was built in.** The section
+// above writes C, A, B; the sweep answers A, B, C on every platform, which is
+// what makes an answer this wide printable at all. The accumulator is
+// `tainted` because each value is: ADR 0024 § 1 says the environment is
+// outside the program's own text, so nothing here launders and the qualifier
+// reaches the end of the concatenation.
+tainted string $ours = "";
+foreach ($all as string $name => tainted string $value) {
+    if (Core\Str::startsWith($name, "NVS_CASE_")) {
+        $ours = $ours . $name . "=" . $value . ";";
+    }
+}
+echo $ours, "\n";
+
+// **Agreement**, asserted by counting rather than read off a line: a member
+// that answered plausibly for one name and drifted on another still fails
+// here. `all` and `get` are two readings of one environment, so every name in
+// the first has to answer the same way through the second.
+array<string> $names = ["NVS_CASE_A", "NVS_CASE_B", "NVS_CASE_C"];
+int $agreed = 0;
+foreach ($names as string $name) {
+    if (Core\Arr::hasKey($all, $name) && $all[$name] == Core\Env::get($name)) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "agreed: ", $agreed as string, " of ", Core\Arr::count($names) as string, "\n";
+--EXPECT--
+NVS_CASE_A=first;NVS_CASE_B=second;NVS_CASE_C=third;
+agreed: 3 of 3

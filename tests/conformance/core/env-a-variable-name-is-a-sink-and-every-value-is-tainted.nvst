@@ -1,0 +1,33 @@
+--TEST--
+A `Core\Env` name refuses a `tainted` argument and every value it answers with is one — ADR 0088 § 1, ADR 0024 § 1
+--FILE--
+<?nvs
+// ADR 0088 § 1: a parameter whose content becomes an instruction refuses a
+// qualified argument. `Core\Env::get`'s name is one — it names what the
+// runtime must hand back — so a program cannot let untrusted input choose
+// which variable it reads. `Core\IO`'s path parameters are the same rule over
+// a less sensitive store.
+tainted string $chosen = "NVS_CASE_ONE";
+var $leak = Core\Env::get($chosen);
+
+// ADR 0024 § 1: the environment is outside the program's own text, so every
+// value is `tainted` whatever the operator put there. It does not narrow to a
+// plain `string` on the way out, which is what makes the sinks downstream
+// still have to launder it.
+foreach (Core\Env::all() as string $name => string $value) {
+    echo $name, $value, "\n";
+}
+--EXPECT-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:8:27
+  |
+8 | var $leak = Core\Env::get($chosen);
+  |                           ^^^^^^^ this is `tainted string`
+
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:14:45
+   |
+14 | foreach (Core\Env::all() as string $name => string $value) {
+   |                                             ^^^^^^^^^^^^^ this is `tainted string`
+
+error: aborting due to 2 errors

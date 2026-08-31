@@ -1,0 +1,32 @@
+--TEST--
+`Core\Env::get` answers a set variable and `null` for every other name — spec § 15, ADR 0012 § 1
+--ENV--
+NVS_CASE_ONE=first
+NVS_CASE_PAIR=key=value
+--FILE--
+<?nvs
+// ADR 0012 § 1 replaces `$_ENV` and `getenv()` with this class. `get` is the
+// single-name read, and ADR 0063 makes its `?T` mean absence and nothing else.
+
+// A variable the environment holds, answered as its own value.
+echo Core\Env::get("NVS_CASE_ONE") ?? "<unset>", "\n";
+
+// A value carrying an `=` is one value and not a pair: the runner splits a
+// `--ENV--` line at its *first* `=` and the rest is the value, byte for byte.
+echo Core\Env::get("NVS_CASE_PAIR") ?? "<unset>", "\n";
+
+// Nothing set it, so `null` — the one thing `?tainted string` reports.
+echo Core\Env::get("NVS_CASE_NOBODY_SET_THIS") ?? "<unset>", "\n";
+
+// Two names no platform can hold: an empty one, and one carrying the `=` that
+// separates a name from a value. They are absence too, and deliberately not a
+// third state — a variable spelled this way cannot have been set either, so
+// there is nothing an error could tell a caller that `null` does not.
+echo Core\Env::get("") ?? "<unset>", "\n";
+echo Core\Env::get("NVS=CASE") ?? "<unset>", "\n";
+--EXPECT--
+first
+key=value
+<unset>
+<unset>
+<unset>

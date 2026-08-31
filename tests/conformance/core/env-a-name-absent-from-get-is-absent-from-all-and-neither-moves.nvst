@@ -1,0 +1,29 @@
+--TEST--
+A name `Core\Env::get` does not hold is absent from `all` too, and neither answer moves during a run — spec § 15
+--ENV--
+NVS_CASE_PRESENT=here
+--FILE--
+<?nvs
+// The bound, named on both sides: one variable the environment holds and one
+// nothing set. A sweep that quietly invented an entry, or dropped one it was
+// given, prints plausibly against either half alone.
+var $all = Core\Env::all();
+
+echo "present in all: ", Core\Arr::hasKey($all, "NVS_CASE_PRESENT") ? "yes" : "no", "\n";
+echo "present via get: ", Core\Env::get("NVS_CASE_PRESENT") ?? "<unset>", "\n";
+echo "absent in all: ", Core\Arr::hasKey($all, "NVS_CASE_ABSENT") ? "yes" : "no", "\n";
+echo "absent via get: ", Core\Env::get("NVS_CASE_ABSENT") ?? "<unset>", "\n";
+
+// And the environment is read-only, so two sweeps of one run are the same
+// sweep: there is no `putenv` — a process-global mutation is unsound across
+// cores — and nothing else in the language reaches the environment either. The
+// array is a copy taken when `all` was called, not a view onto a table a later
+// call could find changed.
+var $again = Core\Env::all();
+echo "stable: ", Core\Arr::count($again) == Core\Arr::count($all) ? "yes" : "no", "\n";
+--EXPECT--
+present in all: yes
+present via get: here
+absent in all: no
+absent via get: <unset>
+stable: yes
