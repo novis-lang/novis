@@ -829,10 +829,17 @@ mod tests {
     use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
     use std::time::Duration;
 
-    use nvs_runtime::Tag;
+    use nvs_runtime::{Ctx, NvsStr, Tag};
 
-    use super::{CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, Window, decoded, step, window};
+    use super::{
+        ALLOWED_SLOT, CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, SHED_DOC, Value, Window,
+        decoded, nvs_core_ratelimit_shed, step, window,
+    };
     use crate::cache::redis::Connection;
+
+    /// What the per-core case limits, once, since it is both an argument and
+    /// the key an entry is looked for under.
+    const SHED_KEY: &str = "account:1";
 
     /// A listener on loopback and the address it took — `crate::cache::redis`'s
     /// own cases' shape, and the reason that module takes an address rather
@@ -850,6 +857,31 @@ mod tests {
         let read = stream.read(&mut got).expect("the client's command");
         got.truncate(read);
         got
+    }
+
+    /// One arrival at [`SHED_KEY`] on this thread, under a limit of one an
+    /// hour, and whether it was admitted.
+    ///
+    /// The whole member through `nvs_runtime::call` rather than [`step`]
+    /// alone, because what is being asserted is *where the arrival is kept* —
+    /// which is the half the arithmetic does not have. An hour, so that no
+    /// clock reading between two calls can drain the allowance and make the
+    /// case's second answer a race.
+    fn arrival(ctx: &mut Ctx) -> bool {
+        let answered = nvs_runtime::call(
+            nvs_core_ratelimit_shed,
+            ctx,
+            &[
+                Value::str(NvsStr::new(SHED_KEY.as_bytes())),
+                Value::uint(1),
+                crate::time::duration_of(3_600 * 1_000_000_000),
+                Value::null(),
+                Value::null(),
+            ],
+        )
+        .expect("`shed` reaches no store, so it has nothing to fail on");
+        let object = answered.obj_ptr().expect("a decision is an instance");
+        crate::instance::slot(object, ALLOWED_SLOT).as_bool() == Some(true)
     }
 
     /// ADR 0075 § 2: the shared tier is GCRA, which is one stored timestamp and
@@ -1005,6 +1037,96 @@ mod tests {
         assert_eq!(
             crate::time::nanos_of(&[wait], 0, "retryAfter").expect("a `Duration`"),
             500_000_000,
+        );
+    }
+
+    /// ADR 0075 § 1: `shed`'s arrivals live in this core's own memory, which is
+    /// the whole of what it trades away — the count is **per core**, and an
+    /// arrival the tier forgets is one that never happened. Neither is a
+    /// defect, and both are only useful to a caller who is told: a program that
+    /// read a `shed` limit as a number somebody was promised has picked the
+    /// wrong member, and the contract is the one place that can be said in time.
+    ///
+    /// Three claims, over the member rather than over [`step`], since what is
+    /// at stake here is where the timestamp goes rather than the arithmetic on
+    /// it. Two threads are two cores for a `thread_local` tier, so a limit of
+    /// one admits one *each* — § 1's multiplication measured at two rather than
+    /// restated at eight. An unrelated write that fills ADR 0059 § 3's cap
+    /// forgets the arrival, and the key then admits a burst GCRA alone would
+    /// have refused. And [`SHED_DOC`] states both, plus the absence of the
+    /// `IOError` its coherent twin documents.
+    #[test]
+    fn shed_is_per_core_and_approximate_and_says_so() {
+        let mut ctx = Ctx::buffered();
+        assert!(
+            arrival(&mut ctx),
+            "the first arrival is inside a limit of one"
+        );
+        assert!(
+            !arrival(&mut ctx),
+            "and the second is refused, an hour before the first drains"
+        );
+
+        // Where that refusal is remembered: this core's local tier, under this
+        // module's prefix rather than under the caller's own key.
+        let entry = format!("{PREFIX}{SHED_KEY}");
+        assert!(
+            crate::cache::store_get(entry.as_bytes()).is_some(),
+            "an arrival is an entry in `Core\\Cache`'s local tier, and nothing else holds one"
+        );
+        assert_eq!(
+            crate::cache::store_get(SHED_KEY.as_bytes()),
+            None,
+            "a program's own cache entry of the same name is a different entry"
+        );
+
+        // Per core. The runtime is thread-per-core and the tier is a
+        // `thread_local`, so a second thread is a second core for this
+        // question — and it has no arrival to be refused against.
+        let elsewhere = std::thread::spawn(|| arrival(&mut Ctx::buffered()))
+            .join()
+            .expect("the second core's thread runs to completion");
+        assert!(
+            elsewhere,
+            "a limit of one admits one per core, which is why a promised number is `consume`'s"
+        );
+
+        // Approximate. ADR 0059 § 3's cap forgets the entry written longest
+        // ago, and an arrival is an ordinary entry: a program caching anything
+        // at all can drop one, without knowing this member exists.
+        for filler in 0..8 {
+            crate::cache::store_put(
+                format!("unrelated-{filler}").as_bytes(),
+                vec![b'x'; 2048],
+                Some(8 * 1024),
+            );
+        }
+        assert_eq!(
+            crate::cache::store_get(entry.as_bytes()),
+            None,
+            "the cap forgot the arrival, which § 1 says may happen at any time for any reason"
+        );
+        assert!(
+            arrival(&mut ctx),
+            "a forgotten arrival admits a burst — the approximation the tier is chosen for"
+        );
+
+        // And the card says so, in the two fields a caller reads while choosing
+        // between the two members.
+        let limit = SHED_DOC.params[1];
+        assert_eq!(limit.name, "limit");
+        assert!(
+            limit.desc.contains("on this core") && limit.desc.contains("800"),
+            "`limit`'s card has to state that the count multiplies by the number of cores"
+        );
+        assert!(
+            SHED_DOC.ret.contains("forget an entry at any time")
+                && SHED_DOC.ret.contains("admits a burst"),
+            "and the return's card the eviction a caller would otherwise read as a bug"
+        );
+        assert!(
+            SHED_DOC.errors.iter().all(|entry| entry.error != "IOError"),
+            "there is no store to be unreachable, so there is no `IOError` to document"
         );
     }
 
