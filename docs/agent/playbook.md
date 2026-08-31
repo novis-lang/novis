@@ -1105,6 +1105,25 @@ is why" — is this file.
   anchors". The line numbers were written before the previous session's own edits moved them. When a
   printed window does not match the item, do not read around the number: `python tools/peek.py
   --locate <symbol> ...` or a `:re:` target lands first time and costs one call.
+- **An `Edit` anchored on a `fn` line lands *inside* that function's doc comment, and nothing
+  reports it.** Inserting a new item before `fn lower_checked_downcast(` in
+  `crates/nvs-ir/src/lower/convert.rs` put it between the head of that function's thirty-line `///`
+  block and its last two lines: the head silently became the new function's documentation, the tail
+  became the old one's, and `cargo check` was green because both are still well-formed doc
+  comments. Rust has no marker for where a doc block *starts*, so an anchor of `fn name(` is only
+  safe for a function with no doc comment — which, in this tree, is none of them. Anchor on the
+  **blank line after the previous function's closing brace**, or on that function's own first `///`
+  line, and put the new item before it.
+- **`crates/nvs-ir/tests/refusals.rs`'s `CEILING` never rises, so a new `assert!`/`panic!` refusing
+  a shape in `nvs-ir` or `nvs-codegen` turns `verify.py` red however well the refusal is written.**
+  The message says "16 against a ceiling of 15" and names no file; `python tools/holes.py --sites`
+  lists all sixteen and the new one is obvious. Before writing the guard, **check whether an
+  existing site already refuses the shape** — run the fixture and read the panic. An `as ?class<T>`
+  guard added to `lower_conversion` turned out to be one: both spellings of it already reach
+  `convert_or_null`'s own two refusals, with better messages than the new one. What the count does
+  *not* include is an internal-consistency `panic!` ("this is a checker that did not run"), so a
+  guard against the checker disagreeing with itself is free and a guard against a language shape is
+  not.
 
 ## Running things
 
