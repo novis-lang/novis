@@ -49,9 +49,9 @@
 > roster is all four entries. **Stage 5 is closed**: `Core\Http::allowUrl` answers a pinned
 > `Core\Http\Target`(ADR 0058 §§ 3 and 5). **Stage 6 has opened**: `Core\Cache`'s two tiers are one
 > `Store`, `shared()` the `net.connect` door onto RESP and `local()` the `None` row beside it; § 1's
-> limiters are rows over them. **Stage 7 has opened**: § 6's two writers are one serialiser,
-> asserted byte-identical over one error, and § 3's tier 3 is `[app.log] handler` on
-> `Ctx::handler_isolate`'s reserve; § 2's `onUncaughtThrow` is owed. **Stage 8 has opened**:
+> limiters are rows over them. **Stage 7 has opened**: § 6's two writers are one serialiser, § 3's
+> tier 3 is `[app.log] handler` on `Ctx::handler_isolate`'s reserve, and § 2's `onUncaughtThrow`
+> hands both roots the real `Throwable`; § 4's rotation is owed. **Stage 8 has opened**:
 > `Core\Reflect` is `forObject`, `forClass` and `typeOf`, and `Core\Ast::parse` answers the
 > compiler's own tree. **Stage 2's handle half has opened**: `Core\IO::open` answers a
 > `Core\IO\File` whose slot is a key into the request's own table of descriptors, `Core\IO\FileMode`
@@ -61,7 +61,7 @@
 > and the path modules' own sources. **Stage 3's terminal is a sink with a raw path, a styling type,
 > § 4's prompts and § 5's region**: § 2 is `Cli\Color`, `Cli\Style` and `Text::styled`, § 4's five
 > prompts read under a deadline or from a test's scripted queue, and `live<T>`/`progress<T>` open a
-> region a `Drop` restores. Conformance 1224, differential 210 of 210, migration 37% over its 36%
+> region a `Drop` restores. Conformance 1227, differential 210 of 210, migration 37% over its 36%
 > floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized

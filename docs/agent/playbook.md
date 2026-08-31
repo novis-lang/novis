@@ -3666,6 +3666,18 @@ is why" — is this file.
   behave identically at run time — a case only notices when it *asserts the type* by binding the
   result to a declared local. Cost a full conformance run to a row that was right: check the
   spelling against a typed local before suspecting the registry.
+- **A `.nvst` case whose program ends in an uncaught throw needs an
+  `--EXPECT-ERROR--`/`--EXPECTF-ERROR--` section, or it fails on the exit status with the
+  stdout it asked for printed correctly.** `crates/nvs-test`'s module doc is the rule —
+  "their presence is also the one thing that says a case expects the run to fail; every
+  other case must exit zero" — and it reads as being about *diagnostics*, so a case
+  written around a runtime failure looks like it needs no stderr section at all. The floor
+  writes one JSON Lines record there (`nvs_runtime::floor::report`), and the backtrace
+  field names the runner's own temporary path, so the section is `--EXPECTF-ERROR--` with
+  one `%s` for it:
+  `{"level":"error","msg":"boom","fields":{"class":"LogicError","backtrace":"%s"}}`.
+  `tests/conformance/error/a-limit-fatal-is-not-catchable.nvst` is the same shape for a
+  `FATAL`, whose stderr is a plain sentence rather than a record.
 
 ## Splitting a file that got too big
 

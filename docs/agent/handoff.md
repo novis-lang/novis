@@ -2,68 +2,60 @@
 
 ## State
 
-**ADR 0020 § 6 is asserted rather than claimed.**
-`application_code_and_the_engine_floor_produce_schema_identical_records`
-(`crates/nvs-stdlib/src/log.rs:333`) puts one promoted `Thrown` through both callers — the floor's
-`nvs_runtime::floor::uncaught` and `Core\Log::write` driven through `nvs_runtime::call` — and
-compares the two rendered lines **byte for byte**, so a second serialiser growing on either side
-fails here while still reading correctly on its own. `log.rs`'s module doc no longer carries the
-"the floor is the caller that does not exist yet" gap: `crates/nvs-runtime/src/floor.rs` has been
-that caller for some time, and `nvs-cli`, `nvs-host`'s isolate and `nvs-runtime`'s deferred queue
-are its three call sites.
+**ADR 0020 § 2 is closed end to end.** `Core\Fatal::onUncaughtThrow` registers into a
+second `Ctx` slot beside `limit_handler` (`crates/nvs-runtime/src/ctx.rs:425`), and
+`Ctx::run_uncaught_handler` hands it the **real** `Throwable` — `Thrown::as_value` is a
+borrow, not a copy, and `on_uncaught_throw_receives_the_real_throwable`
+(`crates/nvs-stdlib/src/fatal.rs`) compares payload bits rather than class and message,
+so a ladder that rebuilt the exception fails there while still reading right. Both roots
+fire it before the floor builds its record: `crates/nvs-cli/src/main.rs:907` and
+`crates/nvs-host/src/isolate.rs:457`. No reserve stands beside the slot, per § 2; the
+three decisions this needed — running does not suppress tiers 3 and 4 (tier 1 already
+behaves that way), the registration leaves the slot on the way in, and the handler's own
+throw is cleared so the request still reports what reached the root — are in
+`run_uncaught_handler`'s doc comment, which is their home.
 
-**Stage 7's check is now two checks, one per crate that can host its names.**
-`the_configured_handler_script_runs_charged_to_the_engines_own_reserve` has always lived in
-`crates/nvs-host/tests/limits.rs:525` and could never have run under `cargo test -p nvs-stdlib`, so
-that check would have failed forever even once the other four landed — the playbook's *a check can
-name a test in a crate that cannot host it* trap, found live. It and its sibling ceiling case moved
-to a `-p nvs-host` check; `on_uncaught_throw_receives_the_real_throwable` and
-`the_engine_floor_rotates_and_rate_limits_itself` stayed, since `nvs-stdlib` reaches `Ctx` and can
-ask both.
+**Still owed on stage 7**: `the_engine_floor_rotates_and_rate_limits_itself` is the one
+acceptance test of `[7 fatal and log]` with nothing behind it — ADR 0106 § 10, and it is
+the next group below. Nothing reads `[log] target` at run time yet, which is what a
+rotation has to attach to. **Still owed on `Core\Cli`**: `arguments`, `write` and
+`displayWidth` — `cli.rs`'s gaps 1 and 2, untouched again.
 
-**Still owed on stage 7**: `Core\Fatal::onUncaughtThrow` does not exist — ADR 0020 § 2 specifies it,
-`Core\Fatal` is `onLimit` alone, and `Ctx` has no `uncaught_handler` beside `limit_handler`. The
-floor's own rotation (ADR 0106's amendment to § 4) has no writer yet, since nothing reads
-`[log] target` at run time. **Still owed on `Core\Cli`**: `arguments`, `write` and `displayWidth` —
-`cli.rs`'s gaps 1 and 2 own them, untouched by this session.
-
-**The orientation pack still does not print `docs/spec/01-core-library.md`**, which is in no
-`[context]` field; § 15's `Core\Cli` list is what those three signatures are written against.
+**The orientation pack printed no section of ADR 0020**, though the goal's whole stage 7
+is that ADR: `[context] adrs` needs `0020:2` and `0020:3` at least — this session sliced
+both by hand, plus § 5. It still does not print `docs/spec/01-core-library.md` either.
 
 ## Next group
 
-**§ 2's `onUncaughtThrow`, over one file set: `crates/nvs-stdlib/src/fatal.rs` and
-`crates/nvs-runtime/src/ctx.rs`, then the two roots that report an uncaught throw.**
+**ADR 0106 § 10's two bounds on the floor's sink, over one file set:
+`crates/nvs-runtime/src/floor.rs`, `crates/nvs-runtime/src/ctx.rs` and
+`crates/nvs-stdlib/src/log.rs`'s test module.**
 
-- [ ] **`Ctx`'s second handler slot** — ADR 0020 § 2. A field beside `limit_handler`
-      (`crates/nvs-runtime/src/ctx.rs:373`), a `set_uncaught_handler` mirroring
-      `crates/nvs-runtime/src/ctx.rs:1429`, and a `run_uncaught_handler` mirroring
-      `crates/nvs-runtime/src/ctx.rs:1556` — **without** the reserved slice, since § 2 says
-      execution was healthy up to this point and the request's ordinary budget applies. The handler
-      is handed the **real** `Thrown` object, not a copied report, which is the one way it differs
-      from `onLimit`'s array.
-- [ ] **`Core\Fatal::onUncaughtThrow(callable $handler): void`** — ADR 0020 § 2, the five edits: a
-      row on `CLASS` (`crates/nvs-stdlib/src/fatal.rs:36`), its card, the helper beside
-      `crates/nvs-stdlib/src/fatal.rs:80` (whose retain-then-`set` body is the shape to copy), an
-      `address` arm (`crates/nvs-stdlib/src/fatal.rs:73`), and
-      `on_uncaught_throw_receives_the_real_throwable` as a unit test — the closure built by hand,
-      per `crates/nvs-stdlib/tests/allocation_policy.rs`'s `closure_of`, asserting object
-      *identity* rather than a message.
-- [ ] **The two roots fire it before the floor reports** — `crates/nvs-cli/src/main.rs:907` and
-      `crates/nvs-host/src/isolate.rs:457`, both of which already hold the `Thrown` and call
-      `nvs_runtime::floor::uncaught` on it. `crates/nvs-runtime/src/deferred.rs:132` deliberately
-      does **not** fire, and says so. Three `.nvst` cases land with this slice, since a case is only
-      green once a root runs the handler.
+- [ ] **The rate limit with a coalescing counter** — ADR 0106 § 10, second bullet.
+      Repeated identical records inside a window become one record carrying a count, and
+      the count is a field on ADR 0092's record rather than a second shape. It belongs on
+      the sink both callers share, not on either caller: `crates/nvs-runtime/src/floor.rs:148`
+      is `report`, and `crates/nvs-runtime/src/ctx.rs:3268` is `write_diagnostic` beneath
+      it. Decide which of the two holds the window — the `Ctx` is per request and the
+      floor is not, so a counter on the request cannot coalesce across requests.
+- [ ] **Rotation and a retention bound on a file target** — ADR 0106 § 10, first bullet,
+      for the diagnostic log and the access log alike. This is the half with no reader:
+      `crates/nvs-runtime/src/floor.rs:38` says `[log] format` is not read at run time and
+      the same is true of `[log] target`, so the slice starts by deciding whether the
+      target reaches `Ctx::write_diagnostic` at all today.
+- [ ] **`the_engine_floor_rotates_and_rate_limits_itself`** — the acceptance check's third
+      test, beside its sibling at `crates/nvs-stdlib/src/log.rs:333`. A buffered `Ctx` and
+      a repeated record is the rate-limit half; the rotation half needs a temporary
+      directory, so it may want `crates/nvs-stdlib/tests/` instead — either satisfies
+      `cargo test -p nvs-stdlib`.
 
 ## Backlog
 
-- `the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling` — `nvs-host`'s check
-  now, over `crates/nvs-host/tests/limits.rs:266`'s `breached()`.
-- `the_engine_floor_rotates_and_rate_limits_itself` — ADR 0106's amendment to ADR 0020 § 4; no
-  `[log] target` writer exists yet, so the rotating sink is the slice, not the test.
-- `Core\Cli::write`, `arguments` and `displayWidth` — ADR 0086 § 3 and spec § 15, `cli.rs`'s gaps 1
-  and 2, at `crates/nvs-stdlib/src/cli.rs:167`.
-- `Text + Text` still needs a row in `crates/nvs-types/src/expr/operators.rs`.
-- Stage 2 owes `truncate`, `lock` and `Core\IO::stdin`/`stdout`/`stderr` — `io.rs`'s module doc.
-- `docs/spec/01-core-library.md` belongs in `[context]`'s spec selector; § 15 is unreachable from
-  the pack today.
+- `Core\Cli::arguments`, `::write`, `::displayWidth` — `crates/nvs-stdlib/src/cli.rs` gaps 1 and 2.
+- `crates/nvs-runtime/src/deferred.rs:138` is a third root reporting an uncaught throw and
+  does **not** fire tier 2; decide whether a deferred closure's throw is § 2's "request
+  root" — `crate::deferred`'s module doc is where that answer belongs.
+- `[context] adrs` in `docs/agent/loop-goal.toml` names no ADR 0020 section, and
+  `[context]` names `docs/spec/01-core-library.md` nowhere.
+- ADR 0020 § 4's `[log] target` reader — the gap `crates/nvs-runtime/src/floor.rs:38`
+  records, and what rotation attaches to.
