@@ -4687,6 +4687,18 @@ sibling in the same namespace unqualified.
   no plumbing from the boot path — the same shape `http.rs`'s `bound_of` and `redirects_of` already
   use for `Runtime` keys. What `System` buys is that a request cannot *change* it, which is the
   reconnaissance channel the ADR is closing.
+- **One `CAPABILITIES` row makes the whole class capability-bearing, and its siblings then owe an
+  entry or an exemption.** Adding `(Core\Cache, "shared", NetConnect)` is one line, and it turns
+  `every_capability_bearing_member_declares_its_capability` red on `Core\Cache::local` — a member
+  whose whole ADR paragraph (0059 § 1) says it needs no grant. The fix is `NEEDS_NO_CAPABILITY` in
+  `crates/nvs-stdlib/tests/capability.rs`, whose own doc says it "may never grow" and whose gate is
+  a bullet in `docs/agent/loop-goal.md` § *Standing decisions* — so the list is not frozen, it is
+  *evidenced*, and the entry is legitimate exactly when the ADR already decided it. Two things that
+  are not obvious from the failure: the class holding the *operations* is untouched by this, because
+  a door is one class and the thing behind it is another (`Core\Http\Client` declares nothing behind
+  `Core\Http::allowUrl`, and `Core\Cache\Store` declares nothing behind `Core\Cache::shared`); and
+  `docs/agent/loop-goal.md` has a byte-for-byte twin under `docs/agent/goals/` differing only in
+  link depth, so the bullet goes in both.
 
 ## Divergences and refusals already pinned
 

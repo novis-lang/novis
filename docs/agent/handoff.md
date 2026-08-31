@@ -2,53 +2,69 @@
 
 ## State
 
-**Stage 6's local tier is on disk.** `Core\Cache` (`local`, `shared`) and `Core\Cache\Store` (`put`,
-`get`) are rows, cards, bodies, `address()` arms and registry lines in
-`crates/nvs-stdlib/src/cache.rs`, with three `.nvst` cases under `tests/conformance/core/cache-*.nvst`
-and § 1's three named tests green.
+**Stage 6's shared tier is on disk.** `Core\Cache::shared()` reads `[cache.shared] url`, pins its
+host through `nvs_runtime::capability::pin_host` under `net.connect`, dials the store and answers a
+`Core\Cache\Store` whose `tier` slot says `shared`; `put` and `get` dispatch on that slot.
+`crates/nvs-stdlib/src/cache/redis.rs` is the wire — RESP `SET`/`GET` over `nvs_host::net::NvsTcp`,
+one connection per core with one reconnect-and-replay behind each command — and it takes a
+`SocketAddr` rather than a `Ctx`, so its two cases drive a whole exchange against a loopback
+listener. § 2's named test is green, and its second half is a source scan: this module reaches
+`nvs_runtime::encode`/`decode` from exactly one place each, so a tier cannot grow a carrier of its
+own.
 
-**Two decisions closed with it**, both argued in that module's own doc rather than here. An entry is ADR
-0023 § 3's **byte payload**, not a live graph: a copied object holds a raw `ClassDesc` pointer and this
-store outlives the request that filled it, so a hot-reload swap would leave it naming a dead descriptor —
-and the shared tier needs bytes regardless. And the local tier needs **no grant**: ADR 0059 § 1 and ADR
-0112 § 8 now both say so, which closes the one hole 0112's roster flagged.
+**Three decisions, each argued where it lives.** `shared()` is the **door** and the two operations
+are behind it (`cache.rs`'s module doc), which is ADR 0058 § 4's shape and is why `Core\Cache\Store`
+has no capability row. `Core\Cache::local` is now the one entry in `NEEDS_NO_CAPABILITY`, with its
+reason in `docs/agent/loop-goal.md` § *Standing decisions* as ADR 0118 § 7 requires. And the URL
+grammar is `redis://host[:port]` and nothing else — a password, a database index and `rediss://` are
+each refused with a sentence rather than half-served.
 
-**`Core\Cache::shared()` throws today** — nothing configures a store — and its `net.connect` row in
-`registry::CAPABILITIES` lands with the connection that needs it, not before.
-
-**The driver's acceptance failure on `examples/http.nvs` is still the driver, not the tree.**
-`local_origin` is on disk at `tools/loop.py:1125`; the running process imported that module before it
-existed, so its sweep serves nothing on 8099. Restarting the run is the whole fix.
+**The driver's acceptance failure on `examples/cache.nvs` is the ordinary state, not a
+regression.** That fixture is stage 6's *end*: it wants `shared hit` from a reachable store and two
+`Core\RateLimit::consume` lines that have no member yet. Both are in the next group.
 
 ## Next group
 
-**Stage 6's remaining two slices, over one file set** — `crates/nvs-stdlib/src/cache.rs`,
-`crates/nvs-stdlib/src/registry.rs`, and for the first also `crates/nvs-host/src/net.rs`. The stage's
-five test names are at `docs/agent/loop-goal.toml:2382`.
+**Stage 6's close, over `crates/nvs-stdlib/src/cache.rs`, `crates/nvs-stdlib/src/cache/redis.rs`,
+`crates/nvs-stdlib/src/registry.rs` and a new `crates/nvs-stdlib/src/ratelimit.rs`.** The stage's
+five `Core\RateLimit` test names are at `docs/agent/loop-goal.toml:2398`.
 
-- [ ] **`Core\Cache::shared`, over goal 2's parking stream** — ADR 0059 §§ 1-2: a real store, coherent
-      across cores, gated by `net.connect` under ADR 0058's policy, and a put and a get that reach the
-      same walk the isolate boundary does. The test is
-      `a_cache_put_and_get_use_the_same_graph_copy_as_the_isolate_boundary`
-      (`docs/agent/loop-goal.toml:2388`). The throw to replace is
-      `crates/nvs-stdlib/src/cache.rs:333`, the tier slot it writes is
-      `crates/nvs-stdlib/src/cache.rs:180`, the capability row goes beside
-      `crates/nvs-stdlib/src/registry.rs:1308`, and the walk both tiers already share is
-      `crates/nvs-runtime/src/graph.rs:672` and `crates/nvs-runtime/src/graph.rs:869`.
-- [ ] **The local tier's memory is the core's, and capped** — ADR 0059 § 3: charged to the core, capped
-      by an `nvs.toml` directive under ADR 0005's ordinary rules, and exceeding the cap **evicts** rather
-      than failing an allocation. The test is `the_local_tiers_memory_is_charged_to_the_core_and_capped`
-      (`docs/agent/loop-goal.toml:2390`). The map to bound is `crates/nvs-stdlib/src/cache.rs:256` and
-      its writer is `crates/nvs-stdlib/src/cache.rs:260`; the counters a `-p nvs-stdlib` test reads are
-      `nvs_runtime::budget`'s, and the playbook's bullet on why it may not install an allocator of its
-      own applies.
+- [ ] **`Core\RateLimit::consume`, GCRA over the shared tier** — ADR 0075 §§ 2 and 5: the limit is
+      an argument and no directive exists, the decision carries an exact `retryAfter`, and an
+      unreachable store throws rather than deciding *allowed*. The one route to the store is
+      `crates/nvs-stdlib/src/cache.rs:485` (`on_shared`, private today — this is the slice that
+      makes it `pub(crate)`), and the connection it hands over is
+      `crates/nvs-stdlib/src/cache/redis.rs:120`, which speaks `SET` and `GET` and nothing else: an
+      atomic GCRA needs one more command beside them (`EVAL` with our own script, per the standing
+      decision that the shared tier's atomic script is ours), added at
+      `crates/nvs-stdlib/src/cache/redis.rs:148`'s `command`. The row and its card go beside
+      `crates/nvs-stdlib/src/registry.rs:1308`.
+- [ ] **The harness `examples/cache.nvs` needs, and its grant** — the fixture wants `shared hit`,
+      so the acceptance run has to be serving a store, exactly as `tools/origin.py` serves 8099 for
+      `examples/http.nvs`. The pattern to copy is `tools/loop.py:1125` (`local_origin`, one per leg,
+      readiness is the harness's own stdout line), and the configuration is a fourth `[[app]]` block
+      in the repo-root `nvs.toml`, beside the `examples/http.nvs` one about 96 lines in:
+      `entry = "examples/cache.nvs"`, its
+      `[app.capabilities.net] connect`/`internal` for the loopback, and `[cache.shared] url`. The
+      frozen five lines are `docs/agent/loop-goal.toml:2410`.
+- [ ] **The local tier's memory is the core's, and capped** — ADR 0059 § 3, the slice this session
+      did not take. The entries are `crates/nvs-stdlib/src/cache.rs:302` and the write is
+      `crates/nvs-stdlib/src/cache.rs:306`. **What makes it more than a cap:** a request is charged
+      the *difference* between the thread's live balance now and at its `Ctx`'s creation
+      (`crates/nvs-runtime/src/ctx.rs:1291`, baseline field at `crates/nvs-runtime/src/ctx.rs:314`),
+      so an entry this request puts is charged to it against `[limits] memory` — which is exactly
+      what § 3 says cache memory is not. Either that baseline gains a way to be shifted, in
+      `nvs-runtime`, or the ADR's sentence is not implementable as written; decide that before
+      writing the cap.
 
 ## Backlog
 
-- `Core\RateLimit` — stage 6's second check, `docs/agent/loop-goal.toml:2393`.
-- A `forget` and a TTL on the store — they arrive with eviction; `crates/nvs-stdlib/src/cache.rs`'s
-  module doc owns why neither is there yet.
-- Restart the loop driver so `local_origin` (`tools/loop.py:1125`) is in the process that sweeps 8099.
-- `orient.py` printed no spec text, and a Part II class's roster row
-  (`docs/spec/01-core-library.md` § 16) is where its member list lives — if `[context]` grows a spec
-  selector, that row is what a stage-6 session wants.
+- `[context] adrs` never printed ADR 0059 §§ 1-3 — the item's *own* ADR — so this session read it by
+  hand; add the three selectors to `docs/agent/loop-goal.toml`.
+- `[context] modules` covers no `nvs-config` module, and a new directive needs `tree.rs` and
+  `directive.rs`; add them beside the `nvs-config/src/capability.rs` line already there.
+- A `[cache.shared]` password (`AUTH`) waits on ADR 0103 § 7's secret plumbing — `nvs_stdlib::cache`
+  module doc.
+- `rediss://` waits on the same trust-anchor decision `crate::http::transport` is waiting on.
+- A TTL, an eviction and a `forget` on `Core\Cache\Store` — `nvs_stdlib::cache` module doc.
+- Stage 7 (`Core\Fatal`, `Core\Log`) is untouched — `docs/agent/loop-goal.toml:2420`.
