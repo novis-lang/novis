@@ -60,9 +60,9 @@
 > deadline, `https` refused. **`Core\Env` is a class**: `get` and `all` over
 > `nvs_runtime::environment`, the name a `Qual::Sink` and every value `tainted`, and `.nvst`'s
 > `--ENV--` is honoured now that a case can read one back. The harness serves 8099
-> (`tools/origin.py`), so `examples/http.nvs` prints all five lines; stage 5 owes two tests, and
-> `traceparent` has no trace id to carry. Conformance 1162, differential 210 of 210, migration 37%
-> over its 36% floor.
+> (`tools/origin.py`), so `examples/http.nvs` prints all five lines; stage 5 owes one test, and
+> `traceparent` carries the runtime's trace id. Conformance 1162, differential 210 of 210, migration
+> 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

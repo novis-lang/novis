@@ -2,47 +2,55 @@
 
 ## State
 
-**Stage 5's two capability cases are landed**, both in `crates/nvs-stdlib/src/http.rs`'s `mod tests`:
-`the_address_policy_is_read_from_the_capability_and_not_from_the_client` asserts ADR 0058 § 5 as
-*agreement* — the launderer and `nvs_runtime::capability::pin_host` answer the same two deployments
-identically, refusal text included — and `a_denied_address_range_fails_before_a_connection_is_made`
-binds a listener on the address the URL names and asserts it was never accepted, driven through
-`request` so it measures the member's order and not the launderer's. The snapshot fixture both
-capability suites grant through is now one writer, `nvs_stdlib::granting`, moved out of `process`.
+**Stage 5 is one test from closed.** Its `nvs-stdlib` check names six tests and five are green;
+only `a_socket_read_runs_on_the_reactor_and_parks_its_coroutine` is missing.
 
-**`examples/http.nvs` is green, verified by hand this session** — all five frozen lines over a real
-socket, with `tools/origin.py` held open. **The driver's acceptance sweep still fails it**, and that
-is the driver and not the tree: the running process imported `tools/loop.py` before `local_origin`
-existed, so its sweep serves nothing on 8099. Restarting the run is the whole fix.
+**A request carries a trace id, and it is the runtime's.** `nvs_runtime::trace_context` is a new
+module — `TraceContext`, with `started`, `continuing` (an inbound `traceparent` adopted whole, a
+malformed one starting a new trace rather than throwing, per ADR 0076 § 2), `traceparent` rendering
+and the three accessors. `Ctx` holds one eagerly, drawn in `Ctx::new`, with `set_trace_context` for
+the inbound path goal 6 will write; that module's doc is the home of why it is eager, why it is not
+ADR 0018's per-call trace, and what it spends. `nvs-runtime` gained `rand` for the draw, which adds
+no crate to the tree.
 
-**Stage 5's remaining two cases are not tests over landed work.** `traceparent` is not implemented:
-`crates/nvs-stdlib/src/http/transport.rs`'s `compose` sends no such header, `[trace] propagate`
-exists in the config tree and is read nowhere, and nothing in the runtime holds a request trace id at
-all — ADR 0018's call-site trace on `Ctx` is a different thing, which ADR 0076 § 2 says outright.
+**`Core\Http\Client` propagates it.** `http::traceparent_of` reads `[trace] propagate` (§ 6 ships it
+**on**; off is the word `false` and nothing else), `Call::traceparent` carries the answer, and
+`compose` emits it — skipping its own where the caller already wrote a `traceparent` header, because
+two of them is what the W3C format tells a receiver to read as none.
+
+**The driver's acceptance failure on `examples/http.nvs` is still the driver, not the tree.**
+`local_origin` is on disk at `tools/loop.py:1125`; the running process imported that module before it
+existed, so its sweep serves nothing on 8099. Restarting the run is the whole fix — nothing in this
+tree changes it.
 
 ## Next group
 
-**`traceparent`, and the reactor case.** They share one file set —
-`crates/nvs-stdlib/src/http/transport.rs`'s `compose` and its `mod tests` (the in-process origin
-helper is at `crates/nvs-stdlib/src/http/transport.rs:557`), plus the `[trace]` block in
-`crates/nvs-config/src/tree.rs`.
+**The stage-5 closer, then stage 6 opens.** Item 1 is its own file set —
+`crates/nvs-stdlib/src/http/transport.rs`, the file this session just left — and items 2-3 share
+`crates/nvs-stdlib/src/cache.rs` (new) with `crates/nvs-stdlib/src/registry.rs`. Take 1 first: it
+closes a stage.
 
-- [ ] **A request trace id, and `[trace] propagate` read** — ADR 0076 § 2: an id exists for every
-      request whatever the sampling decision, so it is the runtime's and not the client's. Decide
-      where it lives on the context; `Core\Server::traceId()` reads the same id and is goal 6's, so
-      leave the member out. `crates/nvs-runtime/src/ctx.rs:1120`,
-      `crates/nvs-config/src/tree.rs:528`.
-- [ ] **`an_outbound_request_carries_traceparent`** — ADR 0076 § 2, emitted from the composed head
-      and asserted over what the origin thread was asked.
-      `crates/nvs-stdlib/src/http/transport.rs:287`, `crates/nvs-stdlib/src/http/transport.rs:557`.
-- [ ] **`a_socket_read_runs_on_the_reactor_and_parks_its_coroutine`** — ADR 0051: the read is
-      `nvs_host::net`'s parking stream and not a second event loop.
-      `crates/nvs-stdlib/src/http/transport.rs:237`, `crates/nvs-stdlib/src/http/transport.rs:259`.
+- [ ] **`a_socket_read_runs_on_the_reactor_and_parks_its_coroutine`** — ADR 0051's "over the
+      runtime's own reactor, not a second event loop". The check's `args` is `-p nvs-stdlib`, so it
+      hosts in `crates/nvs-stdlib/src/http/transport.rs:562`'s `mod tests` and not in `nvs-host`.
+      What it asserts is already observable: `crates/nvs-host/src/net.rs:184`'s
+      `NvsStream::is_parked_on`, with `crates/nvs-host/src/net.rs:1054`'s
+      `a_socket_read_that_would_block_parks_its_coroutine` as the shape to drive it from a coroutine.
+- [ ] **`Core\Cache::local`** — ADR 0059 §§ 1-3: two members with separate contracts, an entry that
+      may be absent at any time, and a per-core tier charged to the core and capped. Rows, cards,
+      bodies and the `address()` arm in a new `crates/nvs-stdlib/src/cache.rs`, registered at
+      `crates/nvs-stdlib/src/registry.rs:1054`.
+- [ ] **`Core\Cache::shared`, over goal 2's graph copy** — ADR 0059 § 2: a put and a get use the same
+      walk the isolate boundary does, never a third mechanism. Same two files —
+      `crates/nvs-stdlib/src/cache.rs` and `crates/nvs-stdlib/src/registry.rs:1054` — over
+      `crates/nvs-runtime/src/graph.rs:672`'s `encode` and `crates/nvs-runtime/src/graph.rs:869`'s
+      `decode`, which are the walk.
 
 ## Backlog
-
-- Restart the loop driver, or its sweep fails `examples/http.nvs` forever — `docs/agent/loop-goal.toml`.
-- `orient.py` did not print ADR 0076 § 2, which both remaining cases are written from: add it to
-  `[context] adrs` in `docs/agent/loop-goal.toml`.
-- `https` is still refused for want of a TLS client and a trust anchor set — `transport::one`.
-- `Core\Net` is governed by the same door and has no rows yet — ADR 0058 § 5.
+- `examples/cache.nvs`'s five frozen lines close stage 6 — `docs/agent/loop-goal.toml`, stage 6.
+- `Core\RateLimit`'s five tests, GCRA in both tiers — ADR 0075 §§ 2, 4, 5.
+- Redis needs a container; the compose file goal 5 uses is the same one — plan § *Blocking*.
+- ADR 0076 § 6's `[log]` record gaining `trace_id`/`span_id` has a source now, and no writer:
+  `Core\Log` is stage 7's.
+- Head-based `[trace] sample` is unread, so a root trace's flag is always `00` —
+  `crates/nvs-runtime/src/trace_context.rs`'s module doc says what will set it.

@@ -4676,6 +4676,14 @@ sibling in the same namespace unqualified.
   a row needs before the body that fills it exists — declares `slots: &[]` and gains them in the
   same slice as the members, rather than being added to `HANDLES`: that list is for state read from
   outside the class, not for state nothing reads yet.
+- **A `System` block is still readable by a request — it is `Core\Config::set` that refuses one, not
+  `get`.** ADR 0076 § 6 makes the whole `[trace]` block `System`, which reads like "a request cannot
+  see it" and is not: `nvs_config::Request::get` answers off the snapshot's own table for any dotted
+  key, and only `set` consults `Directive::class` and returns `false` for `Class::System`. So
+  `ctx.config().and_then(|c| c.get("trace.propagate"))` is the whole read, with no second reader and
+  no plumbing from the boot path — the same shape `http.rs`'s `bound_of` and `redirects_of` already
+  use for `Runtime` keys. What `System` buys is that a request cannot *change* it, which is the
+  reconnaissance channel the ADR is closing.
 
 ## Divergences and refusals already pinned
 
