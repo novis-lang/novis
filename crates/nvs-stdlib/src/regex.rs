@@ -30,7 +30,8 @@
 //! literal-folding mechanism. That mechanism is not built, so today every
 //! pattern — literal or assembled — takes the run-time path in [`compiled`]:
 //! the linear engine is offered the pattern first and the backtracking engine
-//! gets it only if the linear one refuses. The tier a given pattern lands in
+//! gets it only if the linear engine's *parser* refused a construct, which is
+//! [`build`]'s routing rule and the one place that decision lives. The tier a given pattern lands in
 //! is therefore already the tier § 3 will report; what is missing is the
 //! *reporting*, the compile error for a malformed literal, and
 //! `[regex] backtracking = "deny"`. Recorded as gap 1 below.
@@ -860,6 +861,10 @@ fn effective(pattern: &str, flags: u8) -> Cow<'_, str> {
 /// linear engine merely could not *express* has already been handed on by the
 /// time this fails, and it quotes the text the program wrote rather than
 /// [`effective`]'s flag-wrapped form.
+///
+/// The other refusal is a pattern the linear engine *does* express and cannot
+/// fit under its own size limit; [`build`]'s routing rule says why that is a
+/// throw rather than a quiet move to the second tier.
 fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Fault> {
     if let Some(hit) = CACHE.with_borrow(|cache| {
         cache
@@ -887,6 +892,29 @@ fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Faul
 /// the whole of what "compiling a pattern" is, with no cache and no `Fault`
 /// around it so that both callers can reach it.
 ///
+/// # The routing rule
+///
+/// **A pattern changes tier for one reason only: the linear engine's parser
+/// refused a construct.** That is the whole of ADR 0056 § 1's "if the linear
+/// engine can express it", and stating it as *which error* rather than *any
+/// error* is what makes the tier a semantic property of the pattern instead of
+/// a performance heuristic. `regex` refuses for two kinds of reason and only
+/// one of them is about expressiveness:
+///
+/// * [`regex::Error::Syntax`] is the parser, and it covers both a construct
+///   finite automata cannot express (a lookaround, a backreference) and a
+///   pattern that is simply malformed. Both are handed on, and the second is
+///   refused again by the backtracker a line later — so a malformed pattern
+///   still reaches § 5's diagnostic and no accepted pattern is lost.
+/// * Every other variant is the linear engine hitting a **limit** while
+///   building a program it could express perfectly well —
+///   [`regex::Error::CompiledTooBig`] today, and the enum is `non_exhaustive`,
+///   so an unknown variant is treated the same way. Re-tiering there would
+///   make a pattern's exposure to backtracking a function of how large its
+///   automaton happens to be, which is exactly the silent, size-dependent
+///   move this ADR exists to prevent: the pattern is refused instead, and the
+///   program is told which engine ran out of room.
+///
 /// # Errors
 ///
 /// The sentence [`compiled`] throws, without the member prefix a call site
@@ -894,17 +922,21 @@ fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Faul
 /// is [`validate`].
 fn build(pattern: &str, flags: u8) -> Result<Compiled, String> {
     let spelled = effective(pattern, flags);
-    Ok(match regex::Regex::new(&spelled) {
-        Ok(linear) => Compiled::Linear(linear),
-        Err(_) => Compiled::Backtracking(
+    match regex::Regex::new(&spelled) {
+        Ok(linear) => Ok(Compiled::Linear(linear)),
+        Err(regex::Error::Syntax(_)) => Ok(Compiled::Backtracking(
             fancy_regex::RegexBuilder::new(&spelled)
                 .backtrack_limit(BACKTRACK_BUDGET)
                 .build()
                 .map_err(|err| {
                     format!("`{pattern}` is not a pattern either engine can compile: {err}")
                 })?,
-        ),
-    })
+        )),
+        Err(limit) => Err(format!(
+            "`{pattern}` is a pattern the linear engine expresses but is too large for it \
+             to build: {limit}"
+        )),
+    }
 }
 
 /// Whether `pattern` is one either engine can compile, for a caller that wants
@@ -1699,20 +1731,90 @@ mod tests {
         }
     }
 
-    /// The tier is chosen by the pattern, never by the caller — ADR 0056 § 1.
-    /// A plain pattern lands linear; one with a lookahead the linear engine
-    /// cannot express falls to the backtracking tier rather than failing.
+    /// The tier is chosen by the pattern, never by the caller, and it is a
+    /// **semantic** property of the pattern rather than a performance
+    /// heuristic — ADR 0056 § 1, and [`build`]'s routing rule.
+    ///
+    /// Asserted over two whole tables by collecting the strays rather than
+    /// read off one line: a pattern that quietly changed tier still answers
+    /// correctly, so counting is the only way the move is visible at all.
     #[test]
-    fn a_pattern_lands_in_the_tier_its_features_require() {
-        assert!(matches!(
-            *compiled(r"\d+", NO_FLAGS, "matches").expect("a plain pattern compiles"),
-            Compiled::Linear(_)
-        ));
-        assert!(matches!(
-            *compiled(r"foo(?=bar)", NO_FLAGS, "matches")
-                .expect("a lookahead compiles on the second tier"),
-            Compiled::Backtracking(_)
-        ));
+    fn a_pattern_the_linear_engine_expresses_never_reaches_the_backtracker() {
+        // The constructs finite automata do express, one row each.
+        const LINEAR: &[&str] = &[
+            r"^\d+$",
+            r"\b\w+\b",
+            r"[a-z]+@[a-z]+\.[a-z]{2,}",
+            r"(?:foo|bar)*baz",
+            r"(?<year>\d{4})-(?<month>\d{2})-(\d{2})",
+            r"\p{Greek}+",
+            r"[[:alpha:]]+",
+            r"a{2,5}?",
+            r"[^\x00-\x1f]+",
+            r"\s*,\s*",
+            r"\Aabc\z",
+            r"(?i)mixed|CASE",
+            r"(?s).+",
+            r"(?m)^$",
+        ];
+        // The four lookarounds and the two backreference spellings — the
+        // whole of what a finite automaton cannot do, and so the whole of
+        // what may legitimately move.
+        const REQUIRES_BACKTRACKING: &[&str] = &[
+            r"foo(?=bar)",
+            r"foo(?!bar)",
+            r"(?<=foo)bar",
+            r"(?<!foo)bar",
+            r"^(\w+)\s+\1$",
+            r"(?<word>\w+)\s+\k<word>",
+        ];
+
+        // Under every combination of the four flags: `effective` wraps the
+        // pattern in a balanced group, so no flag can turn a pattern the
+        // linear engine expresses into one it does not.
+        let every_flag = FLAG_CASE_INSENSITIVE | FLAG_MULTILINE | FLAG_DOT_ALL | FLAG_UNGREEDY;
+        for flags in NO_FLAGS..=every_flag {
+            let strayed: Vec<&str> = LINEAR
+                .iter()
+                .copied()
+                .filter(|pattern| {
+                    !matches!(
+                        build(pattern, flags).expect("a linear pattern compiles"),
+                        Compiled::Linear(_)
+                    )
+                })
+                .collect();
+            assert!(
+                strayed.is_empty(),
+                "reached the backtracker under flags {flags}: {strayed:?}"
+            );
+        }
+
+        let stayed: Vec<&str> = REQUIRES_BACKTRACKING
+            .iter()
+            .copied()
+            .filter(|pattern| {
+                !matches!(
+                    build(pattern, NO_FLAGS).expect("the second tier compiles it"),
+                    Compiled::Backtracking(_)
+                )
+            })
+            .collect();
+        assert!(
+            stayed.is_empty(),
+            "the linear engine claimed to express: {stayed:?}"
+        );
+
+        // And the rule is expressiveness, never size: a pattern the linear
+        // engine expresses but cannot fit under its own program-size limit is
+        // refused rather than handed to an engine with a step budget.
+        // Re-tiering there would make a pattern's exposure to backtracking a
+        // function of how large its automaton happens to be, which nothing in
+        // the source says and no reader could predict.
+        let too_big = r"\p{L}".repeat(5_000);
+        let refused =
+            build(&too_big, NO_FLAGS).expect_err("5,000 unicode classes is past the size limit");
+        assert!(refused.contains("too large for it to build"), "{refused}");
     }
 
     /// A pattern neither engine can compile throws rather than matching
@@ -1722,6 +1824,66 @@ mod tests {
         let err = compiled("(unclosed", NO_FLAGS, "matches")
             .expect_err("an unclosed group is not a pattern");
         assert!(format!("{err:?}").contains("(unclosed"), "{err:?}");
+    }
+
+    /// The catastrophic pair every backtracking-budget assertion below runs
+    /// against: a backreference puts the pattern on the second tier and stops
+    /// `fancy-regex` delegating the loop back to the linear engine, and forty
+    /// `a`s followed by a `b` the pattern can never reach is 2^40 paths — far
+    /// enough past [`BACKTRACK_BUDGET`] that no machine's speed enters into
+    /// it, which is ADR 0056's own reason for bounding steps and not seconds.
+    const CATASTROPHIC: &str = r"^(a|a?)+\1$";
+
+    /// ADR 0056 § 2: the backtracking tier runs under [`BACKTRACK_BUDGET`],
+    /// attached where the program is **built** — so it is on every pattern
+    /// that reaches the tier, rather than on the ones a member remembered to
+    /// bound. A subject inside the budget still answers.
+    #[test]
+    fn a_backtracking_pattern_runs_under_a_throwing_step_budget() {
+        let held = compiled(CATASTROPHIC, NO_FLAGS, "matches").expect("compiles");
+        let Compiled::Backtracking(re) = &*held else {
+            panic!("a backreference is not a pattern the linear engine expresses")
+        };
+        assert!(
+            re.is_match("aa").is_ok(),
+            "a short subject finishes inside the budget"
+        );
+
+        let subject = format!("{}b", "a".repeat(40));
+        let err = re.is_match(&subject).expect_err("exhausts the budget");
+
+        // The budget the program was built with is the one the throw names,
+        // so a message can never quote a bound that is not the enforced one.
+        let Fault::Thrown(class, message) = budget_exhausted("matches", CATASTROPHIC, &err) else {
+            panic!("§ 2 is an ordinary catchable throw, not a resource-limit fatal")
+        };
+        assert!(matches!(class, nvs_runtime::ThrownClass::Runtime));
+        assert!(message.contains(&BACKTRACK_BUDGET.to_string()), "{message}");
+        assert!(message.contains(CATASTROPHIC), "{message}");
+    }
+
+    /// ADR 0056 § 2's load-bearing half: exhausting the budget **throws**,
+    /// and never answers "no match".
+    ///
+    /// A call site that wrote the pattern as a check reads a falsy answer as
+    /// *permitted*, so returning one turns a denial-of-service into an
+    /// authorization bypass. PHP's `pcre.backtrack_limit` returns `false` for
+    /// both "gave up" and "did not match", which is the behaviour this pins
+    /// against — and it is asserted over every way a member reads the tier,
+    /// because the distinction is lost the first time one of them swallows
+    /// the error into an empty result.
+    #[test]
+    fn a_step_budget_exhaustion_throws_rather_than_returning_no_match() {
+        let held = compiled(CATASTROPHIC, NO_FLAGS, "matches").expect("compiles");
+        let Compiled::Backtracking(re) = &*held else {
+            panic!("a backreference is not a pattern the linear engine expresses")
+        };
+        let subject = format!("{}b", "a".repeat(40));
+
+        let predicate = re.is_match(&subject);
+        assert!(predicate.is_err(), "answered {predicate:?} rather than Err");
+        assert!(re.find(&subject).is_err(), "found a first match");
+        assert!(re.captures(&subject).is_err(), "captured a first match");
     }
 
     /// A compiled pattern is held, so a loop over one pattern compiles it
