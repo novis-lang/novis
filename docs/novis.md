@@ -115,6 +115,8 @@ Conventions the whole file uses:
 | [`Core\Http\Response`](#core-core-http-response) |  |
 | [`Core\Cache`](#core-core-cache) |  |
 | [`Core\Cache\Store`](#core-core-cache-store) |  |
+| [`Core\RateLimit`](#core-core-ratelimit) |  |
+| [`Core\RateLimit\Decision`](#core-core-ratelimit-decision) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -15401,7 +15403,7 @@ The coherent tier: a real store over the network, shared by every core and every
 
 **Returns** `Core\Cache\Store` — A `Core\Cache\Store` over the configured shared store, whose entries every core sees.
 
-**Throws** `RuntimeError` — No `[cache.shared] url` is configured; the capability `net.connect` is not granted for that host, or the address it resolves to is one the outbound policy denies; or the configured store cannot be reached — an unreachable store throws rather than answering as though the entry were absent.
+**Throws** `RuntimeError` — No `[cache.shared] url` is configured; or the capability `net.connect` is not granted for that host, or the address it resolves to is one the outbound policy denies. Each is a deployment that was not configured rather than a store that failed.; `IOError` — The configured store cannot be reached — it throws rather than answering as though the entry were absent, since the two mean opposite things to whatever asked.
 
 <a id="core-core-cache-store"></a>
 ### `Core\Cache\Store`
@@ -15429,7 +15431,7 @@ Copies `$value` into the store under `$key`, replacing whatever was there — a 
 
 **Returns** `void` — Nothing. A successful `put` is still no promise that a later `get` answers — see `Core\Cache::local`.
 
-**Throws** `LogicError` — The value cannot cross: it is or holds a closure, or an object with a `secret` property that was not revealed.
+**Throws** `LogicError` — The value cannot cross: it is or holds a closure, or an object with a `secret` property that was not revealed.; `IOError` — On the shared tier only: the store cannot be reached or refused the write. The local tier has nothing to be unreachable.
 
 <a id="core-core-cache-store-get"></a>
 #### `Core\Cache\Store->get`
@@ -15446,7 +15448,93 @@ Copies the entry stored under `$key` back into this request, or answers `null` w
 
 **Returns** `mixed` — The value as it was copied in, or `null` — an entry may be absent at any time, for any reason, and on the local tier that is the contract rather than a failure.
 
-**Throws** `ParseError` — The entry names a class this program cannot resolve — the same refusal `Core\Serialize::decode` makes, and the ordinary consequence of a deployment whose classes changed under a store that outlives them.
+**Throws** `ParseError` — The entry names a class this program cannot resolve — the same refusal `Core\Serialize::decode` makes, and the ordinary consequence of a deployment whose classes changed under a store that outlives them.; `IOError` — On the shared tier only: the store cannot be reached. An entry that is simply not there is `null` on either tier, which is the difference between a miss and a failure.
+
+<a id="core-core-ratelimit"></a>
+### `Core\RateLimit`
+
+Keywords: consume
+
+| Member | Signature |
+|---|---|
+| [`Core\RateLimit::consume`](#core-core-ratelimit-consume) | `consume(string $key, uint $limit, Core\Time\Duration $per, {burst?: uint, cost?: uint}): Core\RateLimit\Decision` |
+
+<a id="core-core-ratelimit-consume"></a>
+#### `Core\RateLimit::consume`
+
+```nvs skip
+Core\RateLimit::consume(string $key, uint $limit, Core\Time\Duration $per, {burst?: uint, cost?: uint}): Core\RateLimit\Decision
+```
+
+Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in the shared store, and answers whether this arrival is inside the limit.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | What the allowance is per — an account, a tenant, an API key id. `tainted` is admitted, since a key is one opaque value on the wire; a `secret` is refused, since keying on one writes it into a store, and the fix is to key on `Core\Hash::of` of it. |
+| `$limit` | `uint` | How many units `$per` admits — the drain rate, not a ceiling on any one instant. |
+| `$per` | `Core\Time\Duration` | The period `$limit` units are admitted over. |
+| `{burst: …}` | `uint` (default `null`) | How much may arrive at once; defaults to `$limit`, which admits a whole period's worth in one instant. |
+| `{cost: …}` | `uint` (default `1`) | What this one call weighs, so an expensive endpoint may charge five units of the same quota; defaults to 1. |
+
+**Returns** `Core\RateLimit\Decision` — A `Core\RateLimit\Decision`. Its `retryAfter` is `null` exactly when it is allowed, and is the exact wait until the arrival would be admitted otherwise — never an estimate, and never rounded up to the next window.
+
+**Throws** `IOError` — The shared store cannot be reached or refused the command. It is never answered as `allowed`: whether this limiter fails open or closed is knowledge only the call site has, so the decision is thrown to it.; `RuntimeError` — No `[cache.shared] url` is configured, or `net.connect` is not granted for its host — a deployment mistake rather than the world saying no, and deliberately not the class the fail-open `catch` around this member holds. Also `$limit`, `$per` or `$burst` at zero, and a period too short to divide into `$limit` units.
+
+<a id="core-core-ratelimit-decision"></a>
+### `Core\RateLimit\Decision`
+
+Keywords: allowed, limit, remaining, retryAfter
+
+| Member | Signature |
+|---|---|
+| [`Core\RateLimit\Decision->allowed`](#core-core-ratelimit-decision-allowed) | `allowed(): bool` |
+| [`Core\RateLimit\Decision->limit`](#core-core-ratelimit-decision-limit) | `limit(): uint` |
+| [`Core\RateLimit\Decision->remaining`](#core-core-ratelimit-decision-remaining) | `remaining(): uint` |
+| [`Core\RateLimit\Decision->retryAfter`](#core-core-ratelimit-decision-retryafter) | `retryAfter(): ?Core\Time\Duration` |
+
+<a id="core-core-ratelimit-decision-allowed"></a>
+#### `Core\RateLimit\Decision->allowed`
+
+```nvs skip
+$decision->allowed(): bool
+```
+
+Whether this arrival was inside the limit, and so whether its cost was charged.
+
+**Returns** `bool` — `true` when the units were charged, `false` when nothing was charged and the arrival was refused.
+
+<a id="core-core-ratelimit-decision-limit"></a>
+#### `Core\RateLimit\Decision->limit`
+
+```nvs skip
+$decision->limit(): uint
+```
+
+The `$limit` the decision was made against, carried back so a `RateLimit` header can be written from the decision alone.
+
+**Returns** `uint` — The limit as it was passed.
+
+<a id="core-core-ratelimit-decision-remaining"></a>
+#### `Core\RateLimit\Decision->remaining`
+
+```nvs skip
+$decision->remaining(): uint
+```
+
+How many further units the store would admit at this instant.
+
+**Returns** `uint` — The units left in the burst allowance, counted after this arrival was charged; `0` when the next unit would have to wait.
+
+<a id="core-core-ratelimit-decision-retryafter"></a>
+#### `Core\RateLimit\Decision->retryAfter`
+
+```nvs skip
+$decision->retryAfter(): ?Core\Time\Duration
+```
+
+How long until this arrival would be admitted — the exact wait, computed from the store's own clock rather than estimated.
+
+**Returns** `?Core\Time\Duration` — `null` exactly when the decision is allowed, and otherwise the `Core\Time\Duration` until the theoretical arrival time; a `Retry-After` header built from it tells the client when to come back rather than when the window turns over, which is what stops every refused client retrying in the same instant.
 
 <a id="core-enums"></a>
 ### `Core` enums
