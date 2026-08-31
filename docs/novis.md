@@ -15401,7 +15401,7 @@ The coherent tier: a real store over the network, shared by every core and every
 
 **Returns** `Core\Cache\Store` — A `Core\Cache\Store` over the configured shared store, whose entries every core sees.
 
-**Throws** `RuntimeError` — No shared store is configured, or the configured one cannot be reached — an unreachable store throws rather than answering as though the entry were absent.
+**Throws** `RuntimeError` — No `[cache.shared] url` is configured; the capability `net.connect` is not granted for that host, or the address it resolves to is one the outbound policy denies; or the configured store cannot be reached — an unreachable store throws rather than answering as though the entry were absent.
 
 <a id="core-core-cache-store"></a>
 ### `Core\Cache\Store`
@@ -16417,6 +16417,7 @@ long-running host — at a reload, or only at boot.
 | `http` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `log` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `cache.dir` | operator only — a request cannot change it | at boot only |
+| `cache.shared` | operator only — a request cannot change it | at boot only |
 | `control.socket` | operator only — a request cannot change it | at boot only |
 | `server` | operator only — a request cannot change it | at boot only |
 | `opcache` | operator only — a request cannot change it | at reload |
