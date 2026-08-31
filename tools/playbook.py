@@ -2,7 +2,7 @@
 """Pick the playbook bullets a goal actually needs, and report the ones that have gone stale.
 
 `docs/agent/playbook.md` is append-mostly by decision -- every trap a session writes down is
-charged to every session after it -- and it has grown accordingly: **205 KB in 296 bullets** across
+charged to every session after it -- and it has grown accordingly: **501 KB in 670 bullets** across
 six sections, from 47 KB in 86 when this script was written. It is the single largest thing
 `orient.py` ships. Run `--check` for the live figures; a number quoted in prose is stale the week
 after it is written, which is why the two above are dated by that contrast rather than trusted.
@@ -413,6 +413,7 @@ def run_check(text: str, every: list[dict]) -> int:
 
     print("== PATHS A BULLET NAMES THAT ARE NOT IN THE TREE")
     stale = 0
+    splits = 0
     for b in every:
         gone = []
         for raw in re.findall(r"`([^`]+)`", b["body"]):
@@ -425,12 +426,23 @@ def run_check(text: str, every: list[dict]) -> int:
             stale += 1
             print(f"  {b['selector']}")
             for g in sorted(set(gone)):
-                print(f"      {g}")
+                # `foo.rs` gone while `foo/` stands is a file that was SPLIT, not deleted -- the
+                # module is still there and the trap is usually still live. Say so rather than
+                # making every pass re-derive it; this annotates, it does not filter.
+                asdir = Path(g).with_suffix("")
+                if str(asdir) != g and (ROOT / asdir).is_dir():
+                    splits += 1
+                    print(f"      {g}  -- split into {asdir.as_posix()}/, so the module still stands")
+                else:
+                    print(f"      {g}")
     if not stale:
         print("  none -- every path any bullet names still exists")
     else:
         print(f"\n  {stale} bullet(s). A trap describing a file that is gone is usually a trap")
         print("  someone closed. Read it before deleting it; this reports, it never prunes.")
+        if splits:
+            print(f"  {splits} of the paths above are marked `split into` -- those are the weakest")
+            print("  signal of the lot, because the code moved rather than went away.")
 
     print("\n== SELECTORS THAT DO NOT RESOLVE TO EXACTLY ONE BULLET")
     bad = 0
@@ -468,8 +480,12 @@ def main() -> int:
     ap.add_argument("--gap", action="store_true",
                     help="bullets the handoff's next group implies that the manifest omits")
     ap.add_argument("--check", action="store_true")
-    ap.add_argument("--dupes", nargs="?", type=float, const=0.30, metavar="RATIO",
-                    help="bullets that may already say what another bullet says (default 0.30)")
+    # 0.22, not the 0.30 this shipped with: the `Core\\Math::gcd` twin trap was written down twice
+    # at 23% overlap and the default was blind to it, while the whole 22-30% band held that one
+    # pair and no false positive. This reports and never prunes, so the cost of looking lower is a
+    # reader's minute.
+    ap.add_argument("--dupes", nargs="?", type=float, const=0.22, metavar="RATIO",
+                    help="bullets that may already say what another bullet says (default 0.22)")
     opts = ap.parse_args()
 
     try:
