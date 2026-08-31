@@ -258,7 +258,14 @@ fn canonical_root(root: &mut String, files: &dyn Files) {
 /// canonicalizer can answer for; [`here`] spells it `.` so that the ancestor walk reaches the
 /// current directory instead of running out of components and denying. That is the ordinary
 /// spelling of a path a program writes, so denying it denied a grant of `.` its whole point.
-fn resolved(path: &Path, files: &dyn Files) -> Option<PathBuf> {
+///
+/// Public because `nvs_runtime::capability`'s resolution door answers `Core\IO::within` with the
+/// **same** walk this check makes. A launderer that proved containment against a second
+/// canonicalizer would be proving it about a different path than the one the grant was compared
+/// against, and a `..` gets through exactly there — the same reason [`Capabilities::allows`] takes
+/// its canonicalizer as a parameter rather than reaching for the filesystem.
+#[must_use]
+pub fn resolved(path: &Path, files: &dyn Files) -> Option<PathBuf> {
     if let Ok(found) = files.canonical(path) {
         return Some(found);
     }

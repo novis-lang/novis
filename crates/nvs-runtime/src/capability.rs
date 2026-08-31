@@ -3,8 +3,9 @@
 //!
 //! [`require`] is deliberately the only *decision* here. The decision procedure is
 //! [`nvs_config::capability`] and is pure; this is the half that knows about a request — where the
-//! snapshot comes from, and what a denial looks like to the program that hit it. The seven below are
-//! § 2's filesystem doors — [`open_read`], [`metadata`] and [`exists`] behind `fs.read`, [`write()`],
+//! snapshot comes from, and what a denial looks like to the program that hit it. The eight below are
+//! § 2's filesystem doors — [`open_read`], [`metadata`], [`exists`] and [`canonicalize`] behind
+//! `fs.read`, [`write()`],
 //! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write` — and the rest (`connect`, `exec`) arrive
 //! with the first `Core` member that needs one; each of them calls [`require`] before it names a
 //! spelling that
@@ -157,6 +158,39 @@ pub fn exists(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
     path.try_exists()
         .map_err(|err| io_failure(member, path, &err))
+}
+
+/// § 2's resolution door: what `path` actually names, once [`Cap::FsRead`] has been shown to cover
+/// it — every `..` collapsed by the operating system and every symlink followed.
+///
+/// Behind `fs.read` and not behind nothing, because resolving a name *reads* the directories above
+/// it: a program that can canonicalize a path it was never granted can learn which of its
+/// components exist, which is the enumeration [`exists`] is refused for.
+///
+/// The walk is [`nvs_config::capability::resolved`] and not a second one. It answers for a path that
+/// does not exist yet by pinning its deepest existing ancestor, which is what a `Core\IO::within`
+/// over a name about to be created needs — and, more importantly, it is the **same** resolution
+/// [`require`] just compared against the grant, so a member cannot prove containment about a
+/// different path than the one it was allowed to touch.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
+/// `path`, or [`io_failure`]'s `IOError` when nothing about the path could be resolved — not even
+/// an ancestor of it exists, or a still-unresolved component is `..`, which the walk refuses rather
+/// than collapsing textually.
+pub fn canonicalize(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
+    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    nvs_config::capability::resolved(path, &nvs_config::resolve::Disk).ok_or_else(|| {
+        io_failure(
+            member,
+            path,
+            &std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "no ancestor of this path could be resolved",
+            ),
+        )
+    })
 }
 
 /// § 2's unlink door: `path` stops existing, once [`Cap::FsWrite`] has been shown to cover it.
