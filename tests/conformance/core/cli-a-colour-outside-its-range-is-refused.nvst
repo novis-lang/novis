@@ -1,0 +1,38 @@
+--TEST--
+`Core\Cli\Color`'s two constructors refuse a value their colour space has no entry for, on both sides of the bound — ADR 0086 § 2
+--FILE--
+<?nvs
+// A palette has 256 entries and a channel has 256 levels, so both constructors
+// have a last accepted value and a first refused one. Both sides are asserted
+// together: a constructor that stopped one entry early would print plausibly
+// against either half alone.
+echo Core\Cli\Text::styled("last", Core\Cli\Style::of({color: Core\Cli\Color::index(255)})), "\n";
+try {
+    Core\Cli\Color::index(256);
+    echo "broken: 256 is not a palette entry", "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+echo Core\Cli\Text::styled("last", Core\Cli\Style::of({color: Core\Cli\Color::rgb(255, 255, 255)})), "\n";
+try {
+    Core\Cli\Color::rgb(256, 0, 0);
+    echo "broken: 256 is not a channel level", "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// Each channel is checked, not only the first — a refusal that read one
+// argument would pass everything above.
+try {
+    Core\Cli\Color::rgb(0, 0, 300);
+    echo "broken: the blue channel was not checked", "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+last
+Core\Cli\Color::index: 256 is not a palette entry, which is 0 to 255
+last
+Core\Cli\Color::rgb: `red` is 256, and a channel is 0 to 255
+Core\Cli\Color::rgb: `blue` is 300, and a channel is 0 to 255

@@ -1,0 +1,44 @@
+--TEST--
+A `Core\Cli\Style` is built out of typed values, and neither rejected spelling of styling means anything to `Core\Cli\Text::styled` — ADR 0086 §§ 1-2
+--FILE--
+<?nvs
+// § 2 rejects both of the obvious designs: a raw `"\e[31m"` escape and a
+// `"<red>…</red>"` markup string. This case writes both of them *as the text*
+// and asserts that neither one styles anything — the markup comes back as the
+// literal characters it is, and the escape comes back substituted by § 1's
+// table exactly as `Text::plain` would have substituted it. The only control
+// bytes a `Text` can carry are the ones a `Style` put there.
+var $style = Core\Cli\Style::of({color: Core\Cli\Color::RED, bold: true});
+var $raw = "<red>" . Core\Str::fromCodePoint(27) . "[31m</red>";
+
+// § 3: a conformance case's output is captured, so no stream is a terminal and
+// the styling is dropped entirely. What is left is the text, and it must be
+// exactly what the raw path already produces for the same bytes.
+if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
+    echo Core\Cli\Text::styled($raw, $style), "\n";
+    echo Core\Cli\Text::plain($raw), "\n";
+} else {
+    echo "held (a terminal would style these)", "\n";
+    echo "held (a terminal would style these)", "\n";
+}
+
+// A colour is a value with two constructors and sixteen names, and every one
+// of them is the same kind of thing: `Style::of` takes any of them in the same
+// option. None of these is a string a program could have typed by accident.
+var $indexed = Core\Cli\Style::of({color: Core\Cli\Color::index(160)});
+var $true = Core\Cli\Style::of({background: Core\Cli\Color::rgb(255, 0, 0), underline: true});
+if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
+    echo Core\Cli\Text::styled("indexed", $indexed), " ";
+    echo Core\Cli\Text::styled("true", $true), "\n";
+} else {
+    echo "held (a terminal would style these)", "\n";
+}
+
+// A style with nothing in it is still a style — R2's options are all optional,
+// so `of({})` is the identity a program can pass where one is required.
+echo Core\Cli\Text::styled("bare", Core\Cli\Style::of({})), "\n";
+--EXPECT--
+<red>␛[31m</red>
+<red>␛[31m</red>
+indexed true
+bare

@@ -60,8 +60,23 @@
 //! `Text` may legitimately carry are `styled`'s, put there from a `Cli\Style`
 //! and never taken from a caller's string.
 //!
-//! `Text::styled`, `Text + Text`, `Cli\Style` and `Cli\Color` are ADR 0086
-//! § 2's and are still owed; gap 3 below names the one mechanism they wait on.
+//! # What a style is, and where it is rendered
+//!
+//! ADR 0086 § 2's other half is here too: [`STYLE`] and [`COLOR`], the two
+//! value types that exist so the carrier has something to wear that is not a
+//! grammar. A colour is a class *constant that is an instance* —
+//! `Color::RED` is `Color::index(1)` inlined at the use site, which
+//! [`crate::registry::Const::Built`] has expressed since `Core\Time\Zone::UTC`
+//! — so the sixteen names cost one allocation each where they are written and
+//! nothing is shared between isolates.
+//!
+//! [`nvs_core_cli_text_styled`] renders that style **when the `Text` is built**
+//! rather than when it is written, against the profile § 3 resolves once per
+//! process. Its own doc comment owns why the two are the same bytes today and
+//! what the difference would be; § 2's body records the decision.
+//!
+//! `Text + Text` is § 2's and is still owed: `+` over two objects needs a row
+//! in `nvs_types`' operator table before this file can express it.
 //!
 //! [`nvs_core_cli_escape`] is the same table reached as a *value* rather than
 //! as an effect — ADR 0024 § 3's named launderer for this sink — and it calls
@@ -76,25 +91,24 @@
 //!    how a renderer would lay a string out, belongs beside `Cli\Style`, and
 //!    additionally owes a UAX #11 table this tree does not carry yet.
 //! 2. **The rest of § 13 does not exist** — no `arguments`, no prompts (`ask`,
-//!    `confirm`, `select<T>`, `secret`), no scoped `live<T>` or `progress<T>`,
-//!    and no `Cli\Style` or `Cli\Color` beside the three enums below.
-//!    `docs/spec/01-core-library.md` § 13 lists them and `docs/plan/m8.md` owns
-//!    when.
-//! 3. **`Cli\Color` waits on a `Core` class constant that is an instance**,
-//!    which ADR 0086 § 2 calls machinery this crate already has and which it
-//!    does not: [`crate::registry::CoreConst`]'s value is a
-//!    [`Const`](crate::registry::Const), whose whole roster is scalar, and the
-//!    compiler inlines it at every use site. § 2's sixteen named colours are
-//!    class constants and `Color::rgb`/`Color::index` construct the rest, so
-//!    `Cli\Color` — and therefore `Cli\Style` and `Text::styled` — is blocked on
-//!    deciding how a constant that is an instance is spelled and when it is
-//!    built. That decision is the next slice, not this file's.
+//!    `confirm`, `select<T>`, `secret`), and no scoped `live<T>` or
+//!    `progress<T>`. `docs/spec/01-core-library.md` § 13 lists them and
+//!    `docs/plan/m8.md` owns when.
+//! 3. **A `Text` cannot be plain on one stream and styled on another in the
+//!    same run.** It holds bytes, and the styling is rendered into them once —
+//!    so a program writing the same `Text` to a terminal standard output and a
+//!    redirected standard error sends both the same thing. Nothing on disk can
+//!    observe it: `echo` is the only sink, it writes standard output, and § 3's
+//!    colour depth is a process answer (`Cli::colorDepth` takes no stream).
+//!    What closes it is the `Cli\Text` of runs § 2's body names as the shape a
+//!    per-stream `Cli::write` would need.
 
 use nvs_runtime::terminal::{ColorDepth, Stream};
-use nvs_runtime::{Fault, NvsStr, Value};
+use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// `Core\Cli`'s fully-qualified name, in one place so the registry row and
@@ -362,6 +376,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cli_height" => (nvs_core_cli_height as *const ()).cast(),
         "nvs_core_cli_color_depth" => (nvs_core_cli_color_depth as *const ()).cast(),
         "nvs_core_cli_text_plain" => (nvs_core_cli_text_plain as *const ()).cast(),
+        "nvs_core_cli_text_styled" => (nvs_core_cli_text_styled as *const ()).cast(),
+        "nvs_core_cli_color_index" => (nvs_core_cli_color_index as *const ()).cast(),
+        "nvs_core_cli_color_rgb" => (nvs_core_cli_color_rgb as *const ()).cast(),
+        "nvs_core_cli_style_of" => (nvs_core_cli_style_of as *const ()).cast(),
         _ => return None,
     })
 }
@@ -513,15 +531,26 @@ pub(crate) const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
 /// constructor over it. See the module docs for what is still owed.
 pub(crate) const TEXT: CoreClass = CoreClass {
     name: NAME,
-    methods: &[CoreMethod {
-        name: "plain",
-        names: &["text"],
-        params: &[CoreTy::Text(Qual::Launder)],
-        defaults: &[],
-        return_ty: CoreTy::Instance(NAME),
-        symbol: "nvs_core_cli_text_plain",
-        doc: Some(&PLAIN_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "plain",
+            names: &["text"],
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NAME),
+            symbol: "nvs_core_cli_text_plain",
+            doc: Some(&PLAIN_DOC),
+        },
+        CoreMethod {
+            name: "styled",
+            names: &["text", "style"],
+            params: &[CoreTy::Text(Qual::Launder), CoreTy::Instance(STYLE_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NAME),
+            symbol: "nvs_core_cli_text_styled",
+            doc: Some(&STYLED_DOC),
+        },
+    ],
     instance: &[],
     slots: &["text"],
     constants: &[],
@@ -542,6 +571,32 @@ const PLAIN_DOC: MethodDoc = MethodDoc {
     }],
     ret: "A `Core\\Cli\\Text` carrying the neutralized form. It composes with another `Text` and \
           is written by `echo`; it carries no styling, which is `styled`'s.",
+    errors: &[],
+};
+
+/// `Core\Cli\Text::styled`'s reference card — ADR 0117.
+const STYLED_DOC: MethodDoc = MethodDoc {
+    short: "Answers `$text` as a `Core\\Cli\\Text` wearing `$style`, with the text itself \
+            neutralized exactly as `plain` neutralizes it — so the only control bytes in the \
+            answer are the ones the style put there. Replaces the `\"\\e[31m…\"` string every PHP \
+            CLI program builds by hand.",
+    params: &[
+        ParamDoc {
+            name: "text",
+            desc: "The text to carry. Its `tainted` qualifier is removed for `plain`'s reason, \
+                   and an escape sequence inside it is substituted rather than obeyed.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "style",
+            desc: "The style to wear, as a value — Novis has no markup or escape grammar to write \
+                   one in.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Cli\\Text` carrying the neutralized text between the style's own escape \
+          sequence and a reset. The styling is rendered for the terminal this process actually \
+          has, so it is absent entirely when standard output is not one.",
     errors: &[],
 };
 
@@ -587,6 +642,672 @@ nvs_runtime::nvs_helper! {
         Ok(built(Value::str(NvsStr::new(
             nvs_render::text::substitute(text).as_bytes(),
         ))))
+    }
+}
+
+// ------------------------------------------------------ the styling value types
+
+/// `Core\Cli\Color`'s fully-qualified name — see [`STREAM_NAME`].
+pub(crate) const COLOR_NAME: &str = r"Core\Cli\Color";
+
+/// The symbol `Color::index` registers, written once: the sixteen named colours
+/// are [`Const::Built`] constants *over it*, so a second spelling here would be
+/// a constant that builds nothing.
+const INDEX_SYMBOL: &str = "nvs_core_cli_color_index";
+
+/// Slot 0 of a [`COLOR`] — which of the two colour spaces its `value` is in,
+/// as [`INK_INDEXED`] or [`INK_RGB`].
+const COLOR_KIND: usize = 0;
+
+/// Slot 1 of a [`COLOR`] — a palette entry `0..=255`, or a packed
+/// `r << 16 | g << 8 | b`, according to slot 0.
+const COLOR_VALUE: usize = 1;
+
+/// [`COLOR_KIND`] for a palette entry.
+const INK_INDEXED: i64 = 0;
+
+/// [`COLOR_KIND`] for 24-bit colour.
+const INK_RGB: i64 = 1;
+
+/// ADR 0086 § 2's `Cli\Color` — **a value type, not an enum**.
+///
+/// [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s closed
+/// named integer type does not fit a set with sixteen million members, so the
+/// sixteen the terminal names are class constants and the rest is constructed.
+/// Two slots rather than one packed integer because the two colour spaces are
+/// genuinely different questions — a palette entry is resolved by the
+/// terminal's own theme and a triple is not — and [`sgr_ink`] degrades between
+/// them, which a single encoded number would make an arithmetic puzzle.
+pub(crate) const COLOR: CoreClass = CoreClass {
+    name: COLOR_NAME,
+    methods: &[
+        CoreMethod {
+            name: "index",
+            names: &["index"],
+            params: &[CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Instance(COLOR_NAME),
+            symbol: INDEX_SYMBOL,
+            doc: Some(&INDEX_DOC),
+        },
+        CoreMethod {
+            name: "rgb",
+            names: &["red", "green", "blue"],
+            params: &[CoreTy::Uint, CoreTy::Uint, CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Instance(COLOR_NAME),
+            symbol: "nvs_core_cli_color_rgb",
+            doc: Some(&RGB_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &["kind", "value"],
+    constants: NAMED,
+};
+
+/// `Core\Cli\Color::index`'s reference card — ADR 0117.
+const INDEX_DOC: MethodDoc = MethodDoc {
+    short: "A colour from the terminal's 256-entry palette, whose first sixteen entries are the \
+            named constants on this class.",
+    params: &[ParamDoc {
+        name: "index",
+        desc: "The palette entry, `0` to `255`.",
+        shape: &[],
+    }],
+    ret: "The colour that entry names, which a terminal with a smaller palette renders as the \
+          nearest of the sixteen it has.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$index` is above `255`, which no palette has an entry for.",
+    }],
+};
+
+/// `Core\Cli\Color::rgb`'s reference card — ADR 0117.
+const RGB_DOC: MethodDoc = MethodDoc {
+    short: "A 24-bit colour, for the terminals that have one — the sixteen million members that \
+            are why this class is a value type and not an enum.",
+    params: &[
+        ParamDoc {
+            name: "red",
+            desc: "The red channel, `0` to `255`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "green",
+            desc: "The green channel, `0` to `255`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "blue",
+            desc: "The blue channel, `0` to `255`.",
+            shape: &[],
+        },
+    ],
+    ret: "The colour, which is written as itself on a true-colour terminal and as the nearest \
+          palette entry on one without.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A channel is above `255`.",
+    }],
+};
+
+/// ADR 0086 § 2's *"the sixteen named colours are class constants"*, as the
+/// [`Const::Built`] rows that makes them: `Color::RED` is `Color::index(1)`
+/// inlined at the use site, so it is one per-request allocation like any other
+/// object and nothing is shared between isolates.
+///
+/// The ordinals are the ANSI palette's own, which is what lets [`sgr_ink`] emit
+/// `30 + index` for the first eight and `90 + index - 8` for their bright
+/// halves without a table.
+const NAMED: &[CoreConst] = &[
+    named(
+        "BLACK",
+        0,
+        "ANSI palette entry 0 — black, as the terminal's theme renders it.",
+    ),
+    named("RED", 1, "ANSI palette entry 1 — red."),
+    named("GREEN", 2, "ANSI palette entry 2 — green."),
+    named("YELLOW", 3, "ANSI palette entry 3 — yellow."),
+    named("BLUE", 4, "ANSI palette entry 4 — blue."),
+    named("MAGENTA", 5, "ANSI palette entry 5 — magenta."),
+    named("CYAN", 6, "ANSI palette entry 6 — cyan."),
+    named(
+        "WHITE",
+        7,
+        "ANSI palette entry 7 — white, which a light theme renders as near-black.",
+    ),
+    named(
+        "BRIGHT_BLACK",
+        8,
+        "ANSI palette entry 8 — the grey a terminal shows for dimmed text.",
+    ),
+    named("BRIGHT_RED", 9, "ANSI palette entry 9 — bright red."),
+    named("BRIGHT_GREEN", 10, "ANSI palette entry 10 — bright green."),
+    named(
+        "BRIGHT_YELLOW",
+        11,
+        "ANSI palette entry 11 — bright yellow.",
+    ),
+    named("BRIGHT_BLUE", 12, "ANSI palette entry 12 — bright blue."),
+    named(
+        "BRIGHT_MAGENTA",
+        13,
+        "ANSI palette entry 13 — bright magenta.",
+    ),
+    named("BRIGHT_CYAN", 14, "ANSI palette entry 14 — bright cyan."),
+    named("BRIGHT_WHITE", 15, "ANSI palette entry 15 — bright white."),
+];
+
+/// One [`NAMED`] row: the palette entry `index`, as the call to
+/// [`INDEX_SYMBOL`] that builds it.
+///
+/// The arguments are indexed out of [`INDEX_ARGS`] rather than built here
+/// because a `const fn` cannot make a `&'static` slice, and a roster of sixteen
+/// hand-written `Const::Built` blocks is sixteen places for the symbol to be
+/// misspelled.
+const fn named(name: &'static str, index: usize, desc: &'static str) -> CoreConst {
+    CoreConst {
+        name,
+        ty: CoreTy::Instance(COLOR_NAME),
+        value: Const::Built {
+            symbol: INDEX_SYMBOL,
+            args: INDEX_ARGS[index],
+        },
+        desc,
+    }
+}
+
+/// The sixteen single-argument lists [`named`] indexes, one per palette entry.
+const INDEX_ARGS: [&[Const]; 16] = [
+    &[Const::Uint(0)],
+    &[Const::Uint(1)],
+    &[Const::Uint(2)],
+    &[Const::Uint(3)],
+    &[Const::Uint(4)],
+    &[Const::Uint(5)],
+    &[Const::Uint(6)],
+    &[Const::Uint(7)],
+    &[Const::Uint(8)],
+    &[Const::Uint(9)],
+    &[Const::Uint(10)],
+    &[Const::Uint(11)],
+    &[Const::Uint(12)],
+    &[Const::Uint(13)],
+    &[Const::Uint(14)],
+    &[Const::Uint(15)],
+];
+
+/// `Core\Cli\Style`'s fully-qualified name — see [`STREAM_NAME`].
+pub(crate) const STYLE_NAME: &str = r"Core\Cli\Style";
+
+/// Slot 0 of a [`STYLE`] — its foreground [`COLOR`], or `null`.
+const STYLE_COLOR: usize = 0;
+
+/// Slot 1 of a [`STYLE`] — its background [`COLOR`], or `null`.
+const STYLE_BACKGROUND: usize = 1;
+
+/// Slot 2 of a [`STYLE`] — the five attributes, as the bits below.
+const STYLE_FLAGS: usize = 2;
+
+/// [`STYLE_FLAGS`]' bits, in [`STYLE_OPTIONS`]' own order, each paired with the
+/// SGR parameter it emits.
+///
+/// One integer slot rather than five boolean ones because a style is read as a
+/// whole every time it is read at all — [`sgr`] walks this once — and five
+/// slots would be five `Value`s to release for a fact that fits in three bits
+/// of one.
+const ATTRIBUTES: [(i64, &str); 5] = [(1, "1"), (2, "2"), (4, "3"), (8, "4"), (16, "9")];
+
+/// ADR 0086 § 2's `Cli\Style::of` options — R2's one trailing shape, and the
+/// whole surface of what a style is.
+///
+/// Every option is absent by default and an absent colour is [`Const::Null`],
+/// which is that variant's own case: there is no "no colour" `Color`, and
+/// inventing one would make `Style::of({})` and `Style::of({color: …})`
+/// different shapes of the same thing.
+const STYLE_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "color",
+        ty: CoreTy::Instance(COLOR_NAME),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "background",
+        ty: CoreTy::Instance(COLOR_NAME),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "bold",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "dim",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "italic",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "underline",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "strikethrough",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
+/// ADR 0086 § 2's `Cli\Style` — what a `Text` wears, as a value.
+///
+/// One member, because a style is constructed and then read: ADR 0063 R5's
+/// `of` for the canonical construction, R2's one trailing shape for the
+/// options, R20's immutability for everything after.
+pub(crate) const STYLE: CoreClass = CoreClass {
+    name: STYLE_NAME,
+    methods: &[CoreMethod {
+        name: "of",
+        names: &[],
+        params: &[CoreTy::Options(STYLE_OPTIONS)],
+        defaults: &[],
+        return_ty: CoreTy::Instance(STYLE_NAME),
+        symbol: "nvs_core_cli_style_of",
+        doc: Some(&STYLE_OF_DOC),
+    }],
+    instance: &[],
+    slots: &["color", "background", "flags"],
+    constants: &[],
+};
+
+/// `Core\Cli\Style::of`'s reference card — ADR 0117.
+const STYLE_OF_DOC: MethodDoc = MethodDoc {
+    short: "A style, as a value — the replacement for the `\"\\e[1;31m\"` string and the \
+            `\"<bold><red>\"` markup, neither of which Novis has a grammar for.",
+    params: &[
+        ParamDoc {
+            name: "color",
+            desc: "The foreground colour. Absent leaves the terminal's own.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "background",
+            desc: "The background colour. Absent leaves the terminal's own.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "bold",
+            desc: "Whether the text is bold.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "dim",
+            desc: "Whether the text is dimmed.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "italic",
+            desc: "Whether the text is italic, which a minority of terminals render.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "underline",
+            desc: "Whether the text is underlined.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "strikethrough",
+            desc: "Whether the text is struck through.",
+            shape: &[],
+        },
+    ],
+    ret: "The style, which `Core\\Cli\\Text::styled` renders for the terminal this process \
+          actually has.",
+    errors: &[],
+};
+
+/// A colour, read out of a [`COLOR`] instance's two slots.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Ink {
+    /// [`INK_INDEXED`] or [`INK_RGB`].
+    kind: i64,
+    /// The palette entry, or the packed triple.
+    value: u64,
+}
+
+/// The SGR parameters for one [`Ink`] at `depth`, degraded to what the terminal
+/// has — ADR 0086 § 3's `truecolor → 256 → 16`, which is a comparison on
+/// [`ColorDepth`]'s ascending ordinals rather than a table.
+///
+/// `background` picks the `4x`/`10x` half of the same numbering, which is the
+/// `+ 10` every one of these parameters carries.
+fn sgr_ink(ink: Ink, depth: ColorDepth, background: bool) -> String {
+    let offset: u32 = if background { 10 } else { 0 };
+    // The sixteen every terminal has, including the ones with no palette at
+    // all: `30..=37` and their bright `90..=97`, or the `4x`/`10x` half.
+    let basic = |entry: u8| -> String {
+        if entry < 8 {
+            (u32::from(entry) + 30 + offset).to_string()
+        } else {
+            (u32::from(entry) - 8 + 90 + offset).to_string()
+        }
+    };
+    let (red, green, blue) = match ink.kind {
+        INK_RGB => {
+            let channel = |shift: u32| u8::try_from((ink.value >> shift) & 0xFF).unwrap_or(0);
+            (channel(16), channel(8), channel(0))
+        }
+        // A palette entry is emitted as itself wherever the terminal has a
+        // palette, and resolved to its own colour where it does not.
+        _ => {
+            let entry = u8::try_from(ink.value).unwrap_or(u8::MAX);
+            if entry < 16 {
+                return basic(entry);
+            }
+            if depth >= ColorDepth::Ansi256 {
+                return format!("{};5;{entry}", 38 + offset);
+            }
+            rgb_of_entry(entry)
+        }
+    };
+    match depth {
+        ColorDepth::TrueColor => format!("{};2;{red};{green};{blue}", 38 + offset),
+        ColorDepth::Ansi256 => format!("{};5;{}", 38 + offset, entry_of_rgb(red, green, blue)),
+        _ => basic(basic_of_rgb(red, green, blue)),
+    }
+}
+
+/// The 256-palette entry closest to one 24-bit colour — the 6×6×6 cube, or the
+/// 24-step grey ramp for a triple whose channels agree.
+fn entry_of_rgb(red: u8, green: u8, blue: u8) -> u8 {
+    if red == green && green == blue {
+        if red < 8 {
+            return 16;
+        }
+        if red > 248 {
+            return 231;
+        }
+        let step = (u16::from(red) - 8) * 24 / 247;
+        return 232 + u8::try_from(step).unwrap_or(23);
+    }
+    let step = |channel: u8| (u16::from(channel) * 5 + 127) / 255;
+    let cube = 16 + 36 * step(red) + 6 * step(green) + step(blue);
+    u8::try_from(cube).unwrap_or(231)
+}
+
+/// The 24-bit colour a palette entry above the basic sixteen stands for, so
+/// that a terminal with no palette can be given the nearest of its own.
+fn rgb_of_entry(entry: u8) -> (u8, u8, u8) {
+    if entry >= 232 {
+        let level = 8 + (entry - 232) * 10;
+        return (level, level, level);
+    }
+    let cube = entry - 16;
+    ((cube / 36) * 51, ((cube / 6) % 6) * 51, (cube % 6) * 51)
+}
+
+/// The basic-sixteen entry closest to one 24-bit colour.
+///
+/// The bright bit is a *maximum* above two thirds rather than a per-channel
+/// test, because a terminal's bright half is the same hue at a higher
+/// intensity; the per-channel cut is a third, which is where the ANSI palette's
+/// own primaries sit.
+fn basic_of_rgb(red: u8, green: u8, blue: u8) -> u8 {
+    let bright = if red.max(green).max(blue) > 170 { 8 } else { 0 };
+    let mut entry = 0;
+    if red > 85 {
+        entry |= 1;
+    }
+    if green > 85 {
+        entry |= 2;
+    }
+    if blue > 85 {
+        entry |= 4;
+    }
+    entry | bright
+}
+
+/// The escape sequence one style is written as at `depth`, or the empty string
+/// for a style that says nothing — and for **every** style at
+/// [`ColorDepth::None`], which is ADR 0086 § 3's *"when the stream is not a
+/// terminal, styling is dropped entirely"*.
+///
+/// A pure function of the style and the depth, so
+/// [`tests::styling_is_a_value_type_and_never_a_grammar`] can ask it about a
+/// terminal this process does not have.
+fn sgr(color: Option<Ink>, background: Option<Ink>, flags: i64, depth: ColorDepth) -> String {
+    if depth == ColorDepth::None {
+        return String::new();
+    }
+    let mut parts: Vec<String> = Vec::new();
+    for (bit, parameter) in ATTRIBUTES {
+        if flags & bit != 0 {
+            parts.push(parameter.to_owned());
+        }
+    }
+    if let Some(ink) = color {
+        parts.push(sgr_ink(ink, depth, false));
+    }
+    if let Some(ink) = background {
+        parts.push(sgr_ink(ink, depth, true));
+    }
+    if parts.is_empty() {
+        return String::new();
+    }
+    format!("\u{1B}[{}m", parts.join(";"))
+}
+
+/// The colour in one `Style::of` option slot, or `None` for the absent one.
+///
+/// # Errors
+///
+/// A `Fault::fatal` for a slot that is neither, which is unreachable from
+/// source: the option is `CoreTy::Instance`, so `E0401` refuses anything else a
+/// phase earlier, and a broken ABI is not catchable.
+fn ink_of(value: Value, option: &str) -> Result<Option<Ink>, Fault> {
+    match value.tag() {
+        Some(Tag::Null) => Ok(None),
+        Some(Tag::Object) => {
+            let object = crate::instance::receiver(value, &COLOR, option)?;
+            Ok(Some(Ink {
+                kind: crate::instance::slot(object, COLOR_KIND)
+                    .as_int()
+                    .unwrap_or(INK_INDEXED),
+                value: crate::instance::slot(object, COLOR_VALUE)
+                    .as_uint()
+                    .unwrap_or(0),
+            }))
+        }
+        // Unreachable from source: the option's declared type is
+        // `CoreTy::Instance`, so `E0401` refuses anything that is neither a
+        // `Core\Cli\Color` nor the omitted default a phase earlier, and a
+        // broken ABI is not something a program may catch.
+        _ => Err(Fault::fatal(format!(
+            "Core\\Cli\\Style::of expected a `{COLOR_NAME}` or nothing for `{option}`, got tag {}",
+            value.tag_byte()
+        ))),
+    }
+}
+
+/// One `Style::of` boolean option, which the checker has already refused
+/// anything but a `bool` for.
+fn flag_of(value: Value) -> i64 {
+    i64::from(value.as_bool().unwrap_or(false))
+}
+
+/// One channel of `Color::rgb`, refused above `255`.
+///
+/// # Errors
+///
+/// A `RuntimeError` — a catchable throw rather than a fatal, because a channel
+/// is ordinary arithmetic a program can get wrong.
+fn channel_of(value: Value, name: &str) -> Result<u64, Fault> {
+    // Unreachable from source: the parameter is `CoreTy::Uint`, so `E0401`
+    // refuses anything else a phase earlier — unlike the range below, which is
+    // arithmetic no signature can express.
+    let channel = value.as_uint().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Cli\\Color::rgb expected a `uint` for `{name}`, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    if channel > 255 {
+        return Err(Fault::thrown(format!(
+            "Core\\Cli\\Color::rgb: `{name}` is {channel}, and a channel is 0 to 255"
+        )));
+    }
+    Ok(channel)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli\Color::index(uint $index): Cli\Color` — ADR 0086 § 2's
+    /// constructor for the 256-entry palette, and the one the sixteen named
+    /// constants are built by.
+    fn nvs_core_cli_color_index(_ctx, args: [1]) {
+        // Unreachable from source: the parameter is `CoreTy::Uint`, so `E0401`
+        // refuses anything else a phase earlier, and a broken ABI is not
+        // catchable — the range check below *is* reachable and throws.
+        let index = args[0].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Cli\\Color::index expected a `uint`, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        if index > 255 {
+            return Err(Fault::thrown(format!(
+                "Core\\Cli\\Color::index: {index} is not a palette entry, which is 0 to 255"
+            )));
+        }
+        Ok(crate::instance::build(
+            &COLOR,
+            [Value::int(INK_INDEXED), Value::uint(index)],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli\Color::rgb(uint $red, uint $green, uint $blue): Cli\Color` —
+    /// § 2's constructor for the sixteen million entries that are why this
+    /// class is a value type and not an enum.
+    ///
+    /// The three channels are packed into one slot because they are read back
+    /// together and never separately: [`sgr_ink`] unpacks them in the one place
+    /// that renders them.
+    fn nvs_core_cli_color_rgb(_ctx, args: [3]) {
+        let red = channel_of(args[0], "red")?;
+        let green = channel_of(args[1], "green")?;
+        let blue = channel_of(args[2], "blue")?;
+        Ok(crate::instance::build(
+            &COLOR,
+            [
+                Value::int(INK_RGB),
+                Value::uint((red << 16) | (green << 8) | blue),
+            ],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli\Style::of({color?, background?, bold?, dim?, italic?,
+    /// underline?, strikethrough?}): Cli\Style` — ADR 0086 § 2's style, as a
+    /// value rather than as a fifth grammar (ADR 0063 R11 fixes the count at
+    /// four).
+    ///
+    /// Seven arguments for one options bag: `nvs-ir` flattens it to one per
+    /// option, so an omitted `{}` arrives as this row's own defaults and the
+    /// body has no "was it given" question to ask.
+    ///
+    /// A colour argument is **borrowed**, as every `Core` member's is, so the
+    /// two that are kept are retained on the way into the slot the style owns
+    /// them in.
+    fn nvs_core_cli_style_of(_ctx, args: [7]) {
+        // Read before anything is retained: a refusal here must leave no
+        // reference behind, and `ink_of` is the only step that can fail. The
+        // colours themselves are stored as they arrived rather than as the
+        // `Ink` this decodes, since `styled` reads the slots back.
+        let _ = ink_of(args[0], "color")?;
+        let _ = ink_of(args[1], "background")?;
+        let mut flags = 0;
+        for (index, &(bit, _)) in ATTRIBUTES.iter().enumerate() {
+            if flag_of(args[index + 2]) != 0 {
+                flags |= bit;
+            }
+        }
+        #[expect(
+            unsafe_code,
+            reason = "both arguments are borrowed from the caller's frame, so \
+                      the copies this style keeps in its own slots need a \
+                      reference each — released with the style itself"
+        )]
+        unsafe {
+            args[0].retain();
+            args[1].retain();
+        }
+        Ok(crate::instance::build(
+            &STYLE,
+            [args[0], args[1], Value::int(flags)],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli\Text::styled(string $text, Cli\Style $style): Cli\Text` — ADR
+    /// 0086 § 2's second constructor, and the only thing in the language that
+    /// puts a control byte in front of a program's own text.
+    ///
+    /// # The text is neutralized and the style is not
+    ///
+    /// § 2: both constructors *"apply § 1's substitution to their input"*, so
+    /// this calls the same `nvs_render::text::substitute`
+    /// [`nvs_core_cli_text_plain`] does and then wraps the answer. The escape
+    /// bytes in the result therefore came from a `Cli\Style` — a value the
+    /// program built out of typed parts — and never from a string it was
+    /// handed, which is the structural guarantee that makes `Text` a
+    /// constructor rather than a trust assertion.
+    ///
+    /// # Where the degradation happens, and the one thing it cannot see
+    ///
+    /// ADR 0086 § 3's profile is resolved once per process, so rendering the
+    /// style here gives byte-identical output to rendering it at the moment of
+    /// the write — with one exception, which § 2's body records: a `Text` holds
+    /// bytes, so it cannot be written *plain to a redirected stderr and styled
+    /// to a terminal stdout* in the same run. The colour depth is a process
+    /// answer (`Cli::colorDepth` takes no stream), and `echo` — the only sink
+    /// that exists — writes standard output, so nothing on disk can observe
+    /// the difference today.
+    fn nvs_core_cli_text_styled(_ctx, args: [2]) {
+        // Unreachable from source, for the reason `plain`'s body gives: the
+        // parameter is `CoreTy::Text`, so `E0401` refuses a non-`string`
+        // argument a phase earlier and a broken ABI is not catchable.
+        let text = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Cli\\Text::styled expected a `string`, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        let style = crate::instance::receiver(args[1], &STYLE, "styled")?;
+        let color = ink_of(crate::instance::slot(style, STYLE_COLOR), "color")?;
+        let background = ink_of(crate::instance::slot(style, STYLE_BACKGROUND), "background")?;
+        let flags = crate::instance::slot(style, STYLE_FLAGS).as_int().unwrap_or(0);
+        let opening = sgr(
+            color,
+            background,
+            flags,
+            nvs_runtime::terminal::profile().color_depth(),
+        );
+        let body = nvs_render::text::substitute(text);
+        let carried = if opening.is_empty() {
+            body.into_owned()
+        } else {
+            // One reset closes everything the opening sequence set, so a `Text`
+            // never leaks its own styling into what is written after it.
+            format!("{opening}{body}\u{1B}[0m")
+        };
+        Ok(built(Value::str(NvsStr::new(carried.as_bytes()))))
     }
 }
 
@@ -861,5 +1582,126 @@ mod tests {
                 .any(|declared| declared.name == SHELL_NAME),
             "`{SHELL_NAME}` is declared but not registered, so no source can name a case"
         );
+    }
+
+    /// ADR 0086 § 2: **styling is a value type, never a grammar** — asserted as
+    /// the three things that sentence means, because each half passes on its
+    /// own while the rule is broken.
+    ///
+    /// First, the sixteen named colours are class constants *over the
+    /// constructor*: every row is `Color::index(n)` at its own palette ordinal,
+    /// so `Color::RED` is one allocation at the use site like any other object
+    /// and there is no shared instance for a second isolate to reach.
+    ///
+    /// Second, neither rejected design does anything. The payload carries both
+    /// of them — a `<red>` markup tag and a raw `ESC [ 31 m` — and comes back
+    /// with the tag as literal text and the escape substituted, so the only
+    /// control bytes in a `Text` are the ones the `Style` put there. That is
+    /// § 2's *"a constructor that cannot produce an injected sequence"*, and it
+    /// is asserted against the style this process's own terminal renders, so
+    /// the case says the same thing on a developer's console and in CI.
+    ///
+    /// Third, the style is rendered for the terminal there is, over the whole
+    /// `truecolor → 256 → 16 → none` ladder rather than at one depth — the
+    /// assertion a renderer ignoring [`ColorDepth`] would pass at every single
+    /// line — and `None` drops the attributes too, not only the colour.
+    #[test]
+    fn styling_is_a_value_type_and_never_a_grammar() {
+        assert_eq!(
+            COLOR.constants.len(),
+            16,
+            "ADR 0086 § 2 names sixteen colours as class constants"
+        );
+        for (ordinal, constant) in COLOR.constants.iter().enumerate() {
+            let entry = u64::try_from(ordinal).expect("sixteen constants");
+            assert!(
+                matches!(constant.ty, CoreTy::Instance(class) if class == COLOR_NAME),
+                "`{}` is a constant that is not an instance",
+                constant.name
+            );
+            assert!(
+                matches!(
+                    constant.value,
+                    Const::Built { symbol, args }
+                        if symbol == INDEX_SYMBOL
+                            && matches!(args, [Const::Uint(written)] if *written == entry)
+                ),
+                "`{}` is not `Color::index({ordinal})`, so a named colour and a \
+                 constructed one are two different values",
+                constant.name
+            );
+        }
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let red = nvs_runtime::call(nvs_core_cli_color_index, &mut ctx, &[Value::uint(1)])
+            .expect("Color::index succeeded");
+        let bold = [
+            red,
+            Value::null(),
+            Value::bool(true),
+            Value::bool(false),
+            Value::bool(false),
+            Value::bool(false),
+            Value::bool(false),
+        ];
+        let style =
+            nvs_runtime::call(nvs_core_cli_style_of, &mut ctx, &bold).expect("Style::of succeeded");
+
+        let payload = Value::str(NvsStr::new("<red>\u{1B}[31m</red>".as_bytes()));
+        let text = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[payload, style])
+            .expect("Text::styled succeeded");
+        let carried = crate::instance::slot(
+            text.obj_ptr().expect("a `Text` is an object"),
+            nvs_runtime::CARRIER_TEXT_SLOT,
+        );
+
+        let opening = sgr(
+            Some(Ink {
+                kind: INK_INDEXED,
+                value: 1,
+            }),
+            None,
+            1,
+            nvs_runtime::terminal::profile().color_depth(),
+        );
+        let reset = if opening.is_empty() { "" } else { "\u{1B}[0m" };
+        let want = format!("{opening}<red>\u{241B}[31m</red>{reset}");
+        assert_eq!(
+            carried.as_text(),
+            Some(want.as_str()),
+            "a `Text` carried an escape sequence its `Style` did not put there"
+        );
+
+        let scarlet = Ink {
+            kind: INK_RGB,
+            value: 0x00FF_0000,
+        };
+        assert_eq!(
+            sgr(Some(scarlet), None, 0, ColorDepth::TrueColor),
+            "\u{1B}[38;2;255;0;0m"
+        );
+        assert_eq!(
+            sgr(Some(scarlet), None, 0, ColorDepth::Ansi256),
+            "\u{1B}[38;5;196m"
+        );
+        assert_eq!(
+            sgr(Some(scarlet), None, 0, ColorDepth::Ansi16),
+            "\u{1B}[91m"
+        );
+        assert_eq!(sgr(Some(scarlet), None, 0, ColorDepth::None), "");
+        assert_eq!(sgr(None, None, 31, ColorDepth::Ansi16), "\u{1B}[1;2;3;4;9m");
+        assert_eq!(
+            sgr(None, None, 31, ColorDepth::None),
+            "",
+            "a terminal with no colour was still sent the attributes"
+        );
+
+        #[expect(unsafe_code, reason = "each value owns the reference it releases")]
+        unsafe {
+            payload.release();
+            text.release();
+            red.release();
+            style.release();
+        }
     }
 }

@@ -957,7 +957,14 @@ pub struct CoreConst {
     /// The constant's own name, `SCREAMING_SNAKE_CASE` per ADR 0029.
     pub name: &'static str,
     /// Its declared type — what a `var $x = Core\Math::PI;` binding infers.
-    /// Always a scalar, since [`Const`] can express nothing else.
+    ///
+    /// A scalar wherever [`Self::value`] is a literal, and a
+    /// [`CoreTy::Instance`] wherever it is a [`Const::Built`]:
+    /// `Core\Time\Zone::UTC` and `Core\Cli\Color::RED` are constants that are
+    /// *objects*, allocated at the use site by the call that variant names. The
+    /// pairing is not free-form — `every_registered_constant_matches_its_declared_type`
+    /// holds the two together, so a `Built` value under a scalar type is a test
+    /// failure rather than a lowering that emits the wrong instruction.
     pub ty: CoreTy,
     /// Its value, inlined wherever the constant is written.
     pub value: Const,
@@ -1149,6 +1156,10 @@ pub const CLASSES: &[CoreClass] = &[
     // § 13, and here only because § 12's `Core\Out::capture` answers with it —
     // ADR 0088 § 5.
     crate::cli::TEXT,
+    // § 13's styling half — ADR 0086 § 2's two value types, which exist so that
+    // the carrier above has something to wear that is not a grammar.
+    crate::cli::COLOR,
+    crate::cli::STYLE,
     // § 13's other half — ADR 0086 § 6's members over the table `#[Command]`
     // built while compiling. Beside `Core\Cli` because it answers with that
     // class's carrier; [`crate::command`] owns the page's layout, and
@@ -3203,7 +3214,11 @@ mod tests {
     /// fifth is `Core\Http\Target`, whose two slots the member that connects
     /// reads: ADR 0058 § 2 pins an approved address into it, and a member
     /// handing that address back would let a program rebuild the request
-    /// around a different one ([`crate::http`]).
+    /// around a different one ([`crate::http`]). The sixth and seventh are
+    /// `Core\Cli\Color` and `Core\Cli\Style`, whose slots
+    /// `Core\Cli\Text::styled` reads when it renders one: ADR 0086 § 2 writes
+    /// two constructors and a shape of options and no member on either result,
+    /// because a style is built and worn rather than interrogated.
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
         const HANDLES: &[&str] = &[
@@ -3212,6 +3227,8 @@ mod tests {
             crate::script::HANDLE_NAME,
             crate::io::LINES_NAME,
             crate::http::TARGET_NAME,
+            crate::cli::COLOR_NAME,
+            crate::cli::STYLE_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

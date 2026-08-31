@@ -1,0 +1,67 @@
+--TEST--
+Every one of `Core\Cli\Color`'s sixteen named colours is a class constant that builds an instance, beside the two constructors that reach the rest — ADR 0086 § 2
+--FILE--
+<?nvs
+// § 2: "the sixteen named colours are class constants — `Color::RED` is exactly
+// as short at the use site as an enum case would be — and `Color::rgb` and
+// `Color::index` construct the rest". A `Color` is not an enum, because the set
+// has sixteen million members; what makes the sixteen affordable is that a
+// constant may be an instance, built at the use site like any other object.
+//
+// So this case writes all sixteen. A name that resolved to nothing, or to a
+// palette entry other than its own, is a build that fails here rather than one
+// that quietly paints the wrong colour.
+var $black = Core\Cli\Style::of({color: Core\Cli\Color::BLACK});
+var $red = Core\Cli\Style::of({color: Core\Cli\Color::RED});
+var $green = Core\Cli\Style::of({color: Core\Cli\Color::GREEN});
+var $yellow = Core\Cli\Style::of({color: Core\Cli\Color::YELLOW});
+var $blue = Core\Cli\Style::of({color: Core\Cli\Color::BLUE});
+var $magenta = Core\Cli\Style::of({color: Core\Cli\Color::MAGENTA});
+var $cyan = Core\Cli\Style::of({color: Core\Cli\Color::CYAN});
+var $white = Core\Cli\Style::of({color: Core\Cli\Color::WHITE});
+var $brightBlack = Core\Cli\Style::of({background: Core\Cli\Color::BRIGHT_BLACK});
+var $brightRed = Core\Cli\Style::of({background: Core\Cli\Color::BRIGHT_RED});
+var $brightGreen = Core\Cli\Style::of({background: Core\Cli\Color::BRIGHT_GREEN});
+var $brightYellow = Core\Cli\Style::of({background: Core\Cli\Color::BRIGHT_YELLOW});
+var $brightBlue = Core\Cli\Style::of({background: Core\Cli\Color::BRIGHT_BLUE});
+var $brightMagenta = Core\Cli\Style::of({background: Core\Cli\Color::BRIGHT_MAGENTA});
+var $brightCyan = Core\Cli\Style::of({background: Core\Cli\Color::BRIGHT_CYAN});
+var $brightWhite = Core\Cli\Style::of({background: Core\Cli\Color::BRIGHT_WHITE});
+
+// The first sixteen palette entries are what the names stand for, so
+// `Color::index(1)` and `Color::RED` are the same colour reached two ways —
+// and `Color::rgb` is the third way, for the terminals that have it.
+var $viaIndex = Core\Cli\Style::of({color: Core\Cli\Color::index(1)});
+var $viaRgb = Core\Cli\Style::of({color: Core\Cli\Color::rgb(255, 0, 0)});
+
+// § 3: the output of a conformance case is captured, so the styling is dropped
+// and what each of these writes is its own text. That is the assertion here —
+// eighteen styles built out of eighteen colours, each carrying its own letter —
+// while what an actual terminal is *sent* is pinned by `nvs-stdlib`'s own
+// `styling_is_a_value_type_and_never_a_grammar`, which can ask about a colour
+// depth this process does not have.
+if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
+    echo Core\Cli\Text::styled("0", $black);
+    echo Core\Cli\Text::styled("1", $red);
+    echo Core\Cli\Text::styled("2", $green);
+    echo Core\Cli\Text::styled("3", $yellow);
+    echo Core\Cli\Text::styled("4", $blue);
+    echo Core\Cli\Text::styled("5", $magenta);
+    echo Core\Cli\Text::styled("6", $cyan);
+    echo Core\Cli\Text::styled("7", $white);
+    echo Core\Cli\Text::styled("8", $brightBlack);
+    echo Core\Cli\Text::styled("9", $brightRed);
+    echo Core\Cli\Text::styled("a", $brightGreen);
+    echo Core\Cli\Text::styled("b", $brightYellow);
+    echo Core\Cli\Text::styled("c", $brightBlue);
+    echo Core\Cli\Text::styled("d", $brightMagenta);
+    echo Core\Cli\Text::styled("e", $brightCyan);
+    echo Core\Cli\Text::styled("f", $brightWhite);
+    echo Core\Cli\Text::styled("+", $viaIndex);
+    echo Core\Cli\Text::styled("+", $viaRgb);
+    echo "\n";
+} else {
+    echo "held (a terminal would colour these)", "\n";
+}
+--EXPECT--
+0123456789abcdef++
