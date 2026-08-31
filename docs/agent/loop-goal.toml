@@ -2439,10 +2439,23 @@ args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "application_code_and_the_engine_floor_produce_schema_identical_records",
   "on_uncaught_throw_receives_the_real_throwable",
-  "the_configured_handler_script_runs_charged_to_the_engines_own_reserve",
-  "the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling",
   # ADR 0106's amendment to ADR 0020 § 4 -- the floor cannot fill the disk it writes to.
   "the_engine_floor_rotates_and_rate_limits_itself",
+]
+
+# The two halves of § 3's tier 3 that need a request rather than a member: an isolate to run the
+# handler script in, and a ceiling to have breached before it does. `nvs-host` is the crate that owns
+# a request's life, so its `tests/limits.rs` is where both can be asked at all -- and where the first
+# of them has been all along, which is why this check exists rather than the names sitting under a
+# `-p nvs-stdlib` that could never have run them.
+[[check]]
+kind = "cargo-named"
+stage = "7 fatal and log"
+name = "nvs-host (the tier-3 handler script)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "the_configured_handler_script_runs_charged_to_the_engines_own_reserve",
+  "the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling",
 ]
 
 [[check]]

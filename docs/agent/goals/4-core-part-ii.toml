@@ -70,8 +70,8 @@ modules = [
   # The gate goal 3 built. Every member in this goal declares against it.
   "crates/nvs-config/src/capability.rs",
   # The stream every network member is written over, and the pool every blocking call goes to.
-  "crates/nvs-host/src/stream.rs",
-  "crates/nvs-host/src/pool.rs",
+  "crates/nvs-host/src/net.rs",
+  "crates/nvs-host/src/blocking.rs",
   # Items 16, 23, 25 are checker work rather than member work.
   "crates/nvs-types/src/expr/quals.rs",
   "crates/nvs-types/src/retrieval.rs",
@@ -147,11 +147,9 @@ target_dir = "/var/tmp/nvs-target-wsl"
 # started. ONE STORE SERVES BOTH LEGS, unlike `tools/origin.py`, which needs a listener inside the distro
 # because a WSL loopback is its own: Docker Desktop forwards the published `127.0.0.1:16379` into the
 # distro, so the WSL leg's `examples/cache.nvs` reaches the same container the native one does.
-# `mailpit` is stage 9's SMTP endpoint, proven ahead of that stage so it never blocks it: a catcher that
-# stores what it accepts and relays nothing, so no test can send a real email.
 [docker]
 compose = "tests/db/compose.yaml"
-services = ["redis", "mailpit"]
+services = ["redis"]
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -688,14 +686,16 @@ file = "examples/trace.nvs"
 stream = "stdout"
 want = ["#0 Deep::inner()", "#1 Deep::outer()"]
 
-# An uncaught throw: non-zero exit plus an Novis-level backtrace on stderr.
+# An uncaught throw: non-zero exit plus ADR 0020 § 6's tier-4 floor record on stderr. The floor writes the
+# record `Core\Log::write` writes, and ADR 0092 § 3's log target renders it as JSON Lines by default, so the
+# Novis-level backtrace arrives as that record's `backtrace` field rather than as a bare block of text.
 [[check]]
 kind = "ordered"
 stage = "1 floor"
 file = "examples/uncaught.nvs"
 stream = "stderr"
 exit = "nonzero"
-want = ["Uncaught Exception: unhandled", "#0 Boom::inner()", "#1 Boom::outer()"]
+want = ['"level":"error"', '"msg":"unhandled"', '"class":"LogicError"', "#0 Boom::inner()", "#1 Boom::outer()"]
 
 # A contained helper panic: FATAL, non-zero, and the output produced before it survives.
 [[check]]
@@ -2439,10 +2439,23 @@ args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "application_code_and_the_engine_floor_produce_schema_identical_records",
   "on_uncaught_throw_receives_the_real_throwable",
-  "the_configured_handler_script_runs_charged_to_the_engines_own_reserve",
-  "the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling",
   # ADR 0106's amendment to ADR 0020 § 4 -- the floor cannot fill the disk it writes to.
   "the_engine_floor_rotates_and_rate_limits_itself",
+]
+
+# The two halves of § 3's tier 3 that need a request rather than a member: an isolate to run the
+# handler script in, and a ceiling to have breached before it does. `nvs-host` is the crate that owns
+# a request's life, so its `tests/limits.rs` is where both can be asked at all -- and where the first
+# of them has been all along, which is why this check exists rather than the names sitting under a
+# `-p nvs-stdlib` that could never have run them.
+[[check]]
+kind = "cargo-named"
+stage = "7 fatal and log"
+name = "nvs-host (the tier-3 handler script)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "the_configured_handler_script_runs_charged_to_the_engines_own_reserve",
+  "the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling",
 ]
 
 [[check]]
