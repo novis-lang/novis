@@ -1,0 +1,47 @@
+--TEST--
+A standard output that is not a terminal reports no colour at all, so a piped run and a CI log are plain — the agreement between `isTty` and `colorDepth` that ADR 0086 § 3 states
+--FILE--
+<?nvs
+// § 3: "When the stream is not a terminal, styling is dropped entirely", so
+// `myprog | grep` and a CI log are plain. That makes these two members answer
+// one question between them, and this case asserts they agree rather than
+// asserting what either one said — the whole point being that a build which
+// grew its own colour heuristic fails here while still looking right on its
+// own line.
+//
+// A conformance case's own output is captured, so none of the three streams is
+// a terminal while this runs.
+
+bool $in = Core\Cli::isTty(Core\Cli\Stream::In);
+bool $out = Core\Cli::isTty(Core\Cli\Stream::Out);
+bool $err = Core\Cli::isTty(Core\Cli\Stream::Err);
+
+// The implication, one direction only: colour requires a terminal, but a
+// terminal does not require colour (`NO_COLOR` and `TERM=dumb` both refuse).
+if ($out) {
+    echo "held (a terminal may or may not colour)", "\n";
+} else {
+    if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
+        echo "held (no terminal, no colour)", "\n";
+    } else {
+        echo "broken: colour without a terminal", "\n";
+    }
+}
+
+// Each stream answers separately, which is why `isTty` takes one rather than
+// the process answering once.
+if ($in) { echo "in "; } else { echo "in:no "; }
+if ($out) { echo "out "; } else { echo "out:no "; }
+if ($err) { echo "err", "\n"; } else { echo "err:no", "\n"; }
+
+// The dimensions are answered whether or not there is a terminal to measure:
+// a program that lays out a table must not have to branch on tty-ness first.
+if (Core\Cli::width() >= 1) {
+    if (Core\Cli::height() >= 1) {
+        echo "measured either way", "\n";
+    }
+}
+--EXPECT--
+held (no terminal, no colour)
+in:no out:no err:no
+measured either way

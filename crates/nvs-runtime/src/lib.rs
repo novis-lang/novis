@@ -262,6 +262,7 @@ pub mod release;
 pub mod script;
 pub mod sequence;
 mod string;
+pub mod terminal;
 pub mod throwable;
 mod value;
 

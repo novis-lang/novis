@@ -1,0 +1,54 @@
+--TEST--
+Every fact in the terminal profile answers identically however many times it is asked, because it is resolved once for the process rather than per call — ADR 0086 § 3
+--FILE--
+<?nvs
+// § 3: "The profile is resolved once per process, not per call." A program
+// that measures at the top of a run and draws at the bottom of it gets one
+// answer, so a window the user resized mid-run cannot tear a frame that was
+// laid out against the earlier number.
+//
+// Asked twice each, and compared rather than printed: the point of this case
+// is the agreement, not the value, and the value differs between a developer's
+// terminal and a runner's pipe.
+
+uint $firstWidth = Core\Cli::width();
+uint $secondWidth = Core\Cli::width();
+if ($firstWidth == $secondWidth) {
+    echo "width agrees", "\n";
+} else {
+    echo "width changed between calls", "\n";
+}
+
+uint $firstHeight = Core\Cli::height();
+uint $secondHeight = Core\Cli::height();
+if ($firstHeight == $secondHeight) {
+    echo "height agrees", "\n";
+} else {
+    echo "height changed between calls", "\n";
+}
+
+var $firstDepth = Core\Cli::colorDepth();
+var $secondDepth = Core\Cli::colorDepth();
+if ($firstDepth == $secondDepth) {
+    echo "depth agrees", "\n";
+} else {
+    echo "depth changed between calls", "\n";
+}
+
+// Per stream, because § 3 makes tty-ness a question about one stream and never
+// about the process — and each of the three has to be as stable as the others.
+bool $firstIn = Core\Cli::isTty(Core\Cli\Stream::In);
+bool $firstOut = Core\Cli::isTty(Core\Cli\Stream::Out);
+bool $firstErr = Core\Cli::isTty(Core\Cli\Stream::Err);
+if ($firstIn == Core\Cli::isTty(Core\Cli\Stream::In)) {
+    if ($firstOut == Core\Cli::isTty(Core\Cli\Stream::Out)) {
+        if ($firstErr == Core\Cli::isTty(Core\Cli\Stream::Err)) {
+            echo "all three streams agree", "\n";
+        }
+    }
+}
+--EXPECT--
+width agrees
+height agrees
+depth agrees
+all three streams agree

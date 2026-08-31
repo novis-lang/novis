@@ -1066,9 +1066,13 @@ pub const CLASSES: &[CoreClass] = &[
     // run: ADR 0061 § 3 expands `implementing<T>()` while checking, so
     // [`crate::program`] registers a signature and an aborting body.
     crate::program::CLASS,
+    // § 13's terminal profile — ADR 0086 § 3's four members, which reach the
+    // operating system and need no capability for it: [`crate::cli`]'s module
+    // docs own why a question about a stream the process already holds grants
+    // nothing, and why the rest of § 13 is not here yet.
+    crate::cli::CLASS,
     // § 13, and here only because § 12's `Core\Out::capture` answers with it —
-    // ADR 0088 § 5. [`crate::cli`]'s module docs own why the rest of
-    // `Core\Cli` is not here.
+    // ADR 0088 § 5.
     crate::cli::TEXT,
     // ADR 0064 § 5, and no spec § of its own: `ini_get`'s family are free
     // functions in PHP, so what replaces them is decided by the configuration
@@ -1285,6 +1289,8 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::hash::DIGEST,
     crate::router::METHOD,
     crate::router::AUDIENCE,
+    crate::cli::STREAM,
+    crate::cli::COLOR_DEPTH,
 ];
 
 /// Looks a class up by its fully-qualified name.

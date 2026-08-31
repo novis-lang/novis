@@ -87,12 +87,20 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # answer is a refusal to start rather than anything a script observes. Both are
 # pure Rust with no C and no build script, and both are already in this tree's
 # lock file. `crates/nvs-config/src/trust.rs` owns which ACEs Windows accepts.
+#
+# ADR 0086 § 3 draws on the same two for the terminal profile, and the same two
+# answers apply: `crates/nvs-runtime/src/terminal.rs` asks the operating system
+# how wide the controlling terminal is, which is an `ioctl` on Unix and two
+# console calls on Windows with no `std` spelling of either. Nothing a request
+# chose reaches them — the arguments are a standard file descriptor and a stack
+# out-parameter — and the answer is a column count.
 libc = "0.2"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Security",
     "Win32_Security_Authorization",
     "Win32_Storage_FileSystem",
+    "Win32_System_Console",
     "Win32_System_Threading",
 ] }
 

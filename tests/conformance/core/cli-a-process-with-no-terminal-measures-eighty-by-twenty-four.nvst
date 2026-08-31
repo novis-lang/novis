@@ -1,0 +1,35 @@
+--TEST--
+With no controlling terminal the width and height are exactly the documented `80` by `24`, and the colour depth beside them is `None` — ADR 0086 § 3's fallback, both dimensions named together
+--FILE--
+<?nvs
+// § 3's table: "the controlling terminal's columns/rows, `80`/`24` when there
+// is none". A conformance case's streams are all captured, so this run is the
+// "when there is none" half, and the pair is frozen here because a member that
+// answered `0`, or that answered a width and forgot the height, prints
+// plausibly against either line alone.
+//
+// `80` is not arbitrary: it is the width every terminal has had since the
+// punched card, and a program that subtracts a margin from `width` must be
+// able to do it without checking for zero first.
+
+if (Core\Cli::isTty(Core\Cli\Stream::Out)) {
+    echo "a terminal is attached", "\n";
+} else {
+    echo "no terminal", "\n";
+}
+
+uint $columns = Core\Cli::width();
+uint $rows = Core\Cli::height();
+echo "width=", $columns, "\n";
+echo "height=", $rows, "\n";
+
+if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
+    echo "depth=None", "\n";
+} else {
+    echo "depth=some", "\n";
+}
+--EXPECT--
+no terminal
+width=80
+height=24
+depth=None
