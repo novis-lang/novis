@@ -1153,6 +1153,16 @@ is why" — is this file.
   produced nothing rather than as a flag that changed the mode. It is one call wasted every time,
   because the natural batch is "read these two files, and where is that symbol". Two calls, or put
   the anchors last.
+- **`python tools/disk.py --clean` refuses while `.loop/running` exists, which is every loop
+  session — so a full disk inside one is cleared by hand.** D: reached 24 MB free mid-session and
+  the failure did not read as a disk failure at all: `cargo test` reported `LNK1140: Grenzwert für
+  Programmdatenbank überschritten`, a `STATUS_STACK_BUFFER_OVERRUN` out of `rustc`, and only at the
+  very end an `os error 112`. The tool's own report says where it is —
+  `target/debug/incremental`, 70 GB of which 68 GB was superseded — and its refusal is about a
+  *concurrent build*, not about the driver: check `Get-Process cargo,rustc,link` first, then
+  `Remove-Item -Recurse -Force target/debug/incremental`, which is a pure cache and costs one cold
+  build. Adding six crates to the lock file is what tipped it over, so a slice taking a dependency
+  is the one that should run `python tools/disk.py` before it starts.
 
 ## Running things
 
@@ -3336,6 +3346,23 @@ is why" — is this file.
   so the honest way to satisfy it is `catch (LogicError $e) { echo $e->message, "\n"; }`. Two catch
   clauses in one case may not share a variable name (`E0406`), and a `'single-quoted'` string is
   the way to write a PHC literal, since `"$argon2id$v=19$…"` interpolates four variables.
+- **An acceptance fixture written ahead of its members can name a member that never existed, and two
+  of `examples/crypto.nvs`'s six lines did.** It called `Core\Encoding::toBytes(…)` — there is no
+  such row; the `string`→`bytes` conversion is ADR 0009 § 3's `as bytes` cast, total and free — and
+  it wrote `Core\Bytes::slice($b, 0, Core\Bytes::length($b) - 1)`, where `length` answers `uint` and
+  `slice`'s third parameter is `int|null`, so the obvious arithmetic is `E0401: expected int|null,
+  found uint` and the spelling is `(Core\Bytes::length($b) as int) - 1`. A fixture on disk reads
+  like landed work and is not: it has never compiled, because the members it calls did not exist
+  when it was written. Compile it first, before writing a `.nvst` case that copies its idioms.
+
+- **`conformance_coverage.rs`'s error-path gate reads eight lines above the `Fault::` line and stops
+  at the first `Fault::` on the way up, so one comment cannot declare two sites.** A block comment
+  above `let x = f().map_err(|_| { Fault::thrown(…) })?;` covers nothing if the phrase "unreachable
+  from source" landed more than eight lines above the `Fault::` *token* — the closure's own lines
+  count — and a second site further down never sees it at all, because the scan halts at the first
+  one. The gate's message says "within the 8 lines above the site" and reads as generous; it is
+  measured from the `Fault::` line, not from the statement. One short declaration immediately above
+  each site, each ending with its own reason, is what passes.
 
 ## Splitting a file that got too big
 

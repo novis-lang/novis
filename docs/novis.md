@@ -103,6 +103,7 @@ Conventions the whole file uses:
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
+| [`Core\Crypto`](#core-core-crypto) | authenticated encryption with no cipher, mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -12643,7 +12644,7 @@ differ
 | Member | Signature |
 |---|---|
 | [`Core\Hash::of`](#core-core-hash-of) | `of(bytes\|string $data, Core\Digest $digest): bytes` |
-| [`Core\Hash::hmac`](#core-core-hash-hmac) | `hmac(bytes\|string $data, bytes $key, Core\Digest::Sha224\|Core\Digest::Sha256\|Core\Digest::Sha384\|Core\Digest::Sha512\|Core\Digest::Sha512_224\|Core\Digest::Sha512_256\|Core\Digest::Sha3_224\|Core\Digest::Sha3_256\|Core\Digest::Sha3_384\|Core\Digest::Sha3_512 $digest): bytes` |
+| [`Core\Hash::hmac`](#core-core-hash-hmac) | `hmac(bytes\|string $data, secret bytes $key, Core\Digest::Sha224\|Core\Digest::Sha256\|Core\Digest::Sha384\|Core\Digest::Sha512\|Core\Digest::Sha512_224\|Core\Digest::Sha512_256\|Core\Digest::Sha3_224\|Core\Digest::Sha3_256\|Core\Digest::Sha3_384\|Core\Digest::Sha3_512 $digest): bytes` |
 | [`Core\Hash::equals`](#core-core-hash-equals) | `equals(bytes $a, bytes $b): bool` |
 | [`Core\Hash::stream`](#core-core-hash-stream) | `stream(Core\Digest $digest): Core\Hash\Stream` |
 
@@ -12667,7 +12668,7 @@ Computes the digest of `$data` under `$digest`, replacing `hash`, `md5`, `sha1`,
 #### `Core\Hash::hmac`
 
 ```nvs skip
-Core\Hash::hmac(bytes|string $data, bytes $key, Core\Digest::Sha224|Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512|Core\Digest::Sha512_224|Core\Digest::Sha512_256|Core\Digest::Sha3_224|Core\Digest::Sha3_256|Core\Digest::Sha3_384|Core\Digest::Sha3_512 $digest): bytes
+Core\Hash::hmac(bytes|string $data, secret bytes $key, Core\Digest::Sha224|Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512|Core\Digest::Sha512_224|Core\Digest::Sha512_256|Core\Digest::Sha3_224|Core\Digest::Sha3_256|Core\Digest::Sha3_384|Core\Digest::Sha3_512 $digest): bytes
 ```
 
 Computes RFC 2104's HMAC of `$data` under `$key` and `$digest`, as `hash_hmac` does without its `raw_output` flag — and only under a `StrongDigest`, so `Digest::Md5` or `Digest::Sha1` here is a compile error.
@@ -12675,7 +12676,7 @@ Computes RFC 2104's HMAC of `$data` under `$key` and `$digest`, as `hash_hmac` d
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$data` | `bytes\|string` | The octets to authenticate; a `string` is read as its UTF-8 bytes. |
-| `$key` | `bytes` | The secret key, of any length — a long one is hashed down and a short one zero-padded, as RFC 2104 § 2 says. |
+| `$key` | `secret bytes` (neutral) | The secret key, of any length — a long one is hashed down and a short one zero-padded, as RFC 2104 § 2 says. |
 | `$digest` | `Core\Digest::Sha224\|Core\Digest::Sha256\|Core\Digest::Sha384\|Core\Digest::Sha512\|Core\Digest::Sha512_224\|Core\Digest::Sha512_256\|Core\Digest::Sha3_224\|Core\Digest::Sha3_256\|Core\Digest::Sha3_384\|Core\Digest::Sha3_512` | The algorithm, one of the ten SHA-2 and SHA-3 `Core\Digest` cases. |
 
 **Returns** `bytes` — The MAC as `bytes`, as many octets as the case's width.
@@ -14802,6 +14803,137 @@ Reports whether `$hash` is weaker than what `hash` would write today — a diffe
 **Returns** `bool` — `true` when the stored hash has fallen behind, `false` when it is at or above the current parameters. A hash *stronger* than the current ones answers `false`: rehashing it would lower its cost.
 
 **Throws** `LogicError` — `$hash` is not a PHC string at all. A hash that parses but names another algorithm answers `true` here rather than throwing — that is precisely the question this member is asked.
+
+<a id="core-core-crypto"></a>
+### `Core\Crypto`
+
+Keywords: crypto, encrypt, decrypt, seal, open, generateKey, aead, chacha20, poly1305, xchacha20, openssl, sodium, nonce, key, tamper, forgery, authenticated, generateKey, seal, open
+
+`Core\Crypto` has three members and no cipher name anywhere in them. `openssl_encrypt($data,
+"aes-256-cbc", $key, 0, $iv)` puts the primitive in a string and the nonce at the call site, which is
+how a program ends up with `aes-256-ecb` in one file, an all-zero IV in another and no authentication in
+either — "encrypted" and "authenticated" become two decisions a caller can get half right. Here the
+primitive belongs to the library, exactly as `Core\Password`'s parameters do: `::seal` takes a message
+and a key, and there is no unauthenticated spelling to reach for.
+
+**A key is a `secret bytes`, and that is part of its type.** `::generateKey` answers one, and the
+compiler will not let a program put it in a plain `bytes` — so a key cannot be echoed, logged, dumped or
+carried into a `Throwable` message by accident. No member here removes the mark: a `secret` key goes into
+`::seal` and stays a secret, which is why encryption is not a hole in the `secret` qualifier.
+
+Sealing a `secret` *message* is the deliberate act, and it looks like one:
+`Core\Secret::revealBytes($token, "sealed under a key the store cannot read")`. That reads like friction
+and is the mechanism — turning a secret into bytes that leave the process is the one event worth being
+able to grep for.
+
+**`::open` answers the plaintext or it throws.** There is no `false` and no `?bytes`. A message altered
+by a single octet — the cheapest tamper there is — is refused, where an unauthenticated mode would hand
+back whatever is left of the plaintext and let the program act on it. Every way of failing to be
+authentic produces one message: altered, truncated, or under the wrong key are indistinguishable on
+purpose, because telling them apart tells a forger which half of the attempt landed.
+
+Each `::seal` draws its own nonce and prefixes it to the answer, so the same message under the same key
+seals differently every time and the caller never keeps a counter. A sealed message is exactly 40 octets
+longer than its plaintext.
+
+```nvs
+<?nvs
+secret bytes $key = Core\Crypto::generateKey();
+bytes $message = "attack at dawn" as bytes;
+
+// No mode, no padding, no IV — and 40 octets of overhead, flat.
+bytes $sealed = Core\Crypto::seal($message, $key);
+if (Core\Bytes::length($sealed) == Core\Bytes::length($message) + 40) {
+    echo "sealed, 40 octets over\n";
+}
+
+if (Core\Crypto::open($sealed, $key) == $message) {
+    echo "and it opens\n";
+}
+
+// The nonce is drawn per call, so the same message never seals the same way.
+if (Core\Crypto::seal($message, $key) != $sealed) {
+    echo "a fresh nonce every time\n";
+}
+
+// One octet short is a forgery, and an authenticated mode says so.
+bytes $tampered = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
+try {
+    bytes $forged = Core\Crypto::open($tampered, $key);
+    echo "tamper accepted\n";
+} catch (RuntimeError $refused) {
+    echo "tamper refused\n";
+}
+
+// So is an intact message under a key that did not seal it.
+secret bytes $other = Core\Crypto::generateKey();
+try {
+    bytes $wrong = Core\Crypto::open($sealed, $other);
+    echo "opened under the wrong key\n";
+} catch (RuntimeError $notThisKey) {
+    echo "the wrong key is refused\n";
+}
+```
+```output
+sealed, 40 octets over
+and it opens
+a fresh nonce every time
+tamper refused
+the wrong key is refused
+```
+
+| Member | Signature |
+|---|---|
+| [`Core\Crypto::generateKey`](#core-core-crypto-generatekey) | `generateKey(): secret bytes` |
+| [`Core\Crypto::seal`](#core-core-crypto-seal) | `seal(bytes $message, secret bytes $key): bytes` |
+| [`Core\Crypto::open`](#core-core-crypto-open) | `open(bytes $sealed, secret bytes $key): bytes` |
+
+<a id="core-core-crypto-generatekey"></a>
+#### `Core\Crypto::generateKey`
+
+```nvs skip
+Core\Crypto::generateKey(): secret bytes
+```
+
+Draws a fresh key for `seal` and `open` from the same CSPRNG `Core\Random` uses. There is no key size argument: the construction has one key size.
+
+**Returns** `secret bytes` — 32 octets as a `secret bytes`. The qualifier is part of the type, so the key cannot be assigned to a plain `bytes`, echoed, logged or put in a `Throwable` message.
+
+<a id="core-core-crypto-seal"></a>
+#### `Core\Crypto::seal`
+
+```nvs skip
+Core\Crypto::seal(bytes $message, secret bytes $key): bytes
+```
+
+Encrypts and authenticates `$message` under `$key` with XChaCha20-Poly1305, drawing a fresh nonce per call. There is no cipher, mode, padding or IV argument — the primitive is this library's, and every message it produces is authenticated.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$message` | `bytes` | The plaintext. A `secret` is refused here: sealing one is a written `Core\Secret::revealBytes` call, which is what makes it greppable. |
+| `$key` | `secret bytes` (neutral) | A 32-octet key, as `generateKey` answers one. |
+
+**Returns** `bytes` — The sealed message — 40 octets longer than `$message`, and different on every call for the same inputs, because each draws its own nonce.
+
+**Throws** `LogicError` — `$key` is not 32 octets long — a `bytes` that was never a key.; `RuntimeError` — This process cannot spare a buffer the size of the sealed message.
+
+<a id="core-core-crypto-open"></a>
+#### `Core\Crypto::open`
+
+```nvs skip
+Core\Crypto::open(bytes $sealed, secret bytes $key): bytes
+```
+
+Authenticates `$sealed` under `$key` and answers the plaintext, or throws. A message altered by one octet is refused rather than decrypted into whatever is left of it, which is the whole reason the roster is AEAD only.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sealed` | `bytes` | A message `seal` produced. |
+| `$key` | `secret bytes` (neutral) | The 32-octet key `$sealed` was sealed under. |
+
+**Returns** `bytes` — The original plaintext, byte for byte.
+
+**Throws** `LogicError` — `$key` is not 32 octets long — a `bytes` that was never a key.; `RuntimeError` — `$sealed` is not an authentic message under `$key` — it was altered, it is too short to be one at all, or the key is the wrong one. The three are one message on purpose: telling them apart tells a forger which half landed.
 
 <a id="core-enums"></a>
 ### `Core` enums
