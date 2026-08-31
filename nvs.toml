@@ -83,6 +83,24 @@ read = ["target/debug", "examples/process"]
 [app.capabilities.process]
 exec = ["target/debug", "examples/process"]
 
+# `examples/http.nvs` talks to an origin on the loopback, which ADR 0058 § 3
+# denies by default — so this block is where that ADR's *other* half is written
+# down: `net.connect` says which names the program may reach, and `net.internal`
+# says which of § 3's denied addresses this deployment reaches anyway. Both
+# names are granted and only one address is excepted, which is what the fixture
+# is for: `169.254.169.254` is granted by name and still refused on its address,
+# so the program's third line proves the policy is asked of the resolved address
+# rather than of the name. An exception is a literal address and never a
+# hostname (`nvs_config::tree::CapNet::internal` owns why), and it widens
+# nothing on its own — an address named here is unreachable until a `connect`
+# grant names the host as well.
+[[app]]
+entry = "examples/http.nvs"
+
+[app.capabilities.net]
+connect = ["127.0.0.1", "169.254.169.254"]
+internal = ["127.0.0.1"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

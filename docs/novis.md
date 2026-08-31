@@ -15153,7 +15153,7 @@ Checks `$url` against the outbound policy and pins it: the scheme, the `net.conn
 
 **Returns** `Core\Http\Target` — A `Core\Http\Target` bound to one address, which is what the client connects to — so a second name lookup cannot answer differently.
 
-**Throws** `RuntimeError` — The text is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, the host resolves to no address, or it resolves to a loopback, private, link-local or unspecified address, which no grant reaches.
+**Throws** `RuntimeError` — The text is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, the host resolves to no address, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name.
 
 <a id="core-core-http-target"></a>
 ### `Core\Http\Target`
@@ -15198,7 +15198,7 @@ Fetches `$url` under a finite budget, over the address the outbound policy pinne
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is refused for now: this build has no TLS client behind the member yet.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. The scheme is `https`, which has no transport here yet. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. The scheme is `https`, which has no transport here yet. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-client-post"></a>
 #### `Core\Http\Client::post`
@@ -15222,7 +15222,7 @@ Sends a `POST` to `$url` under a finite budget. The one member whose retries nee
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is refused for now: this build has no TLS client behind the member yet.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. The scheme is `https`, which has no transport here yet. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. The scheme is `https`, which has no transport here yet. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-client-put"></a>
 #### `Core\Http\Client::put`
@@ -15246,7 +15246,7 @@ Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its 
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is refused for now: this build has no TLS client behind the member yet.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. The scheme is `https`, which has no transport here yet. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. The scheme is `https`, which has no transport here yet. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-client-delete"></a>
 #### `Core\Http\Client::delete`
@@ -15270,7 +15270,7 @@ Sends a `DELETE` to `$url` under a finite budget.
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is refused for now: this build has no TLS client behind the member yet.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. The scheme is `https`, which has no transport here yet. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. The scheme is `https`, which has no transport here yet. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-client-head"></a>
 #### `Core\Http\Client::head`
@@ -15294,7 +15294,7 @@ Asks `$url` for its headers alone, under the same budget a `get` would have.
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is refused for now: this build has no TLS client behind the member yet.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. The scheme is `https`, which has no transport here yet. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. The scheme is `https`, which has no transport here yet. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-response"></a>
 ### `Core\Http\Response`
@@ -16026,8 +16026,23 @@ deny. The roster is closed:
 | `debug.trace`, `debug.profile` | writing a trace or a profile | where it may be written |
 | `db.connect`, `db.open` | opening a `[db.<name>]` block; a program-supplied database address | the block names; the hosts |
 
-In this build `fs.read`, `fs.write` and `script.spawn` have members behind them; the others are
-accepted and nothing asks for them yet.
+In this build `fs.read`, `fs.write`, `script.spawn`, `process.exec` and `net.connect` have members
+behind them; the others are accepted and nothing asks for them yet.
+
+`net.connect` carries a second key, because a granted host is not automatically a reachable address:
+an outbound connection to a loopback, private, link-local or unspecified address is refused whatever
+the grant says, since a hostname an attacker influenced can resolve into one. A deployment that must
+reach an internal service excepts the address it means, one at a time:
+
+```toml
+[capabilities.net]
+connect = ["metrics.internal"]   # the names reachable
+internal = ["10.4.0.9"]          # the denied addresses this deployment reaches anyway
+```
+
+An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
+spelling it has. It grants nothing on its own: an address named there is still only reached under a
+host `connect` grants.
 
 A grant is spelled one of three ways, and a dotted key is the same as a nested block:
 

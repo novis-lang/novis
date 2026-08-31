@@ -80,23 +80,14 @@ pub enum Scope<'a> {
 /// It is asked of a **resolved address**, never of a hostname: a hostname the operator never named
 /// can resolve into any of these, which is the whole of why § 2's launderer pins.
 ///
-/// The operator's exception half — a service that must reach an internal API saying so in
-/// `nvs.toml` — is not here yet; today the answer is the default-deny table and nothing widens it.
+/// This is the table alone. The operator's exception half — a service that must reach an internal
+/// API saying so in `nvs.toml` — is [`Capabilities::address_refused`], which is what a door asks:
+/// nothing widens *this* function, so a caller holding no configuration gets § 3's answer.
 #[must_use]
 pub fn denied_by_default(address: std::net::IpAddr) -> Option<&'static str> {
     use std::net::IpAddr;
 
-    // An IPv4-mapped IPv6 address is the same machine reached under a second spelling, so it is
-    // asked as the address it maps to rather than as a sixteenth of the v6 space -- ADR 0058 § 3
-    // names the mapped forms explicitly because omitting them is how this check is usually
-    // defeated.
-    let address = match address {
-        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
-            Some(v4) => IpAddr::V4(v4),
-            None => IpAddr::V6(v6),
-        },
-        held => held,
-    };
+    let address = unmapped(address);
     match address {
         IpAddr::V4(v4) => {
             let octets = v4.octets();
@@ -126,6 +117,25 @@ pub fn denied_by_default(address: std::net::IpAddr) -> Option<&'static str> {
                 None
             }
         }
+    }
+}
+
+/// An IPv4-mapped IPv6 address as the address it maps to, and every other address unchanged.
+///
+/// The same machine is reachable under two spellings, so both the table above and the exception
+/// list below read an address through this rather than as a sixteenth of the v6 space — ADR 0058
+/// § 3 names the mapped forms explicitly because omitting them is how this check is usually
+/// defeated, and an exception matched in one spelling and denied in the other would be the same
+/// hole from the other side.
+fn unmapped(address: std::net::IpAddr) -> std::net::IpAddr {
+    use std::net::IpAddr;
+
+    match address {
+        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+            Some(v4) => IpAddr::V4(v4),
+            None => IpAddr::V6(v6),
+        },
+        held => held,
     }
 }
 
@@ -267,6 +277,43 @@ impl Capabilities {
                 list.iter().any(|root| path.starts_with(Path::new(root)))
             }
         }
+    }
+
+    /// [ADR 0058](../../../docs/adr/0058-outbound-request-policy.md) § 3's question, asked of a
+    /// **resolved address** rather than of a name: which denied range this address is in, or `None`
+    /// when nothing refuses it.
+    ///
+    /// This is [`denied_by_default`] plus the operator's half of § 3 — `net.internal`, the addresses
+    /// a deployment says it reaches anyway. Three things about the shape, each of them a refusal to
+    /// widen further than the ADR does:
+    ///
+    /// - **An entry is an IP address literal**, and one that does not parse as an address matches
+    ///   nothing. A hostname there would be read before resolution and so would exempt whatever the
+    ///   name resolved to *afterwards*, which is the rebinding gap § 2's pinning closes.
+    /// - **No ranges.** An operator writing `10.0.0.0/8` would hand back most of the table without
+    ///   naming a single host it meant, and prefix matching here would be a second address-matching
+    ///   implementation beside the table it is meant to except from.
+    /// - **`true` grants nothing**, which is the one place a `Setting::Bool(true)` does not mean
+    ///   everything. Turning the whole table off is not an exception, and the value of the exception
+    ///   is that a reviewer can see which address a deployment bought back.
+    ///
+    /// It is not a widening on its own: the host still has to be inside [`Cap::NetConnect`]'s grant,
+    /// asked separately and first by `nvs_runtime::capability::pin_host`.
+    #[must_use]
+    pub fn address_refused(&self, address: std::net::IpAddr) -> Option<&'static str> {
+        let range = denied_by_default(address)?;
+        let Some(setting) = self.net.as_ref().and_then(|net| net.internal.as_ref()) else {
+            return Some(range);
+        };
+        let Grant::These(named) = grant_of(setting) else {
+            return Some(range);
+        };
+        let wanted = unmapped(address);
+        let excepted = named
+            .iter()
+            .filter_map(|entry| entry.parse::<std::net::IpAddr>().ok())
+            .any(|entry| unmapped(entry) == wanted);
+        (!excepted).then_some(range)
     }
 
     /// § 4's grant side: replaces every path-scoped root with its canonical spelling, once.

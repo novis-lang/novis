@@ -1,0 +1,32 @@
+--TEST--
+`net.internal` excepts the one address it names from ADR 0058 § 3's denied table and nothing else — ADR 0058 §§ 2-3
+--FILE--
+<?nvs
+// § 3's operator half, which is the other side of
+// `a-granted-host-is-still-refused-at-a-denied-address`: a deployment that must
+// reach an internal API says so in `nvs.toml`, by **address** rather than by
+// name, because the policy is asked of the resolved address and a name can
+// resolve somewhere else after the check.
+Core\Http\Target $local = Core\Http::allowUrl("http://127.0.0.1:8099/health");
+echo "pinned: excepted address", "\n";
+
+// The exception is one address, not a switch on the table. This second host is
+// granted by `net.connect` exactly as the first one is, and its address is
+// inside the same denied set, and it is still refused — so what the deployment
+// bought back is legible as the one line that names it.
+try {
+    var $other = Core\Http::allowUrl("http://10.0.0.7/admin");
+    echo "accepted", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+# Two names granted, one address excepted. `net.internal` grants nothing on its
+# own: an address named here stays unreachable until `connect` names the host as
+# well, which is why both keys are written for the first line to work at all.
+[capabilities.net]
+connect = ["127.0.0.1", "10.0.0.7"]
+internal = ["127.0.0.1"]
+--EXPECT--
+pinned: excepted address
+Core\Http::allowUrl refuses 10.0.0.7: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except

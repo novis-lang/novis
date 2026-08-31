@@ -174,8 +174,8 @@ const ALLOW_URL_DOC: MethodDoc = MethodDoc {
         error: "RuntimeError",
         desc: "The text is not a URL, its scheme is neither `http` nor `https`, it names no host, \
                `net.connect` does not grant that host, the host resolves to no address, or it \
-               resolves to a loopback, private, link-local or unspecified address, which no grant \
-               reaches.",
+               resolves to a loopback, private, link-local or unspecified address that \
+               `net.internal` does not name.",
     }],
 };
 
@@ -603,7 +603,8 @@ const REQUEST_ERRORS: &[ErrorDoc] = &[
         error: "RuntimeError",
         desc: "The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it \
                names no host, `net.connect` does not grant that host, or it resolves to a \
-               loopback, private, link-local or unspecified address. An option is outside its \
+               loopback, private, link-local or unspecified address that `net.internal` does not \
+               name. An option is outside its \
                bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive \
                duration, or a `retryAttempts` of zero. A header name or value carries a control \
                byte, which would end the line early. The scheme is `https`, which has no \

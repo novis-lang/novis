@@ -178,8 +178,23 @@ deny. The roster is closed:
 | `debug.trace`, `debug.profile` | writing a trace or a profile | where it may be written |
 | `db.connect`, `db.open` | opening a `[db.<name>]` block; a program-supplied database address | the block names; the hosts |
 
-In this build `fs.read`, `fs.write` and `script.spawn` have members behind them; the others are
-accepted and nothing asks for them yet.
+In this build `fs.read`, `fs.write`, `script.spawn`, `process.exec` and `net.connect` have members
+behind them; the others are accepted and nothing asks for them yet.
+
+`net.connect` carries a second key, because a granted host is not automatically a reachable address:
+an outbound connection to a loopback, private, link-local or unspecified address is refused whatever
+the grant says, since a hostname an attacker influenced can resolve into one. A deployment that must
+reach an internal service excepts the address it means, one at a time:
+
+```toml
+[capabilities.net]
+connect = ["metrics.internal"]   # the names reachable
+internal = ["10.4.0.9"]          # the denied addresses this deployment reaches anyway
+```
+
+An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
+spelling it has. It grants nothing on its own: an address named there is still only reached under a
+host `connect` grants.
 
 A grant is spelled one of three ways, and a dotted key is the same as a nested block:
 

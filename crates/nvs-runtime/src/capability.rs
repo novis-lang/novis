@@ -111,7 +111,8 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `net.connect` for
 /// `host`; a `RuntimeError` when the name resolves to no address at all; and a `RuntimeError`
-/// naming the range when the address it resolves to is one § 3 denies. The order is the point: a
+/// naming the range when the address it resolves to is one § 3 denies and this deployment's
+/// `net.internal` does not except ([`nvs_config::tree::CapNet::internal`]). The order is the point: a
 /// host outside the grant is refused before it is looked up, so an ungranted program cannot use
 /// this door as a resolver.
 pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
@@ -139,9 +140,21 @@ pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr,
             })?,
     };
 
-    match nvs_config::capability::denied_by_default(address) {
+    // § 3's table, less whatever this deployment excepted from it with `net.internal`. A context
+    // with no snapshot, and one whose snapshot grants no capability at all, both get the table
+    // itself -- an exception is something an operator wrote, so its absence is the default and not
+    // a reason to skip the question.
+    let refused = match ctx.config() {
+        Some(config) => match config.snapshot().config.capabilities.as_ref() {
+            Some(caps) => caps.address_refused(address),
+            None => nvs_config::capability::denied_by_default(address),
+        },
+        None => nvs_config::capability::denied_by_default(address),
+    };
+
+    match refused {
         Some(range) => Err(Fault::thrown(format!(
-            "{member} refuses {address}: it is {range}, which no grant reaches"
+            "{member} refuses {address}: it is {range}, which `net.internal` does not except"
         ))),
         None => Ok(address),
     }

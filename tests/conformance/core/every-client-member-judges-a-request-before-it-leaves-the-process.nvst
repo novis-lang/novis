@@ -69,7 +69,7 @@ connect = [
   "169.254.169.254",
 ]
 --EXPECT--
-Core\Http\Client::get refuses 169.254.169.254: it is link-local (169.254.0.0/16), which no grant reaches
+Core\Http\Client::get refuses 169.254.169.254: it is link-local (169.254.0.0/16), which `net.internal` does not except
 Core\Http\Client::post: the scheme must be `http` or `https`, and this URL names `ftp`
 Core\Http\Client::head: `deadline` must be a positive duration, and this one is 0ns
 Core\Http\Client::put: `retryAttempts` counts the first attempt too, so the smallest it can be is 1

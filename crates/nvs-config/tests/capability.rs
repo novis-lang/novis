@@ -259,3 +259,74 @@ fn a_bare_relative_path_resolves_against_its_grant() {
         );
     }
 }
+
+/// An address literal, for the exception test below.
+fn ip(text: &str) -> std::net::IpAddr {
+    text.parse()
+        .unwrap_or_else(|_| panic!("{text} is not an address"))
+}
+
+/// ADR 0058 § 3's operator exception excepts the addresses it *names* and widens nothing else — not
+/// a range around one, not the table, and not a name that resolves to one.
+///
+/// The two refusals a reader would expect to be grants are the point of the test rather than
+/// incidental to it: `true` is the one `Setting` spelling that does not mean everything here, and a
+/// hostname entry matches nothing at all, because this list is read before resolution and a name
+/// checked here would exempt whatever it resolved to afterwards.
+#[test]
+fn an_operator_exception_names_one_address_and_widens_nothing_else() {
+    let disk = Disk::of(&["/srv"]);
+    let excepting = |text: &str| granting(text, &disk);
+
+    // Deny by default: the table answers before any exception is written, and it answers the same
+    // way for a tree with no `[net]` block at all.
+    for (why, text) in [
+        ("no `[net]` block", ""),
+        ("a `net` block granting nothing", "[net]\n"),
+        (
+            "a `connect` grant for the same host",
+            "[net]\nconnect = [\"127.0.0.1\"]\n",
+        ),
+    ] {
+        assert_eq!(
+            excepting(text).address_refused(ip("127.0.0.1")),
+            Some("loopback (127.0.0.0/8)"),
+            "{why} reached the loopback",
+        );
+    }
+
+    // The exception itself, in both spellings of the same machine: an IPv4-mapped address is
+    // matched as the address it maps to, from either side of the comparison.
+    let one = excepting("[net]\ninternal = [\"127.0.0.1\"]\n");
+    let mapped = excepting("[net]\ninternal = [\"::ffff:10.0.0.7\"]\n");
+    assert_eq!(one.address_refused(ip("127.0.0.1")), None);
+    assert_eq!(one.address_refused(ip("::ffff:127.0.0.1")), None);
+    assert_eq!(mapped.address_refused(ip("10.0.0.7")), None);
+
+    // And what it did not name stays denied — a neighbour in the same range, the *other* loopback,
+    // and the link-local endpoint § 3 calls out.
+    for outside in ["127.0.0.2", "::1", "169.254.169.254", "10.0.0.7"] {
+        assert!(
+            one.address_refused(ip(outside)).is_some(),
+            "`internal = [\"127.0.0.1\"]` excepted {outside}",
+        );
+    }
+
+    // Two entries that grant nothing, each of them a widening this shape refuses to have.
+    for (why, text) in [
+        ("`internal = true`", "[net]\ninternal = true\n"),
+        ("a hostname entry", "[net]\ninternal = [\"localhost\"]\n"),
+        ("a range", "[net]\ninternal = [\"127.0.0.0/8\"]\n"),
+    ] {
+        assert_eq!(
+            excepting(text).address_refused(ip("127.0.0.1")),
+            Some("loopback (127.0.0.0/8)"),
+            "{why} excepted the loopback",
+        );
+    }
+
+    // An address the table never denied is not something the exception has an opinion about.
+    for caps in [excepting(""), one] {
+        assert_eq!(caps.address_refused(ip("93.184.216.34")), None);
+    }
+}

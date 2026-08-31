@@ -265,6 +265,14 @@ pub struct CapFs {
 pub struct CapNet {
     /// The hosts an outbound connection may reach.
     pub connect: Option<Setting>,
+    /// The addresses inside ADR 0058 § 3's denied ranges this deployment reaches anyway — the
+    /// operator's exception, written as IP address literals and never as hostnames, because the
+    /// policy is asked of a resolved address and a name can resolve anywhere.
+    ///
+    /// It widens nothing on its own: an address named here is still only reachable under a host
+    /// `connect` grants. `true` is not a spelling it has — an exception names the address it wants,
+    /// so that what a deployment gave back is legible in review.
+    pub internal: Option<Setting>,
 }
 
 /// The `process.*` grants.

@@ -29,9 +29,10 @@ try {
 # The grant is as wide as an operator can write it for these two names, and it
 # still buys nothing: ADR 0058 § 5 puts the address policy in the capability,
 # where it applies to every outbound connection rather than to whichever client
-# remembered to check.
+# remembered to check. `net.internal` is § 3's other half and is absent here, so
+# these two addresses are refused by the table with nothing excepted from it.
 [capabilities.net]
 connect = ["169.254.169.254", "10.0.0.7"]
 --EXPECT--
-Core\Http::allowUrl refuses 169.254.169.254: it is link-local (169.254.0.0/16), which no grant reaches
-Core\Http::allowUrl refuses 10.0.0.7: it is private (10/8, 172.16/12, 192.168/16), which no grant reaches
+Core\Http::allowUrl refuses 169.254.169.254: it is link-local (169.254.0.0/16), which `net.internal` does not except
+Core\Http::allowUrl refuses 10.0.0.7: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
