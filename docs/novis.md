@@ -14484,10 +14484,11 @@ Expands, at compile time, to an array literal of `new` expressions — one per n
 <a id="core-core-cli"></a>
 ### `Core\Cli`
 
-Keywords: escape, isTty, width, height, colorDepth, ask, confirm, select, multiSelect, secret, live, progress
+Keywords: write, escape, isTty, width, height, colorDepth, ask, confirm, select, multiSelect, secret, live, progress
 
 | Member | Signature |
 |---|---|
+| [`Core\Cli::write`](#core-core-cli-write) | `write(string\|Core\Cli\Text $value, {stream?: Core\Cli\Stream, newline?: bool}): void` |
 | [`Core\Cli::escape`](#core-core-cli-escape) | `escape(string $text): string` |
 | [`Core\Cli::isTty`](#core-core-cli-istty) | `isTty(Core\Cli\Stream $stream): bool` |
 | [`Core\Cli::width`](#core-core-cli-width) | `width(): uint` |
@@ -14500,6 +14501,25 @@ Keywords: escape, isTty, width, height, colorDepth, ask, confirm, select, multiS
 | [`Core\Cli::secret`](#core-core-cli-secret) | `secret(string $question): secret tainted string` |
 | [`Core\Cli::live`](#core-core-cli-live) | `live(callable $body): T` |
 | [`Core\Cli::progress`](#core-core-cli-progress) | `progress(uint $total, callable $body): T` |
+
+<a id="core-core-cli-write"></a>
+#### `Core\Cli::write`
+
+```nvs skip
+Core\Cli::write(string|Core\Cli\Text $value, {stream?: Core\Cli\Stream, newline?: bool}): void
+```
+
+Writes `$value` to a standard stream, replacing `fwrite(STDOUT, …)` and `print`. A `string` has every control byte replaced by the visible glyph `Core\Cli::escape` gives it; a `Core\Cli\Text` is written through unchanged, because it is the sink's own carrier and its bytes have already been neutralized.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `string\|Core\Cli\Text` | The text to write. A `tainted` one is written like any other — the substitution is what makes the terminal safe, so nothing has to be laundered first — while a `secret` one is refused at compile time. |
+| `{stream: …}` | `Core\Cli\Stream` (default `Core\Cli\Stream::Out`) | Which standard stream to write to. `Out` when omitted; `Err` writes to this request's diagnostic channel, which a `Core\Out::capture` does not take. `In` throws. |
+| `{newline: …}` | `bool` (default `false`) | Whether to append one `LF` after the value. `false` when omitted, so the member writes exactly what it was handed. |
+
+**Returns** `void` — Nothing. The bytes are on the stream, or the write failed and the request is over.
+
+**Throws** `LogicError` — `$stream` is `Core\Cli\Stream::In`, which a program reads and never writes. The case exists for `Core\Cli::isTty`, which asks its question about all three.
 
 <a id="core-core-cli-escape"></a>
 #### `Core\Cli::escape`
