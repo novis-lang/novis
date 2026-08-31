@@ -67,6 +67,7 @@ Conventions the whole file uses:
 | [`Core\Path`](#core-core-path) | path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem |
 | [`Core\IO`](#core-core-io) | whole-file read and write on paths the configuration has granted |
 | [`Core\IO\Lines`](#core-core-io-lines) |  |
+| [`Core\IO\File`](#core-core-io-file) |  |
 | [`Core\Process`](#core-core-process) |  |
 | [`Core\Process\Result`](#core-core-process-result) |  |
 | [`Core\Time`](#core-core-time) | the clock and the constructors — an absolute `Instant`, or a civil `DateTime` built in a named `Zone` |
@@ -98,6 +99,8 @@ Conventions the whole file uses:
 | [`Core\Program`](#core-core-program) | what the compiler knows about the whole program — every class implementing an interface, enumerated at compile time |
 | [`Core\Cli`](#core-core-cli) |  |
 | [`Core\Cli\Text`](#core-core-cli-text) | the value a captured terminal write comes back as — bytes that have already been through the output sink |
+| [`Core\Cli\Color`](#core-core-cli-color) |  |
+| [`Core\Cli\Style`](#core-core-cli-style) |  |
 | [`Core\Command`](#core-core-command) |  |
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
 | [`Core\Env`](#core-core-env) |  |
@@ -118,6 +121,10 @@ Conventions the whole file uses:
 | [`Core\Cache\Store`](#core-core-cache-store) |  |
 | [`Core\RateLimit`](#core-core-ratelimit) |  |
 | [`Core\RateLimit\Decision`](#core-core-ratelimit-decision) |  |
+| [`Core\Reflect`](#core-core-reflect) |  |
+| [`Core\Reflect\ClassInfo`](#core-core-reflect-classinfo) |  |
+| [`Core\Ast`](#core-core-ast) |  |
+| [`Core\Ast\Node`](#core-core-ast-node) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -10007,7 +10014,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, exists, size, remove, removeDir, temporaryDir, within, readText, lines
+Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, writeStream, exists, size, remove, removeDir, temporaryDir, within, readText, lines, open
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -10058,6 +10065,7 @@ outside: refused
 |---|---|
 | [`Core\IO::read`](#core-core-io-read) | `read(string $path): string` |
 | [`Core\IO::write`](#core-core-io-write) | `write(string $path, string $content): void` |
+| [`Core\IO::writeStream`](#core-core-io-writestream) | `writeStream(string $path, array<bytes>\|Iterable<bytes>\|Iterator<bytes> $src, {max?: uint, overwrite?: bool}): void` |
 | [`Core\IO::exists`](#core-core-io-exists) | `exists(string $path): bool` |
 | [`Core\IO::size`](#core-core-io-size) | `size(string $path): uint` |
 | [`Core\IO::remove`](#core-core-io-remove) | `remove(string $path): void` |
@@ -10066,6 +10074,7 @@ outside: refused
 | [`Core\IO::within`](#core-core-io-within) | `within(string $base, string $path): string` |
 | [`Core\IO::readText`](#core-core-io-readtext) | `readText(string $path, {charset?: Core\Charset}): string` |
 | [`Core\IO::lines`](#core-core-io-lines) | `lines(string $path): Core\IO\Lines` |
+| [`Core\IO::open`](#core-core-io-open) | `open(string $path, Core\IO\FileMode $mode): Core\IO\File` |
 
 <a id="core-core-io-read"></a>
 #### `Core\IO::read`
@@ -10101,6 +10110,26 @@ Replaces a file's whole content, creating it if it does not exist — `file_put_
 **Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; checked before anything is created, so a refused write leaves no file behind.; `IOError` — The capability allowed it and the operating system did not — a missing directory, a read-only filesystem, a permission the process lacks.
+
+<a id="core-core-io-writestream"></a>
+#### `Core\IO::writeStream`
+
+```nvs skip
+Core\IO::writeStream(string $path, array<bytes>|Iterable<bytes>|Iterator<bytes> $src, {max?: uint, overwrite?: bool}): void
+```
+
+Writes a sequence of `bytes` chunks to `$path` as they arrive, holding no more than one of them — an upload part, a response body, a decompressed archive. Needs the `fs.write` capability for the path.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file to write. It must not already exist unless `overwrite` says otherwise. |
+| `$src` | `array<bytes>\|Iterable<bytes>\|Iterator<bytes>` | The chunks, in order — an `array<bytes>`, an `Iterable<bytes>` or an `Iterator<bytes>`. Each is written and then dropped, so the source's length is not what this holds. |
+| `{max: …}` | `uint` (default `18446744073709551615`) | The most bytes to accept across the whole stream. Unbounded when it is not given: nothing else bounds a file on disk, so this is the only ceiling there is. |
+| `{overwrite: …}` | `bool` (default `false`) | Whether an existing file may be replaced. `false` by default, because the destination is usually a name a client claimed. |
+
+**Returns** `void` — Nothing. A failure part-way through removes the partial file before it throws, so a later reader never finds a truncated write the program believes it completed.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path, or the stream ran past `max` bytes.; `IOError` — Something is already at the path and `overwrite` is `false`, or the operating system refused the create or one of the writes.
 
 <a id="core-core-io-exists"></a>
 #### `Core\IO::exists`
@@ -10236,6 +10265,24 @@ Every line of a file, without its terminator — `file()` and the `fgets` loop t
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The capability allowed it and the operating system did not — the file does not exist, is a directory, or could not be read.
 
+<a id="core-core-io-open"></a>
+#### `Core\IO::open`
+
+```nvs skip
+Core\IO::open(string $path, Core\IO\FileMode $mode): Core\IO\File
+```
+
+Opens a file and answers the handle every later read and write goes through — `fopen`, with the mode string replaced by an enum. Needs `fs.read` for `Read`, `fs.write` for `Write` and `Append`, and both for `ReadWrite`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file to open, absolute or relative to the working directory. |
+| `$mode` | `Core\IO\FileMode` | What the handle may do, as a `Core\IO\FileMode` case. |
+
+**Returns** `Core\IO\File` — An open `Core\IO\File`. It is closed by `close`, and by the end of the request if the program never calls it.
+
+**Throws** `RuntimeError` — The configuration does not grant a capability this mode needs for this path.; `IOError` — The capability allowed it and the operating system did not — `Read` on a path that is not there, a directory, or a path this process may not open.
+
 <a id="core-core-io-lines"></a>
 ### `Core\IO\Lines`
 
@@ -10243,6 +10290,124 @@ Keywords:
 
 | Member | Signature |
 |---|---|
+
+<a id="core-core-io-file"></a>
+### `Core\IO\File`
+
+Keywords: read, readLine, write, seek, tell, flush, close
+
+| Member | Signature |
+|---|---|
+| [`Core\IO\File->read`](#core-core-io-file-read) | `read(uint $max): string` |
+| [`Core\IO\File->readLine`](#core-core-io-file-readline) | `readLine(): ?string` |
+| [`Core\IO\File->write`](#core-core-io-file-write) | `write(string $data): uint` |
+| [`Core\IO\File->seek`](#core-core-io-file-seek) | `seek(uint $offset): void` |
+| [`Core\IO\File->tell`](#core-core-io-file-tell) | `tell(): uint` |
+| [`Core\IO\File->flush`](#core-core-io-file-flush) | `flush(): void` |
+| [`Core\IO\File->close`](#core-core-io-file-close) | `close(): void` |
+
+<a id="core-core-io-file-read"></a>
+#### `Core\IO\File->read`
+
+```nvs skip
+$file->read(uint $max): string
+```
+
+Reads up to `$max` bytes from where the handle is, and moves it past them — `fread`. Needs no capability of its own: the descriptor was checked when `open` produced it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$max` | `uint` | The most bytes to read. Fewer are returned when the file ends first. |
+
+**Returns** `string` — The bytes read, as a `string`. An empty string means the end of the file, which is the one answer `read` gives that is not an error and not data.
+
+**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The read itself failed, or the handle was not opened for reading.
+
+<a id="core-core-io-file-readline"></a>
+#### `Core\IO\File->readLine`
+
+```nvs skip
+$file->readLine(): ?string
+```
+
+Reads the next line and moves the handle past it — `fgets`. The terminator is consumed and never returned, and `\n`, `\r\n` and `\r` all end a line, exactly as `Core\Str::lines` and `Core\IO::lines` divide one.
+
+**Returns** `?string` — The line without its terminator, or `null` at the end of the file — which is R5's spelling of an absence, and the reason this member needs no separate `eof`. A last line with no terminator on it is still a line.
+
+**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The read itself failed, or the handle was not opened for reading.
+
+<a id="core-core-io-file-write"></a>
+#### `Core\IO\File->write`
+
+```nvs skip
+$file->write(string $data): uint
+```
+
+Writes `$data` at the handle's position and moves it past what went out — `fwrite`. Needs no capability of its own: the descriptor was checked when `open` produced it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `string` (neutral) | The bytes to write. |
+
+**Returns** `uint` — How many bytes were written, which is every byte of `$data` — a short write is retried rather than reported, so a caller never has to loop.
+
+**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The write itself failed, or the handle was not opened for writing.
+
+<a id="core-core-io-file-seek"></a>
+#### `Core\IO\File->seek`
+
+```nvs skip
+$file->seek(uint $offset): void
+```
+
+Moves the handle to `$offset` bytes from the start of the file — `fseek`, with no `whence`. Seeking past the end is allowed and is how a sparse file is written: the gap becomes zeroes when something is written after it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$offset` | `uint` | How many bytes from the start of the file the next read or write happens at. |
+
+**Returns** `void` — Nothing. `tell` is how a program reads the position back, so this member has no answer of its own to give.
+
+**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The seek itself failed — a pipe or a terminal, which has no position to move to.
+
+<a id="core-core-io-file-tell"></a>
+#### `Core\IO\File->tell`
+
+```nvs skip
+$file->tell(): uint
+```
+
+Answers where the handle is, in bytes from the start of the file — `ftell`. It is the position the next `read` or `write` acts at, which every member of this class leaves just past what it touched.
+
+**Returns** `uint` — The position, as a `uint`. Zero on a handle nothing has read or written yet, unless `FileMode::Append` put it at the end.
+
+**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The query itself failed — a pipe or a terminal, which has no position to report.
+
+<a id="core-core-io-file-flush"></a>
+#### `Core\IO\File->flush`
+
+```nvs skip
+$file->flush(): void
+```
+
+Hands everything written on this handle to the operating system — `fflush`. Novis writes straight to the descriptor, so there is nothing of its own left to push, and this member is the promise that a program never has to know that.
+
+**Returns** `void` — Nothing. It is **not** `fsync`: reaching the operating system is not reaching the disk, and durability is not something this member promises.
+
+**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The flush itself failed. Nothing this class does can provoke one today, and the row is here because the answer belongs to the operating system rather than to this member.
+
+<a id="core-core-io-file-close"></a>
+#### `Core\IO\File->close`
+
+```nvs skip
+$file->close(): void
+```
+
+Closes the handle and releases the descriptor — `fclose`. Calling it is optional: a handle the program never closes is closed when the request ends.
+
+**Returns** `void` — Nothing.
+
+**Throws** `RuntimeError` — The handle has already been closed. Closing twice is a bug in the program rather than a state of the file, so it is reported rather than ignored.
 
 <a id="core-core-process"></a>
 ### `Core\Process`
@@ -14300,14 +14465,30 @@ Expands, at compile time, to an array literal of `new` expressions — one per n
 <a id="core-core-cli"></a>
 ### `Core\Cli`
 
-Keywords: isTty, width, height, colorDepth
+Keywords: escape, isTty, width, height, colorDepth
 
 | Member | Signature |
 |---|---|
+| [`Core\Cli::escape`](#core-core-cli-escape) | `escape(string $text): string` |
 | [`Core\Cli::isTty`](#core-core-cli-istty) | `isTty(Core\Cli\Stream $stream): bool` |
 | [`Core\Cli::width`](#core-core-cli-width) | `width(): uint` |
 | [`Core\Cli::height`](#core-core-cli-height) | `height(): uint` |
 | [`Core\Cli::colorDepth`](#core-core-cli-colordepth) | `colorDepth(): Core\Cli\ColorDepth` |
+
+<a id="core-core-cli-escape"></a>
+#### `Core\Cli::escape`
+
+```nvs skip
+Core\Cli::escape(string $text): string
+```
+
+Answers `$text` with every control byte replaced by a visible, inert glyph — `ESC` as `␛`, a bare `CR` as `␍`, `DEL` as `␡`, a C1 code point or an unterminated bidirectional control as `�` — while `LF` and `TAB` pass through. This is the terminal sink's own table as a value; `echo` already performs it, so a program needs this only to hold the neutralized form.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (launder) | The text to neutralize. Its `tainted` qualifier is removed, because the terminal is the sink this launders for and nothing is left in the answer for it to act on. |
+
+**Returns** `string` — The same text with the substitutions applied, and no other change — this is not an HTML escaper, so `<`, `&` and `"` are returned as themselves.
 
 <a id="core-core-cli-istty"></a>
 #### `Core\Cli::isTty`
@@ -14360,7 +14541,7 @@ How much colour standard output can show, honouring `NO_COLOR`, `CLICOLOR_FORCE`
 <a id="core-core-cli-text"></a>
 ### `Core\Cli\Text`
 
-Keywords: Core\Out::capture, ob_start, ob_get_clean, terminal output, ANSI, escape sequences, captured output, carrier, 
+Keywords: Core\Out::capture, ob_start, ob_get_clean, terminal output, ANSI, escape sequences, captured output, carrier, plain, styled
 
 `Core\Cli\Text` is what `Core\Out::capture` answers when the program is not serving an HTTP request: the
 bytes the captured code wrote, already past the terminal sink, carried as a value rather than as a `string`
@@ -14389,6 +14570,131 @@ length=5
 
 | Member | Signature |
 |---|---|
+| [`Core\Cli\Text::plain`](#core-core-cli-text-plain) | `plain(string $text): Core\Cli\Text` |
+| [`Core\Cli\Text::styled`](#core-core-cli-text-styled) | `styled(string $text, Core\Cli\Style $style): Core\Cli\Text` |
+
+<a id="core-core-cli-text-plain"></a>
+#### `Core\Cli\Text::plain`
+
+```nvs skip
+Core\Cli\Text::plain(string $text): Core\Cli\Text
+```
+
+Answers `$text` as a `Core\Cli\Text`, with every control byte already replaced by the visible glyph `Core\Cli::escape` gives it. This is the terminal sink's own carrier: `echo` writes a `Text` through unchanged, which is why the substitution happens here instead.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (launder) | The text to carry. Its `tainted` qualifier is removed, for the same reason `Core\Cli::escape` removes it: the terminal is the sink this neutralizes for, and nothing is left in the answer for it to act on. |
+
+**Returns** `Core\Cli\Text` — A `Core\Cli\Text` carrying the neutralized form. It composes with another `Text` and is written by `echo`; it carries no styling, which is `styled`'s.
+
+<a id="core-core-cli-text-styled"></a>
+#### `Core\Cli\Text::styled`
+
+```nvs skip
+Core\Cli\Text::styled(string $text, Core\Cli\Style $style): Core\Cli\Text
+```
+
+Answers `$text` as a `Core\Cli\Text` wearing `$style`, with the text itself neutralized exactly as `plain` neutralizes it — so the only control bytes in the answer are the ones the style put there. Replaces the `"\e[31m…"` string every PHP CLI program builds by hand.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (launder) | The text to carry. Its `tainted` qualifier is removed for `plain`'s reason, and an escape sequence inside it is substituted rather than obeyed. |
+| `$style` | `Core\Cli\Style` | The style to wear, as a value — Novis has no markup or escape grammar to write one in. |
+
+**Returns** `Core\Cli\Text` — A `Core\Cli\Text` carrying the neutralized text between the style's own escape sequence and a reset. The styling is rendered for the terminal this process actually has, so it is absent entirely when standard output is not one.
+
+<a id="core-core-cli-color"></a>
+### `Core\Cli\Color`
+
+Keywords: index, rgb
+
+| Member | Signature |
+|---|---|
+| [`Core\Cli\Color::index`](#core-core-cli-color-index) | `index(uint $index): Core\Cli\Color` |
+| [`Core\Cli\Color::rgb`](#core-core-cli-color-rgb) | `rgb(uint $red, uint $green, uint $blue): Core\Cli\Color` |
+| `Core\Cli\Color::BLACK` | `Core\Cli\Color` = `Core\Cli\Color::index(0)` — ANSI palette entry 0 — black, as the terminal's theme renders it. |
+| `Core\Cli\Color::RED` | `Core\Cli\Color` = `Core\Cli\Color::index(1)` — ANSI palette entry 1 — red. |
+| `Core\Cli\Color::GREEN` | `Core\Cli\Color` = `Core\Cli\Color::index(2)` — ANSI palette entry 2 — green. |
+| `Core\Cli\Color::YELLOW` | `Core\Cli\Color` = `Core\Cli\Color::index(3)` — ANSI palette entry 3 — yellow. |
+| `Core\Cli\Color::BLUE` | `Core\Cli\Color` = `Core\Cli\Color::index(4)` — ANSI palette entry 4 — blue. |
+| `Core\Cli\Color::MAGENTA` | `Core\Cli\Color` = `Core\Cli\Color::index(5)` — ANSI palette entry 5 — magenta. |
+| `Core\Cli\Color::CYAN` | `Core\Cli\Color` = `Core\Cli\Color::index(6)` — ANSI palette entry 6 — cyan. |
+| `Core\Cli\Color::WHITE` | `Core\Cli\Color` = `Core\Cli\Color::index(7)` — ANSI palette entry 7 — white, which a light theme renders as near-black. |
+| `Core\Cli\Color::BRIGHT_BLACK` | `Core\Cli\Color` = `Core\Cli\Color::index(8)` — ANSI palette entry 8 — the grey a terminal shows for dimmed text. |
+| `Core\Cli\Color::BRIGHT_RED` | `Core\Cli\Color` = `Core\Cli\Color::index(9)` — ANSI palette entry 9 — bright red. |
+| `Core\Cli\Color::BRIGHT_GREEN` | `Core\Cli\Color` = `Core\Cli\Color::index(10)` — ANSI palette entry 10 — bright green. |
+| `Core\Cli\Color::BRIGHT_YELLOW` | `Core\Cli\Color` = `Core\Cli\Color::index(11)` — ANSI palette entry 11 — bright yellow. |
+| `Core\Cli\Color::BRIGHT_BLUE` | `Core\Cli\Color` = `Core\Cli\Color::index(12)` — ANSI palette entry 12 — bright blue. |
+| `Core\Cli\Color::BRIGHT_MAGENTA` | `Core\Cli\Color` = `Core\Cli\Color::index(13)` — ANSI palette entry 13 — bright magenta. |
+| `Core\Cli\Color::BRIGHT_CYAN` | `Core\Cli\Color` = `Core\Cli\Color::index(14)` — ANSI palette entry 14 — bright cyan. |
+| `Core\Cli\Color::BRIGHT_WHITE` | `Core\Cli\Color` = `Core\Cli\Color::index(15)` — ANSI palette entry 15 — bright white. |
+
+<a id="core-core-cli-color-index"></a>
+#### `Core\Cli\Color::index`
+
+```nvs skip
+Core\Cli\Color::index(uint $index): Core\Cli\Color
+```
+
+A colour from the terminal's 256-entry palette, whose first sixteen entries are the named constants on this class.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$index` | `uint` | The palette entry, `0` to `255`. |
+
+**Returns** `Core\Cli\Color` — The colour that entry names, which a terminal with a smaller palette renders as the nearest of the sixteen it has.
+
+**Throws** `RuntimeError` — `$index` is above `255`, which no palette has an entry for.
+
+<a id="core-core-cli-color-rgb"></a>
+#### `Core\Cli\Color::rgb`
+
+```nvs skip
+Core\Cli\Color::rgb(uint $red, uint $green, uint $blue): Core\Cli\Color
+```
+
+A 24-bit colour, for the terminals that have one — the sixteen million members that are why this class is a value type and not an enum.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$red` | `uint` | The red channel, `0` to `255`. |
+| `$green` | `uint` | The green channel, `0` to `255`. |
+| `$blue` | `uint` | The blue channel, `0` to `255`. |
+
+**Returns** `Core\Cli\Color` — The colour, which is written as itself on a true-colour terminal and as the nearest palette entry on one without.
+
+**Throws** `RuntimeError` — A channel is above `255`.
+
+<a id="core-core-cli-style"></a>
+### `Core\Cli\Style`
+
+Keywords: of
+
+| Member | Signature |
+|---|---|
+| [`Core\Cli\Style::of`](#core-core-cli-style-of) | `of({color?: Core\Cli\Color, background?: Core\Cli\Color, bold?: bool, dim?: bool, italic?: bool, underline?: bool, strikethrough?: bool}): Core\Cli\Style` |
+
+<a id="core-core-cli-style-of"></a>
+#### `Core\Cli\Style::of`
+
+```nvs skip
+Core\Cli\Style::of({color?: Core\Cli\Color, background?: Core\Cli\Color, bold?: bool, dim?: bool, italic?: bool, underline?: bool, strikethrough?: bool}): Core\Cli\Style
+```
+
+A style, as a value — the replacement for the `"\e[1;31m"` string and the `"<bold><red>"` markup, neither of which Novis has a grammar for.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{color: …}` | `Core\Cli\Color` (default `null`) | The foreground colour. Absent leaves the terminal's own. |
+| `{background: …}` | `Core\Cli\Color` (default `null`) | The background colour. Absent leaves the terminal's own. |
+| `{bold: …}` | `bool` (default `false`) | Whether the text is bold. |
+| `{dim: …}` | `bool` (default `false`) | Whether the text is dimmed. |
+| `{italic: …}` | `bool` (default `false`) | Whether the text is italic, which a minority of terminals render. |
+| `{underline: …}` | `bool` (default `false`) | Whether the text is underlined. |
+| `{strikethrough: …}` | `bool` (default `false`) | Whether the text is struck through. |
+
+**Returns** `Core\Cli\Style` — The style, which `Core\Cli\Text::styled` renders for the terminal this process actually has.
 
 <a id="core-core-command"></a>
 ### `Core\Command`
@@ -15585,6 +15891,205 @@ How long until this arrival would be admitted — the exact wait, computed from 
 
 **Returns** `?Core\Time\Duration` — `null` exactly when the decision is allowed, and otherwise the `Core\Time\Duration` until the theoretical arrival time; a `Retry-After` header built from it tells the client when to come back rather than when the window turns over, which is what stops every refused client retrying in the same instant.
 
+<a id="core-core-reflect"></a>
+### `Core\Reflect`
+
+Keywords: forClass, forObject, typeOf
+
+| Member | Signature |
+|---|---|
+| [`Core\Reflect::forClass`](#core-core-reflect-forclass) | `forClass(string $name): ?Core\Reflect\ClassInfo` |
+| [`Core\Reflect::forObject`](#core-core-reflect-forobject) | `forObject(mixed $object): Core\Reflect\ClassInfo` |
+| [`Core\Reflect::typeOf`](#core-core-reflect-typeof) | `typeOf(mixed $value): Core\Reflect\TypeKind` |
+
+<a id="core-core-reflect-forclass"></a>
+#### `Core\Reflect::forClass`
+
+```nvs skip
+Core\Reflect::forClass(string $name): ?Core\Reflect\ClassInfo
+```
+
+Describes the class `$name` names, reaching it by name rather than through a value. Replaces `ReflectionClass`'s constructor and `class_exists`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The class's name as its declaration writes it, namespace included and with no leading separator — what `Core\Reflect\ClassInfo::name` answers. |
+
+**Returns** `?Core\Reflect\ClassInfo` — A description of that class, or `null` where the running program declares no class of that name — the `null` is `class_exists`'s answer, which is why asking is not a failure.
+
+<a id="core-core-reflect-forobject"></a>
+#### `Core\Reflect::forObject`
+
+```nvs skip
+Core\Reflect::forObject(mixed $object): Core\Reflect\ClassInfo
+```
+
+Describes `$object`'s class — its name, and the properties code outside the class can see. Replaces `get_class` and `get_object_vars`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$object` | `mixed` | The value to describe. Reflection is for the receiver whose class is not known while compiling, so the parameter is `mixed`. |
+
+**Returns** `Core\Reflect\ClassInfo` — A `Core\Reflect\ClassInfo` for the object's own class, carrying answers rather than a way back to the object.
+
+**Throws** `RuntimeError` — `$object` is not an object — a `mixed` carries no promise that it is one, so the check is made here rather than by the caller.
+
+<a id="core-core-reflect-typeof"></a>
+#### `Core\Reflect::typeOf`
+
+```nvs skip
+Core\Reflect::typeOf(mixed $value): Core\Reflect\TypeKind
+```
+
+Which of the language's representations `$value` currently holds. The single replacement for PHP's fourteen `is_*` predicates and `gettype`, which are only meaningful on a `mixed` at all.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `mixed` | The value to ask about. On anything but a `mixed` the checker already knows the answer, so the interesting receiver is the one whose type was erased. |
+
+**Returns** `Core\Reflect\TypeKind` — One `Core\Reflect\TypeKind` case — exactly one, since the cases partition the representations rather than overlapping the way `is_scalar` and `is_int` do.
+
+<a id="core-core-reflect-classinfo"></a>
+### `Core\Reflect\ClassInfo`
+
+Keywords: name, properties, get, call
+
+| Member | Signature |
+|---|---|
+| [`Core\Reflect\ClassInfo->name`](#core-core-reflect-classinfo-name) | `name(): string` |
+| [`Core\Reflect\ClassInfo->properties`](#core-core-reflect-classinfo-properties) | `properties(): array<string>` |
+| [`Core\Reflect\ClassInfo->get`](#core-core-reflect-classinfo-get) | `get(mixed $object, string $name): mixed` |
+| [`Core\Reflect\ClassInfo->call`](#core-core-reflect-classinfo-call) | `call(mixed $object, string $name, array<mixed> $arguments): mixed` |
+
+<a id="core-core-reflect-classinfo-name"></a>
+#### `Core\Reflect\ClassInfo->name`
+
+```nvs skip
+$classInfo->name(): string
+```
+
+The described class's name, namespace included, spelled as the declaration writes it.
+
+**Returns** `string` — The class name — `App\Model\User` for a namespaced declaration, and never an alias the naming site happened to use.
+
+<a id="core-core-reflect-classinfo-properties"></a>
+#### `Core\Reflect\ClassInfo->properties`
+
+```nvs skip
+$classInfo->properties(): array<string>
+```
+
+The described class's property names, in slot order — every ancestor's first, then its own.
+
+**Returns** `array<string>` — One name per property code outside the class may read, `$`-sigil excluded. A `private` or `protected` property is not among them: reflection has the visibility ordinary code has, and no way to widen it.
+
+<a id="core-core-reflect-classinfo-get"></a>
+#### `Core\Reflect\ClassInfo->get`
+
+```nvs skip
+$classInfo->get(mixed $object, string $name): mixed
+```
+
+Reads `$object`'s `$name` property, under exactly the visibility ordinary code at this call site would face. Replaces `ReflectionProperty::getValue`, and there is no `setAccessible` to lift the check with.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$object` | `mixed` | An instance of the described class — the description is of a class, so the value to read is named here rather than held. |
+| `$name` | `string` (neutral) | The property's name, `$`-sigil excluded, as `properties` spells it. |
+
+**Returns** `mixed` — The property's value, with its own declared type erased to `mixed`.
+
+**Throws** `RuntimeError` — `$object` is not an object, or `$name` names a property that is not `public` — a reflective read has the visibility ordinary code has, so the refusal is the one an ordinary out-of-class read would meet.; `LogicError` — `$object` is not an instance of the described class, or `$name` names no property of it at all. Both are mistakes in the program rather than facts about the value, which is what separates them from the refusal above.
+
+<a id="core-core-reflect-classinfo-call"></a>
+#### `Core\Reflect\ClassInfo->call`
+
+```nvs skip
+$classInfo->call(mixed $object, string $name, array<mixed> $arguments): mixed
+```
+
+Calls `$object`'s `$name` method with `$arguments`, under exactly the visibility ordinary code at this call site would face. Replaces `ReflectionMethod::invoke`, and there is no `setAccessible` to lift the check with.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$object` | `mixed` | An instance of the described class — the description is of a class, so the value to call on is named here rather than held. |
+| `$name` | `string` (neutral) | The method's name, `()` excluded, as the declaration writes it. |
+| `$arguments` | `array<mixed>` | One entry per declared parameter, in order, keys ignored. Required even where the method takes none, which is then `[]`. |
+
+**Returns** `mixed` — Whatever the method returned, with its own declared type erased to `mixed`.
+
+**Throws** `LogicError` — `$name` is not `public`, names no method of the class, or names a `Core` member; or `$arguments` has fewer entries than the method declares, or an entry whose type the parameter does not accept. Every one of these is the refusal an ordinary call through an erased receiver meets, raised by that same check rather than by a second one written here.; `RuntimeError` — `$object` is not an object at all. A `$object` that is an object but not an instance of the described class is the `LogicError` above.
+
+<a id="core-core-ast"></a>
+### `Core\Ast`
+
+Keywords: parse
+
+| Member | Signature |
+|---|---|
+| [`Core\Ast::parse`](#core-core-ast-parse) | `parse(string $source): Core\Ast\Node` |
+
+<a id="core-core-ast-parse"></a>
+#### `Core\Ast::parse`
+
+```nvs skip
+Core\Ast::parse(string $source): Core\Ast\Node
+```
+
+Parses `$source` with the compiler's own parser and answers the file's node tree. Replaces `token_get_all` and every userland parser over it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$source` | `string` (neutral) | Novis source, starting outside `<?nvs` the way a file does. |
+
+**Returns** `Core\Ast\Node` — The file's root node — `kind()` is `File`, and its children are the top-level statements. The tree is data: nothing on it runs what it describes.
+
+**Throws** `ParseError` — `$source` does not parse. The message carries the first error and its line and column, and a source the compiler refuses is refused here identically.
+
+<a id="core-core-ast-node"></a>
+### `Core\Ast\Node`
+
+Keywords: kind, children, nodes
+
+| Member | Signature |
+|---|---|
+| [`Core\Ast\Node->kind`](#core-core-ast-node-kind) | `kind(): string` |
+| [`Core\Ast\Node->children`](#core-core-ast-node-children) | `children(): array<Core\Ast\Node>` |
+| [`Core\Ast\Node->nodes`](#core-core-ast-node-nodes) | `nodes(): array<Core\Ast\Node>` |
+
+<a id="core-core-ast-node-kind"></a>
+#### `Core\Ast\Node->kind`
+
+```nvs skip
+$node->kind(): string
+```
+
+Which production this node is, spelled as the grammar spells it — `Binary`, `Echo`, `Method`, `File`.
+
+**Returns** `string` — The production's name. One vocabulary, the grammar's own, so a walk that recognises a construct recognises it by the name the language documents.
+
+<a id="core-core-ast-node-children"></a>
+#### `Core\Ast\Node->children`
+
+```nvs skip
+$node->children(): array<Core\Ast\Node>
+```
+
+The nodes this one directly contains, in source order.
+
+**Returns** `array<Core\Ast\Node>` — The direct children, empty for a leaf such as an `Int`.
+
+<a id="core-core-ast-node-nodes"></a>
+#### `Core\Ast\Node->nodes`
+
+```nvs skip
+$node->nodes(): array<Core\Ast\Node>
+```
+
+Every node this one contains, however deeply — `children` closed transitively, which is the whole walk when the receiver is the file.
+
+**Returns** `array<Core\Ast\Node>` — The subtree in source order, the receiver excluded: both this and `children` answer what the node *contains*, and a node does not contain itself.
+
 <a id="core-enums"></a>
 ### `Core` enums
 
@@ -15774,6 +16279,36 @@ Which shell `Core\Command::completions` writes a completion script for. Four cas
 | `Core\Cli\Shell::Zsh` | Z shell, whose script is a `#compdef` function driving `_arguments`. |
 | `Core\Cli\Shell::Fish` | fish, whose script is one `complete -c` line per command and per option. |
 | `Core\Cli\Shell::Pwsh` | PowerShell — 7 and Windows PowerShell alike, whose script calls `Register-ArgumentCompleter`. |
+
+<a id="enum-core-reflect-typekind"></a>
+#### `Core\Reflect\TypeKind`
+
+What a value is, once its static type is gone — ten cases, one per representation the runtime has, and every value is in exactly one of them.
+
+| Case | Meaning |
+|---|---|
+| `Core\Reflect\TypeKind::Null` | The `null` value; what `is_null` asked. |
+| `Core\Reflect\TypeKind::Bool` | A `bool`, `true` or `false` alike. |
+| `Core\Reflect\TypeKind::Int` | A signed `int`. |
+| `Core\Reflect\TypeKind::Uint` | An unsigned `uint`, which is a type of its own here and so a case of its own — the one PHP had no predicate to ask with. |
+| `Core\Reflect\TypeKind::Float` | A `float`; what `is_float` and its `is_double` alias asked. |
+| `Core\Reflect\TypeKind::Decimal` | A `decimal` — the exact scalar, and never a `float` that happens to be round. |
+| `Core\Reflect\TypeKind::Text` | A `string`, which is UTF-8 by the language's own guarantee; what `is_string` asked. |
+| `Core\Reflect\TypeKind::Bytes` | A `bytes` value — the same heap shape as `Text` without the UTF-8 promise, and the distinction PHP's one string type could not make. |
+| `Core\Reflect\TypeKind::Array` | An `array<T>`; what `is_array`, `is_iterable` and `is_countable` between them asked. |
+| `Core\Reflect\TypeKind::Object` | A class instance, a closure included — a closure is an ordinary object here, so there is no `Callable` case to disagree with it. |
+
+<a id="enum-core-io-filemode"></a>
+#### `Core\IO\FileMode`
+
+What an open handle may do, replacing `fopen`'s mode string. There is no binary or text flag: Novis text is octets, so every mode is what PHP would call binary.
+
+| Case | Meaning |
+|---|---|
+| `Core\IO\FileMode::Read` | Reading only, from the start of a file that must already exist — `fopen`'s `r`. |
+| `Core\IO\FileMode::Write` | Writing only, emptying the file first and creating it if it is not there — `fopen`'s `w`. |
+| `Core\IO\FileMode::Append` | Writing only, always at the end whatever else has written since, creating the file if it is not there — `fopen`'s `a`. |
+| `Core\IO\FileMode::ReadWrite` | Both, creating the file if it is not there and emptying nothing — `fopen`'s `c+`, which is the one of its four `+` forms that surprises nobody. |
 
 # Part C — The toolchain
 
@@ -16567,6 +17102,8 @@ long-running host — at a reload, or only at boot.
 | `http` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `log` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `log.handler` | operator only — a request cannot change it | at reload |
+| `log.handler_reserve_memory` | operator only — a request cannot change it | at reload |
+| `log.handler_reserve_time` | operator only — a request cannot change it | at reload |
 | `cache.dir` | operator only — a request cannot change it | at boot only |
 | `cache.shared` | operator only — a request cannot change it | at boot only |
 | `cache.local` | operator only — a request cannot change it | at reload |
@@ -17182,10 +17719,25 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `boolval` | language | `$x as bool` |
 | `doubleval` | language | `$x as float` |
 | `floatval` | language | `$x as float` |
+| `get_debug_type` | member | `Core\Reflect::typeOf` |
+| `gettype` | member | `Core\Reflect::typeOf`, returning an enum rather than a string |
 | `intval` | language | `$x as int`, or `$x as ?int` where PHP relied on `0` for a failure |
+| `is_array` | member | `Core\Reflect::typeOf` — meaningful only on a `mixed` |
+| `is_bool` | member | `Core\Reflect::typeOf` |
+| `is_callable` | member | `Core\Reflect::typeOf`; `callable` is closures only ([ADR 0027](adr/0027-callable-is-closures-only.md)) |
+| `is_countable` | member | `Core\Reflect::typeOf` |
+| `is_double` | member | `Core\Reflect::typeOf` |
+| `is_float` | member | `Core\Reflect::typeOf` |
+| `is_int` | member | `Core\Reflect::typeOf` |
+| `is_integer` | member | `Core\Reflect::typeOf` |
+| `is_iterable` | member | `Core\Reflect::typeOf` |
+| `is_long` | member | `Core\Reflect::typeOf` |
 | `is_null` | language | `$x == null` |
 | `is_numeric` | language | `$s as ?float != null` |
+| `is_object` | member | `Core\Reflect::typeOf` |
 | `is_resource` | dropped | there is no `resource` type (R14) |
+| `is_scalar` | member | `Core\Reflect::typeOf` |
+| `is_string` | member | `Core\Reflect::typeOf` |
 | `settype` | dropped | a variable's type never changes ([ADR 0007](adr/0007-explicit-type-system.md)) |
 | `strval` | language | `$x as string` |
 | `ini_get` | member | `Core\Config::get` — the snapshot's value with this request's own overlay applied |
