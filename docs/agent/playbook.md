@@ -3220,6 +3220,15 @@ is why" — is this file.
   with what the test asserts — so an `assert!(!diags.has_errors())` in the same test fails on a
   diagnostic the author never considered. One `parent::constructor($n);` line fixes it. This bites
   hardest in a *negative* fixture's control half, where the whole point is that nothing else is wrong.
+- **`gaps.py`'s two sections measure two different suites, and an item that mixes them asks for a
+  case that already exists.** The *conformance depth by class* block is `tests/conformance/`; the
+  *differential gap* block is `tests/differential/`. A member at the depth floor of 3 in the first
+  block may already have two oracle cases in the second — `Core\Math::lcm` and `Core\Math::hypot`
+  each did, in `math-gcd-and-lcm-match-a-hand-written-euclid.nvst` and
+  `math-hypot-and-atan2-match-hypot-and-atan2.nvst`, when a handoff item named them as needing one.
+  Only the *differential gap* block's roster ("a PHP twin and no oracle case") answers the question
+  the Stage 8 differential count asks. One `ls tests/differential/core/ | grep <class>` before
+  writing settles it, and the members with no differential case at all are the ones with room.
 
 ## Splitting a file that got too big
 
