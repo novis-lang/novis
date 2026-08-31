@@ -34,9 +34,18 @@
 //!
 //! **`read` answers with `string` rather than `bytes`.** Novis text is a byte
 //! string, so the two would carry the same content, and every caller of a
-//! whole-file read wants the thing it can concatenate. A member for the other
-//! half — a bounded read, a stream — is a later signature over the same door,
-//! which is why `open_read` hands back a handle rather than a `Vec`.
+//! whole-file read wants the thing it can concatenate. The other half — a
+//! bounded read, a stream — is [`FILE`], reached through `open`, which is why
+//! `open_read` hands back a handle rather than a `Vec`.
+//!
+//! **An open file is an object, and this class has two of them.** Spec § 14's
+//! R14 is that a `resource` is never exposed, so `open` answers [`FILE`] and
+//! the mode it takes is [`FILE_MODE`] rather than `fopen`'s string (R11). Both
+//! of those constants own their own reasoning; what belongs here is why the
+//! handle members sit in this file at all rather than in one of their own,
+//! which is that they are the same door: `Core\IO::read` and
+//! `$file->read($n)` differ in how much they take and in nothing else, and a
+//! second module would be a second place to look for that answer.
 //!
 //! **`readText` is that same read with § 7's exact decode after it**, and not a
 //! second reader: one door, one buffer, one ceiling, and the conversion is
@@ -53,13 +62,15 @@
 //! the octets afterwards, which is the shape this class keeps rather than
 //! growing a reader per question.
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
 
+use nvs_runtime::capability::Access;
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
+    MethodDoc, ParamDoc, Qual,
 };
 
 /// This class's fully-qualified name, in one place so the registry row and
@@ -183,6 +194,18 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(LINES_NAME),
             symbol: "nvs_core_io_lines",
             doc: Some(&LINES_DOC),
+        },
+        CoreMethod {
+            name: "open",
+            names: &["path", "mode"],
+            // The path is a sink like every other in this class. The mode is
+            // [`FILE_MODE`] and never a string, which is R11 and the whole of
+            // what replaces `fopen`'s `"r+b"` grammar.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Enum(FILE_MODE_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILE_NAME),
+            symbol: "nvs_core_io_open",
+            doc: Some(&OPEN_DOC),
         },
     ],
     instance: &[],
@@ -497,6 +520,235 @@ const LINES_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO::open`'s reference card — ADR 0117.
+const OPEN_DOC: MethodDoc = MethodDoc {
+    short: "Opens a file and answers the handle every later read and write goes through — `fopen`, \
+            with the mode string replaced by an enum. Needs `fs.read` for `Read`, `fs.write` for \
+            `Write` and `Append`, and both for `ReadWrite`.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "The file to open, absolute or relative to the working directory.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "mode",
+            desc: "What the handle may do, as a `Core\\IO\\FileMode` case.",
+            shape: &[],
+        },
+    ],
+    ret: "An open `Core\\IO\\File`. It is closed by `close`, and by the end of the request if the \
+          program never calls it.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant a capability this mode needs for this path.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and the operating system did not — `Read` on a path \
+                   that is not there, a directory, or a path this process may not open.",
+        },
+    ],
+};
+
+/// `Core\IO\FileMode`'s fully-qualified name, in one place for the same reason
+/// [`NAME`] is.
+pub(crate) const FILE_MODE_NAME: &str = r"Core\IO\FileMode";
+
+/// Spec § 14's `FileMode` — R11's "an enum, never a mode string".
+///
+/// Four cases where `fopen` has twelve spellings of six things, because the two
+/// axes PHP's grammar crosses are not independent in any way a caller benefits
+/// from: `b` is meaningless on every platform Novis targets, and `t` is a
+/// translation this language does not perform, so the mode string's whole
+/// remaining content is the access. What is left after that is `r`/`w`/`a` plus
+/// one read-write case, and the `+` forms that differ only in whether they
+/// truncate or create are folded into it — [`nvs_runtime::capability::Access`]
+/// is the one home of what each does to the file.
+///
+/// The values are ordinals rather than anything meaningful, unlike
+/// [`crate::log::LEVEL`]'s severities: nothing outside this language reads
+/// them, so a number that looked like a `libc` flag would be a coincidence a
+/// reader would then have to check.
+pub(crate) const FILE_MODE: CoreEnum = CoreEnum {
+    name: FILE_MODE_NAME,
+    cases: &[("Read", 0), ("Write", 1), ("Append", 2), ("ReadWrite", 3)],
+    doc: Some(&FILE_MODE_DOC),
+};
+
+/// [`FILE_MODE`]'s reference card — ADR 0117.
+const FILE_MODE_DOC: EnumDoc = EnumDoc {
+    short: "What an open handle may do, replacing `fopen`'s mode string. There is no binary or text \
+            flag: Novis text is octets, so every mode is what PHP would call binary.",
+    cases: &[
+        CaseDoc {
+            name: "Read",
+            desc: "Reading only, from the start of a file that must already exist — `fopen`'s `r`.",
+        },
+        CaseDoc {
+            name: "Write",
+            desc: "Writing only, emptying the file first and creating it if it is not there — \
+                   `fopen`'s `w`.",
+        },
+        CaseDoc {
+            name: "Append",
+            desc: "Writing only, always at the end whatever else has written since, creating the \
+                   file if it is not there — `fopen`'s `a`.",
+        },
+        CaseDoc {
+            name: "ReadWrite",
+            desc: "Both, creating the file if it is not there and emptying nothing — `fopen`'s \
+                   `c+`, which is the one of its four `+` forms that surprises nobody.",
+        },
+    ],
+};
+
+/// `Core\IO::open`'s answer, as [`CoreTy::Instance`] spells it.
+pub(crate) const FILE_NAME: &str = r"Core\IO\File";
+
+/// [`FILE`]'s first slot: the key its open file is filed under in the request.
+const FILE_SLOT: usize = 0;
+
+/// [`FILE`]'s second slot: the path it was opened on, kept so that every
+/// refusal a member of this class raises can name the file the way the program
+/// wrote it.
+///
+/// **What it spends:** one `Value` and a shared reference to the string the
+/// caller already passed, per open handle. The alternative is an `IOError`
+/// saying only which member failed, which is the diagnostic a developer with
+/// four open handles cannot act on.
+const FILE_PATH_SLOT: usize = 1;
+
+/// Spec § 14's `File` — R14's "an open file is an object and never a
+/// `resource`".
+///
+/// # Decision: the slot holds a key, and the request holds the descriptor
+///
+/// A `Core` instance's slots hold Novis values, so a `std::fs::File` cannot go
+/// in one ([`crate::instance`]'s first decision is the home of why). The slot
+/// holds an `int` instead — the key
+/// [`Ctx::hold_open_file`](nvs_runtime::Ctx::hold_open_file) filed the
+/// descriptor under, whose own doc comment owns the accounting and the reason
+/// the table is the *request's*: a `Core` instance has no native drop, so a
+/// table this module kept would never learn that the last handle to a file had
+/// gone, and its footprint would be O(files opened by the process).
+/// `Core\Script\Handle` is the same shape for the same reason and landed first.
+///
+/// **This is what R14 buys over a `resource`.** A `resource` is an integer with
+/// a type tag that every function accepting one has to re-check, and PHP's
+/// whole `fread`/`fgets`/`fwrite`/`fseek`/`flock` family is that check written
+/// out ninety times. Here the *type* is the check: `nvs_types` refuses a
+/// `Core\IO\File` where a `Core\Regex\Match` is wanted before the program runs,
+/// and the only thing left for a body to ask is whether the handle is still
+/// open — which is one question, answered in [`open_file`], and is the one thing
+/// a static type genuinely cannot know.
+///
+/// # Three members so far, and the rest of § 14's roster is owed
+///
+/// `read`, `write` and `close`. The spec also names `readLine`, `seek`, `tell`,
+/// `truncate`, `flush` and `lock`, and each is a signature over the same slot
+/// with nothing new to decide — they are absent because nothing has needed one
+/// yet, which is the same test every row in [`crate::registry::ENUMS`] passes.
+/// `Core\IO::stdin`/`stdout`/`stderr` answer this class too and are owed with
+/// them.
+pub(crate) const FILE: CoreClass = CoreClass {
+    name: FILE_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "read",
+            names: &["max"],
+            params: &[CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_io_file_read",
+            doc: Some(&FILE_READ_DOC),
+        },
+        CoreMethod {
+            name: "write",
+            names: &["data"],
+            // `$data` is not a path, so it is not a sink — the same reading
+            // `Core\IO::write`'s own `$content` carries.
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_io_file_write",
+            doc: Some(&FILE_WRITE_DOC),
+        },
+        CoreMethod {
+            name: "close",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_io_file_close",
+            doc: Some(&FILE_CLOSE_DOC),
+        },
+    ],
+    slots: &["handle", "path"],
+    constants: &[],
+};
+
+/// `Core\IO\File::read`'s reference card — ADR 0117.
+const FILE_READ_DOC: MethodDoc = MethodDoc {
+    short: "Reads up to `$max` bytes from where the handle is, and moves it past them — `fread`. \
+            Needs no capability of its own: the descriptor was checked when `open` produced it.",
+    params: &[ParamDoc {
+        name: "max",
+        desc: "The most bytes to read. Fewer are returned when the file ends first.",
+        shape: &[],
+    }],
+    ret: "The bytes read, as a `string`. An empty string means the end of the file, which is the \
+          one answer `read` gives that is not an error and not data.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The handle has already been closed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The read itself failed, or the handle was not opened for reading.",
+        },
+    ],
+};
+
+/// `Core\IO\File::write`'s reference card — ADR 0117.
+const FILE_WRITE_DOC: MethodDoc = MethodDoc {
+    short: "Writes `$data` at the handle's position and moves it past what went out — `fwrite`. \
+            Needs no capability of its own: the descriptor was checked when `open` produced it.",
+    params: &[ParamDoc {
+        name: "data",
+        desc: "The bytes to write.",
+        shape: &[],
+    }],
+    ret: "How many bytes were written, which is every byte of `$data` — a short write is retried \
+          rather than reported, so a caller never has to loop.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The handle has already been closed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The write itself failed, or the handle was not opened for writing.",
+        },
+    ],
+};
+
+/// `Core\IO\File::close`'s reference card — ADR 0117.
+const FILE_CLOSE_DOC: MethodDoc = MethodDoc {
+    short: "Closes the handle and releases the descriptor — `fclose`. Calling it is optional: a \
+            handle the program never closes is closed when the request ends.",
+    params: &[],
+    ret: "Nothing.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The handle has already been closed. Closing twice is a bug in the program rather \
+               than a state of the file, so it is reported rather than ignored.",
+    }],
+};
+
 /// `Core\IO::lines`'s answer, as [`CoreTy::Instance`] spells it.
 pub(crate) const LINES_NAME: &str = r"Core\IO\Lines";
 
@@ -522,13 +774,13 @@ const LINES_SLOT: usize = 0;
 /// by the request's memory limit like `read`'s single buffer.
 ///
 /// The alternative — a cursor over the open handle, reading a line at a time —
-/// is what `fgets` is, and it is not a member: it needs an operating-system
-/// handle to live in an object slot across arbitrary program time, closed
-/// whatever the loop does, which is machinery this class does not have. The
-/// module doc calls a bounded read "a later signature over the same door", and
-/// a streaming reader is that same later signature. `AGENTS.md`'s ordering is
-/// what makes the wait acceptable: footprint is last, and simplicity is bought
-/// with it.
+/// is what `fgets` is, and it is still not this member: [`FILE`] is now the
+/// machinery an earlier version of this paragraph said did not exist, so a
+/// `readLine` over an open handle is a signature away, but `lines` keeps
+/// answering a walk that can be taken twice and cannot fail halfway. Those are
+/// different promises, and a program that wants the streaming one asks `open`
+/// for it. `AGENTS.md`'s ordering is what makes holding the octets acceptable:
+/// footprint is last, and simplicity is bought with it.
 ///
 /// **The type is still `Iterable<string>` and not `array<string>`**, because
 /// what the spec promises a caller is a forward walk and nothing more — no
@@ -564,6 +816,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_temporary_dir" => (nvs_core_io_temporary_dir as *const ()).cast(),
         "nvs_core_io_within" => (nvs_core_io_within as *const ()).cast(),
         "nvs_core_io_lines" => (nvs_core_io_lines as *const ()).cast(),
+        "nvs_core_io_open" => (nvs_core_io_open as *const ()).cast(),
+        "nvs_core_io_file_read" => (nvs_core_io_file_read as *const ()).cast(),
+        "nvs_core_io_file_write" => (nvs_core_io_file_write as *const ()).cast(),
+        "nvs_core_io_file_close" => (nvs_core_io_file_close as *const ()).cast(),
         LINES_ITERATE_SYMBOL => (nvs_core_io_lines_iterate as *const ()).cast(),
         _ => return None,
     })
@@ -678,6 +934,171 @@ fn held_lines(value: Value, member: &str) -> Result<NvsArray, Fault> {
     })?;
     let borrowed = crate::arr::borrowed(ptr);
     Ok((*borrowed).clone())
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::open(string $path, Core\IO\FileMode $mode): Core\IO\File` —
+    /// replacing `fopen`.
+    ///
+    /// The door decides which capability the mode needs, this decides nothing,
+    /// and what comes back is filed against the request before the object that
+    /// names it exists — so a failure between the two closes the descriptor by
+    /// dropping it rather than stranding it in a table nothing points at.
+    fn nvs_core_io_open(ctx, args: [2]) {
+        let spelling = text(&args[0], "open", "path")?;
+        let access = access_of(&args[1])?;
+        let file = nvs_runtime::capability::open(ctx, Path::new(spelling), access, "Core\\IO::open")?;
+        let key = ctx.hold_open_file(file);
+        #[expect(
+            unsafe_code,
+            reason = "the path is owned by the caller's argument, which outlives \
+                      this call, so the copy this handle keeps for its refusals \
+                      needs a reference of its own"
+        )]
+        unsafe {
+            args[0].retain();
+        }
+        Ok(crate::instance::build(&FILE, [Value::uint(key), args[0]]))
+    }
+}
+
+/// One `Core\IO\FileMode` case, as the access
+/// [`nvs_runtime::capability::open`] asks for.
+///
+/// # Errors
+///
+/// A `Fault::fatal` for anything that is not one of [`FILE_MODE`]'s four
+/// values, on [`crate::log`]'s `level_of` reading: the row's parameter is
+/// `CoreTy::Enum`, so `E0401` refused every other spelling at the call site and
+/// what is left is a lowering bug.
+fn access_of(value: &Value) -> Result<Access, Fault> {
+    match value.as_int() {
+        Some(0) => Ok(Access::Read),
+        Some(1) => Ok(Access::Write),
+        Some(2) => Ok(Access::Append),
+        Some(3) => Ok(Access::ReadWrite),
+        // Unreachable from source: the row's parameter is `CoreTy::Enum`, so
+        // `E0401` refuses anything that is not a case of this enum at the call
+        // site, and a case of it is one of the four integers above. Fatal
+        // rather than thrown for `crate::log`'s `level_of` reason.
+        _ => Err(Fault::fatal(format!(
+            "Core\\IO::open expected a `{FILE_MODE_NAME}` case, got tag {} value {:?}",
+            value.tag_byte(),
+            value.as_int()
+        ))),
+    }
+}
+
+/// The key and the path a [`FILE`] receiver holds — everything its three
+/// members read out of their receiver, so that none of them spells the slot
+/// indices itself.
+///
+/// The path is **borrowed** from the receiver, which the caller owns for the
+/// length of the call.
+///
+/// # Errors
+///
+/// A `Fault::fatal` if the receiver is not one of this class's instances or a
+/// slot holds the wrong tag, on [`held_lines`]' reading: both slots are written
+/// by [`nvs_core_io_open`] and by nothing else.
+fn handle_of(value: Value, member: &str) -> Result<(u64, Value), Fault> {
+    let receiver = crate::instance::receiver(value, &FILE, member)?;
+    let key = crate::instance::slot(receiver, FILE_SLOT)
+        .as_uint()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{FILE_NAME}::{member} expected {:?} in its `{}` slot",
+                Tag::Uint,
+                FILE.slots[FILE_SLOT]
+            ))
+        })?;
+    Ok((key, crate::instance::slot(receiver, FILE_PATH_SLOT)))
+}
+
+/// The catchable `RuntimeError` every member of [`FILE`] raises on a handle
+/// that has already been closed.
+///
+/// A `RuntimeError` and not an `IOError` because nothing about the file went
+/// wrong: the program asked a question of something it had already given up,
+/// which is a mistake in the program (ADR 0020 § 2's split).
+fn already_closed(member: &str, path: &Value) -> Fault {
+    Fault::thrown(format!(
+        "{FILE_NAME}::{member}: this handle is closed — {}",
+        path.as_text().unwrap_or("?")
+    ))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO\File::read(uint $max): string` — replacing `fread`.
+    ///
+    /// The buffer grows to what the file actually had, not to `$max`: a caller
+    /// asking for a megabyte from a file with nine bytes left in it should not
+    /// charge a megabyte to the request, and `Read::take` is what makes the
+    /// argument a ceiling rather than a size.
+    fn nvs_core_io_file_read(ctx, args: [2]) {
+        let (key, path) = handle_of(args[0], "read")?;
+        let max = args[1].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{FILE_NAME}::read expected {:?} for its max, got tag {}",
+                Tag::Uint,
+                args[1].tag_byte()
+            ))
+        })?;
+        let mut octets = Vec::new();
+        {
+            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("read", &path))?;
+            file.take(max).read_to_end(&mut octets)
+        }
+        .map_err(|err| {
+            nvs_runtime::capability::io_failure(
+                "Core\\IO\\File::read",
+                Path::new(path.as_text().unwrap_or("?")),
+                &err,
+            )
+        })?;
+        Ok(Value::str(NvsStr::new(&octets)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO\File::write(string $data): uint` — replacing `fwrite`.
+    ///
+    /// `write_all` rather than one `write`, so the answer is always every byte
+    /// of `$data`: PHP's short-write return is a number every correct caller
+    /// turns into the same loop, and a member that returns it is a member whose
+    /// contract is "you finish this".
+    fn nvs_core_io_file_write(ctx, args: [2]) {
+        let (key, path) = handle_of(args[0], "write")?;
+        let data = text(&args[1], "write", "data")?;
+        {
+            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("write", &path))?;
+            file.write_all(data.as_bytes())
+        }
+        .map_err(|err| {
+            nvs_runtime::capability::io_failure(
+                "Core\\IO\\File::write",
+                Path::new(path.as_text().unwrap_or("?")),
+                &err,
+            )
+        })?;
+        Ok(Value::uint(data.len() as u64))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO\File::close(): void` — replacing `fclose`.
+    ///
+    /// Taking the descriptor out of the request's table *is* the close: nothing
+    /// else holds one, so dropping it here is the syscall. A second `close`
+    /// finds the slot empty and throws, rather than succeeding quietly — the
+    /// key is never reused, so this can only be the same handle twice, and that
+    /// is a bug worth naming.
+    fn nvs_core_io_file_close(ctx, args: [1]) {
+        let (key, path) = handle_of(args[0], "close")?;
+        let file = ctx.take_open_file(key).ok_or_else(|| already_closed("close", &path))?;
+        drop(file);
+        Ok(Value::null())
+    }
 }
 
 /// A whole file's octets, from behind [`nvs_runtime::capability::open_read`]'s

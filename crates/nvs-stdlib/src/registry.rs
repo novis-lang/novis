@@ -1074,6 +1074,11 @@ pub const CLASSES: &[CoreClass] = &[
     // `Iterable<string>` — a name for the walk, with no member on it. Its own
     // docs say why it holds the lines rather than streaming them.
     crate::io::LINES,
+    // Spec § 14's `File` — R14's "an open file is an object and never a
+    // `resource`". Its slot holds a key into the request's own table of open
+    // descriptors, which its own docs argue for; `Core\Script\Handle` is the
+    // same shape and landed first.
+    crate::io::FILE,
     // ADR 0044's one way to run another program, and the result it answers
     // with. Beside `Core\IO` because it is the other class that reaches the
     // operating system through a door of its own; its capability row is in
@@ -1300,12 +1305,12 @@ pub const CLASSES: &[CoreClass] = &[
 /// [`CoreClass::name`] and [`CoreMethod::name`] use;
 /// `every_capability_entry_names_a_member` fails on one naming neither.
 ///
-/// Twelve rows name a capability, and they are the whole of what this runtime
+/// Thirteen rows name a capability, and they are the whole of what this runtime
 /// can currently do to a machine: read a file, decode one as text, split one
 /// into lines, measure one, ask whether one is there, resolve one inside a
-/// base, write one, remove a file or an empty directory, make a temporary
-/// directory, start another program — and resolve a hostname while approving an
-/// outbound URL. Every other `Core` member reaches no
+/// base, write one, open one as a handle, remove a file or an empty directory,
+/// make a temporary directory, start another program — and resolve a hostname
+/// while approving an outbound URL. Every other `Core` member reaches no
 /// spelling that performs an effect, which
 /// `nvs_stdlib_reaches_the_os_only_through_the_gate` holds mechanically rather
 /// than by this table being kept honest.
@@ -1347,6 +1352,22 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::io::NAME, "within", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "readText", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "lines", Some(nvs_config::Cap::FsRead)),
+    // The one member whose capability its *argument* decides: `fs.read` for
+    // `FileMode::Read`, `fs.write` for `Write` and `Append`, and both for
+    // `ReadWrite`. This table has one cap per member and cannot say that, so it
+    // names the stronger of the two — a row that understated the authority a
+    // member can exercise would be the wrong direction for a table a reviewer
+    // reads to find out what this runtime can do to a machine. The enforcement
+    // is `nvs_runtime::capability::open`, which asks per mode; this is the
+    // declaration, and ADR 0118 § 2 is why the two are separate.
+    (crate::io::NAME, "open", Some(nvs_config::Cap::FsWrite)),
+    // `Core\IO\File`'s three members need no row of their own: the descriptor
+    // was checked when `open` produced it, which `capability::open_read`'s own
+    // doc states as the reason a door hands back a handle at all. A `None` row
+    // here is the declaration that says so, per this table's own docs.
+    (crate::io::FILE_NAME, "read", None),
+    (crate::io::FILE_NAME, "write", None),
+    (crate::io::FILE_NAME, "close", None),
     // ADR 0044 § 6: starting a program is deny-by-default and path-scoped, the
     // same shape `script.spawn` already has. `Core\Process\Result`'s three
     // members need no row — the child has exited by the time one exists, and a
@@ -1565,6 +1586,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::cli::COLOR_DEPTH,
     crate::cli::SHELL,
     crate::reflect::TYPE_KIND,
+    crate::io::FILE_MODE,
 ];
 
 /// Looks a class up by its fully-qualified name.

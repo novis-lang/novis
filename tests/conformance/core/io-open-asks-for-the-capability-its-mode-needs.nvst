@@ -1,0 +1,57 @@
+--TEST--
+`Core\IO::open` is the one member whose capability its argument decides: `Read` shows `fs.read`, `Write` shows `fs.write`, and `ReadWrite` shows both — so the same path opens under one mode and is refused under another — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// The grant below reads everything here and writes only `scratch`. A door that
+// asked one fixed capability for this member would have to pick, and either
+// answer is wrong for half the modes.
+Core\IO\File $in = Core\IO::open("note.txt", Core\IO\FileMode::Read);
+echo "read: ", $in->read(5), "\n";
+$in->close();
+
+// Same path, different mode, different answer. The refusal is a catchable
+// RuntimeError and arrives before anything is created -- which is the whole
+// reason the check is inside the door rather than after the open.
+try {
+    Core\IO\File $never = Core\IO::open("note.txt", Core\IO\FileMode::Write);
+    echo "not reached\n";
+} catch (RuntimeError $refused) {
+    echo "write outside the grant: refused\n";
+}
+
+// Inside the write grant it opens, and the file it creates is the one the
+// program named.
+Core\IO\File $out = Core\IO::open("scratch/new.txt", Core\IO\FileMode::Write);
+uint $wrote = $out->write("in scope\n");
+echo "wrote ", $wrote as string, " bytes\n";
+$out->close();
+
+// `ReadWrite` needs both, and both are granted here: `read` covers the whole
+// tree and `write` covers this subtree. A handle that can do either is a
+// handle that can do both, so it shows both rather than the weaker one.
+Core\IO\File $both = Core\IO::open("scratch/new.txt", Core\IO\FileMode::ReadWrite);
+echo "read-write: ", $both->read(64);
+$both->close();
+
+// And the read-only half of the tree refuses it, because one of the two
+// capabilities it needs is missing.
+try {
+    Core\IO\File $nor = Core\IO::open("note.txt", Core\IO\FileMode::ReadWrite);
+    echo "not reached\n";
+} catch (RuntimeError $refused) {
+    echo "read-write outside the grant: refused\n";
+}
+--FILE note.txt--
+hello world
+--FILE scratch/keep.txt--
+keep
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["scratch"]
+--EXPECT--
+read: hello
+write outside the grant: refused
+wrote 9 bytes
+read-write: in scope
+read-write outside the grant: refused

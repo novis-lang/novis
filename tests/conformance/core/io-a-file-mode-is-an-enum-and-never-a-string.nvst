@@ -1,0 +1,55 @@
+--TEST--
+`Core\IO\FileMode`'s four cases are the whole of what replaces `fopen`'s mode-string grammar, and each does exactly one thing to the file that is already there: `Append` keeps it, `Write` empties it, `ReadWrite` creates it and empties nothing — spec § 14 R11
+--FILE--
+<?nvs
+// PHP writes this as `"a"`, `"w"`, `"c+"` and nine other spellings whose
+// differences a caller has to remember; here it is an enum, so a mode that is
+// not one of these four is refused before the program runs and there is no
+// `b`/`t` axis at all -- Novis text is octets, so every mode is what PHP would
+// call binary.
+Core\IO\File $a = Core\IO::open("note.txt", Core\IO\FileMode::Append);
+uint $wrote = $a->write("second\n");
+echo "appended ", $wrote as string, " bytes\n";
+$a->close();
+
+Core\IO\File $r1 = Core\IO::open("note.txt", Core\IO\FileMode::Read);
+echo $r1->read(64);
+$r1->close();
+
+// `Write` is the destructive one, and it is destructive on open rather than on
+// the first write: the file is empty from the moment the handle exists.
+Core\IO\File $w = Core\IO::open("note.txt", Core\IO\FileMode::Write);
+Core\IO\File $peek = Core\IO::open("note.txt", Core\IO\FileMode::Read);
+echo "emptied on open: ", Core\Str::length($peek->read(64)) as string, "\n";
+$peek->close();
+$w->write("third\n");
+$w->close();
+
+Core\IO\File $r2 = Core\IO::open("note.txt", Core\IO\FileMode::Read);
+echo $r2->read(64);
+$r2->close();
+
+// `ReadWrite` is `fopen`'s `c+` and not its `r+` or `w+`: it creates a path
+// that is not there, which `r+` refuses, and it keeps what is, which `w+`
+// throws away. Those two surprises are the reason the other `+` forms are not
+// cases of this enum.
+Core\IO\File $made = Core\IO::open("fresh.txt", Core\IO\FileMode::ReadWrite);
+$made->write("made\n");
+$made->close();
+
+Core\IO\File $again = Core\IO::open("fresh.txt", Core\IO\FileMode::ReadWrite);
+echo "kept on reopen: ", $again->read(64);
+$again->close();
+--FILE note.txt--
+first
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+appended 7 bytes
+first
+second
+emptied on open: 0
+third
+kept on reopen: made

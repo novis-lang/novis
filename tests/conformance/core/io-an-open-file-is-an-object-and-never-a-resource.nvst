@@ -1,0 +1,52 @@
+--TEST--
+`Core\IO::open` answers a `Core\IO\File` a declared type can name, its three members carry a whole round trip, and a handle used after `close` throws rather than reading another file — spec § 14 R14, ADR 0118 § 2
+--FILE--
+<?nvs
+// The declaration is the assertion. PHP's `fopen` answers a `resource`, which
+// is an integer with a type tag every function taking one has to re-check at
+// run time; here the type is checked before the program runs, and what is left
+// for a body to ask is only whether the handle is still open.
+Core\IO\File $out = Core\IO::open("note.txt", Core\IO\FileMode::Write);
+uint $written = $out->write("hello world\n");
+echo "wrote ", $written as string, "\n";
+$out->close();
+
+// The read half, through a second handle: without a `seek` the writing handle
+// is at the end of what it wrote, and reading back is what proves the bytes
+// reached the file rather than a buffer.
+Core\IO\File $in = Core\IO::open("note.txt", Core\IO\FileMode::Read);
+echo "first: ", $in->read(5), "\n";
+echo "rest: ", $in->read(64);
+// The one answer `read` gives that is neither data nor an error.
+echo "eof: ", Core\Str::length($in->read(64)) as string, "\n";
+$in->close();
+
+// A closed handle is not a handle to something else. The key a `File` holds is
+// never reused, so this can only ever be the same file twice, and it is a bug
+// in the program rather than a state of the file -- which is why it is a
+// `RuntimeError` and not an `IOError`.
+try {
+    $in->read(1);
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo "after close: ", $e->message, "\n";
+}
+
+// And closing twice is the same mistake reported the same way.
+try {
+    $in->close();
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo "closed twice: ", $e->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+wrote 12
+first: hello
+rest:  world
+eof: 0
+after close: Core\IO\File::read: this handle is closed — note.txt
+closed twice: Core\IO\File::close: this handle is closed — note.txt
