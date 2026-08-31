@@ -561,6 +561,23 @@ pub struct Ctx {
     /// which is every served request. O(in-flight requests), per
     /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
     arguments: Vec<String>,
+    /// The name the shell knows this program by — what
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// `Core\Command::completions` registers its script against. See
+    /// [`Self::program_name`] for which name that is, which is the whole of
+    /// what the member can be wrong about.
+    ///
+    /// **Isolate configuration, written before the program runs**, for
+    /// [`Self::arguments`]'s two reasons — and it is separate from that vector
+    /// rather than a zeroth word of it, because the two do not always come from
+    /// the same place: a bundled program's name is its executable's while its
+    /// words are everything past that executable.
+    ///
+    /// **What it spends:** one short `String` per `nvs run`, and one empty
+    /// `String` — no allocation — for every context nobody wrote one onto.
+    /// O(in-flight requests), per
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    program_name: String,
     /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
     /// § 12's fixed clock: the wall-clock reading `Core\Time::now` answers
     /// with, in nanoseconds since the Unix epoch, or `None` for a context that
@@ -1094,6 +1111,7 @@ impl Ctx {
             origin: None,
             commands: None,
             arguments: Vec::new(),
+            program_name: String::new(),
             config: None,
             fixed_clock: None,
             random_state: None,
@@ -1194,6 +1212,37 @@ impl Ctx {
     /// Hands this program the words it was started with, before it runs.
     pub fn set_command_line(&mut self, arguments: Vec<String>) {
         self.arguments = arguments;
+    }
+
+    /// The name a completion script registers this program against — what
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// `Core\Command::completions` writes into `complete -F … <name>`,
+    /// `complete -c <name>` and `-CommandName <name>`.
+    ///
+    /// **Which name that is, the launcher decides**, because only the site that
+    /// starts a program can tell the two invocations apart:
+    ///
+    /// * `nvs run script.nvs` — the **script's** own stem, `script`, and never
+    ///   `nvs`. The word the shell saw is `nvs`, but a script registered
+    ///   against it would answer for the toolchain: every other `nvs run` would
+    ///   then complete against this program's command table.
+    /// * [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)'s
+    ///   single-file executable — the **executable's** own stem, because there
+    ///   the binary *is* the program, and its entry file is a synthetic path
+    ///   inside the payload that no shell has ever seen.
+    ///
+    /// Empty for every context nobody wrote one onto, which is every served
+    /// request — an HTTP request is not something a shell completes — and the
+    /// member refuses rather than inventing a name. [`Self::command_line`] is
+    /// empty there for the same reason.
+    #[must_use]
+    pub fn program_name(&self) -> &str {
+        &self.program_name
+    }
+
+    /// Hands this program the name the shell knows it by, before it runs.
+    pub fn set_program_name(&mut self, name: String) {
+        self.program_name = name;
     }
 
     /// How many bytes this request has allocated and not yet freed.

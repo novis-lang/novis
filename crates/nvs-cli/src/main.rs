@@ -841,6 +841,19 @@ fn run_run(
     // `std::env` inside the member, because a served request has a command line
     // only in the sense that the *server* was started with one.
     ctx.set_command_line(arguments);
+    // And the name the shell knows the program by, which `Core\Command`'s
+    // completion scripts register against. It is the stem of the same path the
+    // configuration tree keyed on above — the script's for `nvs run`, the
+    // executable's for a bundle — and `Ctx::program_name` owns why each is the
+    // right answer. Written here rather than read from `std::env` inside the
+    // member: ADR 0118 § 2 keeps `argv[0]` out of `nvs-stdlib`, and a served
+    // request has no name to give it anyway.
+    ctx.set_program_name(
+        config_entry
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+    );
     // Hands the context the unit's class table: the class a helper's
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.
