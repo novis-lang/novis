@@ -44,25 +44,24 @@
 > **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
 > running**, over goals 1-3, each reached at its own acceptance.   **The goal's eight acceptance
 > fixtures are on disk.**   **§ 6 is closed**: `Core\Command`'s three members are rows over the
-> compiled table. **`Core\Password` and `Core\Crypto` are closed**: Argon2id at OWASP's floor and
-> XChaCha20-Poly1305, neither with an algorithm argument. **Stage 4 is closed**: ADR 0060 § 1's
-> roster is all four entries. **Stage 5 is closed**: `Core\Http::allowUrl` answers a pinned
+> compiled table. **`Core\Password` and `Core\Crypto` are closed.** **Stage 4 is closed**: ADR 0060
+> § 1's roster is all four entries. **Stage 5 is closed**: `Core\Http::allowUrl` answers a pinned
 > `Core\Http\Target`(ADR 0058 §§ 3 and 5). **Stage 6 has opened**: `Core\Cache`'s two tiers are one
 > `Store`, `shared()` the `net.connect` door onto RESP and `local()` the `None` row beside it; § 1's
 > limiters are rows over them. **Stage 7 has opened**: § 6's two writers are one serialiser, § 3's
-> tier 3 is `[app.log] handler` on `Ctx::handler_isolate`'s reserve, and § 2's `onUncaughtThrow`
-> hands both roots the real `Throwable`; § 4's rotation is owed. **Stage 8 has opened**:
-> `Core\Reflect` is `forObject`, `forClass` and `typeOf`, and `Core\Ast::parse` answers the
-> compiler's own tree. **Stage 2's handle half has opened**: `Core\IO::open` answers a
-> `Core\IO\File` whose slot is a key into the request's own table of descriptors, `Core\IO\FileMode`
-> is R11's enum, and `read`, `readLine`, `write`, `seek`, `tell`, `flush` and `close` are its
-> members; `truncate` and `lock` are owed, and `writeStream` streams a chunk at a time. **`[2
-> filesystem]` is green**: ADR 0052 § 2's closed door on scheme dispatch is asserted over the roster
-> and the path modules' own sources. **Stage 3's terminal is a sink with a raw path, a styling type,
-> § 4's prompts and § 5's region**: § 2 is `Cli\Color`, `Cli\Style` and `Text::styled`, § 4's five
-> prompts read under a deadline or from a test's scripted queue, and `live<T>`/`progress<T>` open a
-> region a `Drop` restores. Conformance 1227, differential 210 of 210, migration 37% over its 36%
-> floor.
+> tier 3 is `[app.log] handler` on `Ctx::handler_isolate`'s reserve, § 2's `onUncaughtThrow` hands
+> both roots the real `Throwable`, and ADR 0106 § 10's two bounds are on the floor's sink; reading
+> `[log] target` is owed. **Stage 8 has opened**: `Core\Reflect` is `forObject`, `forClass` and
+> `typeOf`, and `Core\Ast::parse` answers the compiler's own tree. **Stage 2's handle half has
+> opened**: `Core\IO::open` answers a `Core\IO\File` whose slot is a key into the request's own
+> table of descriptors, `Core\IO\FileMode` is R11's enum, and `read`, `readLine`, `write`, `seek`,
+> `tell`, `flush` and `close` are its members; `truncate` and `lock` are owed, and `writeStream`
+> streams a chunk at a time. **`[2 filesystem]` is green**: ADR 0052 § 2's closed door on scheme
+> dispatch is asserted over the roster and the path modules' own sources. **Stage 3's terminal is a
+> sink with a raw path, a styling type, § 4's prompts and § 5's region**: § 2 is `Cli\Color`,
+> `Cli\Style` and `Text::styled`, § 4's five prompts read under a deadline or from a test's scripted
+> queue, and `live<T>`/`progress<T>` open a region a `Drop` restores. Conformance 1227, differential
+> 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

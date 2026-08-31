@@ -1248,6 +1248,14 @@ is why" — is this file.
   needs, and `examples/uncaught.nvs`'s expectations, which had been rewritten for ADR 0092 § 3's
   JSON Lines rendering. `git diff docs/agent/goals/` right after the `cp` is the whole check, and
   what it prints is other sessions' work about to be lost rather than your own.
+- **A `loop-goal.toml` acceptance test can name *two* bounds, and splitting it across two
+  `#[test]`s fails the check.** `the_engine_floor_rotates_and_rate_limits_itself` is one name
+  for ADR 0106 § 10's two bullets, so the rate limit and the rotation are asserted in one
+  function even though they are two slices and two mechanisms. The check is `kind =
+  "cargo-named"` and matches the test's *name*: a `the_engine_floor_rotates` beside a
+  `the_engine_floor_rate_limits` reads better, passes `cargo test`, and leaves the driver
+  reporting "did not run" forever. Read the `tests = [...]` list before deciding how many
+  functions the work becomes.
 
 ## Running things
 
