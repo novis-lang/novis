@@ -2,79 +2,67 @@
 
 ## State
 
-**Stage 5's door is open: `Core\Http::allowUrl` is a row, a card, a body and three `.nvst` cases**
-in `crates/nvs-stdlib/src/http.rs`, beside `jwt.rs` and the rest of stage 4's roster. Its module doc
-is the one home for why the answer is a value, why `Core\Http\Target` has no members, and which half
-of the policy it does not hold.
+**Stage 5's compile-time half is closed.** `Core\Http\Client` is five rows — `get`, `post`, `put`,
+`delete`, `head` — each over ADR 0058 § 1's sink (`string | Core\Http\Target`, both unqualified) and
+one trailing `Core\Http\Options` bag, in `crates/nvs-stdlib/src/http.rs`. Its module doc is the one
+home for why `retry` is flat, why there is no body parameter yet, and why `Core\Http\Response` is a
+name with nothing behind it.
 
-**ADR 0058 § 5's address policy is in the capability, not in this client.** The denied-range table is
-`nvs_config::capability::denied_by_default` (`crates/nvs-config/src/capability.rs:86`) and the door
-that applies it is `nvs_runtime::capability::pin_host`
-(`crates/nvs-runtime/src/capability.rs:117`), which asks the grant about the *name*, resolves, and
-then asks the table about the *address* — in that order, so an ungranted program cannot use the
-member as a resolver. `Core\Net` and `Core\Db::open` reach the same door rather than a second copy.
-The operator-exception half of § 3 (a grant that widens the table for one internal API) is not
-written; today the table is deny-only.
+**ADR 0074 § 5's nested `retry` shape is now three flat options** — `retryAttempts`, `retryBackoff`,
+`retryIdempotencyKey`. A bag flattens to one ABI argument per option, so a bag nested inside one has
+nothing to flatten into and the registry refuses it. § 5's own type block, §§ 6-7's prose and the
+spec's § 16 row were amended to the flat spelling; the ADR body is the rule.
 
-**Two of the item's four `nvs-types` tests landed; two could not.**
-`an_outbound_url_parameter_refuses_a_tainted_operand`
-(`crates/nvs-types/src/core_lib.rs:790`) and `allow_url_pins_what_it_launders` (`:842`) are green.
-`no_client_member_accepts_an_unbounded_timeout` and
-`a_post_retried_without_an_idempotency_key_is_a_compile_error` are properties of
-`Core\Http\Client`'s rows, which do not exist — a test over an absent class passes vacuously, which
-is worse than an open item. They are the next group's first slice.
+**There is no transport, and every row says so at run time.** A request member resolves and pins
+(`string` argument), judges § 5's bounds and § 6's attempt count, and then throws
+`… the request is approved and there is no transport behind it yet`. That sentence is pinned by
+`every-client-member-judges-a-request-before-it-leaves-the-process.nvst` and is the one expectation
+in the suite the transport slice deletes.
 
-**Why the client's rows are their own slice and not an oversight.**
-`every_core_class_has_a_conformance_floor_of_three` needs three cases per member, and
-`every_error_path_is_asserted_or_declared_unreachable` needs each `Fault::` site in `nvs-stdlib`
-caught by one. A `get`/`post` row therefore owes cases before it owes a socket — and they can be
-`--EXPECTF-ERROR--` cases, which never run, so the compile-time half can land whole before any
-transport exists.
+**Three of the item's four `nvs-types` tests are green.**
+`no_client_member_accepts_an_unbounded_timeout` (`crates/nvs-types/src/core_lib.rs:896`) asks the
+lowered bag, not the row: every bound describes as exactly `Core\Time\Duration`, none is nullable,
+and each defaults to *not given*. `a_post_retried_without_an_idempotency_key_is_a_compile_error` is
+still open — it needs a diagnostic, and it is the next group's first slice.
 
-**The driver's acceptance failure is still stage 5's.** `examples/http.nvs` now type-annotates
-`Core\Http\Target` where it said `string` (ADR 0058 § 2's signature); it fails on
-`Core\Http\Client::get`, which no slice has landed, and its `127.0.0.1:8099` origin needs both the
-transport and the operator exception above.
+**`examples/http.nvs` fails on three things now, none of them the client's rows.**
+`$response->status` is a property read, and a `Core` instance has no property a program can reach
+(`registry::CoreClass::slots`' own doc) — so either the example takes a member call or that rule
+moves; `$response->text()` needs `Core\Http\Response`'s readers; and `Core\Env::get` has no row in
+`nvs_stdlib::registry` at all.
 
-**Manifest gaps.** `[context] adrs` still needs ADR 0060 §§ 1, 4, 5, and now ADR 0058 §§ 1-5 and
-ADR 0074 §§ 5-7 — this session paid for all of 0058 and 0074, and § 3 in particular is the table it
-implemented. Two dead `[context] modules` selectors (`crates/nvs-host/src/pool.rs`,
-`crates/nvs-host/src/stream.rs`); it wants `crates/nvs-stdlib/src/http.rs`,
-`crates/nvs-runtime/src/capability.rs`, `crates/nvs-config/src/capability.rs`,
-`crates/nvs-types/src/core_lib.rs`, `crates/nvs-stdlib/src/registry.rs` and
-`crates/nvs-test/src/case.rs` added. `[context] shapes` wants the `.nvst` format's
-`--FILE <path>--` section, which cost this session real time. Nothing is blocked.
+**The manifest gap the last two handoffs carried is closed, by being wrong.** `[context] modules`
+already globs `crates/nvs-stdlib/src/*.rs`, and names `nvs-host/src/net.rs` and `blocking.rs` rather
+than the dead `pool.rs`/`stream.rs` pair. ADR 0074 §§ 5-7 are ~3k of pack and belong to three stage-5
+sessions out of the goal's remainder, so they stay sliced per item rather than added to
+`[context] adrs`. Nothing is blocked.
 
 ## Next group
 
-**Stage 5's compile-time half, finished.** The file set is this session's:
-`crates/nvs-stdlib/src/http.rs`, `crates/nvs-stdlib/src/registry.rs`,
+**Stage 5's transport, and the one refusal that is still a promise.** The file set is
+`crates/nvs-stdlib/src/http.rs`, `crates/nvs-types/src/expr/args.rs`,
 `crates/nvs-types/src/core_lib.rs` and `tests/conformance/core/`.
 
-- [ ] **`Core\Http\Client`'s rows and its options shape** — ADR 0074 § 5. `get`, `post`, `put`,
-      `delete`, `head` over `string | Core\Http\Target`, both unqualified so a `tainted` operand is
-      a diagnostic (ADR 0058 § 1), with `Core\Http\Options` as the one trailing shape: `deadline`
-      and `connectTimeout` are `Duration` with no null and no zero, `retry` is
-      `{attempts, backoff?, idempotencyKey?}`. Rows and cards beside
-      `crates/nvs-stdlib/src/http.rs:61`, the class list at
-      `crates/nvs-stdlib/src/registry.rs:1215`. `crates/nvs-stdlib/src/jwt.rs:165` is the shape for
-      a `Duration` in a row.
-- [ ] **The two deferred tests, which the rows above make non-vacuous** — ADR 0074 §§ 5, 7.
-      `no_client_member_accepts_an_unbounded_timeout` and
-      `a_post_retried_without_an_idempotency_key_is_a_compile_error`, beside this session's two at
-      `crates/nvs-types/src/core_lib.rs:790` and `:842`. The second is a *diagnostic*, not a row
-      property: R2 makes the options bag a compile-time-constant shape literal and the method is the
-      member's own name, so the check is at the call site and the next free code is `E0796`.
-- [ ] **The cases those rows owe** — three per member, under `tests/conformance/core/`, and
-      `--EXPECTF-ERROR--` for every one that pins a refusal, so none of them needs a transport. The
-      two gates are `crates/nvs-stdlib/tests/conformance_coverage.rs:286` and `:638`, and
-      `tests/conformance/core/an-approved-url-is-pinned-to-one-address.nvst:1` is this session's
-      shape for a case that writes its own `nvs.toml`.
+- [ ] **`post` with a retry and no idempotency key is a compile error** — ADR 0074 § 7. The options
+      bag is a written shape literal and the verb is the member's own name, so both halves are known
+      at `crates/nvs-types/src/expr/args.rs:631`, where `E0454` already refuses an unknown option
+      key. A new code beside `crates/nvs-diagnostics/src/lib.rs:2608` (`E0796` is free), and the
+      test goes beside `crates/nvs-types/src/core_lib.rs:896`.
+- [ ] **`Core\Http\Response`, its readers and the transport** — ADR 0074 §§ 5-6, ADR 0058 § 4. The
+      class is `crates/nvs-stdlib/src/http.rs:410` with no slots and no members on purpose; the
+      request body that throws instead of sending is `crates/nvs-stdlib/src/http.rs:589`, over
+      goal 2's parking stream (`crates/nvs-host/src/net.rs`). A redirect hop re-pins through
+      `crates/nvs-stdlib/src/http.rs:207`'s `pin`, and retries reuse the target rather than
+      re-resolving.
+- [ ] **`Core\Env::get`, which `examples/http.nvs:40` needs** — the class has no row in
+      `crates/nvs-stdlib/src/registry.rs:1225`'s list. Its answer is `?tainted string`: the
+      environment is outside the process, so ADR 0024 § 2 makes it tainted and `allowUrl` is what a
+      program does with it.
 
 ## Backlog
 
-- The transport itself: `Core\Http\Client` over goal 2's parking stream — `docs/agent/loop-goal.toml` stage 5's `nvs-stdlib` check.
-- The operator exception to the address policy, and the `127.0.0.1:8099` origin harness — ADR 0058 § 3.
-- `a_redirect_is_re_checked_against_the_same_policy` and the retry jitter — ADR 0058 § 4, ADR 0074 § 6.
-- `an_outbound_request_carries_traceparent` — ADR 0076 § 2.
-- Stage 6's two stores, `Core\Cache` and `Core\RateLimit` — ADR 0059, ADR 0075.
+- A request body for `post`/`put`, decided with `send(Core\Http\Request)` — `crates/nvs-stdlib/src/http.rs`'s module doc owns why it is not guessed here.
+- `examples/http.nvs:33`'s `$response->status`: a property on a `Core` instance, which `registry::CoreClass::slots` says does not exist.
+- Stage 5's local origin harness for `examples/http.nvs` — `docs/agent/loop-goal.toml`'s stage 5 `exact` check.
+- `an_outbound_request_carries_traceparent` and the reactor test — ADR 0076 § 2, with the transport.
+- Header values are `Qual::Neutral` and refuse `tainted` by assignability alone; ADR 0088's classification is not read at calls yet (`crates/nvs-types/src/core_lib.rs:366`).

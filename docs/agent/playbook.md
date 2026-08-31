@@ -3411,6 +3411,14 @@ is why" — is this file.
   granted program reaches. Write the grant into the case instead. The corollary is where the time
   actually goes: it changes what a member's *body* may do, because a throw sited in `nvs-stdlib`
   is read by that gate and one sited in `nvs-runtime` is not.
+- **An `--EXPECTF-ERROR--` block needs a `%A` at every gap between literal lines, including the
+  last one.** A block ending `%A` / `error: aborting due to N errors` matches, because the `%A`
+  swallows the caret excerpt *and* the blank line after it; the same block with a diagnostic's
+  `   = help: …` line pinned before the abort does not, because nothing is left to absorb the blank
+  line between them. The matcher (`nvs_test::expect`) backtracks properly and the literal lines all
+  appeared verbatim in the failure's *actual* column, so the diff reads as "identical text, refused"
+  and the eye goes to the line numbers. Pin a help line when it is the claim — the option roster in
+  `no-client-member-accepts-an-unbounded-wait.nvst` is — and put a `%A` on the line after it.
 
 ## Splitting a file that got too big
 
@@ -4577,6 +4585,14 @@ sibling in the same namespace unqualified.
   a module beside `capability` rather than inside it, because a door that asks no `Cap` is not a
   door. Writing the OS half in `nvs-stdlib` first and moving it afterwards costs a whole rewrite of
   the file; decide which crate it belongs in before the first line.
+- **A `Core` class may not declare a slot before the member that reads it exists**, and the test
+  that says so names neither. `a_class_with_slots_has_instance_members_and_the_reverse` holds slots
+  and instance members to the same emptiness, with a five-name `HANDLES` list for the classes whose
+  slots something *else* reads (`Core\Http\Target`, `Core\Script\Handle`, `Core\IO\Lines`,
+  `Core\Cli\Text`, `Core\Regex\Pattern`). So a class registered ahead of its readers — a return type
+  a row needs before the body that fills it exists — declares `slots: &[]` and gains them in the
+  same slice as the members, rather than being added to `HANDLES`: that list is for state read from
+  outside the class, not for state nothing reads yet.
 
 ## Divergences and refusals already pinned
 
