@@ -686,14 +686,16 @@ file = "examples/trace.nvs"
 stream = "stdout"
 want = ["#0 Deep::inner()", "#1 Deep::outer()"]
 
-# An uncaught throw: non-zero exit plus an Novis-level backtrace on stderr.
+# An uncaught throw: non-zero exit plus ADR 0020 § 6's tier-4 floor record on stderr. The floor writes the
+# record `Core\Log::write` writes, and ADR 0092 § 3's log target renders it as JSON Lines by default, so the
+# Novis-level backtrace arrives as that record's `backtrace` field rather than as a bare block of text.
 [[check]]
 kind = "ordered"
 stage = "1 floor"
 file = "examples/uncaught.nvs"
 stream = "stderr"
 exit = "nonzero"
-want = ["Uncaught Exception: unhandled", "#0 Boom::inner()", "#1 Boom::outer()"]
+want = ['"level":"error"', '"msg":"unhandled"', '"class":"LogicError"', "#0 Boom::inner()", "#1 Boom::outer()"]
 
 # A contained helper panic: FATAL, non-zero, and the output produced before it survives.
 [[check]]
