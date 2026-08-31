@@ -222,12 +222,13 @@ it already does, not a second walk. m8.md names it as CI infrastructure rather t
   section it has not read.
 - **Redis is the default shared store**, decided in ADR 0059 § 1. Its client is a synchronous one over
   goal 2's parking stream; picking it is pre-authorized under ADR 0051 § 4.
-- **`Core\Cache::local` needs no capability, and that is the one entry in `NEEDS_NO_CAPABILITY`.**
-  ADR 0118 § 7's allowlist asks for this bullet, and ADR 0059 § 1 is the decision behind it: the local
-  tier is a map in the calling core's own thread, so nothing leaves the process, no name is resolved
-  and no file is opened, and ADR 0118 § 1 has no door to put a check at. What is left to bound is
-  footprint, which ADR 0059 § 3's `nvs.toml` cap bounds and a boolean grant would not. Its sibling
-  `shared()` declares `net.connect`, which is what makes the class capability-bearing at all.
+- **`Core\Cache::local` and `Core\RateLimit::shed` need no capability, and each declares that as a
+  `None` row in `registry::CAPABILITIES`.** ADR 0059 § 1 is the decision behind both: their state is a
+  map in the calling core's own thread, so nothing leaves the process, no name is resolved and no file
+  is opened, and ADR 0118 § 1 has no door to put a check at. What is left to bound is footprint, which
+  ADR 0059 § 3's `nvs.toml` cap bounds and a boolean grant would not. Their siblings `shared()` and
+  `consume` declare `net.connect`, which is what makes the two classes capability-bearing at all. ADR
+  0118 § 7 is the home of why this is a row rather than an entry on an allowlist.
 - **A verified signature does not launder.** ADR 0060 § 5. This one is stated here because it reads like
   an oversight and is a decision.
 - **An unreachable store throws; it never decides *allowed*.** ADR 0075 § 5. The failure mode is the

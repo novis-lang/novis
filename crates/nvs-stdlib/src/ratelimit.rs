@@ -1,13 +1,14 @@
 //! `Core\RateLimit` — [ADR 0075](../../../../docs/adr/0075-core-ratelimit.md)'s
-//! limiter for what only the application knows, as the coherent half of it:
-//! `consume`, and the `Core\RateLimit\Decision` it answers with.
+//! limiter for what only the application knows, as both halves of it: `consume`
+//! over the shared store, `shed` over this core's own memory, and the
+//! `Core\RateLimit\Decision` each answers with.
 //!
 //! § 1's two members are two *jobs*. `consume` enforces a policy the
 //! application promised somebody — a plan quota, a login limit — so its state
 //! is the shared store and its answer is coherent across every core and every
 //! machine. `shed` drops load to keep a host up, so its state is the core's own
-//! memory and an approximate answer is adequate; it is not on disk yet, and
-//! when it lands it is a second member here rather than a flag on this one.
+//! memory and an approximate answer is adequate. Two members rather than a flag
+//! on one, so which guarantee a program relies on is visible in review.
 //!
 //! # Decision: the store is `Core\Cache`'s, and this member is its own door
 //!
@@ -43,10 +44,30 @@
 //! **The arithmetic that Rust owns is the *parameters*, and the script owns the
 //! *step*.** [`window`] turns `limit`, `per` and `burst` into GCRA's emission
 //! interval and delay-variation tolerance, and it is the one place that
-//! conversion happens — so when `shed` lands it derives its window here rather
-//! than restating § 2's arithmetic in a second place, and the five lines that
+//! conversion happens — so [`step`] derives its window there rather than
+//! restating § 2's arithmetic in a second place, and the five lines that
 //! genuinely differ between an in-process decision and an atomic one are all
-//! that differ.
+//! that differ. § 2's "both tiers run the identical algorithm" is that
+//! factoring, and `shed_is_the_same_gcra_over_the_cores_own_memory` is where it
+//! is checked rather than promised.
+//!
+//! # Decision: `shed`'s state is `Core\Cache`'s local tier, not a map of its own
+//!
+//! The per-core half needs somewhere to keep one timestamp per key, and the
+//! runtime already has exactly one per-core store: [`crate::cache`]'s local
+//! tier, an ADR 0059 § 1 `HashMap` in this thread. `shed` writes there, under
+//! [`PREFIX`], for the reason `consume` writes to the one shared store — a
+//! second map would be a second footprint to bound, bounded by nothing, and
+//! ADR 0059 § 3's `nvs.toml` cap is written for *the* local tier rather than
+//! for `Core\Cache`'s. One store, one cap, whichever member filled it.
+//!
+//! Two consequences, both § 1's approximation rather than defects. An entry
+//! this tier evicts is an arrival forgotten, so a shed key that loses its
+//! timestamp admits a burst — which is why `consume` may not live here, and
+//! `shed`'s contract already says its count is per core and so multiplies by
+//! the number of them. And the clock is [`crate::time::monotonic_micros`], not
+//! the wall clock: a limiter reading the wall clock refuses for as long as an
+//! NTP step moved it backwards, and an interval is all GCRA reads.
 //!
 //! The script counts in **microseconds** rather than nanoseconds, because Lua's
 //! numbers are doubles and a nanosecond count of the Unix epoch passed 2⁵³ in
@@ -69,11 +90,14 @@
 //! and limiting under `account:1` must not be one entry, and the two members
 //! are written by different people in different files.
 //!
-//! **What it spends:** one entry per live key in the shared store — one
-//! timestamp, not a window of arrivals, which is § 2's O(1)-per-key and what
-//! makes limiting per user affordable at a million users — expiring on its own
-//! once the key drains. In this process, nothing: the request text and one
-//! three-integer reply, both released with the call.
+//! **What it spends:** one entry per live key — one timestamp, not a window of
+//! arrivals, which is § 2's O(1)-per-key and what makes limiting per user
+//! affordable at a million users. `consume`'s entry is in the shared store and
+//! expires on its own once the key drains; `shed`'s is in this core's local
+//! tier, where it is bounded by that tier's cap and by nothing else, since the
+//! tier has no TTL. In this process, `consume` spends the request text and one
+//! three-integer reply, both released with the call, and `shed` spends the
+//! decimal timestamp it stores.
 
 use nvs_runtime::{Fault, Tag, ThrownClass, Value};
 
@@ -94,14 +118,15 @@ const PREFIX: &str = "nvs:ratelimit:";
 /// `Core\Time\Duration`, as the two places below spell it.
 const DURATION: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
 
-/// `{burst?: uint, cost?: uint}` — § 1's one trailing options shape.
+/// `{burst?: uint, cost?: uint}` — § 1's one trailing options shape, which both
+/// members take because § 2 gives them one algorithm.
 ///
 /// `burst` defaults to `limit`, which is a value only the call knows, so its
 /// [`Const`] is the sentinel [`Const::Null`] that `uint` cannot otherwise hold
 /// — the arrangement [`CoreTy::Union`]'s own docs fix for an option whose
 /// "not given" is not a value in the declared type. `cost` defaults to a
 /// written `1`, because one call weighing one unit is a constant.
-const CONSUME_OPTIONS: &[CoreOption] = &[
+const OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "burst",
         ty: CoreTy::Uint,
@@ -114,31 +139,51 @@ const CONSUME_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// § 1's coherent member, and so far the only one.
+/// § 1's two members: the coherent one, and the approximate one.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    methods: &[CoreMethod {
-        name: "consume",
-        names: &["key", "limit", "per"],
-        // The key is `Qual::Neutral`, which is § 3's two sentences at once: a
-        // `tainted` account id is admitted, because a key is one opaque
-        // length-prefixed value on the wire and there is no injection to
-        // prevent; and a `secret` one is refused, because every mark but
-        // `Qual::Reveal` refuses `secret` and writing a signing key into a
-        // store with a lifetime is the durable exposure ADR 0033 exists to
-        // close. Nothing of the key reaches the answer, which is what makes
-        // the mark neutral rather than contagious.
-        params: &[
-            CoreTy::Text(Qual::Neutral),
-            CoreTy::Uint,
-            DURATION,
-            CoreTy::Options(CONSUME_OPTIONS),
-        ],
-        defaults: &[],
-        return_ty: CoreTy::Instance(DECISION_NAME),
-        symbol: "nvs_core_ratelimit_consume",
-        doc: Some(&CONSUME_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "consume",
+            names: &["key", "limit", "per"],
+            // The key is `Qual::Neutral`, which is § 3's two sentences at once:
+            // a `tainted` account id is admitted, because a key is one opaque
+            // length-prefixed value on the wire and there is no injection to
+            // prevent; and a `secret` one is refused, because every mark but
+            // `Qual::Reveal` refuses `secret` and writing a signing key into a
+            // store with a lifetime is the durable exposure ADR 0033 exists to
+            // close. Nothing of the key reaches the answer, which is what makes
+            // the mark neutral rather than contagious.
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Uint,
+                DURATION,
+                CoreTy::Options(OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DECISION_NAME),
+            symbol: "nvs_core_ratelimit_consume",
+            doc: Some(&CONSUME_DOC),
+        },
+        // The same signature to the letter, which is § 2's "both tiers run the
+        // identical algorithm" said in the one place a caller reads: moving a
+        // call between the two changes the guarantee and nothing else, not even
+        // an argument's position.
+        CoreMethod {
+            name: "shed",
+            names: &["key", "limit", "per"],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Uint,
+                DURATION,
+                CoreTy::Options(OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DECISION_NAME),
+            symbol: "nvs_core_ratelimit_shed",
+            doc: Some(&SHED_DOC),
+        },
+    ],
     instance: &[],
     slots: &[],
     constants: &[],
@@ -200,6 +245,52 @@ const CONSUME_DOC: MethodDoc = MethodDoc {
                    into `$limit` units.",
         },
     ],
+};
+
+/// `Core\RateLimit::shed`'s reference card — ADR 0117.
+const SHED_DOC: MethodDoc = MethodDoc {
+    short: "Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in this core's \
+            own memory, and answers whether this arrival is inside the limit — the approximate \
+            tier, for dropping load rather than for enforcing a promise.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "What the allowance is per. `tainted` is admitted and a `secret` refused, for \
+                   `consume`'s reasons.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limit",
+            desc: "How many units `$per` admits **on this core**: a limit of 100 across eight \
+                   cores admits up to 800, which is why a number somebody was promised belongs to \
+                   `consume` instead.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "per",
+            desc: "The period `$limit` units are admitted over.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "burst",
+            desc: "How much may arrive at once; defaults to `$limit`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "cost",
+            desc: "What this one call weighs; defaults to 1.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\RateLimit\\Decision`, answered from this core's memory and so reaching no \
+          store: there is nothing to be unreachable, and this member does not throw for one. Its \
+          arrivals are held in `Core\\Cache`'s local tier, which may forget an entry at any time \
+          — a forgotten key admits a burst, which is the approximation the tier is chosen for.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$limit`, `$per` or `$burst` at zero, and a period too short to divide into \
+               `$limit` units — the same refusals `consume` makes, since both derive one window.",
+    }],
 };
 
 /// § 3's decision: what was decided, what it was decided against, and the exact
@@ -303,6 +394,7 @@ const RETRY_AFTER_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_ratelimit_consume" => (nvs_core_ratelimit_consume as *const ()).cast(),
+        "nvs_core_ratelimit_shed" => (nvs_core_ratelimit_shed as *const ()).cast(),
         "nvs_core_ratelimit_decision_allowed" => {
             (nvs_core_ratelimit_decision_allowed as *const ()).cast()
         }
@@ -374,7 +466,8 @@ struct Window {
     tau: i128,
 }
 
-/// § 2's drain rate and burst tolerance, from the limit the caller wrote.
+/// § 2's drain rate and burst tolerance, from the limit the caller wrote —
+/// `member` being whichever of § 1's two asked, since both derive one window.
 ///
 /// # Errors
 ///
@@ -383,8 +476,13 @@ struct Window {
 /// [`SCRIPT`] holds exactly. Each is a limit that can never admit anything or
 /// can never be enforced accurately, and refusing is the direction ADR 0075
 /// § 5 sets: a limiter that quietly does not limit is worse than no limiter.
-fn window(limit: u64, per: i64, burst: u64) -> Result<Window, Fault> {
-    let refuse = |why: String| Fault::thrown(format!("{NAME}::consume(): {why}"));
+///
+/// The ceiling is [`SCRIPT`]'s rather than each tier's, so that a limit either
+/// tier refuses is a limit both refuse: the two members are one algorithm under
+/// § 2, and a window `shed` accepted and `consume` did not would make moving a
+/// call between them a rewrite.
+fn window(limit: u64, per: i64, burst: u64, member: &str) -> Result<Window, Fault> {
+    let refuse = |why: String| Fault::thrown(format!("{NAME}::{member}(): {why}"));
     if limit == 0 {
         return Err(refuse(
             "a `$limit` of 0 admits nothing at any rate, so there is no rate to enforce — a \
@@ -423,6 +521,57 @@ fn window(limit: u64, per: i64, burst: u64) -> Result<Window, Fault> {
         )));
     }
     Ok(Window { interval, tau })
+}
+
+/// [`SCRIPT`]'s five lines, in this process, for the tier that has no store to
+/// run them in — ADR 0075 § 2's "both tiers run the identical algorithm" as one
+/// function rather than as a promise.
+///
+/// Takes the stored arrival time and answers **the three integers [`SCRIPT`]
+/// answers**, in the same order and the same microseconds, plus the arrival
+/// time to store when the arrival was admitted. Two tiers, one decoder: nothing
+/// downstream of here can tell which of them decided, which is what makes
+/// moving a call between the members a change of guarantee and not of shape.
+fn step(stored: Option<i128>, now: i128, window: Window, cost: u64) -> ([i64; 3], Option<i128>) {
+    // Microseconds are wide in an `i128` and narrow in the `i64` a `Duration`
+    // holds, and the saturating direction is the safe one for both figures the
+    // caller reads: a wait longer than 292,000 years is reported as that, and
+    // `window`'s own ceiling is what keeps a real one out of this range.
+    let narrowed = |wide: i128| i64::try_from(wide).unwrap_or(i64::MAX);
+
+    let mut tat = stored.unwrap_or(now);
+    if tat < now {
+        tat = now;
+    }
+    let next_tat = tat + i128::from(cost) * window.interval;
+    let allow_at = next_tat - window.tau;
+    if now < allow_at {
+        // The refusal charges nothing, so the arrival time is left where it is
+        // and there is nothing to store: a client that keeps arriving while
+        // refused does not push its own wait further out.
+        let left = ((window.tau - (tat - now)) / window.interval).max(0);
+        return ([0, narrowed(allow_at - now), narrowed(left)], None);
+    }
+    let left = ((window.tau - (next_tat - now)) / window.interval).max(0);
+    ([1, 0, narrowed(left)], Some(next_tat))
+}
+
+/// This core's stored arrival time for `key`, or `None` for a key that has none.
+///
+/// `None` for a value that is not one of ours, too, which is the local tier's
+/// contract rather than a defence: an entry may be absent at any time, and a
+/// program that overwrote this key through `Core\Cache::local()` has forgotten
+/// one key's arrival on one core — § 1's approximation, in the tier chosen for
+/// tolerating it.
+fn stored_tat(key: &[u8]) -> Option<i128> {
+    let held = crate::cache::store_get(key)?;
+    let Ok(text) = String::from_utf8(held) else {
+        return None;
+    };
+    let Ok(tat) = text.parse::<i128>() else {
+        return None;
+    };
+    Some(tat)
 }
 
 /// [`DECISION`]'s slots, by index — the layout its `slots` names.
@@ -558,7 +707,7 @@ nvs_runtime::nvs_helper! {
 
         // Before the door, so a limit that could never be enforced is a
         // refusal rather than a round trip that answers one.
-        let window = window(limit, per, burst)?;
+        let window = window(limit, per, burst, "consume")?;
 
         let member = format!("{NAME}::consume");
         crate::cache::open_configured(
@@ -580,6 +729,58 @@ nvs_runtime::nvs_helper! {
 
         decoded(&reply, limit).map_err(|why| {
             Fault::thrown_as(ThrownClass::Io, format!("{member}(): {why}"))
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\RateLimit::shed(tainted string $key, uint $limit, Duration $per,
+    /// {burst?: uint, cost?: uint}): RateLimit\Decision` — ADR 0075 § 1's
+    /// approximate member.
+    ///
+    /// `consume` without the door and without the round trip: the same
+    /// arguments derive the same [`window`], [`step`] runs the arithmetic
+    /// [`SCRIPT`] runs, and [`decoded`] reads the same three integers. What
+    /// differs is where the arrival time lives — this core's own memory, so
+    /// **the count is per core and a limit of 100 across eight cores admits up
+    /// to 800**, which is the module doc's local-tier decision and § 1's stated
+    /// arithmetic.
+    ///
+    /// Nothing here can fail on the world: there is no store to be unreachable
+    /// and no host to be ungranted, which is why the member declares no
+    /// capability (`registry::CAPABILITIES` carries the `None` row and ADR 0118
+    /// § 7 is why that is a row rather than an exemption).
+    ///
+    /// # Errors
+    ///
+    /// A thrown `RuntimeError` for a limit that cannot be enforced, from
+    /// [`window`] and from nowhere else.
+    fn nvs_core_ratelimit_shed(_ctx, args: [5]) {
+        let key = key_of(args, 0, "shed")?;
+        let limit = uint_of(args, 1, "shed")?.unwrap_or(0);
+        let per = crate::time::nanos_of(args, 2, "shed")?;
+        let burst = uint_of(args, 3, "shed")?.unwrap_or(limit);
+        let cost = uint_of(args, 4, "shed")?.unwrap_or(1);
+
+        let window = window(limit, per, burst, "shed")?;
+
+        // The same namespacing as the coherent tier, for the same reason: the
+        // store this writes to is the one `Core\Cache::local()` hands out, and
+        // a program caching under `account:1` must not find a timestamp there.
+        let namespaced = format!("{PREFIX}{key}");
+        let now = crate::time::monotonic_micros();
+        let (reply, admitted) = step(stored_tat(namespaced.as_bytes()), now, window, cost);
+        if let Some(next_tat) = admitted {
+            crate::cache::store_put(namespaced.as_bytes(), next_tat.to_string().into_bytes());
+        }
+
+        decoded(&reply, limit).map_err(|why| {
+            // Unreachable: `step`'s own type is three integers. The arm exists
+            // because `decoded` is the one reader of them for both tiers, and
+            // a shape error there would be this crate's bug rather than a
+            // store's — which is what `Fault::fatal` says and a thrown
+            // `IOError` would not.
+            Fault::fatal(format!("{NAME}::shed(): {why}"))
         })
     }
 }
@@ -621,7 +822,7 @@ mod tests {
 
     use nvs_runtime::Tag;
 
-    use super::{CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, Window, decoded, window};
+    use super::{CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, Window, decoded, step, window};
     use crate::cache::redis::Connection;
 
     /// A listener on loopback and the address it took — `crate::cache::redis`'s
@@ -656,7 +857,7 @@ mod tests {
     fn consume_is_gcra_over_the_shared_store() {
         // `per / limit`, and `burst × interval` — in microseconds.
         assert_eq!(
-            window(4, 2_000_000_000, 4).expect("a limit of 4 per 2s"),
+            window(4, 2_000_000_000, 4, "consume").expect("a limit of 4 per 2s"),
             Window {
                 interval: 500_000,
                 tau: 2_000_000,
@@ -666,7 +867,7 @@ mod tests {
         // period: a period's worth may arrive at once.
         let per = 1_000_000_000;
         for limit in [1_u64, 3, 7, 250] {
-            let derived = window(limit, per, limit).expect("a limit over a second");
+            let derived = window(limit, per, limit, "consume").expect("a limit over a second");
             assert_eq!(
                 derived.tau,
                 derived.interval * i128::from(limit),
@@ -702,7 +903,7 @@ mod tests {
 
         let mut connection = Connection::new(address, Duration::from_secs(5));
         connection.ensure().expect("the fake store is listening");
-        let derived = window(5, 1_000_000_000, 5).expect("5 per second");
+        let derived = window(5, 1_000_000_000, 5, "consume").expect("5 per second");
         let reply = connection
             .eval(
                 SCRIPT,
@@ -736,6 +937,66 @@ mod tests {
         assert_eq!(reply, vec![1, 0, 4]);
         let decision = decoded(&reply, 5).expect("three integers are a decision");
         assert!(decision.obj_ptr().is_some(), "a decision is an instance");
+    }
+
+    /// ADR 0075 §§ 1 and 2: `shed` is the same algorithm over this core's own
+    /// memory, so what has to hold is that it is GCRA *and* that it is the same
+    /// one — a second implementation that drifted from the first would make
+    /// moving a call between the members a rewrite rather than a change of
+    /// guarantee.
+    ///
+    /// Sameness is asserted where it can be: one signature to the letter, one
+    /// [`window`] derivation, and the same three integers through the same
+    /// decoder. GCRA is asserted as behaviour over a sequence — two arrivals
+    /// inside a burst of two, the third refused with the exact wait until the
+    /// next unit drains, and that arrival admitted once it has.
+    #[test]
+    fn shed_is_the_same_gcra_over_the_cores_own_memory() {
+        let [consume, shed] = CLASS.methods else {
+            panic!("§ 1 is two members, and they are the whole class");
+        };
+        assert_eq!(
+            consume.names, shed.names,
+            "the same arguments in the same order, which is what makes the two names a choice"
+        );
+        assert_eq!(consume.params.len(), shed.params.len());
+        assert!(
+            matches!(shed.return_ty, crate::registry::CoreTy::Instance(name) if name == super::DECISION_NAME),
+            "and the same `Decision` back, so a caller reads the answer identically"
+        );
+
+        // 2 per second, default burst: a 500ms emission interval and one second
+        // of tolerance, both from the one `window` the shared tier uses.
+        let derived = window(2, 1_000_000_000, 2, "shed").expect("2 per second");
+        let (first, after_first) = step(None, 0, derived, 1);
+        assert_eq!(first, [1, 0, 1], "the first of two admits, one unit left");
+        let (second, after_second) = step(after_first, 0, derived, 1);
+        assert_eq!(second, [1, 0, 0], "the second exhausts the burst");
+        let (third, after_third) = step(after_second, 0, derived, 1);
+        assert_eq!(
+            third,
+            [0, 500_000, 0],
+            "the third is refused, and the wait is the exact drain of one unit"
+        );
+        assert!(
+            after_third.is_none(),
+            "a refusal charges nothing, so arriving while refused does not push the wait out"
+        );
+        let (fourth, _) = step(after_second, 500_000, derived, 1);
+        assert_eq!(
+            fourth[0], 1,
+            "and it is admitted once that unit has drained"
+        );
+
+        // The same decoder as the shared tier, so `retryAfter` is `null` exactly
+        // when allowed and exact otherwise, in one place for both members.
+        let refused = decoded(&third, 2).expect("three integers are a decision");
+        let object = refused.obj_ptr().expect("a decision is an instance");
+        let wait = crate::instance::slot(object, super::RETRY_AFTER_SLOT);
+        assert_eq!(
+            crate::time::nanos_of(&[wait], 0, "retryAfter").expect("a `Duration`"),
+            500_000_000,
+        );
     }
 
     /// ADR 0075 § 2: `retryAfter` is the theoretical arrival time minus now,

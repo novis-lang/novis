@@ -1256,9 +1256,9 @@ pub const CLASSES: &[CoreClass] = &[
     crate::ratelimit::DECISION,
 ];
 
-/// Every `Core` member that needs a capability, and which one —
+/// Every member of a capability-bearing class, and which capability it needs —
 /// [ADR 0118](../../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-/// § 3.
+/// § 3, with `None` for a member that needs none.
 ///
 /// One table rather than a field on 346 rows, because "what can this runtime do
 /// to my machine" is a question whose whole answer should be one screen of one
@@ -1273,19 +1273,34 @@ pub const CLASSES: &[CoreClass] = &[
 /// effect, and that function never looks here — so an edit to this table cannot
 /// grant a permission, only misreport one.
 ///
-/// Entries are `(class, member, capability)`, by the spellings
+/// Entries are `(class, member, Option<capability>)`, by the spellings
 /// [`CoreClass::name`] and [`CoreMethod::name`] use;
 /// `every_capability_entry_names_a_member` fails on one naming neither.
 ///
-/// Twelve entries, which is the whole of what this runtime can currently do to
-/// a machine: read a file, decode one as text, split one into lines, measure
-/// one, ask whether one is there, resolve one inside a base, write one, remove
-/// a file or an empty directory, make a temporary directory, start another
-/// program — and resolve a hostname while approving an outbound URL. Every
-/// other `Core` member reaches no
+/// Twelve rows name a capability, and they are the whole of what this runtime
+/// can currently do to a machine: read a file, decode one as text, split one
+/// into lines, measure one, ask whether one is there, resolve one inside a
+/// base, write one, remove a file or an empty directory, make a temporary
+/// directory, start another program — and resolve a hostname while approving an
+/// outbound URL. Every other `Core` member reaches no
 /// spelling that performs an effect, which
 /// `nvs_stdlib_reaches_the_os_only_through_the_gate` holds mechanically rather
 /// than by this table being kept honest.
+///
+/// **A `None` row is a declaration, not an exemption**, and that is § 7's
+/// closure as a *shape* rather than as a promise to keep a list short. A class
+/// is a door once any one of its members is declared, and its remaining members
+/// then divide into two kinds a review has to tell apart: the ones nobody
+/// classified, and the ones classified as reaching nothing. Both used to look
+/// alike from here — a member simply absent from the table — so the second kind
+/// lived on a frozen allowlist beside the closure test, where growing it by one
+/// entry was the move ADR 0118 § 7 forbids and the only move a sibling like
+/// `Core\RateLimit::shed` left. Declaring `None` costs a would-be exemption
+/// exactly what a declaration costs, in the same table under the same review,
+/// and buys a total claim in place of an "all but a list" one: every member of a
+/// capability-bearing class has a row here, and there is no exception list
+/// anywhere. Nothing about enforcement moves — a `None` row grants nothing,
+/// because no row grants anything.
 ///
 /// The `fs.read`/`fs.write` split is the filesystem's own and not a finer one:
 /// asking a file's size is reading it, and removing a file is writing it, so
@@ -1294,37 +1309,60 @@ pub const CLASSES: &[CoreClass] = &[
 /// resolving a name follows the symlinks and reads the directories above it,
 /// which is what a program that could resolve an ungranted path would be
 /// enumerating.
-pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
-    (crate::io::NAME, "read", nvs_config::Cap::FsRead),
-    (crate::io::NAME, "write", nvs_config::Cap::FsWrite),
-    (crate::io::NAME, "exists", nvs_config::Cap::FsRead),
-    (crate::io::NAME, "size", nvs_config::Cap::FsRead),
-    (crate::io::NAME, "remove", nvs_config::Cap::FsWrite),
-    (crate::io::NAME, "removeDir", nvs_config::Cap::FsWrite),
-    (crate::io::NAME, "temporaryDir", nvs_config::Cap::FsWrite),
-    (crate::io::NAME, "within", nvs_config::Cap::FsRead),
-    (crate::io::NAME, "readText", nvs_config::Cap::FsRead),
-    (crate::io::NAME, "lines", nvs_config::Cap::FsRead),
+pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
+    (crate::io::NAME, "read", Some(nvs_config::Cap::FsRead)),
+    (crate::io::NAME, "write", Some(nvs_config::Cap::FsWrite)),
+    (crate::io::NAME, "exists", Some(nvs_config::Cap::FsRead)),
+    (crate::io::NAME, "size", Some(nvs_config::Cap::FsRead)),
+    (crate::io::NAME, "remove", Some(nvs_config::Cap::FsWrite)),
+    (crate::io::NAME, "removeDir", Some(nvs_config::Cap::FsWrite)),
+    (
+        crate::io::NAME,
+        "temporaryDir",
+        Some(nvs_config::Cap::FsWrite),
+    ),
+    (crate::io::NAME, "within", Some(nvs_config::Cap::FsRead)),
+    (crate::io::NAME, "readText", Some(nvs_config::Cap::FsRead)),
+    (crate::io::NAME, "lines", Some(nvs_config::Cap::FsRead)),
     // ADR 0044 § 6: starting a program is deny-by-default and path-scoped, the
     // same shape `script.spawn` already has. `Core\Process\Result`'s three
     // members need no row — the child has exited by the time one exists, and a
     // slot read performs no effect.
-    (crate::process::NAME, "run", nvs_config::Cap::ProcessExec),
+    (
+        crate::process::NAME,
+        "run",
+        Some(nvs_config::Cap::ProcessExec),
+    ),
     // ADR 0058 §§ 2-3: approving a URL resolves its host, which is an effect,
     // and the grant is host-scoped. The address policy behind the same door is
     // not a second capability — it is deny-by-default and applies to every
     // grant, which is why it is a table in `nvs_config::capability` rather than
     // a row here.
-    (crate::http::NAME, "allowUrl", nvs_config::Cap::NetConnect),
+    (
+        crate::http::NAME,
+        "allowUrl",
+        Some(nvs_config::Cap::NetConnect),
+    ),
     // ADR 0059 § 1: the shared tier is a real store over the network, gated by
     // `net.connect` under ADR 0058's policy, and `shared()` is the door — it
     // resolves the configured host and connects, while `Core\Cache\Store`'s two
     // operations run on what it approved and so declare nothing, exactly as
-    // `Core\Http\Client` declares nothing behind `Core\Http::allowUrl`. Its
-    // sibling `local()` is in `NEEDS_NO_CAPABILITY` and that asymmetry is the
-    // decision: a tier that leaves the process has a door, and one that cannot
-    // has nothing to put a door on.
-    (crate::cache::NAME, "shared", nvs_config::Cap::NetConnect),
+    // `Core\Http\Client` declares nothing behind `Core\Http::allowUrl`.
+    (
+        crate::cache::NAME,
+        "shared",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    // And its sibling declares `None`, which is the asymmetry the two rows
+    // exist to state: a tier that leaves the process has a door, and one that
+    // cannot has nothing to put a door on. ADR 0059 § 1 decided this before the
+    // member was written — the local tier is a `HashMap` in the calling core's
+    // own thread, so nothing leaves the process, no name is resolved and no file
+    // is opened, and ADR 0118 § 1 has no door to check at. What is left to bound
+    // is footprint, which ADR 0059 § 3's `nvs.toml` cap bounds and a boolean
+    // grant would not: a grant would price caching anything as an authority
+    // question every deployment then has to answer, and still not bound a byte.
+    (crate::cache::NAME, "local", None),
     // ADR 0075 §§ 1 and 5 write `Core\RateLimit::consume` standing alone, so it
     // is its own door onto the same store rather than something that has to
     // follow a `Core\Cache::shared()`: it reads the same directive, asks for the
@@ -1335,8 +1373,15 @@ pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
     (
         crate::ratelimit::NAME,
         "consume",
-        nvs_config::Cap::NetConnect,
+        Some(nvs_config::Cap::NetConnect),
     ),
+    // ADR 0075 § 1's other member, and the same asymmetry one class over:
+    // `shed`'s state is the calling core's own memory, so it is `Core\Cache`'s
+    // local tier by construction — the row above it is `net.connect` because a
+    // coherent limiter is a store on the network, and this one is `None`
+    // because an approximate one is a map in this thread. It is bounded by the
+    // same cap for the same reason, since it is the same store.
+    (crate::ratelimit::NAME, "shed", None),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)

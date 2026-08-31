@@ -1077,6 +1077,10 @@ mod tests {
             .iter()
             .find(|(class, member, _)| *class == r"Core\Process" && *member == "run")
             .expect("Core\\Process::run starts a program, so it carries a capability row");
+        // `Some`, not just any row: § 7's table now also carries `None` for a
+        // member of a door-bearing class that reaches nothing, so "is on the
+        // table" stopped being the same claim as "is declared as an effect".
+        let cap = cap.expect("starting a program is an effect, so its row names a capability");
         assert_eq!(cap, nvs_config::Cap::ProcessExec);
         assert_eq!(
             nvs_config::Cap::parse("process.exec"),

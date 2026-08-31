@@ -98,9 +98,10 @@ omitting it means not performing the effect.
 What each member needs is declared once, in `registry.rs`:
 
 ```rust
-pub const CAPABILITIES: &[(&str, &str, Cap)] = &[
-    ("Core\\IO", "read", Cap::FsRead),
-    ("Core\\IO", "write", Cap::FsWrite),
+pub const CAPABILITIES: &[(&str, &str, Option<Cap>)] = &[
+    ("Core\\IO", "read", Some(Cap::FsRead)),
+    ("Core\\IO", "write", Some(Cap::FsWrite)),
+    ("Core\\Cache", "local", None),   // reaches nothing, and says so — § 7
     // …
 ];
 ```
@@ -180,13 +181,22 @@ because of how it is written.
 
 `every_capability_bearing_member_declares_its_capability` (this goal's item 16) reads the registry, not
 the bodies. A class is **capability-bearing** if any of its members has an entry in § 3's table; for
-such a class, every member must either have its own entry or appear in a frozen allowlist of members
-that genuinely need none — `Core\IO::basename` manipulates a string and touches no disk.
+such a class, **every member owes exactly one entry**, and a member that genuinely needs no capability
+— `Core\IO::basename` manipulates a string and touches no disk — declares that by entering the table
+with **no capability rather than none**, which is why § 3's third column is an *optional* capability.
 
-**The allowlist may never grow.** Every entry is a bullet with its reason, and adding one to make a run
-go green is the single move this design forbids: a member that is hard to classify is a member whose
-capability has not been thought about, and the answer to that is to think about it, not to exempt it.
-The test is a claim about the *set*, and a set with a growable exception list makes no claim.
+**There is no allowlist, which is the point.** A member that is hard to classify is a member whose
+capability has not been thought about, and the answer is to think about it, not to exempt it — so the
+one move this design forbids is the one an exception list makes cheapest. The test is a claim about the
+*set*, and a set with a growable exception list makes no claim; a set whose every member carries a row
+makes a total one. Declaring "nothing" costs what declaring `fs.read` costs, is reviewed in the same
+table beside its reason, and grants nothing — no row grants anything, per § 3.
+
+This replaced a frozen one-entry allowlist beside the test, and what broke it was the second honest
+entry rather than a dishonest one: `Core\Cache::local` and `Core\RateLimit::shed` are siblings of doors
+(`shared()`, `consume`) whose own state is a map in the calling core's thread, and both were classified
+before they were written. A list frozen at one had no room for the second, and unfreezing it would have
+traded a real claim for a convention nobody could enforce.
 
 The second half of the closure claim is § 2's `nvs_stdlib_reaches_the_os_only_through_the_gate`. The two
 tests fail on different mistakes and neither subsumes the other: the first catches a member that reaches

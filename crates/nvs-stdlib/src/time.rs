@@ -3167,6 +3167,19 @@ fn render_offset(seconds: i32) -> String {
 /// synchronisation past the first call.
 static MONOTONIC_ORIGIN: OnceLock<std::time::Instant> = OnceLock::new();
 
+/// Microseconds on [`MONOTONIC_ORIGIN`]'s timeline, for a native member that
+/// measures rather than dates — [`crate::ratelimit`]'s per-core tier is the one
+/// caller today.
+///
+/// The wall clock is deliberately not offered here: a limiter reading one would
+/// refuse for as long as an NTP step moved it backwards, which is a rate limit
+/// nobody configured. A monotonic reading cannot move backwards and cannot be
+/// stepped, and an interval is all GCRA reads.
+pub(crate) fn monotonic_micros() -> i128 {
+    let origin = MONOTONIC_ORIGIN.get_or_init(std::time::Instant::now);
+    i128::try_from(origin.elapsed().as_micros()).unwrap_or(i128::MAX)
+}
+
 /// ADR 0079 § 12's `at:` reading — an RFC 3339 timestamp such as
 /// `2026-01-01T00:00:00Z` — as nanoseconds since the Unix epoch, or `None` for
 /// text that is not one.

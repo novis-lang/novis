@@ -334,15 +334,22 @@ thread_local! {
 }
 
 /// Writes `payload` under `key` on this core, replacing any entry there.
-fn store_put(key: &[u8], payload: Vec<u8>) {
+///
+/// Crate-visible because this tier is **the** per-core store rather than this
+/// class's: [`crate::ratelimit`]'s `shed` keeps its arrival times here, under
+/// its own key prefix, for the reason `consume` reaches [`on_shared`] — one
+/// store per tier means one thing to bound and one thing to configure, and a
+/// limiter that kept a second map would be a second footprint for no second
+/// guarantee. § 3's cap, when it lands, bounds both by bounding this.
+pub(crate) fn store_put(key: &[u8], payload: Vec<u8>) {
     ENTRIES.with_borrow_mut(|entries| {
         entries.insert(key.into(), payload.into_boxed_slice());
     });
 }
 
 /// This core's payload for `key`, or `None` — which is an ordinary answer and
-/// not a failure, per § 1.
-fn store_get(key: &[u8]) -> Option<Vec<u8>> {
+/// not a failure, per § 1. Crate-visible for [`store_put`]'s reason.
+pub(crate) fn store_get(key: &[u8]) -> Option<Vec<u8>> {
     ENTRIES.with_borrow(|entries| entries.get(key).map(|payload| payload.to_vec()))
 }
 

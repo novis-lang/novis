@@ -248,7 +248,10 @@ fn every_capability_entry_names_a_member() {
         let class = nvs_stdlib::registry::CLASSES
             .iter()
             .find(|class| class.name == *class_name)
-            .unwrap_or_else(|| panic!("`{class_name}` (for `{}`) is not a Core class", cap.name()));
+            .unwrap_or_else(|| {
+                let declares = cap.map_or("no capability", |declared| declared.name());
+                panic!("`{class_name}` (for `{declares}`) is not a Core class")
+            });
         assert!(
             class.members().any(|found| found.name == *member),
             "`{class_name}::{member}` is not a member of that class"
@@ -256,28 +259,17 @@ fn every_capability_entry_names_a_member() {
     }
 }
 
-/// The members of a capability-bearing class that genuinely need no capability — ADR 0118 § 7.
+/// ADR 0118 § 7's closure, and it has no exception list to read: a member of a capability-bearing
+/// class that genuinely needs none declares `None` in `registry::CAPABILITIES`, in the same table
+/// under the same review as one that needs `fs.read`.
 ///
-/// **This list may never grow.** Every entry owes a bullet in `docs/agent/loop-goal.md`
-/// § *Standing decisions* saying why the member touches nothing, and adding one to make a run go
-/// green is the single move that design forbids outright: a member that is hard to classify is a
-/// member whose capability has not been thought about. The ADR's own example of what belongs here is
-/// a `Core\IO::basename` that splits a string and never opens anything.
-///
-/// One entry, and it is the case ADR 0118 § 7 describes rather than the one it forbids: the
-/// capability of `Core\Cache::local` was *decided* — by ADR 0059 § 1, which states outright that no
-/// capability gates the local tier and closes the hole ADR 0112 § 8's roster left open — before it
-/// was written, and it is the deciding, not the exempting, that this list is really a record of.
-///
-/// **`Core\Cache::local()` reaches nothing.** The tier is a `HashMap` in this core's own thread,
-/// per `nvs_stdlib::cache`'s module doc: nothing leaves the process, no name is resolved and no
-/// file is opened, so there is no door for § 1's check to sit at. What is left to bound is
-/// footprint, and ADR 0059 § 3's `nvs.toml` cap is the instrument for that — a boolean grant would
-/// not be one, and adding it would price caching anything as an authority question every
-/// deployment then has to answer. Its sibling `shared()` does leave the process and does declare
-/// `net.connect`, which is why the class is capability-bearing at all.
-const NEEDS_NO_CAPABILITY: &[(&str, &str)] = &[("Core\\Cache", "local")];
-
+/// **The allowlist that used to sit here is gone rather than frozen.** § 7 forbids growing one to
+/// make a run go green — a member that is hard to classify is a member whose capability has not been
+/// thought about — and `Core\RateLimit::shed` was the sibling that had no other spelling: it reaches
+/// nothing, and its class is a door because `consume` is. A list of two would have been a set claim
+/// with a growable hole in it; a `None` row costs the would-be exemption exactly what a declaration
+/// costs and leaves the claim below total. What the two rows say is in the table beside them, which
+/// is the one home for a member's reason.
 #[test]
 fn every_capability_bearing_member_declares_its_capability() {
     // ADR 0118 § 7's direction: not "does every entry name a member" — that is
@@ -303,25 +295,18 @@ fn every_capability_bearing_member_declares_its_capability() {
 
     for class in bearing {
         for member in class.members() {
-            let declared = nvs_stdlib::registry::CAPABILITIES
+            let rows = nvs_stdlib::registry::CAPABILITIES
                 .iter()
-                .any(|(name, found, _)| *name == class.name && *found == member.name);
-            let exempt = NEEDS_NO_CAPABILITY
-                .iter()
-                .any(|(name, found)| *name == class.name && *found == member.name);
-            assert!(
-                declared || exempt,
-                "`{}::{}` is a member of a capability-bearing class and declares no capability; \
-                 declare it in `registry::CAPABILITIES` — the allowlist beside this test is frozen \
-                 and adding to it is the one move ADR 0118 § 7 forbids",
-                class.name,
-                member.name,
-            );
-            assert!(
-                !(declared && exempt),
-                "`{}::{}` is both declared and exempted, so one of the two is a lie",
-                class.name,
-                member.name,
+                .filter(|(name, found, _)| *name == class.name && *found == member.name)
+                .count();
+            assert_eq!(
+                rows, 1,
+                "`{}::{}` is a member of a capability-bearing class, so it owes exactly one row in \
+                 `registry::CAPABILITIES` — the capability it needs, or `None` beside the comment \
+                 saying what it reaches instead. There is no allowlist to add it to, which is ADR \
+                 0118 § 7's point: a member that is hard to classify is a member whose capability \
+                 has not been thought about",
+                class.name, member.name,
             );
         }
     }
