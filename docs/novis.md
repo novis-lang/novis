@@ -4466,6 +4466,7 @@ class, not an interface: a user class extends it directly. The tree is fixed and
 | `RecursionError` | `RuntimeError` | — |
 | `ArithmeticError` | `Throwable` | — |
 | `Core\Test\Failure` | `Throwable` | — |
+| `Core\Cli\NotInteractive` | `RuntimeError` | — |
 
 - PHP's `Exception` and `Error` do not exist. `class E extends Exception`, `catch (Exception $e)`
   and `new Exception("…")` are each refused as an undeclared name; write `Throwable`,
@@ -14465,7 +14466,7 @@ Expands, at compile time, to an array literal of `new` expressions — one per n
 <a id="core-core-cli"></a>
 ### `Core\Cli`
 
-Keywords: escape, isTty, width, height, colorDepth
+Keywords: escape, isTty, width, height, colorDepth, ask, confirm, select, secret
 
 | Member | Signature |
 |---|---|
@@ -14474,6 +14475,10 @@ Keywords: escape, isTty, width, height, colorDepth
 | [`Core\Cli::width`](#core-core-cli-width) | `width(): uint` |
 | [`Core\Cli::height`](#core-core-cli-height) | `height(): uint` |
 | [`Core\Cli::colorDepth`](#core-core-cli-colordepth) | `colorDepth(): Core\Cli\ColorDepth` |
+| [`Core\Cli::ask`](#core-core-cli-ask) | `ask(string $question, {default?: string, validate?: callable}): tainted string` |
+| [`Core\Cli::confirm`](#core-core-cli-confirm) | `confirm(string $question, {default?: bool}): bool` |
+| [`Core\Cli::select`](#core-core-cli-select) | `select(string $question, array<T> $choices, {labels?: callable, default?: T}): T` |
+| [`Core\Cli::secret`](#core-core-cli-secret) | `secret(string $question): secret tainted string` |
 
 <a id="core-core-cli-escape"></a>
 #### `Core\Cli::escape`
@@ -14537,6 +14542,80 @@ Core\Cli::colorDepth(): Core\Cli\ColorDepth
 How much colour standard output can show, honouring `NO_COLOR`, `CLICOLOR_FORCE`, `FORCE_COLOR`, `COLORTERM` and `TERM`. A program does not normally ask: it writes `Cli\Text` and the sink degrades to what the terminal has. Resolved once for the process.
 
 **Returns** `Core\Cli\ColorDepth` — The depth as a `Core\Cli\ColorDepth` case — `None` whenever standard output is not a terminal and nothing forced colour on, which is what makes `myprog | grep` and a CI log plain.
+
+<a id="core-core-cli-ask"></a>
+#### `Core\Cli::ask`
+
+```nvs skip
+Core\Cli::ask(string $question, {default?: string, validate?: callable}): tainted string
+```
+
+Asks `$question` at the controlling terminal and answers the line typed back — `readline`, without the GNU library and without reading standard input, so a program reading piped data can still ask. With no terminal it answers `default` if one was given and throws otherwise; it never blocks waiting for an answer nobody can give.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$question` | `string` (neutral) | What to write at the terminal. It goes through the same substitution `echo` performs, so a question built from untrusted text cannot move the cursor or repaint the screen around its own answer. |
+| `{default: …}` | `string` (default `null`) | What to answer when the terminal is not there, and what an empty line means when it is. Absent makes both of those a `Core\Cli\NotInteractive`. |
+| `{validate: …}` | `callable` (default `null`) | Called with each answer; a falsy verdict asks again. It runs only where there is a terminal to ask again at, so it never sees a `default`. |
+
+**Returns** `tainted string` — The line typed, without its ending, and `tainted` whatever it says — it came from outside the program, exactly as a request body did.
+
+**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, or its input ended, and the call named no `default`.
+
+<a id="core-core-cli-confirm"></a>
+#### `Core\Cli::confirm`
+
+```nvs skip
+Core\Cli::confirm(string $question, {default?: bool}): bool
+```
+
+Asks `$question` as a yes/no question, showing which way the `Enter` key goes, and answers what was typed. An answer that is neither is asked again rather than read as `false`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$question` | `string` (neutral) | What to write at the terminal, substituted as `ask` substitutes it. |
+| `{default: …}` | `bool` (default `null`) | What an empty line means, and what an unattended run answers. Absent makes an unattended run throw, and makes an empty line ask again. |
+
+**Returns** `bool` — `true` for yes and `false` for no — a plain `bool` and never a `tainted` one, because nothing of what was typed survives into a closed two-case answer.
+
+**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, or its input ended, and the call named no `default`.
+
+<a id="core-core-cli-select"></a>
+#### `Core\Cli::select`
+
+```nvs skip
+Core\Cli::select(string $question, array<T> $choices, {labels?: callable, default?: T}): T
+```
+
+Offers `$choices` as a numbered list and answers the one chosen — the value itself, never its position, so nothing at the call site indexes back into the array.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$question` | `string` (neutral) | What to write above the list, substituted as `ask` substitutes it. |
+| `$choices` | `array<T>` | The values to choose between, listed in their own order. An empty array is a `LogicError`: there is no answer to hand back. |
+| `{labels: …}` | `callable` (default `null`) | Called with each option to produce the line shown for it. Absent renders each option as text the way `echo` would. |
+| `{default: …}` | `T` (default `null`) | What an empty line chooses, and what an unattended run answers. Typed as the choices' own element type, so it cannot be a value that is not on offer. |
+
+**Returns** `T` — The chosen element of `$choices`, with that array's element type.
+
+**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, or its input ended, and the call named no `default`.; `LogicError` — `$choices` is empty, so there is nothing that could be chosen.
+
+<a id="core-core-cli-secret"></a>
+#### `Core\Cli::secret`
+
+```nvs skip
+Core\Cli::secret(string $question): secret tainted string
+```
+
+Asks `$question` with the terminal's echo turned off, so a password is not left on the screen or in a scrollback buffer — PHP's `readline` has no spelling for this at all and every program shells out to `stty -echo` for it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$question` | `string` (neutral) | What to write at the terminal, substituted as `ask` substitutes it. |
+
+**Returns** `secret tainted string` — The line typed, `secret` and `tainted` at once: output, logs, dumps, `Throwable` messages and serialization all refuse it, and it still has to be laundered for any sink it reaches.
+
+**Throws** `Core\Cli\NotInteractive` — There is no controlling terminal to ask, or its input ended. `secret` takes no `default`, because a password nobody typed is not a password.
 
 <a id="core-core-cli-text"></a>
 ### `Core\Cli\Text`
