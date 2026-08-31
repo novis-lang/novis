@@ -2,52 +2,50 @@
 
 ## State
 
-**`Core\Http\Response` is two slots and the two members that read them back.** `status(): int` and
-`text(): tainted string` over slots `status` and `body`, at `crates/nvs-stdlib/src/http.rs:452`.
-That a reader is a **member and never a property** is `crate::http`'s module doc's to own — a
-`Core` instance has no property a program can reach, so `examples/http.nvs` was corrected to
-`->status()` rather than the rule being bent — and the body is `tainted` because pinning settles
-where bytes came from and nothing about what is in them, which ADR 0024 § 1's roster now says.
+**`Core\Http\Client` sends.** `crates/nvs-stdlib/src/http/transport.rs` composes an HTTP/1.1
+request, writes it over `nvs_host::net`'s parking stream and fills `Core\Http\Response`'s two
+slots. ADR 0074 § 6's retries and ADR 0058 § 4's redirects are both there under one deadline;
+`send`'s `repin` closure is the seam that keeps the policy in `crate::http` and out of the socket.
+That module's own doc owns the rest — one connection per attempt, no pool, `https` refused until a
+trust anchor set has an owner. `nvs-stdlib` now depends on `nvs-host` for the stream.
 
-**The transport is still the whole of what is missing behind the five rows.** Every client member
-ends at `crates/nvs-stdlib/src/http.rs:700`'s refusal. The `body` slot holds an already-decoded
-`string`, so the decode is the transport's one question and no reader asks it twice.
-
-**`examples/http.nvs` now fails on its last two lines and nothing else** — checked with
-`nvs check`, not assumed. `Core\Env` exists nowhere but in that example (a grep over `nvs-stdlib`,
-`nvs-types` and `docs/spec/01-core-library.md` finds nothing), so item 2 below is a placement
-decision. The third error is a separate finding and the interesting one: `$configured ??
-"http://elsewhere.invalid/"` types as `string|tainted string`, and `Core\Http::allowUrl`'s
-`Qual::Launder` parameter refuses a *union* carrying the tainted arm rather than laundering it.
+**`examples/http.nvs` is further from green than "two errors left" said, and none of the four is
+this slice's.** Checked, not assumed: (1) `Core\Env` still exists nowhere; (2) `$configured ?? "…"`
+types as `string|tainted string` and `Qual::Launder` refuses the union; (3) **`allowUrl` refuses
+`http://127.0.0.1:8099` outright** — `nvs_config::capability::denied_by_default` denies loopback
+and its own doc says the operator's exception half "is not here yet", so the first two lines throw
+before any transport is reached; (4) **nothing in this tree serves `:8099`** — `8099` appears in no
+`.rs`, `.py`, `.md` or `.toml` outside the example itself, so stage 5's `exact` check has no origin
+to talk to.
 
 ## Next group
 
-**The transport, and the two errors left in the example.** The file set is
-`crates/nvs-stdlib/src/http.rs`, `crates/nvs-host/src/net.rs`, `crates/nvs-stdlib/src/registry.rs`
-and `tests/conformance/core/`.
+**What `examples/http.nvs` still needs.** They share that file and the stage 5 `exact` check it
+feeds — `docs/agent/loop-goal.toml:2357` — and each is a different owner's half, so take them in
+this order and stop where the context runs out.
 
-- [ ] **The transport behind the five rows** — ADR 0074 § 6, ADR 0058 § 4. It deletes
-      `crates/nvs-stdlib/src/http.rs:700`'s refusal and fills
-      `crates/nvs-stdlib/src/http.rs:452`'s two slots through `crate::instance::build` — `status`
-      an `int`, `body` a decoded `string` — over `crates/nvs-host/src/net.rs:1`'s parking stream.
-      Every retry attempt reuses the pinned `Target` and re-resolves nothing; a redirect hop
-      re-pins.
-- [ ] **A spelling for `examples/http.nvs:43`'s environment read** — placement first: an ADR 0051
-      § 3 roster line, a `docs/spec/01-core-library.md` row, and whether reading the environment is
-      one of ADR 0118's doors. ADR 0024 § 1 already says every `Core\Env` member answers the
-      tainted form, and the class joins `crates/nvs-stdlib/src/registry.rs:1054`'s roster once it
-      exists.
-- [ ] **Whether a `Qual::Launder` parameter admits a union that carries the tainted arm** —
-      `examples/http.nvs:45` is the whole case, and it is `E0401` today. The rule lives at
-      `crates/nvs-types/src/expr/quals.rs:222`'s `admits_tainted_argument`; whichever way it goes,
-      ADR 0024 § 3 is where a launderer's argument shape is recorded.
+- [ ] **The operator exception to ADR 0058 § 3's denied table**, so a deployment can name loopback
+      and the example's origin is reachable at all. `crates/nvs-config/src/capability.rs:86` is the
+      table and its doc names the gap; the grant it reads is `crates/nvs-config/src/capability.rs:60`'s
+      `Scope`, and the repository's own root `nvs.toml` is where `examples/http.nvs`'s `[[app]]`
+      block goes, beside the `examples/capability.nvs` one.
+- [ ] **A spelling for `examples/http.nvs:43`'s environment read** — placement first, under ADR 0051
+      § 3's roster. `crates/nvs-stdlib/src/registry.rs:1054` is `CLASSES`, and
+      `crates/nvs-stdlib/src/config.rs:170` is the nearest shape: a member that answers `?string`
+      off the request's own view rather than off `std::env`.
+- [ ] **Whether a `Qual::Launder` parameter admits a union carrying the tainted arm.**
+      `crates/nvs-types/src/core_lib.rs:755` is the check, `crates/nvs-stdlib/src/http.rs:138` is
+      the row it reads. A launderer that refuses `string|tainted string` refuses the one shape
+      `?? ` produces, which is how every real `Core\Env` read will arrive.
+- [ ] **An origin on `127.0.0.1:8099` for the acceptance check**, which is the driver's half rather
+      than the language's — `docs/agent/loop-goal.toml:2357` is the check and `tools/loop.py` runs
+      it. A `[[check]]` that brings a fixture up is a new shape for that file, so decide it there.
 
 ## Backlog
-- `Core\Http\Response::header()` and the header-map slot — arrives with the transport that fills
-  it, per `crates/nvs-stdlib/src/http.rs:452`'s own doc.
-- A reader for a non-text body needs a `CoreTy::TaintedBytes`; `TaintedStr` is the only tainted
-  return spelling `crates/nvs-stdlib/src/registry.rs` has.
-- `Core\Http\Client::send(Request)` and `stream` — `docs/spec/01-core-library.md` § 16's row names
-  both, and neither is a row yet.
-- ADR 0074 § 7's dynamic half — a verb chosen at run time throws before the first attempt — waits
-  on the `send(Request)` row.
+
+- Three of stage 5's named `-p nvs-stdlib` tests are still unwritten — `docs/agent/loop-goal.toml:2343`.
+- `traceparent` on an outbound request — ADR 0076 § 2; nothing carries a trace id yet.
+- TLS: a client needs a trust anchor set, and no ADR paragraph owns which — `crate::http::transport`'s doc.
+- A request body, and `Core\Http\Response`'s header map — `crate::http`'s "what is not here yet".
+- A connection pool: priority 3 against 4, nothing in this goal waits on it — same doc.
+- `orient.py` printed no ADR 0074 §§ 5-6 and no ADR 0058 § 4; add them to `[context] adrs`.

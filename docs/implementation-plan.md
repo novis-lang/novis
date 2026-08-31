@@ -58,10 +58,10 @@
 > `Duration`, and answers `array<tainted string>` — `CoreTy::TaintedStr`, the return-position
 > spelling ADR 0060 § 5 was owed. **Stage 5 is open at its door**: `Core\Http::allowUrl` answers a
 > pinned `Core\Http\Target`, and ADR 0058 § 3's denied ranges are one table in `nvs_config` behind
-> `nvs_runtime::capability::pin_host`. `Core\Http\Client` is five rows over one `Core\Http\Options`
-> bag — compile-time whole, § 7's keyless `post` retry `E0796` — and `Core\Http\Response` reads
-> `status(): int` and `text(): tainted string` off two slots no transport fills, so
-> `examples/http.nvs` now fails on `Core\Env` alone. Conformance 1155, differential 210 of 210,
+> `nvs_runtime::capability::pin_host`. `Core\Http\Client`'s five rows are compile-time whole (§ 7's
+> keyless `post` retry is `E0796`), and `crate::http::transport` fills `Core\Http\Response`'s two
+> slots over `nvs_host::net`: hops re-pinned, retries jittered under one deadline, `https` refused.
+> `examples/http.nvs` still fails on `Core\Env`. Conformance 1155, differential 210 of 210,
 > migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in

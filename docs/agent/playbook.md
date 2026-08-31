@@ -1183,6 +1183,14 @@ is why" — is this file.
   pack prints the item, not the stage, so the check costs one `grep -n -i <topic> docs/agent/loop-goal.toml`
   before starting: the driver stops at the first failure, so a named test left unwritten in a crate the
   item never mentions holds the whole acceptance list at that stage the way a misfiled fixture does.
+- **`peek.py` takes its options *after* its targets, and mixing them is
+  "unrecognized arguments" naming a target that is perfectly well formed.**
+  `peek.py A.rs:re:x --window 4 B.rs:re:y` fails with `unrecognized arguments:
+  B.rs:re:y`, because argparse stops collecting positionals at the first option
+  and will not resume. The message points at the second target, so the obvious
+  reading is that the *target* is malformed — quoting it differently, escaping
+  the `::`, dropping the `re:` all fail the same way. Put every target first and
+  every `--window`/`--in` last, and a run of probes goes out in one call.
 
 ## Running things
 
@@ -3449,6 +3457,17 @@ is why" — is this file.
   `check_in_method`/`check_src` are the harness, and `tests/core_members.rs` is the file that owns
   every options-bag rule. A `loop-goal.toml` check spelled `args = ["test", "-p", "nvs-types"]` runs
   both targets, so nothing about *being found* decides this — only which fixture exists.
+- **A `#[cfg(test)]` module inside `crates/nvs-stdlib/src/` is scanned by
+  `tests/capability.rs`'s OS gate, so a case that opens its own socket or temp
+  file fails a test in another file.** The message is good — it names the file,
+  the line and the forbidden spelling — but it arrives from
+  `nvs_stdlib_reaches_the_os_only_through_the_gate`, which reads as a claim
+  about a `Core` member rather than about the test you just wrote, and the
+  spelling it forbids (`std::net::TcpListener`) is the only way to write a
+  listener. The scan now stops at the file's `#[cfg(test)]` line and asserts
+  there is exactly one per file, so this is fixed rather than worked around;
+  what is left of the trap is that a *second* `#[cfg(test)]` higher up in a
+  module now fails that assertion instead.
 
 ## Splitting a file that got too big
 
