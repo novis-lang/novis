@@ -102,6 +102,7 @@ Conventions the whole file uses:
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
+| [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -14673,6 +14674,134 @@ Core\Secret::revealBytes(bytes $value, string $reason): bytes
 | `$reason` | `string` (neutral) | Why this call site is allowed to see the value, written for the next reader. Nothing reads it at run time. |
 
 **Returns** `bytes` — The same bytes, unqualified — still `tainted` if `$value` was.
+
+<a id="core-core-password"></a>
+### `Core\Password`
+
+Keywords: password, hash, verify, needsRehash, argon2, argon2id, bcrypt, crypt, login, credential, rehash, salt, phc, hash, verify, needsRehash
+
+`Core\Password::hash` takes a password and answers the string to store. It takes **nothing else**: no
+algorithm, no memory cost, no time cost, no salt. PHP writes those at every call site, which means a
+program's real cost is whichever call site was copied last and raising it is a grep. Here the parameters
+belong to the library — Argon2id at OWASP's recommended floor — and `::needsRehash` is how a *stored*
+hash finds out it has fallen behind. That is the whole reason a caller never names a cost.
+
+The answer is a PHC string: the algorithm, the version, the cost parameters and the salt travel with the
+digest. That is what lets `::verify` recompute under the settings a hash was *made* with, so credentials
+written years ago still verify while new ones are written at today's cost.
+
+`::hash` is one of exactly two operations that take a `secret` and answer something that is not one — the
+other is `Core\Secret::reveal`. Storing a hash is the point, so the result is an ordinary `string` and
+reaches the sinks a password never could.
+
+Every call draws its own salt, so hashing one password twice answers two different strings and two users
+who chose the same password are indistinguishable in the store. Compare with `::verify`, never with `==`.
+
+**`::needsRehash` asks whether a hash is *weaker*, not whether it *differs*.** PHP compares the stored
+options to the current ones for equality, so a hash written under stronger settings asks to be rehashed —
+and a program doing as it was told silently downgrades it. Here a stronger stored hash is left alone.
+
+A stored value that is not a hash this class wrote **throws** rather than answering `false`. A storage
+layer handing back the wrong column otherwise looks exactly like every user typing the wrong password at
+once, and one of those is worth waking someone up for.
+
+```nvs
+<?nvs
+secret string $password = "correct horse battery staple";
+
+// One argument, and the parameters come back out inside the answer.
+string $stored = Core\Password::hash($password);
+if (Core\Str::startsWith($stored, '$argon2id$v=19$')) {
+    echo "stored under argon2id, v19\n";
+}
+
+// The bound, both sides of it.
+secret string $offered = "correct horse battery staple";
+secret string $wrong = "hunter2";
+if (Core\Password::verify($offered, $stored)) {
+    echo "the right password verifies\n";
+}
+if (!Core\Password::verify($wrong, $stored)) {
+    echo "the wrong one does not\n";
+}
+
+// A hash made now is current by definition; one made under a lower cost is not.
+string $old = '$argon2id$v=19$m=8192,t=1,p=1$jJ+hokoSJRsAzYsgfwhV6g$BGyWXoH11l0/GF4ezLqvtQgPY0T/4fv4DukErq9R0cI';
+if (!Core\Password::needsRehash($stored) && Core\Password::needsRehash($old)) {
+    echo "fresh is current, m=8192 has fallen behind\n";
+}
+
+// The usual shape at a login: verify, then upgrade what you just proved.
+if (Core\Password::verify($offered, $stored) && Core\Password::needsRehash($stored)) {
+    $stored = Core\Password::hash($offered);
+}
+echo "done\n";
+```
+```output
+stored under argon2id, v19
+the right password verifies
+the wrong one does not
+fresh is current, m=8192 has fallen behind
+done
+```
+
+| Member | Signature |
+|---|---|
+| [`Core\Password::hash`](#core-core-password-hash) | `hash(string $password): string` |
+| [`Core\Password::verify`](#core-core-password-verify) | `verify(string $password, string $hash): bool` |
+| [`Core\Password::needsRehash`](#core-core-password-needsrehash) | `needsRehash(string $hash): bool` |
+
+<a id="core-core-password-hash"></a>
+#### `Core\Password::hash`
+
+```nvs skip
+Core\Password::hash(string $password): string
+```
+
+Hashes `$password` for storage with Argon2id under parameters this library chooses, answering the PHC string that carries the algorithm, the version, the cost and the salt alongside the digest. There is no algorithm or cost argument: `needsRehash` is how a stored hash learns it has fallen behind.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$password` | `string` (reveal) | The password to hash. A `secret` is accepted here and the answer is not one — storing the hash is the point. |
+
+**Returns** `string` — The PHC string to store, as in `$argon2id$v=19$m=19456,t=2,p=1$<salt>$<digest>`. Two calls with the same password answer differently, because each draws its own salt.
+
+**Throws** `RuntimeError` — This process cannot spare the ~19 MiB the parameters ask for.
+
+<a id="core-core-password-verify"></a>
+#### `Core\Password::verify`
+
+```nvs skip
+Core\Password::verify(string $password, string $hash): bool
+```
+
+Reports whether `$password` is the one `$hash` was made from, recomputing under the parameters `$hash` itself carries so that a hash written under older settings still verifies. The comparison is constant-time.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$password` | `string` (reveal) | The password offered. A `secret` is accepted; the answer is a `bool` and carries nothing of it. |
+| `$hash` | `string` (neutral) | The stored PHC string, as `hash` answered it. |
+
+**Returns** `bool` — `true` when `$password` produced `$hash`, `false` when it did not.
+
+**Throws** `LogicError` — `$hash` is not a stored hash this class wrote — it does not parse, or it names another algorithm, version or salt. A storage bug rather than a wrong password, which is why it is not `false`.; `RuntimeError` — `$hash` asks for more memory than any hash this class writes could need, or this process cannot spare what it asks for.
+
+<a id="core-core-password-needsrehash"></a>
+#### `Core\Password::needsRehash`
+
+```nvs skip
+Core\Password::needsRehash(string $hash): bool
+```
+
+Reports whether `$hash` is weaker than what `hash` would write today — a different algorithm or version, or a lower memory or time cost — so that a program can rehash the password it has just verified.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$hash` | `string` (neutral) | The stored PHC string to measure. |
+
+**Returns** `bool` — `true` when the stored hash has fallen behind, `false` when it is at or above the current parameters. A hash *stronger* than the current ones answers `false`: rehashing it would lower its cost.
+
+**Throws** `LogicError` — `$hash` is not a PHC string at all. A hash that parses but names another algorithm answers `true` here rather than throwing — that is precisely the question this member is asked.
 
 <a id="core-enums"></a>
 ### `Core` enums
