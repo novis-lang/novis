@@ -16528,6 +16528,7 @@ long-running host — at a reload, or only at boot.
 | `log` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `cache.dir` | operator only — a request cannot change it | at boot only |
 | `cache.shared` | operator only — a request cannot change it | at boot only |
+| `cache.local` | operator only — a request cannot change it | at reload |
 | `control.socket` | operator only — a request cannot change it | at boot only |
 | `server` | operator only — a request cannot change it | at boot only |
 | `opcache` | operator only — a request cannot change it | at reload |
