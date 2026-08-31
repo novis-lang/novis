@@ -740,6 +740,30 @@ fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Vec<u8>> {
     })
 }
 
+/// HMAC-SHA-1 of `data` under `key` — the one algorithm [`hmac_of`] refuses,
+/// reachable here by exactly one caller.
+///
+/// [`crate::totp`] needs it and no `Core\Hash` member offers it: RFC 6238's
+/// interoperable algorithm is SHA-1, and an authenticator that quietly ignores
+/// a stronger one produces codes that never verify. That module's own doc is
+/// the home of why that is the right trade for a one-time code and wrong for a
+/// digest a program chooses.
+///
+/// It lives here rather than there for [`crate::crypto::cipher`]'s reason:
+/// there is one HMAC in `nvs-stdlib`, and a second `hmac::Hmac` construction in
+/// another module would be a second set of decisions about key handling. What
+/// is *not* offered is a `DigestKind::Sha1` route through [`hmac_of`] — the
+/// strong set stays closed, so the exception is one named function with one
+/// caller rather than a hole in the enum.
+pub(crate) fn hmac_sha1(key: &[u8], data: &[u8]) -> [u8; 20] {
+    use hmac::Mac as _;
+
+    let mut mac = <hmac::Hmac<sha1::Sha1>>::new_from_slice(key)
+        .expect("HMAC accepts a key of any length (RFC 2104 § 2)");
+    mac.update(data);
+    mac.finalize().into_bytes().into()
+}
+
 // ============================================================================
 // The members
 // ============================================================================

@@ -1,0 +1,64 @@
+--TEST--
+Core\Totp::check applies the stored counter as part of choosing candidate steps, so the step below the one a code belongs to still accepts it and the step at or above it does not — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// A bound asserted on both sides. `$after` is the whole replay refusal, and
+// what it must mean is *strictly* below: a member reading it as "at or below"
+// would refuse a first code straight after enrolment, and one reading it as
+// "strictly above" would accept the same code twice. Both readings pass a case
+// that only ever tests the value the previous call answered.
+// `crates/nvs-stdlib/src/totp.rs` owns why the counter is the caller's.
+secret bytes $secret = Core\Random::bytes(20);
+string $code = Core\Totp::code($secret);
+
+?int $step = Core\Totp::check($code, $secret);
+if ($step == null) {
+    echo "a fresh code was refused", "\n";
+} else {
+    // One below is the last edge that still accepts: an account whose stored
+    // counter is the previous step has not yet used this code.
+    if (Core\Totp::check($code, $secret, $step - 1) == null) {
+        echo "the step below refused it", "\n";
+    } else {
+        echo "the step below still accepts", "\n";
+    }
+
+    // The step itself is the first edge that refuses, which is the replay.
+    if (Core\Totp::check($code, $secret, $step) == null) {
+        echo "and its own step refuses it", "\n";
+    } else {
+        echo "its own step accepted it again", "\n";
+    }
+
+    // Above it, nothing — a counter that has moved past a code never comes
+    // back to it, which is what makes storing the answer safe.
+    if (Core\Totp::check($code, $secret, $step + 1) == null) {
+        echo "and everything above", "\n";
+    } else {
+        echo "a step above accepted it", "\n";
+    }
+
+    // A counter far in the future refuses the account's own current code
+    // rather than wrapping or overflowing into acceptance. This is the shape a
+    // clock that ran backwards leaves behind, and refusing is the safe answer.
+    if (Core\Totp::check($code, $secret, $step + 1000000) == null) {
+        echo "including one far ahead", "\n";
+    } else {
+        echo "a distant counter accepted it", "\n";
+    }
+}
+
+// And the counter is not a substitute for the code: a fresh code against a
+// counter below it is accepted, a wrong code against the same counter is not,
+// so `$after` narrows the window rather than deciding the answer.
+if (Core\Totp::check("000000", $secret, 0) == null) {
+    echo "a wrong code is still wrong at counter zero", "\n";
+} else {
+    echo "a wrong code passed at counter zero", "\n";
+}
+--EXPECT--
+the step below still accepts
+and its own step refuses it
+and everything above
+including one far ahead
+a wrong code is still wrong at counter zero

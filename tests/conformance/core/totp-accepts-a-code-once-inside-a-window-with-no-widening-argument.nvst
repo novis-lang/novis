@@ -1,0 +1,85 @@
+--TEST--
+Core\Totp::code answers six digits, Core\Totp::check answers the step it belonged to, and the step it answered refuses that same code the second time — with no argument anywhere that widens the window — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// Agreement. `Core\Totp` has two members and the property worth pinning is
+// what the pair does across a whole set of wrong answers: everything that is
+// not this secret's current code is the same `null`, and the one thing that is
+// becomes `null` too as soon as its step has been stored.
+// `crates/nvs-stdlib/src/totp.rs` owns why "no replay" is a counter the caller
+// holds, and RFC 6238's own test vectors are that module's `#[test]`.
+secret bytes $secret = Core\Random::bytes(20);
+secret bytes $other = Core\Random::bytes(20);
+
+// A code is six characters of decimal text, never a number: `042311` is a
+// code, and an implementation that answered an int would show five digits
+// once in ten enrolments.
+string $code = Core\Totp::code($secret);
+echo "digits ", Core\Str::length($code), "\n";
+if (Core\Regex::matches($code, "^[0-9]{6}$")) {
+    echo "decimal throughout", "\n";
+} else {
+    echo "not a code: ", $code, "\n";
+}
+
+// The code this second verifies, and what comes back is the step it belonged
+// to rather than a `bool` — which is the whole of how the caller refuses it
+// next time. The step's *value* is the clock's and is not printed; that it
+// exists at all is the assertion.
+// The answer's *type* is half the design: `?int` rather than `bool` is what
+// makes the replay refusal expressible at all, and narrowing it is what a
+// caller does before storing it.
+?int $step = Core\Totp::check($code, $secret);
+if ($step == null) {
+    echo "its own code was refused", "\n";
+} else {
+    echo "accepted, and it named a step", "\n";
+
+    // The replay, which is the entry's headline. Storing that step and passing
+    // it back refuses the same code — and it is the *code* that is refused,
+    // not the account: a member that remembered nothing would accept this
+    // line.
+    if (Core\Totp::check($code, $secret, $step) == null) {
+        echo "and the second time it is refused", "\n";
+    } else {
+        echo "a replayed code was accepted", "\n";
+    }
+}
+
+// Every other way of not being this secret's current code agrees on `null`.
+// A member that threw for the malformed ones would put a mistyped code — the
+// ordinary case — inside a `catch`, and one that answered a distinguishable
+// value for the wrong secret would say which half of a guess landed.
+array<string> $wrong = ["000000", "12345", "1234567", "", "abcdef", "01234a"];
+int $refused = 0;
+foreach ($wrong as string $guess) {
+    if (Core\Totp::check($guess, $secret) == null) {
+        $refused = $refused + 1;
+    }
+}
+if (Core\Totp::check($code, $other) == null) {
+    $refused = $refused + 1;
+}
+echo "one refusal: ", $refused, " of ", Core\Arr::count($wrong) + 1, "\n";
+
+// A secret below RFC 4226 § 4's 128-bit floor is a `LogicError` rather than a
+// weaker deployment, on both members — the one thing about a TOTP setup that
+// working with it every day would never reveal.
+try {
+    echo Core\Totp::code(Core\Random::bytes(8)), "\n";
+} catch (LogicError $e) {
+    echo "short secret refused", "\n";
+}
+try {
+    echo Core\Totp::check($code, Core\Random::bytes(8)), "\n";
+} catch (LogicError $e) {
+    echo "on both members", "\n";
+}
+--EXPECT--
+digits 6
+decimal throughout
+accepted, and it named a step
+and the second time it is refused
+one refusal: 7 of 7
+short secret refused
+on both members
