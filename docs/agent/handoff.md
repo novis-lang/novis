@@ -2,60 +2,58 @@
 
 ## State
 
-**`Core\Reflect\ClassInfo::call` is a row, a card and a body**, and the whole of ADR 0019 § 2's
-visibility rule for it is `nvs_runtime::call_erased_method`: past the two questions a description
-owes about its own subject, `call` hands the call to the path an ordinary `$value->name(...)` on a
-`mixed` receiver takes. That path already asks every question this member owes — `public`, declared
-at all, native, arity, per-parameter tag — and asks them on behalf of a site outside every class by
-construction, which is exactly a reflective call site's premise. The helper's own doc comment in
-`crates/nvs-stdlib/src/reflect.rs` is the home of why a second check written there would be the copy
-that silently stops being the rule.
+**Stage 2's *Handles* bullet has opened, and it outranked the handoff's own next group** — the
+driver's acceptance report had advanced to `nvs-stdlib (Core\IO) [2 filesystem]`, where five of
+seven named tests had never existed because `Core\IO::open` did not. Two of the five are closed now.
+The playbook bullet under *Tooling* is the home of how to read that report; do not treat an early
+stage in it as stale.
 
-**`$arguments` is required, not defaulted to `[]`** — `registry::Const` has no array variant, and the
-row's comment says so rather than approximating a signature the registry cannot express.
+**`Core\IO::open` answers a `Core\IO\File`, and the descriptor lives in the request.** The object's
+first slot is a key into `nvs_runtime::Ctx`'s own `open_files` table and its second is the path, so
+every refusal names the file. `Ctx::hold_open_file`'s doc comment is the one home of the accounting
+and of why a key is never reused; `Core\Script\Handle` is the same shape and landed first, and
+`crates/nvs-stdlib/src/instance.rs`'s first decision is why a `std::fs::File` cannot be in a slot.
 
-**`subject_of` is now shared by both acting members**, so the "this describes X, and the value is a
-Y" `LogicError` and the not-an-object `RuntimeError` are written once.
+**The mode decides the capability, which is new.** `nvs_runtime::capability::Access` is the runtime's
+own spelling of the four `Core\IO\FileMode` cases, and `capability::open` asks `fs.read` for `Read`,
+`fs.write` for `Write`/`Append` and **both** for `ReadWrite`. `registry::CAPABILITIES` has one cap
+per member and cannot express that, so `open`'s row names the stronger one and its comment says why;
+`Core\IO\File`'s three members carry `None` rows, because the descriptor was checked at the door.
 
-**Stage 8's remaining named test is the reflective property write.** The shape of the problem is
-worth knowing before starting: ADR 0014's hook is emitted **at the call site** by
-`nvs_ir::lower::expr::emit_observer_call`, so a native member has no lowering to reach it and
-`nvs_object_field_set` is not where the hook lives either. Whatever `set` does, it cannot be
-`nvs_object_field_set` plus a retain. Stage 7 still owes the schema-identity test in the backlog.
-
-**The driver's stage-1 warm-start check was failing on a stale `target/release/nvs.exe`, not on the
-tree** — `cargo build --release` here, and it now reports `min 7.3 ms` against its 10 ms budget. The
-playbook bullet under *Tooling* is the home of why it will recur.
+**What stage 2 still owes** is `writeStream` (ADR 0105 § 4 — `overwrite` defaults to `false`, and a
+write that fails mid-stream removes the partial file), the `no_member_dispatches_on_a_uri_scheme`
+test over landed work, and the rest of § 14's handle roster (`readLine`, `seek`, `tell`, `truncate`,
+`flush`, `lock`) plus `stdin`/`stdout`/`stderr`. Stage 8's reflective property write — the group the
+previous handoff named — is untouched and moves to the backlog with its finding intact.
 
 ## Next group
 
-**The reflective property write — stage 8's last named item, over `crates/nvs-stdlib/src/reflect.rs`
-and whatever seam ADR 0014's hook turns out to be reachable through. ADR 0014 is the specification
-and `docs/agent/loop-goal.toml:2474` is the check that names the test.**
+**The rest of stage 2's named check, over `crates/nvs-stdlib/src/io.rs`, `crates/nvs-runtime/src/capability.rs`
+and `crates/nvs-stdlib/tests/capability.rs` — the same three files this session held. ADR 0105 § 4
+and spec § 14 are the specification, and `docs/agent/loop-goal.toml:2218` is the check.**
 
-- [ ] **Find where a native member can reach ADR 0014's observer, and decide whether `set` can exist
-      at all** — the hook is emitted at the call site by
-      `crates/nvs-ir/src/lower/expr.rs:3539`'s `emit_observer_call`, and the runtime's own write is
-      `crates/nvs-runtime/src/object.rs:2481`'s `nvs_object_field_set`, which knows nothing about it.
-      If the answer is a new runtime entry point, that is the slice; if it is that the observer must
-      be looked up off the `ClassDesc` the way `unwind` is, say so in the module doc. Decide and
-      record — a design call here is pre-authorized.
-- [ ] **`Core\Reflect\ClassInfo::set` — the five edits** — ADR 0019 § 2 and ADR 0014.
-      `crates/nvs-stdlib/src/reflect.rs:408`'s `subject_of` is the shared subject check already
-      written, `crates/nvs-stdlib/src/reflect.rs:715`'s `get` is the reader it mirrors, and the named
-      test is `a_reflective_property_write_runs_the_hook_an_ordinary_write_runs`.
-- [ ] **Three `.nvst` cases for the write, under `tests/conformance/core/`** —
-      `crates/nvs-stdlib/src/reflect.rs:800` is the Rust half's fixture and
-      `tests/conformance/core/reflect-call-runs-a-public-method-and-refuses-a-private-one.nvst` the
-      `.nvst` shape; `mixed $x = $obj;` is the spelling for an erased receiver (`var $x: mixed` is
-      `E0102`).
+- [ ] **`Core\IO::writeStream(string $path, Iterable<bytes> $src, {max?, overwrite?})` — the five
+      edits** over `crates/nvs-stdlib/src/io.rs:1126`'s sibling `write`, with the door extended at
+      `crates/nvs-runtime/src/capability.rs:225`. The `Iterable<bytes>` is consumed through
+      `nvs_runtime::sequence::ITERATE` the way `crates/nvs-stdlib/src/io.rs:655`'s neighbour
+      `Core\IO\Lines` answers one; ADR 0105 § 4 is the contract. Write to a sibling temporary and
+      rename, so "removes the partial file" is the failure path doing nothing rather than a cleanup
+      that can itself fail.
+- [ ] **`write_stream_defaults_to_no_overwrite` and
+      `a_write_stream_that_fails_midway_removes_the_partial_file`**, beside this session's two at
+      `crates/nvs-stdlib/tests/capability.rs:427`, with `ctx_reading_and_writing` already there for
+      the grants. Both are named by the acceptance check and neither exists.
+- [ ] **`no_member_dispatches_on_a_uri_scheme`** — ADR 0052, over landed work only: a sweep asserting
+      that no `Core\IO` body branches on a `://` prefix and that no registry row anywhere spells a
+      scheme. Same file, `crates/nvs-stdlib/tests/capability.rs:427`.
 
 ## Backlog
 
-- Stage 7's schema-identity test — application code and the engine floor produce identical log
-  records for one error; `docs/plan/m8.md` § *Verify*.
-- Reflective *construction*, the third acting member ADR 0019 § 2 names — `crates/nvs-stdlib/src/reflect.rs`'s known gap 3.
-- § 1's remaining `*Info` classes: a description names properties and no methods, so
-  `get_class_methods` has no answer — same known-gap list.
-- `Core\Ast`'s typed per-production roster and a node's own text —
-  `crates/nvs-stdlib/src/ast.rs`'s module doc.
+- **Stage 8's reflective property write** — ADR 0014's hook is emitted at the *call site* by
+  `crates/nvs-ir/src/lower/expr.rs:3539`, so a native member cannot reach it and
+  `crates/nvs-runtime/src/object.rs:2481` is not where it lives; the decision is still open.
+  `docs/agent/loop-goal.toml:2474` names the test.
+- Stage 7 still owes the schema-identity test — application code and the engine floor produce
+  schema-identical records (`docs/plan/m8.md`, ADR 0020's M7/M8 list).
+- § 14's remaining handle members and the standard streams, per `crates/nvs-stdlib/src/io.rs:655`'s
+  own doc comment.

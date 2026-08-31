@@ -1220,6 +1220,18 @@ is why" — is this file.
   the newest file under crates/` line the tool prints directly above the failure — it is one line up
   and reads as boilerplate. `cargo build --release` and re-run before believing any part of the
   error underneath it.
+- **The driver's acceptance report walks the stages in order and stops at the first failure, so a
+  `did not run` naming an *early* stage is the frontier having moved backwards past the handoff's
+  next group.** Session 0004 closed the last stage-1 check and the report went from `[8
+  introspection]` to `nvs-stdlib (Core\IO) [2 filesystem]: test
+  'an_open_file_is_an_object_and_never_a_resource' did not run` — which reads like a stale check and
+  is not one: five of that check's seven tests had never existed, because `Core\IO`'s *Handles*
+  bullet had never been built, and every session since stage 2 had been reading a report that
+  happened to name something later. The tell is the check count in `.loop/log.md`: it grows as
+  earlier stages pass (51 → 131 → 147), so a rising count with an earlier stage named is the report
+  advancing, not regressing. Two `peek.py` calls settle it — grep the named test across
+  `crates/**/*.rs`, then read the check's block in `loop-goal.toml` for the rest of its `tests` list
+  — and the answer decides whether the session takes the handoff's group at all.
 
 ## Running things
 

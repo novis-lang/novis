@@ -421,3 +421,194 @@ impl Files for Fake {
         unreachable!("a capability check asks the canonicalizer, which answers for absence too")
     }
 }
+
+/// `Core\IO\File`, as the registry spells it. The constant itself is
+/// `pub(crate)`, so a test outside the crate names it the way a program does.
+const FILE: &str = r"Core\IO\File";
+
+/// `Core\IO\FileMode`, likewise.
+const FILE_MODE: &str = r"Core\IO\FileMode";
+
+#[test]
+fn an_open_file_is_an_object_and_never_a_resource() {
+    // Spec § 14's R14. What separates an object from a `resource` is not that
+    // `open` answers something with a name — a `resource` has a type name too —
+    // but that every operation on it is reached *through* it. PHP's handle is
+    // an integer passed back to `fread`, `fgets`, `fwrite`, `fseek` and
+    // `flock`, each of which re-checks it, and each of which will take any
+    // other resource just as happily.
+    let io = nvs_stdlib::registry::class(r"Core\IO").expect("`Core\\IO` is registered");
+    let open = io
+        .methods
+        .iter()
+        .find(|method| method.name == "open")
+        .expect("§ 14's *Handles* bullet is a member");
+    assert!(
+        matches!(open.return_ty, nvs_stdlib::registry::CoreTy::Instance(name) if name == FILE),
+        "`open` answers a named class rather than an integer with a tag on it"
+    );
+
+    let file = nvs_stdlib::registry::class(FILE).expect("`Core\\IO\\File` is registered");
+    assert!(
+        !file.slots.is_empty() && !file.instance.is_empty(),
+        "an open file has state and members over it — {} slot(s), {} member(s)",
+        file.slots.len(),
+        file.instance.len()
+    );
+    assert!(
+        file.methods.is_empty(),
+        "every member of this class takes the handle as its receiver, so none of them is static"
+    );
+
+    // The invariant the sweep is for, and the one a member added later would
+    // break without any single row looking wrong: **nothing anywhere in `Core`
+    // accepts an open file as an argument.** That is `fread($handle, 8)`
+    // refused as a shape, across the whole library rather than at the one place
+    // a reviewer thought to look.
+    let mut takers = Vec::new();
+    for class in nvs_stdlib::registry::CLASSES {
+        for method in class.methods.iter().chain(class.instance) {
+            let takes_a_handle = method.params.iter().any(|param| {
+                matches!(param, nvs_stdlib::registry::CoreTy::Instance(name) if *name == FILE)
+            });
+            if takes_a_handle {
+                takers.push(format!("{}::{}", class.name, method.name));
+            }
+        }
+    }
+    assert!(
+        takers.is_empty(),
+        "an open file is operated on through its own members, never handed to one: {takers:?}"
+    );
+
+    // And a program cannot fabricate one: there is no constructor, so the only
+    // thing that produces a handle is the door that checked the capability.
+    assert!(
+        nvs_stdlib::registry::constructor_symbol(FILE).is_none(),
+        "`new Core\\IO\\File()` would be a handle nothing had granted"
+    );
+}
+
+#[test]
+fn a_file_mode_is_an_enum_and_never_a_string() {
+    // Spec § 14's R11. The registry half first: `open`'s second parameter is
+    // the enum, so `Core\IO::open($p, "r+b")` is refused by `E0401` before the
+    // program runs rather than by a parser inside the member.
+    let io = nvs_stdlib::registry::class(r"Core\IO").expect("`Core\\IO` is registered");
+    let open = io
+        .methods
+        .iter()
+        .find(|method| method.name == "open")
+        .expect("§ 14's *Handles* bullet is a member");
+    assert!(
+        matches!(open.params[1], nvs_stdlib::registry::CoreTy::Enum(name) if name == FILE_MODE),
+        "the mode is a case of a closed enum and not text of any classification"
+    );
+
+    let mode = nvs_stdlib::registry::ENUMS
+        .iter()
+        .find(|declared| declared.name == FILE_MODE)
+        .expect("`Core\\IO\\FileMode` is registered");
+    let names: Vec<&str> = mode.cases.iter().map(|(name, _)| *name).collect();
+    assert_eq!(
+        names,
+        ["Read", "Write", "Append", "ReadWrite"],
+        "four cases replace `fopen`'s twelve spellings, and `b`/`t` is not an axis at all"
+    );
+
+    // The half a registry assertion cannot reach: each case has to *do*
+    // something different to the file, or the enum would be four names for one
+    // behaviour. Asserted at the door rather than through the member, because
+    // what the case selects is a `capability::Access` and the member adds
+    // nothing to it.
+    let dir = std::env::temp_dir().join("nvs-file-mode-cases");
+    std::fs::create_dir_all(&dir).expect("a temporary directory the test owns");
+    let path = dir.join("note.txt");
+    std::fs::write(&path, b"first\n").expect("the starting content");
+    let ctx = ctx_reading_and_writing(&[&canonical(&dir)]);
+    let opened = |access| {
+        nvs_runtime::capability::open(&ctx, &path, access, "Core\\IO::open")
+            .expect("both capabilities are granted under this root")
+    };
+
+    // `Append` keeps what is there and writes past it.
+    {
+        use std::io::Write;
+        let mut handle = opened(nvs_runtime::capability::Access::Append);
+        handle.write_all(b"second\n").expect("the append");
+    }
+    assert_eq!(
+        std::fs::read(&path).expect("the file"),
+        b"first\nsecond\n",
+        "`Append` adds and never replaces"
+    );
+
+    // `ReadWrite` creates nothing here and empties nothing either — it is
+    // `fopen`'s `c+` and not its `w+`, which is the whole reason the other `+`
+    // forms are not cases.
+    drop(opened(nvs_runtime::capability::Access::ReadWrite));
+    assert_eq!(
+        std::fs::read(&path).expect("the file"),
+        b"first\nsecond\n",
+        "`ReadWrite` truncates nothing"
+    );
+
+    // `Write` empties it, and does so on the open rather than on the first
+    // write — a caller that opened and then decided not to write has already
+    // changed the file.
+    drop(opened(nvs_runtime::capability::Access::Write));
+    assert!(
+        std::fs::read(&path).expect("the file").is_empty(),
+        "`Write` truncates when the handle is made"
+    );
+
+    // `Read` on a name that is not there is the one case that refuses rather
+    // than creating, which is what makes it different from the three above.
+    let missing = dir.join("never-written.txt");
+    let _ = std::fs::remove_file(&missing);
+    nvs_runtime::capability::open(
+        &ctx,
+        &missing,
+        nvs_runtime::capability::Access::Read,
+        "Core\\IO::open",
+    )
+    .expect_err("`Read` opens what is there and creates nothing");
+
+    // And `ReadWrite` on the same name does create it, which is the pair of
+    // that refusal asserted from the other side.
+    drop(
+        nvs_runtime::capability::open(
+            &ctx,
+            &missing,
+            nvs_runtime::capability::Access::ReadWrite,
+            "Core\\IO::open",
+        )
+        .expect("`ReadWrite` creates what is not there"),
+    );
+    assert!(missing.exists(), "`ReadWrite` created it");
+    let _ = std::fs::remove_file(&missing);
+}
+
+/// A context granting `fs.read` **and** `fs.write` under `roots`, which is what
+/// a mode-by-mode test needs: [`ctx_reading`] would make every writing case
+/// refuse for the wrong reason.
+fn ctx_reading_and_writing(roots: &[&str]) -> nvs_runtime::Ctx {
+    let listed: Vec<String> = roots.iter().map(|&root| root.to_owned()).collect();
+    let mut caps = Capabilities {
+        fs: Some(CapFs {
+            read: Some(Setting::List(listed.clone())),
+            write: Some(Setting::List(listed)),
+        }),
+        ..Capabilities::default()
+    };
+    caps.canonicalize(&Disk);
+    let mut ctx = nvs_runtime::Ctx::buffered();
+    ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+        config: nvs_config::tree::Config {
+            capabilities: Some(caps),
+            ..nvs_config::tree::Config::default()
+        },
+        ..nvs_config::Snapshot::default()
+    }));
+    ctx
+}
