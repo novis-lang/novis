@@ -3534,6 +3534,14 @@ is why" — is this file.
   precedent in a comment beside its `$response->status()`. So a `Decision` is four zero-argument
   instance members and the ADR's field list is a *field* list, not a syntax. Check
   `CoreTy::Instance` before transcribing any ADR that writes a `Core` value's fields with a colon.
+- **A trailing `%A` on its own line in an `--EXPECTF-ERROR--` does not match nothing.** Two
+  `Core\Debug` cases ended `Uncaught Exception: …` / `%A`, where the `%A` was absorbing the
+  backtrace lines below. When the tier-4 floor folded the backtrace into the record's own
+  `backtrace` field, the report became exactly one line, the `%A` had nothing left to match,
+  and both cases failed with an *identical-looking* expected and actual block — the diff prints
+  the pattern rather than what it expanded to, so the only visible difference was the extra
+  `%A` line. Delete the wildcard when the output it was covering goes away; a `%A` is an
+  absorber, not an optional tail.
 
 ## Splitting a file that got too big
 
