@@ -1256,6 +1256,17 @@ is why" — is this file.
   `the_engine_floor_rate_limits` reads better, passes `cargo test`, and leaves the driver
   reporting "did not run" forever. Read the `tests = [...]` list before deciding how many
   functions the work becomes.
+- **`nvs-ir`'s refusal ceiling is a ratchet over what a panic's *message says*, not over how many
+  `panic!`s exist, so rewording one can turn `verify.py` red with no new site.**
+  `crates/nvs-ir/tests/refusals.rs`'s `CEILING` is fed by `tools/holes.py`, whose `REFUSAL` regex
+  matches `does not (yet) lower`, `only lowers`, `has no arm for` and their siblings inside any
+  `panic!`/`assert!` literal. Adding "which this crate does not lower yet" to an existing
+  consistency panic — an honest edit, since the shape had just become reachable — took the count 15
+  → 16 against a constant whose own doc says "this is the last time this number may rise". The tell
+  is a red `-p nvs-ir --test refusals` naming a ceiling while `python tools/holes.py` reports
+  `UNATTRIBUTED: 0`. Neither the allowlist nor the ceiling may be edited to pass, so a *claim* of a
+  lowering gap belongs in the slice that removes the site; until then the crate docs' known-gaps
+  section is where it goes, and the panic keeps whatever it already said.
 
 ## Running things
 
@@ -1688,6 +1699,16 @@ is why" — is this file.
   at `crates/nvs-ir/src/lower/mod.rs`'s known-gap panic, which names the type it will not lower —
   so the tree answered "no key value exists in a lowered program" before a line of the new arm was
   written, and the doc comment that carries the proof could name the panic that enforces it.
+- **A lowering arm that hands back its own operand owes a retain, and skipping it is a heap
+  corruption that passes `nvs.exe run` and fails only under the conformance runner.** The exit
+  status is `-1073740940` (`0xC0000374`, `STATUS_HEAP_CORRUPTION`) with no message and no Rust
+  backtrace, and the same case run by hand prints the right answer, because a double release only
+  trips the allocator once the process does enough afterwards. `Lowering::convert`'s free
+  `from == to` row already carries the rule in full — every consumer reads `is_aliasing_read` off
+  the `as` node and treats the result as a value it owns — so any *new* arm that returns its
+  operand instead of a fresh value has to repeat that `aliasing_read`/`emit_retain` pair. Copying
+  `lower_class_reference`, which owes none, is the way to get this wrong: a descriptor is immortal
+  and a `string` is not.
 
 ## Writing a test case
 
@@ -5046,6 +5067,16 @@ sibling in the same namespace unqualified.
   `env.signatures` or `env.graph` from a lowering has to be sited where the table is real, and the
   two candidates are not equivalent — `check.rs:456` re-lowers a *property* annotation at check
   time, but a method parameter's annotation is lowered once, during collection, and never again.
+- **A slice the plan names as `nvs-ir`'s can be unbuildable there, because that crate holds no class
+  table.** `Lowering` carries `exprs`, `checked_types` and an `EnumTable` and nothing else about a
+  declaration, so any *set* the checker derived from the hierarchy — `property<T>`'s public property
+  roster is the first, and a class's method roster would be the next — cannot be re-derived below the
+  erasure. The shape that works is the one `ExprInfo::EnumCase` and `ExprInfo::PropertyKey` already
+  take: the checker records the resolved set, `nvs-ir` reads it back. `property<T>`'s entry is keyed
+  by the **annotation's** span rather than the conversion expression's, because `lower_conversion`
+  holds the `Type` node and not the `Expr` around it, and `ExprTypeTable`'s `types` and `by_span` are
+  separate maps so a declared type and an `ExprInfo` share a span without shadowing. Reading the item
+  as "one arm in `erase_checked_ty` plus one in the `Conversion` arm" costs the discovery twice.
 
 ## Divergences and refusals already pinned
 
