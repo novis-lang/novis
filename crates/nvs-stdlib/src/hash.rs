@@ -59,18 +59,17 @@
 //! sometimes a string is exactly the per-algorithm special case this member
 //! exists to remove.
 //!
-//! # `secret`, and what a registry row cannot yet say
+//! # `secret`, and the spelling that arrived for it
 //!
 //! § 11 writes `hmac`'s key parameter as `secret bytes $key`
-//! ([ADR 0024](../../../../docs/adr/0024-secret-values.md)), and
-//! [`crate::registry::CoreTy`] has no qualifier to carry that with — a
-//! registry row states an atom, not a qualified type. The row below is
-//! therefore a plain [`CoreTy::Bytes`], which is *narrower protection than the
-//! spec promises*, not different behaviour: nothing about how the key is read
-//! or held changes, only whether the checker refuses to let it reach a sink.
-//! When qualifiers become expressible in a row, this parameter is the one that
-//! wants it first. Recorded here rather than filed away because the row itself
-//! looks complete.
+//! ([ADR 0024](../../../../docs/adr/0024-secret-values.md)), and for a long
+//! time [`crate::registry::CoreTy`] had no qualifier to carry that with — a
+//! row stated an atom, not a qualified type. [`CoreTy::SecretBlob`] is that
+//! spelling, added for [`crate::crypto`]'s key parameters, and the row below
+//! now writes it: the key is a `secret bytes` the checker keeps out of a sink,
+//! and nothing about how it is read or held here changed. A caller handing a
+//! plain `bytes` key is unaffected, because `nvs_types`' assignment relation
+//! widens onto a qualifier bit and never off one.
 //!
 //! # Why these dependencies
 //!
@@ -114,7 +113,7 @@ use sha2::Digest as _;
 use subtle::ConstantTimeEq as _;
 
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc,
+    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -315,7 +314,11 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "hmac",
             names: &["data", "key", "digest"],
-            params: &[CoreTy::Union(DATA), CoreTy::Bytes, CoreTy::Union(STRONG)],
+            params: &[
+                CoreTy::Union(DATA),
+                CoreTy::SecretBlob(Qual::Neutral),
+                CoreTy::Union(STRONG),
+            ],
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_hash_hmac",

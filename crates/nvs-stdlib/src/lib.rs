@@ -214,6 +214,7 @@ pub mod cldr;
 mod cli;
 mod command;
 mod config;
+mod crypto;
 mod csv;
 mod cursor;
 mod debug;
@@ -319,6 +320,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| cli::address(symbol))
         .or_else(|| command::address(symbol))
         .or_else(|| config::address(symbol))
+        .or_else(|| crypto::address(symbol))
         .or_else(|| csv::address(symbol))
         .or_else(|| cursor::address(symbol))
         .or_else(|| debug::address(symbol))

@@ -215,6 +215,37 @@ pub enum CoreTy {
     Text(Qual),
     /// A `bytes` parameter carrying its classification — [`Self::Text`]'s twin.
     Blob(Qual),
+    /// `secret bytes` — [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// § 1's qualifier written into a row's own signature, unclassified, and
+    /// [`Self::SecretBlob`]'s twin exactly as [`Self::Bytes`] is
+    /// [`Self::Blob`]'s.
+    ///
+    /// **The first spelling here that carries a qualifier rather than a
+    /// classification, and the difference is the whole of what it buys.** A
+    /// [`Qual`] says what a member *does with* an argument; this says what the
+    /// value *is*. So it is the one of the two that means anything in return
+    /// position: `Core\Crypto::generateKey(): secret bytes` hands back a key
+    /// the checker will not let a program put in a plain `bytes`, which is a
+    /// property no classification of an argument could have produced.
+    ///
+    /// In parameter position it is a *demand* rather than an admission.
+    /// `nvs_types`' assignment relation widens a value onto either qualifier
+    /// bit freely and narrows through neither, so a plain `bytes` argument is
+    /// accepted here and a `secret bytes` one is too, and nothing is
+    /// laundered on the way in — which is why [`crate::crypto`] writes no
+    /// [`Qual::Reveal`] and the roster closed by `nvs_types`'
+    /// `reveal_and_the_password_helpers_are_the_only_launderers_of_secret`
+    /// stays two classes wide.
+    ///
+    /// [`crate::hash`]'s module doc recorded the gap this closes, and
+    /// `Core\Hash::hmac`'s key is the parameter it named as wanting it first.
+    SecretBytes,
+    /// A `secret bytes` parameter carrying its `tainted`-axis classification —
+    /// [`Self::SecretBytes`]'s twin, as [`Self::Blob`] is [`Self::Bytes`]'s.
+    /// The two axes are independent, so a row that declares confidentiality
+    /// still owes ADR 0088 § 2's separate answer about where the value came
+    /// from.
+    SecretBlob(Qual),
     /// `void`, return position only.
     Void,
     /// `mixed` — ADR 0007 § 3's one unchecked position.
@@ -775,7 +806,7 @@ impl CoreTy {
     #[must_use]
     pub const fn classification(&self) -> Option<Qual> {
         match self {
-            Self::Text(qual) | Self::Blob(qual) => Some(*qual),
+            Self::Text(qual) | Self::Blob(qual) | Self::SecretBlob(qual) => Some(*qual),
             _ => None,
         }
     }
@@ -787,7 +818,12 @@ impl CoreTy {
     pub const fn is_text_like(&self) -> bool {
         matches!(
             self,
-            Self::Str | Self::Bytes | Self::Text(_) | Self::Blob(_)
+            Self::Str
+                | Self::Bytes
+                | Self::Text(_)
+                | Self::Blob(_)
+                | Self::SecretBytes
+                | Self::SecretBlob(_)
         )
     }
 }
@@ -1106,6 +1142,12 @@ pub const CLASSES: &[CoreClass] = &[
     // of the second. [`crate::password`] owns the parameters and why there is
     // no argument for them.
     crate::password::CLASS,
+    // ADR 0051 § 3's "AEAD only", and beside the two above for their reason:
+    // this is the class whose `secret bytes` key crosses the same boundary
+    // without any member removing the mark, which is what keeps the roster
+    // above closed at two. [`crate::crypto`] owns the construction and why
+    // there is no cipher argument.
+    crate::crypto::CLASS,
 ];
 
 /// Every `Core` member that needs a capability, and which one —
@@ -1985,7 +2027,7 @@ mod tests {
     fn every_member_parameter_carries_a_qualifier_classification() {
         fn unclassified(ty: &CoreTy) -> bool {
             match ty {
-                CoreTy::Str | CoreTy::Bytes => true,
+                CoreTy::Str | CoreTy::Bytes | CoreTy::SecretBytes => true,
                 CoreTy::Nullable(inner) | CoreTy::Variadic(inner) => unclassified(inner),
                 CoreTy::Union(members) => members.iter().any(unclassified),
                 CoreTy::Options(options) => options.iter().any(|option| unclassified(&option.ty)),

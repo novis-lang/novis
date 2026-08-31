@@ -347,6 +347,29 @@ argon2 = { version = "0.6", default-features = false, features = [
     "password-hash",
 ] }
 
+# --- authenticated encryption (`Core\Crypto`, ADR 0051 § 3's AEAD-only surface) ---
+# ADR 0051 § 4's first question is "yes" and then some: `open` is handed a
+# sealed message an attacker chose, and refusing a forgery is the member's whole
+# contract — so the second question picks the crate, and it picks the one whose
+# tag comparison is somebody's maintained job rather than ours.
+# `chacha20poly1305` is RustCrypto's, pure Rust with no build script and no C,
+# and it verifies against RFC 8439's own vectors and the XChaCha20-Poly1305
+# draft's. `crates/nvs-stdlib/src/crypto.rs` owns why the construction is the
+# extended-nonce one rather than the RFC's 96-bit original.
+#
+# The cost is six crates — itself, `aead`, `cipher`, `inout`, `poly1305` and
+# `universal-hash` — and no second copy of anything: the `chacha20` cipher
+# underneath is already in this tree's lock file, because `rand` 0.10's own
+# generator is ChaCha12 from that same crate, and `crypto-common 0.2` and
+# `ctutils` arrived with `argon2` above. All MIT/Apache-2.0.
+#
+# `getrandom` is off for `argon2`'s reason above and the same one again: the
+# nonce is drawn through `crate::random`'s seam, so this tree has one CSPRNG and
+# a `#[Test(seed: …)]` reproduces a sealed message byte for byte.
+chacha20poly1305 = { version = "0.11", default-features = false, features = [
+    "alloc",
+] }
+
 # --- base64 (spec § 7's `Core\Encoding` base64 pair and its URL-safe variant) ---
 # RFC 4648's alphabets, its padding rules and its URL-safe variant are an
 # external specification, and `fromBase64` is a member attacker-controlled text

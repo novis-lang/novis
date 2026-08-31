@@ -334,7 +334,7 @@ fn lower_const(value: &Const) -> ConstArg {
 /// position onward is checked against — and classified by — the element.
 fn qual_of(ty: &CoreTy) -> Option<Qual> {
     match ty {
-        CoreTy::Text(qual) | CoreTy::Blob(qual) => Some(*qual),
+        CoreTy::Text(qual) | CoreTy::Blob(qual) | CoreTy::SecretBlob(qual) => Some(*qual),
         CoreTy::Variadic(elem) => qual_of(elem),
         // Every other spelling has no classification of its own, including an
         // `array<text>` element and an options bag's members: no registry row
@@ -381,6 +381,14 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // that half is ADR 0088's to answer before it is written.
         CoreTy::Str | CoreTy::Text(_) => interner.string(),
         CoreTy::Bytes | CoreTy::Blob(_) => interner.bytes(),
+        // The one pair that carries a *qualifier* rather than a
+        // classification, so unlike every other spelling above it interns as a
+        // qualified atom — `CoreTy::SecretBytes`'s own docs are the home of why
+        // that is a different thing from a `Qual` and what it buys in return
+        // position. Nothing about the admission rules changes: a plain `bytes`
+        // argument still reaches this parameter, because `super::assign` widens
+        // onto a qualifier bit and never off one.
+        CoreTy::SecretBytes | CoreTy::SecretBlob(_) => interner.secret_bytes(),
         CoreTy::Void => interner.void(),
         CoreTy::Array(elem) => {
             let elem = lower(elem, interner);

@@ -296,6 +296,7 @@ fn ty_string(ty: &CoreTy) -> String {
         CoreTy::Decimal => "decimal".into(),
         CoreTy::Str | CoreTy::Text(_) => "string".into(),
         CoreTy::Bytes | CoreTy::Blob(_) => "bytes".into(),
+        CoreTy::SecretBytes | CoreTy::SecretBlob(_) => "secret bytes".into(),
         CoreTy::Void => "void".into(),
         CoreTy::Mixed => "mixed".into(),
         CoreTy::Array(elem) => format!("array<{}>", ty_string(elem)),
