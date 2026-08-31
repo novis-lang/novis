@@ -60,8 +60,8 @@
 > 7 has opened**: `Core\Log::write` is a row, a card and a body, ADR 0020 § 6's tier-4 floor writes
 > that record through `nvs_render::json`, and § 3's tier 3 runs above it — `[app.log] handler` as an
 > isolate, from the CLI's root task and from an isolate's `finish`, reporting only when it is absent
-> or failed. `examples/logging.nvs` is green; § 3's engine-owned reserve is owed. Conformance 1176,
-> differential 210 of 210, migration 37% over its 36% floor.
+> or failed. `examples/logging.nvs` is green; § 3's engine-owned reserve is `Ctx::handler_isolate`.
+> Conformance 1176, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

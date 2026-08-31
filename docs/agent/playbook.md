@@ -1199,6 +1199,15 @@ is why" — is this file.
   that as "my fix did not work" rather than "the fix is not loaded". When the thing you changed is
   the driver rather than the tree, verify it by hand, say in the handoff that the run must be
   restarted to pick it up, and expect the acceptance line to stay red until it is.
+- **An acceptance check reading `E0405: Core\X has no member named y` can be a stage nobody has
+  started, not a regression — the tell is whether `crates/nvs-stdlib/src/<x>.rs` exists at all.**
+  `examples/reflect.nvs` failed on `Core\Reflect::forObject` for a session that had touched nothing
+  near it, and the sentence reads exactly like a member that was removed. It is not: `Core\Reflect`
+  resolves because `nvs_hir::qname::is_reserved_global_class` knows the *name*, while no module
+  registers a single member of it, so every member of an unwritten class fails with that same
+  sentence. One `ls crates/nvs-stdlib/src/<class>.rs` separates "a row went missing" from "the stage
+  is unstarted", and the second is ordinary state that a group has to be planned for rather than a
+  failure to bisect.
 
 ## Running things
 
