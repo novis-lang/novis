@@ -18,7 +18,7 @@ license = "MIT"
 authors = ["The Novis authors"]
 repository = "https://github.com/nvs-lang/nvs"
 homepage = "https://github.com/nvs-lang/nvs"
-description = "Novis — the web-native programming language: JIT-compiled, memory-safe, for web and CLI"
+description = "Novis — a programming language for the web. Secure by design: untrusted data is tracked, secrets can't leak, downloaded code does only what you allow. Fast, for web servers and the command line"
 keywords = ["language", "jit", "web", "php", "compiler"]
 categories = ["compilers", "development-tools"]
 

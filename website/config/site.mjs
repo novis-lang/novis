@@ -24,7 +24,7 @@ export const SITE_TITLE = 'Novis'
 
 /** Default description for pages that state none. */
 export const SITE_DESCRIPTION =
-  'Novis is a JIT-compiled, memory-safe programming language for web servers and the command line — built to run web requests and CLI programs securely and fast.'
+  "Novis — a programming language for the web. Secure by design, not by discipline: untrusted data is tracked and blocked from anywhere dangerous, secrets can't leak, and downloaded code does only what you allow. Fast, like you would expect."
 
 /**
  * Deep link into the repository tree (for e.g. `docs/adr/0002-….md`).

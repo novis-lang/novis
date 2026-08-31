@@ -1,7 +1,9 @@
 # Novis — The Web-Native Programming Language
 
-A JIT-compiled, memory-safe language for web servers and the command line, with PHP 8.5 syntax as its
-starting point and no build step: change a file, run it.
+A programming language for the web. Secure by design, not by discipline. Untrusted data: tracked, and
+blocked from anywhere dangerous. Secrets: can't leak into logs or screens, not even by accident.
+Downloaded code: does only what you allow. Fast, like you would expect. Easy to write, easy to scale.
+For web servers and the command line. Familiar syntax (Hello PHP).
 
 > **Status: pre-alpha, milestone M0.** The architecture is validated by working spikes but the language
 > does not run yet. `Hello World` is milestone M3. Nothing here is stable.
