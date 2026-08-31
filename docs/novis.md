@@ -58,6 +58,7 @@ Conventions the whole file uses:
 | [`Core\Arr`](#core-core-arr) | every array function as a pure member — filter, map, sort, search, reshape, combine and aggregate, always answering a new array |
 | [`Core\Attributes`](#core-core-attributes) | reads the shape-literal attributes attached to a class, a method, a property or a parameter — structurally, by the shape they satisfy, at compile time |
 | [`Core\Math`](#core-core-math) | numeric functions over `int`, `float` and `decimal` — magnitude, rounding, integer division, roots, logarithms, trigonometry, base conversion and number formatting, plus the constants |
+| [`Core\Decimal`](#core-core-decimal) | the two divisions that name their own rounding — one that throws unless the quotient is exact, one that takes the scale and the mode as arguments |
 | [`Core\Regex`](#core-core-regex) | regular expressions without delimiters — match, capture, replace and split, linear-time by default with a step budget for the patterns that need backtracking |
 | [`Core\Regex\Match`](#core-core-regex-match) | one match of a pattern — its text, its groups by number or name, and where it starts |
 | [`Core\Regex\Pattern`](#core-core-regex-pattern) | a compiled pattern carrying its flags, taken by every `Core\Regex` member in place of a pattern string |
@@ -8846,6 +8847,114 @@ Core\Math::format(int|float|decimal $n, {decimals?: uint, decimalSeparator?: str
 **Returns** `string` — The digit string, rounded half away from zero at `decimals` places as `number_format` rounds — exactly for a `decimal` — with a leading `-` for a negative `$n`.
 
 **Throws** `RuntimeError` — When `$n` is an infinity or `NaN`, which have no digits, or when `decimals` is past `100`.; `ArithmeticError` — When `$n` is a `uint` past `INT_MAX`.
+
+<a id="core-core-decimal"></a>
+### `Core\Decimal`
+
+Keywords: decimal, division, divExact, divRound, rounding, scale, money, currency, banker's rounding, half-even, bcmath, bcdiv, exact, divExact, divRound
+
+Novis's `decimal` scalar carries its own arithmetic as operators — `+`, `-`, `*`, `%` and `/` all work
+directly on it, exactly, with no class in the way. Division is the one operation that may be inexact, and
+the `/` operator's answer to that is fixed in the language: round half to even, at the widest scale the
+result admits. There is no `bcscale()` and never will be, because an ambient precision that unrelated later
+code reads is a global by another name.
+
+`Core\Decimal` is where a program says something the operator cannot. Two questions come up in money code
+and nowhere else does the type system help with them:
+
+- **"this division must come out even"** — `divExact` answers the quotient when it is exact and throws
+  `ArithmeticError` when it is not. A third of a bill is not a number you should get back by accident.
+- **"round it here, this way"** — `divRound` takes the number of places and the rounding mode as ordinary
+  arguments, both required. Neither has a default, because a default for either would be that same ambient
+  precision moved into a signature. The mode is `Core\RoundMode`, the same enum `Core\Math::round` takes.
+
+`divRound` rounds **once**, from the exact quotient. It is not the `/` operator's answer rounded a second
+time — rounding twice is how a quotient one digit past the place you asked for carries a tie the exact value
+never had.
+
+The scale you name is the scale you get: `divRound($x, $y, 5, …)` answers at five places even where fewer
+would do, because a rendered price needs its trailing zeros. A scale past 28 is refused rather than quietly
+narrowed, as is a quotient whose digits will not fit at the scale you asked for.
+
+```nvs
+<?nvs
+decimal $bill = 100.00;
+decimal $three = 3;
+decimal $four = 4;
+
+// An even split answers exactly, at the scale the quotient needs.
+echo Core\Decimal::divExact($bill, $four), "\n";
+
+// An uneven one refuses, rather than handing back 33.33... and letting the
+// missing penny turn up in a reconciliation months later.
+try {
+    echo Core\Decimal::divExact($bill, $three);
+} catch (ArithmeticError $uneven) {
+    echo "not an even split\n";
+}
+
+// Where rounding is the business rule, it is written at the call site.
+echo Core\Decimal::divRound($bill, $three, 2, Core\RoundMode::HalfUp), "\n";
+echo Core\Decimal::divRound($bill, $three, 2, Core\RoundMode::Up), "\n";
+
+// One eighth is 0.125 exactly, so two places is the tie the `Half*` modes are
+// named for -- and the scale is the answer's, so it pads.
+decimal $one = 1;
+decimal $eight = 8;
+echo Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfEven), "|",
+     Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfUp), "|",
+     Core\Decimal::divRound($one, $four, 5, Core\RoundMode::HalfEven), "\n";
+```
+```output
+25
+not an even split
+33.33
+33.34
+0.12|0.13|0.25000
+```
+
+| Member | Signature |
+|---|---|
+| [`Core\Decimal::divExact`](#core-core-decimal-divexact) | `divExact(decimal $value, decimal $divisor): decimal` |
+| [`Core\Decimal::divRound`](#core-core-decimal-divround) | `divRound(decimal $value, decimal $divisor, uint $scale, Core\RoundMode $mode): decimal` |
+
+<a id="core-core-decimal-divexact"></a>
+#### `Core\Decimal::divExact`
+
+```nvs skip
+Core\Decimal::divExact(decimal $value, decimal $divisor): decimal
+```
+
+`$value / $divisor` where the quotient is exact, and a throw where it is not — the division for a place that has assumed the split comes out even, so the assumption fails loudly instead of silently rounding.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `decimal` | The dividend. |
+| `$divisor` | `decimal` | What to divide it by. |
+
+**Returns** `decimal` — The quotient, at the scale it needs and no wider — `1.00 / 4` is `0.25`.
+
+**Throws** `ArithmeticError` — When `$divisor` is zero, when the quotient repeats, and when it is wider than a `decimal` holds — the last two say so in one sentence, because either way the exact answer is not available.
+
+<a id="core-core-decimal-divround"></a>
+#### `Core\Decimal::divRound`
+
+```nvs skip
+Core\Decimal::divRound(decimal $value, decimal $divisor, uint $scale, Core\RoundMode $mode): decimal
+```
+
+`$value / $divisor` rounded to `$scale` places under `$mode`, both named at the call — the spelling for rounding that is business logic, since the `/` operator's own half-even rule is fixed and takes no argument.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `decimal` | The dividend. |
+| `$divisor` | `decimal` | What to divide it by. |
+| `$scale` | `uint` | How many digits after the point the answer keeps, at most 28. The answer carries exactly this scale, so a rounded price renders with its trailing zeros. |
+| `$mode` | `Core\RoundMode` | How a value between two neighbours settles — the same `Core\RoundMode` `Core\Math::round` takes, applied to the exact quotient rather than to an already-rounded one. |
+
+**Returns** `decimal` — The quotient at exactly `$scale` places.
+
+**Throws** `ArithmeticError` — When `$divisor` is zero, when `$scale` is past 28, and when the quotient's mantissa would not fit at that scale.
 
 <a id="core-core-regex"></a>
 ### `Core\Regex`
