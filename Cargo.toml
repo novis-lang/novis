@@ -315,6 +315,38 @@ crc32fast = "1"
 crc32c = "0.6"
 subtle = "2"
 
+# --- password hashing (`Core\Password`, ADR 0051 § 3's framework-privileged half) ---
+# Argon2id is a memory-hard KDF: a table of `m` KiB filled in `t` passes, with a
+# published specification (RFC 9106) and known-answer vectors, and it is the one
+# primitive in this tree where writing it ourselves would be indefensible —
+# a subtly wrong Blake2b-long or a mis-indexed reference block still produces
+# stable, verifiable hashes, so the bug is silent and permanent in every stored
+# credential. ADR 0051 § 4's first question is "yes": `verify` and `needsRehash`
+# are handed a stored hash string, and `hash` a password, both of which are
+# attacker-influenced, so the second question picks the crate. `argon2` is
+# RustCrypto's, pure Rust with no build script and no C, and it adds eleven
+# crates to the lock file — itself, `password-hash`, `phc`, `base64ct`,
+# `blake2`, `cmov`, `ctutils`, `hybrid-array` and the `digest 0.11`/
+# `crypto-common 0.2`/`block-buffer 0.12` trait set, all MIT/Apache-2.0. That
+# last three is the cost worth naming: `sha2` and friends above are pinned to
+# `digest 0.10` on purpose, and this is a **second** copy of those traits in
+# the tree. It is not shared code duplicated — `Core\Digest`'s algorithms and
+# Argon2's internal Blake2b are different implementations either way — so what
+# it costs is compile time and lock-file surface, not a divided abstraction,
+# and the alternative was pinning `argon2` to a release older than its own
+# published vectors.
+#
+# `getrandom` is off deliberately: the salt is drawn through
+# `crate::random`'s own seam so this tree has exactly one CSPRNG, which is also
+# what lets a test pin a hash. `password-hash` stays on because the PHC string
+# is what `Core\Password` stores — the algorithm, the version and the cost
+# parameters travel with the digest, which is the whole mechanism `needsRehash`
+# reads. `crates/nvs-stdlib/src/password.rs` owns the parameters and why.
+argon2 = { version = "0.6", default-features = false, features = [
+    "alloc",
+    "password-hash",
+] }
+
 # --- base64 (spec § 7's `Core\Encoding` base64 pair and its URL-safe variant) ---
 # RFC 4648's alphabets, its padding rules and its URL-safe variant are an
 # external specification, and `fromBase64` is a member attacker-controlled text

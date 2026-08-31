@@ -233,6 +233,7 @@ mod objmap;
 mod objset;
 mod ordering;
 mod out;
+mod password;
 pub mod path;
 mod process;
 mod program;
@@ -331,6 +332,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| objmap::address(symbol))
         .or_else(|| objset::address(symbol))
         .or_else(|| out::address(symbol))
+        .or_else(|| password::address(symbol))
         .or_else(|| path::address(symbol))
         .or_else(|| process::address(symbol))
         .or_else(|| program::address(symbol))

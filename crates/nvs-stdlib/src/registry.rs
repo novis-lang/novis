@@ -155,8 +155,13 @@ pub enum Qual {
     /// `secret` argument, and the answer does not carry the qualifier —
     /// ADR 0033 § 3's named escape hatch, which is why the member alongside it
     /// takes a written `$reason`. [`Self::Launder`]'s twin one axis over, and
-    /// `Core\Secret` is the only class that may write it: every other mark
-    /// refuses `secret`, which is the whole of what makes a reveal greppable.
+    /// **two classes may write it and no third**: `Core\Secret`, whose members
+    /// are the escape hatch itself, and `Core\Password`, whose `hash` and
+    /// `verify` are the one operation that takes a password and answers
+    /// something that is deliberately not a password. Every other mark refuses
+    /// `secret`, which is the whole of what makes a reveal greppable — and the
+    /// roster being two long rather than one is checked, in `nvs-types`'
+    /// `reveal_and_the_password_helpers_are_the_only_launderers_of_secret`.
     Reveal,
 }
 
@@ -1095,6 +1100,12 @@ pub const CLASSES: &[CoreClass] = &[
     // write [`Qual::Reveal`] — see that variant's own docs — and
     // [`crate::secret`] owns why the `bytes` half is a second name.
     crate::secret::CLASS,
+    // § 16, and beside `Core\Secret` rather than in section order because the
+    // two are one mechanism: ADR 0033 § 3 has exactly two operations that take
+    // a `secret` and answer something that is not one, and these are the rows
+    // of the second. [`crate::password`] owns the parameters and why there is
+    // no argument for them.
+    crate::password::CLASS,
 ];
 
 /// Every `Core` member that needs a capability, and which one —
