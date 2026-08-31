@@ -186,7 +186,7 @@ impl Rendered {
     /// `text` with [`text::substitute`] applied — the one constructor.
     #[must_use]
     pub fn new(text: &str) -> Self {
-        Self(text::substitute(text))
+        Self(text::substitute(text).into_owned())
     }
 
     /// The substituted text.

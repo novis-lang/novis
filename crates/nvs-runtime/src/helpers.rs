@@ -2384,16 +2384,48 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::EchoStr` — raw bytes to the request's own output, with
-    /// no escaping. `docs/agent/loop-goal.md` records that decision and why
+    /// `nvs_ir::Helper::EchoStr` — the terminal sink, which neutralizes every
+    /// control byte on the way in.
+    ///
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1 is
+    /// the rule and [`nvs_render::text::substitute`] is the table, called rather
+    /// than restated: `ESC` becomes `␛`, a bare `CR` becomes `␍`, `DEL` becomes
+    /// `␡`, a C1 code point and an unterminated bidirectional control both
+    /// become `�`, and `LF` and `TAB` pass through. It fires **regardless of
+    /// qualifier and regardless of whether the stream is a terminal** — that
+    /// section's two *uniform, not* paragraphs own why, and the short version is
+    /// that a rule whose effect depends on a fact invisible at the `echo` line
+    /// is a worse implicit than the uniform one.
+    ///
+    /// Nothing visible is lost, which is what makes a non-optional default
+    /// affordable: the bytes replaced here are commands the terminal consumes
+    /// and shows to nobody, so substituting them makes `echo` show *more* of
+    /// what arrived rather than less. That asymmetry with
     /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
-    /// § 5's auto-escaping sink is the HTTP response write rather than this
-    /// one.
+    /// § 5's HTML `&`→`&amp;` is stated in 0086's *Context*.
+    ///
+    /// The table is idempotent — a Control Picture is not a control byte — so
+    /// output that has already passed a sink, `Core\Out::capture`'s buffer most
+    /// of all, is unchanged by a second write. That is the whole of what makes
+    /// `echo`ing a captured `Core\Cli\Text` correct today.
+    ///
+    /// **Ill-formed UTF-8 goes through `from_utf8_lossy` first.** A `Tag::Str`
+    /// is UTF-8 by [ADR 0009](../../../docs/adr/0009-string-and-bytes.md), so
+    /// this is unreachable from a well-formed value; where a test reaches it
+    /// anyway, `�` is the answer the table already gives a byte that is never
+    /// legitimate text, and a raw control byte cannot survive the pass. Reading
+    /// the operand as bytes rather than as [`Value::as_text`] is what keeps that
+    /// a substitution rather than undefined behaviour.
+    ///
+    /// Ordinary text — nearly every write — costs one scan and no allocation:
+    /// both `from_utf8_lossy` and `substitute` answer the borrow.
     fn nvs_echo_str(ctx, args: [1]) {
         let bytes = args[0]
             .as_str_bytes()
             .ok_or_else(|| wrong_tag("nvs_echo_str", Tag::Str, args[0]))?;
-        ctx.write_output(bytes)
+        let text = String::from_utf8_lossy(bytes);
+        let neutralized = nvs_render::text::substitute(&text);
+        ctx.write_output(neutralized.as_bytes())
             .map_err(|error| Fault::fatal(format!("could not write output: {error}")))?;
         Ok(Value::null())
     }
@@ -2989,14 +3021,53 @@ mod tests {
         }
     }
 
+    /// ADR 0086 § 1 at the sink: control bytes are neutralized, and **nothing
+    /// else is**. The markup characters are in the same value on purpose —
+    /// this is not an HTML sink, so `<`, `&` and `"` reach the stream as
+    /// themselves, and `\x00` does not.
     #[test]
-    fn echo_escapes_nothing() {
+    fn echo_neutralizes_control_bytes_and_nothing_else() {
         let mut ctx = Ctx::buffered();
-        let value = Value::str(NvsStr::new(b"<b>&\"\x00\xff"));
+        let value = Value::str(NvsStr::new(b"<b>&\"\x00"));
         call(nvs_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
-            Some(&b"<b>&\"\x00\xff"[..])
+            Some("<b>&\"\u{2400}".as_bytes())
+        );
+        #[expect(unsafe_code, reason = "the value owns the reference it releases")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// The lossy read the helper's doc comment names, asserted rather than
+    /// assumed: an ill-formed byte cannot reach the stream as itself, and it
+    /// cannot make the pass panic either.
+    #[test]
+    fn echo_replaces_ill_formed_utf8_rather_than_writing_it() {
+        let mut ctx = Ctx::buffered();
+        let value = Value::str(NvsStr::new(b"a\xffb"));
+        call(nvs_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some("a\u{FFFD}b".as_bytes())
+        );
+        #[expect(unsafe_code, reason = "the value owns the reference it releases")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// The substitution is idempotent, which is what makes `echo` of a
+    /// `Core\Out::capture` buffer — already neutralized once — correct.
+    #[test]
+    fn a_second_pass_over_neutralized_output_changes_nothing() {
+        let mut ctx = Ctx::buffered();
+        let value = Value::str(NvsStr::new("a\u{241B}b".as_bytes()));
+        call(nvs_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some("a\u{241B}b".as_bytes())
         );
         #[expect(unsafe_code, reason = "the value owns the reference it releases")]
         unsafe {

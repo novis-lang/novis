@@ -24,6 +24,8 @@
 //! § 6 chose JSON Lines to guarantee, preserved as the condition on adding a
 //! human-readable target at all.
 
+use std::borrow::Cow;
+
 /// The replacement character an unterminated bidi control and a C1 code point
 /// both become — ADR 0086 § 1's table, whose own column says why C1 loses its
 /// identity rather than taking a Control Picture.
@@ -40,15 +42,25 @@ const REPLACEMENT: char = '\u{FFFD}';
 /// The whole string is one span for ADR 0087's purposes, which is that ADR's
 /// *"what a span is, is the caller's decision"*: a record's text node is one
 /// value, so a scope it opens has the whole of that value to close in.
+///
+/// # Why a [`Cow`] rather than a `String`
+///
+/// ADR 0086 § 1's rule is uniform, so the terminal sink runs this on **every**
+/// `echo` — and text with nothing to substitute is nearly all of the output a
+/// program writes. Answering the borrow there keeps that path at one scan and
+/// no allocation, which is what makes a rule that cannot be switched off
+/// affordable on the hot path (`AGENTS.md`'s priority 3). A caller that owns
+/// the result regardless — [`crate::Rendered::new`], building a record —
+/// takes `.into_owned()` and is exactly where it was.
 #[must_use]
-pub fn substitute(text: &str) -> String {
+pub fn substitute(text: &str) -> Cow<'_, str> {
     // Neither transformation fires on the overwhelmingly common input, and
-    // both are a scan. Checking first keeps a dump of ordinary text at one
-    // pass and one allocation.
+    // both are a scan. Checking first keeps ordinary text at one pass and no
+    // allocation at all.
     let mut unterminated = Vec::new();
     crate::bidi::for_each_unterminated(text, |offset, _| unterminated.push(offset));
     if unterminated.is_empty() && !text.chars().any(needs_substitution) {
-        return text.to_owned();
+        return Cow::Borrowed(text);
     }
 
     let mut out = String::with_capacity(text.len());
@@ -64,7 +76,7 @@ pub fn substitute(text: &str) -> String {
             None => out.push(c),
         }
     }
-    out
+    Cow::Owned(out)
 }
 
 /// Whether `c` is one of the code points [`substituted`] replaces — the
@@ -137,5 +149,16 @@ mod tests {
         assert_eq!(substitute("hello, world"), "hello, world");
         assert_eq!(substitute("خطأ"), "خطأ");
         assert_eq!(substitute(""), "");
+    }
+
+    /// And it is unchanged *without being copied* — the property the terminal
+    /// sink depends on, since ADR 0086 § 1 runs this on every `echo` and
+    /// almost every one of them has nothing to substitute. Asserted as the
+    /// [`Cow`] variant rather than as a timing, because "no allocation" is
+    /// what the borrow means here.
+    #[test]
+    fn ordinary_text_is_not_copied() {
+        assert!(matches!(substitute("hello, world"), Cow::Borrowed(_)));
+        assert!(matches!(substitute("a\u{1B}b"), Cow::Owned(_)));
     }
 }
