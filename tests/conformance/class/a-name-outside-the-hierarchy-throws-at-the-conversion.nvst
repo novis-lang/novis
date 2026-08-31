@@ -1,0 +1,47 @@
+--TEST--
+`$name as class<T>` throws where the conversion is written when the name denotes no class that is a `T` (ADR 0125 § 2)
+--FILE--
+<?nvs
+// `as` is a class reference's only source, so it is also the only place the
+// answer can be wrong — every site downstream of it holds a descriptor that
+// already passed. That is what makes this a checked conversion rather than a
+// cast: the failure is reported where the string was, not where the class
+// reference was later used.
+class Formatter {
+    public function render(string $body): string {
+        return $body;
+    }
+}
+
+class Angled extends Formatter {
+}
+
+// A class, and not one of the classes this unit declares to be a `Formatter`.
+class Ledger {
+}
+
+string $missing = "Nothing";
+try {
+    class<Formatter> $bad = $missing as class<Formatter>;
+    echo "unreachable: ", (new $bad())->render("x"), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+string $unrelated = "Ledger";
+try {
+    class<Formatter> $sibling = $unrelated as class<Formatter>;
+    echo "unreachable: ", (new $sibling())->render("x"), "\n";
+} catch (RuntimeError $wrong) {
+    echo $wrong->message, "\n";
+}
+
+// The same conversion over a name that is in the hierarchy answers instead —
+// the throw is about this program's own class graph and nothing else.
+string $good = "Angled";
+class<Formatter> $ok = $good as class<Formatter>;
+echo (new $ok())->render("done"), "\n";
+--EXPECT--
+cannot convert to `class<Formatter>`: the value does not denote a class that is a `Formatter`
+cannot convert to `class<Formatter>`: the value does not denote a class that is a `Formatter`
+done

@@ -1,0 +1,56 @@
+--TEST--
+`new $cls(...)` over a `class<T>` allocates whichever implementor the reference holds, through either of `as`'s two doors (ADR 0125 §§ 2, 4)
+--FILE--
+<?nvs
+// A class reference has exactly one source, `as`, and it has two doors: a
+// `Formatter::class` operand is decided where it is written, and a string is
+// walked at run time against the classes this unit declares to be
+// `Formatter`s. `new` over the result allocates the class the descriptor
+// holds and never the bound, which the overridden `render` is here to report.
+class Formatter {
+    public function constructor(public string $prefix) {}
+
+    public function render(string $body): string {
+        return $this->prefix . $body;
+    }
+}
+
+class Angled extends Formatter {
+    public function render(string $body): string {
+        return $this->prefix . "<" . $body . ">";
+    }
+}
+
+// Inherits both the constructor and `render`, so it is the implementor that
+// answers with the bound's own body.
+class Quoted extends Formatter {
+}
+
+// The compile-time door: `Dog::class as class<Animal>` in § 2's own words.
+class<Formatter> $folded = Angled::class as class<Formatter>;
+Formatter $one = new $folded("1: ");
+echo $one->render("body"), "\n";
+
+// The run-time door. The name is a `string` local rather than a literal, so
+// nothing about it is known before the conversion runs.
+string $name = "Quoted";
+class<Formatter> $walked = $name as class<Formatter>;
+Formatter $two = new $walked("2: ");
+echo $two->render("body"), "\n";
+
+// The bound is an implementor of its own reference — `class<T>` holds `T` as
+// readily as it holds a subclass of it.
+class<Formatter> $base = Formatter::class as class<Formatter>;
+Formatter $three = new $base("3: ");
+echo $three->render("body"), "\n";
+
+// The arguments are checked against `T`'s constructor (§ 4), and they reach
+// the allocated class's own — here inherited, which is the common case § 5's
+// refusal leaves standing.
+class<Formatter> $again = Angled::class as class<Formatter>;
+echo (new $again("4: "))->render("body"), "\n";
+--EXPECT--
+1: <body>
+2: body
+3: body
+4: <body>
