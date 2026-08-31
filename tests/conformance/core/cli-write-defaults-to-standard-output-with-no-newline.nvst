@@ -1,0 +1,28 @@
+--TEST--
+`Core\Cli::write`'s two options each default to the absence of an effect, and both sides of each are named — ADR 0086 § 3
+--FILE--
+<?nvs
+// `newline` appends exactly one `LF` and an omitted one appends nothing, so the
+// member writes precisely the bytes it was handed. Both sides are asserted
+// together: a member that always appended is green against a case that only
+// asks for the newline, and one that never did is green against its opposite.
+Core\Cli::write("a");
+Core\Cli::write("b");
+Core\Cli::write("c", {newline: true});
+Core\Cli::write("d", {newline: false});
+echo "\n";
+
+// `stream` defaults to `Out`. `Err` is this request's diagnostic channel rather
+// than a second output sink, so nothing written there reaches the bytes below —
+// a member that ignored the option would print the second line here.
+Core\Cli::write("out", {stream: Core\Cli\Stream::Out, newline: true});
+Core\Cli::write("this line is not standard output", {stream: Core\Cli\Stream::Err, newline: true});
+
+// Named in the other order, because ADR 0063 R2 makes an option callable by its
+// own name rather than by its place in the bag.
+Core\Cli::write("both", {newline: true, stream: Core\Cli\Stream::Out});
+--EXPECT--
+abc
+d
+out
+both

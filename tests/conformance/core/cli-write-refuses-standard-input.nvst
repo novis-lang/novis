@@ -1,0 +1,32 @@
+--TEST--
+`Core\Cli::write` refuses the one stream a program reads, whatever it was asked to write there — ADR 0086 § 3
+--FILE--
+<?nvs
+// `Cli\Stream` is one enum covering all three streams because "is this a
+// terminal" is a question about any of them, and `Core\Cli::isTty` asks it about
+// each. That leaves this member with a case it cannot serve, so writing to it is
+// a throw rather than a case missing from a second enum — and a `LogicError`,
+// because nothing about the environment could have made the call succeed.
+try {
+    Core\Cli::write("nobody reads this", {stream: Core\Cli\Stream::In});
+    echo "broken: standard input is not a stream a program writes to", "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The refusal is the stream's and not the value's: the sink's own carrier, which
+// is the one thing written through unsubstituted, is refused identically.
+try {
+    Core\Cli::write(Core\Cli\Text::plain("nor this"), {stream: Core\Cli\Stream::In});
+    echo "broken: the carrier is not a way past the refusal", "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// And the writable streams are still writable — a member that threw for every
+// stream would be green on the two blocks above alone.
+Core\Cli::write("written", {newline: true});
+--EXPECT--
+Core\Cli::write(): standard input is not a stream a program writes to — `Core\Cli\Stream::In` is a case so that `Core\Cli::isTty` can ask its question about all three
+Core\Cli::write(): standard input is not a stream a program writes to — `Core\Cli\Stream::In` is a case so that `Core\Cli::isTty` can ask its question about all three
+written

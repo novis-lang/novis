@@ -1,0 +1,37 @@
+--TEST--
+`Core\Cli::write` and `echo` are one sink reached twice, on every shape that reaches it differently — ADR 0086 §§ 1 and 3
+--FILE--
+<?nvs
+// § 1's substitution table has one home, and `write` performs that one rather
+// than carrying a second copy. Asserted as *agreement* rather than as what
+// either statement printed: the three shapes below reach the sink by three
+// different routes — ordinary text, text carrying a control byte, and the one
+// raw path — so a member that grew a table of its own fails here while still
+// looking entirely plausible on any single line.
+var $raw = Core\Str::fromCodePoint(27) . "[31mred";
+var $carrier = Core\Cli\Text::plain($raw);
+
+// Nothing to substitute: both write the bytes they were handed.
+Core\Cli::write("plain text");
+echo "\n";
+echo "plain text", "\n";
+
+// A control byte: both replace it with the visible glyph, because the rule is
+// the sink's and not the statement's.
+Core\Cli::write($raw);
+echo "\n";
+echo $raw, "\n";
+
+// The carrier: both write it through unchanged, which is § 1's "exactly one raw
+// path" read as a *type* — the class is what the sink recognises, so a second
+// way of reaching the sink recognises it too.
+Core\Cli::write($carrier);
+echo "\n";
+echo $carrier, "\n";
+--EXPECT--
+plain text
+plain text
+␛[31mred
+␛[31mred
+␛[31mred
+␛[31mred

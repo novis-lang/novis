@@ -122,22 +122,22 @@
 //!
 //! # Known gaps
 //!
-//! 1. **§ 3's `write` and `displayWidth` are not here.** `write` is a second
-//!    spelling of the sink `echo` already is, so what it owes is a row and a
-//!    stream argument rather than a rule; `displayWidth` is a question about
-//!    how a renderer would lay a string out, belongs beside `Cli\Style`, and
-//!    additionally owes a UAX #11 table this tree does not carry yet.
+//! 1. **§ 3's `displayWidth` is not here.** It is a question about how a
+//!    renderer would lay a string out, belongs beside `Cli\Style`, and owes a
+//!    UAX #11 table this tree does not carry yet.
 //! 2. **The rest of § 15 does not exist** — no `arguments`.
 //!    `docs/spec/01-core-library.md` § 15 lists it and `docs/plan/m8.md`
 //!    owns when.
 //! 3. **A `Text` cannot be plain on one stream and styled on another in the
 //!    same run.** It holds bytes, and the styling is rendered into them once —
 //!    so a program writing the same `Text` to a terminal standard output and a
-//!    redirected standard error sends both the same thing. Nothing on disk can
-//!    observe it: `echo` is the only sink, it writes standard output, and § 3's
-//!    colour depth is a process answer (`Cli::colorDepth` takes no stream).
-//!    What closes it is the `Cli\Text` of runs § 2's body names as the shape a
-//!    per-stream `Cli::write` would need.
+//!    redirected standard error sends both the same thing. [`nvs_core_cli_write`]
+//!    is what made that reachable — before it there was only `echo`, which
+//!    writes standard output — and it is still unobservable *in a test*,
+//!    because § 3's colour depth is a process answer (`Cli::colorDepth` takes
+//!    no stream) and a case runs with both streams piped. What closes it is the
+//!    `Cli\Text` of runs § 2's body names, which is the shape a per-stream
+//!    render would need.
 
 use nvs_runtime::terminal::{Answer, ColorDepth, Echo, Stream};
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
@@ -154,11 +154,13 @@ pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 /// ADR 0086 § 3's profile, § 1's launderer and § 4's prompts, as registry
 /// rows. See [`crate::registry::CLASSES`].
 ///
-/// Twelve members and still no `write`: the module docs' gap 1 owns that split,
-/// and [`nvs_core_cli_escape`] owns why the launderer could land ahead of it.
+/// Thirteen members: `write` has landed and `arguments` is the one row of § 15
+/// still owed, which the module docs' gap 2 owns.
 ///
-/// In the spec's own order (§ 15), which is why `escape` is first: `arguments`
-/// and `write` come before it and are the two rows still owed. § 4's five
+/// In the spec's own order (§ 15), which is why `write` is first and `escape`
+/// second: the effect comes before the launderer that performs the same table
+/// as a value, and [`nvs_core_cli_escape`] owns why that launderer could land
+/// ahead of it. § 4's five
 /// prompts are all here now — `multiSelect` is the one whose answer is a set
 /// rather than a value, so it is `select`'s menu under a second reading loop
 /// rather than another row of the shape below. `live` and `progress` are last
@@ -167,6 +169,15 @@ pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
     methods: &[
+        CoreMethod {
+            name: "write",
+            names: &["value"],
+            params: &[CoreTy::Union(WRITABLE), CoreTy::Options(WRITE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_cli_write",
+            doc: Some(&WRITE_DOC),
+        },
         CoreMethod {
             name: "escape",
             names: &["text"],
@@ -365,6 +376,77 @@ const COLOR_DEPTH_MEMBER_DOC: MethodDoc = MethodDoc {
           a terminal and nothing forced colour on, which is what makes `myprog | grep` and a CI \
           log plain.",
     errors: &[],
+};
+
+/// `Core\Cli::write`'s subject — ADR 0086 § 3's `string|Cli\Text $value`, and
+/// the one parameter in this file that admits the carrier as well as the text.
+///
+/// [`Qual::Neutral`] rather than [`Qual::Sink`] is § 1's *"regardless of
+/// qualifier"* in the type system: the terminal substitutes over whatever it is
+/// given, so a `tainted` argument is ordinary here where it would be refused at
+/// a SQL or a shell sink — the neutralizing *is* the laundering, performed on
+/// the way out instead of demanded on the way in. The `secret` axis is
+/// untouched by that, and `Neutral` refuses one for the reason
+/// [`Qual::Reveal`]'s roster of two is closed: substituting a control byte does
+/// nothing for confidentiality (ADR 0033 § 4).
+const WRITABLE: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Instance(NAME)];
+
+/// `Core\Cli::write`'s trailing options — ADR 0086 § 3's
+/// `{stream?: Cli\Stream, newline?: bool}`.
+///
+/// Both carry a value rather than [`Const::Null`], unlike every other bag in
+/// this file: neither option has an "absent" meaning distinct from its default.
+/// A call that names no stream writes to standard output, which is what `print`
+/// and `echo` already do, and a call that names no `newline` writes exactly the
+/// bytes it was handed — `fwrite`'s behaviour and not `echo PHP_EOL`'s, because
+/// a member that silently appended a byte could not be used to build a line.
+const WRITE_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "stream",
+        ty: CoreTy::Enum(STREAM_NAME),
+        default: Const::EnumCase(STREAM_NAME, "Out"),
+    },
+    CoreOption {
+        name: "newline",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
+/// `Core\Cli::write`'s reference card — ADR 0117.
+const WRITE_DOC: MethodDoc = MethodDoc {
+    short: "Writes `$value` to a standard stream, replacing `fwrite(STDOUT, …)` and `print`. A \
+            `string` has every control byte replaced by the visible glyph `Core\\Cli::escape` \
+            gives it; a `Core\\Cli\\Text` is written through unchanged, because it is the sink's \
+            own carrier and its bytes have already been neutralized.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The text to write. A `tainted` one is written like any other — the \
+                   substitution is what makes the terminal safe, so nothing has to be laundered \
+                   first — while a `secret` one is refused at compile time.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "stream",
+            desc: "Which standard stream to write to. `Out` when omitted; `Err` writes to this \
+                   request's diagnostic channel, which a `Core\\Out::capture` does not take. \
+                   `In` throws.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "newline",
+            desc: "Whether to append one `LF` after the value. `false` when omitted, so the \
+                   member writes exactly what it was handed.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. The bytes are on the stream, or the write failed and the request is over.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$stream` is `Core\\Cli\\Stream::In`, which a program reads and never writes. The \
+               case exists for `Core\\Cli::isTty`, which asks its question about all three.",
+    }],
 };
 
 /// `Core\Cli::ask`'s trailing options — ADR 0086 § 4's
@@ -909,6 +991,7 @@ const SHELL_DOC: EnumDoc = EnumDoc {
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "nvs_core_cli_write" => (nvs_core_cli_write as *const ()).cast(),
         "nvs_core_cli_escape" => (nvs_core_cli_escape as *const ()).cast(),
         "nvs_core_cli_is_tty" => (nvs_core_cli_is_tty as *const ()).cast(),
         "nvs_core_cli_width" => (nvs_core_cli_width as *const ()).cast(),
@@ -939,17 +1022,17 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// A [`Fault::fatal`] for a value that is no case of the enum — the same
 /// treatment [`crate::hash`] gives its `Core\Digest` argument, and for the same
 /// reason.
-fn stream_of(value: &Value) -> Result<Stream, Fault> {
+fn stream_of(value: &Value, member: &str) -> Result<Stream, Fault> {
     match value.as_int() {
         Some(0) => Ok(Stream::In),
         Some(1) => Ok(Stream::Out),
         Some(2) => Ok(Stream::Err),
-        // This is unreachable from source: `isTty`'s parameter is
+        // This is unreachable from source: both callers' parameter is
         // `CoreTy::Enum(STREAM_NAME)`, so `E0401` refuses anything that is not
         // one of the three cases before a single instruction of this body runs,
         // and compiled code writes the ordinal itself.
         _ => Err(Fault::fatal(format!(
-            "Core\\Cli::isTty expected a `Core\\Cli\\Stream` case, got tag {} value {:?}",
+            "Core\\Cli::{member} expected a `Core\\Cli\\Stream` case, got tag {} value {:?}",
             value.tag_byte(),
             value.as_int()
         ))),
@@ -968,6 +1051,104 @@ fn depth_ordinal(depth: ColorDepth) -> i64 {
         ColorDepth::Ansi16 => 1,
         ColorDepth::Ansi256 => 2,
         ColorDepth::TrueColor => 3,
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::write(string|Cli\Text $value, {stream?: Cli\Stream, newline?: bool}): void`
+    /// — ADR 0086 § 3's first row, replacing `fwrite(STDOUT, …)` and `print`.
+    ///
+    /// # It is the sink `echo` already is, reached with a stream named
+    ///
+    /// § 1 has one substitution table and this member performs the same one, on
+    /// the same two cases `nvs_runtime`'s `nvs_echo_value` separates: a
+    /// `Core\Cli\Text` is the language's single raw path and is written
+    /// through unchanged, everything else is neutralized on the way out. The
+    /// carrier is recognised **by its class**, which is `is_carrier_value`'s
+    /// own rule and the reason it works: no constructor of a `Text` accepts
+    /// bytes it has not already put through this table, so trusting the class
+    /// is trusting a closed set of producers rather than a bit a caller could
+    /// arrange.
+    ///
+    /// What `echo` cannot say is *which* stream, and that is the whole of why
+    /// this row exists rather than being a second spelling of the same
+    /// statement. `Stream::Out` is this request's output — so a
+    /// `Core\Out::capture` in force takes it, `Ctx::write_output`'s own rule —
+    /// and `Stream::Err` is its **diagnostic** channel, which a capture
+    /// deliberately does not take (ADR 0092 § 4). A context has exactly those
+    /// two channels; there is no third for a member to invent.
+    ///
+    /// `Stream::In` throws rather than being absent from the option's type:
+    /// `Cli\Stream` is one enum because ADR 0086 § 3 wants `isTty` to ask about
+    /// all three, and a second two-case enum spelled only for this parameter
+    /// would be the "no operation is reachable two ways" rule broken sideways —
+    /// two rosters of the same three streams, disagreeing the first time one
+    /// gains a case.
+    ///
+    /// **What it spends:** one buffer the size of the value per call, because
+    /// the newline is appended to the bytes rather than written after them. A
+    /// second write to reach the same stream would be a second trip through the
+    /// sink for one byte, and this member is bounded by the terminal it writes
+    /// to rather than by the copy (ADR 0004's ordering: priority 3 over 5).
+    fn nvs_core_cli_write(ctx, args: [3]) {
+        let stream = stream_of(&args[1], "write")?;
+        if matches!(stream, Stream::In) {
+            // A literal rather than a `format!`, for the reason
+            // `Core\Cli\Live::set`'s refusal is one: `conformance_coverage`'s
+            // error-path gate matches a site by the stem before its first hole.
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                "Core\\Cli::write(): standard input is not a stream a program writes to — \
+                 `Core\\Cli\\Stream::In` is a case so that `Core\\Cli::isTty` can ask its \
+                 question about all three",
+            ));
+        }
+        let mut bytes = match args[0].tag() {
+            Some(Tag::Object) => {
+                let receiver = crate::instance::receiver(args[0], &TEXT, "write")?;
+                // Unreachable from source by two steps rather than by one
+                // diagnostic: `E0401` refuses any object that is not a
+                // `Core\Cli\Text`, and the slot of one that *is* holds a
+                // `Tag::Str` because [`built`] is its only producer and both
+                // constructors hand it the result of a substitution.
+                crate::instance::slot(receiver, nvs_runtime::CARRIER_TEXT_SLOT)
+                    .as_str_bytes()
+                    .ok_or_else(|| {
+                        Fault::fatal(
+                            "Core\\Cli::write expected a `Core\\Cli\\Text` carrying a `string`",
+                        )
+                    })?
+                    .to_vec()
+            }
+            // Every other tag, and not just `Tag::Str`.
+            // Unreachable from source: the row's parameter is a `CoreTy::Union`
+            // of the two, so `E0401` refuses anything that is neither the
+            // carrier nor a `string` before an instruction of this body runs.
+            _ => {
+                let text = args[0].as_text().ok_or_else(|| {
+                    Fault::fatal(format!(
+                        "Core\\Cli::write expected a `string` or a `Core\\Cli\\Text`, got tag {}",
+                        args[0].tag_byte()
+                    ))
+                })?;
+                nvs_render::text::substitute(text).into_owned().into_bytes()
+            }
+        };
+        if args[2].as_bool() == Some(true) {
+            bytes.push(b'\n');
+        }
+        match stream {
+            Stream::Err => ctx.write_diagnostic(&bytes),
+            // `Stream::In` was refused above, before anything was rendered.
+            Stream::In | Stream::Out => ctx.write_output(&bytes),
+        }
+        // Unreachable from source, on `Core\Debug::dump`'s reasoning rather
+        // than on a diagnostic: `OutputSink::Buffer` and `Sink` never fail,
+        // which `Ctx::write_output` and `Ctx::write_diagnostic` both state in
+        // their own `# Errors`, and nothing in the language closes a descriptor
+        // the host handed the process.
+        .map_err(|error| Fault::fatal(format!("Core\\Cli::write could not write: {error}")))?;
+        Ok(Value::null())
     }
 }
 
@@ -1028,7 +1209,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Reads the cached profile; `nvs_runtime::terminal` owns why there is one.
     fn nvs_core_cli_is_tty(_ctx, args: [1]) {
-        let stream = stream_of(&args[0])?;
+        let stream = stream_of(&args[0], "isTty")?;
         Ok(Value::bool(nvs_runtime::terminal::profile().is_tty(stream)))
     }
 }
@@ -3201,7 +3382,7 @@ mod tests {
             let want = i64::try_from(ordinal).expect("three cases");
             assert_eq!(*declared, want, "`{name}` is not at its own index");
             assert_eq!(
-                stream_of(&Value::int(want)).expect("a declared case"),
+                stream_of(&Value::int(want), "isTty").expect("a declared case"),
                 match ordinal {
                     0 => Stream::In,
                     1 => Stream::Out,
@@ -3210,7 +3391,7 @@ mod tests {
             );
         }
         assert!(
-            stream_of(&Value::int(3)).is_err(),
+            stream_of(&Value::int(3), "isTty").is_err(),
             "an ordinal past the roster has to be refused, not folded into a case"
         );
 
