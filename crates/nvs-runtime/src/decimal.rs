@@ -94,6 +94,56 @@ pub struct Decimal {
     mantissa: u128,
 }
 
+/// What a division threw away when it stopped — the whole of what a rounding
+/// mode has to decide against.
+///
+/// Public because ADR 0054 § 3 puts the mode itself in `Core\RoundMode`, which
+/// is `nvs-stdlib`'s: `Core\Decimal::divRound` reads this and applies the case
+/// the caller named. Half is stated as its own answer rather than folded into
+/// one of its neighbours precisely because the four `Half*` modes exist to
+/// part there.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Discard {
+    /// The division came out even: the quotient is exact at that scale.
+    Nothing,
+    /// Less than half a unit in the last place produced.
+    BelowHalf,
+    /// Exactly half — the tie every `Half*` mode is named for.
+    Half,
+    /// More than half, which every mode but `Down` rounds away from zero.
+    AboveHalf,
+}
+
+/// The state [`Decimal::long_divide`] stops in, which its three callers read
+/// three different ways.
+struct LongDivision {
+    negative: bool,
+    mantissa: u128,
+    scale: u8,
+    remainder: u128,
+    denominator: u128,
+}
+
+impl LongDivision {
+    /// Where what is left over sits against half a unit in the last place
+    /// produced — the one place that comparison is made.
+    fn discarded(&self) -> Discard {
+        if self.remainder == 0 {
+            return Discard::Nothing;
+        }
+        match self.remainder.checked_mul(2) {
+            // Twice the remainder overflowed where the denominator did not, so
+            // it is the larger of the two.
+            None => Discard::AboveHalf,
+            Some(twice) => match twice.cmp(&self.denominator) {
+                Ordering::Less => Discard::BelowHalf,
+                Ordering::Equal => Discard::Half,
+                Ordering::Greater => Discard::AboveHalf,
+            },
+        }
+    }
+}
+
 impl Decimal {
     /// A `decimal` from its three parts, or `None` where either bound is
     /// exceeded.
@@ -331,12 +381,75 @@ impl Decimal {
     /// divisor throws.
     #[must_use]
     pub fn checked_div(self, other: Self) -> Option<Self> {
+        let division = self.long_divide(other, None)?;
+        let mut mantissa = division.mantissa;
+        if rounds_away(division.discarded(), mantissa) {
+            mantissa = mantissa.checked_add(1)?;
+        }
+        Self::new(division.negative, mantissa, division.scale)
+    }
+
+    /// `a / b` where the quotient is exact — the language-level operator's
+    /// division stopped one decision earlier, before the rounding that is the
+    /// only inexactness ADR 0054 § 3 admits.
+    ///
+    /// `None` covers all three refusals `Core\Decimal::divExact` makes: a zero
+    /// divisor, a quotient that repeats, and a quotient this type cannot hold.
+    /// They are not distinguished because the member does not distinguish
+    /// them either — "not exact" and "wider than a `decimal` holds" are one
+    /// sentence there, for the reason this module's known gaps state.
+    #[must_use]
+    pub fn checked_div_exact(self, other: Self) -> Option<Self> {
+        let division = self.long_divide(other, None)?;
+        if division.remainder != 0 {
+            return None;
+        }
+        Self::new(division.negative, division.mantissa, division.scale)
+    }
+
+    /// `a / b` truncated to exactly `scale` fractional digits, with what the
+    /// truncation threw away — everything `Core\Decimal::divRound` needs to
+    /// apply a rounding mode the caller named, and nothing more.
+    ///
+    /// Deliberately **not** [`Self::checked_div`] followed by a second
+    /// rounding: rounding twice is how a quotient one digit past the target
+    /// carries a tie that was never there, and priority 2 does not pay for
+    /// that. `None` for a zero divisor, or where the quotient does not fit at
+    /// that scale — which a wide enough `scale` always eventually forces.
+    #[must_use]
+    pub fn checked_div_at_scale(self, other: Self, scale: u8) -> Option<(Self, Discard)> {
+        if scale > MAX_SCALE {
+            return None;
+        }
+        let division = self.long_divide(other, Some(scale))?;
+        let value = Self::new(division.negative, division.mantissa, division.scale)?;
+        Some((value, division.discarded()))
+    }
+
+    /// The one long division under [`Self::checked_div`],
+    /// [`Self::checked_div_exact`] and [`Self::checked_div_at_scale`], which
+    /// differ only in what they do with the state it stops in.
+    ///
+    /// `limit` is `None` for the adaptive scale the operator answers at — grow
+    /// until the remainder is gone, the scale bound is reached or the mantissa
+    /// would not hold another digit — and `Some(scale)` for exactly that many
+    /// fractional digits, where running out of mantissa is a refusal rather
+    /// than a shorter answer.
+    fn long_divide(self, other: Self, limit: Option<u8>) -> Option<LongDivision> {
         if other.mantissa == 0 {
             return None;
         }
         let negative = self.negative != other.negative;
         if self.mantissa == 0 {
-            return Some(Self::zero());
+            // Answered before the fold below, which can overflow on a divisor
+            // this one does not need to look at.
+            return Some(LongDivision {
+                negative,
+                mantissa: 0,
+                scale: limit.unwrap_or(0),
+                remainder: 0,
+                denominator: other.mantissa,
+            });
         }
         // Fold both scales into one side, so what is left is the plain
         // rational `numerator / denominator` and the quotient's scale is
@@ -356,25 +469,42 @@ impl Decimal {
         if mantissa > MAX_MANTISSA {
             return None;
         }
+        // A fixed scale keeps producing digits after the remainder is gone —
+        // that is what pads `0.25` out to `0.2500` — while the adaptive one
+        // stops the moment there is nothing left to divide. Where the mantissa
+        // runs out, the adaptive division answers at the scale it reached and
+        // the fixed one refuses, because it was asked for a scale it cannot
+        // hold rather than for as much as fits.
+        let fixed = limit.is_some();
+        let stop = limit.unwrap_or(MAX_SCALE);
         let mut scale = 0u8;
-        while remainder != 0 && scale < MAX_SCALE {
+        while scale < stop && (fixed || remainder != 0) {
             let (Some(shifted), Some(carried)) =
                 (mantissa.checked_mul(10), remainder.checked_mul(10))
             else {
+                if fixed {
+                    return None;
+                }
                 break;
             };
             let next = shifted + carried / denominator;
             if next > MAX_MANTISSA {
+                if fixed {
+                    return None;
+                }
                 break;
             }
             mantissa = next;
             remainder = carried % denominator;
             scale += 1;
         }
-        if remainder != 0 && rounds_away(remainder, denominator, mantissa) {
-            mantissa = mantissa.checked_add(1)?;
-        }
-        Self::new(negative, mantissa, scale)
+        Some(LongDivision {
+            negative,
+            mantissa,
+            scale,
+            remainder,
+            denominator,
+        })
     }
 
     /// `a % b` — the remainder at the wider of the two scales, carrying the
@@ -475,20 +605,18 @@ fn align(a: Decimal, b: Decimal) -> Option<(u8, u128, u128)> {
     Some((scale, widen(a)?, widen(b)?))
 }
 
-/// Half-to-even, asked of a division that stopped with `remainder` left over
-/// `denominator` and `mantissa` digits produced: round away from zero when the
-/// remainder is more than half, and on exactly half only when that makes the
-/// last digit even.
-fn rounds_away(remainder: u128, denominator: u128, mantissa: u128) -> bool {
-    match remainder.checked_mul(2) {
-        // Twice the remainder overflowed where the denominator did not, so it
-        // is the larger of the two.
-        None => true,
-        Some(twice) => match twice.cmp(&denominator) {
-            Ordering::Greater => true,
-            Ordering::Equal => mantissa % 2 == 1,
-            Ordering::Less => false,
-        },
+/// Half-to-even, asked of a division that discarded `discard` having produced
+/// `mantissa`: round away from zero when what was thrown away is more than
+/// half, and on exactly half only when that makes the last digit even.
+///
+/// The operator's mode, and the only one fixed in the language — ADR 0054 § 3.
+/// `Core\Decimal::divRound`'s five other modes read the same [`Discard`] and
+/// part from this one only at the tie.
+fn rounds_away(discard: Discard, mantissa: u128) -> bool {
+    match discard {
+        Discard::Nothing | Discard::BelowHalf => false,
+        Discard::Half => mantissa % 2 == 1,
+        Discard::AboveHalf => true,
     }
 }
 
