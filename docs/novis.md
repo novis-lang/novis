@@ -100,6 +100,7 @@ Conventions the whole file uses:
 | [`Core\Cli\Text`](#core-core-cli-text) | the value a captured terminal write comes back as — bytes that have already been through the output sink |
 | [`Core\Command`](#core-core-command) |  |
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
+| [`Core\Env`](#core-core-env) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
@@ -14548,6 +14549,44 @@ Every directive in force for this request, keyed by dotted name, with what this 
 
 **Returns** `array<string>` — An `array<string, string>` in name order, one entry per value; a name holding a table contributes its leaves and a name holding a list contributes nothing, on `get`'s rule.
 
+<a id="core-core-env"></a>
+### `Core\Env`
+
+Keywords: get, all
+
+| Member | Signature |
+|---|---|
+| [`Core\Env::get`](#core-core-env-get) | `get(string $name): ?tainted string` |
+| [`Core\Env::all`](#core-core-env-all) | `all(): array<tainted string>` |
+
+<a id="core-core-env-get"></a>
+#### `Core\Env::get`
+
+```nvs skip
+Core\Env::get(string $name): ?tainted string
+```
+
+The environment variable `$name`, replacing `getenv` and `$_ENV`. The environment is read-only: there is no `putenv`, because a process-global mutation is unsound across cores.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The variable's name, exactly as the operator spelled it. A sink, so it may not be `tainted`: letting a request choose which variable to read hands out the whole environment one query at a time. |
+
+**Returns** `?tainted string` — Its value as a `tainted string` — the environment is outside the program's own text, so every sink still has to be passed through its own launderer — or `null` where nothing set the variable.
+
+**Throws** `RuntimeError` — The variable is set to bytes that are not valid UTF-8, so its value is not a `string`. `null` is reserved for a variable nothing set, and a lossy repair would hand back text the operator did not write.
+
+<a id="core-core-env-all"></a>
+#### `Core\Env::all`
+
+```nvs skip
+Core\Env::all(): array<tainted string>
+```
+
+Every environment variable, keyed by name — the whole of `$_ENV`, and `getenv` with no argument.
+
+**Returns** `array<tainted string>` — An `array<string, tainted string>` in name order, so two calls in one run and two runs on two platforms agree. A variable whose name or value is not valid UTF-8 is omitted rather than allowed to fail the sweep; `get` on that name reports it.
+
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
 
@@ -16941,6 +16980,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `opcache_get_status` | dropped | the cache is the operator's: `nvs cache gc` and `nvs cache clear` act on it ([ADR 0042](adr/0042-on-disk-artifact-cache-format.md) § 6), and `nvs config dump` reports the `[opcache]` block it runs under |
 | `opcache_get_configuration` | dropped | `nvs config dump` is that report, and `Core\Config::get` answers for one directive |
 | `opcache_jit_blacklist` | dropped | the JIT is not steerable per function: what gets compiled, and when, is the runtime's decision and no call or directive changes it for one name |
+| `getenv` | member | `Core\Env::get`, or `Core\Env::all` for the no-argument form; both answer with `tainted` values |
 | `putenv` | dropped | the environment is read-only, because a process-global mutation is unsound across cores (01 § 15). What PHP reached for it to change is a directive, and that is `Core\Config::set` — request-local, and gone when the request ends |
 | `extension_loaded` | dropped | an extension is an `[[extension]]` entry pinned in the configuration and resolved while compiling ([ADR 0078](adr/0078-config-reload-and-control-socket.md) § 2); a program naming a member it does not have fails to compile, so nothing is left to test at run time |
 | `dl` | dropped | nothing is loaded into the process at run time ([ADR 0052](adr/0052-closed-doors.md)) |

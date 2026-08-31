@@ -2,55 +2,54 @@
 
 ## State
 
-**ADR 0058 § 3 has both halves.** The denied table is unchanged and the operator's exception beside
-it is `net.internal` — `nvs_config::tree::CapNet::internal` for the key and
-`Capabilities::address_refused` for the rule, which is the table less whatever this deployment
-excepted. `nvs_runtime::capability::pin_host` is the only caller, and a context with no snapshot
-still gets the bare table. The three refusals to widen — literal addresses only, no ranges, and
-`true` grants nothing — are argued in that method's doc and in ADR 0058 § 3, which is their home.
-An exception reaches nothing on its own: `net.connect` still has to grant the host, asked first.
+**`Core\Env` is on disk**, in `crates/nvs-stdlib/src/env.rs`: `get(string $name): ?tainted string`
+and `all(): array<string, tainted string>`, registered beside `crate::config::CLASS`. Two decisions
+that module's own doc is the home of — it is **not** a capability door (ADR 0012 § 7 makes the
+environment a process-wide fact the operator already chose, and `nvs_runtime::environment` is the
+door-that-asks-nothing beside `terminal`), and the **name is a `Qual::Sink`**, so a `tainted` name
+is `E0401` on `Core\IO`'s reasoning about a path. Every value is `tainted` unconditionally. A value
+that is not UTF-8 makes `get` throw and `all` omit; the throw is declared unreachable from source at
+its site, because no program can write the environment.
 
-A denial's message now ends `which `net.internal` does not except`, so the two conformance cases
-that quote it moved with it.
+**`--ENV--` is honoured.** `crates/nvs-test` no longer refuses a case that uses it: pairs are one
+`NAME=value` per line, split at the first `=`, added to the runner's own environment rather than
+replacing it, and given to a `--ORACLE--`'s PHP half too. `--INI--` is the only section left on
+`case.rs`'s `NOT_YET`.
 
-**Root `nvs.toml` carries `examples/http.nvs`'s block**: `127.0.0.1` and `169.254.169.254` granted
-by name, only the first excepted — so the program's third line is refused on its *address* while its
-first is reachable, which is what that fixture claims.
+**`examples/http.nvs` has two blockers left, both below.** `Core\Env` is no longer one of them:
+the file now stops at line 45's `string|tainted string`, and nothing serves `127.0.0.1:8099`.
 
-**`examples/http.nvs` is still red, and none of the three reasons is the address policy.** Checked
-again this session: `Core\Env` exists nowhere; `$configured ?? "…"` types as
-`string|tainted string` and `Qual::Launder` refuses the union; nothing in this tree serves
-`127.0.0.1:8099`.
+The spec needed no edit — `docs/spec/01-core-library.md` § 15 already carried `Core\Env`'s row,
+including `mode()` and the `EOL`/`OS`/`VERSION` constants this slice did not write.
 
 ## Next group
 
-**The three halves `examples/http.nvs` still needs.** They share that file and the stage 5 `exact`
-check it feeds — `docs/agent/loop-goal.toml:2357` — and each is a different owner's, so the file
-sets differ; take them in this order.
+**The two halves `examples/http.nvs` still needs**, in this order. They share that file and the
+stage 5 `exact` check it feeds — `docs/agent/loop-goal.toml:2357` — and nothing else, so the file
+sets differ.
 
-- [ ] **`Core\Env::get` and `::all`.** Placement is already decided — do not re-open it:
-      `docs/adr/0012-no-superglobals.md:85` gives the class and `docs/spec/02-php-migration.md:589`
-      gives both members, answering `tainted` values, so this is the five-edit `Core` member shape
-      in a new `crates/nvs-stdlib/src/env.rs`, registered beside `crate::secret::CLASS` at
-      `crates/nvs-stdlib/src/registry.rs:1167`. A new class owes three conformance cases —
-      `crates/nvs-stdlib/tests/conformance_coverage.rs:24` — and the spec roster in
-      `docs/spec/01-core-library.md` gains it.
 - [ ] **Whether a `Qual::Launder` parameter admits a union carrying the tainted arm.**
-      `crates/nvs-types/src/expr/quals.rs:229` is the accept set that refuses it today, and
-      `examples/http.nvs:45` is the caller: `?tainted string` fed through `??` is the ordinary
-      shape of a configured URL, so the answer decides whether ADR 0024 § 3's launderers are
-      reachable from one.
-- [ ] **An origin on `127.0.0.1:8099` for the acceptance check** — the driver's half. The goal
-      file's `[docker]` block is read at `tools/loop.py:2243` (a compose file and its services,
-      brought up once per run), and the check at `docs/agent/loop-goal.toml:2357` wants
-      `status=200` and `body=ok` from `/ok`.
+      `examples/http.nvs:45` is the whole case and is `E0401` today, now that `Core\Env::get` gives
+      it a real `?tainted string` to write `?? "…"` over — which is how every environment read
+      will arrive, so this is the shape and not a corner. The rule is
+      `crates/nvs-types/src/expr/quals.rs:222`'s `admits_tainted_argument`; ADR 0024 § 3 is where a
+      launderer's argument shape is recorded, and whichever way it goes the answer belongs there.
+      A refusal that stands owes the example a spelling that is not `??`.
+- [ ] **An origin on `127.0.0.1:8099` for the acceptance check** — the driver's half.
+      `docs/agent/loop-goal.toml:2357`'s stage 5 check runs `examples/http.nvs` with nothing
+      listening, so its first two lines cannot print what the fixture freezes.
+      `crates/nvs-stdlib/src/http/transport.rs`'s own `#[cfg(test)]` listener is the shape a
+      harness would reuse; root `nvs.toml` already grants `127.0.0.1` by name and excepts it under
+      `net.internal`.
 
 ## Backlog
-
-- A request body, and `Core\Http\Response`'s header map — `crate::http`'s "what is not here yet".
-- `https` stays refused until a trust anchor set has an owner — `crate::http::transport`'s own doc.
-- `docs/reference/tools/20-config.md`'s "nothing asks for them yet" line still names `db.*` and
-  `debug.*`; it moves when their members land.
-- Stage 6, the two stores — `docs/agent/loop-goal.toml` stage 6.
-- `orient.py` did not print `nvs-config/src/tree.rs`, whose `CapNet` this item edits: the
-  `[context] modules` manifest selects only `nvs-config/src/capability.rs`.
+- `Core\Env::mode()` and the `EOL`, `OS` and `VERSION` constants —
+  `crates/nvs-stdlib/src/env.rs`'s gap 1 owns them, and `EOL` carries a real decision: a
+  `CoreConst` is inlined by the machine that compiles, `PHP_EOL` by the machine that runs.
+- `Core\Http\Response::header()` and the header-map slot — `crates/nvs-stdlib/src/http.rs:452`.
+- A reader for a non-text body needs a `CoreTy::TaintedBytes`; `TaintedStr` is the only tainted
+  return spelling `crates/nvs-stdlib/src/registry.rs` has.
+- `Core\Http\Client::send(Request)` and `stream` — `docs/spec/01-core-library.md` § 16 names both.
+- ADR 0074 § 7's dynamic half — a verb chosen at run time throws before the first attempt.
+- `--INI--` is the last section `crates/nvs-test/src/case.rs`'s `NOT_YET` refuses; `nvs.toml` has
+  been read since M6, so the entry may be older than the tree.

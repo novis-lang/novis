@@ -3468,6 +3468,14 @@ is why" — is this file.
   there is exactly one per file, so this is fixed rather than worked around;
   what is left of the trap is that a *second* `#[cfg(test)]` higher up in a
   module now fails that assertion instead.
+- **A `.phpt` section that `crates/nvs-test` "parses but does not honour" fails the case
+  outright, so a member that needs one is two slices and not one.** `--ENV--` had been parsed
+  since the importer landed and every case using it was reported `unsupported: the environment
+  is unreachable until Core\Env lands at M8` — so the conformance cases `Core\Env` owed
+  could not be written at all until `case.rs`'s `NOT_YET` lost its `ENV` row and `run.rs` threaded the
+  pairs into `Command::envs`. `--INI--` is the one still on that list. Before writing a case
+  that sets up its own world, check `NOT_YET` rather than the section table in
+  `crates/nvs-test/src/lib.rs`, which lists a section whether or not it does anything.
 
 ## Splitting a file that got too big
 
