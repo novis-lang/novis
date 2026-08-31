@@ -66,6 +66,14 @@ pub(crate) fn infer_method_call(
     // own type gains the `null` that arm yields — see [`nullsafe_result`].
     let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, object.span, env);
     check_member_name(method, live, scope, ctx, env);
+    // ADR 0126 § 4's first neighbour: a computed name is admitted at a property
+    // access and nowhere else, so this is `E0235` whatever the operand's type
+    // is. ADR 0014 § 6 refuses computed *dispatch* as a concept rather than as
+    // a spelling, and a key names a property, so there is no operand that could
+    // make this one resolve.
+    if let MemberName::Variable(e) | MemberName::Expr(e) = method {
+        report_computed_member_name(e.span, COMPUTED_METHOD_HELP, env);
+    }
     let resolved = match (class_qname_of(receiver_ty, env.interner), method) {
         (Some(qname), MemberName::Ident(name_span)) => {
             let name = span_text(env.src, *name_span).to_owned();
@@ -222,6 +230,11 @@ pub(crate) fn infer_static_call(
 ) -> TypeId {
     let class_ty = check_expr(class, None, live, scope, ctx, env);
     check_member_name(method, live, scope, ctx, env);
+    // `C::$m()` is [`infer_method_call`]'s refusal written on the class side,
+    // and for the same reason — the member a call names is never computed.
+    if let MemberName::Variable(e) | MemberName::Expr(e) = method {
+        report_computed_member_name(e.span, COMPUTED_METHOD_HELP, env);
+    }
     // ADR 0125 § 4's second site: a `class<T>` class side resolves the member
     // on `T`'s roster, the only one this site can see. The value may hold any
     // implementor, so what is checked here is `T`'s declaration and what finds
@@ -1283,15 +1296,28 @@ fn report_exception_accessor(span: Span, qname: &QName, name: &str, env: &mut En
     );
 }
 
+/// Checks the expression a computed member name is written as, and hands its
+/// type back — which is the whole of what ADR 0126 § 4 decides `$obj->$key` on,
+/// and the reason `E0235` is reported from this crate rather than from the
+/// parser. `None` is a written-out name: there is no operand to have a type.
+///
+/// Answering the question is this function's job; asking it is the caller's,
+/// because the answer differs by site. A property access admits a
+/// `property<T>` its receiver satisfies
+/// ([`super::members::check_property_member`]); a call refuses every operand,
+/// § 4's first neighbour.
 pub(crate) fn check_member_name(
     member: &MemberName,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) {
-    if let MemberName::Variable(e) | MemberName::Expr(e) = member {
-        check_expr(e, None, live, scope, ctx, env);
+) -> Option<TypeId> {
+    match member {
+        MemberName::Variable(e) | MemberName::Expr(e) => {
+            Some(check_expr(e, None, live, scope, ctx, env))
+        }
+        _ => None,
     }
 }
 

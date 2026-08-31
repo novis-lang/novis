@@ -570,6 +570,113 @@ fn collect_public_properties(
     }
 }
 
+/// ADR 0126 § 4: `$obj->$key` and `$obj->{$expr}`, the one computed member
+/// name the language admits, and `E0235` for every operand that is not one.
+///
+/// Two things have to hold, and neither is a spelling. The operand's type must
+/// be a `property<T>` — the only door into which is `as`, so the set of names
+/// it can hold was checked where it was written — and the receiver must
+/// *satisfy* `T`, since a key promises its names against `T`'s roster and a
+/// receiver that is not a `T` was never asked about them. § 4's three
+/// neighbours are exactly the ways those fail: a `mixed` or shape-typed
+/// receiver has no `T` to check against, a call is refused at its own site
+/// ([`super::calls::check_member_name`]), and an `unset` is refused below for
+/// the reason every declared property already refuses one.
+///
+/// The read answers § 5's **union of the set**: the key names one of `T`'s
+/// public properties and nothing else, so what comes back is one of their
+/// declared types and nothing else. The union is taken over `T`'s own roster
+/// rather than the receiver's, because `T` is what the key was checked against
+/// — a receiver that adds public properties of its own adds no name the key
+/// can hold.
+fn check_keyed_property(
+    object_ty: TypeId,
+    name_span: Span,
+    name_ty: Option<TypeId>,
+    is_unset: bool,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let argument = name_ty.and_then(|ty| property_key_argument(ty, env.interner));
+    let satisfied = argument.is_some_and(|argument| {
+        is_assignable(object_ty, argument, env.interner, env.graph, env.signatures)
+    });
+    let key_class = satisfied
+        .then(|| argument.and_then(|argument| class_qname_of(argument, env.interner)))
+        .flatten();
+    let Some(key_class) = key_class else {
+        report_computed_member_name(name_span, COMPUTED_PROPERTY_HELP, env);
+        return env.interner.mixed();
+    };
+    if is_unset {
+        // The same refusal [`report_unset_on_property`] states, over a name
+        // that is not written down: every name the key can hold is a declared
+        // property of `key_class`, so there is no operand for which this one
+        // would be allowed.
+        env.diags.report(
+            Diagnostic::error(
+                code::E_UNSET_ON_PROPERTY,
+                format!(
+                    "`unset()` through a `property<{key_class}>` key is refused; every name it \
+                     can hold is a declared property, and a declared property can never become \
+                     uninitialized again"
+                ),
+            )
+            .with_primary(name_span, "unset here")
+            .with_help(
+                "ADR 0022 already guarantees every one of those properties is definitely \
+                 initialized; assign `null` through the key instead where the property is \
+                 nullable",
+            ),
+        );
+        return env.interner.mixed();
+    }
+    let members: Vec<TypeId> = public_property_names(&key_class, env)
+        .iter()
+        .filter_map(|name| {
+            crate::signatures::resolve_property_owned(&key_class, name, env.signatures, env.graph)
+                .map(|(_, ty)| ty)
+        })
+        .collect();
+    if members.is_empty() {
+        // A class with no public property at all, which ADR 0126 § 1 refuses at
+        // the written `property<T>` itself — an empty union is not a type this
+        // interner has, and there is no value of this key type to read through
+        // anyway.
+        return env.interner.mixed();
+    }
+    env.interner.make_union(members)
+}
+
+/// `E0235`, ADR 0126 § 4's refusal, reported where the operand is written.
+///
+/// The code and the headline are ADR 0014 § 5's — what a computed name cannot
+/// do is unchanged — and only the *place* moved, from `nvs_syntax`'s parser to
+/// here, because § 4 made the operand's type the question and a parser sees no
+/// types. The help differs by site, which is why it is the caller's: only a
+/// property access has a `property<T>` to suggest.
+pub(crate) fn report_computed_member_name(span: Span, help: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_DYNAMIC_MEMBER_NAME,
+            "a member name cannot be computed (`->$name` / `->{expr}`)",
+        )
+        .with_primary(span, "this names a member only when the statement runs")
+        .with_help(help),
+    );
+}
+
+/// [`report_computed_member_name`]'s help at a property access, where ADR 0126
+/// § 4 leaves one way to write the same thing.
+pub(crate) const COMPUTED_PROPERTY_HELP: &str = "ADR 0126 § 4 admits `$obj->$key` only where `$key` is a `property<T>` the receiver \
+     satisfies — convert the name with `as property<ClassName>`, where the set it may hold is \
+     checked, or write the member out; data whose keys are only known at run time belongs in an \
+     `array<string, T>`";
+
+/// [`report_computed_member_name`]'s help at a call, where it does not.
+pub(crate) const COMPUTED_METHOD_HELP: &str = "ADR 0014 § 6 refuses a computed *dispatch* itself rather than its spelling, and ADR 0126's \
+     `property<T>` names a property rather than a method — write the call out, or `match` on the \
+     name and call each arm";
+
 /// Whether `object` is exactly the `$this` variable — the one receiver shape
 /// `nvs_hir::members` already diagnoses a missing property on, so
 /// [`infer`]'s `PropertyAccess` arm must not diagnose it a second time.
@@ -889,10 +996,17 @@ fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
 /// so the proof that neither panic has a reachable target is here and nowhere
 /// else. The split is exhaustive over the two questions an access asks:
 ///
-/// - **The member name.** A computed one (`->$name`, `->{expr}`) never reaches
-///   lowering: `nvs_syntax`'s `Parser::parse_member_name` refuses the spelling
-///   itself as `E0235`, so the [`MemberName::Ident`] arm below is the only one
-///   a compiled program takes. ADR 0014 § 5 owns why.
+/// - **The member name.** A computed one (`->$name`, `->{expr}`) still never
+///   reaches lowering, but since ADR 0126 § 4 the reason is a *type* rather
+///   than a spelling, and it is [`check_keyed_property`] that decides: an
+///   operand that is not a `property<T>` the receiver satisfies is `E0235`
+///   here, and one that is answers § 5's union of the set with no entry of its
+///   own. That second arm is unreachable in a compiled program today because
+///   no value of that type can exist in one — `nvs-ir` lowers no `property<T>`
+///   parameter, return or local, and says so with a known-gap panic naming the
+///   type — and the slice that gives § 5 its erased store is the one that
+///   records an entry here. ADR 0014 § 5 owns why every other operand is
+///   refused at all.
 /// - **The receiver's type.** A [`Ty::Shape`] records [`ExprInfo::ShapeProperty`]
 ///   with the field's slot; [`Ty::Object`] and [`Ty::Mixed`] record the same
 ///   variant erased, ADR 0036 § 4's name-keyed half. A type naming a class
@@ -923,9 +1037,13 @@ pub(crate) fn check_property_member(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    check_member_name(property, live, scope, ctx, env);
-    let MemberName::Ident(name_span) = property else {
-        return env.interner.mixed();
+    let name_ty = check_member_name(property, live, scope, ctx, env);
+    let name_span = match property {
+        MemberName::Ident(name_span) => name_span,
+        MemberName::Variable(e) | MemberName::Expr(e) => {
+            return check_keyed_property(object_ty, e.span, name_ty, is_unset, env);
+        }
+        _ => return env.interner.mixed(),
     };
     let name = span_text(env.src, *name_span).to_owned();
 

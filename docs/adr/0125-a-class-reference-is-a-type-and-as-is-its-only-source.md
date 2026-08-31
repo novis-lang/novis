@@ -131,8 +131,11 @@ Every other operand type keeps `E0496`, with its help now naming `as class<T>` r
 the written-out form. A bare `string` is therefore still refused at all three sites, one refusal, with a
 fix the author can take.
 
-`$obj->$name` is untouched: it stays `E0235` forever, because a class reference answers "which class",
-which the checker can use, and never "which member", which it cannot.
+`$obj->$name` is untouched *by this ADR*: a class reference answers "which class", which the checker can
+use, and never "which member", which it cannot — so no `class<T>` operand ever admits one. The member-name
+door is a different type's to open, and
+[ADR 0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md) § 4 opens it for
+`property<T>` alone.
 
 ### 5. A `new` over `class<T>` is checked against `T`'s constructor, and a divergent implementor is refused
 

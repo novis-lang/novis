@@ -939,53 +939,35 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// keyword-named methods), `$name` (a dynamic member name) or `{expr}`
     /// (a fully computed one).
     ///
-    /// The last two parse and are then refused as `E0235`, here rather than in
-    /// the checker, for the reason [`code::E_VARIABLE_VARIABLE`] is refused
-    /// here: the spelling is what is rejected, so the earliest place that can
-    /// see it is the one that should say so. The node is still built out of
-    /// the expression it wrote, so the operand is checked for its own mistakes
-    /// and the access above it reports nothing further — a computed name has
-    /// no member to resolve, and one error per spelling is the whole point.
+    /// The last two parse and carry no refusal of their own, which is
+    /// [`code::E_VARIABLE_VARIABLE`]'s rule stopping one construct short of
+    /// them: ADR 0126 § 4 admits `$obj->$key` when the operand's *type* is a
+    /// `property<T>` the receiver satisfies, and a type is the one thing this
+    /// parser cannot see. So the spelling is no longer what is rejected — the
+    /// missing check is — and `E0235` is reported by `nvs_types`, at the same
+    /// span, for every operand that is not a key. Both spellings reach it the
+    /// same way: `->{$k}` is `->$k` written the other way round, and § 4's
+    /// three neighbours that keep the refusal are distinguished by what they
+    /// are (a call, an `unset`, an unsatisfiable receiver), never by which of
+    /// the two brackets wrote them.
     pub(super) fn parse_member_name(&mut self) -> MemberName {
         match self.peek().kind {
             TokenKind::Variable => {
                 let span = self.bump().span;
-                self.report_dynamic_member_name(span);
                 MemberName::Variable(Box::new(Expr {
                     span,
                     kind: ExprKind::Variable(span),
                 }))
             }
             TokenKind::LBrace => {
-                let open = self.bump().span;
+                self.bump();
                 let inner = self.parse_expr();
-                let close = self.expect(TokenKind::RBrace, "`}`");
-                self.report_dynamic_member_name(open.to(close));
+                self.expect(TokenKind::RBrace, "`}`");
                 MemberName::Expr(Box::new(inner))
             }
             TokenKind::Ident | TokenKind::Keyword(_) => MemberName::Ident(self.bump().span),
             _ => MemberName::Ident(self.error_expected("a member name")),
         }
-    }
-
-    /// ADR 0014 § 5's compile-time half, over the *spelling* rather than over
-    /// the name: Novis has no way to compute which member is meant. The rule's
-    /// runtime-throw half is unaffected — it belongs to the two ways a name
-    /// still arrives late, a reflection-based get/set and ADR 0036 § 4's
-    /// erased receiver, and neither is spelled with one of these.
-    fn report_dynamic_member_name(&mut self, span: Span) {
-        self.diags.report(
-            Diagnostic::error(
-                code::E_DYNAMIC_MEMBER_NAME,
-                "a member name cannot be computed (`->$name` / `->{expr}`)",
-            )
-            .with_primary(span, "this names a member only when the statement runs")
-            .with_help(
-                "ADR 0014 § 5 makes every property a declared name, so there is nothing for a \
-                 computed one to resolve against — write the member out, or hold data whose \
-                 keys are only known at run time in an `array<string, T>`",
-            ),
-        );
     }
 
     pub(super) fn parse_call_args(&mut self) -> CallArgs {

@@ -353,6 +353,13 @@ pub mod code {
     /// behind the handle is unknown. Neither needs this spelling, and ADR 0036
     /// § 2 already refuses its literal-side twin, the computed shape key
     /// `{[$expr]: 1}`.
+    ///
+    /// ADR 0126 § 4 carves out the one exception and moves the report with it:
+    /// `$obj->$key` is admitted where `$key`'s type is a `property<T>` the
+    /// receiver satisfies — a set of names checked where the `as` was written,
+    /// so nothing request-controlled picks a field — and every other operand is
+    /// still this code, now reported by `nvs_types` rather than by the parser,
+    /// since the operand's type is what decides and a parser sees none.
     pub const E_DYNAMIC_MEMBER_NAME: Code = Code::new("E0235");
     /// `@expr` — PHP's error-suppression prefix. There is nothing for it to
     /// suppress: [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
