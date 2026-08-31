@@ -509,6 +509,79 @@ fn a_fatal_handler_runs_inside_its_reserved_time_slice() {
 /// all: a recursive `spawn script` is stopped by that ceiling and **reported as that ceiling**
 /// rather than as an out-of-memory.
 ///
+/// `docs/plan/m8.md`'s *Verify*, ADR 0020 § 3: the tier-3 handler runs charged to the engine's own
+/// reserve, and still runs when the request reporting itself is at its own ceiling.
+///
+/// Asserted on the **context**, because that is where the exception to ADR 0006 lives and where a
+/// regression would land: `Ctx::handler_isolate` is what parts from `Ctx::isolate`, and running a
+/// real `.nvs` through `ladder::escalate` would assert the same three fields through a compiler, a
+/// capability and a path resolver, none of which is what this case is about.
+///
+/// The parent is left in the state the ladder actually meets it in — past its memory ceiling *and*
+/// past its wall clock — because those are two independent ways it could take the handler down with
+/// it, and a constructor that inherited either one is green against a case that arranges only the
+/// other.
+#[test]
+fn the_configured_handler_script_runs_charged_to_the_engines_own_reserve() {
+    let (mut ctx, hog) = breached();
+    // Stated the way an operator states it rather than through `set_memory_limit`, because
+    // `Ctx::set_config` recomputes the ceiling out of `[limits]` and would otherwise uncap the
+    // request this case exists to have capped. The hog `breached` is still holding is what puts it
+    // over, whichever way the number arrived.
+    ctx.set_config(snapshot_of(
+        "[limits]\nmemory = '1M'\n\n[log]\nhandler = 'report.nvs'\nhandler_reserve_memory = '32M'\nhandler_reserve_time = '2s'\n",
+    ));
+    ctx.expire_deadline();
+    assert!(
+        ctx.over_memory_limit(),
+        "the case only means anything with the request already out of memory"
+    );
+
+    let handler = ctx.handler_isolate(OutputSink::Buffer(Vec::new()));
+
+    assert_eq!(
+        handler.memory_limit(),
+        32 << 20,
+        "the ceiling is the reserve the operator wrote, not what the request had left",
+    );
+    assert!(
+        !handler.over_memory_limit(),
+        "so the handler has room where the request it reports has none",
+    );
+    assert_eq!(
+        handler.cpu_limit(),
+        2_000_000_000,
+        "and the same on the time half",
+    );
+    assert!(
+        !handler.deadline_expired(),
+        "a request stopped by its wall clock still gets a report: the deadline word is the \
+         handler's own",
+    );
+    drop(hog);
+}
+
+/// The same exception where the configuration states neither ceiling — the engine's own numbers,
+/// which is what "engine-owned" means when nobody wrote one down.
+///
+/// The reading that matters is the second: an unconfigured handler must not fall back to the
+/// failing request's ceiling, which is the shape `Ctx::isolate` has and the one this constructor
+/// exists to break.
+#[test]
+fn an_unstated_handler_reserve_is_the_engines_own_and_never_the_requests() {
+    let (ctx, hog) = breached();
+
+    let handler = ctx.handler_isolate(OutputSink::Buffer(Vec::new()));
+
+    assert_eq!(handler.memory_limit(), Ctx::DEFAULT_HANDLER_RESERVE_MEMORY);
+    assert_eq!(handler.cpu_limit(), Ctx::DEFAULT_HANDLER_RESERVE_TIME);
+    assert!(
+        !handler.over_memory_limit(),
+        "the request's 4 KiB ceiling is not the handler's",
+    );
+    drop(hog);
+}
+
 /// Both halves the name promises are asserted, because either one alone is green against the
 /// failure this replaces. An unbounded recursion of isolates already stopped — it exhausted the
 /// tree's heap — and already stopped as a `FATAL`, so a case asking only whether the spawn was
