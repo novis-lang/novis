@@ -61,6 +61,14 @@
 //! So [`STORE`] carries no capability row of its own, exactly as
 //! `Core\Http\Client` carries none.
 //!
+//! The door is [`open_configured`] rather than the member, because it has a
+//! second caller: `Core\RateLimit::consume` limits over the same store — a
+//! deployment has one — and ADR 0075 §§ 1 and 5 both write that member standing
+//! alone, so it opens the store itself instead of requiring `shared()` to have
+//! been called first. Both callers ask for the same grant at the same host and
+//! reuse the same per-core socket; what differs is the sentence each appends to
+//! the refusal, since what to do instead is the caller's own contract.
+//!
 //! Which store, and how long a command may take, are `[cache.shared] url` and
 //! `[cache.shared] timeout` — both `System`-class, because where a fleet's
 //! coherent state lives is not a decision a request may make for itself.
@@ -95,7 +103,7 @@ use nvs_syntax::duration;
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
-mod redis;
+pub(crate) mod redis;
 
 /// The class name, once, for the messages that all name it.
 pub(crate) const NAME: &str = r"Core\Cache";
@@ -148,13 +156,21 @@ const SHARED_DOC: MethodDoc = MethodDoc {
             machine that names it.",
     params: &[],
     ret: "A `Core\\Cache\\Store` over the configured shared store, whose entries every core sees.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "No `[cache.shared] url` is configured; the capability `net.connect` is not granted \
-               for that host, or the address it resolves to is one the outbound policy denies; or \
-               the configured store cannot be reached — an unreachable store throws rather than \
-               answering as though the entry were absent.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "No `[cache.shared] url` is configured; or the capability `net.connect` is not \
+                   granted for that host, or the address it resolves to is one the outbound \
+                   policy denies. Each is a deployment that was not configured rather than a \
+                   store that failed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The configured store cannot be reached — it throws rather than answering as \
+                   though the entry were absent, since the two mean opposite things to whatever \
+                   asked.",
+        },
+    ],
 };
 
 /// § 1's store, as the two operations § 2 defines over it.
@@ -248,11 +264,18 @@ const PUT_DOC: MethodDoc = MethodDoc {
     ],
     ret: "Nothing. A successful `put` is still no promise that a later `get` answers — see \
           `Core\\Cache::local`.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "The value cannot cross: it is or holds a closure, or an object with a `secret` \
-               property that was not revealed.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The value cannot cross: it is or holds a closure, or an object with a `secret` \
+                   property that was not revealed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "On the shared tier only: the store cannot be reached or refused the write. \
+                   The local tier has nothing to be unreachable.",
+        },
+    ],
 };
 
 /// `Core\Cache\Store::get`'s reference card — ADR 0117.
@@ -266,12 +289,20 @@ const GET_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The value as it was copied in, or `null` — an entry may be absent at any time, for any \
           reason, and on the local tier that is the contract rather than a failure.",
-    errors: &[ErrorDoc {
-        error: "ParseError",
-        desc: "The entry names a class this program cannot resolve — the same refusal \
-               `Core\\Serialize::decode` makes, and the ordinary consequence of a deployment \
-               whose classes changed under a store that outlives them.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The entry names a class this program cannot resolve — the same refusal \
+                   `Core\\Serialize::decode` makes, and the ordinary consequence of a deployment \
+                   whose classes changed under a store that outlives them.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "On the shared tier only: the store cannot be reached. An entry that is simply \
+                   not there is `null` on either tier, which is the difference between a miss and \
+                   a failure.",
+        },
+    ],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
@@ -458,9 +489,9 @@ fn endpoint(url: &str, member: &str) -> Result<(String, u16), Fault> {
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` for a store that cannot be reached, which is the
-/// second half of [`SHARED_DOC`]'s card: an unreachable store throws at the door
-/// rather than answering a handle whose every operation would fail.
+/// A thrown `IOError` for a store that cannot be reached, which is the second
+/// half of [`SHARED_DOC`]'s card: an unreachable store throws at the door rather
+/// than answering a handle whose every operation would fail.
 fn open_shared(address: SocketAddr, timeout: Duration, member: &str) -> Result<(), Fault> {
     SHARED.with_borrow_mut(|held| {
         if held.as_ref().is_none_or(|open| open.address() != address) {
@@ -469,31 +500,73 @@ fn open_shared(address: SocketAddr, timeout: Duration, member: &str) -> Result<(
         held.as_mut()
             .expect("the connection was just written")
             .ensure()
-            .map_err(|why| Fault::thrown(format!("{member}: {why}")))
+            .map_err(|why| Fault::thrown_as(ThrownClass::Io, format!("{member}: {why}")))
     })
 }
 
-/// One command on this core's connection to the shared store.
+/// Opens this core's connection to the configured shared store — the **door**,
+/// as the module doc's third decision defines one: the directive is read here,
+/// the grant is asked for here, the host is pinned here, and the connection is
+/// made to the address the grant approved.
+///
+/// `remedy` is the clause a caller appends to the unconfigured refusal, because
+/// what to do instead is the caller's own contract: `Core\Cache::shared()` can
+/// name the local tier, and a limiter enforced across every core cannot.
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` for a store this core never opened, for one that
-/// cannot be reached, and for one that refuses the command. Never an answer that
-/// looks like absence: ADR 0075 § 5's standing rule is that an unreachable store
+/// A thrown `RuntimeError` when no `[cache.shared] url` is set, when the URL is
+/// not one this client reads, or when `net.connect` does not cover its host —
+/// each a deployment that has not been configured rather than the world saying
+/// no. A thrown `IOError` for a store that is configured and cannot be reached,
+/// which is the class ADR 0075 § 5's fail-open `catch` holds.
+pub(crate) fn open_configured(ctx: &Ctx, member: &str, remedy: &str) -> Result<(), Fault> {
+    let Some(url) = configured(ctx, URL) else {
+        return Err(Fault::thrown(format!(
+            "{member}: no shared store is configured, so there is nothing coherent to answer \
+             with — set `[cache.shared] url`{remedy}"
+        )));
+    };
+
+    let (host, port) = endpoint(&url, member)?;
+    // ADR 0058 § 2: the door answers with the address, and the connection is
+    // made to *that* — the whole of why a name is not resolved again below.
+    let address = nvs_runtime::capability::pin_host(ctx, &host, member)?;
+    open_shared(SocketAddr::new(address, port), timeout_of(ctx), member)
+}
+
+/// One command on this core's connection to the shared store, for `owner`'s
+/// `member`.
+///
+/// Two names rather than one because the connection now has two owners: the
+/// store's own operations, and `Core\RateLimit::consume`, which reaches the
+/// same socket because a deployment has one shared store and a limiter that
+/// named a second would be a second thing to configure.
+///
+/// # Errors
+///
+/// A thrown `IOError` for a store this core never opened, for one that cannot
+/// be reached, and for one that refuses the command. Never an answer that looks
+/// like absence: ADR 0075 § 5's standing rule is that an unreachable store
 /// throws, because the failure mode belongs to the application that knows
 /// whether the entry was a cache or a lock.
-fn on_shared<T>(
+pub(crate) fn on_shared<T>(
+    owner: &str,
     member: &str,
     command: impl FnOnce(&mut redis::Connection) -> Result<T, String>,
 ) -> Result<T, Fault> {
     SHARED.with_borrow_mut(|held| {
         let open = held.as_mut().ok_or_else(|| {
-            Fault::thrown(format!(
-                "{STORE_NAME}::{member}: this core has no connection to the shared store, and \
-                 `{NAME}::shared()` is the only thing that opens one"
-            ))
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{owner}::{member}: this core has no connection to the shared store, and \
+                     `{NAME}::shared()` is the only thing that opens one"
+                ),
+            )
         })?;
-        command(open).map_err(|why| Fault::thrown(format!("{STORE_NAME}::{member}: {why}")))
+        command(open)
+            .map_err(|why| Fault::thrown_as(ThrownClass::Io, format!("{owner}::{member}: {why}")))
     })
 }
 
@@ -528,24 +601,16 @@ nvs_runtime::nvs_helper! {
     /// # Errors
     ///
     /// A thrown `RuntimeError` when no `[cache.shared] url` is set, when the URL
-    /// is not one this client reads, when `net.connect` does not cover its host
-    /// or the outbound policy denies its address, or when the store cannot be
-    /// reached.
+    /// is not one this client reads, or when `net.connect` does not cover its
+    /// host or the outbound policy denies its address; a thrown `IOError` when
+    /// the store cannot be reached.
     fn nvs_core_cache_shared(ctx, _args: [0]) {
-        let member = format!("{NAME}::shared");
-        let Some(url) = configured(ctx, URL) else {
-            return Err(Fault::thrown(format!(
-                "{member}(): no shared store is configured, so there is nothing coherent to \
-                 answer with — set `[cache.shared] url`, or use `{NAME}::local()` and accept \
-                 its contract"
-            )));
-        };
-
-        let (host, port) = endpoint(&url, &member)?;
-        // ADR 0058 § 2: the door answers with the address, and the connection is
-        // made to *that* — the whole of why a name is not resolved again below.
-        let address = nvs_runtime::capability::pin_host(ctx, &host, &member)?;
-        open_shared(SocketAddr::new(address, port), timeout_of(ctx), &member)?;
+        let member = format!("{NAME}::shared()");
+        open_configured(
+            ctx,
+            &member,
+            ", or use `Core\\Cache::local()` and accept its contract",
+        )?;
 
         Ok(crate::instance::build(
             &STORE,
@@ -563,8 +628,8 @@ nvs_runtime::nvs_helper! {
     /// A thrown `LogicError` for a value that may not cross — the graph copy's
     /// own refusal, classified as [`crate::serialize`]'s `encode` classifies it,
     /// because a value the program itself built is the program's bug — and a
-    /// thrown `RuntimeError` on the shared tier for a store that cannot be
-    /// reached or that refuses the write.
+    /// thrown `IOError` on the shared tier for a store that cannot be reached
+    /// or that refuses the write.
     ///
     /// **The copy happens before the tier is consulted**, which is § 2's "not a
     /// third mechanism" written as control flow: there is one call to the walk
@@ -590,7 +655,7 @@ nvs_runtime::nvs_helper! {
 
         match tier {
             Tier::Local => store_put(&key, payload),
-            Tier::Shared => on_shared("put", |open| open.set(&key, &payload))?,
+            Tier::Shared => on_shared(STORE_NAME, "put", |open| open.set(&key, &payload))?,
         }
         Ok(Value::null())
     }
@@ -605,7 +670,7 @@ nvs_runtime::nvs_helper! {
     /// A thrown `ParseError` for an entry naming a class this program cannot
     /// resolve, which is [`crate::serialize`]'s `decode` refusal reached through
     /// the same resolver — the program's own class table — and, on the shared
-    /// tier, a thrown `RuntimeError` for a store that cannot be reached. An
+    /// tier, a thrown `IOError` for a store that cannot be reached. An
     /// entry that is simply not there is `null` on either tier, which is the
     /// difference § 1 draws between a miss and a failure.
     ///
@@ -618,7 +683,7 @@ nvs_runtime::nvs_helper! {
 
         let held = match tier {
             Tier::Local => store_get(&key),
-            Tier::Shared => on_shared("get", |open| open.get(&key))?,
+            Tier::Shared => on_shared(STORE_NAME, "get", |open| open.get(&key))?,
         };
         let Some(payload) = held else {
             return Ok(Value::null());

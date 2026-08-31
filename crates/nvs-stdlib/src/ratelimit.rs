@@ -1,0 +1,868 @@
+//! `Core\RateLimit` — [ADR 0075](../../../../docs/adr/0075-core-ratelimit.md)'s
+//! limiter for what only the application knows, as the coherent half of it:
+//! `consume`, and the `Core\RateLimit\Decision` it answers with.
+//!
+//! § 1's two members are two *jobs*. `consume` enforces a policy the
+//! application promised somebody — a plan quota, a login limit — so its state
+//! is the shared store and its answer is coherent across every core and every
+//! machine. `shed` drops load to keep a host up, so its state is the core's own
+//! memory and an approximate answer is adequate; it is not on disk yet, and
+//! when it lands it is a second member here rather than a flag on this one.
+//!
+//! # Decision: the store is `Core\Cache`'s, and this member is its own door
+//!
+//! There is one shared store in a deployment — `[cache.shared] url` — and a
+//! limiter that named a second one would be a second thing to configure for no
+//! second guarantee. So this module reaches the store through
+//! [`crate::cache`]'s connection, which is one socket per core whether a
+//! request caches or limits.
+//!
+//! What it does **not** do is require the program to have called
+//! `Core\Cache::shared()` first. ADR 0075 §§ 1 and 5 both write
+//! `Core\RateLimit::consume(…)` standing alone, and a member that silently
+//! needed an unrelated call ahead of it would be an ordering rule held nowhere
+//! near either call site. So [`nvs_core_ratelimit_consume`] opens the
+//! configured store itself, through the same door
+//! [`crate::cache::open_configured`] is for `Core\Cache::shared()`: the grant
+//! is asked for here, the host is pinned here, and the address the connection
+//! is made to is the one the grant approved. That is why this member carries a
+//! `net.connect` row in [`crate::registry::CAPABILITIES`] and the `Decision`'s
+//! four readers carry none — they read slots, and a slot read performs no
+//! effect.
+//!
+//! # Decision: the GCRA step is one Lua script, and it is ours
+//!
+//! [`SCRIPT`] is the whole of what the store does: read the stored theoretical
+//! arrival time, decide, and write the new one — atomically, because two cores
+//! reading and writing the same key over two round trips would admit two
+//! requests where the policy admits one, and an approximate `consume` is the
+//! thing § 1 says is not a `consume` at all. A `WATCH`/retry loop is the
+//! alternative and it is more round trips on the request path exactly when the
+//! key is hot, which is when a limiter matters.
+//!
+//! **The arithmetic that Rust owns is the *parameters*, and the script owns the
+//! *step*.** [`window`] turns `limit`, `per` and `burst` into GCRA's emission
+//! interval and delay-variation tolerance, and it is the one place that
+//! conversion happens — so when `shed` lands it derives its window here rather
+//! than restating § 2's arithmetic in a second place, and the five lines that
+//! genuinely differ between an in-process decision and an atomic one are all
+//! that differ.
+//!
+//! The script counts in **microseconds** rather than nanoseconds, because Lua's
+//! numbers are doubles and a nanosecond count of the Unix epoch passed 2⁵³ in
+//! 1970 + 104 days: it would be rounded, silently, on every arrival. A
+//! microsecond count is exact until the year 2255, and [`window`] refuses a
+//! tolerance past 2⁵³ rather than let one be rounded.
+//!
+//! # Decision: no configuration, and no key that can collide with a cache entry
+//!
+//! § 4's "no configuration at all" is the design: the limit is an argument
+//! because only the application knows whether this is a plan quota or a login
+//! throttle, and there is no `[ratelimit]` block for an operator to move it
+//! into. `rate_limit_reads_no_directive` is that as a check — this module reads
+//! no directive of its own, and the one it reaches indirectly is
+//! `[cache.shared] url`, which says where the store is and nothing about the
+//! policy.
+//!
+//! A key is namespaced with [`PREFIX`] before it reaches the store, because the
+//! same store holds `Core\Cache` entries: a program caching under `account:1`
+//! and limiting under `account:1` must not be one entry, and the two members
+//! are written by different people in different files.
+//!
+//! **What it spends:** one entry per live key in the shared store — one
+//! timestamp, not a window of arrivals, which is § 2's O(1)-per-key and what
+//! makes limiting per user affordable at a million users — expiring on its own
+//! once the key drains. In this process, nothing: the request text and one
+//! three-integer reply, both released with the call.
+
+use nvs_runtime::{Fault, Tag, ThrownClass, Value};
+
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
+
+/// The class name, once, for the messages that all name it.
+pub(crate) const NAME: &str = r"Core\RateLimit";
+
+/// [`DECISION`]'s name — see [`NAME`].
+pub(crate) const DECISION_NAME: &str = r"Core\RateLimit\Decision";
+
+/// What every key this module writes is prefixed with, so a limiter's entry and
+/// a cache entry of the same name are two entries — see the module doc.
+const PREFIX: &str = "nvs:ratelimit:";
+
+/// `Core\Time\Duration`, as the two places below spell it.
+const DURATION: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
+
+/// `{burst?: uint, cost?: uint}` — § 1's one trailing options shape.
+///
+/// `burst` defaults to `limit`, which is a value only the call knows, so its
+/// [`Const`] is the sentinel [`Const::Null`] that `uint` cannot otherwise hold
+/// — the arrangement [`CoreTy::Union`]'s own docs fix for an option whose
+/// "not given" is not a value in the declared type. `cost` defaults to a
+/// written `1`, because one call weighing one unit is a constant.
+const CONSUME_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "burst",
+        ty: CoreTy::Uint,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "cost",
+        ty: CoreTy::Uint,
+        default: Const::Uint(1),
+    },
+];
+
+/// § 1's coherent member, and so far the only one.
+pub(crate) const CLASS: CoreClass = CoreClass {
+    name: NAME,
+    methods: &[CoreMethod {
+        name: "consume",
+        names: &["key", "limit", "per"],
+        // The key is `Qual::Neutral`, which is § 3's two sentences at once: a
+        // `tainted` account id is admitted, because a key is one opaque
+        // length-prefixed value on the wire and there is no injection to
+        // prevent; and a `secret` one is refused, because every mark but
+        // `Qual::Reveal` refuses `secret` and writing a signing key into a
+        // store with a lifetime is the durable exposure ADR 0033 exists to
+        // close. Nothing of the key reaches the answer, which is what makes
+        // the mark neutral rather than contagious.
+        params: &[
+            CoreTy::Text(Qual::Neutral),
+            CoreTy::Uint,
+            DURATION,
+            CoreTy::Options(CONSUME_OPTIONS),
+        ],
+        defaults: &[],
+        return_ty: CoreTy::Instance(DECISION_NAME),
+        symbol: "nvs_core_ratelimit_consume",
+        doc: Some(&CONSUME_DOC),
+    }],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\RateLimit::consume`'s reference card — ADR 0117.
+const CONSUME_DOC: MethodDoc = MethodDoc {
+    short: "Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in the shared \
+            store, and answers whether this arrival is inside the limit.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "What the allowance is per — an account, a tenant, an API key id. `tainted` is \
+                   admitted, since a key is one opaque value on the wire; a `secret` is refused, \
+                   since keying on one writes it into a store, and the fix is to key on \
+                   `Core\\Hash::of` of it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limit",
+            desc: "How many units `$per` admits — the drain rate, not a ceiling on any one \
+                   instant.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "per",
+            desc: "The period `$limit` units are admitted over.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "burst",
+            desc: "How much may arrive at once; defaults to `$limit`, which admits a whole \
+                   period's worth in one instant.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "cost",
+            desc: "What this one call weighs, so an expensive endpoint may charge five units of \
+                   the same quota; defaults to 1.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\RateLimit\\Decision`. Its `retryAfter` is `null` exactly when it is allowed, \
+          and is the exact wait until the arrival would be admitted otherwise — never an \
+          estimate, and never rounded up to the next window.",
+    errors: &[
+        ErrorDoc {
+            error: "IOError",
+            desc: "The shared store cannot be reached or refused the command. It is never \
+                   answered as `allowed`: whether this limiter fails open or closed is knowledge \
+                   only the call site has, so the decision is thrown to it.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "No `[cache.shared] url` is configured, or `net.connect` is not granted for \
+                   its host — a deployment mistake rather than the world saying no, and \
+                   deliberately not the class the fail-open `catch` around this member holds. \
+                   Also `$limit`, `$per` or `$burst` at zero, and a period too short to divide \
+                   into `$limit` units.",
+        },
+    ],
+};
+
+/// § 3's decision: what was decided, what it was decided against, and the exact
+/// wait when it was refused.
+///
+/// Four readers rather than four readonly properties, which is where this
+/// departs from § 3's sketch and has to: a `Core`-owned instance has no
+/// property a program can reach ([`CoreTy::Instance`] is the home of that
+/// rule), so `$d->allowed` would resolve a class, find no member and reach
+/// `nvs-ir` with nothing to call. `Core\Http\Response` is the same shape for
+/// the same reason and its `->status()` is the precedent.
+pub(crate) const DECISION: CoreClass = CoreClass {
+    name: DECISION_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "allowed",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_ratelimit_decision_allowed",
+            doc: Some(&ALLOWED_DOC),
+        },
+        CoreMethod {
+            name: "limit",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_ratelimit_decision_limit",
+            doc: Some(&LIMIT_DOC),
+        },
+        CoreMethod {
+            name: "remaining",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_ratelimit_decision_remaining",
+            doc: Some(&REMAINING_DOC),
+        },
+        CoreMethod {
+            name: "retryAfter",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // ADR 0063 R4's "absence is `?T`" rather than a sentinel zero: an
+            // allowed arrival has no wait, and a wait of zero is a different
+            // claim from having none.
+            return_ty: CoreTy::Nullable(&DURATION),
+            symbol: "nvs_core_ratelimit_decision_retry_after",
+            doc: Some(&RETRY_AFTER_DOC),
+        },
+    ],
+    slots: &["allowed", "limit", "remaining", "retryAfter"],
+    constants: &[],
+};
+
+/// `Core\RateLimit\Decision::allowed`'s reference card — ADR 0117.
+const ALLOWED_DOC: MethodDoc = MethodDoc {
+    short: "Whether this arrival was inside the limit, and so whether its cost was charged.",
+    params: &[],
+    ret: "`true` when the units were charged, `false` when nothing was charged and the arrival \
+          was refused.",
+    errors: &[],
+};
+
+/// `Core\RateLimit\Decision::limit`'s reference card — ADR 0117.
+const LIMIT_DOC: MethodDoc = MethodDoc {
+    short: "The `$limit` the decision was made against, carried back so a `RateLimit` header can \
+            be written from the decision alone.",
+    params: &[],
+    ret: "The limit as it was passed.",
+    errors: &[],
+};
+
+/// `Core\RateLimit\Decision::remaining`'s reference card — ADR 0117.
+const REMAINING_DOC: MethodDoc = MethodDoc {
+    short: "How many further units the store would admit at this instant.",
+    params: &[],
+    ret: "The units left in the burst allowance, counted after this arrival was charged; `0` \
+          when the next unit would have to wait.",
+    errors: &[],
+};
+
+/// `Core\RateLimit\Decision::retryAfter`'s reference card — ADR 0117.
+const RETRY_AFTER_DOC: MethodDoc = MethodDoc {
+    short: "How long until this arrival would be admitted — the exact wait, computed from the \
+            store's own clock rather than estimated.",
+    params: &[],
+    ret: "`null` exactly when the decision is allowed, and otherwise the `Core\\Time\\Duration` \
+          until the theoretical arrival time; a `Retry-After` header built from it tells the \
+          client when to come back rather than when the window turns over, which is what stops \
+          every refused client retrying in the same instant.",
+    errors: &[],
+};
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that
+/// belongs to another domain. See [`crate::address`].
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_ratelimit_consume" => (nvs_core_ratelimit_consume as *const ()).cast(),
+        "nvs_core_ratelimit_decision_allowed" => {
+            (nvs_core_ratelimit_decision_allowed as *const ()).cast()
+        }
+        "nvs_core_ratelimit_decision_limit" => {
+            (nvs_core_ratelimit_decision_limit as *const ()).cast()
+        }
+        "nvs_core_ratelimit_decision_remaining" => {
+            (nvs_core_ratelimit_decision_remaining as *const ()).cast()
+        }
+        "nvs_core_ratelimit_decision_retry_after" => {
+            (nvs_core_ratelimit_decision_retry_after as *const ()).cast()
+        }
+        _ => return None,
+    })
+}
+
+/// The GCRA step, atomic because the store runs it as one — the module doc's
+/// second decision is why it is ours rather than a client library's.
+///
+/// `KEYS[1]` is the namespaced key and `ARGV` is `interval`, `tau` and `cost`,
+/// all in microseconds and all produced by [`window`]. The reply is three
+/// integers: whether the arrival was admitted, how many microseconds until it
+/// would be, and how many further units the allowance holds.
+///
+/// The clock is the **store's**, not the caller's: the whole difference between
+/// this member and `shed` is that every core agrees, and a theoretical arrival
+/// time compared against N differently-skewed machine clocks agrees only as far
+/// as the worst of them. `redis.replicate_commands` is called where it exists
+/// because Redis before 5 refused a write after a non-deterministic read
+/// without it, and is a no-op in every version since.
+const SCRIPT: &str = "\
+if redis.replicate_commands then redis.replicate_commands() end
+local clock = redis.call('TIME')
+local now = tonumber(clock[1]) * 1000000 + tonumber(clock[2])
+local interval = tonumber(ARGV[1])
+local tau = tonumber(ARGV[2])
+local cost = tonumber(ARGV[3])
+local tat = tonumber(redis.call('GET', KEYS[1])) or now
+if tat < now then tat = now end
+local next_tat = tat + cost * interval
+local allow_at = next_tat - tau
+if now < allow_at then
+  local left = math.floor((tau - (tat - now)) / interval)
+  if left < 0 then left = 0 end
+  return {0, allow_at - now, left}
+end
+redis.call('SET', KEYS[1], next_tat, 'PX', math.ceil((next_tat - now) / 1000) + 1)
+local left = math.floor((tau - (next_tat - now)) / interval)
+if left < 0 then left = 0 end
+return {1, 0, left}
+";
+
+/// The largest count [`SCRIPT`]'s arithmetic holds exactly — Lua's numbers are
+/// doubles, so every integer past 2⁵³ is rounded rather than refused.
+const EXACT_CEILING: i128 = 1 << 53;
+
+/// GCRA's two parameters, in microseconds: how long one unit takes to drain,
+/// and how far ahead of the drain an arrival may run.
+///
+/// One place, per the module doc, because § 2's "both tiers run the identical
+/// algorithm" is a claim about *these two numbers* — the decision step that
+/// reads them is five lines and is written where the state is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Window {
+    /// The emission interval `per / limit`: how long one unit takes to drain.
+    interval: i128,
+    /// The delay variation tolerance `burst × interval`: how much may arrive at
+    /// once. With `burst` at its default of `limit` this is exactly `per`.
+    tau: i128,
+}
+
+/// § 2's drain rate and burst tolerance, from the limit the caller wrote.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a limit, a period or a burst of zero, for a
+/// period too short to divide into `limit` units, and for a tolerance past what
+/// [`SCRIPT`] holds exactly. Each is a limit that can never admit anything or
+/// can never be enforced accurately, and refusing is the direction ADR 0075
+/// § 5 sets: a limiter that quietly does not limit is worse than no limiter.
+fn window(limit: u64, per: i64, burst: u64) -> Result<Window, Fault> {
+    let refuse = |why: String| Fault::thrown(format!("{NAME}::consume(): {why}"));
+    if limit == 0 {
+        return Err(refuse(
+            "a `$limit` of 0 admits nothing at any rate, so there is no rate to enforce — a \
+             limiter that refuses everything is spelled by not calling the endpoint"
+                .to_owned(),
+        ));
+    }
+    if per <= 0 {
+        return Err(refuse(
+            "a `$per` of zero or less is not a period, so there is nothing for `$limit` units to \
+             be admitted over"
+                .to_owned(),
+        ));
+    }
+    if burst == 0 {
+        return Err(refuse(
+            "a `$burst` of 0 admits nothing at any instant, so every arrival would be refused \
+             however long it waited"
+                .to_owned(),
+        ));
+    }
+    // Microseconds, per the module doc: `SCRIPT` counts in them because a
+    // nanosecond count of the epoch is past what a double holds exactly.
+    let interval = i128::from(per) / 1000 / i128::from(limit);
+    if interval == 0 {
+        return Err(refuse(format!(
+            "a `$per` of {per}ns divided into {limit} units is under a microsecond each, which is \
+             finer than this limiter counts"
+        )));
+    }
+    let tau = interval * i128::from(burst);
+    if tau > EXACT_CEILING {
+        return Err(refuse(format!(
+            "a `$burst` of {burst} at that rate is {tau} microseconds of tolerance, past the \
+             {EXACT_CEILING} this limiter's arithmetic holds exactly"
+        )));
+    }
+    Ok(Window { interval, tau })
+}
+
+/// [`DECISION`]'s slots, by index — the layout its `slots` names.
+const ALLOWED_SLOT: usize = 0;
+const LIMIT_SLOT: usize = 1;
+const REMAINING_SLOT: usize = 2;
+const RETRY_AFTER_SLOT: usize = 3;
+
+/// One decision, as the instance a program reads it off.
+///
+/// The **only** place this module builds one, which is § 5 as structure rather
+/// than as a rule: every route to a `Decision` runs through here, and every
+/// route to here is downstream of the store having answered — so there is no
+/// arrangement of this file in which an unreachable store produces one.
+fn built(allowed: bool, limit: u64, remaining: u64, retry_after: Option<i64>) -> Value {
+    crate::instance::build(
+        &DECISION,
+        [
+            Value::bool(allowed),
+            Value::uint(limit),
+            Value::uint(remaining),
+            retry_after.map_or_else(Value::null, crate::time::duration_of),
+        ],
+    )
+}
+
+/// The store's three integers, as the decision they mean.
+///
+/// # Errors
+///
+/// The reply's shape as text, for anything that is not three integers — a store
+/// answering something else has run a script that is not [`SCRIPT`], and
+/// reading it as a decision would be inventing one.
+fn decoded(reply: &[i64], limit: u64) -> Result<Value, String> {
+    let [allowed, retry_after, remaining] = reply else {
+        return Err(format!(
+            "the limiter script answered {} value(s) where it answers three",
+            reply.len()
+        ));
+    };
+    let allowed = *allowed != 0;
+    let remaining = u64::try_from(*remaining).unwrap_or(0);
+    // Microseconds on the wire, nanoseconds in a `Duration`. `null` exactly
+    // when allowed, per § 3 — not a zero the caller has to know to read as
+    // absence.
+    let wait = (!allowed).then(|| retry_after.saturating_mul(1000).max(0));
+    Ok(built(allowed, limit, remaining, wait))
+}
+
+/// The `string` in argument slot `at`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for the reason [`crate::cache`]'s own
+/// `key_of` gives: the row declares a `string` there, so another tag is
+/// compiled code's bug — unreachable from source, because `E0401` refuses the
+/// call before any of this runs.
+fn key_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fault> {
+    args[at].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} expected a `string` key, got tag {}",
+            args[at].tag_byte()
+        ))
+    })
+}
+
+/// The `uint` in argument slot `at`, or `None` for an option that was omitted.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`], for [`key_of`]'s reason — unreachable from source, since
+/// `E0401` refuses a non-`uint` argument first and an omitted option arrives as
+/// the `Tag::Null` this reads as absence.
+fn uint_of(args: &[Value], at: usize, member: &str) -> Result<Option<u64>, Fault> {
+    if args[at].tag() == Some(Tag::Null) {
+        return Ok(None);
+    }
+    args[at].as_uint().map(Some).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} expected a `uint`, got tag {}",
+            args[at].tag_byte()
+        ))
+    })
+}
+
+/// A slot of the receiving `Decision`, retained because it is being answered.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is not an object — unreachable from
+/// source, since an instance member's receiver is typed and `E0401` refuses a
+/// call on anything else.
+fn slot_of(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], &DECISION, member)?;
+    let held = crate::instance::slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot's reference belongs to the receiver, which is live for \
+                  the length of the call, and this value is being handed to the \
+                  caller — which is exactly `Value::retain`'s obligation"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\RateLimit::consume(tainted string $key, uint $limit, Duration $per,
+    /// {burst?: uint, cost?: uint}): RateLimit\Decision` — ADR 0075 § 1's
+    /// coherent member.
+    ///
+    /// The door, the window and the step, in that order: the configured store
+    /// is opened under `net.connect` at the host the URL names, [`window`]
+    /// turns the limit into GCRA's two parameters, and [`SCRIPT`] does the one
+    /// thing that has to be atomic. Nothing here decides anything — the store
+    /// does, and this reads its answer back.
+    ///
+    /// # Errors
+    ///
+    /// A thrown `RuntimeError` for a store that is not configured or whose host
+    /// is not granted, and for a limit that cannot be enforced; a thrown
+    /// `IOError` for a store that cannot be reached or that refused the script.
+    /// Never an answer: ADR 0075 § 5 is that the failure mode belongs to the
+    /// call site, which is the only place that knows whether this limiter is a
+    /// plan quota to fail open on or a login throttle to fail closed on.
+    fn nvs_core_ratelimit_consume(ctx, args: [5]) {
+        let key = key_of(args, 0, "consume")?;
+        let limit = uint_of(args, 1, "consume")?.unwrap_or(0);
+        let per = crate::time::nanos_of(args, 2, "consume")?;
+        let burst = uint_of(args, 3, "consume")?.unwrap_or(limit);
+        let cost = uint_of(args, 4, "consume")?.unwrap_or(1);
+
+        // Before the door, so a limit that could never be enforced is a
+        // refusal rather than a round trip that answers one.
+        let window = window(limit, per, burst)?;
+
+        let member = format!("{NAME}::consume");
+        crate::cache::open_configured(
+            ctx,
+            &member,
+            "; a limit enforced across every core has no per-core store to fall back to",
+        )?;
+
+        let namespaced = format!("{PREFIX}{key}");
+        let arguments = [
+            window.interval.to_string(),
+            window.tau.to_string(),
+            cost.to_string(),
+        ];
+        let reply = crate::cache::on_shared(NAME, "consume", |open| {
+            let argv: Vec<&[u8]> = arguments.iter().map(|text| text.as_bytes()).collect();
+            open.eval(SCRIPT, namespaced.as_bytes(), &argv)
+        })?;
+
+        decoded(&reply, limit).map_err(|why| {
+            Fault::thrown_as(ThrownClass::Io, format!("{member}(): {why}"))
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\RateLimit\Decision::allowed(): bool` — § 3's first field.
+    fn nvs_core_ratelimit_decision_allowed(_ctx, args: [1]) {
+        slot_of(args, ALLOWED_SLOT, "allowed")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\RateLimit\Decision::limit(): uint` — § 3's second field.
+    fn nvs_core_ratelimit_decision_limit(_ctx, args: [1]) {
+        slot_of(args, LIMIT_SLOT, "limit")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\RateLimit\Decision::remaining(): uint` — § 3's third field.
+    fn nvs_core_ratelimit_decision_remaining(_ctx, args: [1]) {
+        slot_of(args, REMAINING_SLOT, "remaining")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\RateLimit\Decision::retryAfter(): ?Duration` — § 3's fourth field,
+    /// and the one that is `null` rather than zero when there is no wait.
+    fn nvs_core_ratelimit_decision_retry_after(_ctx, args: [1]) {
+        slot_of(args, RETRY_AFTER_SLOT, "retryAfter")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Read, Write};
+    use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+    use std::time::Duration;
+
+    use nvs_runtime::Tag;
+
+    use super::{CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, Window, decoded, window};
+    use crate::cache::redis::Connection;
+
+    /// A listener on loopback and the address it took — `crate::cache::redis`'s
+    /// own cases' shape, and the reason that module takes an address rather
+    /// than a `Ctx`.
+    fn listening() -> (TcpListener, SocketAddr) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let address = listener.local_addr().expect("the port it took");
+        (listener, address)
+    }
+
+    /// Reads whatever one command's bytes are, up to a chunk — enough for a
+    /// fake store to see the whole `EVAL` this module sends.
+    fn read_command(stream: &mut TcpStream) -> Vec<u8> {
+        let mut got = vec![0_u8; 4096];
+        let read = stream.read(&mut got).expect("the client's command");
+        got.truncate(read);
+        got
+    }
+
+    /// ADR 0075 § 2: the shared tier is GCRA, which is one stored timestamp and
+    /// two derived parameters — the emission interval `per / limit` and the
+    /// tolerance `burst × interval`, with `burst` defaulting to `limit` so that
+    /// the default tolerance is exactly one period.
+    ///
+    /// Three claims, because the arithmetic alone would pass a module that
+    /// computed GCRA's parameters and then sent something else. The parameters
+    /// are § 2's; the script is a single stored timestamp rather than a window
+    /// of arrivals; and a whole `EVAL` exchange carries those parameters and
+    /// nothing else, with the reply read back as the decision it means.
+    #[test]
+    fn consume_is_gcra_over_the_shared_store() {
+        // `per / limit`, and `burst × interval` — in microseconds.
+        assert_eq!(
+            window(4, 2_000_000_000, 4).expect("a limit of 4 per 2s"),
+            Window {
+                interval: 500_000,
+                tau: 2_000_000,
+            }
+        );
+        // The default burst is the limit, so the default tolerance is one whole
+        // period: a period's worth may arrive at once.
+        let per = 1_000_000_000;
+        for limit in [1_u64, 3, 7, 250] {
+            let derived = window(limit, per, limit).expect("a limit over a second");
+            assert_eq!(
+                derived.tau,
+                derived.interval * i128::from(limit),
+                "the tolerance is `burst × interval` at every limit"
+            );
+        }
+
+        // One timestamp per key, not a window of them — the property that makes
+        // § 2's memory O(1) per key rather than O(arrivals).
+        assert!(
+            SCRIPT.contains("local next_tat = tat + cost * interval"),
+            "the step is the theoretical arrival time moving forward by the cost"
+        );
+        assert!(
+            SCRIPT.contains("local allow_at = next_tat - tau"),
+            "an arrival is admitted once the new arrival time is within the tolerance"
+        );
+        assert_eq!(
+            SCRIPT.matches("redis.call('SET'").count(),
+            1,
+            "one stored value per key, written once per admitted arrival"
+        );
+
+        let (listener, address) = listening();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client dials once");
+            let sent = read_command(&mut stream);
+            stream
+                .write_all(b"*3\r\n:1\r\n:0\r\n:4\r\n")
+                .expect("the reply");
+            sent
+        });
+
+        let mut connection = Connection::new(address, Duration::from_secs(5));
+        connection.ensure().expect("the fake store is listening");
+        let derived = window(5, 1_000_000_000, 5).expect("5 per second");
+        let reply = connection
+            .eval(
+                SCRIPT,
+                format!("{PREFIX}account:1").as_bytes(),
+                &[
+                    derived.interval.to_string().as_bytes(),
+                    derived.tau.to_string().as_bytes(),
+                    b"1",
+                ],
+            )
+            .expect("the fake store answers the three integers");
+
+        let sent = String::from_utf8(server.join().expect("the fake store runs to completion"))
+            .expect("the command is text");
+        assert!(
+            sent.starts_with("*7\r\n$4\r\nEVAL\r\n"),
+            "one `EVAL`: {sent}"
+        );
+        assert!(
+            sent.contains("\r\n$1\r\n1\r\n$23\r\nnvs:ratelimit:account:1\r\n"),
+            "one key, namespaced away from a cache entry of the same name: {sent}"
+        );
+        // 5 per second is a 200ms emission interval and, at the default burst,
+        // one second of tolerance — both in microseconds, and both as `window`
+        // derived them rather than as anything the wire recomputes.
+        assert!(
+            sent.ends_with("$6\r\n200000\r\n$7\r\n1000000\r\n$1\r\n1\r\n"),
+            "the interval, the tolerance and the cost cross as they were derived: {sent}"
+        );
+
+        assert_eq!(reply, vec![1, 0, 4]);
+        let decision = decoded(&reply, 5).expect("three integers are a decision");
+        assert!(decision.obj_ptr().is_some(), "a decision is an instance");
+    }
+
+    /// ADR 0075 § 2: `retryAfter` is the theoretical arrival time minus now,
+    /// computed rather than estimated — which is what a sliding-window counter
+    /// cannot do, and why every refused client would otherwise retry in the
+    /// same instant at the window edge.
+    ///
+    /// The claim is that the store's own figure crosses unchanged into the
+    /// `Duration`, in particular that it is not rounded to `per` and not
+    /// rounded to a whole second. A refusal 1.234567s away is 1.234567s away.
+    #[test]
+    fn retry_after_is_exact_rather_than_a_window_guess() {
+        assert!(
+            SCRIPT.contains("return {0, allow_at - now, left}"),
+            "the wait is the arrival time minus now, and nothing else"
+        );
+
+        let refused = decoded(&[0, 1_234_567, 0], 5).expect("a refusal is a decision");
+        let object = refused.obj_ptr().expect("a decision is an instance");
+        let wait = crate::instance::slot(object, super::RETRY_AFTER_SLOT);
+        let nanos = crate::time::nanos_of(&[wait], 0, "retryAfter").expect("a `Duration`");
+        assert_eq!(
+            nanos, 1_234_567_000,
+            "the store's microseconds are the answer's nanoseconds, exactly"
+        );
+
+        // And the other half of § 3: allowed carries no wait at all, rather
+        // than a zero a caller has to know to read as absence.
+        let allowed = decoded(&[1, 0, 4], 5).expect("an allowance is a decision");
+        let object = allowed.obj_ptr().expect("a decision is an instance");
+        assert!(
+            crate::instance::slot(object, super::RETRY_AFTER_SLOT).tag() == Some(Tag::Null),
+            "`retryAfter` is `null` exactly when the arrival was allowed"
+        );
+    }
+
+    /// ADR 0075 § 5: an unreachable store throws, and never decides *allowed*.
+    ///
+    /// Two claims, because the exchange failing is only half of it. A store
+    /// that accepts and closes is an error and not an answer — and this module
+    /// has exactly **one** place that builds a `Decision`, reached only from
+    /// the reply, so there is no arrangement of the file in which a failure
+    /// takes a fallback path to an allowance. The source scan is the half that
+    /// still holds after someone adds a second call site.
+    #[test]
+    fn an_unreachable_store_throws_rather_than_deciding_allowed() {
+        let (listener, address) = listening();
+        let server = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().expect("the client dials once");
+            drop(stream);
+        });
+
+        let mut connection = Connection::new(address, Duration::from_secs(5));
+        connection.ensure().expect("the fake store is listening");
+        let failed = connection.eval(SCRIPT, b"k", &[b"1000", b"1000", b"1"]);
+        assert!(
+            failed.is_err(),
+            "a store that hangs up mid-command is a failure, not an absence"
+        );
+        server.join().expect("the fake store runs to completion");
+
+        // The scan stops at the test module, as `crate::cache`'s own does:
+        // what a member can reach at run time is the shipped half.
+        let shipped: Vec<&str> = include_str!("ratelimit.rs")
+            .lines()
+            .take_while(|line| line.trim_start() != "#[cfg(test)]")
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect();
+        let builds = shipped
+            .iter()
+            .filter(|line| line.contains("crate::instance::build("))
+            .count();
+        assert_eq!(
+            builds, 1,
+            "a `Decision` is built from {builds} places; § 5 holds because there is exactly one \
+             and it is downstream of the store's reply"
+        );
+        assert!(
+            !shipped.iter().any(|line| line.contains("unwrap_or_default")
+                || line.contains(".ok()")
+                || line.contains("is_err()")),
+            "a fallback around the store's answer is how a limiter comes to fail open silently"
+        );
+
+        // And the card says so, because a caller that cannot read the failure
+        // mode will assume the convenient one.
+        assert!(
+            CONSUME_DOC
+                .errors
+                .iter()
+                .any(|entry| entry.error == "IOError" && entry.desc.contains("never")),
+            "the card has to state that an unreachable store is never `allowed`"
+        );
+    }
+
+    /// ADR 0075 § 4: no configuration at all. The limit is an argument because
+    /// only the application knows whether this is a plan quota or a login
+    /// throttle, and a `[ratelimit]` block appearing later is the regression
+    /// this pins — a directive would move the policy into a root-owned file
+    /// that no longer sits beside the plan it belongs to.
+    #[test]
+    fn rate_limit_reads_no_directive() {
+        // The shipped half only, as the scan above: what a member can read at
+        // run time is what is above the test module.
+        let shipped: String = include_str!("ratelimit.rs")
+            .lines()
+            .take_while(|line| line.trim_start() != "#[cfg(test)]")
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            !shipped.contains("ctx.config()"),
+            "this module reads no directive; the one it reaches indirectly is `[cache.shared] \
+             url`, which says where the store is and nothing about the policy"
+        );
+        assert!(
+            !shipped.contains("\"ratelimit."),
+            "a `[ratelimit]` directive key is the configuration block § 4 refuses to have"
+        );
+
+        // The policy is the argument list, and the whole of it: three
+        // positionals and one bag of two, with no fifth thing to configure.
+        let consume = CLASS.methods.first().expect("`consume` is the roster");
+        assert_eq!(consume.names, ["key", "limit", "per"]);
+        assert_eq!(
+            DECISION.slots,
+            ["allowed", "limit", "remaining", "retryAfter"],
+            "§ 3's four fields, and the decision carries nothing else"
+        );
+    }
+}

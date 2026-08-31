@@ -1,0 +1,53 @@
+--TEST--
+Core\RateLimit::consume refuses a limit no arrival could ever pass, on both sides of the bound — ADR 0075 §§ 1 and 2
+--FILE--
+<?nvs
+// § 2's GCRA is a drain rate and a tolerance derived from `$limit`, `$per` and
+// `$burst`. Three ways of writing those admit nothing at all, and one asks for a
+// rate finer than the store counts. Each is a refusal at the call, rather than a
+// limiter that quietly refuses every arrival for the life of the deployment — a
+// limit that cannot be enforced is § 5's failure mode arriving a step earlier.
+try {
+    var $none = Core\RateLimit::consume("account:1", 0, 1m);
+    echo "a limit of 0 was accepted against ", $none->limit(), "\n";
+} catch (RuntimeError $e) {
+    echo "limit 0 refused", "\n";
+}
+
+try {
+    var $instant = Core\RateLimit::consume("account:1", 5, 0s);
+    if ($instant->allowed()) {
+        echo "a period of 0 admitted an arrival", "\n";
+    } else {
+        echo "a period of 0 was accepted and refused", "\n";
+    }
+} catch (RuntimeError $e) {
+    echo "per 0 refused", "\n";
+}
+
+try {
+    var $closed = Core\RateLimit::consume("account:1", 5, 1m, {burst: 0});
+    echo "a burst of 0 was accepted, leaving ", $closed->remaining(), "\n";
+} catch (RuntimeError $e) {
+    echo "burst 0 refused", "\n";
+}
+
+// The other side of the bound: a period divided into more units than there are
+// microseconds in it is refused rather than rounded to a drain rate of zero,
+// which would admit everything instead of nothing.
+try {
+    var $fine = Core\RateLimit::consume("account:1", 2000, 1ms);
+    var $wait = $fine->retryAfter();
+    if ($wait == null) {
+        echo "a sub-microsecond interval was accepted and allowed", "\n";
+    } else {
+        echo "a sub-microsecond interval was accepted, waiting ", $wait->toSeconds(), "s", "\n";
+    }
+} catch (RuntimeError $e) {
+    echo "interval under a microsecond refused", "\n";
+}
+--EXPECT--
+limit 0 refused
+per 0 refused
+burst 0 refused
+interval under a microsecond refused

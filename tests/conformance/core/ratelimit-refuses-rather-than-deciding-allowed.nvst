@@ -1,0 +1,37 @@
+--TEST--
+Core\RateLimit::consume throws when the shared store is not there, and never answers allowed — ADR 0075 §§ 3 and 5
+--FILE--
+<?nvs
+// § 5 is the load-bearing choice in the whole ADR: a security control that
+// fails open silently is worse than none, because the deployment believes it
+// has one — and whether *this* limiter should fail open or closed is knowledge
+// only the call site has. So the member throws, and the call site decides. This
+// case is a call site deciding, which is the shape the ADR argues for rather
+// than a message it argues about.
+try {
+    var $d = Core\RateLimit::consume("account:1", 5, 1m);
+
+    // § 3's four fields, read as members rather than as properties: a
+    // `Core`-owned instance has no property a program can reach, which is why
+    // this is `->allowed()` and not `->allowed`.
+    if ($d->allowed()) {
+        echo "allowed, ", $d->remaining(), " of ", $d->limit(), " left", "\n";
+    } else {
+        echo "refused against a limit of ", $d->limit(), "\n";
+    }
+
+    // And `retryAfter` is `?Duration`: absent exactly when the arrival was
+    // allowed, rather than a zero the caller has to read as absence.
+    var $wait = $d->retryAfter();
+    if ($wait == null) {
+        echo "no wait", "\n";
+    } else {
+        echo "wait ", $wait->toSeconds(), "s", "\n";
+    }
+} catch (RuntimeError $e) {
+    // This application chose to fail closed, visibly. Failing open is the same
+    // three lines with the other answer in them, and that is the point.
+    echo "quota check unavailable: refused rather than allowed", "\n";
+}
+--EXPECT--
+quota check unavailable: refused rather than allowed

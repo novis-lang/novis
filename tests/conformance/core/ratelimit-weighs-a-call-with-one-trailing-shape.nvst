@@ -1,0 +1,45 @@
+--TEST--
+Core\RateLimit::consume takes burst and cost in one trailing shape, and every parameter by name — ADR 0075 § 1, ADR 0063 R2
+--FILE--
+<?nvs
+// § 1's signature is subject first, the two required arguments in dataflow
+// order, and one trailing options shape — never flags, and never a second
+// member for the weighted call. `cost` is what makes an expensive endpoint
+// charge five units of the same quota, which is the whole reason the bag exists.
+try {
+    var $export = Core\RateLimit::consume("export:tenant-7", 100, 1h, {cost: 5});
+    echo "export allowed against ", $export->limit(), " with ", $export->remaining(), " left", "\n";
+} catch (RuntimeError $e) {
+    echo "export quota unavailable", "\n";
+}
+
+// `burst` is how much may arrive at once, and defaults to `$limit`; naming it
+// separates the rate from the spike the rate tolerates.
+try {
+    var $login = Core\RateLimit::consume("login:account-1", 5, 15m, {burst: 1, cost: 1});
+    if ($login->allowed()) {
+        echo "login allowed", "\n";
+    } else {
+        echo "login refused", "\n";
+    }
+} catch (RuntimeError $e) {
+    echo "login throttle unavailable", "\n";
+}
+
+// ADR 0063 R2: every `Core` parameter is callable by the spec's own `$name`,
+// which is compatibility surface rather than a convenience.
+try {
+    var $named = Core\RateLimit::consume(key: "api:key-3", limit: 60, per: 1m);
+    var $wait = $named->retryAfter();
+    if ($wait == null) {
+        echo "api allowed", "\n";
+    } else {
+        echo "api refused for ", $wait->toSeconds(), "s", "\n";
+    }
+} catch (RuntimeError $e) {
+    echo "api quota unavailable", "\n";
+}
+--EXPECT--
+export quota unavailable
+login throttle unavailable
+api quota unavailable

@@ -244,6 +244,7 @@ pub mod path;
 mod process;
 mod program;
 pub mod random;
+mod ratelimit;
 pub mod regex;
 pub mod registry;
 pub mod router;
@@ -351,6 +352,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| process::address(symbol))
         .or_else(|| program::address(symbol))
         .or_else(|| random::address(symbol))
+        .or_else(|| ratelimit::address(symbol))
         .or_else(|| router::address(symbol))
         .or_else(|| regex::address(symbol))
         .or_else(|| script::address(symbol))

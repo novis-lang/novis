@@ -691,6 +691,16 @@ fn built(nanos: i64) -> Value {
     crate::instance::build(&DURATION, [Value::int(nanos)])
 }
 
+/// A `Core\Time\Duration` of `nanos`, for another module answering one.
+///
+/// The out-of-crate-module half of [`built`], and the counterpart to
+/// [`nanos_of`] — spec § 4's type belongs to this module, so a member elsewhere
+/// that answers a `Duration` builds it through here rather than reaching for
+/// [`DURATION`]'s layout. `Core\RateLimit\Decision`'s `retryAfter` is the first.
+pub(crate) fn duration_of(nanos: i64) -> Value {
+    built(nanos)
+}
+
 /// The `int` in argument slot `at`, for a constructor's count or
 /// `multipliedBy`'s factor.
 ///

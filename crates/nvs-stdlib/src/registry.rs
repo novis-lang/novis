@@ -1244,6 +1244,16 @@ pub const CLASSES: &[CoreClass] = &[
     // destination and not a different operation. [`crate::cache`]'s module doc
     // is the home of why an entry is a byte payload rather than a live graph.
     crate::cache::STORE,
+    // ADR 0075's limiter for what only the application knows — per account, per
+    // tenant — with edge and flood limiting left to the proxy that owns them.
+    // Its state is the same shared store `Core\Cache::shared` names, because a
+    // deployment has one.
+    crate::ratelimit::CLASS,
+    // § 3's decision: what was decided, what against, and the exact wait when it
+    // was refused. Four readers rather than four readonly properties, for the
+    // reason [`CoreTy::Instance`] states — a `Core` instance has no property a
+    // program can reach.
+    crate::ratelimit::DECISION,
 ];
 
 /// Every `Core` member that needs a capability, and which one —
@@ -1315,6 +1325,18 @@ pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
     // decision: a tier that leaves the process has a door, and one that cannot
     // has nothing to put a door on.
     (crate::cache::NAME, "shared", nvs_config::Cap::NetConnect),
+    // ADR 0075 §§ 1 and 5 write `Core\RateLimit::consume` standing alone, so it
+    // is its own door onto the same store rather than something that has to
+    // follow a `Core\Cache::shared()`: it reads the same directive, asks for the
+    // same grant at the same host and reuses the same per-core socket.
+    // `Core\RateLimit\Decision`'s four readers need no row — the store has
+    // answered by the time one exists, and a slot read performs no effect,
+    // exactly as `Core\Process\Result`'s three members do.
+    (
+        crate::ratelimit::NAME,
+        "consume",
+        nvs_config::Cap::NetConnect,
+    ),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)

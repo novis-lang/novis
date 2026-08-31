@@ -58,7 +58,7 @@ if ($seen == null) {
 
 // One request per two seconds, for this key. The first is inside the limit.
 var $first = Core\RateLimit::consume("account:1", 1, 2s);
-if ($first->allowed) {
+if ($first->allowed()) {
     echo "allowed=true", "\n";
 } else {
     echo "allowed=false", "\n";
@@ -67,8 +67,20 @@ if ($first->allowed) {
 // The second is not, and the decision carries the wait rather than leaving
 // the caller to invent one.
 var $second = Core\RateLimit::consume("account:1", 1, 2s);
-if ($second->allowed) {
+if ($second->allowed()) {
     echo "allowed=true unexpectedly", "\n";
 } else {
-    echo "allowed=false retryAfter=", ($second->retryAfter?->toSeconds()) ?? 0, "\n";
+    // Rounded **up**, because a `Retry-After` rounded down tells the client to
+    // come back before the store will admit it — and the wait here is a whisker
+    // under the two seconds the limit is, since the second call arrives a
+    // moment after the first.
+    var $wait = $second->retryAfter();
+    var $seconds = 0;
+    if ($wait != null) {
+        $seconds = $wait->toSeconds();
+        if ($wait->toMilliseconds() % 1000 != 0) {
+            $seconds = $seconds + 1;
+        }
+    }
+    echo "allowed=false retryAfter=", $seconds, "\n";
 }
