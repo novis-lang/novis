@@ -1,0 +1,23 @@
+--TEST--
+`Core\Cli::arguments` is empty for a program started with no words of its own, rather than answering the process's own argument vector — spec § 15, ADR 0118 § 2
+--FILE--
+<?nvs
+// The other side of the bound, and the one that says where the words come
+// from: this program is run by a binary that has a full argument vector of its
+// own -- the subcommand and this file's path are on it -- and the member reads
+// none of it. ADR 0118 § 2 keeps `argv` out of `nvs-stdlib` entirely, so what
+// is answered here is what the launcher wrote with `Ctx::set_command_line`,
+// which for a case with no `--ARGS--` section is nothing at all.
+array<tainted string> $words = Core\Cli::arguments();
+echo Core\Arr::count($words), "\n";
+
+// Empty rather than absent: it is an `array<tainted string>` a `foreach` walks
+// zero times, never a `null` a program has to test for. A member whose absence
+// is a value would be `?T` by ADR 0063, and this one has no absence.
+foreach ($words as tainted string $word) {
+    echo "unreachable:", $word, "\n";
+}
+echo "walked\n";
+--EXPECT--
+0
+walked

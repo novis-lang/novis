@@ -744,7 +744,12 @@ mod tests {
     /// prompts answer what a person typed at a terminal, which is outside the
     /// program exactly as a request body is, and `secret`'s answer carries the
     /// other axis as well because a password is confidential *and* untrusted.
-    /// All five belong in this set for the reason the claims do: a member that
+    /// `Core\Cli::arguments` is the seventh and the same reading a third time:
+    /// spec § 15's raw word list came off a command line somebody else wrote,
+    /// so a path or a URL built out of one passes its own launderer first, and
+    /// the qualifier sits on the *element* because the array itself is the
+    /// program's own.
+    /// All six belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
     #[test]
@@ -775,6 +780,7 @@ mod tests {
         assert_eq!(
             promises,
             BTreeSet::from([
+                (r"Core\Cli", "arguments", "array<tainted string>".to_owned(),),
                 (r"Core\Cli", "ask", "tainted string".to_owned()),
                 (r"Core\Cli", "secret", "secret tainted string".to_owned(),),
                 (r"Core\Env", "all", "array<tainted string>".to_owned()),
@@ -782,9 +788,10 @@ mod tests {
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at six — a \
-             verified claim, an outbound reply's body, the two environment reads and the two \
-             prompts that answer what a person typed — and where the answer is a collection the \
+            "the roster of members whose *answer* is qualified `tainted` is closed at seven — a \
+             verified claim, an outbound reply's body, the two environment reads, the two \
+             prompts that answer what a person typed and the words the program was started \
+             with — and where the answer is a collection the \
              element type is what carries it, since `nvs_types` has no tainted array and a member \
              answering `array<mixed>` would have laundered every entry silently"
         );

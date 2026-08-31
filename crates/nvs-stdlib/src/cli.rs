@@ -125,9 +125,11 @@
 //! 1. **§ 3's `displayWidth` is not here.** It is a question about how a
 //!    renderer would lay a string out, belongs beside `Cli\Style`, and owes a
 //!    UAX #11 table this tree does not carry yet.
-//! 2. **The rest of § 15 does not exist** — no `arguments`.
-//!    `docs/spec/01-core-library.md` § 15 lists it and `docs/plan/m8.md`
-//!    owns when.
+//! 2. **A served request has no words to read.** [`nvs_core_cli_arguments`]
+//!    answers whatever the launcher wrote with `Ctx::set_command_line`, and
+//!    only `nvs-cli` writes one — so the member is empty rather than wrong
+//!    inside a request, which is the answer ADR 0118 § 2 wants and not a gap
+//!    this module can close from here.
 //! 3. **A `Text` cannot be plain on one stream and styled on another in the
 //!    same run.** It holds bytes, and the styling is rendered into them once —
 //!    so a program writing the same `Text` to a terminal standard output and a
@@ -154,11 +156,13 @@ pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 /// ADR 0086 § 3's profile, § 1's launderer and § 4's prompts, as registry
 /// rows. See [`crate::registry::CLASSES`].
 ///
-/// Thirteen members: `write` has landed and `arguments` is the one row of § 15
-/// still owed, which the module docs' gap 2 owns.
+/// Fourteen members: `arguments` and `write` have landed, and `displayWidth`
+/// is the one row of § 15 still owed, which the module docs' gap 1 owns.
 ///
-/// In the spec's own order (§ 15), which is why `write` is first and `escape`
-/// second: the effect comes before the launderer that performs the same table
+/// In the spec's own order (§ 15), which is why `arguments` is first, `write`
+/// second and `escape`
+/// third: the words the program was started with come before the effect, and
+/// the effect before the launderer that performs the same table
 /// as a value, and [`nvs_core_cli_escape`] owns why that launderer could land
 /// ahead of it. § 4's five
 /// prompts are all here now — `multiSelect` is the one whose answer is a set
@@ -169,6 +173,15 @@ pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
     methods: &[
+        CoreMethod {
+            name: "arguments",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::TaintedStr),
+            symbol: "nvs_core_cli_arguments",
+            doc: Some(&ARGUMENTS_DOC),
+        },
         CoreMethod {
             name: "write",
             names: &["value"],
@@ -412,6 +425,21 @@ const WRITE_OPTIONS: &[CoreOption] = &[
         default: Const::Bool(false),
     },
 ];
+
+/// `Core\Cli::arguments`'s reference card — ADR 0117.
+const ARGUMENTS_DOC: MethodDoc = MethodDoc {
+    short: "The words this program was started with, past the program itself — PHP's `$argv` and \
+            `$argc` in one place. A program that declares a `#[Command]` reads its arguments off \
+            the table `Core\\Command::run` matched them against instead; this is the raw list, for \
+            a program that parses its own.",
+    params: &[],
+    ret: "An `array<tainted string>` in the order the shell wrote them, empty for a program \
+          started with none. Every element is `tainted`: the words came from outside the program's \
+          own text, so a path, a URL or a query built from one passes its own launderer first. The \
+          program's own name is not an element — nothing indexes it away, and `$argv[0]` has no \
+          spelling here.",
+    errors: &[],
+};
 
 /// `Core\Cli::write`'s reference card — ADR 0117.
 const WRITE_DOC: MethodDoc = MethodDoc {
@@ -991,6 +1019,7 @@ const SHELL_DOC: EnumDoc = EnumDoc {
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "nvs_core_cli_arguments" => (nvs_core_cli_arguments as *const ()).cast(),
         "nvs_core_cli_write" => (nvs_core_cli_write as *const ()).cast(),
         "nvs_core_cli_escape" => (nvs_core_cli_escape as *const ()).cast(),
         "nvs_core_cli_is_tty" => (nvs_core_cli_is_tty as *const ()).cast(),
@@ -1051,6 +1080,43 @@ fn depth_ordinal(depth: ColorDepth) -> i64 {
         ColorDepth::Ansi16 => 1,
         ColorDepth::Ansi256 => 2,
         ColorDepth::TrueColor => 3,
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::arguments(): array<tainted string>` — spec § 15's raw
+    /// argument list, replacing `$argv` and `$argc`.
+    ///
+    /// **It reads no operating system**, which is the whole of why this member
+    /// is three lines. ADR 0118 § 2 keeps `argv` out of this crate, so the
+    /// words arrive through `Ctx::set_command_line`, written by the launcher
+    /// that started the program — `nvs-cli`'s own `main` beside
+    /// `set_program_name`, whose comment owns why a served request has a
+    /// command line only in the sense that the *server* was started with one.
+    /// So a request that nobody started with words reads an empty array here
+    /// rather than the server's own, and this member has no capability
+    /// question to ask.
+    ///
+    /// `Core\Command::run` reads the same list off the same context, and that
+    /// is the point rather than a duplication: one program declares
+    /// `#[Command]` and reads a matched table, another parses its own words,
+    /// and both are looking at what the shell wrote. The elements are
+    /// `tainted` for the reason `Core\Env`'s values are — they come from
+    /// outside the program's own text — and there is no `$argv[0]`, because
+    /// the name a program was invoked by is `Ctx::program_name`'s question and
+    /// is answered where a completion script needs it.
+    ///
+    /// **What it spends:** one array of one `string` per word, per call. The
+    /// list is copied rather than shared because a `string` in it is a Novis
+    /// value and the context holds Rust `String`s; the words are the shell's
+    /// own line, so the size is bounded by what an operating system would let
+    /// a process be started with at all.
+    fn nvs_core_cli_arguments(ctx, _args: [0]) {
+        let mut out = NvsArray::new();
+        for word in ctx.command_line() {
+            out.append(Value::str(NvsStr::new(word.as_bytes())));
+        }
+        Ok(Value::array(out))
     }
 }
 

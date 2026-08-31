@@ -1,0 +1,30 @@
+--TEST--
+every element of `Core\Cli::arguments` is `tainted`, so a word reaches a grammar sink only through the launderer that names it — spec § 15, ADR 0024 §§ 1 and 3
+--ARGS--
+a.b
+--FILE--
+<?nvs
+// The qualifier is the third thing § 15's signature says, and the only one no
+// runtime assertion can show: a plain `string` is assignable into a `tainted`
+// target, so a case that only declared one would pass over a member that had
+// dropped the mark. What pins it is the refusal -- the words came from outside
+// the program's own text, so ADR 0088 § 1's grammar sinks are shut to them.
+foreach (Core\Cli::arguments() as tainted string $word) {
+    Core\Regex\Pattern $pattern = Core\Regex::compile($word);
+    echo "unreachable\n";
+}
+
+// And the route that is open, one line down: ADR 0024 § 3's launderer for that
+// exact sink answers a plain `string`, so a program that means to match on a
+// word says so where a reader can grep for it.
+foreach (Core\Cli::arguments() as tainted string $word) {
+    string $quoted = Core\Regex::quote($word);
+    echo $quoted, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:8:55
+%A
+error: aborting due to 1 error

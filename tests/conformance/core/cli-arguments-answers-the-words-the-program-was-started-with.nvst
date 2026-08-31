@@ -1,0 +1,27 @@
+--TEST--
+`Core\Cli::arguments` answers the program's own words in the order they were written, one element per word and no splitting — spec § 15, ADR 0086 § 6
+--ARGS--
+greet
+ada lovelace
+--dry-run
+--FILE--
+<?nvs
+// Spec § 15's raw list: what a program reads when it declares no `#[Command]`
+// and parses its own line. Three words that between them cover what a shell
+// would have done and this format does not: a plain one, one holding a space,
+// and one spelled like an option the runner itself might have taken.
+array<tainted string> $words = Core\Cli::arguments();
+echo Core\Arr::count($words), "\n";
+
+// Order is the shell's, and a word is one element whatever it contains -- the
+// bracket around each is what shows the space did not split "ada lovelace"
+// into two. Echoing a `tainted` element needs no launderer because ADR 0086
+// § 1 makes the terminal a substituting sink rather than a refusing one.
+foreach ($words as tainted string $word) {
+    echo "[", $word, "]\n";
+}
+--EXPECT--
+3
+[greet]
+[ada lovelace]
+[--dry-run]
