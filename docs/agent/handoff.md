@@ -2,61 +2,75 @@
 
 ## State
 
-**Goal 4 — `Core`'s capability-bearing half — is running, and stage 3 is closed.** ADR 0086 § 6's
-`Core\Command::help(?string $name): Cli\Text` is a registry row over the table the compiler already
-built, so `examples/cli.nvs` runs green against all three of its frozen lines.
+**Goal 4 — `Core`'s capability-bearing half — is running, and ADR 0086 § 6's dispatching half is
+open at its last member.** `Core\Command::run(): uint` matches this process's command line against
+the table `#[Command]` built while compiling and calls the handler it names, so § 6's one deliberate
+divergence from ADR 0077 — this table *dispatches* — is on disk with four conformance cases over it.
 
-**The channel the table crosses is the new thing, and it is what § 6's other two members will use.**
-`nvs_types::commands` is now `pub`; `nvs-cli`'s `run_run` reads `checked.exprs.commands()`, converts
-the rows to `nvs_runtime::commands::CommandTable` — strings only, no compiler type below the
-boundary — and installs it with `Ctx::set_commands` before the program starts, exactly as the
-configuration snapshot is. That module's own doc owns why the rows cross at run time instead of
-folding while checking (`help`'s `?string` and `run`'s argv are both runtime values), and
-`nvs_stdlib::command`'s doc owns the page's layout, which § 6 leaves undecided.
+**How a handler is reached was the decision, and it needed nothing new.**
+`nvs_runtime::call_static` (`crates/nvs-runtime/src/dispatch.rs:128`) splits the row's
+`Class::method` label, asks `Ctx::class_desc` for the class and its descriptor's method table for the
+address: `nvs_types::layout::ClassLayout::methods` lists every method with a body, `static` ones
+included, so the address was already there and no label map had to be installed beside the table.
+That function's own doc is the home of the reasoning, including the rejected compile-time expansion.
 
-**Only `nvs run` installs a table.** `nvs test`'s runner (`crates/nvs-cli/src/runner.rs:248`) does
-not, so a `#[Test]` calling `help` sees the "declares no command" page; `.nvst` cases are unaffected
-because `nvs test` runs each one through the `nvs run` path. Gaps 1 and 2 of
-`crates/nvs-stdlib/src/command.rs` own what § 6 still owes: `run`, `completions`, and why a page
-carries no defaults or types.
+**Two things had to cross that had not.** `nvs_types::commands::ArgConv` — a closed set of five
+decided by `conversion_of` (`crates/nvs-types/src/commands.rs:158`) in the same walk that already
+answers § 6's third compile error — is which conversion a parameter needs, and that module's gap 1
+now states why the conversion crosses and the type does not. And the argument vector is `Ctx`'s,
+written before the program runs: `nvs run <file> [args...]` collects the trailing words
+(`trailing_var_arg`, so a program's own `--verbose` is never answered by `nvs run`), a bundled
+executable passes `std::env::args().skip(1)`, and § 13's `Core\Cli::arguments` should read
+`Ctx::command_line` rather than `std::env`.
 
-Three fixtures still owe configuration their stage must write, unchanged: `examples/http.nvs` names
-`http://127.0.0.1:8099` and stage 5 owes that origin; `examples/logging.nvs` needs an `[[app]]`
-block naming `examples/logging/handler.nvs`; every remaining fixture that reaches the world still
-owes its `net.connect` grant. `orient.py` still prints two dead `[context] modules` selectors —
-`crates/nvs-host/src/pool.rs` and `crates/nvs-host/src/stream.rs` — and now wants
-`crates/nvs-runtime/src/terminal.rs` and `crates/nvs-runtime/src/commands.rs` added to that
-manifest. Nothing is blocked.
+**`.nvst`'s `--ARGS--` is honoured now**, one argument per line and no shell splitting
+(`crates/nvs-test/src/case.rs`'s `Case::args`) — its `NOT_YET` entry named argv as the blocker, and
+argv is what this session landed. `--INI--` and `--ENV--` are still deferred.
+
+**Three gaps are named where they bite:** `crates/nvs-stdlib/src/command.rs`'s gap 3 — an option that
+is not a flag is *required*, because a declared default is folded at the call site and the row
+carries none — its gap 1, `completions`, and `nvs_runtime::commands`' gap 1, the four `ArgConv`
+variants that are `Unconverted` and throw a `LogicError` when a command line reaches one.
+
+**The driver's acceptance failure is not a regression.** `examples/crypto.nvs` fails on
+`Core\Password::hash`, which is stage 4's fixture waiting on stage 4; a program leg runs before every
+cargo-named check, so it will mask the rest of the list until crypto lands. Three fixtures still owe
+configuration their stage must write, unchanged: `examples/http.nvs` needs stage 5's
+`http://127.0.0.1:8099` origin, `examples/logging.nvs` an `[[app]]` block naming
+`examples/logging/handler.nvs`, and every remaining fixture that reaches the world its `net.connect`
+grant. `orient.py` still prints two dead `[context] modules` selectors —
+`crates/nvs-host/src/pool.rs` and `crates/nvs-host/src/stream.rs` — and wants
+`crates/nvs-runtime/src/commands.rs`, `crates/nvs-runtime/src/dispatch.rs` and
+`crates/nvs-test/src/case.rs` added. Nothing is blocked.
 
 ## Next group
 
-**§ 6's dispatching half, over the table that now reaches the runtime.** One file set:
-`crates/nvs-stdlib/src/command.rs`, `crates/nvs-runtime/src/commands.rs`,
-`crates/nvs-cli/src/main.rs` and whichever of `crates/nvs-ir/src/lower/expr.rs` the first item
-decides on.
+**§ 6's last member and the two holes under the one that landed.** One file set:
+`crates/nvs-stdlib/src/command.rs`, `crates/nvs-stdlib/src/cli.rs`,
+`crates/nvs-runtime/src/commands.rs` and `crates/nvs-types/src/commands.rs`.
 
-- [ ] **Decide how a handler is reached, then write `Core\Command::run(): uint`** — a native helper
-      cannot reach a *static* method: `crates/nvs-runtime/src/dispatch.rs:42` is receiver-keyed, and
-      the only label→address lookup is the unit's own, used once at
-      `crates/nvs-cli/src/main.rs:711`. So the two candidates are a compile-time expansion in
-      `nvs-ir` beside `Core\Program::implementing`'s, or a label lookup installed on the `Ctx` next
-      to the table at `crates/nvs-runtime/src/ctx.rs:1167`. It also needs the process argument
-      vector, which nothing exposes yet — `crates/nvs-stdlib/src/cli.rs:64`'s gap 3 is where § 13's
-      `arguments` would go. Register the member beside `help` at
-      `crates/nvs-stdlib/src/command.rs:72`. ADR 0086 § 6.
-- [ ] **`command_run_dispatches_through_the_compiled_table`** — stage 3's named check over the
-      member above, plus the `.nvst` that runs a command by name. The table lookup it asserts over
-      is `crates/nvs-runtime/src/commands.rs:108`.
-- [ ] **`help_and_completions_are_generated_from_the_same_table`** — `completions(Cli\Shell $shell):
-      string` for bash, zsh, fish and pwsh, and the check that it and the usage page read one table.
-      The `Cli\Shell` enum goes beside the two at `crates/nvs-stdlib/src/cli.rs:181`; the renderers
-      go beside `crates/nvs-stdlib/src/command.rs:225`.
+- [ ] **`command_run_dispatches_through_the_compiled_table`** — stage 3's named check, and the one
+      thing this session did not reach: the dispatch is asserted by conformance cases and by no Rust
+      test. It has to build the table by hand — the shape is
+      `crates/nvs-stdlib/tests/allocation_policy.rs:286`'s `closure_of` (a leaked `ClassTable`, a
+      `MethodRow` whose `code` is a plain `unsafe extern "C" fn`) plus `Ctx::set_runtime_error_class`,
+      since `crates/nvs-runtime/src/ctx.rs:2466`'s `class_desc` reads the table through *that*
+      handle. The helper is `crates/nvs-stdlib/src/command.rs:215` and is crate-private, so the test
+      belongs in that module's own `mod tests`. ADR 0086 § 6.
+- [ ] **Let a declared default cross, and drop gap 3** — `#[Option] uint $retries = 3` is refused
+      today when it is not written. The row needs a folded constant per argument beside
+      `crates/nvs-types/src/commands.rs:158`'s `conv` (`crate::defaults::literal_default` folds one),
+      its twin in `crates/nvs-runtime/src/commands.rs:36`, and the arm in
+      `crates/nvs-stdlib/src/command.rs:334`'s `fill` that fills an unwritten option from it.
+      ADR 0086 § 6.
+- [ ] **`completions(Cli\Shell $shell): string` and `Cli\Shell`** — four shells generated from the
+      same table `help` reads, so what it waits on is the enum, beside the two in
+      `crates/nvs-stdlib/src/cli.rs:70`. Closes
+      `help_and_completions_are_generated_from_the_same_table`. ADR 0086 § 6.
 
 ## Backlog
 
-- `Core\Cli`'s sink half — `write`, `displayWidth`, `Text::plain`/`styled`, `Cli\Style`/`Color`:
-  `crates/nvs-stdlib/src/cli.rs`'s gaps 2 and 3.
-- `examples/http.nvs` and `examples/logging.nvs` still owe their configuration —
-  `docs/agent/loop-goal.toml` stages 5 and 6.
-- A `#[Test]` cannot see a command table: `crates/nvs-cli/src/runner.rs:248` installs none.
-- Spec § 13's `arguments`, `escape` and the prompt members — `docs/plan/m8.md`.
+- Stage 4 is what the driver's acceptance check is stopped on — `docs/agent/loop-goal.toml` § 4.
+- `Core\Cli::arguments` (§ 13) should read `Ctx::command_line` — `crates/nvs-stdlib/src/cli.rs`'s gap 3.
+- A usage page goes to the diagnostic channel until § 3's `write` lands — `command.rs`'s `usage`.
+- `examples/http.nvs`, `examples/logging.nvs` and the `net.connect` grants — the plan's *Open now*.

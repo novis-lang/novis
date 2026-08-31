@@ -1147,6 +1147,12 @@ is why" — is this file.
   double-quoted string does not. Write the literal head of a refusal as a backslash-free sentence
   naming the rule — `"a path must stay inside the base it is resolved against: …"` — and put the
   member name inside the interpolated tail, where both problems go away at once.
+- **`peek.py --locate` takes over the whole call: the file targets in it are read for symbols and
+  never printed.** `python tools/peek.py a.rs b.rs --locate implementing` answered only the places
+  `implementing` is defined and said nothing about `a.rs` or `b.rs`, which reads as two files that
+  produced nothing rather than as a flag that changed the mode. It is one call wasted every time,
+  because the natural batch is "read these two files, and where is that symbol". Two calls, or put
+  the anchors last.
 
 ## Running things
 
@@ -3270,6 +3276,19 @@ is why" — is this file.
   above the site. So the shape that lands green is two cases: the happy page, and one that catches
   the refusal. Both gates run under `cargo test -p nvs-stdlib --test conformance_coverage`, which is
   seconds, so run that before the full verify rather than after it.
+- **A `.nvst` section listed under `NOT_YET` can become honourable, and the entry names its own
+  blocker — read it before writing around one.** `--ARGS--` was refused with "argv is unreachable
+  until `Core\Cli` lands at M8", which had just stopped being true: `nvs run <file> [args...]` now
+  carries a command line, so honouring the section was four lines in `crates/nvs-test/src/case.rs`
+  and one in `run.rs`. The alternative on the table was declaring an error path "unreachable from
+  source" that a real command line reaches, to get past `conformance_coverage.rs`'s gate — a gate
+  answered with a lie because the section that would have answered it honestly looked closed.
+- **`echo "status: ", Core\Command::run()` prints the label before whatever the callee echoes.**
+  `echo`'s arguments are written as they are evaluated, so a member that produces output *inside*
+  the call interleaves with the text around it: the expectation reads `status: greet: Hello…` with
+  the handler's own line spliced into the middle. Take the value into a variable first. Every
+  dispatching or callback-taking member has this shape, and it looks like a matcher bug rather than
+  an evaluation-order one.
 
 ## Splitting a file that got too big
 

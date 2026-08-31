@@ -57,11 +57,11 @@
 > two in `nvs-types` over the qualifier and the capability — beside the `.nvst` pinning both
 > spellings of a command line as a diagnostic. **Stage 3's terminal profile is closed**: ADR 0086 §
 > 3's `isTty`, `width`, `height` and `colorDepth` are rows over `nvs_runtime::terminal`, which
-> resolves the four facts once per process. **`Core\Command::help` is a row over the compiled
-> table**: ADR 0086 § 6's rows cross into `nvs_runtime::commands` and ride on the request's `Ctx`,
-> `nvs_stdlib::command` owns the page's layout, and `examples/cli.nvs` runs green against its three
-> frozen lines. What goals 1-3 landed is unchanged and is not re-derived here: `git log` and each
-> crate's module doc own it. Conformance 1117, differential 210 of 210, migration 37% over its 36%
+> resolves the four facts once per process. **`Core\Command::help` and `::run` are rows over the
+> compiled table**: § 6's rows ride on the request's `Ctx`, `run` matches `nvs run`'s trailing words
+> against them and reaches a `static` handler through its class descriptor, and `--ARGS--` is
+> honoured. What goals 1-3 landed is unchanged and is not re-derived here: `git log` and each
+> crate's module doc own it. Conformance 1121, differential 210 of 210, migration 37% over its 36%
 > floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
