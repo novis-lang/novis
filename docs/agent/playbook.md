@@ -4799,6 +4799,14 @@ sibling in the same namespace unqualified.
   and a second case asking the same question does not count. So budget the three while the
   member is still fresh: the conventions' four depth shapes are what to spend them on, and for
   two members landed together one file can ask both, which is three files rather than six.
+- **A `match` over `nvs_syntax::ast` written outside that crate cannot be exhaustive, and the
+  compiler will not say so.** `ExprKind`, `StmtKind`, `ClassMemberKind`, `NewTarget` and
+  `DestructureElement` are all `#[non_exhaustive]`, which is inert inside `nvs-syntax` and forces a
+  wildcard arm everywhere else — so a walk written in `nvs-stdlib` compiles, passes, and then
+  silently treats every production added afterwards as a leaf. `Core\Ast`'s walk lives in
+  `crates/nvs-syntax/src/walk.rs` for exactly this reason and hands out a rose tree of
+  `&'static str` kinds; the general shape is that any per-variant table over another crate's AST
+  belongs in that crate, where a new variant is a build error in the file its author is already in.
 
 ## Divergences and refusals already pinned
 
