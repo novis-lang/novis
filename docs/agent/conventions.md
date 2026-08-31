@@ -198,8 +198,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 ```
 
-**5. A `.nvst` case that calls it.** `crates/nvs-stdlib/tests/conformance_coverage.rs` fails
-`cargo test -p nvs-stdlib` without one. An instance member needs a case writing `->name(`.
+**5. Three `.nvst` cases that call it** — one is what makes the member reachable, and
+`crates/nvs-stdlib/tests/conformance_coverage.rs`'s floor is three, each asking a *different* question
+(a second case asking the same one does not count). `cargo test -p nvs-stdlib` fails below either
+number. An instance member needs a case writing `->name(`.
 
 `args: [N]` must equal the row's arity, where an options bag flattens to one argument per option and an
 instance receiver is slot 0 and absent from `params`. The playbook's *Adding a `Core` member* section has

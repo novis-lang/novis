@@ -4931,6 +4931,15 @@ sibling in the same namespace unqualified.
   `reveal_and_the_password_helpers_are_the_only_launderers_of_secret` is the same shape on the
   other axis. Adding to either roster is legitimate; it costs the assertion, its message and the
   paragraph above it saying why the set is the size it is.
+- **A rule added to `Core\Cli`'s shared prompt path reaches three of the five prompts, not five.**
+  `ask`, `confirm` and `secret` decide nothing before they call `ask_terminal`, so anything added
+  there is theirs by construction — but `select` and `multiSelect` ask `watched(ctx)` *first*, since
+  they render a menu and run the caller's `labels` callback before there is a question to ask, and an
+  early `return` above the call is invisible to a grep for `ask_terminal` that finds five call sites
+  and reads as five members. ADR 0086 § 4's scripted answer queue was the case: drained inside
+  `ask_terminal`, it would have been unreachable for exactly the two prompts whose flow a test most
+  wants to script. What holds is a second predicate beside `watched` — `answerable`, which is the
+  queue *or* a terminal — that the deciding-early members read instead.
 
 ## Divergences and refusals already pinned
 
