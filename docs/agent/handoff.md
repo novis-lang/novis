@@ -2,50 +2,55 @@
 
 ## State
 
-**`Core\Http\Client` sends.** `crates/nvs-stdlib/src/http/transport.rs` composes an HTTP/1.1
-request, writes it over `nvs_host::net`'s parking stream and fills `Core\Http\Response`'s two
-slots. ADR 0074 § 6's retries and ADR 0058 § 4's redirects are both there under one deadline;
-`send`'s `repin` closure is the seam that keeps the policy in `crate::http` and out of the socket.
-That module's own doc owns the rest — one connection per attempt, no pool, `https` refused until a
-trust anchor set has an owner. `nvs-stdlib` now depends on `nvs-host` for the stream.
+**ADR 0058 § 3 has both halves.** The denied table is unchanged and the operator's exception beside
+it is `net.internal` — `nvs_config::tree::CapNet::internal` for the key and
+`Capabilities::address_refused` for the rule, which is the table less whatever this deployment
+excepted. `nvs_runtime::capability::pin_host` is the only caller, and a context with no snapshot
+still gets the bare table. The three refusals to widen — literal addresses only, no ranges, and
+`true` grants nothing — are argued in that method's doc and in ADR 0058 § 3, which is their home.
+An exception reaches nothing on its own: `net.connect` still has to grant the host, asked first.
 
-**`examples/http.nvs` is further from green than "two errors left" said, and none of the four is
-this slice's.** Checked, not assumed: (1) `Core\Env` still exists nowhere; (2) `$configured ?? "…"`
-types as `string|tainted string` and `Qual::Launder` refuses the union; (3) **`allowUrl` refuses
-`http://127.0.0.1:8099` outright** — `nvs_config::capability::denied_by_default` denies loopback
-and its own doc says the operator's exception half "is not here yet", so the first two lines throw
-before any transport is reached; (4) **nothing in this tree serves `:8099`** — `8099` appears in no
-`.rs`, `.py`, `.md` or `.toml` outside the example itself, so stage 5's `exact` check has no origin
-to talk to.
+A denial's message now ends `which `net.internal` does not except`, so the two conformance cases
+that quote it moved with it.
+
+**Root `nvs.toml` carries `examples/http.nvs`'s block**: `127.0.0.1` and `169.254.169.254` granted
+by name, only the first excepted — so the program's third line is refused on its *address* while its
+first is reachable, which is what that fixture claims.
+
+**`examples/http.nvs` is still red, and none of the three reasons is the address policy.** Checked
+again this session: `Core\Env` exists nowhere; `$configured ?? "…"` types as
+`string|tainted string` and `Qual::Launder` refuses the union; nothing in this tree serves
+`127.0.0.1:8099`.
 
 ## Next group
 
-**What `examples/http.nvs` still needs.** They share that file and the stage 5 `exact` check it
-feeds — `docs/agent/loop-goal.toml:2357` — and each is a different owner's half, so take them in
-this order and stop where the context runs out.
+**The three halves `examples/http.nvs` still needs.** They share that file and the stage 5 `exact`
+check it feeds — `docs/agent/loop-goal.toml:2357` — and each is a different owner's, so the file
+sets differ; take them in this order.
 
-- [ ] **The operator exception to ADR 0058 § 3's denied table**, so a deployment can name loopback
-      and the example's origin is reachable at all. `crates/nvs-config/src/capability.rs:86` is the
-      table and its doc names the gap; the grant it reads is `crates/nvs-config/src/capability.rs:60`'s
-      `Scope`, and the repository's own root `nvs.toml` is where `examples/http.nvs`'s `[[app]]`
-      block goes, beside the `examples/capability.nvs` one.
-- [ ] **A spelling for `examples/http.nvs:43`'s environment read** — placement first, under ADR 0051
-      § 3's roster. `crates/nvs-stdlib/src/registry.rs:1054` is `CLASSES`, and
-      `crates/nvs-stdlib/src/config.rs:170` is the nearest shape: a member that answers `?string`
-      off the request's own view rather than off `std::env`.
+- [ ] **`Core\Env::get` and `::all`.** Placement is already decided — do not re-open it:
+      `docs/adr/0012-no-superglobals.md:85` gives the class and `docs/spec/02-php-migration.md:589`
+      gives both members, answering `tainted` values, so this is the five-edit `Core` member shape
+      in a new `crates/nvs-stdlib/src/env.rs`, registered beside `crate::secret::CLASS` at
+      `crates/nvs-stdlib/src/registry.rs:1167`. A new class owes three conformance cases —
+      `crates/nvs-stdlib/tests/conformance_coverage.rs:24` — and the spec roster in
+      `docs/spec/01-core-library.md` gains it.
 - [ ] **Whether a `Qual::Launder` parameter admits a union carrying the tainted arm.**
-      `crates/nvs-types/src/core_lib.rs:755` is the check, `crates/nvs-stdlib/src/http.rs:138` is
-      the row it reads. A launderer that refuses `string|tainted string` refuses the one shape
-      `?? ` produces, which is how every real `Core\Env` read will arrive.
-- [ ] **An origin on `127.0.0.1:8099` for the acceptance check**, which is the driver's half rather
-      than the language's — `docs/agent/loop-goal.toml:2357` is the check and `tools/loop.py` runs
-      it. A `[[check]]` that brings a fixture up is a new shape for that file, so decide it there.
+      `crates/nvs-types/src/expr/quals.rs:229` is the accept set that refuses it today, and
+      `examples/http.nvs:45` is the caller: `?tainted string` fed through `??` is the ordinary
+      shape of a configured URL, so the answer decides whether ADR 0024 § 3's launderers are
+      reachable from one.
+- [ ] **An origin on `127.0.0.1:8099` for the acceptance check** — the driver's half. The goal
+      file's `[docker]` block is read at `tools/loop.py:2243` (a compose file and its services,
+      brought up once per run), and the check at `docs/agent/loop-goal.toml:2357` wants
+      `status=200` and `body=ok` from `/ok`.
 
 ## Backlog
 
-- Three of stage 5's named `-p nvs-stdlib` tests are still unwritten — `docs/agent/loop-goal.toml:2343`.
-- `traceparent` on an outbound request — ADR 0076 § 2; nothing carries a trace id yet.
-- TLS: a client needs a trust anchor set, and no ADR paragraph owns which — `crate::http::transport`'s doc.
 - A request body, and `Core\Http\Response`'s header map — `crate::http`'s "what is not here yet".
-- A connection pool: priority 3 against 4, nothing in this goal waits on it — same doc.
-- `orient.py` printed no ADR 0074 §§ 5-6 and no ADR 0058 § 4; add them to `[context] adrs`.
+- `https` stays refused until a trust anchor set has an owner — `crate::http::transport`'s own doc.
+- `docs/reference/tools/20-config.md`'s "nothing asks for them yet" line still names `db.*` and
+  `debug.*`; it moves when their members land.
+- Stage 6, the two stores — `docs/agent/loop-goal.toml` stage 6.
+- `orient.py` did not print `nvs-config/src/tree.rs`, whose `CapNet` this item edits: the
+  `[context] modules` manifest selects only `nvs-config/src/capability.rs`.
