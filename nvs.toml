@@ -101,6 +101,22 @@ entry = "examples/http.nvs"
 connect = ["127.0.0.1", "169.254.169.254"]
 internal = ["127.0.0.1"]
 
+# `examples/cache.nvs` reaches the store `[cache.shared] url` names at the foot of
+# this file, and that store is on the loopback — so ADR 0058 § 3 refuses it twice
+# over, once as a name the program may not connect to and once as an address in a
+# range § 3 denies. Both halves are granted for the reason the block above grants
+# them: the store is a container on this machine. Nothing here mentions
+# `Core\Cache::local()`, which needs no capability at all (ADR 0059 § 1) — the
+# fixture's first two lines run under this block having said nothing about them,
+# and its last two are `Core\RateLimit::consume` opening the same store through
+# the same grant.
+[[app]]
+entry = "examples/cache.nvs"
+
+[app.capabilities.net]
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
@@ -112,3 +128,15 @@ memory = "256M"
 
 [limits.hard]
 memory = "512M"
+
+# ADR 0059 § 1's coherent tier, as the deployment decision it is: `Core\Cache::shared()`
+# and `Core\RateLimit::consume` both open *this* store, and neither takes an argument
+# saying where it is. The port is `tests/db/compose.yaml`'s `redis` service —
+# `127.0.0.1:16379` rather than 6379, so a developer's own Redis is never the one a
+# fixture writes to — and `docs/agent/loop-goal.toml`'s `[docker]` block is what brings
+# it up for the acceptance sweep. `redis://` and not `rediss://`, because which
+# certificates this binary trusts has no decision yet; `nvs_stdlib::cache`'s module doc
+# is the home of that reasoning and of why there is no key for a password or a database
+# index either.
+[cache.shared]
+url = "redis://127.0.0.1:16379"

@@ -31,14 +31,19 @@ toml = "docs/agent/goals/3-governance.toml"
 handoff = "docs/agent/goals/3-governance.handoff.md"
 milestone = "M6"
 
+# The first of the two goals with an external precondition, and the cheaper one: only its stage 6 needs a
+# container, the Redis `Core\Cache`'s coherent tier and `Core\RateLimit`'s limiter both open. The
+# preflight is here rather than at that stage because a run that reaches stage 6 six hours in and only
+# then discovers there is no daemon has spent the six hours.
 [[goal]]
 name = "4 core-part-ii"
 md = "docs/agent/goals/4-core-part-ii.md"
 toml = "docs/agent/goals/4-core-part-ii.toml"
 handoff = "docs/agent/goals/4-core-part-ii.handoff.md"
 milestone = "M8"
+preflight = "docker"
 
-# The one goal with an external precondition. ADR 0067 verifies four of the five drivers against real
+# The second, and the one it costs the most: ADR 0067 verifies four of the five drivers against real
 # servers, so the driver preflights a reachable Docker daemon before this goal's first session and stops
 # the run naming it rather than grinding against a check that cannot pass.
 [[goal]]

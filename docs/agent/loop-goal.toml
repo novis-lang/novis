@@ -140,6 +140,17 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
+# The shared cache tier's store, up once per run rather than once per iteration. Stage 6's fixture and
+# `Core\RateLimit`'s limiter both open whatever `nvs.toml`'s `[cache.shared] url` names, and that key
+# names this service: `tests/db/compose.yaml` is one file for every server the program needs, so goal 5's
+# driver matrix and this tier cannot drift into two. `--wait` is what makes "up" mean healthy rather than
+# started. ONE STORE SERVES BOTH LEGS, unlike `tools/origin.py`, which needs a listener inside the distro
+# because a WSL loopback is its own: Docker Desktop forwards the published `127.0.0.1:16379` into the
+# distro, so the WSL leg's `examples/cache.nvs` reaches the same container the native one does.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["redis"]
+
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- ADR 0056's tiering. It changes what an EXISTING pattern does, so every regex case written
