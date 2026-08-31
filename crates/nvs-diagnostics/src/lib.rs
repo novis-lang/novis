@@ -2653,6 +2653,29 @@ pub mod code {
     /// can tell the two apart.
     pub const E_ATTRIBUTE_MEMBER_NOT_DECLARED: Code = Code::new("E0798");
 
+    /// ADR 0126 § 1: a `property<T>` whose argument is not a class —
+    /// `property<int>`, an interface, an enum.
+    ///
+    /// A property key's values are the names of `T`'s public declared
+    /// properties, so the argument has to be something that declares
+    /// properties. An interface is refused with the rest and the ADR says why
+    /// it is the conservative row: its implementors satisfy it with storage it
+    /// does not itself declare, so the set would name nothing the receiver
+    /// certainly has.
+    ///
+    /// [`E_CLASS_REF_ARGUMENT_NOT_A_CLASS`]'s sibling, one band apart from it
+    /// only because this band had one number left, and reported under the same
+    /// guard: `crate::lower`'s `lower_property_key` speaks only when the
+    /// argument lowered without a complaint of its own, so an unresolvable name
+    /// stays [`E_UNDEFINED_CLASS`] alone.
+    ///
+    /// **The last code in the E07xx band, which is now full.** The types band
+    /// has filled twice — at `E0499` and here — and the next types diagnostic
+    /// opens a new band rather than taking `E0800`, whose digits read as no
+    /// band at all. That is a project-level decision and `docs/adr/README.md`
+    /// § *Decisions taken at project level* is its home, as it was for `E0500`.
+    pub const E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0799");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

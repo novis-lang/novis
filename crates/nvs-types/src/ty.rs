@@ -81,6 +81,24 @@ pub enum Ty {
     /// there is nothing a widened view could store for a narrow one to read
     /// back.
     ClassRef(TypeId),
+    /// `property<T>` — ADR 0126 § 1's property key. Its *values* are the names
+    /// of `T`'s public declared properties, and the argument bounds which
+    /// receiver the key may be applied to.
+    ///
+    /// The argument is always a [`Self::Class`] id naming a class, for
+    /// [`Self::ClassRef`]'s reason and by the same guard: `crate::lower`'s atom
+    /// refuses anything else where it is written
+    /// (`E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS`).
+    ///
+    /// **Contravariant in that argument** (ADR 0126 § 3), which makes it the
+    /// only generic name in the language that is, and the inversion is exactly
+    /// [`Self::ClassRef`]'s covariance seen from the other side: a class
+    /// reference is produced against its bound, while a key is *consumed* by a
+    /// receiver. A subclass only ever adds properties, so `property<Animal>`'s
+    /// names are all valid on a `Dog` and `property<Dog>`'s are not all valid
+    /// on an `Animal` — the widening therefore runs `property<Animal>` to
+    /// `property<Dog>`, and never back.
+    PropertyKey(TypeId),
     /// `object`
     Object,
     /// `mixed` — the one unchecked position.
@@ -402,6 +420,7 @@ impl TypeInterner {
             Ty::SecretTaintedBytes => "secret tainted bytes".to_owned(),
             Ty::Array(elem) => format!("array<{}>", self.describe(*elem)),
             Ty::ClassRef(inner) => format!("class<{}>", self.describe(*inner)),
+            Ty::PropertyKey(inner) => format!("property<{}>", self.describe(*inner)),
             Ty::Object => "object".to_owned(),
             Ty::Mixed => "mixed".to_owned(),
             Ty::Void => "void".to_owned(),
@@ -677,6 +696,13 @@ impl TypeInterner {
     #[must_use]
     pub fn class_ref(&mut self, inner: TypeId) -> TypeId {
         self.intern(Ty::ClassRef(inner))
+    }
+
+    /// Interns `property<inner>`, where `inner` is a class id — see
+    /// [`Ty::PropertyKey`] for who guarantees that.
+    #[must_use]
+    pub fn property_key(&mut self, inner: TypeId) -> TypeId {
+        self.intern(Ty::PropertyKey(inner))
     }
 
     /// Interns a resolved class/interface name with no type arguments —

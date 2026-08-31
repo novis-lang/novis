@@ -5018,6 +5018,14 @@ sibling in the same namespace unqualified.
   `call_erased_method`, `value_to_string`'s `Tag::Object` arm — and is there a case that goes through
   it. `nvs_runtime::write_erased_property` is where the write half's answer lives now; the read half
   (`nvs_object_slot_get`, and so `Core\Reflect\ClassInfo::get`) still has the gap.
+- **A new `TypeAtom` compiles the whole workspace green and lowers to `mixed`, silently.**
+  `nvs_types::lower`'s atom match ends in `_ => env.interner.mixed()`, so adding a variant to
+  `nvs_syntax::ast::TypeAtom` does *not* fail the build the way adding one to `nvs_types::ty::Ty`
+  does — the type parses, every declaration slot accepts it, and every value in it is unchecked.
+  Worse, the spelling was probably an error before (`property<User>` was an undefined class), so the
+  half-landed atom is a **loosening** no test asks about. Add the `Ty` variant in the same slice, or
+  the parser change is not a slice at all. `Ty`'s own matches are exhaustive and the compiler names
+  each one: two arms, both in `expr/operators.rs`'s equality domain, were the whole cascade.
 
 ## Divergences and refusals already pinned
 

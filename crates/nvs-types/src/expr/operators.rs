@@ -386,6 +386,13 @@ enum EqDomain<'a> {
     /// Not parameterised by the argument, because covariance (§ 3) means two
     /// class references at different arguments can hold the same descriptor.
     ClassRef,
+    /// `property<T>` — its own domain, for [`Self::ClassRef`]'s reason applied
+    /// to a member name: two keys are equal when they name the same property,
+    /// and `$key == "email"` is the string-as-a-member confusion ADR 0126 § 1
+    /// keeps out, `as property<T>` being the only door. Not parameterised by
+    /// the argument, because § 3's contravariance means two keys at different
+    /// arguments can hold the same name.
+    PropertyKey,
 }
 
 fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
@@ -410,6 +417,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         Ty::IntLiteral(_) => EqDomain::Numeric,
         Ty::Array(_) => EqDomain::Array,
         Ty::ClassRef(_) => EqDomain::ClassRef,
+        Ty::PropertyKey(_) => EqDomain::PropertyKey,
         Ty::Object | Ty::Class(..) | Ty::Shape(_) => EqDomain::Object,
         Ty::Callable | Ty::CallableTo(_) => EqDomain::Callable,
         // Both spellings of "a value of this enum" — ADR 0047 § 3 keeps a case
@@ -687,7 +695,8 @@ fn reject_unordered_operand(
             | EqDomain::Array
             | EqDomain::Callable
             | EqDomain::Null
-            | EqDomain::ClassRef => Unordered::Other,
+            | EqDomain::ClassRef
+            | EqDomain::PropertyKey => Unordered::Other,
         };
         Some((ty, domain))
     })?;

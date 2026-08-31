@@ -123,6 +123,7 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
             env.interner.array(elem)
         }
         TypeAtom::ClassRef(inner) => lower_class_ref(inner, depth, ctx, env),
+        TypeAtom::PropertyKey(inner) => lower_property_key(inner, depth, ctx, env),
         TypeAtom::Object => env.interner.object(),
         TypeAtom::Shape(fields) => {
             let mut out = Vec::with_capacity(fields.len());
@@ -186,6 +187,53 @@ fn lower_class_ref(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -
             .with_help(
                 "a class reference's value is a class descriptor, so its argument is the class \
                  or interface every descriptor it can hold conforms to",
+            ),
+        );
+    }
+    env.interner.mixed()
+}
+
+/// ADR 0126 § 1's `property<T>`: the argument names one class, and anything
+/// else is refused where it is written.
+///
+/// [`lower_class_ref`]'s shape, with its guard and its `mixed` recovery, and
+/// one row narrower: a class reference admits an interface because its value is
+/// a descriptor conforming to that interface, while a key's values are the
+/// *names* an implementor declares — which an interface does not have. The
+/// symbol's kind is the whole test, and `Ty::Class` cannot answer it, since a
+/// class, an interface and an enum all intern as one.
+///
+/// **The set's own emptiness is not asked here.** ADR 0126 § 1 also refuses a
+/// class declaring no public property at all, and that needs the flattened
+/// public roster the `as` conversion is built around — so it lands with the
+/// conversion rather than being walked twice.
+fn lower_property_key(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
+    let before = env.diags.error_count();
+    let arg = lower_type_at_depth(inner, depth + 1, ctx, env);
+    let named_class = match env.interner.get(arg) {
+        crate::ty::Ty::Class(qname, _) => {
+            let qname = qname.clone();
+            env.symbols
+                .get(&qname)
+                .is_some_and(|sym| sym.kind == SymbolKind::Class)
+        }
+        _ => false,
+    };
+    if named_class {
+        return env.interner.property_key(arg);
+    }
+    if env.diags.error_count() == before {
+        let described = env.interner.describe(arg);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS,
+                format!("`property<{described}>` names something that is not a class"),
+            )
+            .with_primary(inner.span, "a class name is required here")
+            .with_help(
+                "a property key's values are the names of that class's public declared \
+                 properties, so its argument has to be something that declares them — an \
+                 interface's implementors satisfy it with storage it does not declare itself",
             ),
         );
     }

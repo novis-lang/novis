@@ -151,6 +151,16 @@ pub enum TypeAtom {
     /// keyword, and a reference to "some class" with no bound is what
     /// [`Self::Object`] already is.
     ClassRef(Box<Type>),
+    /// `property<T>` — ADR 0126 § 1's property key, whose values are the names
+    /// of `T`'s public declared properties.
+    ///
+    /// The argument is held as a whole [`Type`] for [`Self::ClassRef`]'s
+    /// reason, and the two atoms differ in one way the parser can see:
+    /// `property` is not a keyword. It is recognised by spelling, and only in
+    /// front of a `<` in type position, so `$property`, a member named
+    /// `property` and a class named `Property` are all untouched — which is
+    /// what the ADR promises when it makes this a keyword "only there".
+    PropertyKey(Box<Type>),
     /// `object`
     Object,
     /// `{name: T, ...}` — ADR 0036 § 3: an inline structural shape type,

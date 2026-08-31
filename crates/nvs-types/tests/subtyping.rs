@@ -134,3 +134,39 @@ fn a_class_reference_over_a_non_class_argument_is_refused() {
         "{diags:?}"
     );
 }
+
+/// ADR 0126 § 1's argument rule, which is the sibling above's one row
+/// narrower: a key's values are the names an implementor *declares*, so an
+/// interface is refused with the scalars while a class reference admits one.
+#[test]
+fn a_property_key_over_something_other_than_a_class_is_refused() {
+    for argument in ["int", "Named"] {
+        let diags = check_src(&format!(
+            "<?nvs\n\
+             interface Named {{}}\n\
+             class T {{\n\
+             \x20 function m(property<{argument}> $k): void {{}}\n\
+             }}\n"
+        ));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS)),
+            "`property<{argument}>`: {diags:?}"
+        );
+    }
+
+    let over_a_class = check_src(
+        "<?nvs\n\
+         class User { public string $email = \"\"; }\n\
+         class T {\n\
+         \x20 function m(property<User> $k): void {}\n\
+         }\n",
+    );
+    assert!(
+        !over_a_class
+            .iter()
+            .any(|d| d.code == Some(code::E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS)),
+        "{over_a_class:?}"
+    );
+}

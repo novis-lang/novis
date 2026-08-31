@@ -79,6 +79,19 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.at_keyword(Keyword::Class) && matches!(self.peek_at(1).kind, TokenKind::Lt)
     }
 
+    /// `property<` — ADR 0126 § 1's property key, recognised by spelling
+    /// because `property` is deliberately not a reserved word: the ADR makes it
+    /// a keyword in this one position and nowhere else, so a program keeps
+    /// `$property`, `->property()` and a function called `property`.
+    ///
+    /// The `<` is what separates it from an ordinary class name, and it costs
+    /// nothing that a class *could* be called `property`: ADR 0029's casing
+    /// check already refuses a lower-case class name, so no declaration this
+    /// program can write competes for the spelling.
+    pub(super) fn at_property_key(&mut self) -> bool {
+        self.at_contextual("property") && matches!(self.peek_at(1).kind, TokenKind::Lt)
+    }
+
     /// `-1` — ADR 0047 § 1's one type atom that needs two tokens to
     /// recognise, which is why it is asked here rather than in
     /// [`Self::token_starts_type`]. A bare `-` never starts a type on its
@@ -436,6 +449,21 @@ impl<'src, 'd> Parser<'src, 'd> {
                         kind: TypeKind::Atom(TypeAtom::Array(None)),
                         span: start,
                     }
+                }
+            }
+            // ADR 0126 § 1's property key. This sits in front of the ordinary
+            // name arm because `property` reaches the parser as a plain
+            // identifier; the `<` in `at_property_key` is the whole of what
+            // tells the two apart, and a name that merely *looks* generic
+            // (`Iterator<User>`) still lands below.
+            TokenKind::Ident if self.at_property_key() => {
+                self.bump();
+                self.bump();
+                let inner = self.parse_type_union();
+                let close = self.expect_type_close_angle();
+                Type {
+                    kind: TypeKind::Atom(TypeAtom::PropertyKey(Box::new(inner))),
+                    span: start.to(close),
                 }
             }
             TokenKind::Ident | TokenKind::Backslash => {

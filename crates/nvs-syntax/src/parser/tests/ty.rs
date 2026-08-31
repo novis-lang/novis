@@ -58,6 +58,68 @@ fn a_class_reference_is_a_type_atom_with_one_class_argument() {
     assert!(matches!(inner.kind, TypeKind::Atom(TypeAtom::ClassRef(_))));
 }
 
+/// ADR 0126 § 1: `property<T>` is one atom holding one argument, in the
+/// conversion slot that is its only source and in the local slot that holds
+/// the result.
+#[test]
+fn a_property_key_is_a_type_atom_with_one_class_argument() {
+    let e = parse_ok("$name as property<User>");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::PropertyKey(inner)) = ty.kind else {
+        panic!("expected `property<...>`: {ty:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Name(_, args)) = inner.kind else {
+        panic!("expected a name argument: {inner:?}");
+    };
+    assert!(args.is_empty());
+
+    // The declaration slot, which is what `can_start_type` has to answer for.
+    let s = parse_stmt_ok("property<User> $field = $name as property<User>;");
+    let StmtKind::LocalDecl { ty: Some(ty), .. } = s.kind else {
+        panic!("expected a typed local: {s:?}");
+    };
+    assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::PropertyKey(_))));
+
+    // Nested, so the argument's `>` closes through the same split the
+    // `array<array<T>>` case above goes through.
+    let s = parse_stmt_ok("type Fields = array<property<User>>;");
+    let StmtKind::TypeAliasDecl(alias) = s.kind else {
+        panic!("expected a type alias: {s:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Array(Some(inner))) = alias.ty.kind else {
+        panic!("expected an array type: {alias:?}");
+    };
+    assert!(matches!(
+        inner.kind,
+        TypeKind::Atom(TypeAtom::PropertyKey(_))
+    ));
+}
+
+/// ADR 0126 § 1 makes `property` a keyword in front of a `<` in type position
+/// and nowhere else, so the spellings a program already writes keep working —
+/// which is the whole reason `Parser::at_property_key` asks for the `<`.
+#[test]
+fn property_is_only_a_keyword_in_front_of_its_argument_list() {
+    let e = parse_ok("$user->property");
+    assert!(
+        matches!(e.kind, ExprKind::PropertyAccess { .. }),
+        "expected a property access: {e:?}"
+    );
+    let e = parse_ok("$property");
+    assert!(
+        matches!(e.kind, ExprKind::Variable(_)),
+        "expected a variable: {e:?}"
+    );
+    // A name that merely looks generic still lands on the ordinary name atom.
+    let e = parse_ok("$m as Iterator<User>");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::Name(..))));
+}
+
 /// The two-token rule `Parser::at_class_reference` exists for: a bare `class`
 /// is the declaration keyword and never a type, so `class Foo {}` must not
 /// reach the local-declaration trial parse.
