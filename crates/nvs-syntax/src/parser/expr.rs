@@ -1421,7 +1421,19 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
             } else {
                 let field_start = self.peek().span;
-                let name = self.expect(TokenKind::Ident, "a field name");
+                // A field name is a name, not an expression, so a keyword is
+                // one: `{default: "ada"}` is `Core\Cli::ask`'s own option
+                // (ADR 0086 § 4) and `{match: …}`, `{class: …}` are the shapes
+                // a JSON document or an HTML attribute set arrives as. Nothing
+                // is ambiguous here — the token is followed by a `:` inside an
+                // already-open literal, where no statement keyword can begin —
+                // and refusing them would put a spelling in the spec that no
+                // call site could write.
+                let name = if matches!(self.peek().kind, TokenKind::Keyword(_)) {
+                    self.bump().span
+                } else {
+                    self.expect(TokenKind::Ident, "a field name")
+                };
                 if self.eat(TokenKind::Colon).is_none() {
                     self.diags.report(
                         Diagnostic::error(

@@ -1,0 +1,33 @@
+--TEST--
+Every shape of prompt default is answered as itself when there is no terminal, including the empty and false ones — ADR 0086 § 4
+--FILE--
+<?nvs
+// The bound on both sides of "a default was given": `""` and `false` are
+// answers, not absences, so an unattended run hands each of them back rather
+// than reading them as "nothing was said" and throwing.
+echo "[", Core\Cli::ask("Your name?", {default: ""}), "]\n";
+echo Core\Cli::confirm("Continue?", {default: false}) ? "yes" : "no", "\n";
+
+// § 4's `labels` renders the menu, so an unattended run never calls it: the
+// callback below would print, and the frozen output shows it did not.
+echo Core\Cli::select(
+    "Pick one",
+    ["alpha", "beta"],
+    {
+        labels: fn(string $choice): string => "seen: " . $choice,
+        default: "alpha",
+    }
+), "\n";
+
+// `secret` has no default at all, so the same run throws where the three
+// above answered.
+try {
+    Core\Cli::secret("Password:");
+} catch (Core\Cli\NotInteractive $noPassword) {
+    echo "threw\n";
+}
+--EXPECT--
+[]
+no
+alpha
+threw

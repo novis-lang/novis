@@ -40,8 +40,23 @@
 //! decides at write time, so there is nothing in the surface that freshness
 //! here could serve.
 //!
+//! # The prompts read the terminal, never `Stream::In`
+//!
+//! ADR 0086 § 4's prompts are the second half of this module: [`prompt`] opens
+//! the controlling terminal *by name* and reads a line from that, which is why
+//! `cat data.csv | myprog` can still ask a question. [`is_interactive`] is the
+//! question asked first, and its doc comment owns why it reads the profile
+//! rather than trying the open.
+//!
+//! What is *not* here is the decision: `nvs_stdlib::cli` asks whether a person
+//! is watching this program's output at all before it prompts, because a
+//! question written into an HTTP response body or a `Core\Out::capture` buffer
+//! reaches nobody. This module answers "is there a terminal, and what did it
+//! say"; the surface answers "should this program be asking".
+//!
 //! Memory: one [`Profile`] — three `bool`s, two `u32`s and an enum — for the
-//! life of the process, charged to no request.
+//! life of the process, charged to no request, plus one answer's bytes for the
+//! length of a [`prompt`] call, bounded by `MAX_ANSWER`.
 
 use std::io::IsTerminal;
 use std::sync::OnceLock;
@@ -331,6 +346,261 @@ fn enable_virtual_terminal() -> bool {
         }
         SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0
     }
+}
+
+// ------------------------------------------------------------------ the prompts
+
+/// Whether what a prompt reads is echoed as it is typed.
+///
+/// ADR 0086 § 4's `secret` is the one member that asks for [`Self::Hidden`],
+/// and the suppression is the terminal's own — the bytes are never written
+/// back — rather than an overwrite after the fact.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Echo {
+    /// The terminal shows what is typed, as it does for every other prompt.
+    Shown,
+    /// The terminal shows nothing at all: a password.
+    Hidden,
+}
+
+/// How many bytes of one answer are read before the rest of the line is
+/// abandoned.
+///
+/// A prompt's answer is a person's, so this is three orders of magnitude past
+/// any real one; it exists because the alternative is an unbounded allocation
+/// driven by whatever is on the other end of a terminal that may not be a
+/// person at all (`AGENTS.md`'s priority 5, and the cap that makes the
+/// footprint attributable).
+const MAX_ANSWER: usize = 4096;
+
+/// Whether this process has a terminal to prompt at, which is not the same
+/// question as whether standard input is one.
+///
+/// ADR 0086 § 4: a prompt reads the *controlling terminal*, so
+/// `cat data.csv | myprog` can still ask. Any one of the three streams being a
+/// terminal says the process was started from one; all three redirected — a CI
+/// job, a `cron` entry, a `.nvst` case, which runs as a child with its output
+/// piped and its input closed — says it was not, and that is the state § 4
+/// answers with a default or with `Core\Cli\NotInteractive` rather than by
+/// blocking on input nobody can give.
+///
+/// Asking the profile rather than trying the open is what makes that
+/// deterministic: on Unix a fully-redirected child of a terminal session can
+/// still open `/dev/tty`, and on Windows it inherits the console — so an open
+/// that succeeds proves a terminal exists *somewhere*, never that anyone is
+/// watching this program's output.
+#[must_use]
+pub fn is_interactive() -> bool {
+    let profile = profile();
+    profile.is_tty(Stream::Out) || profile.is_tty(Stream::Err) || profile.is_tty(Stream::In)
+}
+
+/// Writes `question` to the controlling terminal and reads one line back from
+/// it, or `None` when there is no terminal or it gave nothing.
+///
+/// **`Stream::In` is never read here**, and that is the whole point of the
+/// function: the terminal is opened by name — `/dev/tty` on Unix, `CONIN$` and
+/// `CONOUT$` on Windows — so a program whose standard input is a pipe still
+/// asks its question of the person who started it.
+/// `nvs_stdlib::cli`'s `a_prompt_reads_the_controlling_terminal_and_not_stdin`
+/// holds that shut.
+///
+/// The answer is returned without its line ending and never with the
+/// question's own bytes; a caller that wants the question neutralized has done
+/// it already (`nvs_render::text::substitute`), because this function writes
+/// what it is handed.
+#[must_use]
+pub fn prompt(question: &str, echo: Echo) -> Option<String> {
+    if !is_interactive() {
+        return None;
+    }
+    ask(question, echo).ok().flatten()
+}
+
+/// One line off `file`, or `None` for a terminal that answered end-of-input.
+///
+/// A terminal in its ordinary cooked mode hands back one line per read, so the
+/// loop below usually runs once; it is a loop for the terminal that splits a
+/// long line across two, and it stops at [`MAX_ANSWER`] with what it has.
+fn read_answer(mut file: &std::fs::File) -> std::io::Result<Option<String>> {
+    use std::io::Read;
+
+    let mut answer: Vec<u8> = Vec::new();
+    let mut chunk = [0_u8; 256];
+    loop {
+        let read = file.read(&mut chunk)?;
+        if read == 0 {
+            if answer.is_empty() {
+                return Ok(None);
+            }
+            break;
+        }
+        if let Some(at) = chunk[..read].iter().position(|&byte| byte == b'\n') {
+            answer.extend_from_slice(&chunk[..at]);
+            break;
+        }
+        answer.extend_from_slice(&chunk[..read]);
+        if answer.len() >= MAX_ANSWER {
+            answer.truncate(MAX_ANSWER);
+            break;
+        }
+    }
+    if answer.last() == Some(&b'\r') {
+        answer.pop();
+    }
+    // Lossy rather than a failure: a terminal's bytes are whatever encoding it
+    // was configured with, and ADR 0009 § 1 says a `string` is UTF-8 — so the
+    // replacement character is the honest answer for a byte that is neither,
+    // and refusing the whole line would lose an answer over one keystroke.
+    Ok(Some(String::from_utf8_lossy(&answer).into_owned()))
+}
+
+/// Asks the controlling terminal itself, through `/dev/tty` — the device that
+/// is this process's terminal whatever its standard streams were redirected
+/// to.
+#[cfg(unix)]
+fn ask(question: &str, echo: Echo) -> std::io::Result<Option<String>> {
+    use std::io::Write;
+
+    let tty = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("/dev/tty")?;
+    (&tty).write_all(question.as_bytes())?;
+    (&tty).flush()?;
+    let restore = match echo {
+        Echo::Shown => None,
+        Echo::Hidden => hide_echo(&tty),
+    };
+    let answer = read_answer(&tty);
+    if let Some(saved) = restore {
+        show_echo(&tty, saved);
+        // The terminal echoed no newline because it echoed nothing, so the
+        // next line of output would otherwise start beside the question.
+        let _ = (&tty).write_all(b"\n");
+    }
+    answer
+}
+
+/// The terminal's attributes with `ECHO` cleared, answering what they were so
+/// that [`show_echo`] can put them back — `None` for a device that has no
+/// attributes to change, where the answer is simply visible.
+#[cfg(unix)]
+fn hide_echo(tty: &std::fs::File) -> Option<libc::termios> {
+    use std::os::unix::io::AsRawFd;
+
+    let fd = tty.as_raw_fd();
+    #[expect(
+        unsafe_code,
+        reason = "`tcgetattr`/`tcsetattr` are the only way to turn a terminal's echo off, and \
+                  `std` has no equivalent. The descriptor is one this function opened and still \
+                  owns, and the out-parameter is a stack `termios` this call owns exclusively, \
+                  so the library writes a fixed-size struct into a live allocation that outlives \
+                  the call by nothing."
+    )]
+    unsafe {
+        let mut saved: libc::termios = std::mem::zeroed();
+        if libc::tcgetattr(fd, &raw mut saved) != 0 {
+            return None;
+        }
+        let mut hidden = saved;
+        hidden.c_lflag &= !libc::ECHO;
+        (libc::tcsetattr(fd, libc::TCSANOW, &raw const hidden) == 0).then_some(saved)
+    }
+}
+
+/// Puts back what [`hide_echo`] answered.
+#[cfg(unix)]
+fn show_echo(tty: &std::fs::File, saved: libc::termios) {
+    use std::os::unix::io::AsRawFd;
+
+    #[expect(
+        unsafe_code,
+        reason = "the restoring half of `hide_echo`, over the same descriptor and a `termios` \
+                  that call read out of it; a failure here leaves the terminal as it is, which \
+                  is why the status is dropped."
+    )]
+    unsafe {
+        libc::tcsetattr(tty.as_raw_fd(), libc::TCSANOW, &raw const saved);
+    }
+}
+
+/// See the `unix` arm. Windows names the two halves of the console separately,
+/// so the question and the answer are two handles rather than one: `CONOUT$`
+/// is the console this process would draw on and `CONIN$` the keyboard behind
+/// it, and neither is affected by a redirection of the standard streams.
+#[cfg(windows)]
+fn ask(question: &str, echo: Echo) -> std::io::Result<Option<String>> {
+    use std::io::Write;
+
+    let mut screen = std::fs::OpenOptions::new().write(true).open("CONOUT$")?;
+    let keyboard = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("CONIN$")?;
+    screen.write_all(question.as_bytes())?;
+    screen.flush()?;
+    let restore = match echo {
+        Echo::Shown => None,
+        Echo::Hidden => hide_echo(&keyboard),
+    };
+    let answer = read_answer(&keyboard);
+    if let Some(saved) = restore {
+        show_echo(&keyboard, saved);
+        let _ = screen.write_all(b"\n");
+    }
+    answer
+}
+
+/// See the `unix` arm. The console's mode is one word, and echo is one bit of
+/// it.
+#[cfg(windows)]
+fn hide_echo(keyboard: &std::fs::File) -> Option<u32> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::System::Console::{
+        CONSOLE_MODE, ENABLE_ECHO_INPUT, GetConsoleMode, SetConsoleMode,
+    };
+
+    let handle = keyboard.as_raw_handle().cast();
+    #[expect(
+        unsafe_code,
+        reason = "there is no `std` spelling of the console mode. The handle belongs to a file \
+                  this function's caller opened and still owns, and the out-parameter is a stack \
+                  `CONSOLE_MODE` this call owns exclusively; a handle that is not a console makes \
+                  `GetConsoleMode` fail, which is the `== 0` test."
+    )]
+    unsafe {
+        let mut mode: CONSOLE_MODE = 0;
+        if GetConsoleMode(handle, &raw mut mode) == 0 {
+            return None;
+        }
+        (SetConsoleMode(handle, mode & !ENABLE_ECHO_INPUT) != 0).then_some(mode)
+    }
+}
+
+/// See the `unix` arm.
+#[cfg(windows)]
+fn show_echo(keyboard: &std::fs::File, saved: u32) {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::System::Console::SetConsoleMode;
+
+    #[expect(
+        unsafe_code,
+        reason = "the restoring half of `hide_echo`, over the same handle and the mode that call \
+                  read off it; a failure leaves the console as it is, which is why the status is \
+                  dropped."
+    )]
+    unsafe {
+        SetConsoleMode(keyboard.as_raw_handle().cast(), saved);
+    }
+}
+
+/// Neither Unix nor Windows: there is no terminal to open, so there is no
+/// prompt to answer — [`is_interactive`] has already said so, and this arm
+/// exists so that the platform still builds.
+#[cfg(not(any(unix, windows)))]
+fn ask(_question: &str, _echo: Echo) -> std::io::Result<Option<String>> {
+    Ok(None)
 }
 
 #[cfg(test)]

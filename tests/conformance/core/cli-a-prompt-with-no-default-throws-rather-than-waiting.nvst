@@ -1,0 +1,38 @@
+--TEST--
+Every prompt with no default throws Core\Cli\NotInteractive rather than waiting, and a validate callback never runs without a terminal — ADR 0086 § 4
+--FILE--
+<?nvs
+// Agreement across the three prompts that take a default: asked the same
+// question with none given, each throws the same class, so a program that
+// wants a fallback writes one `catch` and not three.
+int $threw = 0;
+try {
+    Core\Cli::ask("Your name?");
+} catch (Core\Cli\NotInteractive $noName) {
+    $threw = $threw + 1;
+}
+try {
+    Core\Cli::confirm("Continue?");
+} catch (Core\Cli\NotInteractive $noAnswer) {
+    $threw = $threw + 1;
+}
+try {
+    Core\Cli::select("Pick one", ["alpha", "beta"]);
+} catch (Core\Cli\NotInteractive $noChoice) {
+    $threw = $threw + 1;
+}
+echo $threw, " threw\n";
+
+// `validate` runs on what was typed, so a run with nothing to type at never
+// calls it — the callback below would print, and the default comes back
+// unchecked because there was no answer to check.
+echo Core\Cli::ask(
+    "Your name?",
+    {
+        default: "ada",
+        validate: fn(string $answer): bool => Core\Cli::isTty(Core\Cli\Stream::In),
+    }
+), "\n";
+--EXPECT--
+3 threw
+ada

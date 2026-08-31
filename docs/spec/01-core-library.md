@@ -749,9 +749,11 @@ subclass with a typed property does properly. `Throwable`'s message is a `secret
 `RecursionError` is not a counter-example to that: ADR 0020 § 1 puts a **soft** depth above the call-stack
 limit precisely so a recursive-descent parser over untrusted-depth input can degrade, and the limit itself —
 the `FATAL` at the true ceiling — is still not `Throwable` and still reaches no `catch`.
-Domain-specific errors are user-defined classes; `Core` does not attempt to enumerate them. The one
-exception is `Core\Db\DbError` and `Core\Db\RolledBack` (§ 18), which extend `RuntimeError`: a driver
-failure and a deliberate rollback have no user-defined home.
+Domain-specific errors are user-defined classes; `Core` does not attempt to enumerate them. The
+exceptions are `Core\Db\DbError` and `Core\Db\RolledBack` (§ 18) and `Core\Cli\NotInteractive` (§ 15),
+all three extending `RuntimeError`: a driver failure, a deliberate rollback and a prompt with no
+controlling terminal to read ([ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) § 4) have no
+user-defined home.
 
 ## 11. `Core\Random`, `Core\Uuid`, `Core\Hash`
 

@@ -29,7 +29,7 @@
 /// Ordered parent-before-child so a consumer building a flattened supertype
 /// set can walk it in one pass.
 ///
-/// # One entry is namespaced, and it is here rather than in the registry
+/// # Two entries are namespaced, and they are here rather than in the registry
 ///
 /// `Core\Test\Failure` is [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
 /// § 5's assertion failure, and that section makes it "an ordinary
@@ -40,11 +40,21 @@
 /// is the root directly: a failed assertion is neither "the world said no"
 /// nor one of `RuntimeError`'s narrower readings.
 ///
-/// It is the one entry whose name has more than one segment, which is why
-/// every consumer here goes through `QName::parse` rather than treating a row
-/// as a bare global segment. `QName::is_reserved_global_class` deliberately
-/// still answers only for the single-segment rows: what makes this one
-/// trusted-to-exist is `QName::is_core`, the reserved `Core` namespace
+/// `Core\Cli\NotInteractive` is the second, and it is here for exactly that
+/// reason rather than by analogy:
+/// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4 makes
+/// it what a prompt throws when the process has no controlling terminal and
+/// the call named no default, so a program that wants to fall back writes a
+/// `catch` — and a `catch` matches a name in this tree and nothing else. Its
+/// parent is `RuntimeError`, because "there is nobody to ask" is the world
+/// saying no rather than a bug in the program: the same code is correct when
+/// it is run from a terminal.
+///
+/// Those two are the entries whose names have more than one segment, which is
+/// why every consumer here goes through `QName::parse` rather than treating a
+/// row as a bare global segment. `QName::is_reserved_global_class`
+/// deliberately still answers only for the single-segment rows: what makes
+/// these trusted-to-exist is `QName::is_core`, the reserved `Core` namespace
 /// ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
 /// § 2), which every site pairs with that predicate already.
 pub const TREE: &[(&str, Option<&str>)] = &[
@@ -57,6 +67,7 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     ("RecursionError", Some("RuntimeError")),
     ("ArithmeticError", Some("Throwable")),
     ("Core\\Test\\Failure", Some("Throwable")),
+    ("Core\\Cli\\NotInteractive", Some("RuntimeError")),
 ];
 
 /// The root every other entry in [`TREE`] descends from, and the one name a

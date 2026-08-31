@@ -4885,6 +4885,33 @@ sibling in the same namespace unqualified.
   summary. Three sessions carried the gap forward through the handoff. When a doc and an ADR
   disagree about what exists, `grep -n` the enum before believing either: it is one call, and the
   alternative is a session that designs a mechanism the tree already ships.
+- **A shape-literal field name had to be an `Ident`, so an option the spec spells `default` was
+  unwritable at every call site.** ADR 0086 § 4's prompts take `{default?: string}`, and
+  `{default: "ada"}` produced four diagnostics at once — `E0101 expected a field name`, then
+  `E0118 an object literal has no shorthand field`, then two more recovering — none of which says
+  "that word is a keyword". `nvs_syntax::parser::expr::parse_object_literal_fields` is the whole
+  fix and now takes any `TokenKind::Keyword` as a field name: a name is not an expression, and the
+  token is followed by a `:` inside an already-open literal, so nothing was ambiguous. Before
+  renaming an option away from what its ADR spells, check whether the *parser* is what refused it —
+  `crates/nvs-syntax/src/token.rs`'s keyword table is the list to check a spec's option names
+  against, and `match`, `class`, `default` and `for` are all plausible ones.
+- **`options` is a reserved parameter name, and a row using it fails a registry gate rather than a
+  call.** ADR 0063 R2 makes `options` the one name every member's trailing bag is callable by
+  (`registry::OPTIONS_NAME`), so a *positional* parameter cannot also be called that —
+  `every_registry_row_names_one_parameter_per_positional_slot` reports "gives a positional
+  parameter the trailing bag's own name" with `left: "options"` / `right: "options"`, which reads
+  like a tautology until you know what the right-hand side is. ADR 0086 § 4 spelled `select`'s list
+  `$options`; it is `$choices` now, in that ADR's own table as well as in the row, because the
+  later and wider rule wins.
+- **A row answering a qualified type joins a closed roster in another crate, and the failure names
+  neither your row nor the rule.** `nvs_types::core_lib`'s
+  `a_verified_signature_does_not_launder_its_claims` pins the *set* of members whose return type
+  contains `tainted` — ADR 0060 § 5's point being that a member promising it is invisible from
+  every row but its own — so `Core\Cli::ask` and `::secret` arrived as a two-line set diff in
+  `-p nvs-types --lib` with nothing pointing back at `cli.rs`. The sibling
+  `reveal_and_the_password_helpers_are_the_only_launderers_of_secret` is the same shape on the
+  other axis. Adding to either roster is legitimate; it costs the assertion, its message and the
+  paragraph above it saying why the set is the size it is.
 
 ## Divergences and refusals already pinned
 

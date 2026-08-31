@@ -275,6 +275,24 @@ pub enum CoreTy {
     /// none, so a row that wrote it there would be documenting a demand no
     /// caller can fail to meet.
     TaintedStr,
+    /// `secret tainted string` — both qualifiers at once, and the one row that
+    /// needs it is `Core\Cli::secret`.
+    ///
+    /// [`Self::SecretBytes`] and [`Self::TaintedStr`] are the two axes
+    /// separately, and this is neither's generalisation: a password typed at a
+    /// prompt is confidential *and* came from outside, so
+    /// [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+    /// five sinks refuse it and
+    /// [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+    /// launderers are still what let it reach one. Dropping either half would
+    /// be a claim the prompt cannot make —
+    /// [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md)
+    /// § 4 writes the return type with both words for that reason.
+    ///
+    /// Return position, exactly as its two halves are: in parameter position
+    /// it would demand what `nvs_types`' assignment relation already grants,
+    /// which [`Self::SecretBytes`]'s docs work through.
+    SecretTaintedStr,
     /// `void`, return position only.
     Void,
     /// `mixed` — ADR 0007 § 3's one unchecked position.

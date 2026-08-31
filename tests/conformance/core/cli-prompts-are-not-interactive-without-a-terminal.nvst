@@ -1,0 +1,40 @@
+--TEST--
+A prompt with no controlling terminal answers its default or throws Core\Cli\NotInteractive, and never blocks — ADR 0086 § 4
+--FILE--
+<?nvs
+// This case runs with every standard stream redirected, which is § 4's "no
+// controlling terminal": the prompts below decide without reading anything.
+try {
+    Core\Cli::ask("Your name?");
+} catch (Core\Cli\NotInteractive $noTerminal) {
+    echo $noTerminal->message, "\n";
+}
+
+// A default is what an unattended run answers, for each prompt that takes one.
+echo Core\Cli::ask("Your name?", {default: "ada"}), "\n";
+echo Core\Cli::confirm("Continue?", {default: true}) ? "yes" : "no", "\n";
+// § 4: `select<T>` answers the chosen value, never its index.
+echo Core\Cli::select("Pick one", ["alpha", "beta"], {default: "beta"}), "\n";
+
+// `secret` takes no default: a password nobody typed is not a password.
+try {
+    Core\Cli::secret("Password:");
+} catch (Core\Cli\NotInteractive $noPassword) {
+    echo $noPassword->message, "\n";
+}
+
+// An empty option list is a LogicError rather than an answer: there is nothing
+// that could be chosen.
+array<string> $empty = [];
+try {
+    Core\Cli::select("Pick one", $empty);
+} catch (LogicError $nothingToPick) {
+    echo $nothingToPick->message, "\n";
+}
+--EXPECT--
+no controlling terminal to answer Core\Cli::ask
+ada
+yes
+beta
+no controlling terminal to answer Core\Cli::secret
+Core\Cli::select was given nothing to choose between

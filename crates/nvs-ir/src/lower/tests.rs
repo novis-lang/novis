@@ -3068,9 +3068,10 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
         [
             "ArithmeticError",
             "Comparable",
-            // ADR 0079 § 5's assertion failure — the exception tree's one
-            // namespaced entry, and a class in it for the reason
-            // `nvs_hir::errors::TREE` gives.
+            // ADR 0086 § 4's refusal to block, and ADR 0079 § 5's assertion
+            // failure — the exception tree's two namespaced entries, classes
+            // in it for the reason `nvs_hir::errors::TREE` gives.
+            "Core\\Cli\\NotInteractive",
             "Core\\Test\\Failure",
             "IOError",
             "Iterable",

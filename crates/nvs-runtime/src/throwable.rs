@@ -119,11 +119,20 @@ pub enum ThrownClass {
     /// composite assertion, a retry wrapper or a test *of* an assertion can
     /// intercept one by name.
     ///
-    /// The one entry in this roster whose name is namespaced;
-    /// `nvs_hir::errors::TREE` says why it is a class in the tree rather than
-    /// a `nvs_stdlib::registry` row, and nothing here has to care, the lookup
-    /// below being by name either way.
+    /// `Core\Test\Failure` and [`Self::CliNotInteractive`] are the two entries
+    /// in this roster whose names are namespaced; `nvs_hir::errors::TREE` says
+    /// why they are classes in the tree rather than `nvs_stdlib::registry`
+    /// rows, and nothing here has to care, the lookup below being by name
+    /// either way.
     TestFailure,
+    /// `Core\Cli\NotInteractive` — a prompt with no controlling terminal to
+    /// read and no default to fall back on
+    /// ([ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4).
+    ///
+    /// A throw rather than a block is the whole of that section's second rule,
+    /// and it is [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md)'s
+    /// "no spelling for an unbounded wait" on a second surface.
+    CliNotInteractive,
 }
 
 impl ThrownClass {
@@ -139,6 +148,7 @@ impl ThrownClass {
             Self::Recursion => "RecursionError",
             Self::Arithmetic => "ArithmeticError",
             Self::TestFailure => "Core\\Test\\Failure",
+            Self::CliNotInteractive => "Core\\Cli\\NotInteractive",
         }
     }
 
@@ -152,6 +162,7 @@ impl ThrownClass {
         Self::Recursion,
         Self::Arithmetic,
         Self::TestFailure,
+        Self::CliNotInteractive,
     ];
 }
 

@@ -208,9 +208,16 @@ would imply a string has an intrinsic width, which is the confusion ADR 0009 § 
 |---|---|
 | `Cli::ask` | `ask(string $question, {default?: string, validate?: callable}): tainted string` |
 | `Cli::confirm` | `confirm(string $question, {default?: bool}): bool` |
-| `Cli::select` | `select<T>(string $question, array<T> $options, {labels?: callable, default?: T}): T` |
-| `Cli::multiSelect` | `multiSelect<T>(string $question, array<T> $options, {labels?: callable}): array<T>` |
+| `Cli::select` | `select<T>(string $question, array<T> $choices, {labels?: callable, default?: T}): T` |
+| `Cli::multiSelect` | `multiSelect<T>(string $question, array<T> $choices, {labels?: callable}): array<T>` |
 | `Cli::secret` | `secret(string $question): secret tainted string` |
+
+The list a `select` offers is `$choices` and not `$options`, which is
+[0063](0063-core-api-conventions.md) R2's doing rather than a preference: that rule reserves
+`options` as the one name every member's trailing shape is callable by, so a positional parameter
+sharing it would be ambiguous at a named call site.
+`nvs_stdlib::registry`'s `every_registry_row_names_one_parameter_per_positional_slot` is what
+holds it.
 
 Four properties fall out of rules that already exist:
 

@@ -83,6 +83,24 @@
 //! `nvs_render::text::substitute` exactly as the sink does, so the two cannot
 //! come to disagree.
 //!
+//! # The prompts, and the two questions each one asks first
+//!
+//! ADR 0086 § 4's `ask`, `confirm`, `select<T>` and `secret` are here, and
+//! what they have in common is where they *do not* read: `nvs_runtime`'s
+//! terminal module opens the controlling terminal by name, so a program whose
+//! standard input is a pipe can still ask a question. This module's own half
+//! is [`watched`] — whether **this request's** output reaches that terminal at
+//! all — because a question written into an HTTP response body or a
+//! `Core\Out::capture` buffer reaches nobody, and a read after it would hold
+//! the core for a keystroke that is never coming. Both answers have to be yes
+//! before anything is opened; otherwise § 4's second rule applies and the
+//! prompt answers its `default` or throws `Core\Cli\NotInteractive`.
+//!
+//! That pair is also what makes the prompts *testable*: a `.nvst` case runs as
+//! a child with its output piped, so every prompt in one takes the
+//! not-interactive path by construction rather than by luck, and a case can
+//! freeze what it answers without a terminal or a person anywhere near it.
+//!
 //! # Known gaps
 //!
 //! 1. **§ 3's `write` and `displayWidth` are not here.** `write` is a second
@@ -90,10 +108,14 @@
 //!    stream argument rather than a rule; `displayWidth` is a question about
 //!    how a renderer would lay a string out, belongs beside `Cli\Style`, and
 //!    additionally owes a UAX #11 table this tree does not carry yet.
-//! 2. **The rest of § 13 does not exist** — no `arguments`, no prompts (`ask`,
-//!    `confirm`, `select<T>`, `secret`), and no scoped `live<T>` or
-//!    `progress<T>`. `docs/spec/01-core-library.md` § 13 lists them and
-//!    `docs/plan/m8.md` owns when.
+//! 2. **The rest of § 15 does not exist** — no `arguments`, no `multiSelect`,
+//!    and no scoped `live<T>` or `progress<T>`.
+//!    `docs/spec/01-core-library.md` § 15 lists them and `docs/plan/m8.md`
+//!    owns when. ADR 0086 § 4's last paragraph is owed with them: under
+//!    `nvs test` a prompt should drain a scripted answer queue rather than
+//!    read a terminal, and today it takes the not-interactive path there
+//!    instead — a test's output is a buffer, so [`watched`] answers `false` —
+//!    which makes an interactive flow assertable only through its defaults.
 //! 3. **A `Text` cannot be plain on one stream and styled on another in the
 //!    same run.** It holds bytes, and the styling is rendered into them once —
 //!    so a program writing the same `Text` to a terminal standard output and a
@@ -103,7 +125,7 @@
 //!    What closes it is the `Cli\Text` of runs § 2's body names as the shape a
 //!    per-stream `Cli::write` would need.
 
-use nvs_runtime::terminal::{ColorDepth, Stream};
+use nvs_runtime::terminal::{ColorDepth, Echo, Stream};
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
 use crate::registry::{
@@ -115,14 +137,17 @@ use crate::registry::{
 /// every refusal that names the class cannot drift apart.
 pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 
-/// ADR 0086 § 3's profile plus § 1's launderer, as registry rows. See
-/// [`crate::registry::CLASSES`].
+/// ADR 0086 § 3's profile, § 1's launderer and § 4's prompts, as registry
+/// rows. See [`crate::registry::CLASSES`].
 ///
-/// Five members and still no `write`: the module docs' gap 1 owns that split,
+/// Nine members and still no `write`: the module docs' gap 1 owns that split,
 /// and [`nvs_core_cli_escape`] owns why the launderer could land ahead of it.
 ///
 /// In the spec's own order (§ 15), which is why `escape` is first: `arguments`
-/// and `write` come before it and are the two rows still owed.
+/// and `write` come before it and are the two rows still owed, and § 4's
+/// `multiSelect` is the third — it is the one prompt whose answer is a set
+/// rather than a value, so it owes a second reading loop rather than another
+/// row of the shape below.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
     methods: &[
@@ -170,6 +195,54 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Enum(COLOR_DEPTH_NAME),
             symbol: "nvs_core_cli_color_depth",
             doc: Some(&COLOR_DEPTH_MEMBER_DOC),
+        },
+        CoreMethod {
+            name: "ask",
+            names: &["question"],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Options(ASK_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_cli_ask",
+            doc: Some(&ASK_DOC),
+        },
+        CoreMethod {
+            name: "confirm",
+            names: &["question"],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Options(CONFIRM_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_cli_confirm",
+            doc: Some(&CONFIRM_DOC),
+        },
+        CoreMethod {
+            name: "select",
+            // `choices` rather than § 4's own `$options`: ADR 0063 R2 reserves
+            // `options` as the name every member's trailing bag is callable
+            // by, so a positional sharing it would be ambiguous at a named
+            // call site. That ADR's rule is the later and wider one, and § 4's
+            // table now writes `$choices` for the same reason.
+            names: &["question", "choices"],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Options(SELECT_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Var("T"),
+            symbol: "nvs_core_cli_select",
+            doc: Some(&SELECT_DOC),
+        },
+        CoreMethod {
+            name: "secret",
+            names: &["question"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::SecretTaintedStr,
+            symbol: "nvs_core_cli_secret",
+            doc: Some(&SECRET_DOC),
         },
     ],
     instance: &[],
@@ -242,6 +315,183 @@ const COLOR_DEPTH_MEMBER_DOC: MethodDoc = MethodDoc {
           a terminal and nothing forced colour on, which is what makes `myprog | grep` and a CI \
           log plain.",
     errors: &[],
+};
+
+/// `Core\Cli::ask`'s trailing options — ADR 0086 § 4's
+/// `{default?: string, validate?: callable}`.
+///
+/// Both defaults are [`Const::Null`] rather than a value of the option's own
+/// type, which is that variant's documented case twice over: a `callable` has
+/// no "no callback" spelling, and an *absent* `default` is what decides
+/// between answering and throwing `Core\Cli\NotInteractive` — so `""` could
+/// not stand in for it.
+const ASK_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "default",
+        ty: CoreTy::Text(Qual::Contagious),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "validate",
+        ty: CoreTy::Callable,
+        default: Const::Null,
+    },
+];
+
+/// `Core\Cli::confirm`'s trailing options — § 4's `{default?: bool}`.
+///
+/// [`Const::Null`] again, and here the distinction it draws is the whole
+/// member: `false` is an answer, absence is not, and only absence makes an
+/// unattended run throw rather than proceed.
+const CONFIRM_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "default",
+    ty: CoreTy::Bool,
+    default: Const::Null,
+}];
+
+/// `Core\Cli::select`'s trailing options — § 4's
+/// `{labels?: callable, default?: T}`.
+///
+/// `default` is typed as the same variable the options array binds, so a
+/// default that is not one of the values offered is a compile error rather
+/// than a run that silently answers something absent from the list.
+const SELECT_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "labels",
+        ty: CoreTy::Callable,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "default",
+        ty: CoreTy::Var("T"),
+        default: Const::Null,
+    },
+];
+
+/// `Core\Cli::ask`'s reference card — ADR 0117.
+const ASK_DOC: MethodDoc = MethodDoc {
+    short: "Asks `$question` at the controlling terminal and answers the line typed back — \
+            `readline`, without the GNU library and without reading standard input, so a program \
+            reading piped data can still ask. With no terminal it answers `default` if one was \
+            given and throws otherwise; it never blocks waiting for an answer nobody can give.",
+    params: &[
+        ParamDoc {
+            name: "question",
+            desc: "What to write at the terminal. It goes through the same substitution `echo` \
+                   performs, so a question built from untrusted text cannot move the cursor or \
+                   repaint the screen around its own answer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "default",
+            desc: "What to answer when the terminal is not there, and what an empty line means \
+                   when it is. Absent makes both of those a `Core\\Cli\\NotInteractive`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "validate",
+            desc: "Called with each answer; a falsy verdict asks again. It runs only where there \
+                   is a terminal to ask again at, so it never sees a `default`.",
+            shape: &[],
+        },
+    ],
+    ret: "The line typed, without its ending, and `tainted` whatever it says — it came from \
+          outside the program, exactly as a request body did.",
+    errors: &[ErrorDoc {
+        error: "Core\\Cli\\NotInteractive",
+        desc: "There is no controlling terminal to ask, or its input ended, and the call named no \
+               `default`.",
+    }],
+};
+
+/// `Core\Cli::confirm`'s reference card — ADR 0117.
+const CONFIRM_DOC: MethodDoc = MethodDoc {
+    short: "Asks `$question` as a yes/no question, showing which way the `Enter` key goes, and \
+            answers what was typed. An answer that is neither is asked again rather than read as \
+            `false`.",
+    params: &[
+        ParamDoc {
+            name: "question",
+            desc: "What to write at the terminal, substituted as `ask` substitutes it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "default",
+            desc: "What an empty line means, and what an unattended run answers. Absent makes an \
+                   unattended run throw, and makes an empty line ask again.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` for yes and `false` for no — a plain `bool` and never a `tainted` one, because \
+          nothing of what was typed survives into a closed two-case answer.",
+    errors: &[ErrorDoc {
+        error: "Core\\Cli\\NotInteractive",
+        desc: "There is no controlling terminal to ask, or its input ended, and the call named no \
+               `default`.",
+    }],
+};
+
+/// `Core\Cli::select`'s reference card — ADR 0117.
+const SELECT_DOC: MethodDoc = MethodDoc {
+    short: "Offers `$choices` as a numbered list and answers the one chosen — the value itself, \
+            never its position, so nothing at the call site indexes back into the array.",
+    params: &[
+        ParamDoc {
+            name: "question",
+            desc: "What to write above the list, substituted as `ask` substitutes it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "choices",
+            desc: "The values to choose between, listed in their own order. An empty array is a \
+                   `LogicError`: there is no answer to hand back.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "labels",
+            desc: "Called with each option to produce the line shown for it. Absent renders each \
+                   option as text the way `echo` would.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "default",
+            desc: "What an empty line chooses, and what an unattended run answers. Typed as the \
+                   choices' own element type, so it cannot be a value that is not on offer.",
+            shape: &[],
+        },
+    ],
+    ret: "The chosen element of `$choices`, with that array's element type.",
+    errors: &[
+        ErrorDoc {
+            error: "Core\\Cli\\NotInteractive",
+            desc: "There is no controlling terminal to ask, or its input ended, and the call \
+                   named no `default`.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$choices` is empty, so there is nothing that could be chosen.",
+        },
+    ],
+};
+
+/// `Core\Cli::secret`'s reference card — ADR 0117.
+const SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Asks `$question` with the terminal's echo turned off, so a password is not left on \
+            the screen or in a scrollback buffer — PHP's `readline` has no spelling for this at \
+            all and every program shells out to `stty -echo` for it.",
+    params: &[ParamDoc {
+        name: "question",
+        desc: "What to write at the terminal, substituted as `ask` substitutes it.",
+        shape: &[],
+    }],
+    ret: "The line typed, `secret` and `tainted` at once: output, logs, dumps, `Throwable` \
+          messages and serialization all refuse it, and it still has to be laundered for any \
+          sink it reaches.",
+    errors: &[ErrorDoc {
+        error: "Core\\Cli\\NotInteractive",
+        desc: "There is no controlling terminal to ask, or its input ended. `secret` takes no \
+               `default`, because a password nobody typed is not a password.",
+    }],
 };
 
 /// `Core\Cli\Stream`'s fully-qualified name, written once — [`STREAM`] declares
@@ -380,6 +630,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cli_color_index" => (nvs_core_cli_color_index as *const ()).cast(),
         "nvs_core_cli_color_rgb" => (nvs_core_cli_color_rgb as *const ()).cast(),
         "nvs_core_cli_style_of" => (nvs_core_cli_style_of as *const ()).cast(),
+        "nvs_core_cli_ask" => (nvs_core_cli_ask as *const ()).cast(),
+        "nvs_core_cli_confirm" => (nvs_core_cli_confirm as *const ()).cast(),
+        "nvs_core_cli_select" => (nvs_core_cli_select as *const ()).cast(),
+        "nvs_core_cli_secret" => (nvs_core_cli_secret as *const ()).cast(),
         _ => return None,
     })
 }
@@ -513,6 +767,367 @@ nvs_runtime::nvs_helper! {
             nvs_runtime::terminal::profile().color_depth(),
         )))
     }
+}
+
+// ------------------------------------------------------------------ the prompts
+
+/// The question a prompt writes, neutralized exactly as `echo` neutralizes
+/// what it is handed.
+///
+/// ADR 0086 § 1's substitution over the question and not only over the answer:
+/// a question is ordinary output, and a program that interpolates a filename
+/// or a claim from a token into one is writing untrusted bytes at a terminal
+/// like any other. [`nvs_core_cli_escape`]'s own docs own the table.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for an argument that is not a `string`, which is
+/// unreachable from source: every prompt's first parameter is a
+/// [`CoreTy::Text`], so `E0401` refuses anything else a phase earlier.
+fn question_of(value: &Value, member: &str) -> Result<String, Fault> {
+    let text = value.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Cli::{member} expected a `string` question, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    Ok(nvs_render::text::substitute(text).to_string())
+}
+
+/// Whether this call has anyone to ask — ADR 0086 § 4's "with no controlling
+/// terminal" as a predicate, and the reason a prompt never blocks a program
+/// nobody is watching.
+///
+/// Two questions, and both have to answer yes. `nvs_runtime::terminal` asks
+/// whether the *process* has a terminal at all; this adds whether *this
+/// request's output* reaches it, because a question written into an HTTP
+/// response body or a `Core\Out::capture` buffer is a question nobody sees —
+/// and a read after it would hold the core until a keystroke that is never
+/// coming.
+fn watched(ctx: &nvs_runtime::Ctx) -> bool {
+    ctx.output_reaches_the_terminal() && nvs_runtime::terminal::is_interactive()
+}
+
+/// One line off the controlling terminal, or `None` when there is nobody to
+/// ask or the terminal's input ended.
+fn ask_terminal(ctx: &nvs_runtime::Ctx, question: &str, echo: Echo) -> Option<String> {
+    if !watched(ctx) {
+        return None;
+    }
+    nvs_runtime::terminal::prompt(question, echo)
+}
+
+/// What a prompt with nowhere to read and nothing to fall back on throws —
+/// ADR 0086 § 4's `Core\Cli\NotInteractive`, which is in
+/// `nvs_hir::errors::TREE` so that a program can `catch` it by name.
+///
+/// One function for all four prompts, so the sentence a program sees is the
+/// same wherever it came from; `tests/conformance/core/cli-prompts-are-not-interactive-without-a-terminal.nvst`
+/// is what freezes it.
+fn not_interactive(member: &str) -> Fault {
+    Fault::thrown_as(
+        nvs_runtime::ThrownClass::CliNotInteractive,
+        format!("no controlling terminal to answer Core\\Cli::{member}"),
+    )
+}
+
+/// Whether an option was given at all — the [`Const::Null`] an omitting call
+/// site passes.
+fn given(value: Value) -> bool {
+    !matches!(value.tag(), Some(Tag::Null) | None)
+}
+
+/// One more reference on a value this frame is about to hand back, since every
+/// argument is borrowed from the caller's frame.
+fn handed_back(value: Value) -> Value {
+    #[expect(
+        unsafe_code,
+        reason = "the value is an argument, owned by the caller's frame for the \
+                  length of this call, so the reference this helper returns has \
+                  to be one of its own — `Value::retain` is a no-op for the \
+                  unboxed tags a `bool` or a `null` default arrives as"
+    )]
+    unsafe {
+        value.retain();
+    }
+    value
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::ask(string $question, {default?: string, validate?: callable}): tainted string`
+    /// — ADR 0086 § 4's first prompt, replacing `readline` and the
+    /// `fgets(STDIN)` every PHP script writes instead of it.
+    ///
+    /// # It is not `fgets(STDIN)`, and that is the point
+    ///
+    /// § 4: *prompts read the controlling terminal, not standard input*, so
+    /// `cat data.csv | myprog` can still ask a question. `nvs_runtime::terminal`
+    /// is where the device is opened by name; nothing in this module reads the
+    /// standard input stream at all, which
+    /// [`tests::a_prompt_reads_the_controlling_terminal_and_not_stdin`] holds
+    /// shut over this file's own source.
+    ///
+    /// # Why the answer is `tainted` and the question is `Qual::Neutral`
+    ///
+    /// The answer came from outside the program, so it is
+    /// [`CoreTy::TaintedStr`] — a promise about the *value*, unconditional,
+    /// exactly as ADR 0060 § 5's verified claims are. The question's own
+    /// classification is [`Qual::Neutral`] rather than [`Qual::Sink`] because
+    /// the terminal substitutes instead of refusing (§ 1) and because the
+    /// answer's qualifier does not depend on the question's: a prompt built
+    /// from a literal and a prompt built from a request parameter both answer
+    /// something untrusted.
+    fn nvs_core_cli_ask(ctx, args: [3]) {
+        let question = question_of(&args[0], "ask")?;
+        let (fallback, validate) = (args[1], args[2]);
+        loop {
+            let Some(answer) = ask_terminal(ctx, &question, Echo::Shown) else {
+                return if given(fallback) {
+                    Ok(handed_back(fallback))
+                } else {
+                    Err(not_interactive("ask"))
+                };
+            };
+            if answer.is_empty() && given(fallback) {
+                return Ok(handed_back(fallback));
+            }
+            let value = Value::str(NvsStr::new(answer.as_bytes()));
+            if !given(validate) {
+                return Ok(value);
+            }
+            let verdict = nvs_runtime::call_closure(ctx, validate, &[value]);
+            let accepted = match verdict {
+                Ok(verdict) => {
+                    let truthy = nvs_runtime::value_truthy(verdict);
+                    #[expect(
+                        unsafe_code,
+                        reason = "the verdict is a fresh value this frame owns, \
+                                  and a predicate answering a heap value would \
+                                  otherwise leak one reference per attempt"
+                    )]
+                    unsafe {
+                        verdict.release();
+                    }
+                    truthy
+                }
+                Err(fault) => {
+                    #[expect(
+                        unsafe_code,
+                        reason = "the answer this frame built is owed a release \
+                                  on the failing edge as much as on the taken one"
+                    )]
+                    unsafe {
+                        value.release();
+                    }
+                    return Err(fault);
+                }
+            };
+            if accepted {
+                return Ok(value);
+            }
+            #[expect(
+                unsafe_code,
+                reason = "a refused answer is dropped here rather than returned, \
+                          so the reference this frame built goes with it"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::confirm(string $question, {default?: bool}): bool` — § 4's
+    /// second prompt, and the one whose answer is **not** `tainted`.
+    ///
+    /// ADR 0024 § 2 launders a checked conversion, and a closed two-case
+    /// answer set is exactly one: nothing of what was typed survives into the
+    /// `bool`, so there is no untrusted content left for a sink to act on.
+    ///
+    /// An answer that is neither yes nor no is asked again rather than read as
+    /// "no", because a program that deletes on `false` would otherwise treat a
+    /// typo as consent. An **empty** line takes the `default` where one was
+    /// given, which is what the `[Y/n]` in the question is promising.
+    fn nvs_core_cli_confirm(ctx, args: [2]) {
+        let fallback = args[1];
+        let shown = match (given(fallback), fallback.as_bool() == Some(true)) {
+            (false, _) => " [y/n] ",
+            (true, true) => " [Y/n] ",
+            (true, false) => " [y/N] ",
+        };
+        let question = format!("{}{shown}", question_of(&args[0], "confirm")?);
+        loop {
+            let Some(answer) = ask_terminal(ctx, &question, Echo::Shown) else {
+                return if given(fallback) {
+                    Ok(handed_back(fallback))
+                } else {
+                    Err(not_interactive("confirm"))
+                };
+            };
+            match answer.trim().to_ascii_lowercase().as_str() {
+                "y" | "yes" => return Ok(Value::bool(true)),
+                "n" | "no" => return Ok(Value::bool(false)),
+                "" if given(fallback) => return Ok(handed_back(fallback)),
+                // Anything else, and an empty line with no default: ask again.
+                _ => {}
+            }
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::select<T>(string $question, array<T> $choices, {labels?: callable, default?: T}): T`
+    /// — § 4's third prompt.
+    ///
+    /// **It answers the value, not the index**, which is
+    /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R4 and R5
+    /// and is what earns the generic: the compiler knows the result's type
+    /// from the options array, so no call site casts and none indexes back
+    /// into the list it just passed.
+    ///
+    /// The list is written above the question, one `1) label` per line, and
+    /// the answer is read as that number. A number outside the list is asked
+    /// again rather than clamped — clamping would silently choose a
+    /// neighbour, which on a menu is the one failure mode nobody checks for.
+    fn nvs_core_cli_select(ctx, args: [4]) {
+        let question = question_of(&args[0], "select")?;
+        let (labels, fallback) = (args[2], args[3]);
+        let options = options_of(args[1], "select")?;
+        if options.is_empty() {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                "Core\\Cli::select was given nothing to choose between",
+            ));
+        }
+
+        // The empty list above is refused whether or not anyone is watching —
+        // it is a bug in the program either way — but the menu is only *built*
+        // where it can be read, so an unattended run calls no `labels`
+        // callback and renders no line it would then discard.
+        if !watched(ctx) {
+            return if given(fallback) {
+                Ok(handed_back(fallback))
+            } else {
+                Err(not_interactive("select"))
+            };
+        }
+
+        let mut menu = String::new();
+        for (at, option) in options.iter().enumerate() {
+            menu.push_str(&format!("{}) {}\n", at + 1, label_of(ctx, labels, *option)?));
+        }
+        menu.push_str(&question);
+        menu.push(' ');
+
+        loop {
+            let Some(answer) = ask_terminal(ctx, &menu, Echo::Shown) else {
+                return if given(fallback) {
+                    Ok(handed_back(fallback))
+                } else {
+                    Err(not_interactive("select"))
+                };
+            };
+            let answer = answer.trim();
+            if answer.is_empty() && given(fallback) {
+                return Ok(handed_back(fallback));
+            }
+            if let Ok(chosen) = answer.parse::<usize>()
+                && let Some(option) = chosen.checked_sub(1).and_then(|at| options.get(at))
+            {
+                return Ok(handed_back(*option));
+            }
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::secret(string $question): secret tainted string` — § 4's
+    /// fourth prompt, and the clearest demonstration of why
+    /// [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+    /// qualifier was worth having: a password typed here structurally cannot
+    /// be echoed, logged, dumped, put in a `Throwable` message or serialized,
+    /// and it cost one row's return type to say so.
+    ///
+    /// The echo is turned off at the terminal rather than overwritten
+    /// afterwards, so the characters are never on the screen at all — the
+    /// difference matters for a scrollback buffer, for a screen recording and
+    /// for anyone standing behind the person typing.
+    ///
+    /// There is no `default`: a password nobody typed is not a password, so an
+    /// unattended run throws [`not_interactive`] rather than proceeding with
+    /// something a configuration file could have chosen.
+    fn nvs_core_cli_secret(ctx, args: [1]) {
+        let question = question_of(&args[0], "secret")?;
+        let Some(answer) = ask_terminal(ctx, &question, Echo::Hidden) else {
+            return Err(not_interactive("secret"));
+        };
+        Ok(Value::str(NvsStr::new(answer.as_bytes())))
+    }
+}
+
+/// The values of a `select` options array, in their own order, each borrowed
+/// from the array the caller still owns.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for an argument that is not an array, which is
+/// unreachable from source: the parameter is a [`CoreTy::Array`], so `E0401`
+/// refuses anything else a phase earlier.
+fn options_of(value: Value, member: &str) -> Result<Vec<Value>, Fault> {
+    let array = value.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Cli::{member} expected an `array`, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    let array = crate::arr::borrowed(array);
+    let mut options = Vec::new();
+    let mut from = 0_usize;
+    while let Some(slot) = array.next_slot(from) {
+        from = slot + 1;
+        options.push(
+            array
+                .value_at(slot)
+                .expect("next_slot only names live entries"),
+        );
+    }
+    Ok(options)
+}
+
+/// The line `select` shows for one option: what `labels` answered for it, or
+/// the option rendered the way `echo` would render it.
+///
+/// `nvs_runtime::stringify` rather than `value_to_string` directly, so an
+/// object option renders through ADR 0028 § 1's `toString` — a menu of
+/// `Core\Time\Zone`s should read as its zones, and a class with no renderer
+/// throws here rather than printing a placeholder nobody can choose between.
+fn label_of(ctx: &mut nvs_runtime::Ctx, labels: Value, option: Value) -> Result<String, Fault> {
+    let rendered = if given(labels) {
+        let answered = nvs_runtime::call_closure(ctx, labels, &[option])?;
+        let text = nvs_runtime::stringify(ctx, answered);
+        #[expect(
+            unsafe_code,
+            reason = "the callback's answer is a fresh value this frame owns, \
+                      and the rendering above took its own reference"
+        )]
+        unsafe {
+            answered.release();
+        }
+        text?
+    } else {
+        nvs_runtime::stringify(ctx, option)?
+    };
+    let line = rendered.as_text().unwrap_or_default().to_owned();
+    #[expect(
+        unsafe_code,
+        reason = "`stringify` answers a fresh reference, which this frame owes a \
+                  release once the bytes are copied out of it"
+    )]
+    unsafe {
+        rendered.release();
+    }
+    Ok(nvs_render::text::substitute(&line).to_string())
 }
 
 // ------------------------------------------------------------------ the carrier
@@ -1323,6 +1938,69 @@ mod tests {
     fn the_carrier_slot_matches_the_registered_layout() {
         assert_eq!(TEXT.slot("text"), nvs_runtime::CARRIER_TEXT_SLOT);
         assert!(nvs_runtime::is_carrier(NAME));
+    }
+
+    /// ADR 0086 § 4: a prompt reads the **controlling terminal**, so
+    /// `cat data.csv | myprog` can still ask a question — and it never blocks
+    /// where nobody can answer.
+    ///
+    /// Three assertions, because no one of them holds the rule alone. The
+    /// first is behavioural and is the one a session can run anywhere: a
+    /// request whose output is a buffer has nobody watching it, so
+    /// [`ask_terminal`] answers `None` without opening anything, and a prompt
+    /// with no default turns that into `Core\Cli\NotInteractive` rather than a
+    /// wait. The second and third are over the *source*, because the
+    /// alternative to them is a test that needs a terminal and a person: the
+    /// device is opened by name in `nvs_runtime::terminal`, and neither that
+    /// module's prompt half nor this module's names `Stream::In` or stdin at
+    /// all. A `fgets(STDIN)`-shaped implementation would pass every
+    /// behavioural test that could be written here and fail exactly this.
+    #[test]
+    fn a_prompt_reads_the_controlling_terminal_and_not_stdin() {
+        let ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        assert!(!watched(&ctx));
+        assert!(ask_terminal(&ctx, "Name? ", Echo::Shown).is_none());
+        assert!(matches!(
+            not_interactive("ask"),
+            Fault::Thrown(nvs_runtime::ThrownClass::CliNotInteractive, _)
+        ));
+
+        let terminal = include_str!("../../nvs-runtime/src/terminal.rs");
+        let (_, prompts) = terminal
+            .split_once(
+                "// ------------------------------------------------------------------ the prompts",
+            )
+            .expect("nvs_runtime::terminal's prompt half is where the device is opened");
+        assert!(prompts.contains("\"/dev/tty\""), "the Unix device, by name");
+        assert!(prompts.contains("\"CONIN$\""), "the Windows console input");
+        assert!(prompts.contains("\"CONOUT$\""), "and the screen beside it");
+        assert!(
+            !prompts.contains("std::io::stdin"),
+            "the prompt half of nvs_runtime::terminal reads the program's standard input rather \
+             than the terminal ADR 0086 § 4 names"
+        );
+        // `Stream::In` *is* named there, and legitimately: `is_interactive`
+        // asks whether standard input is a terminal, which is a question about
+        // how the process was started and not a read of it. What the line
+        // above forbids is the read.
+
+        let here = include_str!("cli.rs");
+        let (_, prompts) = here
+            .split_once(
+                "// ------------------------------------------------------------------ the prompts",
+            )
+            .expect("this module's prompt section");
+        let (prompts, _) = prompts
+            .split_once(
+                "// ------------------------------------------------------------------ the carrier",
+            )
+            .expect("which ends where the carrier begins");
+        for named in ["Stream::In", "std::io::stdin"] {
+            assert!(
+                !prompts.contains(named),
+                "a prompt body in this module names `{named}`"
+            );
+        }
     }
 
     /// The carrier holds exactly one slot: `nvs_runtime::value_to_string`

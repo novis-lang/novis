@@ -397,6 +397,10 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // tainted exactly when the token already was, which is the property
         // that ADR reads like an oversight for not having.
         CoreTy::TaintedStr => interner.tainted_string(),
+        // Both axes at once, for the arms above's reasons taken together: ADR
+        // 0086 § 4's prompt answers a password that is confidential and came
+        // from outside, and only a qualified result type can say both.
+        CoreTy::SecretTaintedStr => interner.secret_tainted_string(),
         CoreTy::Void => interner.void(),
         CoreTy::Array(elem) => {
             let elem = lower(elem, interner);
@@ -726,7 +730,7 @@ mod tests {
     /// promise would have to stop writing `CoreTy::TaintedStr`. Both edits
     /// land here.
     ///
-    /// **The promising side is four, and only one of them is a signature.**
+    /// **The promising side is six, and only one of them is a signature.**
     /// `Core\Http\Response::text` answers `tainted string` because a reply is
     /// bytes another host chose, and pinning an address settles which host they
     /// came from rather than what is in them — ADR 0024 § 1's roster, which
@@ -734,10 +738,15 @@ mod tests {
     /// `Core\Env::all` are the other two, and the plainest reading of that same
     /// roster: the environment is outside the program's own text, so a value
     /// out of it is untrusted however the operator wrote it, and a variable
-    /// holding a URL still has to reach `Core\Http::allowUrl`. All three belong
-    /// in this set for the reason the claims do: a member that promises
-    /// `tainted` is invisible from every row but its own, so this is where a
-    /// new arrival has to be looked at rather than waved through.
+    /// holding a URL still has to reach `Core\Http::allowUrl`. `Core\Cli::ask`
+    /// and `Core\Cli::secret` are the last two and the same reading again —
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4's
+    /// prompts answer what a person typed at a terminal, which is outside the
+    /// program exactly as a request body is, and `secret`'s answer carries the
+    /// other axis as well because a password is confidential *and* untrusted.
+    /// All five belong in this set for the reason the claims do: a member that
+    /// promises `tainted` is invisible from every row but its own, so this is
+    /// where a new arrival has to be looked at rather than waved through.
     #[test]
     fn a_verified_signature_does_not_launder_its_claims() {
         use std::collections::BTreeSet;
@@ -766,16 +775,18 @@ mod tests {
         assert_eq!(
             promises,
             BTreeSet::from([
+                (r"Core\Cli", "ask", "tainted string".to_owned()),
+                (r"Core\Cli", "secret", "secret tainted string".to_owned(),),
                 (r"Core\Env", "all", "array<tainted string>".to_owned()),
                 (r"Core\Env", "get", "null|tainted string".to_owned()),
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at four — a \
-             verified claim, an outbound reply's body and the two environment reads — and where \
-             the answer is a collection the element type is what carries it, since `nvs_types` \
-             has no tainted array and a member answering `array<mixed>` would have laundered \
-             every entry silently"
+            "the roster of members whose *answer* is qualified `tainted` is closed at six — a \
+             verified claim, an outbound reply's body, the two environment reads and the two \
+             prompts that answer what a person typed — and where the answer is a collection the \
+             element type is what carries it, since `nvs_types` has no tainted array and a member \
+             answering `array<mixed>` would have laundered every entry silently"
         );
 
         assert!(

@@ -3166,6 +3166,20 @@ impl Ctx {
         self.captures.len()
     }
 
+    /// Whether what this request writes reaches the process's own standard
+    /// streams, rather than a buffer, a response body or nothing at all.
+    ///
+    /// ADR 0086 § 4's prompts are the caller: a question is only a question if
+    /// the person answering can see it, so `Core\Cli::ask` under `nvs serve`,
+    /// inside a `Core\Out::capture` or under a test's [`OutputSink::Buffer`]
+    /// is not interactive however many terminals the process has. Without
+    /// this, a prompt in a request handler would write into the response body
+    /// and then block the core waiting for a keystroke.
+    #[must_use]
+    pub fn output_reaches_the_terminal(&self) -> bool {
+        self.captures.is_empty() && matches!(self.output, OutputSink::Stdout | OutputSink::Stderr)
+    }
+
     /// Takes everything written so far, if this context buffers its output.
     #[must_use]
     pub fn take_buffered_output(&mut self) -> Option<Vec<u8>> {
