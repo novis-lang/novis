@@ -533,6 +533,7 @@ fn overview(table: &CommandTable) -> String {
 mod tests {
     use super::*;
     use nvs_runtime::commands::CommandArg;
+    use nvs_runtime::{ClassTable, Ctx, ErrorClass, MethodRow, NvsFn, OK, OutputSink, call};
 
     /// Releases what [`matched`] handed back, which is what the helper does
     /// after the call it made them for.
@@ -765,5 +766,140 @@ mod tests {
         assert_eq!(values[1].as_bool(), Some(true));
         assert_eq!(values[2].as_text(), Some("b.txt"));
         release(values);
+    }
+
+    thread_local! {
+        /// What [`deploy_handler`] was handed, so that a dispatch which reached
+        /// the wrong row — or filled the slots in the command line's order
+        /// rather than the declaration's — fails here instead of passing on its
+        /// status alone.
+        static RECEIVED: std::cell::RefCell<Option<(String, bool)>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    /// The status [`deploy_handler`] answers with: neither `0` nor
+    /// [`USAGE_STATUS`], so "the handler ran and its own number came back" is
+    /// distinguishable from both of `run`'s other exits.
+    const HANDLER_STATUS: u64 = 7;
+
+    /// `Deployer::deploy`'s body, as `nvs-codegen` would have compiled it: slot
+    /// 0 is the called class, slots 1 and 2 are the two parameters
+    /// [`deploy`]'s row declares, and the exit sweep releases every one of them
+    /// because `nvs_runtime::call_static` retained them on the way in.
+    ///
+    /// It records what arrived rather than computing anything from it — the
+    /// question is which values reached which slot, and a handler that derived
+    /// its answer would hide a swap.
+    #[expect(
+        unsafe_code,
+        reason = "compiled code's own signature, which `call_at` calls through: \
+                  exactly three live values and the address of a live `Value` \
+                  for the result, neither expressible in the type"
+    )]
+    unsafe extern "C" fn deploy_handler(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        let target = unsafe { *args.add(1) };
+        let dry_run = unsafe { *args.add(2) };
+        RECEIVED.with_borrow_mut(|received| {
+            *received = Some((
+                target.as_text().unwrap_or_default().to_owned(),
+                dry_run.as_bool().unwrap_or_default(),
+            ));
+        });
+        unsafe {
+            for index in 0..3 {
+                (*args.add(index)).release();
+            }
+            *out = Value::uint(HANDLER_STATUS);
+        }
+        OK
+    }
+
+    /// [`deploy_handler`] as the class table's own row — arity 2, the receiver
+    /// excluded, which is what `nvs_types::layout::ClassLayout::methods` writes
+    /// for a `static` method with a body.
+    fn deploy_row() -> MethodRow {
+        MethodRow {
+            name: "deploy".to_owned(),
+            code: (deploy_handler as NvsFn) as *const u8,
+            arity: 2,
+            param_tags: 0,
+            public: true,
+            native: false,
+        }
+    }
+
+    /// A context set up the way `nvs run` sets one up before a program reaches
+    /// this module: [`deploy`]'s row as the compiled command table, `line` as
+    /// the process's argument vector, and a class table carrying whatever
+    /// `declares` holds under `Deployer`.
+    ///
+    /// The class table arrives through `Ctx::set_runtime_error_class` because
+    /// that handle *is* this context's anchor into the compiled unit's classes:
+    /// `Ctx::class_desc`, which is how `nvs_runtime::call_static` turns the
+    /// row's `Class::method` label into an address, reads the table through it
+    /// and there is no second registration to make.
+    fn dispatching(line: &[&str], declares: Vec<MethodRow>) -> Ctx {
+        let mut classes = ClassTable::new();
+        let id = classes.define("Deployer", &[] as &[&str], &[]);
+        classes.set_methods(id, declares);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(std::rc::Rc::new(classes), id));
+        ctx.set_commands(std::sync::Arc::new(CommandTable::new(vec![deploy()])));
+        ctx.set_command_line(line.iter().map(|word| (*word).to_owned()).collect());
+        ctx
+    }
+
+    /// ADR 0086 § 6's dispatch, end to end: the first word selects a row, the
+    /// words past it fill that row's parameters in **declaration** order, and
+    /// the handler is reached by the label the compiler wrote into the row —
+    /// the whole route `nvs_runtime::call_static` owns, over a class table
+    /// built here rather than by a compiler.
+    ///
+    /// The command line is written `deploy prod -n` and the assertion is that
+    /// the option arrived in slot 1: a matcher that handed the handler its
+    /// words in the order they were typed would answer the same status.
+    #[test]
+    fn command_run_dispatches_through_the_compiled_table() {
+        RECEIVED.with_borrow_mut(|received| *received = None);
+        let mut ctx = dispatching(&["deploy", "prod", "-n"], vec![deploy_row()]);
+        let status = call(super::nvs_core_command_run, &mut ctx, &[])
+            .expect("a command line this table answers")
+            .as_uint();
+        assert_eq!(
+            RECEIVED.with_borrow(Clone::clone),
+            Some(("prod".to_owned(), true)),
+            "the handler ran, and its slots are the row's parameters in declaration order"
+        );
+        assert_eq!(
+            status,
+            Some(HANDLER_STATUS),
+            "`run` answers with the handler's own status"
+        );
+    }
+
+    /// A row whose handler the program does not declare is a `LogicError`
+    /// rather than a usage page: the table is fixed at compile time, so no
+    /// command line can produce this and the author is the one who has to hear
+    /// about it.
+    #[test]
+    fn a_handler_the_program_does_not_declare_is_a_logic_error() {
+        let mut ctx = dispatching(&["deploy", "prod"], Vec::new());
+        assert_eq!(
+            call(super::nvs_core_command_run, &mut ctx, &[])
+                .expect_err("a label naming no declared method"),
+            nvs_runtime::THROWN
+        );
+        assert_eq!(
+            ctx.take_pending().as_deref(),
+            Some(
+                "`Deployer::deploy` is the handler `deploy` was declared on, and this program \
+                 declares no such method"
+            ),
+            "the sentence names the label, so an author can grep for it"
+        );
     }
 }
