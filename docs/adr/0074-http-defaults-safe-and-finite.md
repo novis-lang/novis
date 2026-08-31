@@ -35,7 +35,7 @@
 > `Duration` has no infinite value, there is no `deadline: null`, and a call that names nothing inherits a
 > finite default from `[http.client]`. Retry is **opt-in**, exponential with **full jitter**, and its
 > `deadline` covers **all** attempts rather than each one. A `POST` or `PATCH` is not retried without an
-> `idempotencyKey`, and because [ADR 0063](0063-core-api-conventions.md) R2 makes the options bag a
+> `retryIdempotencyKey`, and because [ADR 0063](0063-core-api-conventions.md) R2 makes the options bag a
 > compile-time-constant literal, that is a **diagnostic** rather than a runtime surprise.
 
 ## Context
@@ -180,13 +180,21 @@ max_redirects   = 0               # ADR 0058 § 4: redirects are off by default
 
 ```php
 type Core\Http\Options = {
-    deadline?:        Duration,
-    connectTimeout?:  Duration,
-    headers?:         array<string, string>,
-    followRedirects?: uint,
-    retry?:           {attempts: uint, backoff?: Duration, idempotencyKey?: string},
+    deadline?:            Duration,
+    connectTimeout?:      Duration,
+    headers?:             array<string, string>,
+    followRedirects?:     uint,
+    retryAttempts?:       uint,
+    retryBackoff?:        Duration,
+    retryIdempotencyKey?: string,
 };
 ```
+
+**The three retry keys are flat rather than a nested `retry` shape.**
+[ADR 0063](0063-core-api-conventions.md) R2's bag flattens to one argument per option at the ABI, so a
+bag nested inside one has nothing to flatten into — it would need a runtime shape value on the common
+path, which R2 exists to avoid. The prefix keeps the grouping legible at a call site
+(`{retryAttempts: 3, retryIdempotencyKey: $key}`) and costs seven characters at each of them.
 
 **The absence is the decision.** `Duration` ([ADR 0070](0070-duration-literals.md)) has no infinite value,
 there is no `deadline: null` and no `0` meaning unbounded, and omitting the field inherits `[http.client]
@@ -204,10 +212,10 @@ falsy return ([ADR 0063](0063-core-api-conventions.md) R4).
 
 ### 6. Outbound: retry is opt-in, jittered, and covered by the same deadline
 
-`retry` absent means one attempt. Present:
+`retryAttempts` absent means one attempt. Present:
 
-- **`attempts`** is the **total** number of attempts including the first, and must be at least 1.
-- **`backoff`** is the base delay, default `100ms`, growing exponentially per attempt with **full jitter** —
+- **`retryAttempts`** is the **total** number of attempts including the first, and must be at least 1.
+- **`retryBackoff`** is the base delay, default `100ms`, growing exponentially per attempt with **full jitter** —
   the actual wait is uniformly random in `[0, base × 2^n]`. Jitter is not optional and not configurable:
   unjittered retries from many hosts synchronise into a burst against a service that is already failing,
   which is the failure mode retry is supposed to relieve.
@@ -223,7 +231,7 @@ falsy return ([ADR 0063](0063-core-api-conventions.md) R4).
 ### 7. Outbound: a non-idempotent retry is a compile error
 
 `GET`, `HEAD`, `PUT`, `DELETE`, `OPTIONS` and `TRACE` retry freely. **`POST` and `PATCH` require
-`retry.idempotencyKey`**, sent as an `Idempotency-Key` header identical across attempts — the de-facto
+`retryIdempotencyKey`**, sent as an `Idempotency-Key` header identical across attempts — the de-facto
 convention every payment API already implements.
 
 Because [ADR 0063](0063-core-api-conventions.md) R2 makes the options bag a compile-time-constant shape
@@ -235,7 +243,7 @@ Where the method is genuinely dynamic — `Client::send($request)` with a runtim
 the call, and it **throws before the first attempt** rather than before the second, so a test run finds it
 rather than production finding it on the one retry that matters.
 
-An `idempotencyKey` supplied for a method that does not need one is accepted and sent; some servers want it
+A `retryIdempotencyKey` supplied for a method that does not need one is accepted and sent; some servers want it
 regardless, and refusing it would buy nothing.
 
 ## Consequences
@@ -306,7 +314,7 @@ regardless, and refusing it would buy nothing.
   is already failing, and nobody has a reason to turn it off.
 - **Retrying every `5xx`.** Rejected in § 6: a `500` is usually a real application error and retrying it
   multiplies load on a service that is already broken.
-- **Making the missing `idempotencyKey` a runtime warning.** Rejected: the failure it prevents is a double
+- **Making the missing `retryIdempotencyKey` a runtime warning.** Rejected: the failure it prevents is a double
   charge, and R2 already makes the compile-time check available for free at an ordinary call site.
 - **An `Idempotency-Key` generated automatically** when one is missing. Rejected: a key the client generates
   per call is a different key on the next request, so it makes the header present and useless, which is
@@ -349,7 +357,7 @@ regardless, and refusing it would buy nothing.
   what jitter means; a `Retry-After` header is honoured and clamped to the remaining deadline.
 - **M8:** the deadline expiring during a backoff throws immediately rather than sleeping first; the total
   elapsed time of a retried call does not exceed its deadline plus one connection timeout.
-- **M8:** `Client::post` with `retry` and no `idempotencyKey` is a compile-time diagnostic naming the field;
+- **M8:** `Client::post` with `retry` and no `retryIdempotencyKey` is a compile-time diagnostic naming the field;
   the same through `Client::send` with a dynamic method throws before the first attempt; with a key present,
   every attempt carries the identical `Idempotency-Key`.
 - **M8:** a retried call reuses the pinned address and performs exactly one DNS resolution, asserted against

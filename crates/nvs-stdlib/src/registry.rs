@@ -1218,6 +1218,16 @@ pub const CLASSES: &[CoreClass] = &[
     // approved address back out is the one operation that would make pinning
     // decorative.
     crate::http::TARGET,
+    // ADR 0074 § 5's request members, whose URL parameter is the sink ADR 0058
+    // § 1 makes it and whose one trailing shape has no spelling for an
+    // unbounded wait. Five rows over one bag: the verb is the member's own
+    // name, which is what lets § 7 answer "is this retry idempotent" while
+    // compiling.
+    crate::http::CLIENT,
+    // What those five answer with. Slots and no members yet — the readers land
+    // with the transport that fills them, and [`crate::http`]'s module doc is
+    // the home of that list.
+    crate::http::RESPONSE,
 ];
 
 /// Every `Core` member that needs a capability, and which one —
