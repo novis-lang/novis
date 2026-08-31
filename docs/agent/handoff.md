@@ -2,80 +2,79 @@
 
 ## State
 
-**Stage 4 is closed: ADR 0060 § 1's four-entry roster is complete.** `Core\Jwt` is rows, cards,
-bodies and three `.nvst` cases in `crates/nvs-stdlib/src/jwt.rs`, beside `signed_cookie.rs`,
-`csrf.rs` and `totp.rs`. Both of stage 4's named checks are green, including the `-p nvs-types` one
-the item did not mention (see the playbook bullet this session added).
+**Stage 5's door is open: `Core\Http::allowUrl` is a row, a card, a body and three `.nvst` cases**
+in `crates/nvs-stdlib/src/http.rs`, beside `jwt.rs` and the rest of stage 4's roster. Its module doc
+is the one home for why the answer is a value, why `Core\Http\Target` has no members, and which half
+of the policy it does not hold.
 
-**`Core\Jwt` makes ADR 0060 § 4's three rules properties of a signature rather than checks in a
-body**, and `jwt.rs`'s module doc is the one home for all of it: there is one algorithm so `alg` has
-nothing to select from, the lifetime is a positional `Duration` and `exp`/`iat` in `$claims` are a
-`LogicError` so expiry cannot be left out, and verification throws rather than answering a falsy
-value. Every pre-signature failure is one sentence; expiry is the one refusal with its own, and it is
-safe because it is reached only after the signature has been believed.
+**ADR 0058 § 5's address policy is in the capability, not in this client.** The denied-range table is
+`nvs_config::capability::denied_by_default` (`crates/nvs-config/src/capability.rs:86`) and the door
+that applies it is `nvs_runtime::capability::pin_host`
+(`crates/nvs-runtime/src/capability.rs:117`), which asks the grant about the *name*, resolves, and
+then asks the table about the *address* — in that order, so an ungranted program cannot use the
+member as a resolver. `Core\Net` and `Core\Db::open` reach the same door rather than a second copy.
+The operator-exception half of § 3 (a grant that widens the table for one internal API) is not
+written; today the table is deny-only.
 
-**`CoreTy::TaintedStr` is new, and it is the return-position spelling ADR 0060 § 5 needed.** A `Qual`
-says what a member does with an *argument*, so the strongest thing it could promise was
-`Contagious`'s conditional; § 5 wants the claims `tainted` whatever the token was. It lowers in
-`crates/nvs-types/src/core_lib.rs:398` and spells in `crates/nvs-cli/src/meta.rs:299`; every other
-walk over `CoreTy` ends in a wildcard, so nothing else moved.
+**Two of the item's four `nvs-types` tests landed; two could not.**
+`an_outbound_url_parameter_refuses_a_tainted_operand`
+(`crates/nvs-types/src/core_lib.rs:790`) and `allow_url_pins_what_it_launders` (`:842`) are green.
+`no_client_member_accepts_an_unbounded_timeout` and
+`a_post_retried_without_an_idempotency_key_is_a_compile_error` are properties of
+`Core\Http\Client`'s rows, which do not exist — a test over an absent class passes vacuously, which
+is worse than an open item. They are the next group's first slice.
 
-**What that spends is structured claims.** `nvs_types` has no tainted array, so `verify` answers
-`array<tainted string>` and a claim whose JSON value is `null`, an object or an array is **refused**
-(ADR 0095) rather than flattened to a text spelling nothing else reads back. Tokens from an issuer
-that nests claims will not verify. The widening, if it matters, is `Core\Json::decodeAs<T>` carrying
-`tainted` into a declared shape — a `nvs_types` question, and `jwt.rs`'s module doc records it.
+**Why the client's rows are their own slice and not an oversight.**
+`every_core_class_has_a_conformance_floor_of_three` needs three cases per member, and
+`every_error_path_is_asserted_or_declared_unreachable` needs each `Fault::` site in `nvs-stdlib`
+caught by one. A `get`/`post` row therefore owes cases before it owes a socket — and they can be
+`--EXPECTF-ERROR--` cases, which never run, so the compile-time half can land whole before any
+transport exists.
 
-**The driver's acceptance failure is still stage 5's, not a regression** — `examples/http.nvs` names
-`Core\Http::allowUrl`, which no stage before 5 lands, and a non-`0` stage's cargo checks run after
-the program legs, so that fixture now masks a stage-4 list that is entirely green. Closing it is the
-next group.
+**The driver's acceptance failure is still stage 5's.** `examples/http.nvs` now type-annotates
+`Core\Http\Target` where it said `string` (ADR 0058 § 2's signature); it fails on
+`Core\Http\Client::get`, which no slice has landed, and its `127.0.0.1:8099` origin needs both the
+transport and the operator exception above.
 
-**Manifest gaps.** Two dead `[context] modules` selectors (`crates/nvs-host/src/pool.rs`,
-`crates/nvs-host/src/stream.rs`); it wants `crates/nvs-runtime/src/commands.rs`,
-`crates/nvs-types/src/defaults.rs`, `crates/nvs-test/src/case.rs`, `crates/nvs-cli/src/main.rs`,
-`crates/nvs-runtime/src/ctx.rs`, `crates/nvs-stdlib/src/crypto.rs`, `crates/nvs-stdlib/src/jwt.rs`
-and `crates/nvs-types/src/core_lib.rs` added. **`[context] adrs` still needs ADR 0060 §§ 1, 4, 5** —
-none is printed, all three specify this roster, and this session paid for all three. Add ADR 0058
-§§ 1-2, 4-5 and ADR 0074 §§ 5-7 for the group below. Nothing is blocked.
+**Manifest gaps.** `[context] adrs` still needs ADR 0060 §§ 1, 4, 5, and now ADR 0058 §§ 1-5 and
+ADR 0074 §§ 5-7 — this session paid for all of 0058 and 0074, and § 3 in particular is the table it
+implemented. Two dead `[context] modules` selectors (`crates/nvs-host/src/pool.rs`,
+`crates/nvs-host/src/stream.rs`); it wants `crates/nvs-stdlib/src/http.rs`,
+`crates/nvs-runtime/src/capability.rs`, `crates/nvs-config/src/capability.rs`,
+`crates/nvs-types/src/core_lib.rs`, `crates/nvs-stdlib/src/registry.rs` and
+`crates/nvs-test/src/case.rs` added. `[context] shapes` wants the `.nvst` format's
+`--FILE <path>--` section, which cost this session real time. Nothing is blocked.
 
 ## Next group
 
-**Stage 5's outbound half, which is what the acceptance run is stuck on.** The file set is the one
-every roster entry has used: a new module beside `crates/nvs-stdlib/src/jwt.rs`,
-`crates/nvs-stdlib/src/registry.rs:1209` (the `CLASSES` tail), `crates/nvs-stdlib/src/lib.rs:233`
-and `:338` (the `mod` line and the `address` chain), and
-`crates/nvs-types/src/core_lib.rs:729` (the tests module that already holds this goal's
-signature-shape assertions).
+**Stage 5's compile-time half, finished.** The file set is this session's:
+`crates/nvs-stdlib/src/http.rs`, `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-types/src/core_lib.rs` and `tests/conformance/core/`.
 
-- [ ] **The compile-time half first, because it decides the rows** — ADR 0058 §§ 1-2 and ADR 0074
-      §§ 5, 7. An outbound URL parameter is a `Qual::Sink` so a `tainted` operand is a diagnostic,
-      `allowUrl` is a `Qual::Launder` that pins, no member spells an unbounded timeout, and a `POST`
-      retried without an idempotency key is a compile error. The four named checks are
-      `an_outbound_url_parameter_refuses_a_tainted_operand`, `allow_url_pins_what_it_launders`,
+- [ ] **`Core\Http\Client`'s rows and its options shape** — ADR 0074 § 5. `get`, `post`, `put`,
+      `delete`, `head` over `string | Core\Http\Target`, both unqualified so a `tainted` operand is
+      a diagnostic (ADR 0058 § 1), with `Core\Http\Options` as the one trailing shape: `deadline`
+      and `connectTimeout` are `Duration` with no null and no zero, `retry` is
+      `{attempts, backoff?, idempotencyKey?}`. Rows and cards beside
+      `crates/nvs-stdlib/src/http.rs:61`, the class list at
+      `crates/nvs-stdlib/src/registry.rs:1215`. `crates/nvs-stdlib/src/jwt.rs:165` is the shape for
+      a `Duration` in a row.
+- [ ] **The two deferred tests, which the rows above make non-vacuous** — ADR 0074 §§ 5, 7.
       `no_client_member_accepts_an_unbounded_timeout` and
-      `a_post_retried_without_an_idempotency_key_is_a_compile_error`, all in
-      `crates/nvs-types/src/core_lib.rs:729`. `Qual::Launder` beside `Qual::Sink` on one class is the
-      shape `crates/nvs-stdlib/src/signed_cookie.rs:136` already carries.
-- [ ] **`Core\Http`'s rows, cards and bodies**, over `crates/nvs-stdlib/src/registry.rs:1209` and
-      `crates/nvs-stdlib/src/lib.rs:338`. `examples/http.nvs` wants `status=200`, `body=ok`,
-      `refused: tainted url`, `refused: denied range` and `deadline hit`, which is the acceptance
-      check that has been red since session 0002.
-- [ ] **The address policy lives in the capability, not in the client** — ADR 0058 §§ 4-5, over
-      `crates/nvs-config/src/capability.rs:189` (`Capabilities::allows`, the one predicate a door
-      asks) and `crates/nvs-config/src/capability.rs:58` (`Scope`, which is what an address range
-      would have to become). The named checks are
-      `the_address_policy_is_read_from_the_capability_and_not_from_the_client`,
-      `a_denied_address_range_fails_before_a_connection_is_made` and
-      `a_redirect_is_re_checked_against_the_same_policy`.
+      `a_post_retried_without_an_idempotency_key_is_a_compile_error`, beside this session's two at
+      `crates/nvs-types/src/core_lib.rs:790` and `:842`. The second is a *diagnostic*, not a row
+      property: R2 makes the options bag a compile-time-constant shape literal and the method is the
+      member's own name, so the check is at the call site and the next free code is `E0796`.
+- [ ] **The cases those rows owe** — three per member, under `tests/conformance/core/`, and
+      `--EXPECTF-ERROR--` for every one that pins a refusal, so none of them needs a transport. The
+      two gates are `crates/nvs-stdlib/tests/conformance_coverage.rs:286` and `:638`, and
+      `tests/conformance/core/an-approved-url-is-pinned-to-one-address.nvst:1` is this session's
+      shape for a case that writes its own `nvs.toml`.
 
 ## Backlog
 
-- Base32 in `Core\Encoding`, which `Core\Totp` needs for an `otpauth://` URI and nothing spells —
-  RFC 4648 § 6, at `crates/nvs-stdlib/src/encoding.rs:330` and `:637`.
-- ADR 0074 § 6's jittered retry under one covering deadline, and § 2's `traceparent` — the two
-  stage-5 checks the group above does not reach.
-- `nvs_types` has no `tainted array<T>`, so a member cannot answer a structured value that keeps
-  ADR 0024's qualifier; `crates/nvs-stdlib/src/jwt.rs`'s module doc is where the need is recorded.
-- Item 35's `property<T>` still holds this goal's one ADR slot, per `docs/agent/loop-goal.md`.
-- Goal 5 needs a reachable Docker daemon for ADR 0067's five-driver matrix; the driver preflights it.
+- The transport itself: `Core\Http\Client` over goal 2's parking stream — `docs/agent/loop-goal.toml` stage 5's `nvs-stdlib` check.
+- The operator exception to the address policy, and the `127.0.0.1:8099` origin harness — ADR 0058 § 3.
+- `a_redirect_is_re_checked_against_the_same_policy` and the retry jitter — ADR 0058 § 4, ADR 0074 § 6.
+- `an_outbound_request_carries_traceparent` — ADR 0076 § 2.
+- Stage 6's two stores, `Core\Cache` and `Core\RateLimit` — ADR 0059, ADR 0075.

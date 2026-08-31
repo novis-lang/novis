@@ -3399,6 +3399,18 @@ is why" — is this file.
   the `else` of `if ($step == null)`, where the type is narrowed; that is also what a real caller
   writes, so the case gets more honest as well as compiling. Worth knowing before designing a
   member's answer as `?int`: every case that round-trips the value pays one `if`.
+- **A `.nvst` case can write its own `nvs.toml`, so a capability-gated member's *granted* error
+  paths are assertable from the conformance suite — and they have to be.** `crates/nvs-test`'s
+  `--FILE <relative/path>--` section puts any file beside the case's own program, and
+  `tests/conformance/cap/an-ungranted-capability-throws-naming-it.nvst` already uses it to grant a
+  *different* capability; ADR 0103 § 1 step 2 then reads `./nvs.toml` out of that directory. Without
+  knowing this, every throw a member can only reach after `capability::require` has passed reads as
+  unassertable, and the obvious repairs are both wrong: `OWED_A_CASE` in
+  `crates/nvs-stdlib/tests/conformance_coverage.rs` is empty and documented as shrink-only, and a
+  `DECLARATION` comment claims a diagnostic refuses the call first, which is false for a path a
+  granted program reaches. Write the grant into the case instead. The corollary is where the time
+  actually goes: it changes what a member's *body* may do, because a throw sited in `nvs-stdlib`
+  is read by that gate and one sited in `nvs-runtime` is not.
 
 ## Splitting a file that got too big
 
