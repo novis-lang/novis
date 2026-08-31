@@ -9986,7 +9986,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write
+Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, exists, size, remove, removeDir, temporaryDir
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -10037,6 +10037,11 @@ outside: refused
 |---|---|
 | [`Core\IO::read`](#core-core-io-read) | `read(string $path): string` |
 | [`Core\IO::write`](#core-core-io-write) | `write(string $path, string $content): void` |
+| [`Core\IO::exists`](#core-core-io-exists) | `exists(string $path): bool` |
+| [`Core\IO::size`](#core-core-io-size) | `size(string $path): uint` |
+| [`Core\IO::remove`](#core-core-io-remove) | `remove(string $path): void` |
+| [`Core\IO::removeDir`](#core-core-io-removedir) | `removeDir(string $path): void` |
+| [`Core\IO::temporaryDir`](#core-core-io-temporarydir) | `temporaryDir(): string` |
 
 <a id="core-core-io-read"></a>
 #### `Core\IO::read`
@@ -10072,6 +10077,87 @@ Replaces a file's whole content, creating it if it does not exist — `file_put_
 **Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; checked before anything is created, so a refused write leaves no file behind.; `IOError` — The capability allowed it and the operating system did not — a missing directory, a read-only filesystem, a permission the process lacks.
+
+<a id="core-core-io-exists"></a>
+#### `Core\IO::exists`
+
+```nvs skip
+Core\IO::exists(string $path): bool
+```
+
+Reports whether anything is at `$path` — `file_exists`, and true for a directory as well as a file. Needs the `fs.read` capability, which is asked before the path is touched, so an ungranted path throws rather than answering `false`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (neutral) | The name to look for, absolute or relative to the working directory. |
+
+**Returns** `bool` — `true` if the name resolves to something, `false` if it resolves to nothing. Absence is an answer here and not a failure, which is what separates this from `size`.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path. A refusal and a `false` are deliberately distinguishable: a program that was never granted the root cannot use this member to learn what is in it.; `IOError` — The operating system could answer neither yes nor no — a parent directory it will not traverse, which is not the same as the name being absent.
+
+<a id="core-core-io-size"></a>
+#### `Core\IO::size`
+
+```nvs skip
+Core\IO::size(string $path): uint
+```
+
+The size of the file at `$path` in bytes, as the operating system reports it — `filesize`. Needs the `fs.read` capability: measuring a file is reading it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (neutral) | The file to measure, absolute or relative to the working directory. |
+
+**Returns** `uint` — The byte count as a `uint`. For a text file this is bytes and not characters — a `string`'s own length is `Core\Str::length`, which counts what § 1 says it counts.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The capability allowed it and the operating system did not — there is nothing at the path, or its metadata could not be read. A missing file has no size, so it throws here where `exists` answers `false`.
+
+<a id="core-core-io-remove"></a>
+#### `Core\IO::remove`
+
+```nvs skip
+Core\IO::remove(string $path): void
+```
+
+Deletes the file at `$path` — `unlink`. Needs the `fs.write` capability: removal is a write, because an account that may replace a file's whole content can already destroy it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (neutral) | The file to delete. A directory is `removeDir`'s argument, not this one. |
+
+**Returns** `void` — Nothing. Removing a name that is not there throws rather than answering quietly, so a program that deleted nothing has not been told it succeeded.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; being allowed to read a root is not permission to empty it.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is a directory, or the process may not unlink it.
+
+<a id="core-core-io-removedir"></a>
+#### `Core\IO::removeDir`
+
+```nvs skip
+Core\IO::removeDir(string $path): void
+```
+
+Deletes the **empty** directory at `$path` — `rmdir`. Needs the `fs.write` capability. There is no recursive form: a tree deleted by one grant check is one wrong argument away from deleting everything under it, so a program that means to empty a directory walks it and removes each entry the capability was asked about.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (neutral) | The directory to delete, which must hold no entries. |
+
+**Returns** `void` — Nothing. A refusal throws rather than answering `false`.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is not a directory, or it still has entries in it.
+
+<a id="core-core-io-temporarydir"></a>
+#### `Core\IO::temporaryDir`
+
+```nvs skip
+Core\IO::temporaryDir(): string
+```
+
+Creates a new, empty, private directory under the system temporary root and answers its path — `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather than merely named, so there is no window between choosing a name and owning it. Needs the `fs.write` capability **for the path it creates**: the name is chosen first and asked about second, so a configuration granting only the working directory does not reach the temporary root.
+
+**Returns** `string` — The absolute path of a directory that exists, holds nothing, and belongs to this process. Removing it is the program's own job — `remove` each entry, then `removeDir` — because a runtime that swept it would be deciding the lifetime of data it knows nothing about.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for the temporary root; the message names the path a grant would have to cover.; `IOError` — The capability allowed it and no directory could be created — the root is full, read-only, or absent.
 
 <a id="core-core-time"></a>
 ### `Core\Time`

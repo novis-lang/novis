@@ -1,0 +1,35 @@
+--TEST--
+Core\IO::temporaryDir is refused with no configuration at all, like every other member of the class, and the refusal is a catchable RuntimeError rather than a fatal — so a program that only wanted somewhere to work can degrade instead of dying — ADR 0118 §§ 1, 5
+--FILE--
+<?nvs
+// Deny by default, on the member that takes no argument at all: there is no
+// path in the call for a grant to be compared against, and the answer is still
+// no. The member with nothing to check is exactly the one an exemption would
+// have looked reasonable on.
+int $refusals = 0;
+
+try {
+    string $made = Core\IO::temporaryDir();
+    echo "temporaryDir answered\n";
+} catch (RuntimeError $refused) {
+    $refusals = $refusals + 1;
+}
+
+// Asked twice, because a door that cached its decision would answer once and
+// then let the second call through.
+try {
+    string $again = Core\IO::temporaryDir();
+    echo "temporaryDir answered on the second call\n";
+} catch (RuntimeError $refused) {
+    $refusals = $refusals + 1;
+}
+
+echo "refusals: ", $refusals as string, "\n";
+
+// § 5's other half: a denial is known before any work is done, so the program
+// is still running and still has its own state. A fatal would have printed
+// nothing after this point.
+echo "still running\n";
+--EXPECT--
+refusals: 2
+still running

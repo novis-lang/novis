@@ -1,0 +1,43 @@
+--TEST--
+Core\IO::temporaryDir asks for `fs.write` on the path it is about to create, so a grant covering the working directory does not reach the temporary root — the member creates a name the program never wrote down and is still not exempt from the grant — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// The bound this case names is the one that would be easy to get wrong in the
+// other direction: `fs.write` *is* granted here, generously, for the directory
+// the program is running in. A member that read "is fs.write granted at all"
+// rather than "is it granted for this path" would pass every other assertion
+// in the suite and hand out a directory under a root the operator never named.
+Core\IO::write("proof.txt", "the grant covers this\n");
+echo "working directory: writable\n";
+Core\IO::remove("proof.txt");
+
+// Same capability, different path, and the answer has to change.
+try {
+    string $made = Core\IO::temporaryDir();
+    echo "temporary root: writable\n";
+} catch (RuntimeError $refused) {
+    // The path in the message is the host's own temporary root, so what is
+    // asserted is the half an operator acts on: which capability, and for
+    // which member.
+    if (Core\Str::contains($refused->message, "Core\\IO::temporaryDir needs the capability `fs.write` for ")) {
+        echo "temporary root: refused, naming fs.write\n";
+    } else {
+        echo "temporary root: refused, saying something else\n";
+    }
+}
+
+// And a refusal leaves nothing behind, which is the ordering claim: the name
+// is chosen, then asked about, then created -- never created and then checked.
+if (Core\IO::exists(".")) {
+    echo "working directory: still there\n";
+} else {
+    echo "working directory: gone\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+working directory: writable
+temporary root: refused, naming fs.write
+working directory: still there
