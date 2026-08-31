@@ -156,8 +156,10 @@ tests = [
   "a_pattern_the_linear_engine_expresses_never_reaches_the_backtracker",
   "a_backtracking_pattern_runs_under_a_throwing_step_budget",
   "a_step_budget_exhaustion_throws_rather_than_returning_no_match",
-  # carried from the previous goal by tools/goal-switch.py
-  "examples/limits.nvs",
+  # `examples/limits.nvs` was carried into this list too. It is a program leg,
+  # not a `cargo test` name, so it could never run here and blocked the whole
+  # list behind it; the `contains` check that names the same file is where the
+  # previous goal actually measures it.
 ]
 
 [[check]]
