@@ -889,3 +889,150 @@ fn a_property_key_ranges_over_the_public_properties_and_nothing_else() {
         );
     }
 }
+
+/// ADR 0126 §§ 4-5: `$obj->$key` reads as the union of the set the key ranges
+/// over -- both sides of that bound, since a read typed too widely and one
+/// typed too narrowly both look right against one half of it. The `private`
+/// property contributes a type no public one has, so its absence from the
+/// union is asserted rather than assumed.
+#[test]
+fn a_read_through_a_property_key_types_as_the_union_of_the_set() {
+    const CLASSES: &str = "<?nvs\n\
+         class Base { public int $id = 0; }\n\
+         class User extends Base {\n\
+         \x20 public string $email = \"\";\n\
+         \x20 private float $rate = 0.0;\n\
+         }\n";
+
+    // The union itself: every member of the set is in the read's type, and a
+    // return position naming exactly that union takes it.
+    let exact = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(User $u, property<User> $k): string|int {{ return $u->$k; }}\n\
+         }}\n"
+    ));
+    assert!(!exact.has_errors(), "{exact:?}");
+
+    // The narrow side: one member of the set is not the whole of it, so a
+    // position naming only `string` refuses the `int` the same key may name.
+    let narrow = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(User $u, property<User> $k): string {{ return $u->$k; }}\n\
+         }}\n"
+    ));
+    assert!(
+        narrow
+            .iter()
+            .any(|d| d.code == Some(code::E_BAD_RETURN_TYPE)),
+        "{narrow:?}"
+    );
+
+    // The wide side: the union is the *public* roster's types and stops there,
+    // so the `private` property's `float` is not one of the answers.
+    let wide = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(User $u, property<User> $k): float {{ return $u->$k; }}\n\
+         }}\n"
+    ));
+    assert!(
+        wide.iter().any(|d| d.code == Some(code::E_BAD_RETURN_TYPE)),
+        "{wide:?}"
+    );
+
+    // A subclass receiver satisfies the key's own class, and the union is
+    // still the key's roster -- `Admin`'s own public property is not a name
+    // this key can hold, so it is not in the read's type either.
+    let subclass = check_src(&format!(
+        "{CLASSES}class Admin extends User {{ public bool $super = false; }}\n\
+         class T {{\n\
+         \x20 function m(Admin $a, property<User> $k): string|int {{ return $a->$k; }}\n\
+         }}\n"
+    ));
+    assert!(!subclass.has_errors(), "{subclass:?}");
+}
+
+/// ADR 0126 § 4: the operand's *type* is what admits `$obj->$key`, so every
+/// other operand keeps `E0235` -- now reported by this crate, since a parser
+/// sees no types. § 4's own table of neighbours is the body: a call, a
+/// receiver with no `T` to check against, and a receiver that is not one.
+#[test]
+fn a_computed_member_name_without_a_property_key_is_still_e0235() {
+    const CLASSES: &str = "<?nvs\n\
+         class User { public string $email = \"\"; }\n\
+         class Other { public string $email = \"\"; }\n";
+
+    let has_e0235 = |src: &str| {
+        check_src(src)
+            .iter()
+            .any(|d| d.code == Some(code::E_DYNAMIC_MEMBER_NAME))
+    };
+
+    // The control: with a key of the receiver's own class, nothing is
+    // reported at all -- which is what makes the four refusals below about the
+    // operand rather than about the spelling.
+    let admitted = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(User $u, property<User> $k): void {{ echo $u->$k; }}\n\
+         \x20 function n(User $u, property<User> $k): void {{ echo $u->{{$k}}; }}\n\
+         }}\n"
+    ));
+    assert!(!admitted.has_errors(), "{admitted:?}");
+
+    // A plain `string` is the operand the rule exists to refuse: it names a
+    // member only when the statement runs.
+    assert!(
+        has_e0235(&format!(
+            "{CLASSES}class T {{\n\
+             \x20 function m(User $u, string $s): void {{ echo $u->$s; }}\n\
+             }}\n"
+        )),
+        "a `string` operand"
+    );
+
+    // § 4 row 2, both halves: a receiver with no `T` cannot check the one
+    // thing the key promises, whether it is erased or merely another class.
+    assert!(
+        has_e0235(&format!(
+            "{CLASSES}class T {{\n\
+             \x20 function m(mixed $m, property<User> $k): void {{ echo $m->$k; }}\n\
+             }}\n"
+        )),
+        "a `mixed` receiver"
+    );
+    assert!(
+        has_e0235(&format!(
+            "{CLASSES}class T {{\n\
+             \x20 function m(Other $o, property<User> $k): void {{ echo $o->$k; }}\n\
+             }}\n"
+        )),
+        "a receiver that does not satisfy the key's class"
+    );
+
+    // § 4 row 1: a key is not a method name, so computed dispatch is refused
+    // with the same code and for ADR 0014 § 6's older reason.
+    assert!(
+        has_e0235(&format!(
+            "{CLASSES}class T {{\n\
+             \x20 function m(User $u, property<User> $k): void {{ $u->$k(); }}\n\
+             }}\n"
+        )),
+        "a computed method name"
+    );
+
+    // § 4 row 3: `unset` through a key is refused where `unset` of any
+    // declared property is, and is one error rather than two.
+    let unset = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(User $u, property<User> $k): void {{ unset($u->$k); }}\n\
+         }}\n"
+    ));
+    assert!(
+        unset
+            .iter()
+            .any(|d| d.code == Some(code::E_UNSET_ON_PROPERTY))
+            && !unset
+                .iter()
+                .any(|d| d.code == Some(code::E_DYNAMIC_MEMBER_NAME)),
+        "{unset:?}"
+    );
+}
