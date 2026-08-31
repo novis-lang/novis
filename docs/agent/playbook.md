@@ -3253,6 +3253,15 @@ is why" — is this file.
   as a column of `|` with nothing after it. Grep the corpus for a *distinctive interior phrase* of
   the old message, and for `startsWith`, as well as for its head — a case that pins a property of a
   message deliberately holds a fragment rather than the line, and both trees carry them.
+- **An `examples/` acceptance fixture can be wrong about the *language*, not just early for its
+  stage — and the driver's check message then names the fixture's own bug rather than the member
+  the stage owes.** `examples/cli.nvs` failed stage 3 with `error[E0215]: a function must be a
+  method`, because it declared its handler as a top-level `function`, which ADR 0011 has never
+  allowed; it also wrote `#[Command]` and `#[Argument]`, where `nvs_types::derive::ATTRIBUTES` is a
+  closed roster holding `Core\Command` and `Core\Option` and no `Argument` at all. None of that is
+  what the stage owes. Under the corrected declaration the honest failure was two missing members,
+  which is the message the next session actually needed. One `nvs run` over a fixture that has
+  never compiled, before reading its failure as a statement about what is missing.
 
 ## Splitting a file that got too big
 

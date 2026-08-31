@@ -42,26 +42,26 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
-> running**, over goals 1-3, each reached at its own acceptance. **Stage 0's compile-time half is
-> closed**: `crates/nvs-stdlib/src/regex.rs`'s `build` re-tiers a pattern only when the linear
-> engine's parser refuses a construct, `validate` now reports which tier that was, and `nvs-types`'
-> ADR 0057 fold records it on `ExprTypeTable` for `nvs-ir`. **Stage 0 is closed** — § 4's pattern
-> sink refuses a `tainted` operand, which the rows already said and no test had asked. **The goal's
-> eight acceptance fixtures are on disk** — `examples/` gained `files`, `process`, `cli`, `crypto`,
-> `http`, `cache`, `logging` and `reflect`; `files` is the first that compiles and prints its frozen
-> output, and the other seven wait on their stages. **Stage 2 is closed**: `Core\IO`'s ten members
-> are rows, cards, bodies and grants over ADR 0118's doors, every path parameter is a `Qual::Sink`
-> with `within` the launderer past them, and `readText` decodes behind the read door while `lines`
-> splits behind it by `Core\Str::lines`' own rule — answering `Core\IO\Lines`, the name the registry
-> gives spec § 14's `Iterable<string>` because `CoreTy::Iterated` is parameter position only.
+> running**, over goals 1-3, each reached at its own acceptance.  **Stage 0 is closed** — § 4's
+> pattern sink refuses a `tainted` operand, which the rows already said and no test had asked. **The
+> goal's eight acceptance fixtures are on disk**, of which `files` and `process` print their frozen
+> output and the other six wait on their stages. **Stage 2 is closed**: `Core\IO`'s ten members are
+> rows, cards, bodies and grants over ADR 0118's doors, every path parameter is a `Qual::Sink` with
+> `within` the launderer past them, and `readText` decodes behind the read door while `lines` splits
+> behind it by `Core\Str::lines`' own rule — answering `Core\IO\Lines`, the name the registry gives
+> spec § 14's `Iterable<string>` because `CoreTy::Iterated` is parameter position only.
 > `examples/files.nvs` runs green against its seven frozen lines, over an `[[app]]` block of its
 > own. **Stage 3's process half is closed**: `Core\Process::run` is a row, a card, a body and a
 > `process.exec` grant over `nvs_runtime::capability::exec`'s door, and ADR 0044 § 1's
 > `ProcessResult` is the instance class `Core\Process\Result` — three slot reads, both captured
-> streams `bytes`. `examples/process.nvs` runs green against its three frozen lines. `Core\Cli` is
-> what stage 3 still owes. What goals 1-3 landed is unchanged and is not re-derived here: `git log`
-> and each crate's module doc own it. Conformance 1111, differential 210 of 210, migration 37% over
-> its 36% floor.
+> streams `bytes`. `examples/process.nvs` runs green against its three frozen lines, and stage 3's
+> four named checks over the member are on disk — two in `nvs-stdlib` over the rows and the door,
+> two in `nvs-types` over the qualifier and the capability — beside the `.nvst` pinning both
+> spellings of a command line as a diagnostic. `Core\Cli` and `Core\Command` are what stage 3 still
+> owes: `examples/cli.nvs` now declares its handler as the `public static` method ADR 0011 requires,
+> so it fails on those two members and nothing else. What goals 1-3 landed is unchanged and is not
+> re-derived here: `git log` and each crate's module doc own it. Conformance 1112, differential 210
+> of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
