@@ -1,0 +1,43 @@
+--TEST--
+A promoted constructor parameter is described by the keyword that promoted it, exactly as a written property is — ADR 0019 §§ 1-2
+--FILE--
+<?nvs
+// A promoted parameter is an ordinary property, so the description has to reach
+// it and its visibility keyword has to decide the same question. Two
+// declarations of the same class, one written and one promoted, are asked the
+// identical questions below and must agree.
+class Written {
+    public int $amount = 5;
+    private string $currency = "EUR";
+}
+
+class Promoted {
+    public function constructor(public int $amount, private string $currency) {}
+}
+
+var $written = new Written();
+var $promoted = new Promoted(5, "EUR");
+var $describedWritten = Core\Reflect::forObject($written);
+var $describedPromoted = Core\Reflect::forObject($promoted);
+
+echo $describedWritten->name(), " ", $describedPromoted->name(), "\n";
+echo Core\Arr::count($describedWritten->properties()), " ",
+     Core\Arr::count($describedPromoted->properties()), "\n";
+foreach ($describedPromoted->properties() as string $property) {
+    echo $property, "\n";
+}
+echo $describedPromoted->get($promoted, "amount"), "\n";
+
+// And the promoted `private` is refused on the same terms the written one is.
+try {
+    var $hidden = $describedPromoted->get($promoted, "currency");
+    echo "promoted private read", "\n";
+} catch (RuntimeError $refused) {
+    echo "promoted private refused", "\n";
+}
+--EXPECT--
+Written Promoted
+1 1
+amount
+5
+promoted private refused

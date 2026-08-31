@@ -30,10 +30,10 @@ class Point {
 
 var $point = new Point();
 var $described = Core\Reflect::forObject($point);
-echo "class=", $described->name, "\n";
+echo "class=", $described->name(), "\n";
 
 // The visibility-respecting walk: two of the three, seen from out here.
-echo "members=", Core\Arr::length($described->properties()), "\n";
+echo "members=", Core\Arr::count($described->properties()), "\n";
 
 // And the third, asked for by name. The clause is `RuntimeError` rather
 // than `Throwable`, so a misspelled member would not have been counted as
@@ -60,4 +60,4 @@ echo "kind=", $kind, "\n";
 
 // Source as data. Nothing below runs the program it just read.
 var $tree = Core\Ast::parse("<?nvs echo 1 + 2;");
-echo "parsed ", Core\Arr::length($tree->nodes()), " nodes\n";
+echo "parsed ", Core\Arr::count($tree->nodes()), " nodes\n";

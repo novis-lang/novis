@@ -1,0 +1,58 @@
+--TEST--
+`Core\Reflect\ClassInfo::get` reads a `public` property and refuses a `private` one, with a name that matches nothing told apart from both — ADR 0019 § 2
+--FILE--
+<?nvs
+// ADR 0019 § 2: *acting* on a member runs the check ordinary code at the call
+// site would run, and there is no `setAccessible` to lift it with.
+class Account {
+    public string $email = "someone@example.test";
+    private string $token = "secret-ish";
+}
+
+var $account = new Account();
+var $described = Core\Reflect::forObject($account);
+echo $described->name(), "\n";
+
+// The walk and the read agree: every name `properties()` hands back is one
+// `get` opens, which is the property that would break if either half learned
+// its own answer to the visibility question.
+foreach ($described->properties() as string $property) {
+    echo $described->get($account, $property), "\n";
+}
+
+// The refusal is a `RuntimeError`: it is a fact about this value's class, not
+// a mistake in the program.
+try {
+    var $hidden = $described->get($account, "token");
+    echo "private read", "\n";
+} catch (RuntimeError $refused) {
+    echo "private refused", "\n";
+}
+
+// A name that matches no property at all is a `LogicError` instead, so a
+// misspelling can never be miscounted as a visibility refusal — the two clauses
+// below are what makes that distinction observable.
+try {
+    var $missing = $described->get($account, "emial");
+    echo "misspelled read", "\n";
+} catch (LogicError $wrong) {
+    echo "no such property", "\n";
+}
+
+// A description is of a *class*, so another class's instance is a `LogicError`
+// too, even where the name would have resolved on it.
+class Impostor {
+    public string $email = "elsewhere@example.test";
+}
+try {
+    var $borrowed = $described->get(new Impostor(), "email");
+    echo "borrowed read", "\n";
+} catch (LogicError $mismatch) {
+    echo "wrong class", "\n";
+}
+--EXPECT--
+Account
+someone@example.test
+private refused
+no such property
+wrong class

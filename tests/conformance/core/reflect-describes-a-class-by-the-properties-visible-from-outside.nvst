@@ -1,0 +1,51 @@
+--TEST--
+`Core\Reflect::forObject` names the class and walks only the properties code outside it can see — ADR 0019 §§ 1-2
+--FILE--
+<?nvs
+// ADR 0019 § 1: a description is reached from a value, and it is read-only —
+// every member below asks a question and none of them acts.
+class Point {
+    public int $x = 3;
+    public int $y = 4;
+    private int $scratch = 0;
+}
+
+var $described = Core\Reflect::forObject(new Point());
+echo $described->name(), "\n";
+
+// ADR 0019 § 2: the walk faces the visibility ordinary code faces, so the
+// `private` slot is not one of the three it could have named. Asserted as a
+// count *and* as the names, because a walk that dropped the wrong one counts
+// two either way.
+var $properties = $described->properties();
+echo Core\Arr::count($properties), "\n";
+foreach ($properties as string $property) {
+    echo $property, "\n";
+}
+
+// Slot order is every ancestor's first, then the class's own — and an
+// inherited `private` stays unreadable from the subclass's description too,
+// which is the one place a per-class answer and a per-slot answer differ.
+class Origin extends Point {
+    public string $label = "o";
+}
+var $origin = new Origin();
+var $sub = Core\Reflect::forObject($origin);
+echo $sub->name(), "\n";
+foreach ($sub->properties() as string $property) {
+    echo $property, "\n";
+}
+
+// The inherited slot reads through the subclass's description, at the value
+// the declaration's own default put there.
+echo $sub->get($origin, "x"), "\n";
+--EXPECT--
+Point
+2
+x
+y
+Origin
+x
+y
+label
+3

@@ -1260,6 +1260,16 @@ pub const CLASSES: &[CoreClass] = &[
     // reason [`CoreTy::Instance`] states — a `Core` instance has no property a
     // program can reach.
     crate::ratelimit::DECISION,
+    // ADR 0019's read-only introspection, whose members are the door onto a
+    // description and nothing else — a program can reach a member it may not
+    // call only through the description, and § 2 makes that reach face the
+    // ordinary check.
+    crate::reflect::CLASS,
+    // What `forObject` answers with: the described class, as the two questions
+    // that need no argument. Readers rather than properties, for the reason
+    // [`CoreTy::Instance`] states — a `Core` instance has no property a program
+    // can reach.
+    crate::reflect::CLASS_INFO,
 ];
 
 /// Every member of a capability-bearing class, and which capability it needs —
