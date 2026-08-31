@@ -1004,6 +1004,12 @@ pub const CLASSES: &[CoreClass] = &[
     // `Iterable<string>` — a name for the walk, with no member on it. Its own
     // docs say why it holds the lines rather than streaming them.
     crate::io::LINES,
+    // ADR 0044's one way to run another program, and the result it answers
+    // with. Beside `Core\IO` because it is the other class that reaches the
+    // operating system through a door of its own; its capability row is in
+    // [`CAPABILITIES`] alongside that class's.
+    crate::process::CLASS,
+    crate::process::RESULT,
     crate::time::TIME,
     crate::time::INSTANT,
     crate::time::DATETIME,
@@ -1129,6 +1135,11 @@ pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
     (crate::io::NAME, "within", nvs_config::Cap::FsRead),
     (crate::io::NAME, "readText", nvs_config::Cap::FsRead),
     (crate::io::NAME, "lines", nvs_config::Cap::FsRead),
+    // ADR 0044 § 6: starting a program is deny-by-default and path-scoped, the
+    // same shape `script.spawn` already has. `Core\Process\Result`'s three
+    // members need no row — the child has exited by the time one exists, and a
+    // slot read performs no effect.
+    (crate::process::NAME, "run", nvs_config::Cap::ProcessExec),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
