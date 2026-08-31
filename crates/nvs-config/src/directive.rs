@@ -115,6 +115,13 @@ pub const DIRECTIVES: &[Directive] = &[
     // `[log] format` and `level` are rows of ADR 0091 § 3's mode table, and no row in that table is
     // `System`-class.
     Directive { key: "log", class: Class::Runtime, apply: Apply::Reload },
+    // Its one sibling that is, and a more specific row for the reason the two `[cache]` rows below
+    // are: ADR 0020 § 3 makes the tier-3 handler a `System` directive on exactly the grounds
+    // `limits.fatal_reserve_memory` above is one — a script naming the script that reports its own
+    // failure is the case where the choice most needs to be made by someone else, and this one
+    // names a file to *run*. `Reload` and not `Boot`: the path is resolved when a failure reaches
+    // the ladder, so a new value is in force at the next one and nothing is re-created.
+    Directive { key: "log.handler", class: Class::System, apply: Apply::Reload },
     // The four `Boot` rows ADR 0078 § 2 names, less the thread-per-core count the module doc
     // records as unspelled. `[server]`'s whole block is `Boot` per ADR 0097 § 5, which is more than
     // 0078's "the server's listen addresses" and includes them.

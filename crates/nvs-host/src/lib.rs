@@ -90,6 +90,7 @@ pub mod blocking;
 pub mod channel;
 pub mod group;
 pub mod isolate;
+pub mod ladder;
 pub mod net;
 pub mod reactor;
 pub mod scheduler;

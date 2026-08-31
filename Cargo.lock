@@ -1656,6 +1656,7 @@ dependencies = [
  "corosensei",
  "mio",
  "nvs-config",
+ "nvs-render",
  "nvs-runtime",
  "rcgen",
  "rustls",

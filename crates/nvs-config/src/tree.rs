@@ -148,6 +148,13 @@ pub struct App {
     pub limits: Option<Limits>,
     /// `[app.capabilities]` — grants for this application only.
     pub capabilities: Option<Capabilities>,
+    /// `[app.log]` — ADR 0020 § 3's escalation handler for this application, and the rungs beside
+    /// it. Per application rather than per file because that is the unit an operator reports a
+    /// failure *of*: one handler answers for every entry ADR 0104 § 1's block covers, and a
+    /// deployment running two applications out of one tree gets two, which a root-only key could
+    /// not spell. It folds onto the global `[log]` block like every other sub-table here —
+    /// `crate::snapshot`'s per-app merge takes the whole block and names none of these fields.
+    pub log: Option<Log>,
 }
 
 /// `[limits]` — what a request starts with, plus the ceiling it may raise itself to (ADR 0005).

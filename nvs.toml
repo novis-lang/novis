@@ -117,6 +117,24 @@ entry = "examples/cache.nvs"
 connect = ["127.0.0.1"]
 internal = ["127.0.0.1"]
 
+# ADR 0020 § 3's tier 3, as the operator decision it is: an uncaught throw out of this application
+# runs `examples/logging/handler.nvs` as a `spawn script` isolate, and only if that handler is
+# missing, refused or fails does the tier-4 floor write the record to `stderr` itself. `script.spawn`
+# is the root block's, above — a handler is resolved through ADR 0118 § 2's spawn door like any other
+# target, and being named here has never been permission to run.
+#
+# Keyed on `examples/logging.nvs` and not on the `examples/logging/throws.nvs` that actually throws:
+# the child is an isolate, and an isolate reads the configuration in force where it was *spawned*
+# rather than re-resolving the file (`nvs_runtime::Ctx::isolate` owns why that direction). So the
+# block that reaches the child is the one the parent matched, which is this one. It is deliberately
+# not `root = "examples"`: `examples/uncaught.nvs` is the fixture for the floor with no handler above
+# it, and a handler in scope there would report in the floor's place and prove nothing.
+[[app]]
+entry = "examples/logging.nvs"
+
+[app.log]
+handler = "examples/logging/handler.nvs"
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

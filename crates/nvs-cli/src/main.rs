@@ -890,6 +890,24 @@ fn run_run(
             // is holding.
             if outcome.is_ok() {
                 nvs_runtime::deferred::run_deferred(ctx);
+            } else if outcome == Err(nvs_runtime::THROWN) {
+                // ADR 0020 §§ 3 and 6: nothing below caught this, so the ladder
+                // is climbed from tier 3 — the operator's own `.nvs`, run as an
+                // isolate — and only when there is no handler, or it failed,
+                // does the floor report the record itself. Zero retries, and
+                // one record: what tier 3 is handed is exactly what tier 4
+                // would have written.
+                //
+                // It happens **here, inside the task**, rather than beside the
+                // exit code below, because tier 3 is an isolate and an isolate
+                // wants the scheduler, the reactor and the script resolver this
+                // run installed — all three of which are taken down with the
+                // run itself, a dozen lines before the exit code is decided.
+                let thrown = ctx.take_thrown();
+                let record = nvs_runtime::floor::uncaught(&thrown);
+                if !nvs_host::ladder::escalate(ctx, &record) {
+                    nvs_runtime::floor::report(ctx, &record);
+                }
             }
             status.set(Some(outcome));
         }
@@ -964,22 +982,16 @@ fn run_run(
         Err(status) if status == nvs_runtime::EXITED => {
             ExitCode::from(u8::try_from(ctx.exit_code() & 0xFF).unwrap_or(0))
         }
-        Err(status) => {
-            let thrown = ctx.take_thrown();
-            if status == nvs_runtime::THROWN {
-                // ADR 0020 § 6's floor: nothing below it caught this, so it is
-                // reported as the record `Core\Log::write` writes, rendered by
-                // the same call — `nvs_runtime::floor` owns why one shape and
-                // not two, and carries the frames as its `backtrace` field.
-                let record = nvs_runtime::floor::uncaught(&thrown);
-                nvs_runtime::floor::report(&mut ctx, &record);
-            } else {
-                // Tier 3 and above. The ladder's handler script is not built
-                // yet, so the honest report is still the status and whatever
-                // message the runtime recorded; a `FATAL` has no backtrace by
-                // design, so there is nothing else to say about one.
-                eprintln!("FATAL: {}", thrown.message());
-            }
+        // A throw was already reported inside the task, where the ladder could
+        // reach an isolate — see the arm above `status.set`. All that is left
+        // here is the status a shell reads.
+        Err(status) if status == nvs_runtime::THROWN => ExitCode::FAILURE,
+        Err(_) => {
+            // A `FATAL`, which never reaches tiers 1 and 2 (ADR 0020 § 5) and
+            // does not yet reach tier 3 either. The honest report is still the
+            // message the runtime recorded; a `FATAL` has no backtrace by
+            // design, so there is nothing else to say about one.
+            eprintln!("FATAL: {}", ctx.take_thrown().message());
             ExitCode::FAILURE
         }
     }

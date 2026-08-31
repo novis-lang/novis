@@ -44,7 +44,10 @@
 use nvs_render::{Level, Node, Record, Rendered, Scalar};
 
 use crate::Ctx;
+use crate::array::NvsArray;
+use crate::string::NvsStr;
 use crate::throwable::Thrown;
+use crate::value::Value;
 
 /// One uncaught `Throwable` as [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
 /// § 6's record, at [`Level::Error`].
@@ -69,6 +72,48 @@ pub fn uncaught(thrown: &Thrown) -> Record {
             .push(("backtrace".to_owned(), text(&trace)));
     }
     record
+}
+
+/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 3's one
+/// explicit argument to the tier-3 handler, built from the record tier 4 would
+/// otherwise have reported.
+///
+/// **A keyed array, not a `Core\Fatal\ErrorReport` instance**, for the reason
+/// § 1 gives for `LimitReport` being one: the report is built where the failure
+/// is, in a crate that holds no `Core` class descriptor to instantiate an object
+/// from, and a keyed array takes a later key without changing the signature of a
+/// handler already written. The keys are the record's *own* — `level`, `message`
+/// and one per envelope field — so a handler reads the same names a JSON Lines
+/// line carries and there is no second vocabulary between the two renderings of
+/// one failure.
+///
+/// A field whose node is not a string scalar is **skipped** rather than
+/// rendered. Nothing the floor produces has one today, and rendering a tree here
+/// would be a second serialiser beside [`nvs_render`]'s, which is the divergence
+/// this module exists to prevent; when a producer grows a structured field, the
+/// walk that turns a [`Node`] into a `Value` is what this reaches for, not a
+/// stringification of its own.
+///
+/// The caller takes over the returned value's one reference — it is the
+/// argument an isolate is handed, and `nvs_host::Isolate::new` consumes it.
+#[must_use]
+pub fn report_argument(record: &Record) -> Value {
+    let mut report = NvsArray::new();
+    report.set(NvsStr::new(b"level"), string(record.envelope.level.name()));
+    if let Some(message) = &record.envelope.message {
+        report.set(NvsStr::new(b"message"), string(message.as_str()));
+    }
+    for (name, node) in &record.envelope.fields {
+        if let Node::Scalar(Scalar::Str { text, .. }) = node {
+            report.set(NvsStr::new(name.as_bytes()), string(text.as_str()));
+        }
+    }
+    Value::array(report)
+}
+
+/// One `&str` as an owned Novis `string` value.
+fn string(text: &str) -> Value {
+    Value::str(NvsStr::new(text.as_bytes()))
 }
 
 /// A record carrying nothing but a level and a message — what the floor has to
