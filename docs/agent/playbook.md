@@ -4874,6 +4874,17 @@ sibling in the same namespace unqualified.
   roster, and the slice is a `CoreConst` variant plus a lowering rather than a table entry. One
   `peek.py 'crates/nvs-stdlib/src/registry.rs:@CoreConst'` settles it before any of that is
   budgeted as free.
+- **A "known gap" in a module doc can be wrong about the tree, and one stale field comment is how it
+  gets that way.** `cli.rs`'s gap 3 said `Cli\Color` was blocked on "a `Core` class constant that is
+  an instance", contradicting ADR 0086 § 2's *"machinery `nvs-stdlib` already has"* — and the ADR was
+  right: `registry::Const::Built { symbol, args }` has expressed exactly that since
+  `Core\Time\Zone::UTC`, `nvs_types::ConstArg::Built` carries it across, and
+  `nvs_ir::lower::emit_const_arg` emits the `InstKind::CoreCall` at the use site. What produced the
+  wrong gap is one line on `CoreConst::ty` — *"Always a scalar, since `Const` can express nothing
+  else"* — which stopped being true when `Built` landed and which reads exactly like the roster's own
+  summary. Three sessions carried the gap forward through the handoff. When a doc and an ADR
+  disagree about what exists, `grep -n` the enum before believing either: it is one call, and the
+  alternative is a session that designs a mechanism the tree already ships.
 
 ## Divergences and refusals already pinned
 

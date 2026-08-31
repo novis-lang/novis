@@ -58,11 +58,11 @@
 > descriptors, `Core\IO\FileMode` is R11's enum, and `read`, `readLine`, `write`, `seek`, `tell`,
 > `flush` and `close` are its members; `truncate` and `lock` are owed, and `writeStream` streams a
 > chunk at a time. **`[2 filesystem]` is green**: ADR 0052 § 2's closed door on scheme dispatch is
-> asserted over the roster and over the path modules' own sources. **Stage 3's wait is off the core
-> and its terminal has one raw path**: `Core\Process::run` waits through `nvs_host::blocking`, and
-> `echo` substitutes ADR 0086 § 1's table over everything except `Core\Cli\Text`, whose `plain`
-> neutralizes what it carries. Conformance 1207, differential 210 of 210, migration 37% over its 36%
-> floor.
+> asserted over the roster and over the path modules' own sources. **Stage 3's terminal is a sink
+> with a raw path and a styling type**: `echo` substitutes ADR 0086 § 1's table over everything but
+> `Core\Cli\Text`, and § 2 is `Cli\Color`, `Cli\Style` and `Text::styled`; `Core\Process::run` waits
+> through `nvs_host::blocking`. Conformance 1210, differential 210 of 210, migration 37% over its
+> 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
