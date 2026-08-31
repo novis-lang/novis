@@ -52,7 +52,7 @@
 > algorithm argument, and `examples/crypto.nvs` runs green. **Stage 4 is closed**: ADR 0060 § 1's
 > roster is all four entries — `Core\SignedCookie` seals with `$keys[0]` and opens against the ring,
 > `Core\Csrf` binds a token under a domain tag, `Core\Totp` answers the step a code belonged to, and
-> `Core\Jwt` answers `array<tainted string>` off `CoreTy::TaintedStr`. **Stage 5 is open**:
+> `Core\Jwt` answers `array<tainted string>` off `CoreTy::TaintedStr`. **Stage 5 is closed**:
 > `Core\Http::allowUrl` answers a pinned `Core\Http\Target`, and two cases pin ADR 0058 §§ 3 and 5 —
 > the denied table is the capability's and refuses before a socket. `Core\Http\Client`'s five rows
 > are compile-time whole (§ 7's keyless `post` retry is `E0796`), and `crate::http::transport` fills
@@ -60,9 +60,9 @@
 > deadline, `https` refused. **`Core\Env` is a class**: `get` and `all` over
 > `nvs_runtime::environment`, the name a `Qual::Sink` and every value `tainted`, and `.nvst`'s
 > `--ENV--` is honoured now that a case can read one back. The harness serves 8099
-> (`tools/origin.py`), so `examples/http.nvs` prints all five lines; stage 5 owes one test, and
-> `traceparent` carries the runtime's trace id. Conformance 1162, differential 210 of 210, migration
-> 37% over its 36% floor.
+> (`tools/origin.py`), so `examples/http.nvs` prints all five lines, `traceparent` crosses, and an
+> outbound read parks on the reactor. Conformance 1162, differential 210 of 210, migration 37% over
+> its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

@@ -2,55 +2,50 @@
 
 ## State
 
-**Stage 5 is one test from closed.** Its `nvs-stdlib` check names six tests and five are green;
-only `a_socket_read_runs_on_the_reactor_and_parks_its_coroutine` is missing.
-
-**A request carries a trace id, and it is the runtime's.** `nvs_runtime::trace_context` is a new
-module — `TraceContext`, with `started`, `continuing` (an inbound `traceparent` adopted whole, a
-malformed one starting a new trace rather than throwing, per ADR 0076 § 2), `traceparent` rendering
-and the three accessors. `Ctx` holds one eagerly, drawn in `Ctx::new`, with `set_trace_context` for
-the inbound path goal 6 will write; that module's doc is the home of why it is eager, why it is not
-ADR 0018's per-call trace, and what it spends. `nvs-runtime` gained `rand` for the draw, which adds
-no crate to the tree.
-
-**`Core\Http\Client` propagates it.** `http::traceparent_of` reads `[trace] propagate` (§ 6 ships it
-**on**; off is the word `false` and nothing else), `Call::traceparent` carries the answer, and
-`compose` emits it — skipping its own where the caller already wrote a `traceparent` header, because
-two of them is what the W3C format tells a receiver to read as none.
+**Stage 5 is closed on the tree.** Its `nvs-stdlib` check names six tests and all six are green — the
+last, `a_socket_read_runs_on_the_reactor_and_parks_its_coroutine`, pins ADR 0051 § 3's "over the
+runtime's own reactor, not a second event loop" from the core's side: the exchange is driven with
+`Scheduler::run` alone, the park is filed with the reactor, and the origin holds half the reply back so
+that what parked can only be a read. That test's own doc comment owns why it turns until the origin
+signals rather than asserting the first park it sees.
 
 **The driver's acceptance failure on `examples/http.nvs` is still the driver, not the tree.**
 `local_origin` is on disk at `tools/loop.py:1125`; the running process imported that module before it
 existed, so its sweep serves nothing on 8099. Restarting the run is the whole fix — nothing in this
 tree changes it.
 
+**Stage 6 opens next**, and nothing of it is on disk: no `cache` module, no `Core\Cache` row.
+
 ## Next group
 
-**The stage-5 closer, then stage 6 opens.** Item 1 is its own file set —
-`crates/nvs-stdlib/src/http/transport.rs`, the file this session just left — and items 2-3 share
-`crates/nvs-stdlib/src/cache.rs` (new) with `crates/nvs-stdlib/src/registry.rs`. Take 1 first: it
-closes a stage.
+**Stage 6's local tier first, then the shared one over goal 2's graph copy.** All three slices share
+one file set — `crates/nvs-stdlib/src/cache.rs` (new), `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-stdlib/src/lib.rs` — so they are one group, and the five test names the stage wants are at
+`docs/agent/loop-goal.toml:2382`.
 
-- [ ] **`a_socket_read_runs_on_the_reactor_and_parks_its_coroutine`** — ADR 0051's "over the
-      runtime's own reactor, not a second event loop". The check's `args` is `-p nvs-stdlib`, so it
-      hosts in `crates/nvs-stdlib/src/http/transport.rs:562`'s `mod tests` and not in `nvs-host`.
-      What it asserts is already observable: `crates/nvs-host/src/net.rs:184`'s
-      `NvsStream::is_parked_on`, with `crates/nvs-host/src/net.rs:1054`'s
-      `a_socket_read_that_would_block_parks_its_coroutine` as the shape to drive it from a coroutine.
-- [ ] **`Core\Cache::local`** — ADR 0059 §§ 1-3: two members with separate contracts, an entry that
-      may be absent at any time, and a per-core tier charged to the core and capped. Rows, cards,
-      bodies and the `address()` arm in a new `crates/nvs-stdlib/src/cache.rs`, registered at
-      `crates/nvs-stdlib/src/registry.rs:1054`.
+- [ ] **`Core\Cache::local`, as the five edits** — ADR 0059 §§ 1-3: two members with separate
+      contracts, not one API with a flag, and a local entry that may be absent at any time. The three
+      tests are `local_and_shared_are_separate_members_with_separate_contracts`,
+      `a_local_entry_may_be_absent_at_any_time_and_the_contract_says_so` and
+      `a_local_write_on_one_core_is_not_visible_on_another`
+      (`docs/agent/loop-goal.toml:2384`). `mod cache;` goes at
+      `crates/nvs-stdlib/src/lib.rs:212`, alphabetically ahead of `channel`, and the class joins
+      `CLASSES` at `crates/nvs-stdlib/src/registry.rs:1054`.
 - [ ] **`Core\Cache::shared`, over goal 2's graph copy** — ADR 0059 § 2: a put and a get use the same
-      walk the isolate boundary does, never a third mechanism. Same two files —
-      `crates/nvs-stdlib/src/cache.rs` and `crates/nvs-stdlib/src/registry.rs:1054` — over
-      `crates/nvs-runtime/src/graph.rs:672`'s `encode` and `crates/nvs-runtime/src/graph.rs:869`'s
-      `decode`, which are the walk.
+      copy the isolate boundary does, not a third mechanism, which is
+      `a_cache_put_and_get_use_the_same_graph_copy_as_the_isolate_boundary`
+      (`docs/agent/loop-goal.toml:2388`). Redis is the default shared store and picking it is
+      pre-authorized; rows join `crates/nvs-stdlib/src/registry.rs:1054` beside the local pair.
+- [ ] **The local tier's memory is the core's, and capped** — ADR 0059 § 3, as
+      `the_local_tiers_memory_is_charged_to_the_core_and_capped`
+      (`docs/agent/loop-goal.toml:2390`). Last because it asserts over what the first two slice in,
+      and it is the one that decides where the bytes are counted.
 
 ## Backlog
-- `examples/cache.nvs`'s five frozen lines close stage 6 — `docs/agent/loop-goal.toml`, stage 6.
-- `Core\RateLimit`'s five tests, GCRA in both tiers — ADR 0075 §§ 2, 4, 5.
-- Redis needs a container; the compose file goal 5 uses is the same one — plan § *Blocking*.
-- ADR 0076 § 6's `[log]` record gaining `trace_id`/`span_id` has a source now, and no writer:
-  `Core\Log` is stage 7's.
-- Head-based `[trace] sample` is unread, so a root trace's flag is always `00` —
-  `crates/nvs-runtime/src/trace_context.rs`'s module doc says what will set it.
+
+- `examples/http.nvs`'s exact check passes only once the driver is restarted — `tools/loop.py:1125`.
+- `Core\RateLimit`'s five tests, stage 6's second check — `docs/agent/loop-goal.toml:2398`.
+- The outbound transport has no connection pool, by decision — its module doc, § *One connection per
+  attempt, closed by the reply*.
+- `https` outbound stays refused until the trust-anchor set has an owner — the same module doc.
+- ADR 0060 § 5's "a verified signature does not launder" is standing and unasserted anywhere.

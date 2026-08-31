@@ -3502,6 +3502,18 @@ is why" — is this file.
   pub(crate) fn` added beside `mod tests` as a shared fixture is the natural way to trip it; put the
   fixture **inside** `mod tests` and reach it as `crate::tests::<name>`, which costs nothing and
   keeps the scan's boundary where it was.
+- **A park asserted after the first `sched.run()` can be the *connect*'s, not the read's.**
+  `NvsTcp::connect_timeout` goes through `finish_connecting`, which tries a zero-byte write and parks
+  wherever the platform says the handshake is still in flight — so a test that spawns a whole outbound
+  exchange, runs the scheduler once and asserts `report.parked == 1` can pass with the read never
+  having reached the reactor at all, on the one platform where that is true. What removes the
+  ambiguity without a sleep is a signal from the origin thread: turn until it says it holds the
+  request, because past that point the task has written everything it is going to write and the reply
+  is deliberately incomplete, so parked has one meaning left. Send that signal **before** the origin
+  writes any of the reply back — a signal trailing the bytes can be outrun by the very turn that
+  consumes them, and the next turn then waits on readiness the test itself is holding back.
+  `a_socket_read_runs_on_the_reactor_and_parks_its_coroutine` in
+  `crates/nvs-stdlib/src/http/transport.rs` is the whole shape, and it runs in 40ms.
 
 ## Splitting a file that got too big
 
