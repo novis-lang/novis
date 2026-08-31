@@ -49,20 +49,19 @@
 > roster is all four entries. **Stage 5 is closed**: `Core\Http::allowUrl` answers a pinned
 > `Core\Http\Target`, and two cases pin ADR 0058 §§ 3 and 5. **Stage 6 has opened**: `Core\Cache`'s
 > two tiers are one `Store`, `shared()` the `net.connect` door onto RESP and `local()` the `None`
-> row beside it; both of § 1's limiters are rows over them. **Stage 7 has opened**:
-> `Core\Log::write` is a row over ADR 0020 § 6's tier-4 floor, and § 3's tier 3 runs above it as
-> `[app.log] handler`, an isolate on `Ctx::handler_isolate`'s reserve; `examples/logging.nvs` is
-> green. **Stage 8 has opened**: `Core\Reflect` is `forObject`, `forClass` and `typeOf`, and
-> `Core\Ast::parse` answers the compiler's own tree. **Stage 2's handle half has opened**:
-> `Core\IO::open` answers a `Core\IO\File` whose slot is a key into the request's own table of
-> descriptors, `Core\IO\FileMode` is R11's enum, and `read`, `readLine`, `write`, `seek`, `tell`,
-> `flush` and `close` are its members; `truncate` and `lock` are owed, and `writeStream` streams a
-> chunk at a time. **`[2 filesystem]` is green**: ADR 0052 § 2's closed door on scheme dispatch is
-> asserted over the roster and over the path modules' own sources. **Stage 3's terminal is a sink
-> with a raw path, a styling type and § 4's prompts**: § 2 is `Cli\Color`, `Cli\Style` and
-> `Text::styled`, and `ask`, `confirm`, `select<T>` and `secret` read the controlling terminal;
-> `Core\Process::run` waits through `nvs_host::blocking`. Conformance 1214, differential 210 of 210,
-> migration 37% over its 36% floor.
+> row beside it; § 1's limiters are rows over them. **Stage 7 has opened**: `Core\Log::write` is a
+> row over ADR 0020 § 6's tier-4 floor, and § 3's tier 3 runs above it as `[app.log] handler`, an
+> isolate on `Ctx::handler_isolate`'s reserve; `examples/logging.nvs` is green. **Stage 8 has
+> opened**: `Core\Reflect` is `forObject`, `forClass` and `typeOf`, and `Core\Ast::parse` answers
+> the compiler's own tree. **Stage 2's handle half has opened**: `Core\IO::open` answers a
+> `Core\IO\File` whose slot is a key into the request's own table of descriptors, `Core\IO\FileMode`
+> is R11's enum, and `read`, `readLine`, `write`, `seek`, `tell`, `flush` and `close` are its
+> members; `truncate` and `lock` are owed, and `writeStream` streams a chunk at a time. **`[2
+> filesystem]` is green**: ADR 0052 § 2's closed door on scheme dispatch is asserted over the roster
+> and the path modules' own sources. **Stage 3's terminal is a sink with a raw path, a styling type
+> and § 4's prompts**: § 2 is `Cli\Color`, `Cli\Style` and `Text::styled`, and `ask`, `confirm`,
+> `select<T>` and `secret` read the terminal under a deadline; `Core\Process::run` waits through
+> `nvs_host::blocking`. Conformance 1214, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
