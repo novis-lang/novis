@@ -33,15 +33,25 @@
 //! the output is text writes `as string`, which is the checked conversion that
 //! throws rather than the silent replacement-character mangling PHP gives.
 //!
+//! # Decision: the wait happens off the core, and nothing else about it moved
+//!
+//! ADR 0044 § 5. A child process has no readiness a reactor can poll — no
+//! descriptor of ours becomes ready when it exits — so waiting for one is
+//! [ADR 0106](../../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 6's
+//! other case, and [`nvs_host::blocking::run`] is the only spelling of it in
+//! this tree. [`wait_off_core`] is that call and the whole of it: the core is
+//! handed back while the child runs, the task resumes on a remote wake once
+//! the pool thread has the output, and a neighbouring request served by the
+//! same worker runs in between.
+//!
+//! Nothing else about the member changed when the wait moved — its signature,
+//! its door and its result are what § 1 already specified, and what a caller
+//! can observe is unchanged. Off a core, which is every CLI program, the
+//! closure is simply called on this thread, so the cheap case stays free.
+//!
 //! # Known gaps
 //!
-//! 1. **The wait blocks the calling worker thread.** ADR 0044 § 5 says `run`
-//!    suspends the calling coroutine through the blocking pool instead, and the
-//!    goal's `a_process_wait_suspends_its_coroutine_through_the_blocking_pool`
-//!    is the check that closes it. Nothing about this module's surface changes
-//!    when it does: the member's signature, its door and its result are already
-//!    what § 1 specifies, and only [`nvs_core_process_run`]'s wait moves.
-//! 2. **`[limits] max_output` does not bound the capture yet.** ADR 0044 § 1
+//! 1. **`[limits] max_output` does not bound the capture yet.** ADR 0044 § 1
 //!    reuses that directive rather than adding a cap, and nothing reads it in
 //!    this tree — so what bounds a capture today is the request's memory limit,
 //!    which these two buffers are charged against like any other allocation.
@@ -54,6 +64,7 @@
 //! asked.
 
 use std::path::Path;
+use std::process::{Child, Output};
 
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
@@ -305,22 +316,18 @@ nvs_runtime::nvs_helper! {
     ///
     /// The door is [`nvs_runtime::capability::exec`], which asks `process.exec`
     /// first and the target's kind second; everything this body adds is the
-    /// wait and the capture. Both streams are read to the end before the status
-    /// is taken, which is what `wait_with_output` is for — waiting first and
-    /// reading after deadlocks the moment a child fills a pipe buffer, and the
-    /// door pipes all three streams precisely so that no child inherits this
-    /// process's own.
+    /// wait and the capture, and the door pipes all three streams precisely so
+    /// that no child inherits this process's own.
     ///
-    /// This module's known gap 1 owns the thread this wait occupies, and gap 2
-    /// owns what bounds the capture.
+    /// [`wait_off_core`] owns which thread the wait occupies, and this module's
+    /// known gap 1 owns what bounds the capture.
     fn nvs_core_process_run(ctx, args: [2]) {
         let program = text(&args[0], "its path")?;
         let argv = argv_of(&args[1])?;
         let borrowed: Vec<&str> = argv.iter().map(String::as_str).collect();
         let path = Path::new(program);
         let child = nvs_runtime::capability::exec(ctx, path, &borrowed, RUN_MEMBER)?;
-        let output = child
-            .wait_with_output()
+        let output = wait_off_core(child)
             .map_err(|err| nvs_runtime::capability::io_failure(RUN_MEMBER, path, &err))?;
         Ok(crate::instance::build(
             &RESULT,
@@ -331,6 +338,34 @@ nvs_runtime::nvs_helper! {
             ],
         ))
     }
+}
+
+/// The child's status and both of its streams, waited for **off this core** —
+/// ADR 0044 § 5, and this module's *Decision: the wait happens off the core*.
+///
+/// Both streams are read to the end before the status is taken, which is what
+/// [`Child::wait_with_output`] is for: waiting first and reading after
+/// deadlocks the moment a child fills a pipe buffer. That is why the whole
+/// three-way wait goes to the pool as one job rather than the exit alone —
+/// there is no point at which reading a pipe and waiting for the exit are
+/// separable, so there is no smaller thing to hand off.
+///
+/// Named rather than written inline because it is the only part of
+/// `Core\Process` a case can hold still while a neighbouring task runs:
+/// `a_process_wait_suspends_its_coroutine_through_the_blocking_pool` drives
+/// this on a scheduler, and the member around it needs a compiled program.
+///
+/// **What it spends:** one pool thread for the child's lifetime, out of
+/// [`nvs_host::blocking::bound`]'s per-worker bound — and off a core, where
+/// `run` calls the closure on this thread, nothing at all.
+///
+/// # Errors
+///
+/// Whatever the operating system said about waiting for the child or draining
+/// its pipes. The caller turns it into a `Fault`, since only it knows the path
+/// to name.
+fn wait_off_core(child: Child) -> std::io::Result<Output> {
+    nvs_host::blocking::run(move || child.wait_with_output())
 }
 
 nvs_runtime::nvs_helper! {
@@ -381,11 +416,17 @@ fn captured(receiver: Value, index: usize, member: &str) -> Result<Value, Fault>
 
 #[cfg(test)]
 mod tests {
-    use nvs_runtime::{Ctx, Fault, ThrownClass};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use nvs_host::blocking::pool_size;
+    use nvs_host::reactor::install;
+    use nvs_host::{Reactor, Scheduler, run_until_idle};
+    use nvs_runtime::{Ctx, Fault, TaskRoot, ThrownClass};
 
     use crate::tests::granting;
 
-    use super::{CLASS, CoreTy, Path, RESULT, RUN_MEMBER};
+    use super::{CLASS, CoreTy, Path, RESULT, RUN_MEMBER, wait_off_core};
 
     /// The five spellings a port of PHP's shell family would reach for. None of them is a member
     /// of this class, because [`super::nvs_core_process_run`] is all five: they differ only in
@@ -499,6 +540,67 @@ mod tests {
             ThrownClass::Io,
             "a target that only looks like one of the three is started, and fails as the operating \
              system's problem: {message}"
+        );
+    }
+
+    /// ADR 0044 § 5, in the only two ways it is observable: the core is **given back** while the
+    /// child runs, and the wait lands on the blocking pool rather than on the worker.
+    ///
+    /// The neighbour is what makes the first half an assertion rather than a hope. A wait that
+    /// held the core would still answer correctly and still finish both tasks — it would only be
+    /// slower, and nothing about one task's own result can tell the two apart. What can is the
+    /// *order*: the neighbour is spawned second and must run first, which happens only if the
+    /// waiter suspended. The second half is read off `pool_size`, which starts at zero threads for
+    /// a thread that has never made a blocking call, so a run where it is still zero is a run
+    /// where the wait never left this one.
+    ///
+    /// The child is this test binary with a filter that matches nothing: a real process, started
+    /// through the real door, on every platform the suite runs on and with nothing to build first.
+    #[test]
+    fn a_process_wait_suspends_its_coroutine_through_the_blocking_pool() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        assert_eq!(
+            pool_size().0,
+            0,
+            "this thread's pool had already started threads, so the count below proves nothing"
+        );
+
+        let order = Rc::new(RefCell::new(Vec::new()));
+        let waiter = Rc::clone(&order);
+        let mut granted = Ctx::buffered();
+        granted.set_config(granting("[capabilities.process]\nexec = true\n"));
+        sched.spawn(granted, TaskRoot::Worker, move |ctx| {
+            let me = std::env::current_exe().expect("a test binary knows its own path");
+            let child = nvs_runtime::capability::exec(
+                ctx,
+                &me,
+                &["--exact", "__nvs_no_such_case__"],
+                RUN_MEMBER,
+            )
+            .expect("`exec = true` admits an ordinary executable");
+            let output = wait_off_core(child).expect("the child never ended");
+            assert!(
+                output.status.success(),
+                "a filter matching no case is not a failing run"
+            );
+            waiter.borrow_mut().push("waited");
+        });
+        let neighbour = Rc::clone(&order);
+        sched.spawn(Ctx::buffered(), TaskRoot::Worker, move |_ctx| {
+            neighbour.borrow_mut().push("neighbour");
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(report.finished, 2, "a task never came back off the pool");
+        assert_eq!(
+            *order.borrow(),
+            ["neighbour", "waited"],
+            "the wait held the core instead of handing it back"
+        );
+        assert!(
+            pool_size().0 >= 1,
+            "the wait ran on the worker: this thread's blocking pool never started a thread"
         );
     }
 }
