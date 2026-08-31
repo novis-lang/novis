@@ -858,8 +858,13 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use nvs_runtime::budget;
+
+    use crate::tests::granting;
+
     use super::{
-        CLASS, ENTRIES, ENTRY_OVERHEAD, GET_DOC, LOCAL_DOC, SHARED_DOC, Value, store_get, store_put,
+        CLASS, Ctx, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC, LOCAL_DOC, MAX_SIZE,
+        SHARED_DOC, Value, local_cap, store_get, store_put,
     };
 
     /// ADR 0059 § 2: the copy across this boundary is the graph copy ADR 0023
@@ -1034,5 +1039,99 @@ mod tests {
                 "an overwrite keeps its place rather than taking a second one"
             );
         });
+    }
+
+    /// ADR 0059 § 3: the tier's memory is charged to the **core** that holds it
+    /// — never to a request — and bounded by an `nvs.toml` directive.
+    ///
+    /// The name's two halves are one fact, and each is checked where the other
+    /// cannot see it. The cap is the *directive's*, whose row is `Reload`, which
+    /// is why [`local_cap`] is read per write rather than once per core. The
+    /// cap then bounds what the core actually holds and not merely the
+    /// bookkeeping beside it: a sweep writing thirty-two times the cap leaves
+    /// this thread's allocator balance up by about the cap, so the entries
+    /// `forget_oldest` dropped gave their bytes back. The eviction cases above
+    /// assert what a `put` forgets; this one asserts that forgetting it was a
+    /// deallocation.
+    ///
+    /// And the charge lands on the core rather than on a request:
+    /// `nvs_runtime::budget::live_bytes` is *this thread's* balance —
+    /// `Ctx::memory_used` is the per-request reading, and that module doc says
+    /// how the two relate — so a second core writing the same key raises its own
+    /// by the same amount. That is § 3's O(cores × working set) measured rather
+    /// than restated, and it is the price ADR 0052 § 3's isolation is bought
+    /// with.
+    #[test]
+    fn the_local_tiers_memory_is_charged_to_the_core_and_capped() {
+        /// Small enough that the sweep below writes many times over it.
+        const CAP: usize = 64 * 1024;
+        /// One sweep entry's payload.
+        const CHUNK: usize = 4 * 1024;
+        /// How many of them, so that 32 × `CAP` is written in all.
+        const WRITES: usize = 512;
+        /// The charge one entry has to be able to show through the noise.
+        const LARGE: usize = 256 * 1024;
+
+        // The ceiling is `[cache.local] max_size` under ADR 0005's ordinary
+        // rules: the shipped one where an operator wrote nothing, a size where
+        // they wrote one, and none at all for the `false` that removes it.
+        let mut ctx = Ctx::buffered();
+        assert_eq!(local_cap(&ctx), Some(DEFAULT_MAX_SIZE));
+        ctx.set_config(granting("[cache.local]\nmax_size = \"128K\"\n"));
+        assert_eq!(local_cap(&ctx), Some(128 * 1024));
+        ctx.set_config(granting("[cache.local]\nmax_size = false\n"));
+        assert_eq!(local_cap(&ctx), None, "`false` is no ceiling at all");
+        assert_eq!(
+            nvs_config::directive::lookup(MAX_SIZE).map(|row| row.apply),
+            Some(nvs_config::Apply::Reload),
+            "a cap read once per core would outlive the snapshot that set it"
+        );
+
+        // Thirty-two times the cap, written under it.
+        let before = budget::live_bytes();
+        let mut over = 0;
+        for step in 0..WRITES {
+            store_put(
+                format!("sweep-{step:04}").as_bytes(),
+                vec![b'c'; CHUNK],
+                Some(CAP),
+            );
+            over += usize::from(ENTRIES.with_borrow(|local| local.held) > CAP);
+        }
+        assert_eq!(
+            over, 0,
+            "{over} of {WRITES} writes left the tier over its cap"
+        );
+
+        let held = budget::live_bytes() - before;
+        assert!(
+            held < (4 * CAP).cast_signed(),
+            "the core holds {held} bytes after writing {}, so the cap bounds the \
+             bookkeeping and not the memory",
+            WRITES * CHUNK
+        );
+
+        // Charged to *this* thread, which is what § 3 means by charged to the
+        // core: the balance rises with the entry and stays risen with it.
+        let alone = budget::live_bytes();
+        store_put(b"charged-per-core", vec![b'x'; LARGE], None);
+        assert!(
+            budget::live_bytes() - alone >= LARGE.cast_signed(),
+            "the entry's bytes are live on the core that wrote it"
+        );
+
+        // And a second core pays for its own copy of the same key rather than
+        // sharing this one's — § 3's multiplication, as a measurement.
+        let elsewhere = std::thread::spawn(|| {
+            let fresh = budget::live_bytes();
+            store_put(b"charged-per-core", vec![b'y'; LARGE], None);
+            budget::live_bytes() - fresh
+        })
+        .join()
+        .expect("the second core's thread runs to completion");
+        assert!(
+            elsewhere >= LARGE.cast_signed(),
+            "eight cores hold eight copies, and each one is charged for its own"
+        );
     }
 }
