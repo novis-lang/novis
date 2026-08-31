@@ -764,6 +764,9 @@ pub struct Ctx {
     /// The isolates this request has started and not yet awaited, by the key
     /// its `Core\Script\Handle` carries — see [`Ctx::hold_started_script`].
     started_scripts: Vec<Option<Box<dyn crate::host::Running>>>,
+    /// The files this request has opened and not yet closed, by the key its
+    /// `Core\IO\File` carries — see [`Ctx::hold_open_file`].
+    open_files: Vec<Option<std::fs::File>>,
 }
 
 /// One entry of [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
@@ -1143,6 +1146,7 @@ impl Ctx {
             isolate_argument: Value::null(),
             assertions: Vec::new(),
             started_scripts: Vec::new(),
+            open_files: Vec::new(),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
         ctx
@@ -2432,6 +2436,51 @@ impl Ctx {
     pub fn take_started_script(&mut self, key: u64) -> Option<Box<dyn crate::host::Running>> {
         let index = usize::try_from(key.checked_sub(1)?).ok()?;
         self.started_scripts.get_mut(index)?.take()
+    }
+
+    /// Files an open file against this request and answers the key that reads
+    /// it back — what a `Core\IO\File`'s one slot holds.
+    ///
+    /// The same shape and the same reasoning as [`Ctx::hold_started_script`],
+    /// which is the one home of *why* a `Core` handle is a key into a
+    /// request-owned table rather than the native thing itself: a `Core`
+    /// instance has no native drop, so a table this module does not own would
+    /// never learn that the last reference had gone. What this adds is the
+    /// close: a descriptor is scarce in a way an awaited isolate is not, so
+    /// `Core\IO\File::close` takes the handle out and drops it, and a request
+    /// that forgets closes everything it opened when its `Ctx` goes.
+    ///
+    /// **What it spends:** one `Option<File>` — a descriptor and a niche — per
+    /// `open` this request performed, *including* the ones it has since closed,
+    /// because a key is never reused. That is O(opens by one request), released
+    /// with the request and charged to its memory limit, and it is the price of
+    /// the safety property: a stale handle reads an empty slot and throws,
+    /// where a recycled key would silently address whatever file the same slot
+    /// now holds. A loop opening and closing a million paths spends a few
+    /// megabytes for it, which
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s ordering
+    /// spends without hesitating to keep a descriptor from being confused for
+    /// another.
+    pub fn hold_open_file(&mut self, file: std::fs::File) -> u64 {
+        self.open_files.push(Some(file));
+        // The index, one-based, so that a handle slot never holds a key a
+        // zeroed value could be mistaken for.
+        self.open_files.len() as u64
+    }
+
+    /// The file `key` names, borrowed for one read or write, or `None` once it
+    /// has been closed or if it was never this request's.
+    pub fn open_file_mut(&mut self, key: u64) -> Option<&mut std::fs::File> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.open_files.get_mut(index)?.as_mut()
+    }
+
+    /// Takes the file `key` names back out, or `None` when it has already been
+    /// taken — a `close` of a handle a previous `close` consumed.
+    #[must_use]
+    pub fn take_open_file(&mut self, key: u64) -> Option<std::fs::File> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.open_files.get_mut(index)?.take()
     }
 
     /// Arms [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)

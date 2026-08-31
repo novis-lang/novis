@@ -3,10 +3,11 @@
 //!
 //! [`require`] is deliberately the only *decision* here. The decision procedure is
 //! [`nvs_config::capability`] and is pure; this is the half that knows about a request — where the
-//! snapshot comes from, and what a denial looks like to the program that hit it. Eight below are
+//! snapshot comes from, and what a denial looks like to the program that hit it. Nine below are
 //! § 2's filesystem doors — [`open_read`], [`metadata`], [`exists`] and [`canonicalize`] behind
 //! `fs.read`, [`write()`],
-//! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write` — [`exec`] is the process
+//! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write`, and [`open`] behind whichever
+//! of the two its [`Access`] names — [`exec`] is the process
 //! door behind `process.exec`, and [`pin_host`] is the outbound one behind `net.connect`, which
 //! answers an address rather than a yes for ADR 0058 § 2's reason; each of them calls [`require`]
 //! before it names a spelling that
@@ -178,6 +179,69 @@ pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr,
 pub fn open_read(ctx: &Ctx, path: &Path, member: &str) -> Result<File, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
     File::open(path).map_err(|err| io_failure(member, path, &err))
+}
+
+/// What a program asked an open handle for, and so which capability [`open`] has to show.
+///
+/// Declared here rather than in `nvs-stdlib` because the capability question is this module's and
+/// the answer differs per variant: a door that took an already-built [`std::fs::OpenOptions`] could
+/// not ask what the caller intended, since nothing on that type reports back what was set. The
+/// surface enum a program writes is `Core\IO\FileMode`, which maps onto this one and adds nothing —
+/// the two are separate so that `nvs-runtime` does not learn a spelling from the standard library's
+/// roster, exactly as [`Scope`] is `nvs_config`'s rather than a `Core` type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Access {
+    /// Reading only, from the start of an existing file: `fs.read`.
+    Read,
+    /// Writing only, truncating what was there and creating the path if it is not: `fs.write`.
+    Write,
+    /// Writing only, at the end of the file, creating the path if it is not: `fs.write`.
+    Append,
+    /// Reading and writing, creating the path if it is not and truncating nothing: **both**
+    /// `fs.read` and `fs.write`, because a handle that can do either is a handle that can do both.
+    ReadWrite,
+}
+
+/// § 2's handle door: the file at `path`, open for what `access` names, once every capability that
+/// access needs has been shown to cover it.
+///
+/// This is [`open_read`] generalised to the three writing accesses, and the split between them is
+/// deliberate: `open_read` is the whole-file read every `Core\IO` reader shares, and this is the one
+/// a `Core\IO\File` handle comes out of. A writing open **creates** the path it names, which
+/// [`write()`]'s own doc calls a reason to keep the create on the door's side — it is on this side
+/// too, because the `require` below runs before the `OpenOptions` does anything at all.
+///
+/// A descriptor this answers with is a descriptor already checked: nothing downstream asks the
+/// capability question again, which is why `Core\IO\File`'s own members declare no capability of
+/// their own.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant a capability
+/// `access` needs for `path`, or [`io_failure`]'s `IOError` when the open itself fails. The
+/// capability is checked first for [`open_read`]'s reason, and for [`Access::ReadWrite`] both are
+/// checked before either is used, so a path granted for reading and not for writing refuses as a
+/// capability rather than as a failed open.
+pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File, Fault> {
+    if matches!(access, Access::Read | Access::ReadWrite) {
+        require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    }
+    if matches!(access, Access::Write | Access::Append | Access::ReadWrite) {
+        require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+    }
+    let mut options = std::fs::OpenOptions::new();
+    match access {
+        Access::Read => options.read(true),
+        Access::Write => options.write(true).create(true).truncate(true),
+        Access::Append => options.append(true).create(true),
+        // No `truncate`: a read-write handle that emptied the file before its
+        // holder had read a byte is `fopen`'s `w+`, and the mode a program
+        // reaches for when it wants both is the one that keeps what is there.
+        Access::ReadWrite => options.read(true).write(true).create(true),
+    };
+    options
+        .open(path)
+        .map_err(|err| io_failure(member, path, &err))
 }
 
 /// § 2's write door: `bytes` become the whole content of `path`, once [`Cap::FsWrite`] has been
