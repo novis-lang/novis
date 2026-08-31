@@ -869,7 +869,11 @@ name that denotes no class this program declares to be a `T` when the target is 
 
 `expr as ?T` is the same conversion answering `null` instead of throwing. It is refused where
 `as T` cannot fail (`$i as ?int` on an `int`) and for a class target (`$o as ?Foo`): an object is
-tested with `instanceof`.
+tested with `instanceof`. A `class<T>` target is not a class target and is available: `$name as
+?class<Animal>` answers `null` for every name `as class<Animal>` would throw for — one that denotes
+no class, and one that denotes a class outside `Animal`'s hierarchy. A written-out `Foo::class`
+operand stays decided at compile time under both spellings, so `Rock::class as ?class<Animal>` is
+refused rather than answering `null`.
 
 ```nvs
 <?nvs
