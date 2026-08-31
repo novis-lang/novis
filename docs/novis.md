@@ -14667,11 +14667,9 @@ Writes one log record — the same record, through the same writer, the engine i
 |---|---|---|
 | `$level` | `Core\Log\Level` | How loud the record is. `Core\Log\Level`'s five cases carry their own syslog severities. |
 | `$message` | `string` (neutral) | What happened, as one plain sentence. A `tainted` value is accepted here — a log record is data and recording untrusted input is the point — while a `secret` one is refused, which is the rule for every message a human reads. |
-| `$fields` | `array<mixed>` (default `[]`) | Structured context, written as a `fields` object beside the message rather than pasted into it. Omitted from the record entirely when it is empty, so an ordinary call costs no key. |
+| `$fields` | `array<mixed>` (default `[]`) | Structured context, written as a `fields` object beside the message rather than pasted into it. Omitted from the record entirely when it is empty, so an ordinary call costs no key. Nothing a bag can hold makes a write fail: a value the format has no spelling for — `bytes`, a closure, a cycle — is rendered as what it is rather than refused. |
 
 **Returns** `void` — Nothing. A record that cannot be written is dropped rather than retried: the log is not the program's storage.
-
-**Throws** `LogicError` — A `fields` value has no JSON encoding — a closure, or a value nested past the depth `Core\Json::encode` accepts. The bag was built by the program, so an unwritable one is a bug in it.
 
 <a id="core-core-secret"></a>
 ### `Core\Secret`
