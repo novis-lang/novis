@@ -1174,6 +1174,15 @@ is why" — is this file.
   One `python -c` rewrite of `\r\n` to `\n` fixes it; do it to any new source file before the first
   `cargo test` rather than after reading the case four times. The `.nvst` files written in the same
   session came out LF, so this is not reliably visible by inspecting one file.
+- **An item names one of its stage's checks, and the stage names the rest — including ones in another
+  crate.** `Core\Jwt`'s item named `a_jwt_with_an_unexpected_algorithm_is_refused` and nothing else, so
+  the obvious reading is that the slice owes one `#[test]` in `nvs-stdlib`. Stage 4 in
+  `docs/agent/loop-goal.toml` has a *second* `cargo-named` check, over `-p nvs-types`, whose
+  `a_verified_signature_does_not_launder_its_claims` had never been written and is the same slice's —
+  it is the only assertion that ADR 0060 § 5's qualifier reaches the signature at all. The orientation
+  pack prints the item, not the stage, so the check costs one `grep -n -i <topic> docs/agent/loop-goal.toml`
+  before starting: the driver stops at the first failure, so a named test left unwritten in a crate the
+  item never mentions holds the whole acceptance list at that stage the way a misfiled fixture does.
 
 ## Running things
 

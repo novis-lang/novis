@@ -107,6 +107,7 @@ Conventions the whole file uses:
 | [`Core\SignedCookie`](#core-core-signedcookie) |  |
 | [`Core\Csrf`](#core-core-csrf) |  |
 | [`Core\Totp`](#core-core-totp) |  |
+| [`Core\Jwt`](#core-core-jwt) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -15076,6 +15077,53 @@ Reports which time step `$code` belonged to, or `null`. Accepts the current 30-s
 **Returns** `?int` — The step number the code belonged to — pass it back as `$after` — or `null` for a code that is wrong, out of the window, or already used. There is no spelling that widens the window.
 
 **Throws** `LogicError` — `$secret` is shorter than 16 octets, which RFC 4226 § 4 refuses; or the clock is outside the range a step count reaches.
+
+<a id="core-core-jwt"></a>
+### `Core\Jwt`
+
+Keywords: sign, verify
+
+| Member | Signature |
+|---|---|
+| [`Core\Jwt::sign`](#core-core-jwt-sign) | `sign(array<string> $claims, Core\Time\Duration $lifetime, secret bytes $key): string` |
+| [`Core\Jwt::verify`](#core-core-jwt-verify) | `verify(string $token, secret bytes $key): array<tainted string>` |
+
+<a id="core-core-jwt-sign"></a>
+#### `Core\Jwt::sign`
+
+```nvs skip
+Core\Jwt::sign(array<string> $claims, Core\Time\Duration $lifetime, secret bytes $key): string
+```
+
+Signs `$claims` into a JWT that expires `$lifetime` from now, under `$key` and HMAC-SHA-256. The expiry is written here rather than passed in, so a token this member produces always carries one.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$claims` | `array<string>` | The application's own claims, by name. `exp` and `iat` are written by this member and are refused here; every other name is carried through unchanged. |
+| `$lifetime` | `Core\Time\Duration` | How long the token stays valid — `15m`, `1h`, `7d`. It must be positive: a token that has already expired is a program bug, not a token. |
+| `$key` | `secret bytes` (neutral) | The shared secret, at least 32 octets. `Core\Crypto::generateKey()` answers one of exactly that length; a longer secret agreed with another service is accepted as it stands. |
+
+**Returns** `string` — The three base64url parts and their two dots, as a header, a payload and a signature — a value a header, a query string and a JSON body all carry unescaped.
+
+**Throws** `LogicError` — `$key` is shorter than 32 octets; `$lifetime` is zero or negative; or `$claims` names `exp` or `iat`, which this member writes, or carries a positional entry, since a claim has a name.; `RuntimeError` — This process cannot spare a buffer the size of the token.
+
+<a id="core-core-jwt-verify"></a>
+#### `Core\Jwt::verify`
+
+```nvs skip
+Core\Jwt::verify(string $token, secret bytes $key): array<tainted string>
+```
+
+Answers the claims `$token` carries, having checked that this key signed it and that it has not expired. It throws rather than answering an empty value, so there is no falsy result a comparison could mistake for a verified token.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$token` | `string` (neutral) | The token as the request carried it, in its three-part form. |
+| `$key` | `secret bytes` (neutral) | The shared secret `sign` was given, or the issuer's. The token's own `alg` is compared against this key's algorithm and never used to pick one. |
+
+**Returns** `array<tainted string>` — Every claim in the payload, by name, each one `tainted`: a signature proves who wrote a value, not that it is safe for any sink. `exp` and `iat` are present in it, in their own decimal spelling.
+
+**Throws** `LogicError` — `$key` is shorter than 32 octets — a value that was never a signing key.; `RuntimeError` — The token is not one this key signed, which is one sentence for every way of not being one; or it is, and has expired, carries no `exp`, or carries a claim that is not text.
 
 <a id="core-enums"></a>
 ### `Core` enums

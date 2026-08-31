@@ -44,24 +44,23 @@
 > **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
 > running**, over goals 1-3, each reached at its own acceptance.   **The goal's eight acceptance
 > fixtures are on disk**, of which `files` and `process` print their frozen output and the other six
-> wait on their stages. **Stage 2 is closed**: `Core\IO`'s ten members are rows, cards, bodies and
-> grants over ADR 0118's doors, every path parameter a `Qual::Sink` with `within` past it.
-> `examples/files.nvs` runs green. **Stage 3's process half is closed**: `Core\Process::run` is a
-> row, a card, a body and a `process.exec` grant over `nvs_runtime::capability::exec`'s door, and
-> ADR 0044 § 1's `ProcessResult` is `Core\Process\Result`. `examples/process.nvs` runs green and
-> stage 3's four named checks are on disk.  **§ 6 is closed**: `Core\Command::help`, `::run` and
-> `completions` are rows over the compiled table, a declared default crosses on the row, and
-> `--ARGS--` is honoured. What goals 1-3 landed is unchanged and is not re-derived here: `git log`
-> and each crate's module doc own it. **Stage 4's password half is closed**: `Core\Password`'s three
-> members are rows, cards and bodies over Argon2id at OWASP's floor, with no algorithm or cost
-> argument. **Stage 4's AEAD half is closed**: `Core\Crypto`'s three members are rows, cards and
-> bodies over XChaCha20-Poly1305, with no cipher, mode, padding or nonce argument, one message for
-> every forgery, and a key that is a `secret bytes` in the row itself —
-> `CoreTy::SecretBytes`/`SecretBlob`, the spelling `Core\Hash::hmac` was owed. `examples/crypto.nvs`
-> runs green. **Stage 4's protocol half is three quarters landed**: `Core\SignedCookie` seals with
-> `$keys[0]` and opens against the ring, `Core\Csrf` binds a token under a domain tag and exposes
-> only the comparison, and `Core\Totp` answers the step a code belonged to. `Core\Jwt` remains.
-> Conformance 1142, differential 210 of 210, migration 37% over its 36% floor.
+> wait on their stages. **Stages 2 and 3 are closed**: `Core\IO`'s ten members and
+> `Core\Process::run` are rows, cards, bodies and grants over ADR 0118's doors, and
+> `examples/files.nvs` and `examples/process.nvs` run green.  **§ 6 is closed**:
+> `Core\Command::help`, `::run` and `completions` are rows over the compiled table, a declared
+> default crosses on the row, and `--ARGS--` is honoured. What goals 1-3 landed is unchanged and is
+> not re-derived here: `git log` and each crate's module doc own it. **Stage 4's password half is
+> closed**: `Core\Password`'s three members are rows, cards and bodies over Argon2id at OWASP's
+> floor, with no algorithm or cost argument. **Stage 4's AEAD half is closed**: `Core\Crypto`'s
+> three members are rows, cards and bodies over XChaCha20-Poly1305, with no cipher, mode, padding or
+> nonce argument, one message for every forgery, and a key that is a `secret bytes` in the row
+> itself — `CoreTy::SecretBytes`/`SecretBlob`, the spelling `Core\Hash::hmac` was owed.
+> `examples/crypto.nvs` runs green. **Stage 4 is closed**: ADR 0060 § 1's roster is all four entries
+> — `Core\SignedCookie` seals with `$keys[0]` and opens against the ring, `Core\Csrf` binds a token
+> under a domain tag, `Core\Totp` answers the step a code belonged to, and `Core\Jwt` compares `alg`
+> against a key it never selects from, writes `exp` from a positional `Duration`, and answers
+> `array<tainted string>` — `CoreTy::TaintedStr`, the return-position spelling ADR 0060 § 5 was
+> owed. Conformance 1145, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
