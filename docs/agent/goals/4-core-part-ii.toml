@@ -16,6 +16,45 @@ files = [
   "examples/cache.nvs",
   "examples/logging.nvs",
   "examples/reflect.nvs",
+  # carried from the previous goal by tools/goal-switch.py
+  "examples/config.nvs",
+  "examples/limits.nvs",
+  "examples/capability.nvs",
+  "examples/tasks.nvs",
+  "examples/channel.nvs",
+  "examples/isolate.nvs",
+  "examples/serialize.nvs",
+  "examples/program.nvs",
+  "examples/routes.nvs",
+  "examples/commands.nvs",
+  "nvs.toml",
+  "examples/intrinsics.nvs",
+  "examples/hello.nvs",
+  "examples/calls.nvs",
+  "examples/throw.nvs",
+  "examples/arith.nvs",
+  "examples/trace.nvs",
+  "examples/uncaught.nvs",
+  "examples/fatal.nvs",
+  "examples/objects.nvs",
+  "examples/arrays.nvs",
+  "examples/errors.nvs",
+  "examples/hooks.nvs",
+  "examples/enums.nvs",
+  "examples/iterate.nvs",
+  "examples/core.nvs",
+  "examples/report.nvs",
+  "examples/nullable.nvs",
+  "examples/match.nvs",
+  "examples/text.nvs",
+  "examples/numbers.nvs",
+  "examples/dates.nvs",
+  "examples/json.nvs",
+  "examples/collect.nvs",
+  "examples/operators.nvs",
+  "examples/control.nvs",
+  "examples/callable.nvs",
+  "examples/targets.nvs",
 ]
 
 [context]
@@ -117,6 +156,8 @@ tests = [
   "a_pattern_the_linear_engine_expresses_never_reaches_the_backtracker",
   "a_backtracking_pattern_runs_under_a_throwing_step_budget",
   "a_step_budget_exhaustion_throws_rather_than_returning_no_match",
+  # carried from the previous goal by tools/goal-switch.py
+  "examples/limits.nvs",
 ]
 
 [[check]]
@@ -131,6 +172,2015 @@ tests = [
 
 
 # <<< goal-switch: floor checks are inserted below this line >>>
+
+# 135 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 102 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- ADR 0106's containment rule, which was accepted after M4 was reported done. It runs in the
+# catch-up class because a scheduler written against the old boundary has its panic path wrong, in the
+# place that is hardest to find later.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "abi-probe (the outer boundary)"
+args = ["test", "-p", "nvs-abi-probe"]
+tests = [
+  # ADR 0106 §§ 1-3. The inner boundary is ADR 0002's and already green; this is the worker task.
+  "a_panic_in_a_worker_task_is_contained_at_the_task",
+  "a_teardown_path_that_panics_does_not_recurse",
+  # § 4 -- the engine-side counterpart to ADR 0020 § 1's call-stack bound, and the single-helper bound.
+  "engine_recursion_is_bounded_before_the_stack_is",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0b -- ADR 0063 R2, amended 2026-08-29 after this goal opened: every `Core` parameter is callable
+# by the spec's `$name`. Items 28-30 in loop-goal.md. A "0" stage runs in the catch-up class, ahead of
+# the program legs, and after Stage 0 because the run order inside the class is this file's order.
+#
+# Every test and case named below must EXIST and pass. All three checks are green: items 28-30 landed,
+# and the stage's four modules and `0063 §1` have been taken back out of `[context]` as this block used
+# to ask. The checks stay as the floor -- do not rename one to something already green.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (every row names its parameters)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # Item 28 -- one name per positional slot, and the names are the spec's signature column.
+  "every_registry_row_names_one_parameter_per_positional_slot",
+  "every_registry_rows_names_are_the_specs_signature_column",
+  # A documented row's `ParamDoc::name` is the row's name, not a second home.
+  "a_documented_rows_param_docs_agree_with_its_names",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (a Core member by name)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 29 -- the spec's `$name` fills its own slot at a `Core` member, and `options` is the bag.
+  "a_core_member_is_called_by_the_names_the_spec_writes",
+  "a_skipped_defaulted_core_parameter_takes_the_rows_default",
+  # A name never reaches a variadic tail, at `Str::format` as at a user method.
+  "a_name_at_a_core_variadic_tail_is_unknown",
+  # The synthesized constructor: `new Exception(message: ...)`.
+  "a_throwable_is_constructed_by_message",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance (Core by name)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-core-member-is-called-by-the-names-the-spec-writes.nvst",
+  "tests/conformance/error/a-throwable-is-constructed-by-name.nvst",
+  "tests/conformance/reject/a-misspelled-name-at-a-core-member-is-unknown.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0c -- the reference findings, added 2026-08-30 by the user's decision: docs/reference/findings.md
+# § Triage, items 31-35 in loop-goal.md. It runs before everything else in this goal, stage 9 included.
+# A "0" stage is the catch-up class, ahead of the program legs, and inside the class this file's order.
+#
+# Every case named below must EXIST and pass. Each is one finding; the item that owns it is in the comment.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance (findings: the abort and the wrong answers, item 31)"
+args = ["test", "tests/conformance/"]
+cases = [
+  # P15 -- a memory-limit breach inside try/finally is the clean FATAL, not a Rust panic.
+  "tests/conformance/error/a-limit-breach-inside-finally-is-a-clean-fatal.nvst",
+  # D34, D5, D25, D24, D14 -- one case each.
+  "tests/conformance/core/arr-sort-orders-decimals.nvst",
+  "tests/conformance/core/a-bare-relative-path-resolves-against-its-grant.nvst",
+  "tests/conformance/core/a-nullable-property-defaults-to-null.nvst",
+  "tests/conformance/error/float-division-by-zero-throws.nvst",
+  "tests/conformance/core/a-child-without-return-answers-null.nvst",
+  # U11 -- password_file is read under `nvs run`, and the dump masks the value and shows the path.
+  "tests/conformance/core/password-file-is-read-under-run.nvst",
+  # D15 -- `mode.default` is the key, and setting it re-derives the mode's defaults.
+  "tests/conformance/core/mode-default-is-read-and-set.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli (--filter selects #[Test] methods, item 31)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # U15
+  "test_filter_selects_test_methods_by_name",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance (findings: the missing refusals, item 32)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/reject/an-instance-method-is-not-called-statically.nvst",
+  "tests/conformance/reject/this-is-not-read-in-a-static-method.nvst",
+  "tests/conformance/reject/a-constant-declares-its-type.nvst",
+  "tests/conformance/reject/throw-takes-a-throwable.nvst",
+  "tests/conformance/reject/clone-takes-an-object.nvst",
+  "tests/conformance/reject/new-takes-a-class-name-not-a-string.nvst",
+  "tests/conformance/reject/an-enum-case-is-not-an-array-key.nvst",
+  "tests/conformance/reject/an-unregistered-core-member-is-unknown.nvst",
+  "tests/conformance/reject/a-catch-binding-ends-with-its-clause.nvst",
+  "tests/conformance/reject/an-anonymous-class-is-refused.nvst",
+  "tests/conformance/reject/a-catch-clause-names-one-class.nvst",
+  "tests/conformance/reject/a-try-has-a-clause.nvst",
+  "tests/conformance/reject/not-equal-is-spelled-bang-equals.nvst",
+  "tests/conformance/reject/a-namespace-statement-is-unbraced.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance (findings: modifiers and attributes, item 33)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/reject/readonly-is-written-once.nvst",
+  "tests/conformance/reject/final-is-not-extended.nvst",
+  "tests/conformance/reject/abstract-is-not-instantiated.nvst",
+  "tests/conformance/reject/a-get-only-hook-is-not-written.nvst",
+  "tests/conformance/reject/a-stray-access-attribute-is-refused.nvst",
+  "tests/conformance/reject/a-command-is-static-and-returns-void-or-uint.nvst",
+  "tests/conformance/reject/json-encode-refuses-a-secret.nvst",
+  "tests/conformance/reject/echo-refuses-a-secret.nvst",
+  "tests/conformance/core/an-array-constant-folds.nvst",
+  "tests/conformance/core/a-reveal-drops-the-secret-qualifier.nvst",
+  "tests/conformance/core/reveal-is-the-identity-on-the-value.nvst",
+  "tests/conformance/core/a-revealed-value-is-accepted-by-every-secret-sink.nvst",
+  "tests/conformance/reject/reveal-removes-secret-and-not-tainted.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance (findings: the lowering and library gaps, item 34)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-first-class-callable-lowers.nvst",
+  "tests/conformance/core/a-never-method-is-a-terminator.nvst",
+  "tests/conformance/core/a-named-closure-recurses.nvst",
+  "tests/conformance/core/a-shebang-line-opens-code.nvst",
+  "tests/conformance/core/a-literal-adapts-to-a-generic-uint.nvst",
+  "tests/conformance/error/iterator-current-outside-the-protocol-throws.nvst",
+  "tests/conformance/core/arr-from-takes-a-core-collection.nvst",
+  "tests/conformance/core/objectset-union-keeps-its-element-type.nvst",
+  "tests/conformance/core/an-attribute-payload-holds-a-constant.nvst",
+  "tests/conformance/core/the-time-types-are-comparable.nvst",
+  "tests/conformance/core/json-decodes-a-typed-list.nvst",
+  "tests/conformance/core/json-decodes-a-nested-field-and-a-promoted-one.nvst",
+  "tests/conformance/core/script-args-are-read.nvst",
+  "tests/conformance/core/task-after-response-runs.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (no card cites an ADR, item 35)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # M10 -- the raw card ships through `nvs meta --json`, so the card itself says the fact.
+  "no_registry_card_cites_an_adr",
+]
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 80 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance (the digest roster)"
+args = ["test", "tests/conformance/core/"]
+cases = [
+  "tests/conformance/core/hash-of-reproduces-the-modern-digests-published-vectors.nvst",
+  "tests/conformance/core/hash-hmac-authenticates-with-every-strong-digest.nvst",
+  "tests/conformance/core/hash-blake3-is-outside-the-strong-subset.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- ADR 0061 § 3's enumeration. Its stage name starts with "0", which is what puts it in
+# `loop.py`'s catch-up class: it runs BEFORE the program legs, so the ledger names this while it is
+# unfinished rather than reporting how far past it the run got.
+#
+# It is first because three later items are the same scan. `#[Route]`'s table, `#[Command]`'s table and
+# the OpenAPI emitter all filter this enumeration, and ADR 0077 § 5 says so outright -- writing any of
+# them first means writing the walk three times and then unifying it.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-hir (the program scan)"
+args = ["test", "-p", "nvs-hir"]
+tests = [
+  # § 3 -- the order is the ADR's, not the filesystem's, and that is the half that rots silently.
+  "an_interface_enumeration_is_sorted_by_qualified_name",
+  "an_abstract_class_is_not_enumerated",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the call-site expansion)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # § 3 -- it expands to an array literal of `new` expressions at the call site, so the instances are
+  # per-request like any other object and nothing crosses an isolate boundary.
+  "program_implementing_expands_to_new_expressions",
+  "program_implementing_refuses_a_non_interface_type_argument",
+  # § 3 -- "each such class needs a no-argument constructor; a diagnostic names any that does not".
+  # It is asserted here and not in `nvs-hir` because `implementors` answers over the class graph and
+  # never sees a signature: `required() > 0` is a question only this pass can ask, so `E0744` is
+  # reported here and no `-p nvs-hir` test can reach it.
+  "an_implementor_without_a_no_argument_constructor_is_named",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/program.nvs"
+want = ["alpha", "beta", "gamma", "count=3"]
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 61 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- THE OPERATOR TABLE. `tools/loop.py` runs a `stage = "0..."` cargo check BEFORE the program
+# legs, which is what this stage is for: every fixture and every case in every stage below is written
+# against these rules, so one written while an item here is open is written AROUND it -- and a case that
+# spells `0.0 - 1.5` to dodge an int/float mix reads as deliberate and nobody re-checks it.
+#
+# Every test named below must EXIST and pass. Most do not exist yet; writing one is how the loop finishes
+# its item. Do not rename one to something already green.
+# ---------------------------------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 00 -- THE SHAPES A PROGRAM REACHES FOR ON ITS FIRST PAGE. Items 44-49 in loop-goal.md, and the
+# first block in this file on purpose: `loop.py` runs a stage whose name starts with "0" in the catch-up
+# class, ahead of the program legs, and within that class the run order is this file's own order.
+#
+# Ahead of stage 0 and of stage 0a for a sharper version of stage 0's reason. Stage 0's items make a case
+# subtly wrong -- a fixture that spells `0.0 - 1.5` to dodge an int/float mix reads as deliberate. These
+# make one unwritable: `for (int $i = 0; ...)` does not parse and `Limits::MAX` panics the compiler, so
+# every case in every stage below is written around them, and item 44 carries the migration of the ones
+# already written that way.
+#
+# Every test and case named below must EXIST and pass, and none of them exists yet -- writing one is how
+# the loop finishes its item. Until then this file's first check fails, which is the point: the ledger
+# names the basics while they are open rather than reporting how far past them it got.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-syntax (the for header)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  # ADR 0109 § 1 -- the init clause's two alternatives, and the trial parse that tells them apart.
+  "a_for_init_clause_declares_one_typed_local",
+  "a_for_init_clause_is_still_a_list_of_expressions",
+  # ADR 0109 § 3 -- the two shapes that still do not parse, each by its own code.
+  "a_for_init_clause_mixing_a_declaration_and_an_expression_is_e0124",
+  "a_for_init_clause_with_two_declarations_is_e0125",
+  # Item 50 -- PHP's enum body, answered the way `trait` and `(int)` already are.
+  "a_php_shaped_enum_case_is_refused_naming_the_spelling_that_works",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (constants, `static` and `instanceof`)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 45 -- the checker half: a class constant's own declared type at a read.
+  "a_user_declared_class_constant_reads_at_its_declared_type",
+  # Item 46 -- ADR 0008's late static binding, as a type rather than as a dispatch.
+  "a_static_return_type_resolves_to_the_called_class",
+  # Item 47 -- the direction a program written against an abstraction actually uses.
+  "an_instanceof_test_narrows_its_subject_to_an_interface",
+  # Item 48 -- one arity rule, both sides of the `Core`/user-class line.
+  "a_core_class_with_no_constructor_refuses_arguments",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-ir (the shape table)"
+args = ["test", "-p", "nvs-ir"]
+tests = [
+  # Item 45 -- the lowering half.
+  "a_user_declared_class_constant_lowers_to_its_value",
+  # Item 49 -- the table widened past declared types. `every_spellable_type_reaches_a_diagnostic_or_an_ir`
+  # is Stage 8's and stays there; this is its expression-and-statement half.
+  "every_spellable_expression_reaches_a_diagnostic_or_an_ir",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/lang/a-for-header-declares-its-own-counter.nvst",
+  "tests/conformance/lang/a-class-constant-is-read-at-its-declared-type.nvst",
+  "tests/conformance/lang/new-static-through-two-levels-returns-the-called-class.nvst",
+  "tests/conformance/lang/an-instanceof-guard-narrows-to-an-interface.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0a -- ADR 0107's `inout` spelling. Named to start with "0" deliberately: that is what puts a
+# check in `loop.py`'s catch-up class, which runs before everything else so the ledger names this while
+# it is unfinished. Ahead of stage 0 for stage 0's own reason applied to the surface -- a case written
+# in the old spelling is written twice. Items 18-20 in loop-goal.md.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-syntax (the inout spelling)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  # ADR 0107 -- the modifier slot, in all three declaration positions, and the call-site marker on `Arg`.
+  "an_inout_parameter_parses_in_the_modifier_slot",
+  "an_inout_foreach_binding_and_destructuring_leaf_parse",
+  "an_inout_argument_parses_at_a_call_site",
+  # ADR 0107 -- `&` is refused wherever it meant by-reference, and kept wherever it did not.
+  "an_ampersand_by_reference_marker_is_refused_naming_inout",
+  "an_ampersand_still_parses_as_bitwise_and_and_as_an_intersection",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the call-site marker)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # ADR 0107 -- both directions of the call-site rule.
+  "an_inout_argument_is_required_where_the_parameter_declares_one",
+  "an_inout_argument_is_refused_where_the_parameter_is_by_value",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the promotion table)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 1 -- ADR 0007 § 4: a mixed-representation arithmetic or ordering pair has a result type AND
+  # a stated widening, which is the half `arithmetic_result` records nothing for today.
+  "a_mixed_numeric_pair_widens_the_narrower_operand",
+  "a_mixed_numeric_comparison_widens_the_same_way",
+  # Item 2 -- `int / int` is `int|float`, widened to `float` where a binding declares one.
+  "an_integer_division_is_a_union_widened_at_its_binding",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-ir (the operator rows)"
+args = ["test", "-p", "nvs-ir"]
+tests = [
+  # Item 1 -- the widening is a conversion in `lower_binary`, not a backend repair.
+  "a_mixed_numeric_pair_converts_before_the_operator",
+  # Item 4 -- five binary rows and one unary one, and the compound forms they carry with them.
+  "every_bitwise_operator_lowers",
+  "a_bitwise_compound_assignment_lowers_through_its_binary_form",
+  # Item 5
+  "a_power_operator_lowers_over_every_numeric_row",
+  # Item 6
+  "the_spaceship_operator_is_the_compare_to_result_itself",
+  # Item 7 -- both positions, and the address computation split out of `lower_reassignment` so a
+  # re-evaluable target is read once.
+  "an_increment_lowers_in_either_position",
+  "a_compound_assignment_evaluates_its_target_once",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-codegen (the operator rows)"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  # Item 2 -- the union result picks its instruction at runtime.
+  "an_integer_division_emits_both_of_its_representations",
+  # Item 3 -- ADR 0007 § 4's overflow throw, at the three arithmetic sites, over `Inst::on_error`.
+  "an_integer_addition_traps_on_overflow",
+  "an_integer_subtraction_and_multiplication_trap_on_overflow",
+  # Item 8 -- `Enum(Int)` reaches the integral compare rows.
+  "two_enum_values_compare_as_their_backing_integer",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 1 -- what the previous goal reached, unchanged. This is the non-regression floor: nothing below
+# may be traded for anything above it, and it runs FIRST among the program checks so that a red stage
+# above can never mask a regression inside it. `kind = "exact"` means: exit 0, and stdout line for line
+# equal to `want`. A fixture that prints an extra line has failed.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/hello.nvs"
+want = ["Hello, World!"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/calls.nvs"
+want = ["quadruple(5) = 20"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/arith.nvs"
+want = ["sum = 998000"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/throw.nvs"
+want = ["caught: boom"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/objects.nvs"
+want = [
+  "cat has 4 legs", "rex has 4 legs, and barks", "Hello, rex!",
+  "dog is an animal", "dog greets", "leaf", "leaf is a mid",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/arrays.nvs"
+want = [
+  "alpha=1;beta=2;gamma=3;", "alpha=1;gamma=3;", "alpha=1;gamma=3;beta=20;",
+  "alpha=1;gamma=3;beta=20;", "alpha=99;gamma=3;beta=20;", "count=3", "total=10",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/errors.nvs"
+want = [
+  "checked host", "value-of-host", "checked bad", "config: bad key",
+  "checked missing", "logic: no such key: missing", "backtrace present",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/hooks.nvs"
+want = ["6", "20", "Counter(10)", "n=6"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/enums.nvs"
+want = ["ana outranks bo", "gold=2", "ana,clone"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/iterate.nvs"
+want = ["generator=15", "iterable=10"]
+
+# A caught throw's own trace, read back from Novis through its backtrace property.
+[[check]]
+kind = "ordered"
+stage = "1 floor"
+file = "examples/trace.nvs"
+stream = "stdout"
+want = ["#0 Deep::inner()", "#1 Deep::outer()"]
+
+# An uncaught throw: non-zero exit plus an Novis-level backtrace on stderr.
+[[check]]
+kind = "ordered"
+stage = "1 floor"
+file = "examples/uncaught.nvs"
+stream = "stderr"
+exit = "nonzero"
+want = ["Uncaught Exception: unhandled", "#0 Boom::inner()", "#1 Boom::outer()"]
+
+# A contained helper panic: FATAL, non-zero, and the output produced before it survives.
+[[check]]
+kind = "contains"
+stage = "1 floor"
+file = "examples/fatal.nvs"
+args = ["--fault-inject=helper-panic"]
+exit = "nonzero"
+stderr_contains = ["FATAL"]
+stdout_contains = ["start"]
+
+# --dump-asm prints generated code instead of running, the way --dump-ir already does.
+[[check]]
+kind = "min-bytes"
+stage = "1 floor"
+file = "examples/arith.nvs"
+args = ["--dump-asm"]
+stream = "stdout"
+min_bytes = 200
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/nullable.nvs"
+want = [
+  "host=example.test", "user=unset", "head=4 at=1", "empty=-1",
+  "parsed=42", "refused=-1", "nullsafe=no lookup",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/match.nvs"
+want = ["letters=ABCF", "passes=2", "sum=289", "tier=marginal"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/core.nvs"
+want = ["evens=5", "PEAR|APPLE|FIG|BANANA", "fig,pear,Apple,banana", "a+b+c", "007", "Nvs runs"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/report.nvs"
+want = ["the...3", "quick.1", "brown.1", "fox...2", "lazy..1", "dog...1", "distinct=6"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/text.nvs"
+want = [
+  "tidy=[The Quick,  brown FOX]", "words=4", "slug=the-quick-brown-fox",
+  "id=4711 region=eu", "digits=3", "wrapped=one two/three/four",
+  "reversed=desserts", "formatted=fox has 2", "where=12", "before=The Quick",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/numbers.nvs"
+want = [
+  "abs=7", "clamp=10", "gcd=12", "intDiv=3", "hex=beef", "back=48879",
+  "root=1.5", "even=2", "money=1,234,567.89", "pi=3.1416",
+  "total=24.94", "sum=14", "max=5",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/dates.nvs"
+want = [
+  "start=2024-02-28 23:30", "nextDay=2024-02-29", "nextMonth=2024-03-28",
+  "endOfMonth=2024-02-29", "later=2024-02-29 01:30", "spanSeconds=7200",
+  "duration=5400", "berlin=2024-02-29 02:30",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/json.nvs"
+want = [
+  "{\"name\":\"ada\",\"age\":36,\"is_admin\":true}",
+  "decoded=grace/45",
+  "{\"a\":1,\"b\":2}",
+  "[1,2,3]",
+  "valid=yes",
+  "malformed rejected",
+  "issues=3",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/collect.nvs"
+want = [
+  "set=2", "weight=3", "absent=-1",
+  "sha256=df017cddffe5fa40586964af45de579a4d8a07ebb3d5ade58962fa28a12943d9",
+  "base64=bnZz", "dice=5", "uuid=valid",
+  "path=srv/app/index.nvs", "stem=index", "ext=nvs",
+  "queryKeys=a,b,c", "rows=2", "first=figx2",
+  "email=valid", "captured=[inner]",
+]
+
+# The previous goal's own guard tests, carried whole. These are the floor's other half: the program
+# fixtures above prove what a program prints, and these prove the rules underneath it -- ADR 0090's
+# equality rows, 0094's visibility, 0087's bidi, 0061's autoload, and every measured invariant items
+# 10-22 of that goal bought (the packed array, the stack limit, the string layout, the allocation seam).
+#
+# Split by crate rather than by topic because `tools/loop.py` memoizes an identical `args` list onto one
+# cargo run: naming a crate twice in this file costs nothing.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-syntax (carried)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "an_unterminated_bidi_control_is_rejected_in_every_source_span",
+  "a_rejected_equality_spelling_is_a_compile_error",
+  "an_autoload_declaration_parses",
+  "a_member_without_visibility_is_a_compile_error",
+  "a_bare_set_visibility_is_a_compile_error",
+  "a_class_body_var_names_the_missing_visibility",
+  "a_plain_constructor_parameter_needs_no_visibility",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-hir (carried)"
+args = ["test", "-p", "nvs-hir"]
+tests = ["an_autoload_declaration_resolves_a_name_to_its_file"]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (carried)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_disjoint_equality_does_not_compile",
+  "an_equality_null_test_narrows",
+  "a_literal_type_atom_is_checked",
+  "a_private_member_is_refused_outside_its_class",
+  "a_stringable_parameter_can_call_to_string",
+  "two_arrays_do_not_combine_with_plus",
+  "a_class_type_still_refuses_the_nullable_conversion",
+  "a_try_parse_answers_the_nullable_of_its_class",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-ir (carried)"
+args = ["test", "-p", "nvs-ir"]
+tests = ["a_secret_equality_lowers_to_the_constant_time_helper"]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-runtime (carried)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "equal_strings_compare_as_text_and_never_as_numbers",
+  "equal_arrays_compare_ordered_and_element_wise",
+  "equal_objects_compare_by_identity",
+  "the_four_numeric_representations_are_one_domain",
+  "an_integral_float_past_two_to_the_53_hashes_with_both_of_its_readings",
+  "the_release_profile_checks_integer_overflow",
+  "a_list_shaped_array_holds_no_index_map",
+  "an_integer_subscript_allocates_no_key",
+  "a_non_sequential_key_degrades_the_packed_array",
+  "both_representations_answer_every_primitive_alike",
+  "appending_into_spare_capacity_allocates_nothing",
+  "an_n_ary_concatenation_allocates_one_buffer",
+  "an_immortal_string_is_never_written_freed_or_allocated_for",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-codegen (carried)"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "a_function_entry_checks_the_stack_limit",
+  "a_leaf_function_under_the_slack_emits_no_stack_check",
+  "a_runaway_recursion_reports_a_limit_rather_than_faulting",
+  "stack_probes_are_enabled",
+  "an_integer_subscript_reaches_the_packed_form_from_compiled_code",
+  "a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (carried)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "core_uri_declares_no_is_valid_member",
+  "a_try_parse_is_its_own_class_parse_made_nullable",
+  "no_member_spells_a_banned_non_throwing_variant",
+  "two_uris_compare_by_normalized_components",
+  "a_parsed_uri_round_trips_through_its_own_text",
+  "no_member_writes_its_own_allocation_guard",
+  "a_one_parameter_callback_synthesizes_no_key",
+  "a_sort_that_renumbers_builds_no_keys",
+  "a_str_member_allocates_its_result_once",
+  "no_member_revalidates_a_string_argument",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- Stage 0's item list as one program. Separate from Stage 0 so the ledger tells "the unit
+# guards are green" apart from "the program runs".
+#
+# `mixed=2.5`: ADR 0007 § 4's promotion, item 1. `avg=3.5` and `whole=two`: integer division as a union,
+# item 2. `guarded=overflow`: item 3, over i64::MAX. `counted=5`: item 7, both positions. `bits=22` and
+# `not=-1`: item 4, five binary rows plus the unary one, four of them reached through their compound
+# spelling. `pow=1048576`: item 5. `cmp=-1,0,1`: item 6.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/operators.nvs"
+want = [
+  "mixed=2.5", "avg=3.5", "whole=two", "guarded=overflow",
+  "counted=5", "bits=22", "not=-1", "pow=1048576", "cmp=-1,0,1",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- control flow and calls. Two fixtures, because the two halves share no file set: `control.nvs`
+# is `control.rs`/`exception.rs`/`generator.rs`, `callable.nvs` is `call.rs`/`closure.rs`/`mod.rs`.
+#
+# `control.nvs`: `digits` is item 9's `do`/`while`, `scan` item 10's `break 2`, `label` item 11's two-
+# representation ternary, the two `cleanup` lines item 12 (the second reached through a `catch` body that
+# throws), and `closed` before `taken=3` is item 13 -- the generator is abandoned by the `break` and runs
+# the `finally` it is suspended inside, where PHP runs it.
+#
+# `callable.nvs`: `direct` is item 15, `spread`/`named` item 16, `elements` item 17, `byref` item 18 (the
+# second read is in the SAME statement as the call, which is what the copy-back at the enclosing statement
+# gets wrong), `scaled` item 20.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/control.nvs"
+want = [
+  "digits=01234", "scan=1235", "label=0",
+  "cleanup return", "handled=handled",
+  "cleanup rethrow", "rethrown=second",
+  "closed", "taken=3",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/callable.nvs"
+want = [
+  "twice=10", "direct=13", "spread=10", "named=hi!hi!",
+  "elements=4", "byref=7 then 7", "scaled=60",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-ir (control flow)"
+args = ["test", "-p", "nvs-ir"]
+tests = [
+  # Item 9's `do`/`while` and item 12's `finally`-through-a-throwing-`catch` are owned by the
+  # conformance cases of the same names, already listed in the `nvs-suite` check below: `nvs-ir` has
+  # no lowering test for either, and the observable order is what both guards were about.
+  "a_multi_level_break_leaves_the_loop_its_level_names",
+  "a_ternary_with_mismatched_branch_types_joins_at_the_tagged_representation",
+  "an_abandoned_generator_resumes_into_the_finally_it_is_suspended_inside",
+  # Item 14. The first now covers the two producers that used to release only on the normal edge --
+  # a `match` subject and its labels, and an `unset` target's rendered key; the second is the one
+  # shape the owned-temporaries stack still misses, named in its own field doc.
+  "an_inline_producer_releases_its_value_on_the_throw_path",
+  "a_transferred_argument_is_released_when_a_later_one_throws",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-ir (calls)"
+args = ["test", "-p", "nvs-ir"]
+tests = [
+  "a_closure_is_called_through_the_variable_holding_it",
+  "a_named_argument_lowers_to_its_declared_position",
+  "a_spread_argument_lowers_to_the_positions_it_fills",
+  "a_spread_argument_through_a_callable_becomes_one_array",
+  "a_spread_array_element_lowers",
+  "a_reference_argument_lowers_in_any_expression_position",
+  "a_closure_capturing_a_by_reference_parameter_snapshots_the_cell",
+  "a_foreach_by_reference_writes_through_to_its_array",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (calls and loops)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 16's half, which lands FIRST -- a lowering with no resolved per-argument type is how that
+  # gap got here in the first place (loop-goal.md § Standing decisions).
+  "a_named_argument_is_checked_against_its_own_parameter",
+  # A spread fills only a variadic tail (rule 5 of `map_arguments`), so "the positions it fills" IS that
+  # tail's element type -- the test the crate has, under the name the rule gave it.
+  "a_spread_argument_is_checked_against_the_tail_element_type",
+  # The same two spellings through a `callable`, which has no signature to map them against at all:
+  # ADR 0031 § 1 refuses the name and admits the spread.
+  "a_named_argument_through_a_callable_is_refused",
+  "a_spread_argument_through_a_callable_is_accepted",
+  # Item 10's diagnostic half landed as `nvs_types::locals::check_exit_level` (`E0475`), and no Rust
+  # test names it -- `a-break-level-that-names-no-target-is-a-diagnostic.nvst` in the `nvs-suite`
+  # check below owns it instead, over all five spellings the diagnostic refuses.
+  # Item 17's other half, refused by decision rather than built (ADR 0031 § 2).
+  "an_array_element_passed_by_reference_is_diagnosed",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- assignment targets, `mixed`, and the rest of the conversion table.
+#
+# `hits=2,5` is item 21, `grid=93` item 22, `mixedSum`/`elem`/`flag` the three shapes of item 24 (arith-
+# metic on a tag, a subscript through one, and ADR 0035's truthy table over a `?bool`), `top=point` item
+# 25, `asInt`/`asString` and `converted=3` item 26's three rows -- of which `asInt` is a *branch*,
+# ADR 0007 § 2's grid giving a `bool` source the "anything -> `string`" row and no numeric one, so
+# `$yes as int` is `E0708` where it is written and the fixture spells the predicate out loud.
+# `converted=3` is the `array<T>` -> `array<U>` row, which that same grid makes a per-element *check*
+# rather than a conversion -- so the fixture converts to `array<mixed>`, the one target every tag
+# satisfies, and `as array<string>` over an `array<int>` would throw at element 0 instead.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/targets.nvs"
+want = [
+  "hits=2,5", "grid=93", "mixedSum=5", "elem=2", "flag=no",
+  "top=point", "asInt=1 asString=1", "converted=3",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-ir (targets and tags)"
+args = ["test", "-p", "nvs-ir"]
+tests = [
+  # A static property as an assignment target, the nested element write and the tag-dispatched
+  # arithmetic are owned by the conformance cases of those names in the `nvs-suite` check below --
+  # each landed with no `nvs-ir` test naming it, and each is an observable answer rather than a
+  # lowering shape.
+  "a_mixed_condition_dispatches_the_truthy_table_on_the_tag",
+  "a_subscript_through_a_tagged_base_lowers",
+  "the_object_top_type_erases_to_the_pointer_a_class_does",
+  # ADR 0007 § 2's `array<T> as array<U>` row -- an agreement over its four spellings, the free
+  # `array<mixed>` target included, since that one is asserted by a count and not by a line.
+  "an_array_conversion_walks_its_elements",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (targets and refusals)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 24 -- a `mixed` base defers the subscript to its tag (ADR 0036 § 4), and every base whose
+  # declared type has already answered keeps `E0482` where it is written.
+  "an_array_index_through_a_mixed_base_defers_to_the_tag",
+  "an_array_index_through_a_scalar_base_is_still_refused",
+  # Item 23 -- every ADR 0046 § 2 compile-time constant is a legal *property* default, not just a
+  # literal and `[]`. The parameter half is still a literal only, and `nvs_types::defaults`'s own
+  # module doc owns why (the emitter would hand a `ConstArg::Int` to an enum-typed IR position).
+  "a_property_default_accepts_every_compile_time_constant",
+  # Item 28 -- a `Core` class stringifies where the spec gives it a `toString`, and is diagnosed at
+  # the `echo` where it does not. Never a panic below.
+  "a_core_class_stringifies_exactly_where_the_registry_says_so",
+  # Item 26 -- both halves of ADR 0007 § 2's `bool` source at once, since either alone reads as an
+  # accident. `nvs-ir` has nothing to test: the row that runs is `Helper::BoolToString`, already
+  # pinned by `conversions-that-succeed.nvst`, and the refused one never reaches that crate.
+  "a_bool_converts_to_a_string_and_not_to_an_int",
+  # ADR 0007 § 4's arithmetic table closed at the operand end (`E0716`) and `%`'s missing `float`
+  # row (`E0717`) -- together, what `emit_binop`'s operator catch-all used to be reachable through.
+  "an_arithmetic_operand_with_no_row_is_a_compile_error",
+  "a_float_modulo_is_a_compile_error",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the M4 features with no slice at all. Each is proved by a `.nvst` case rather than by an
+# examples fixture: they are corpus-visible behaviour, Stage 8 counts the corpus, and the case is the
+# artefact M4's own Verify paragraph asks for.
+# ---------------------------------------------------------------------------------------------------
+
+# Items 30, 31, 32, 34 and 35 landed as `.nvst` cases rather than as cargo tests, so the two blocks
+# that named them by cargo test name are gone and the cases below own them -- see
+# guard-name-debt.md's cause 2. What is left here is the one item whose assertion a case cannot make.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (dump)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # Item 33 -- ADR 0092's one record and its renderings. The record's own doc comment says why this
+  # half cannot be a case: `--EXPECT-ERROR--` is how the runner is told a case should *fail*, so a
+  # suite has no way to read standard error off a successful run. ADR 0033's redaction row, which
+  # that ADR's Verification section defers to M4 by name, is a case and is listed below.
+  "a_dump_writes_to_the_diagnostic_channel_and_not_to_the_output",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-codegen (fatal locals)"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  # Item 36 -- a THROWN releases the frame's locals and a FATAL does not. The valgrind sweep cannot
+  # see this: `examples/fatal.nvs` is on its skip list, because it exits non-zero by design.
+  "a_fatal_releases_the_frames_locals",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the checker and the front end. Nothing here is a panic below the checker; each is a program
+# the checker accepts and should not, or refuses without saying which rule.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (narrowing and reachability)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 37 -- three of ADR 0007 § 6's four spellings, and the residue no longer restricted to a class.
+  "an_instanceof_test_narrows_its_subject",
+  "a_comparison_against_a_literal_narrows_its_subject",
+  # Item 38. The `match (true)` arm is a case rather than a cargo test, and so is the reachability
+  # half's accepting side. The refusal half landed as `E0739`: `nvs_types::returns` decides whether a
+  # path reaches the end of a body, and `tests/returns.rs` pins it and every shape it must not report.
+  "a_non_void_function_must_return_on_every_path",
+  "a_switch_with_default_and_a_break_in_every_case_assigns_definitely",
+  "a_trys_finally_assignment_reads_fine_after_it",
+  # Item 39. The refusal lives in `expr/calls.rs`'s private
+  # `reject_arguments_to_implicit_constructor`, and `tests/classes.rs` now calls it.
+  "a_class_constant_folds_and_an_enum_case_narrows",
+  "an_implicit_constructor_is_held_to_zero_arguments",
+  # Item 40
+  "a_disjoint_equality_does_not_compile",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-syntax (the last unparsed shapes)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  # Item 42 -- each of these parses or is refused by a diagnostic that names its rule. A generic
+  # parse error is not a refusal; loop-goal.md § What "no holes" means says why.
+  "a_grouped_use_parses_or_names_the_rule_that_refuses_it",
+  "goto_is_diagnosed_but_still_parses",
+  "shape_type_parses_in_every_declaration_slot",
+  "an_enum_case_named_with_a_keyword_parses",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- ADR 0079's `#[Test]`. Last, because it is the only stage that adds a surface rather than
+# closing a hole, and because every assertion in its roster is written against Stage 0's operator table.
+# `.nvst` and `#[Test]` answer different questions and are never unified (that ADR § 23); `nvs-test` is
+# built and is not this item.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the test table)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_test_attribute_builds_a_table_of_its_cases",
+  "a_fixture_attribute_builds_a_roster_keyed_by_what_it_returns",
+  "each_test_with_is_a_row_folded_in_parameter_order",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the corpus and the guards. `nvs test <dir>` must exit 0 AND print an "N passed, M failed"
+# summary: a suite that silently collected nothing exits 0 too. These run once, not per leg.
+#
+# `cases` is the `.nvst` twin of `cargo-named`: each file must exist, run, and not be skipped. Most do
+# not exist yet -- writing one is how an item above finishes.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 750
+cases = [
+  # Stage 0
+  "tests/conformance/lang/every-arithmetic-row-promotes-the-narrower-operand.nvst",
+  "tests/conformance/lang/an-integer-division-is-exact-only-where-it-divides.nvst",
+  "tests/conformance/lang/an-integer-overflow-throws-rather-than-wrapping.nvst",
+  "tests/conformance/lang/the-bitwise-operators-answer-over-every-row.nvst",
+  "tests/conformance/lang/an-increment-answers-the-same-in-either-position.nvst",
+  "tests/conformance/lang/a-spaceship-orders-every-scalar-the-relational-operators-do.nvst",
+  # Stage 3
+  "tests/conformance/lang/a-do-while-runs-its-body-before-its-condition.nvst",
+  "tests/conformance/lang/a-break-leaves-the-level-it-names.nvst",
+  "tests/conformance/lang/a-break-level-that-names-no-target-is-a-diagnostic.nvst",
+  "tests/conformance/lang/a-ternarys-two-arms-widen-to-one-value.nvst",
+  "tests/conformance/error/a-finally-runs-when-its-catch-body-throws.nvst",
+  "tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst",
+  "tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.nvst",
+  "tests/conformance/lang/a-named-argument-binds-by-name-and-a-spread-by-position.nvst",
+  "tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.nvst",
+  "tests/conformance/array/a-foreach-by-reference-writes-through-to-its-array.nvst",
+  # Stage 4
+  "tests/conformance/array/a-nested-element-write-separates-only-the-inner-array.nvst",
+  "tests/conformance/class/a-static-property-is-written-and-read-through-its-class.nvst",
+  "tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst",
+  "tests/conformance/lang/an-operator-agrees-whether-its-operand-is-typed-or-tagged.nvst",
+  "tests/conformance/lang/as-bytes-over-a-tagged-operand-is-decided-by-its-runtime-tag.nvst",
+  "tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.nvst",
+  # Stage 5
+  "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst",
+  "tests/conformance/class/a-delegated-interface-forwards-to-the-object-it-names.nvst",
+  # ADR 0043 § 4's other half: the forward exists for every member, so a field that cannot answer one
+  # of them is refused where the `by` is written rather than at the call.
+  "tests/conformance/class/a-delegate-field-must-be-able-to-answer-the-interface.nvst",
+  # ADR 0046 §§ 4-5 match a payload *structurally* rather than by the attribute's name, so the case
+  # is named for the shape it satisfies; "its own type" was the nominal reading that ADR refuses.
+  "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
+  # The refusal half of the same rule, and the only place the explicit call-site type argument
+  # `Core\Attributes::get<T>(…)` is both accepted and refused in one program: § 5's two-match
+  # ambiguity is E0728 here, decided at compile time rather than by a test run.
+  "tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst",
+  # ADR 0092's two halves, which one `.nvst` cannot hold: § 3's plaintext view over every node kind,
+  # and § 5's redaction row, whose value never reaches the record at all.
+  "tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst",
+  "tests/conformance/core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst",
+  "tests/conformance/lang/inline-html-at-file-scope-is-echoed-in-place.nvst",
+  "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst",
+  # ADR 0021 § 3's value form, which is a separate program from the statement form above.
+  "tests/conformance/lang/a-required-file-hands-a-value-back.nvst",
+  # Stage 6. Four rules whose assertion is a program rather than a checker unit test, so the
+  # `cargo-named` entries that used to name them are gone -- see guard-name-debt.md's cause 2.
+  # ADR 0007 § 6's fourth narrowing spelling, and the reachability half that a body can satisfy:
+  "tests/conformance/lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst",
+  "tests/conformance/lang/a-for-body-that-always-returns.nvst",
+  "tests/conformance/lang/a-method-returns-early-from-inside-a-loop.nvst",
+  "tests/conformance/class/a-promoted-constructor-parameter-is-a-property.nvst",
+  # ADR 0007 § 3: a key is a `string` and nothing else, and a `&` binding agrees on the element type.
+  "tests/conformance/lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst",
+  "tests/conformance/array/a-by-reference-binding-needs-a-variable-and-the-element-type.nvst",
+  # Stage 7. ADR 0079's surface landed -- `#[Test]`, `#[Fixture]` and `#[TestWith]` are on
+  # `nvs_types::derive::ATTRIBUTES`, `Core\Test` is `crate::test::CLASS` in `nvs_stdlib::registry`,
+  # and the runner reads the table back -- so these five are the cases that own what the deleted
+  # `nvs-stdlib (the assertion roster)` check named in Rust: § 5's ledger, § 5's catchable failure,
+  # and § 22's three renderings (human by default, then the two machine twins).
+  "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst",
+  "tests/conformance/core/test-three-assertions-agree-on-what-reaches-the-ledger.nvst",
+  "tests/conformance/core/a-failed-assertion-is-caught-by-name.nvst",
+  "tests/conformance/lang/a-test-run-reports-a-versioned-json-document.nvst",
+  "tests/conformance/lang/a-test-run-reports-the-junit-xml-ci-ingests.nvst",
+  # Stage 0a -- ADR 0107. The 14 cases that spelled `&$` moved to `inout` with their expected output
+  # unchanged, which is the check that ADR 0107 changed no semantics; this one pins the new shapes.
+  "tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.nvst",
+  # Item 29's two write shapes, both cause-2 moves out of `nvs-types (targets and refusals)`: each
+  # refusal was already landed in `expr/assign.rs` with a case pinning every spelling that reaches
+  # it, and a multi-diagnostic program is what asserts them, not a checker unit test.
+  "tests/conformance/class/a-nullsafe-assignment-target-is-refused.nvst",
+  "tests/conformance/array/an-element-write-through-a-hooked-property-is-refused.nvst",
+  # Item 27's pair, and one case owns both: ADR 0066 § 3 is refused at both ends -- `E0709` for a row
+  # that cannot fail, `E0708` for a pair naming no row at all -- and a case asserting one end alone
+  # cannot see the table drift open at the other.
+  "tests/conformance/lang/the-nullable-conversion-table-is-closed-at-both-ends.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 165
+cases = [
+  # The rows PHP itself is the only authority on. Each is an item above whose answer is "whatever
+  # PHP prints", and each is worth a differential case rather than a frozen one for that reason.
+  "tests/differential/lang/an-integer-division-matches-phps.nvst",
+  "tests/differential/lang/the-bitwise-operators-match-phps.nvst",
+  "tests/differential/lang/a-mixed-numeric-promotion-matches-phps.nvst",
+  "tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst",
+  "tests/differential/lang/a-named-and-spread-argument-match-phps.nvst",
+  "tests/differential/lang/a-reference-argument-matches-phps.nvst",
+]
+
+# A named test must both EXIST and pass -- `cargo test` is green on a suite that never ran the guard.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (Part I)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_one_member_has_a_conformance_case",
+  "every_part_one_spec_member_is_registered",
+]
+
+# The mechanical end gate, in two halves that are blind in different places.
+#
+# The first reads `nvs-ir`'s and `nvs-codegen`'s own sources for refusal sites -- a panic naming an
+# unsupported shape -- and fails naming every one that is not on the allowlist frozen in the test. THE
+# ALLOWLIST MAY NEVER GROW: every entry is a bullet in loop-goal.md § Standing decisions, and adding one
+# to make a run go green is the single move this goal forbids outright. A count of conformance cases is a
+# proxy for "the language is finished"; this is not.
+#
+# The second exists because the first counts *arms* rather than *shapes*, and one catch-all arm is one
+# site however many shapes fall into it. `lower_checked_ty` was exactly that: one site, claimed by item
+# 25 because item 25 anchors that file, while three shapes item 25 is not about were reaching it and
+# panicking a compiler that had type-checked them. `type_atoms.rs` walks every atom ADR 0007 § 3 spells
+# through both declaration positions and names the shapes, so a hidden one is a row rather than a number.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-ir (no refusal left)"
+args = ["test", "-p", "nvs-ir"]
+tests = [
+  "every_refusal_is_a_diagnostic_or_decided",
+  "every_spellable_type_reaches_a_diagnostic_or_an_ir",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the named guard tests, carried whole from the previous goal.
+# ---------------------------------------------------------------------------------------------------
+
+# `--test perf_guards` and not the whole package, which is a MEASUREMENT and not a narrowing. The
+# release profile is `lto = "thin"` with `codegen-units = 1`, so a one-line change to any crate this
+# reaches costs a thin-LTO relink of every binary the package holds -- measured on this tree, after
+# touching `nvs-runtime`: 200s for the package's five test binaries, 133s for this one. Every `#[test]`
+# in `perf_guards.rs` carries `#[cfg_attr(debug_assertions, ignore)]`, so the two halves partition the
+# package exactly: this one runs the guards and skips nothing, the debug one runs everything else and
+# skips the guards.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "abi-probe"
+args = ["test", "--release", "-p", "nvs-abi-probe", "--test", "perf_guards"]
+tests = [
+  "a_typed_arithmetic_loop_contains_no_call",
+  "a_typed_arithmetic_loop_stays_in_the_native_cost_class",
+  "a_refcount_one_array_member_mutates_in_place",
+  # Carried from the previous goal's Stage 0, into this block rather than beside it: the two used to
+  # share one cargo run only by having word-for-word identical `args`, and one list cannot diverge.
+  "an_allocation_round_trip_stays_in_the_pooled_cost_class",
+  # Item 30 lands `PropertyObserver`; this is the guard that says a class WITHOUT one still pays
+  # nothing for its existence, which is the whole shape of ADR 0014's decision.
+  "a_class_without_a_property_observer_costs_nothing_extra",
+  "a_grapheme_index_costs_more_than_a_code_point_index",
+]
+
+# The architecture invariants ADR 0003 rests on -- a result and a throw travelling up through many JIT
+# frames, a runtime panic contained and reported, a helper suspending with JIT frames live above it, and
+# native unwinding through those frames still being unavailable. Correctness, not cost, so debug is the
+# right profile and not merely the cheap one: `overflow-checks` and `debug_assert!` are on.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "abi-probe (invariants)"
+args = ["test", "-p", "nvs-abi-probe"]
+tests = [
+  "a_throw_propagates_through_every_frame",
+  "a_runtime_panic_is_contained_and_reported",
+  "a_helper_can_suspend_with_jit_frames_live_above_it",
+  "native_unwinding_through_jit_frames_is_still_unavailable",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-codegen"
+args = ["test", "-p", "nvs-codegen"]
+tests = ["a_second_script_runs_after_a_contained_helper_panic"]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-runtime"
+args = ["test", "-p", "nvs-runtime"]
+tests = ["an_acyclic_object_graph_releases_every_allocation"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the four attribute passes. One file set: a name on `nvs_types::derive::ATTRIBUTES`, a
+# recognizing pass, and a table the compiler carries. `#[Json\Derive]` is already on disk and is the
+# shape to copy.
+#
+# Every test named below must EXIST and pass. Most do not exist yet; writing one is how the loop finishes
+# its item. Do not rename one to something already green.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the derive gaps)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 2 -- ADR 0071 §§ 2 and 7, the three gaps derive.rs's own module doc lists. Each is a diagnostic
+  # at the DECLARATION; a field with no decoder refused at the `decodeAs<T>` that runs is the bug.
+  "a_derive_field_whose_type_has_no_codec_is_refused_where_it_is_declared",
+  "a_class_that_hand_writes_both_codec_halves_is_refused",
+  "a_derive_on_a_class_with_no_declared_properties_is_refused",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the route table)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 3 -- ADR 0077 §§ 1-3, 5.
+  "a_route_table_is_built_from_the_program_enumeration",
+  "a_route_parameter_takes_its_type_from_the_method_that_declares_it",
+  "a_duplicate_route_is_a_diagnostic",
+  "a_path_capture_with_no_matching_method_parameter_is_a_diagnostic",
+  "an_unknown_literal_url_name_is_a_diagnostic",
+  # Item 4 -- ADR 0102 §§ 3, 4, 6. Four more errors on the same pass.
+  "an_optional_capture_outside_the_last_position_is_a_diagnostic",
+  "an_optional_capture_bound_to_a_parameter_with_no_default_is_a_diagnostic",
+  "a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic",
+  "a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the command table)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # Item 6 -- ADR 0086 § 6. The TABLE only; `Core\Command::run` is goal 4's.
+  "a_command_table_is_built_from_the_program_enumeration",
+  "a_duplicate_command_name_is_a_diagnostic",
+  "two_options_sharing_a_spelling_are_a_diagnostic",
+  "an_option_on_a_parameter_with_no_conversion_from_string_is_a_diagnostic",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/routes.nvs"
+want = [
+  "GET /users/{id} -> Users::show",
+  "GET /users -> Users::index",
+  "POST /users -> Users::create",
+  "url=/users/7",
+  "absolute=https://example.test/users/7",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/commands.nvs"
+want = ["greet <name> [--loud]", "migrate [--pretend]", "commands=2"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- ADR 0057's intrinsic folding. The soundness rule is the item: the prepared path and the
+# runtime path are ONE implementation, so a fold can produce an earlier answer and never a different one.
+# The pair of cases below is what asserts that -- the same malformed literal, once as a compile error and
+# once, behind a variable, as the identical runtime throw.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (folding at the call site)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_literal_date_format_is_validated_while_checking",
+  "a_literal_regex_pattern_is_prepared_while_checking",
+  "a_literal_format_template_checks_its_placeholder_count_and_types",
+  "a_literal_uri_is_validated_while_checking",
+  # The closed list is closed: a member not on it folds nothing however literal its argument.
+  "a_member_outside_the_intrinsic_list_is_never_folded",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (one implementation, two entry points)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = ["a_prepared_literal_and_its_runtime_twin_share_one_implementation"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/intrinsics.nvs"
+want = ["2026-08-28", "matched", "total: 42", "host=example.test"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- ADR 0085's emitter. `nvs build --openapi` and `nvs api diff` are one slice: the diff's
+# classification is mechanical over two emitted documents, so it costs a comparison rather than a design.
+#
+# `kind = "command"` runs an arbitrary argv and checks its exit code and output. `{nvs}` is substituted
+# with the CLI the leg already built, so this does not pay for a second build.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "command"
+stage = "1 floor"
+name = "nvs build --openapi emits 3.1"
+argv = ["{nvs}", "build", "--openapi", "examples/routes.nvs"]
+want = ['"openapi": "3.1', '"/users/{id}"', '"operationId"']
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli (determinism and the diff)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # § 3 -- deterministic means byte-identical, and the cheapest way for it not to be is a hash map.
+  "an_openapi_document_is_byte_identical_across_two_emissions",
+  # § 2 -- `#[Api]` supplies only what the types cannot say, and its four contradictions are errors.
+  "an_api_attribute_contradicting_its_own_signature_is_a_diagnostic",
+  # § 4 -- the gate: breaking, compatible, or no change, decided mechanically over two documents.
+  "an_api_diff_classifies_a_removed_route_as_breaking",
+  "an_api_diff_classifies_an_added_optional_parameter_as_compatible",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the depth pass and the qualifier classification. This is where the goal spends most of its
+# sessions, and it is the fallback whenever another stage's group is blocked.
+#
+# `min_passing` is a corpus figure and `cases` is the worklist; a check whose worklist IS its case list
+# omits the threshold. Both are here because this stage is measured both ways: the floor test says every
+# class is exercised, and the count says the corpus grew with the members rather than around them.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (the coverage gates)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # Carried from M4's floor, and they stay: registered is the precondition for everything below.
+  "every_part_one_member_has_a_conformance_case",
+  "every_part_one_spec_member_is_registered",
+  # Item 10 -- the FLOOR, not the median. A median rises by writing more cases for members that already
+  # have some, which is the metric a corpus grows around rather than into.
+  "every_core_class_has_a_conformance_floor_of_three",
+  # Item 12 -- ADR 0088 § 2. An unclassified `string`/`bytes` parameter refuses `tainted`, and this test
+  # is the "fails on any member that ships without one" half.
+  "every_member_parameter_carries_a_qualifier_classification",
+  # Item 11 -- every `Fault::thrown` site is caught by a case, or carries a comment saying no program
+  # reaches it. Judged per site; the test only asserts that one of the two is true of each.
+  "every_error_path_is_asserted_or_declared_unreachable",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 950
+cases = [
+  # Stage 0
+  "tests/conformance/core/program-implementing-enumerates-every-implementor.nvst",
+  "tests/conformance/reject/an-implementor-without-a-no-argument-constructor-is-named.nvst",
+  # Stage 2. ADR 0071's three gaps, each refused where the class is declared.
+  "tests/conformance/reject/a-derive-field-with-no-codec-is-refused-at-its-declaration.nvst",
+  "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst",
+  "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
+  "tests/conformance/core/a-command-table-answers-its-own-help.nvst",
+  # Stage 3. The pair that asserts the soundness rule -- one malformed literal, two entry points.
+  "tests/conformance/core/a-literal-intrinsic-is-validated-while-checking.nvst",
+  "tests/conformance/reject/a-malformed-literal-intrinsic-is-a-compile-error.nvst",
+  # Stage 6.
+  "tests/conformance/core/a-repeated-grapheme-count-agrees-with-the-first.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 200
+cases = [
+  # The rows PHP itself is the only authority on, in the domains this goal audits.
+  "tests/differential/lang/every-str-member-with-a-php-twin-agrees.nvst",
+  "tests/differential/lang/every-arr-member-with-a-php-twin-agrees.nvst",
+  "tests/differential/lang/every-math-member-with-a-php-twin-agrees.nvst",
+  "tests/differential/lang/a-date-format-string-renders-as-phps-does.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the string header. ADR 0009 § 2's cached grapheme count, and the O(1) boundary correction a
+# concatenation needs at the seam.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-runtime (the cached count)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_repeated_grapheme_count_is_answered_from_the_header",
+  "a_concatenation_corrects_the_boundary_without_rescanning",
+  # The cache may never disagree with a fresh scan -- the failure mode is a wrong index, not a slow one.
+  "a_cached_count_equals_a_fresh_scan_over_the_corpus",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the migration rows. The parity program's own measure, raised one goal at a time.
+#
+# EVERY FLOOR IN THIS PROGRAM IS MEASURED, NOT GUESSED, AND THIS COMMENT IS THE ONE HOME FOR HOW.
+# The 860 names `check-migration.py --report` listed on 2026-08-29 were attributed to the goal that
+# owns each family, by prefix, against the 291 already classified (25% of 1151):
+#
+#     goal 1  strings, arrays, numbers, dates, regex, encoding, JSON, paths     108 names   -> 35%
+#     goal 2  serialize, unserialize, the task surface                            8 names   -> 35%
+#     goal 3  ini_*, gc_*, opcache_*, set_time_limit, memory_*                   34 names   -> 38%
+#     goal 4  streams, files, hashes, reflection, output, process, crypto       458 names   -> 78%
+#     goal 5  mysqli, pg_*, sqlite3, PDO                                        227 names   -> 98%
+#     goal 6  sessions, headers, request input                                   33 names   -> 100%
+#
+# THE DENOMINATOR IS 1151 AND NOT 925 because the oracle build gained `mysqli`, `pgsql` and `sqlite3`
+# on 2026-08-29 and the inventory was regenerated: +226 functions, +13 types, none removed. Two of this
+# program's floors were wrong by more than ten points before that, in opposite directions -- goal 5 owns
+# a fifth of the whole table now, where against the old build it owned almost nothing.
+#
+# The prefix pass cannot be exact: a family it attributes to one goal may turn out to belong to another.
+# So each floor is set two to four points BELOW its modelled figure, which is what makes it a floor
+# rather than a prediction -- a boundary guessed wrong must not fail a run. A goal that lands its domains
+# and comes out higher raises the next goal's floor in the same commit, and says so.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "command"
+stage = "1 floor"
+name = "check-migration at 33%"
+argv = ["python", "tools/check-migration.py", "--min", "33"]
+want = ["inventory:", "classified:"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- THE KEYSTONE. No task, no isolate and no `Core\Task` member is written until this is green.
+# Four goals are written against the stream item 4 builds, so a shape that is wrong here is wrong four
+# times.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-host (the scheduler)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "one_core_runs_one_scheduler_and_a_task_never_migrates",
+  "a_refcount_is_still_non_atomic_under_the_scheduler",
+  "many_tasks_can_be_created_and_driven",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-host (the parking stream)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  # The whole program rests on this pair: the caller sees a blocking `read`, and the core does not block.
+  "a_socket_read_that_would_block_parks_its_coroutine",
+  "a_parked_coroutine_resumes_when_its_descriptor_is_ready",
+  "a_core_serves_another_task_while_one_is_parked",
+  # It is a plain `std::io` stream, which is the entire reason goal 5's drivers and rustls compose.
+  "a_stream_satisfies_std_io_read_and_write",
+  "a_rustls_session_streams_over_it_unmodified",
+  # Item 5 -- a sleep and a deadline are one mechanism.
+  "a_timer_and_a_deadline_are_the_same_wheel",
+  # Item 6 -- ADR 0106 § 6's bound is per worker and never grows with requests served.
+  "a_blocking_call_goes_to_a_pool_bounded_at_twice_the_core_count",
+  # Item 7 -- it reads state the deadline mechanism already keeps; a per-request heartbeat is the bug.
+  "the_watchdog_reports_a_wedged_worker_without_a_heartbeat",
+]
+
+# The invariant that must survive the move out of the spike and into the crate. These four are M4's and
+# stay green; the point of naming them here is that Stage 2 is where they would break.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "abi-probe (coroutine invariants)"
+args = ["test", "-p", "nvs-abi-probe"]
+tests = [
+  "a_helper_can_suspend_with_jit_frames_live_above_it",
+  "repeated_suspends_leave_the_frames_intact",
+  "a_throw_still_propagates_inside_a_coroutine",
+  "many_coroutines_can_be_created_and_driven",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3-4 -- `spawn`/`await`, the task tree, and ADR 0072's roster.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-ir (spawn and await lower)"
+args = ["test", "-p", "nvs-ir"]
+tests = ["a_spawn_lowers_to_a_task_on_the_current_core", "an_await_suspends_until_its_task_completes"]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-host (structured concurrency)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  # ADR 0072 § 4 -- the promise the whole roster is built on.
+  "no_call_returns_with_a_child_still_running",
+  "a_task_tree_dies_with_its_parent_and_leaves_no_orphan",
+  # § 5 -- native teardown runs, user code does not. The intuitive implementation is the wrong one.
+  "a_cancelled_task_runs_no_catch_and_no_cleanup_block",
+  "a_cancelled_tasks_arena_is_released",
+  # Item 11.
+  "a_bounded_channel_send_suspends_rather_than_growing",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the roster's compile-time half)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # § 1 -- what makes the heterogeneous typing possible at all, and the easiest thing to leave out.
+  "a_task_all_field_holding_a_callable_variable_is_a_compile_error",
+  "a_task_all_binds_each_fields_own_type",
+  # § 3 -- one options shape, and no `timeout` wrapper to reach for.
+  "a_limit_and_deadline_options_shape_is_the_only_spelling",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/tasks.nvs"
+want = ["all=3", "map=1,4,9,16", "deadline hit", "limit held at 2"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/channel.nvs"
+want = ["produced=8", "consumed=8", "sender suspended"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- ADR 0023's one graph copy, reached twice. Written once and reached twice is the item; two
+# implementations that agree today is the failure this stage exists to prevent.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-runtime (one walk, two carriers)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "the_boundary_copy_and_serialize_share_one_walk",
+  "a_refcount_one_value_moves_rather_than_copying",
+  "a_cyclic_value_crosses_without_hanging",
+  # § 3 -- the format is closed, versioned and self-describing, and a partial accept is the bug.
+  "bytes_that_are_not_our_format_are_refused_whole",
+  "a_class_whose_declared_properties_no_longer_match_is_refused_whole",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the sink and the qualifier)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # 01-core-library.md § 13: decode is a `tainted` sink, and the danger is type confusion, not RCE.
+  "serialize_decode_refuses_a_tainted_operand",
+  # ADR 0033 -- one check on the same walk, both carriers.
+  "a_secret_value_is_refused_at_the_boundary_unless_revealed",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/serialize.nvs"
+want = ["round-trip ok", "cycle ok", "refused: not our format", "refused: shape changed"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- ADR 0006's isolate. A task with a heap boundary, which is what Stage 2 built.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-host (the isolate boundary)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_child_cannot_read_or_write_a_parent_variable_or_static",
+  "a_child_cannot_see_the_parents_output_buffer",
+  "a_closure_a_reference_or_a_resource_is_refused_at_the_boundary",
+  "an_unresolvable_class_is_refused_at_the_boundary",
+  # Failure is a value: three different faults, one `ok = false`, parent still running.
+  "an_uncaught_throw_in_a_child_leaves_the_parent_running",
+  "a_contained_panic_in_a_child_leaves_the_parent_running",
+  "a_cancelled_parent_leaves_no_orphan_and_no_leaked_arena",
+  # Item 24 -- the first consumer of a safepoint that has been emitted since the first backend commit.
+  "a_child_is_cancelled_at_its_next_safepoint",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/isolate.nvs"
+want = ["child said hello", "ok=true", "captured=child stdout", "ok=false", "parent still running"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the testing surface the isolate unlocks. ADR 0079 §§ 2, 12, 16.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+# The `#[Test]` runner is `crates/nvs-cli/src/runner.rs`, which is the only crate that depends on
+# both `nvs-host` (the `Isolate`) and the front end that builds a test's program. `crates/nvs-test`
+# is the `.nvst` case runner and depends on neither, so it cannot ask whether a `#[Test]` method got
+# an isolate of its own -- ADR 0079 § 23's "two runners, never unified" from the tooling side.
+name = "nvs-cli (one isolate per test)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "each_test_runs_in_its_own_isolate_sharing_only_compiled_code",
+  "the_runner_owns_the_tests_task_tree",
+  "a_test_at_a_fixed_clock_reads_that_clock",
+  "a_test_with_a_seed_draws_the_same_sequence_twice",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the corpus, the numbers, and the migration floor.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 1000
+cases = [
+  "tests/conformance/task/a-spawned-task-runs-and-its-value-is-awaited.nvst",
+  "tests/conformance/task/a-task-tree-dies-with-its-parent.nvst",
+  "tests/conformance/task/a-cancelled-task-runs-no-user-code.nvst",
+  "tests/conformance/task/a-bounded-channel-suspends-its-sender.nvst",
+  "tests/conformance/task/a-deadline-is-the-only-spelling-for-a-bounded-wait.nvst",
+  "tests/conformance/reject/a-task-all-field-holding-a-callable-variable-is-refused.nvst",
+  "tests/conformance/core/a-graph-copy-round-trips-a-cyclic-value.nvst",
+  "tests/conformance/reject/serialize-decode-refuses-a-tainted-operand.nvst",
+  "tests/conformance/reject/a-secret-value-does-not-cross-a-boundary.nvst",
+  "tests/conformance/isolate/a-child-shares-nothing-with-its-parent.nvst",
+  "tests/conformance/isolate/a-childs-failure-is-a-value-not-an-exception.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 205
+
+# The cost claim M5 exists to make, and the one already-green guard it must not regress.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "abi-probe (isolation cost)"
+args = ["test", "--release", "-p", "nvs-abi-probe", "--test", "perf_guards"]
+tests = [
+  "an_os_process_costs_orders_of_magnitude_more_than_a_task",
+  "a_spawn_to_result_round_trip_stays_in_the_microsecond_class",
+  "a_coroutine_round_trip_stays_cheap",
+]
+
+# `serialize`/`unserialize` and a handful of task names is all this goal owns in the inventory, so its
+# floor rises by two points and not by ten. 1-core-depth.toml's Stage 7 comment is where the whole
+# curve is derived; nothing here restates it.
+[[check]]
+kind = "command"
+stage = "1 floor"
+name = "check-migration at 34%"
+argv = ["python", "tools/check-migration.py", "--min", "34"]
+want = ["inventory:", "classified:"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the registry and the tree. ADR 0103 is the only copy of the resolution order and every one
+# of its rules is a case; ADR 0064 § 3 is what makes a typo an error rather than a silent default.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (parsing and the block list)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_duplicate_key_in_one_file_is_refused",
+  "an_unknown_key_is_refused_naming_the_block_that_has_no_such_directive",
+  # ADR 0078 § 2 -- orthogonal to the changeability class, and conflating them is the bug it prevents.
+  "reloadability_is_a_field_of_its_own_and_not_the_changeability_class",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (the tree)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  # § 1 -- repeatable --config, else ./nvs.toml, else the shipped defaults.
+  "a_root_is_named_by_config_else_found_else_defaulted",
+  # § 2, § 3 -- include by path and by dir, one ordered stream, later wins, with both origins reported.
+  "an_include_cycle_is_refused_with_the_chain_named",
+  "a_key_set_in_two_files_resolves_to_the_later_one_with_both_origins_reported",
+  # § 4 -- the distinction a merge implementation loses first.
+  "a_value_array_replaces_where_a_table_appends",
+  # § 5.
+  "a_relative_path_resolves_against_the_file_it_is_written_in",
+  # § 6 -- the trust boundary, and the clause a naive `optional` gets wrong.
+  "a_group_writable_file_or_directory_refuses_the_boot",
+  "optional_covers_absence_and_not_unreadability",
+  # § 7.
+  "a_password_file_yields_its_content_with_one_trailing_newline_stripped",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (the app block)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  # ADR 0104 §§ 1-3.
+  "every_matching_app_block_applies_least_specific_first",
+  "an_app_block_may_widen_bounded_by_the_global_ceiling",
+  # The canonicalise-then-compare rule, written once and needed by three items.
+  "an_entry_path_reaching_an_app_root_through_dotdot_or_a_symlink_does_not_match",
+]
+
+[[check]]
+kind = "command"
+stage = "1 floor"
+name = "nvs config check names the offending line"
+argv = ["{nvs}", "config", "check", "tests/config/duplicate-key.toml"]
+exit = "nonzero"
+want = ["duplicate", "duplicate-key.toml:"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the snapshot. ADR 0078 § 1: an immutable Arc<Config> a request clones at start.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (the snapshot and the overlay)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_request_that_started_before_a_swap_reads_the_old_value_to_completion",
+  "a_malformed_file_leaves_the_previous_snapshot_serving_and_names_the_line",
+  # m6.md's Verify, three clauses. The third is the one a shared mutable registry gets wrong.
+  "config_set_above_the_default_takes_effect",
+  "config_set_above_the_hard_ceiling_returns_false_with_the_previous_value_intact",
+  "config_set_is_invisible_to_the_next_request_on_the_same_core",
+  # § 4 -- carried by both compiled-unit cache keys.
+  "env_hash_is_carried_by_both_cache_keys",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/config.nvs"
+want = ["memory=256M", "set ok", "set refused", "still=512M"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- capabilities and limits. Item 10 carries this goal's one ADR slot, and it is the first
+# slice of the stage rather than a follow-up to it.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-host (limits at a safepoint)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  # ADR 0020 -- a FATAL, reported to onLimit if registered and never to an ordinary catch.
+  "a_memory_cap_terminates_a_runaway_script_as_a_fatal",
+  "a_cpu_cap_terminates_a_runaway_script_as_a_fatal",
+  "a_limit_fatal_reaches_on_limit_and_never_a_catch",
+  # Item 13 -- carved out of the request's own budget at the point the limits are set up.
+  "a_fatal_handler_runs_inside_its_reserved_slice",
+  # Item 12 -- both failures have their own name, and both are easy to report as something else.
+  "a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory",
+  "n_concurrent_isolates_cannot_together_exceed_the_trees_budget",
+  "a_child_cannot_widen_a_capability_its_parent_narrowed",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (the gate)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "an_ungranted_capability_throws_naming_the_capability",
+  # The path rule, written once and needed by items 6, 10 and 12.
+  "a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match",
+]
+
+[[check]]
+kind = "contains"
+stage = "1 floor"
+file = "examples/limits.nvs"
+exit = "nonzero"
+stderr_contains = ["FATAL", "memory"]
+stdout_contains = ["before the cap"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/capability.nvs"
+want = ["granted: read ok", "denied: fs.write", "denied: script.spawn"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- ADR 0042's artifact cache, exactly as specified. That ADR is a finished design and this
+# stage builds what it says rather than a fresh one.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli (the cache)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # § 3 -- the whole point: verify fully BEFORE a single page becomes executable.
+  "an_artifact_is_verified_whole_before_any_page_is_executable",
+  "a_tampered_artifact_is_rejected",
+  # § 4 -- one atomic rename, and no lock file, ever.
+  "a_concurrent_write_resolves_by_rename_with_no_lock_file",
+  # § 1, § 6.
+  "the_cache_is_a_fan_out_of_immutable_content_addressed_files",
+  "eviction_is_piggybacked_and_off_the_request_path",
+  # The refusal that is a security property rather than a nicety.
+  "a_world_writable_cache_directory_is_refused",
+]
+
+[[check]]
+kind = "command"
+stage = "1 floor"
+name = "a warm-cache CLI start stays under 10ms"
+argv = ["python", "tools/bench.py", "--warm-start", "--max-ms", "10"]
+want = ["warm start"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the closure test, and the boot-time validations the four new blocks owe.
+#
+# THE ALLOWLIST IN `every_capability_bearing_member_declares_its_capability` MAY NEVER GROW. Every entry
+# is a bullet in 3-governance.md § Standing decisions with its reason; adding one to make a run go green
+# is the single move this goal forbids outright. A count of passing fixtures is a proxy for "the gate is
+# closed"; this is not.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (no member escapes the gate)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = ["every_capability_bearing_member_declares_its_capability"]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (the four blocks refuse a bad boot)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  # ADR 0073's own Verification list.
+  "a_schedule_entry_with_no_scope_refuses_the_boot",
+  "a_malformed_cron_refuses_the_boot",
+  "a_scheduled_script_outside_the_spawn_roots_refuses_the_boot",
+  "a_fleet_scope_with_no_shared_store_refuses_the_boot",
+  # ADR 0074's, and the clause that needs ONE implementation rather than two.
+  "cors_star_origins_with_credentials_true_is_refused",
+  "same_site_none_without_secure_is_refused",
+  "the_same_two_refusals_come_from_config_set_as_from_the_boot",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-config (the adversarial suite)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_script_attempting_to_widen_a_capability_fails",
+  "a_script_attempting_to_set_a_system_directive_fails",
+  "spawn_script_without_the_capability_fails",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- ADR 0048's bundler. Last, because it is the cache read back through no new mechanism.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "command"
+stage = "1 floor"
+name = "nvs build --compile produces a runnable binary"
+argv = ["python", "tools/try.py", "--bundle", "examples/hello.nvs", "--expect", "Hello, World!"]
+want = ["Hello, World!"]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli (the bundle)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_bundle_carries_the_statically_resolved_require_graph_as_source",
+  "a_bundled_executable_runs_identically_to_nvs_run",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the corpus and the migration floor. This goal owns the `ini_*` family, `gc_*`,
+# `opcache_*`, `set_time_limit` and the rest of PHP's runtime-configuration surface -- about
+# twenty-five names, so two points. 1-core-depth.toml's Stage 7 comment derives the whole curve.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 1050
+cases = [
+  "tests/conformance/config/a-later-file-wins-and-both-origins-are-reported.nvst",
+  "tests/conformance/config/a-value-array-replaces-where-a-table-appends.nvst",
+  "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst",
+  "tests/conformance/reject/config-set-above-the-hard-ceiling-returns-false.nvst",
+  "tests/conformance/cap/an-ungranted-capability-throws-naming-it.nvst",
+  "tests/conformance/cap/a-path-outside-the-granted-roots-is-refused.nvst",
+  "tests/conformance/isolate/a-child-inherits-a-narrowed-capability-and-cannot-widen-it.nvst",
+  "tests/conformance/error/a-limit-fatal-is-not-catchable.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 210
+
+[[check]]
+kind = "command"
+stage = "1 floor"
+name = "check-migration at 36%"
+argv = ["python", "tools/check-migration.py", "--min", "36"]
+want = ["inventory:", "classified:"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the expression-level `catch`, ADR 0119. Added 2026-08-30; the handoff runs it ahead of
+# the rest of stage 8. Three checks, one per item: the parser, the checker, the lowered corpus.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-syntax (the expression catch)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "an_expression_catch_is_arms_on_one_guarded_expression",
+  "a_statement_keyword_in_a_catch_arm_is_e0126",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the expression catch)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "an_expression_catch_types_as_the_union_of_its_sides",
+  "an_unbound_throwable_arm_warns_w1006",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance (the expression catch)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/lang/an-expression-catch-yields-the-arm-where-the-guard-threw.nvst",
+  "tests/conformance/lang/catch-arms-are-tried-in-order-and-the-rest-is-rethrown.nvst",
+  "tests/conformance/lang/a-throw-arm-leaves-through-the-enclosing-finally.nvst",
+  "tests/conformance/reject/a-return-in-a-catch-arm-is-refused-naming-the-block-form.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- the class reference, `class<T>`. Added 2026-08-30 by the user's decision; it runs last,
+# where it sits. Four checks, one per item: the parser, the checker, the lowering, the corpus.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-syntax (the class reference type)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_class_reference_is_a_type_atom_with_one_class_argument",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-types (the class reference)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_class_reference_widens_to_its_supertype_and_not_back",
+  "a_string_becomes_a_class_reference_only_through_as",
+  "a_dynamic_new_is_refused_naming_the_subclass_whose_constructor_differs",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-ir (the class reference)"
+args = ["test", "-p", "nvs-ir"]
+tests = [
+  "a_new_through_a_class_reference_lowers_to_new_dynamic",
+  "a_folded_class_constant_lowers_to_a_descriptor_constant",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "conformance (the class reference)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/class/a-class-reference-instantiates-the-subclass-it-names.nvst",
+  "tests/conformance/class/a-class-reference-carries-a-static-call-and-an-instanceof.nvst",
+  "tests/conformance/class/a-name-outside-the-hierarchy-throws-at-the-conversion.nvst",
+  "tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst",
+]
+
 
 
 # ---------------------------------------------------------------------------------------------------
