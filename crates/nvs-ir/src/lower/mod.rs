@@ -2744,7 +2744,10 @@ fn binding_ty(
 /// decided at the call site, not the declaration, and nothing about that
 /// question is a *representation* question. `new static()`'s and
 /// `static::m()`'s actual class travels as a value instead
-/// ([`Ty::ClassDesc`]), which is what [`Lowering::lsb`] produces.
+/// ([`Ty::ClassDesc`]), which is what [`Lowering::lsb`] produces. ADR 0125's
+/// `class<T>` is the one annotation that names that representation directly,
+/// and it answers the *representation* question without answering the identity
+/// one either — see [`Ty::ClassDesc`].
 pub(crate) fn lower_decl_type(
     ty: &Type,
     exprs: &ExprTypeTable,
@@ -2787,6 +2790,10 @@ pub(crate) fn lower_decl_type(
         // the arm this annotation actually takes whenever the checker visited
         // it.
         TypeKind::Atom(TypeAtom::Name(..) | TypeAtom::Object) => Ty::Object,
+        // ADR 0125 § 1's class reference. Its argument is erased exactly the
+        // way a class name is erased one arm above — see [`Ty::ClassDesc`] for
+        // why nothing below this boundary asks `class<T>` what `T` was.
+        TypeKind::Atom(TypeAtom::ClassRef(_)) => Ty::ClassDesc,
         // ADR 0031 § 4's one closure type. Its *representation* is an object
         // — see the `ExprKind::Fn` arm of `Lowering::lower_expr`, which
         // synthesizes one class per literal to hold the captured environment
@@ -2808,7 +2815,8 @@ pub(crate) fn lower_decl_type(
         TypeKind::Nullable(_) | TypeKind::Union(_) => Ty::Tagged,
         other => panic!(
             "nvs-ir only lowers bool/int/uint/float/void/string/bytes/array/`?T`/a union/`object`/\
-             a plain class name as a declared type — got {other:?}; see the crate docs' known gaps"
+             `class<T>`/a plain class name as a declared type — got {other:?}; see the crate \
+             docs' known gaps"
         ),
     }
 }
@@ -2896,8 +2904,8 @@ pub(crate) fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
     erase_checked_ty(id, checked_types).unwrap_or_else(|| {
         panic!(
             "nvs-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
-             class/object/shape/enum/mixed/null/union parameter or return type — got {:?}; see \
-             the crate docs' known gaps",
+             class/`class<T>`/object/shape/enum/mixed/null/union parameter or return type — got \
+             {:?}; see the crate docs' known gaps",
             checked_types.get(id)
         )
     })
@@ -2955,6 +2963,10 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         CheckedTy::Class(..) | CheckedTy::Callable | CheckedTy::Shape(_) | CheckedTy::Object => {
             Ty::Object
         }
+        // ADR 0125 § 1: a class reference's value is the run-time descriptor
+        // `new static` already carries, so it erases to that representation and
+        // its argument goes the way `Class`'s identity goes one arm above.
+        CheckedTy::ClassRef(_) => Ty::ClassDesc,
         // ADR 0047 § 5: a literal type and an enum-case type add **zero**
         // runtime representation. Each erases to the base it shares a tag and
         // payload with, so the singleton-ness stops at this boundary and

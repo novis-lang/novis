@@ -687,6 +687,19 @@ impl<'a> Lowering<'a> {
             }
             None => {
                 let to = lower_decl_type(ty, self.exprs, self.checked_types);
+                // ADR 0125 § 2's two rows into a `class<T>`, and the
+                // compile-time fold of a written-out `Foo::class` under the
+                // same roof — see [`Self::lower_class_reference`].
+                //
+                // Ahead of the literal placement below, which no operand of
+                // this row can be, and ahead of [`Self::convert`], which must
+                // never see the pair: a descriptor on both sides is one
+                // representation, so its free `from == to` row would hand a
+                // `class<Animal>` through under a `class<Dog>` declaration
+                // with nothing checked at all.
+                if to == Ty::ClassDesc {
+                    return self.lower_class_reference(inner, ty, env, cur);
+                }
                 // ADR 0054 § 2: `expr as T` is itself a *placing*
                 // position, so a numeric literal written directly
                 // under one takes `T` as its target rather than being
@@ -810,6 +823,171 @@ impl<'a> Lowering<'a> {
                 );
                 (converted, converted_ty)
             }
+        }
+    }
+
+    /// [ADR 0125](../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// § 2's two rows into a `class<T>` — `as` being a class reference's only
+    /// source, this function is the only place a [`Ty::ClassDesc`] a program
+    /// can name comes from.
+    ///
+    /// **A written-out `Foo::class` never reaches the run time.** § 2 decides
+    /// `Dog::class as class<Animal>` where it stands — the checker having
+    /// already refused the pair that is not a widening — so it folds to the one
+    /// [`InstKind::ClassDescConst`] `Foo::bar()` already bakes, and the factory
+    /// shape the ADR calls the common case pays nothing at all.
+    ///
+    /// Everything else is [`InstKind::ClassDescIn`], whose own doc comment owns
+    /// how the two dynamic rows are answered and what they cost. This function
+    /// owns only what happens to its **null**: § 2's rows are checked rows of
+    /// ADR 0007 § 2's grid, so a miss throws rather than substituting, and the
+    /// throw is built exactly the way [`Self::lower_checked_downcast`]'s is —
+    /// same class, same `{previous}` bag, same landing block. The comparison
+    /// that finds the null goes through [`InstKind::Reinterpret`] because a
+    /// descriptor and the machine word holding one are the same bits; see that
+    /// instruction for why this is a relabelling rather than a fourth
+    /// instruction.
+    ///
+    /// Nothing here touches a reference count. The operand is *read* rather
+    /// than consumed — the value that leaves is a descriptor, which is immortal
+    /// and outside the refcount discipline entirely ([`Ty::ClassDesc`]) — so a
+    /// fresh `string` operand stays the statement's own temporary and is
+    /// released by [`Self::release_temporaries_since`] on the normal edge and
+    /// by [`Self::landing_block`] on the throwing one, with no arm of its own.
+    ///
+    /// # Known gaps
+    ///
+    /// The message names the bound, not the name that failed to resolve; § 2
+    /// asks for the offending class in it, which needs the operand's own string
+    /// concatenated in on the refused edge.
+    ///
+    /// And `as ?class<T>` has no row: both spellings of it reach
+    /// [`Self::convert_or_null`]'s own two refusals instead, which is where a
+    /// `?T` with no `?` helper already lands. It is not a helper away, either —
+    /// a descriptor materializes into a `nvs_runtime::Value` as a `Tag::Null`
+    /// over its address ([`Ty::ClassDesc`]), which is the representation `null`
+    /// itself has, so a `?class<T>` cannot tell its two answers apart by tag.
+    /// The shape that would work is the *null descriptor*
+    /// [`InstKind::ClassDescIn`] already produces on a miss — no class ever
+    /// lives at address zero — which makes `?class<T>` a [`Ty::ClassDesc`]
+    /// rather than a [`Ty::Tagged`] and needs `null`'s comparison rows against
+    /// that representation before ADR 0066 § 3 can have it.
+    ///
+    /// # Panics
+    ///
+    /// Panics for a `class<T>` target whose `T` this crate cannot name, which
+    /// would mean the checker accepted a class reference it did not resolve.
+    fn lower_class_reference(
+        &mut self,
+        inner: &Expr,
+        ty: &Type,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let base = self.class_ref_base(ty).unwrap_or_else(|| {
+            panic!(
+                "nvs-ir: `as class<T>` at {:?} whose argument names no resolved class — \
+                 `nvs_types` reports `E0795` for every other spelling, so this is a checker \
+                 that did not run",
+                ty.span
+            )
+        });
+        // ADR 0125 § 2's compile-time row. `Foo::class` travels as the resolved
+        // name in the same `ExprInfo::CoreConst` an ordinary class constant
+        // does — `Self::lower_expr`'s own `ClassNameConst` arm explains why the
+        // name is the checker's to give — so the fold reads it from there
+        // rather than from the spelling the author wrote.
+        if matches!(inner.kind, ExprKind::ClassNameConst { .. })
+            && let Some(ExprInfo::CoreConst {
+                value: nvs_types::ConstArg::Str(name),
+            }) = self.exprs.lookup(inner.span)
+        {
+            let class = name.clone();
+            return self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescConst { class });
+        }
+        let (subject, _) = self.lower_expr(inner, None, env, cur);
+        let (desc, _) = self.emit(
+            *cur,
+            Ty::ClassDesc,
+            InstKind::ClassDescIn {
+                subject,
+                base: base.clone(),
+            },
+        );
+        let (word, _) = self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: desc });
+        let (zero, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
+        let (missed, _) = self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: BinOp::Eq,
+                lhs: word,
+                rhs: zero,
+            },
+        );
+        let hit = self.new_block();
+        let refused = self.new_block();
+        let hit_edge = self.ids.next_edge(ty.span);
+        let refused_edge = self.ids.next_edge(ty.span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: missed,
+                then_block: refused,
+                then_edge: refused_edge,
+                else_block: hit,
+                else_edge: hit_edge,
+            },
+        );
+        let (message, _) = self.emit(
+            refused,
+            Ty::Str,
+            InstKind::ConstStr(format!(
+                "cannot convert to `class<{base}>`: the value does not denote a class that is \
+                 a `{base}`"
+            )),
+        );
+        let (absent, _) = self.emit(refused, Ty::Null, InstKind::ConstNull);
+        let absent = self.coerce(refused, absent, Ty::Null, Ty::Tagged, env);
+        let (exception, _) = self.emit_fallible(
+            refused,
+            Ty::Object,
+            InstKind::New {
+                class: "RuntimeError".to_owned(),
+                ctor: Some(THROWABLE_CTOR.to_owned()),
+                args: vec![message, absent],
+            },
+            env,
+        );
+        self.write_throw_location(refused, exception);
+        let landing = self.landing_block(env);
+        self.seal(
+            refused,
+            Terminator::Throw {
+                value: exception,
+                landing,
+            },
+        );
+        *cur = hit;
+        (desc, Ty::ClassDesc)
+    }
+
+    /// The class a `class<T>` annotation bounds its descriptors by, as the
+    /// label [`crate::ir::Program::classes`] carries — `None` for any other
+    /// annotation.
+    ///
+    /// The `nvs_hir::QName` is destructured here rather than handed on for the
+    /// reason [`super::closure::declared_class`] gives: `nvs-hir` is only a
+    /// dev-dependency of this crate, so a signature naming that type would not
+    /// compile.
+    fn class_ref_base(&self, ty: &Type) -> Option<String> {
+        let id = self.exprs.declared_ty(ty.span)?;
+        let CheckedTy::ClassRef(argument) = self.checked_types.get(id) else {
+            return None;
+        };
+        match self.checked_types.get(*argument) {
+            CheckedTy::Class(qname, _) => Some(qname.to_string()),
+            _ => None,
         }
     }
 

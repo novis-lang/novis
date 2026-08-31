@@ -583,6 +583,10 @@ impl Emitter<'_, '_> {
                 let desc = self.b.ins().load(types::I64, trusted(), object, offset);
                 self.define(inst, desc)?;
             }
+            InstKind::ClassDescIn { subject, base } => {
+                let value = self.emit_class_desc_in(*subject, base)?;
+                self.define(inst, value)?;
+            }
             InstKind::CallVirtual {
                 lsb,
                 method,
@@ -2294,6 +2298,48 @@ impl Emitter<'_, '_> {
     /// stores, on the only path that needs them; the branch is here rather
     /// than in the runtime because the proven case is the common one and it
     /// already had a pointer in hand.
+    /// [`nvs_ir::ir::InstKind::ClassDescIn`] — ADR 0125 § 2's two checked rows
+    /// into a `class<T>`, as a **branch-free chain** over
+    /// [`Classes::conforming_to`]'s closed set.
+    ///
+    /// One compare per candidate, and which compare is read off the subject's
+    /// own representation, the way [`Self::emit_instanceof`] reads its own: a
+    /// `string` is a *content* comparison through `nvs_runtime::nvs_str_eq` —
+    /// the same call `==` on a `string` makes, and for ADR 0090 § 3's reason —
+    /// while a descriptor is an *identity* one, a descriptor's address being
+    /// its identity (`nvs_runtime::object`).
+    ///
+    /// `select` rather than a branch per candidate: every arm is an `iconst`,
+    /// so there is nothing a branch would guard and no block to build, and the
+    /// miss falls out for free as the zero the chain starts from.
+    /// `nvs_ir::lower` turns that zero into ADR 0007 § 2's throw.
+    fn emit_class_desc_in(&mut self, subject: ValueId, base: &str) -> Result<Value, CodegenError> {
+        let (subject, subject_ty) = self.value(subject)?;
+        let candidates = self.classes.conforming_to(base);
+        let mut answer = self.b.ins().iconst(types::I64, 0);
+        for (label, desc) in candidates {
+            let address = i64::try_from(desc.addr())
+                .map_err(|_| internal("a class descriptor above i64::MAX"))?;
+            let candidate = self.b.ins().iconst(types::I64, address);
+            let hit = match subject_ty {
+                Ty::Str => {
+                    let name = self.emit_immortal_str(label.as_bytes())?;
+                    let callee = self.runtime_ref("nvs_str_eq", RuntimeSig::PtrEq)?;
+                    let call = self.b.ins().call(callee, &[subject, name]);
+                    self.b.inst_results(call)[0]
+                }
+                Ty::ClassDesc => self.b.ins().icmp(IntCC::Equal, subject, candidate),
+                _ => {
+                    return Err(internal(
+                        "a class reference built from neither a string nor a descriptor",
+                    ));
+                }
+            };
+            answer = self.b.ins().select(hit, candidate, answer);
+        }
+        Ok(answer)
+    }
+
     fn emit_instanceof(&mut self, value: ValueId, class: &str) -> Result<Value, CodegenError> {
         let desc = self.classes.desc(class).ok_or_else(|| {
             CodegenError::Unsupported(format!(

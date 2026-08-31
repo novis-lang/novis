@@ -330,16 +330,28 @@ pub enum Ty {
     /// all, so nothing sweeping a `Value` may mistake it for a heap reference.
     Ref,
     /// A `nvs_runtime::ClassDesc` address — the *class* a frame was called on,
-    /// not a value of any Novis type at all.
+    /// and, since
+    /// [ADR 0125](../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md),
+    /// the value of a `class<T>` binding.
     ///
     /// This is late static binding's whole representation. It is produced by
     /// [`crate::ir::InstKind::ClassDescConst`] (a class named in source),
-    /// [`crate::ir::InstKind::ClassDescOf`] (an instance's own class) and by a
-    /// static method's [`crate::ir::InstKind::Param`] 0, and consumed by
-    /// [`crate::ir::InstKind::NewDynamic`] and
-    /// [`crate::ir::InstKind::CallVirtual`]. Nothing else can hold one: no
-    /// declared type lowers to it, so it never reaches a local, a field or a
-    /// return value.
+    /// [`crate::ir::InstKind::ClassDescOf`] (an instance's own class),
+    /// [`crate::ir::InstKind::ClassDescIn`] (ADR 0125 § 2's two checked `as`
+    /// rows) and by a static method's [`crate::ir::InstKind::Param`] 0, and
+    /// consumed by [`crate::ir::InstKind::NewDynamic`] and
+    /// [`crate::ir::InstKind::CallVirtual`].
+    ///
+    /// **A declared type lowers to it, and exactly one does.** ADR 0125 § 1
+    /// makes `class<T>` a type written wherever a type is written, so a
+    /// descriptor now reaches a local, a parameter, a field and a return value
+    /// — which costs nothing beyond the word it already was, since a
+    /// descriptor is immortal and process-wide (§ 1's own sentence) and the
+    /// slot holding one needs no lifecycle at all. What the erasure drops is
+    /// the `T`: two `class<T>`s over different bounds are one representation
+    /// here, exactly as [`Self::Object`] drops which class an instance is, and
+    /// for the same reason — every decision that needs `T` is ADR 0125 § 4's
+    /// and is taken by the checker, above this boundary.
     ///
     /// Not refcounted — a descriptor is owned by the compiled unit's class
     /// table for that unit's whole life (`nvs_runtime::object`), so there is

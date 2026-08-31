@@ -589,6 +589,14 @@ struct ClassEntry {
     /// `nvs_runtime::ClassTable::set_methods`.
     id: nvs_runtime::ClassId,
     methods: Vec<(String, String, bool)>,
+    /// `nvs_ir::ir::Class::conforms` verbatim — this class's *transitive*
+    /// supertype set, kept because [`Classes::conforming_to`] needs the
+    /// hierarchy read the other way round and this crate may not deref a
+    /// descriptor to ask (`#![deny(unsafe_code)]`).
+    ///
+    /// **Costs** one `String` per edge per class, for the life of the compiled
+    /// unit — never per request, and freed with the unit.
+    conforms: Vec<String>,
 }
 
 impl Classes {
@@ -711,8 +719,36 @@ impl Classes {
                 slots,
                 id,
                 methods: class.methods.clone(),
+                conforms: class.conforms.clone(),
             },
         );
+    }
+
+    /// Every class this unit declares that **is a** `base`, as
+    /// `(label, descriptor)` — `base` itself included, since
+    /// [ADR 0125](../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// § 2's rows admit `T` as readily as a class that is a `T`.
+    ///
+    /// This is the closed set `nvs_ir::ir::InstKind::ClassDescIn` is compiled
+    /// against, and it is answered here rather than in the runtime because the
+    /// answer is already sitting in this table: a name lookup at run time would
+    /// need a per-unit registry and a relocation at every site to reach it.
+    ///
+    /// **Sorted by label**, because the result is baked into machine code and
+    /// two builds of one unit have to emit the same instructions for
+    /// [ADR 0042](../../docs/adr/0042-on-disk-artifact-cache-format.md) § 3's
+    /// checksum to mean what it claims.
+    fn conforming_to(&self, base: &str) -> Vec<(&str, *const nvs_runtime::ClassDesc)> {
+        let mut out: Vec<(&str, *const nvs_runtime::ClassDesc)> = self
+            .by_label
+            .iter()
+            .filter(|(label, entry)| {
+                label.as_str() == base || entry.conforms.iter().any(|up| up == base)
+            })
+            .map(|(label, entry)| (label.as_str(), entry.desc))
+            .collect();
+        out.sort_unstable_by_key(|(label, _)| *label);
+        out
     }
 
     /// The descriptor address for `label`, or `None` if the unit declares no

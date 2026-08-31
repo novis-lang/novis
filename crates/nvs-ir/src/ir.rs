@@ -556,6 +556,48 @@ pub enum InstKind {
         /// `None`.
         args: Vec<ValueId>,
     },
+    /// [ADR 0125](../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// § 2's checked way *into* a `class<T>`: the [`Ty::ClassDesc`] of the
+    /// class `subject` denotes, or a null one when it denotes no class that is
+    /// a `base`. Both of § 2's rows are this one instruction, told apart by
+    /// `subject`'s own representation:
+    ///
+    /// * a [`Ty::Str`] subject is the **string door** — the name must be
+    ///   `base` or a class that is a `base`;
+    /// * a [`Ty::ClassDesc`] subject is the **narrowing** `class<U>` →
+    ///   `class<T>` — the descriptor in hand must already be one of those.
+    ///
+    /// One instruction rather than two because the answer is the same set
+    /// either way, and the set is what the instruction is: **`nvs-codegen`
+    /// enumerates the classes this unit declares that conform to `base`** and
+    /// compares the subject against each — `nvs_runtime::nvs_str_eq` per
+    /// candidate for a name, one `icmp` per candidate for a descriptor. That
+    /// closed set is ADR 0125 § 2's own argument for why a `tainted` string may
+    /// pass through the conversion at all: the output range is the classes the
+    /// program's own source declares to be `base`s, and nothing a caller writes
+    /// can widen it.
+    ///
+    /// **What it costs:** O(subclasses of `base` in the unit) compares, branch
+    /// free, on a path that is a dynamic factory lookup — priority 3 spent
+    /// where a hash would have bought a per-unit table and a per-site
+    /// relocation to reach it. A hierarchy with enough implementors for that to
+    /// matter is the trigger to bake a table instead, and nothing above this
+    /// instruction would change.
+    ///
+    /// The null is not a value the language admits: [`crate::lower`] tests for
+    /// it and throws, exactly as ADR 0007 § 2's other checked rows do, so no
+    /// consumer of a [`Ty::ClassDesc`] ever sees one. `Dog::class as
+    /// class<Animal>` never reaches here at all — both sides are written out,
+    /// so § 2 decides it where it stands and it lowers to
+    /// [`InstKind::ClassDescConst`].
+    ClassDescIn {
+        /// The name or the descriptor to resolve — a [`Ty::Str`] or a
+        /// [`Ty::ClassDesc`], and nothing else.
+        subject: ValueId,
+        /// The class the answer must conform to, rendered the same way
+        /// [`InstKind::New::class`] is.
+        base: String,
+    },
     /// Reads a compile-time-known field off an object — `$obj->prop` whose
     /// receiver's static type resolved to a known declaring class (an
     /// `nvs_types::expr_table::ExprInfo::Property` entry exists for it). No
@@ -950,7 +992,14 @@ pub enum InstKind {
     /// different [`crate::ty::Ty`] — the whole of a conversion that
     /// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5 calls
     /// "total, free ... same representation, reinterpreted": an enum to its
-    /// backing `int`/`uint`, and nothing else so far.
+    /// backing `int`/`uint`, ADR 0009 § 3's `string as bytes`, and one shape
+    /// that is not a language-level conversion at all — a
+    /// [`crate::ty::Ty::ClassDesc`] read as an `int` so that
+    /// [`InstKind::ClassDescIn`]'s null answer can be *compared*. A descriptor
+    /// is an address and an `int` is the machine word holding one, so that
+    /// relabelling is the same free one the rows above are; what it buys is a
+    /// null test written with `BinOp::Eq` rather than a fourth instruction
+    /// whose only content would be a comparison the IR already has.
     ///
     /// Emitted rather than simply relabelling the operand in `crate::lower`
     /// because an IR value's representation is a property of the instruction

@@ -176,6 +176,9 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         }
         InstKind::ClassDescConst { class } => format!("class.desc {class}"),
         InstKind::ClassDescOf { object } => format!("class.of v{}", object.index()),
+        InstKind::ClassDescIn { subject, base } => {
+            format!("class.in v{} {base}", subject.index())
+        }
         InstKind::CallVirtual {
             lsb,
             method,
