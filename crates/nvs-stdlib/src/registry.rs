@@ -1109,10 +1109,11 @@ pub const CLASSES: &[CoreClass] = &[
 /// [`CoreClass::name`] and [`CoreMethod::name`] use;
 /// `every_capability_entry_names_a_member` fails on one naming neither.
 ///
-/// Eight entries, which is the whole of what this runtime can currently do to a
-/// machine: read a file, measure one, ask whether one is there, resolve one
-/// inside a base, write one,
-/// remove a file or an empty directory, and make a temporary directory. Every other `Core` member reaches no
+/// Eleven entries, which is the whole of what this runtime can currently do to
+/// a machine: read a file, decode one as text, split one into lines, measure
+/// one, ask whether one is there, resolve one inside a base, write one, remove
+/// a file or an empty directory, make a temporary directory — and start another
+/// program. Every other `Core` member reaches no
 /// spelling that performs an effect, which
 /// `nvs_stdlib_reaches_the_os_only_through_the_gate` holds mechanically rather
 /// than by this table being kept honest.
