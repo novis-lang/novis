@@ -94,6 +94,7 @@ pub mod duration;
 mod lexer;
 mod parser;
 mod token;
+pub mod walk;
 
 pub use casing::check_declarations;
 pub use lexer::{Lexer, tokenize};

@@ -1,0 +1,26 @@
+--TEST--
+Core\Ast::parse answers the parser's own edges and refuses what the compiler refuses — ADR 0019 § 3
+--FILE--
+<?nvs
+// The text always starts in HTML mode, exactly as a compiled file does, so
+// bytes before any open tag are a statement rather than an error.
+var $html = Core\Ast::parse('hello');
+echo Core\Arr::count($html->nodes()), " ", $html->children()[0]->kind(), "\n";
+
+// An open tag with nothing after it is one empty statement, not zero of them.
+var $empty = Core\Ast::parse('<?nvs');
+echo Core\Arr::count($empty->nodes()), " ", $empty->children()[0]->kind(), "\n";
+
+// One grammar: source the compiler refuses is refused here, at the position
+// the compiler would name, and as a throw rather than as a tree with an error
+// node in it.
+try {
+    Core\Ast::parse('<?nvs echo ;');
+    echo "not reached\n";
+} catch (ParseError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+1 InlineHtml
+1 Empty
+Core\Ast::parse(): line 1, column 12: expected an expression

@@ -1,0 +1,28 @@
+--TEST--
+Core\Ast\Node::nodes is children closed transitively, at every node and not only at the file — ADR 0019 § 3
+--FILE--
+<?nvs
+var $tree = Core\Ast::parse('<?nvs if (1) { echo 2; }');
+
+// The walk, in source order, in the grammar's own vocabulary.
+foreach ($tree->nodes() as Core\Ast\Node $node) {
+    echo $node->kind(), "\n";
+}
+
+// The same relation one level down: the `if`'s walk is its own children closed
+// transitively, and neither collection counts the `if` itself.
+var $branch = $tree->children()[0];
+echo $branch->kind(), " ", Core\Arr::count($branch->children()), " ",
+    Core\Arr::count($branch->nodes()), "\n";
+
+// So the file's walk is the branch's walk plus the branch — which is what
+// "excludes the receiver" means, asserted rather than read off one line.
+echo Core\Arr::count($tree->nodes()) - Core\Arr::count($branch->nodes()), "\n";
+--EXPECT--
+If
+Int
+Block
+Echo
+Int
+If 2 4
+1

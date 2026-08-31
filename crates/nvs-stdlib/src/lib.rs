@@ -207,6 +207,7 @@
 //!    not do yet.
 
 pub mod arr;
+mod ast;
 mod attributes;
 mod bytes;
 mod cache;
@@ -324,6 +325,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
 fn address_of(symbol: &'static str) -> *const u8 {
     str::address(symbol)
         .or_else(|| arr::address(symbol))
+        .or_else(|| ast::address(symbol))
         .or_else(|| attributes::address(symbol))
         .or_else(|| bytes::address(symbol))
         .or_else(|| cache::address(symbol))

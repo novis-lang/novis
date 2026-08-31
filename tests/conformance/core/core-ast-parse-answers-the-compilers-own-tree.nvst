@@ -1,0 +1,28 @@
+--TEST--
+Core\Ast::parse answers the compiler's own parse tree, as data with nothing on it that runs — ADR 0019 § 3
+--FILE--
+<?nvs
+// § 3: one grammar. This is the parser `nvs` itself runs, so the tree is the
+// same shape the compiler saw.
+var $tree = Core\Ast::parse("<?nvs echo 1 + 2;");
+echo $tree->kind(), "\n";
+
+// `children` is what the node directly contains; `nodes` is the same relation
+// closed transitively, and neither counts the receiver.
+echo Core\Arr::count($tree->children()), "\n";
+var $nodes = $tree->nodes();
+echo Core\Arr::count($nodes), "\n";
+
+// Source order, and the grammar's own vocabulary for the productions.
+echo $nodes[0]->kind(), " ", $nodes[1]->kind(), " ", $nodes[3]->kind(), "\n";
+
+// A leaf contains nothing, so its two collections agree at zero.
+echo Core\Arr::count($nodes[3]->children()), "\n";
+echo Core\Arr::count($nodes[3]->nodes()), "\n";
+--EXPECT--
+File
+1
+4
+Echo Binary Int
+0
+0

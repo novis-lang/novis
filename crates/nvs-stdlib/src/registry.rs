@@ -1270,6 +1270,13 @@ pub const CLASSES: &[CoreClass] = &[
     // [`CoreTy::Instance`] states — a `Core` instance has no property a program
     // can reach.
     crate::reflect::CLASS_INFO,
+    // § 3's other half of the same ADR: the compiler's own parser, reached at
+    // run time. One member, because parsing is one question.
+    crate::ast::CLASS,
+    // The tree `parse` answers with — a kind and the nodes under it, and
+    // nothing that reaches back into execution, which is what makes § 3's
+    // inertness structural rather than promised.
+    crate::ast::NODE,
 ];
 
 /// Every member of a capability-bearing class, and which capability it needs —
