@@ -1191,6 +1191,14 @@ is why" — is this file.
   reading is that the *target* is malformed — quoting it differently, escaping
   the `::`, dropping the `re:` all fail the same way. Put every target first and
   every `--window`/`--in` last, and a run of probes goes out in one call.
+- **A driver-side fix does not reach the run that is already going.** `tools/loop.py` is imported
+  once, by a driver process that then lives for hours, so an edit to it — a new fixture service, a
+  changed check, a fixed helper — is invisible to every remaining iteration of *that* run: the
+  acceptance sweep goes on using the code it loaded at start. Nothing says so. `git status` is
+  clean, the ledger shows the same failure iteration after iteration, and the next session reads
+  that as "my fix did not work" rather than "the fix is not loaded". When the thing you changed is
+  the driver rather than the tree, verify it by hand, say in the handoff that the run must be
+  restarted to pick it up, and expect the acceptance line to stay red until it is.
 
 ## Running things
 
