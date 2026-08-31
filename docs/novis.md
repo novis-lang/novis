@@ -108,6 +108,8 @@ Conventions the whole file uses:
 | [`Core\Csrf`](#core-core-csrf) |  |
 | [`Core\Totp`](#core-core-totp) |  |
 | [`Core\Jwt`](#core-core-jwt) |  |
+| [`Core\Http`](#core-core-http) |  |
+| [`Core\Http\Target`](#core-core-http-target) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -15124,6 +15126,40 @@ Answers the claims `$token` carries, having checked that this key signed it and 
 **Returns** `array<tainted string>` — Every claim in the payload, by name, each one `tainted`: a signature proves who wrote a value, not that it is safe for any sink. `exp` and `iat` are present in it, in their own decimal spelling.
 
 **Throws** `LogicError` — `$key` is shorter than 32 octets — a value that was never a signing key.; `RuntimeError` — The token is not one this key signed, which is one sentence for every way of not being one; or it is, and has expired, carries no `exp`, or carries a claim that is not text.
+
+<a id="core-core-http"></a>
+### `Core\Http`
+
+Keywords: allowUrl
+
+| Member | Signature |
+|---|---|
+| [`Core\Http::allowUrl`](#core-core-http-allowurl) | `allowUrl(string $url): Core\Http\Target` |
+
+<a id="core-core-http-allowurl"></a>
+#### `Core\Http::allowUrl`
+
+```nvs skip
+Core\Http::allowUrl(string $url): Core\Http\Target
+```
+
+Checks `$url` against the outbound policy and pins it: the scheme, the `net.connect` grant and the resolved address are all decided here, and the answer carries the address that was approved.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$url` | `string` (launder) | The URL to approve; `tainted` is accepted here and nowhere else outbound. |
+
+**Returns** `Core\Http\Target` — A `Core\Http\Target` bound to one address, which is what the client connects to — so a second name lookup cannot answer differently.
+
+**Throws** `RuntimeError` — The text is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, the host resolves to no address, or it resolves to a loopback, private, link-local or unspecified address, which no grant reaches.
+
+<a id="core-core-http-target"></a>
+### `Core\Http\Target`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
 
 <a id="core-enums"></a>
 ### `Core` enums
