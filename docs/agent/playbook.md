@@ -4416,6 +4416,16 @@ sibling in the same namespace unqualified.
   operand being a literal, the fast path is a separate site and a `grep` for the operator's own
   lowering will not find it. `truthy_convert` is the one that announces itself, with a panic
   naming the representation.
+- **A `Core` member that answers `Iterable<T>` owes a *named class*, and `CoreTy::Iterated` is not
+  it.** That variant's own doc comment says "parameter position only" — a member returning a
+  sequence has nothing else in the registry to spell it with, so the answer is a
+  `CoreTy::Instance` of a class carrying the list, plus a `registry::ITERABLES` row for its element
+  type and an `iterate()` on `instance::DISPATCH_ROSTER` (the two are held in step by
+  `an_iterable_class_answers_the_iteration_protocol`). Such a class has one slot and no member of
+  its own, which fails `a_class_with_slots_has_instance_members_and_the_reverse` until it is added
+  to that test's `HANDLES` list beside `Core\Script\Handle` — the failure names the class and not
+  the rule, so it reads as a half-written class rather than as the roster it is. `Core\IO\Lines` is
+  the worked example, and `crate::cursor::over` does the rest for free.
 
 ## Divergences and refusals already pinned
 

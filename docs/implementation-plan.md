@@ -48,16 +48,15 @@
 > ADR 0057 fold records it on `ExprTypeTable` for `nvs-ir`. **Stage 0 is closed** — § 4's pattern
 > sink refuses a `tainted` operand, which the rows already said and no test had asked. **The goal's
 > eight acceptance fixtures are on disk** — `examples/` gained `files`, `process`, `cli`, `crypto`,
-> `http`, `cache`, `logging` and `reflect` ; each is the program its stage will make compile, and
-> none does yet. **Stage 2 is landing `Core\IO`'s member list**: `exists`, `size`, `remove`,
-> `removeDir`, `temporaryDir` and `within` are rows, cards, bodies and grants, over six new
-> `nvs_runtime::capability` doors, and every path parameter of the class is now `Qual::Sink` with
-> `within` the launderer past it; `readText` decodes behind that same door over `Core\Encoding`'s
-> exact conversion, and `lines` is the one member `examples/files.nvs` still names. The acceptance
-> list is measurable again — a program leg had been listed among a `cargo test` check's test names,
-> where nothing could ever match it, and it stopped every run after four checks. What goals 1-3
-> landed is unchanged and is not re-derived here: `git log` and each crate's module doc own it.
-> Conformance 1105, differential 210 of 210, migration 37% over its 36% floor.
+> `http`, `cache`, `logging` and `reflect`; `files` is the first that compiles and prints its frozen
+> output, and the other seven wait on their stages. **Stage 2 is closed**: `Core\IO`'s ten members
+> are rows, cards, bodies and grants over ADR 0118's doors, every path parameter is a `Qual::Sink`
+> with `within` the launderer past them, and `readText` decodes behind the read door while `lines`
+> splits behind it by `Core\Str::lines`' own rule — answering `Core\IO\Lines`, the name the registry
+> gives spec § 14's `Iterable<string>` because `CoreTy::Iterated` is parameter position only.
+> `examples/files.nvs` runs green against its seven frozen lines, over an `[[app]]` block of its
+> own. What goals 1-3 landed is unchanged and is not re-derived here: `git log` and each crate's
+> module doc own it. Conformance 1108, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
