@@ -31,8 +31,9 @@
 //! there is one case to write rather than two.
 //!
 //! **What it spends:** one `Arc` clone per request, over one `String` per name,
-//! `about:` and spelling the program declared — tens of them for a CLI, and
-//! nothing at all for a program with no command. O(in-flight requests), per
+//! `about:`, spelling and declared default the program wrote — tens of them for
+//! a CLI, and nothing at all for a program with no command. O(in-flight
+//! requests), per
 //! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
 //!
 //! # Known gaps
@@ -86,6 +87,17 @@ pub struct CommandArg {
     pub spellings: Vec<String>,
     /// The `#[Option]`'s `about:`, or `None` on a positional argument.
     pub about: Option<String>,
+    /// The parameter's declared default, as the text a command line would have
+    /// written to supply it — `Some("3")` for § 6's `#[Option] uint $retries =
+    /// 3`, and `None` for an argument a command line must fill itself.
+    ///
+    /// Text rather than a constant, because [`ArgConv`] already turns a word
+    /// into the parameter's value and a defaulted argument is then the same
+    /// value a written one would have been; `nvs_types::commands::CommandArg`'s
+    /// own field is the home of that reasoning. **A flag ignores it** — § 6
+    /// gives an option that is `bool` by being *written*, so the one nobody
+    /// wrote is `false` whatever its declaration says.
+    pub default: Option<String>,
     /// What this argument's text becomes before the handler is called.
     pub conv: ArgConv,
 }

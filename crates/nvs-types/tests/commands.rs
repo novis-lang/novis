@@ -339,6 +339,49 @@ fn a_command_table_is_built_from_the_program_enumeration() {
 }
 
 #[test]
+fn a_declared_default_crosses_as_the_text_a_command_line_would_have_written() {
+    // § 6 infers nothing from a default — a parameter is positional unless it
+    // carries `#[Option]` — so what the row says about one is only whether the
+    // command line owes it. `uint $retries = 3` is the section's own example,
+    // and it is the argument `Core\Command::run` fills without being told to.
+    let (diags, exprs) = check_src_table(PROGRAM);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let deploy = exprs.commands().named("deploy").expect("the named command");
+    let defaults: Vec<Option<&str>> = deploy
+        .args
+        .iter()
+        .map(|arg| arg.default.as_deref())
+        .collect();
+    assert_eq!(
+        defaults,
+        [None, None, Some("3")],
+        "only the parameter that wrote a default carries one"
+    );
+
+    // Every constant a command line could have spelled, in the one form it
+    // spells them: the folded value as text, so the matcher's conversion stays
+    // the only place a type is decided. The two refusals that bound this list
+    // are elsewhere and each is already a diagnostic — a type with no
+    // conversion from `string` cannot be an `#[Option]` at all (§ 6's third
+    // compile error), and a default that is not a literal of its own declared
+    // type is `E_PARAM_DEFAULT_NOT_LITERAL` wherever it is written.
+    let (diags, exprs) = check_src_table(
+        "<?nvs\nuse Core\\Command;\nuse Core\\Option;\nclass Run {\n  \
+         #[Command(name: \"run\")]\n  public static function run(\n    \
+         string $tag = \"wip\",\n    #[Option] int $offset = -2,\n    \
+         #[Option] bool $loud = true,\n  ): void {}\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let run = exprs.commands().named("run").expect("the named command");
+    let defaults: Vec<Option<&str>> = run.args.iter().map(|arg| arg.default.as_deref()).collect();
+    assert_eq!(
+        defaults,
+        [Some("wip"), Some("-2"), Some("true")],
+        "a string arrives cooked and a negative int keeps its sign"
+    );
+}
+
+#[test]
 fn a_duplicate_command_name_is_a_diagnostic() {
     // The first of § 6's three compile errors, and the one no declaration can
     // answer on its own: a command line names one command and expects one

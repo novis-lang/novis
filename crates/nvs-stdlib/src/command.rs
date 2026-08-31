@@ -50,22 +50,16 @@
 //!    string` generates for four shells and reads exactly what `help` reads, so
 //!    what it waits on is the `Cli\Shell` enum rather than anything about the
 //!    table. `docs/plan/m8.md` owns when.
-//! 2. **A page carries no defaults and no types.** § 6's table deliberately does
-//!    not carry a parameter's declared type
-//!    (`nvs_types::commands`'s own gap 1), so `[--retries]` cannot say that it
-//!    is a `uint` defaulting to `3`. Saying so needs the *signature*, which the
-//!    handler already holds and the row does not, and inventing a second copy
-//!    of it in the table is what that gap refuses.
-//! 3. **An option that is not a flag is required, whatever its declaration
-//!    says.** § 6's own example writes `#[Option] uint $retries = 3`, and `run`
-//!    refuses a command line that leaves it out rather than passing `3`: a
-//!    compiled frame reads one slot per declared parameter, a default is
-//!    applied at the *call site* by the compiler, and this call site is a
-//!    native member holding a row that carries no default. The fix is the
-//!    crossing `nvs_runtime::commands::ArgConv` already makes — a folded
-//!    constant per argument, decided in the same walk — and not a second
-//!    reading of the signature at run time. A flag is unaffected: § 6 makes an
-//!    unwritten one `false` by rule rather than by default.
+//! 2. **A page names no types.** The row carries a declared default now
+//!    (`nvs_runtime::commands::CommandArg::default`), so `[--retries]` could be
+//!    rendered as defaulting to `3`; what it still cannot say is that it is a
+//!    `uint`, because § 6's table deliberately does not carry a parameter's
+//!    declared type (`nvs_types::commands`'s own gap 1). Saying so needs the
+//!    *signature*, which the handler already holds and the row does not, and
+//!    inventing a second copy of it in the table is what that gap refuses. The
+//!    default alone is not rendered because § 6 asks for neither and a page
+//!    naming one of the two reads as though the other were absent from the
+//!    declaration.
 
 use nvs_runtime::commands::{ArgConv, Command, CommandArg, CommandTable};
 use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
@@ -340,9 +334,10 @@ fn matched(row: &Command, words: &[String]) -> Result<Vec<Value>, String> {
 ///
 /// § 6's rules, in the order a command line is read: a word beginning `-` is an
 /// option and is matched by its whole spelling; a `bool` option is a flag and
-/// takes no value; any other word fills the next positional. An option nobody
-/// wrote is `false` where it is a flag and a usage error otherwise, which is
-/// gap 3 — a declared default lives in the signature and the row carries none.
+/// takes no value; any other word fills the next positional. An argument nobody
+/// wrote takes its declared default where the row carries one, is `false` where
+/// it is a flag — § 6's rule, which outranks a flag's own declared default —
+/// and is a usage error otherwise.
 fn fill(row: &Command, words: &[String], slots: &mut [Option<Value>]) -> Result<(), String> {
     let positions: Vec<usize> = (0..row.args.len())
         .filter(|&index| !row.args[index].is_option())
@@ -384,23 +379,30 @@ fn fill(row: &Command, words: &[String], slots: &mut [Option<Value>]) -> Result<
         if slot.is_some() {
             continue;
         }
-        match (arg.is_option(), arg.conv) {
-            // § 6's flag is *given by being written*, so the one an author left
-            // out is `false` whatever the declaration's own default says.
-            (true, ArgConv::Flag) => *slot = Some(Value::bool(false)),
-            (true, _) => {
-                return Err(format!(
-                    "`{}` needs a value and was not written",
-                    summary_spelling(&arg.spellings)
-                ));
-            }
-            (false, _) => {
-                return Err(format!(
-                    "`{}` takes a <{}> and was given none",
-                    row.name, arg.param
-                ));
-            }
+        // § 6's flag is *given by being written*, so the one an author left
+        // out is `false` whatever the declaration's own default says. Ahead of
+        // the default below, because that rule is the one exception to it.
+        if arg.is_option() && arg.conv == ArgConv::Flag {
+            *slot = Some(Value::bool(false));
+            continue;
         }
+        // The declared default, read through the conversion a *written* word
+        // takes — so an argument that was defaulted holds the same value as one
+        // that arrived, and there is one conversion rather than two.
+        if let Some(text) = &arg.default {
+            *slot = Some(convert(arg, text)?);
+            continue;
+        }
+        if arg.is_option() {
+            return Err(format!(
+                "`{}` needs a value and was not written",
+                summary_spelling(&arg.spellings)
+            ));
+        }
+        return Err(format!(
+            "`{}` takes a <{}> and was given none",
+            row.name, arg.param
+        ));
     }
     Ok(())
 }
@@ -460,6 +462,10 @@ fn usage_line(row: &Command) -> String {
     for arg in &row.args {
         if arg.is_option() {
             line.push_str(&format!(" [{}]", summary_spelling(&arg.spellings)));
+        } else if arg.default.is_some() {
+            // Brackets say *optional*, which is what a declared default makes a
+            // positional: the command line that leaves it out is matched.
+            line.push_str(&format!(" [<{}>]", arg.param));
         } else {
             line.push_str(&format!(" <{}>", arg.param));
         }
@@ -562,12 +568,14 @@ mod tests {
                     spellings: Vec::new(),
                     about: None,
                     conv: ArgConv::Text,
+                    default: None,
                 },
                 CommandArg {
                     param: "dryRun".to_owned(),
                     spellings: vec!["-n".to_owned(), "--dryRun".to_owned()],
                     about: Some("Print what would happen".to_owned()),
                     conv: ArgConv::Flag,
+                    default: None,
                 },
             ],
         }
@@ -692,9 +700,10 @@ mod tests {
         );
     }
 
-    /// A `uint` option converts during matching (§ 6), and the two ways a
+    /// A `uint` option converts during matching (§ 6), and the three ways a
     /// command line can fail to give it one are usage errors rather than
-    /// crashes — the third, leaving it out, is this module's gap 3.
+    /// crashes — including leaving it out, which is a usage error exactly
+    /// because this row declared no default for it.
     #[test]
     fn a_uint_option_converts_and_refuses_what_is_not_a_number() {
         let row = Command {
@@ -706,6 +715,7 @@ mod tests {
                 spellings: vec!["--retries".to_owned()],
                 about: None,
                 conv: ArgConv::Uint,
+                default: None,
             }],
         };
         let values = matched(&row, &["--retries".to_owned(), "3".to_owned()])
@@ -723,7 +733,76 @@ mod tests {
         assert_eq!(
             matched(&row, &[]).unwrap_err(),
             "`--retries` needs a value and was not written",
-            "gap 3: a declared default lives in the signature and the row carries none"
+            "an argument with no declared default is one the command line owes"
+        );
+    }
+
+    /// § 6's own `#[Option] uint $retries = 3`: an argument the command line
+    /// left out takes its declared default, through the same conversion a
+    /// written word takes — and the flag beside it is `false` by § 6's rule
+    /// rather than by the `= true` its declaration wrote, which is the one
+    /// place the two answers differ.
+    #[test]
+    fn an_unwritten_argument_takes_its_declared_default() {
+        let row = Command {
+            name: "fetch".to_owned(),
+            about: None,
+            handler: "Fetcher::fetch".to_owned(),
+            args: vec![
+                CommandArg {
+                    param: "url".to_owned(),
+                    spellings: Vec::new(),
+                    about: None,
+                    conv: ArgConv::Text,
+                    default: Some("https://example.test".to_owned()),
+                },
+                CommandArg {
+                    param: "retries".to_owned(),
+                    spellings: vec!["--retries".to_owned()],
+                    about: None,
+                    conv: ArgConv::Uint,
+                    default: Some("3".to_owned()),
+                },
+                CommandArg {
+                    param: "loud".to_owned(),
+                    spellings: vec!["--loud".to_owned()],
+                    about: None,
+                    conv: ArgConv::Flag,
+                    default: Some("true".to_owned()),
+                },
+            ],
+        };
+
+        let values = matched(&row, &[]).expect("every argument answers for itself");
+        assert_eq!(values[0].as_text(), Some("https://example.test"));
+        assert_eq!(values[1].as_uint(), Some(3));
+        assert_eq!(
+            values[2].as_bool(),
+            Some(false),
+            "a flag is given by being written, whatever its declaration defaults to"
+        );
+        release(values);
+
+        // A written word still wins over the default, which is the half a
+        // matcher reading the row in the wrong order would fail.
+        let values = matched(
+            &row,
+            &[
+                "https://other.test".to_owned(),
+                "--retries".to_owned(),
+                "9".to_owned(),
+            ],
+        )
+        .expect("a written option over a declared default");
+        assert_eq!(values[0].as_text(), Some("https://other.test"));
+        assert_eq!(values[1].as_uint(), Some(9));
+        release(values);
+
+        // The usage line says so: a positional carrying a default is bracketed,
+        // because the command line that leaves it out is matched.
+        assert_eq!(
+            usage_line(&row),
+            "usage: fetch [<url>] [--retries] [--loud]"
         );
     }
 
@@ -742,18 +821,21 @@ mod tests {
                     spellings: Vec::new(),
                     about: None,
                     conv: ArgConv::Text,
+                    default: None,
                 },
                 CommandArg {
                     param: "force".to_owned(),
                     spellings: vec!["-f".to_owned()],
                     about: None,
                     conv: ArgConv::Flag,
+                    default: None,
                 },
                 CommandArg {
                     param: "to".to_owned(),
                     spellings: Vec::new(),
                     about: None,
                     conv: ArgConv::Text,
+                    default: None,
                 },
             ],
         };

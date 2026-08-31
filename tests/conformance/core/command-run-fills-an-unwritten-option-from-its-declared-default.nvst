@@ -1,0 +1,39 @@
+--TEST--
+`Core\Command::run` fills an argument the command line left out from the default its declaration wrote — ADR 0086 § 6
+--FILE--
+<?nvs
+// § 6's own example writes `#[Option] uint $retries = 3`, and a command line
+// that leaves it out is one the table can fill: the default crosses on the row
+// the compiler built, and the matcher converts it by the same rule a written
+// word takes, so the handler cannot tell which of the two it got.
+//
+// The flag beside it is the one argument that does *not* read its declaration:
+// § 6 gives a `bool` option by its being **written**, so the unwritten one is
+// `false` even where the declaration says `true`. That is asserted here rather
+// than left implicit, because it is the single place the two rules disagree.
+class Fetcher {
+    #[Core\Command(name: "fetch", about: "Fetch a thing")]
+    public static function fetch(
+        string $url,
+        #[Core\Option] uint $retries = 3,
+        #[Core\Option] bool $loud = true,
+    ): uint {
+        echo "url: ", $url, "\n";
+        echo "retries: ", $retries, "\n";
+        echo "loud: ", $loud ? "yes" : "no", "\n";
+        return 0;
+    }
+}
+
+// The status is taken first for the reason the dispatch case names: the
+// handler's own output is written while `run` is still being evaluated.
+uint $status = Core\Command::run();
+echo "status: ", $status, "\n";
+--ARGS--
+fetch
+https://example.test
+--EXPECT--
+url: https://example.test
+retries: 3
+loud: no
+status: 0

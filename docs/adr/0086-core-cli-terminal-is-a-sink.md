@@ -271,6 +271,12 @@ public static function deploy(
 - **A parameter is a positional argument unless it carries `#[Option]`.** One sentence, no inference from
   defaults or types.
 - **A `bool` `#[Option]` is a flag**; a trailing `array<string>` parameter is variadic.
+- **An argument the command line leaves out takes the parameter's declared default**, so
+  `#[Option] uint $retries = 3` above is optional and one that declares none is required — and the flag is
+  the one exception, since being *written* is how it is given, an unwritten `bool $loud = true` is still
+  `false`. Nothing new is admitted by this: a parameter default is already a literal of its own declared
+  type everywhere in the language, so the table carries the folded constant as the text a command line
+  would have written and the matcher converts it exactly as it converts a written word.
 - **A matched value's type comes from the parameter**, so `uint $retries` is converted during matching and —
   because [0024](0024-taint-tracking-for-injection-sinks.md) § 2 launders a checked conversion — arrives
   **unqualified**, while `string $target` arrives `tainted`. A non-numeric `--retries` is a usage error, not

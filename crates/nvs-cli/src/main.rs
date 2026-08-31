@@ -694,6 +694,7 @@ fn runtime_commands(
                         param: arg.param.clone(),
                         spellings: arg.spellings.clone(),
                         about: arg.about.clone(),
+                        default: arg.default.clone(),
                         conv: match arg.conv {
                             nvs_types::commands::ArgConv::Text => {
                                 nvs_runtime::commands::ArgConv::Text

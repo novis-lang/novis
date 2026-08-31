@@ -73,7 +73,10 @@
 //!    [`converts_from_string`] already computes for § 6's third compile error,
 //!    and not the type: a closed set of five, decided in the same walk that
 //!    builds the row, cannot disagree with the declaration the way a second copy
-//!    of the type lattice could. The rest of the signature stays where it is.
+//!    of the type lattice could. The one other thing a matcher cannot do without
+//!    crosses the same way: a parameter's *default* rides as the text a command
+//!    line would have written for it ([`CommandArg::default`]), not as the
+//!    constant. The rest of the signature stays where it is.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
@@ -123,6 +126,26 @@ pub struct CommandArg {
     /// What this argument's text becomes before the handler is called — see
     /// [`ArgConv`], and the module's gap 1 for why this and not the type.
     pub conv: ArgConv,
+    /// The parameter's declared default, as the **text** a command line would
+    /// have written to supply it — `Some("3")` for § 6's own
+    /// `#[Option] uint $retries = 3`, and `None` for a parameter a command line
+    /// must fill itself.
+    ///
+    /// The text rather than the constant, for gap 1's reason one field along:
+    /// the matcher already turns a word into the parameter's value through
+    /// [`ArgConv`], so a defaulted argument reaching the handler through that
+    /// same conversion *is* the value a written one would have been, and
+    /// crossing [`crate::defaults::ConstArg`] instead would put a second copy of
+    /// the constant lattice in `nvs-runtime` to say what one `String` says here.
+    ///
+    /// **What a default may be is [`crate::defaults`]' rule, not this module's**,
+    /// and that is why there is no non-literal case to decide about: a parameter
+    /// default is already a literal of its own declared type or it is
+    /// `E_PARAM_DEFAULT_NOT_LITERAL` wherever it is written. So this is read back
+    /// off the signature the same walk already holds
+    /// ([`crate::signatures::MethodSig::defaults`]) and never folded a second
+    /// time — a fold here could disagree with the one the call sites use.
+    pub default: Option<String>,
 }
 
 /// § 6's "a matched value's text is converted during matching, and its type
@@ -484,6 +507,15 @@ fn check_options(
         // carries the answer past this crate (the module's gap 1).
         let declared = sig.and_then(|sig| sig.params.get(index).copied());
         let conv = declared.map_or(ArgConv::Text, |ty| conversion_of(ty, env));
+        // Read for every parameter too, and for the same reason: § 6 infers
+        // nothing from a default, so a positional carries one exactly as an
+        // option does. Already folded and already diagnosed by
+        // `crate::defaults` — this walk reads the answer rather than the
+        // expression.
+        let default = sig
+            .and_then(|sig| sig.defaults.get(index))
+            .and_then(Option::as_ref)
+            .and_then(default_text);
         let Some(attr) =
             crate::testing::attribute_named(&param.attributes, crate::derive::OPTION, ctx, env)
         else {
@@ -494,6 +526,7 @@ fn check_options(
                 spellings: Vec::new(),
                 about: None,
                 conv,
+                default,
             });
             continue;
         };
@@ -529,9 +562,29 @@ fn check_options(
             spellings: claimed,
             about,
             conv,
+            default,
         });
     }
     args
+}
+
+/// One folded parameter default as the text a command line would have written
+/// for it — the form [`CommandArg::default`] carries, and the form
+/// `Core\Command::run`'s matcher converts through [`ArgConv`].
+///
+/// `None` for a constant no command line could have spelled at all. That is
+/// every constant whose parameter's [`conversion_of`] is
+/// [`ArgConv::Unconverted`] anyway — a `float`, a `null`, and the shapes only
+/// [`crate::core_lib`] produces — so an argument this answers `None` for stays
+/// required, which is exactly what every argument was before a default crossed.
+fn default_text(constant: &ConstArg) -> Option<String> {
+    match constant {
+        ConstArg::Bool(value) => Some(value.to_string()),
+        ConstArg::Int(value) => Some(value.to_string()),
+        ConstArg::Uint(value) => Some(value.to_string()),
+        ConstArg::Str(value) => Some(value.clone()),
+        _ => None,
+    }
 }
 
 /// The spellings one `#[Option]` claims: its `short:` if it wrote one, and its

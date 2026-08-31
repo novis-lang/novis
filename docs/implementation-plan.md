@@ -42,27 +42,26 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
-> running**, over goals 1-3, each reached at its own acceptance.  **Stage 0 is closed** — § 4's
-> pattern sink refuses a `tainted` operand, which the rows already said and no test had asked. **The
-> goal's eight acceptance fixtures are on disk**, of which `files` and `process` print their frozen
-> output and the other six wait on their stages. **Stage 2 is closed**: `Core\IO`'s ten members are
-> rows, cards, bodies and grants over ADR 0118's doors, every path parameter is a `Qual::Sink` with
-> `within` the launderer past them, and `Core\IO\Lines` is what `lines` answers with.
-> `examples/files.nvs` runs green against its seven frozen lines, over an `[[app]]` block of its
-> own. **Stage 3's process half is closed**: `Core\Process::run` is a row, a card, a body and a
-> `process.exec` grant over `nvs_runtime::capability::exec`'s door, and ADR 0044 § 1's
-> `ProcessResult` is the instance class `Core\Process\Result` — three slot reads, both captured
-> streams `bytes`. `examples/process.nvs` runs green against its three frozen lines, and stage 3's
-> four named checks over the member are on disk — two in `nvs-stdlib` over the rows and the door,
-> two in `nvs-types` over the qualifier and the capability — beside the `.nvst` pinning both
-> spellings of a command line as a diagnostic. **Stage 3's terminal profile is closed**: ADR 0086 §
-> 3's `isTty`, `width`, `height` and `colorDepth` are rows over `nvs_runtime::terminal`, which
-> resolves the four facts once per process. **`Core\Command::help` and `::run` are rows over the
-> compiled table**: § 6's rows ride on the request's `Ctx`, `run` matches `nvs run`'s trailing words
-> against them and reaches a `static` handler through its class descriptor, and `--ARGS--` is
-> honoured. What goals 1-3 landed is unchanged and is not re-derived here: `git log` and each
-> crate's module doc own it. Conformance 1121, differential 210 of 210, migration 37% over its 36%
-> floor.
+> running**, over goals 1-3, each reached at its own acceptance.   **The goal's eight acceptance
+> fixtures are on disk**, of which `files` and `process` print their frozen output and the other six
+> wait on their stages. **Stage 2 is closed**: `Core\IO`'s ten members are rows, cards, bodies and
+> grants over ADR 0118's doors, every path parameter is a `Qual::Sink` with `within` the launderer
+> past them, and `Core\IO\Lines` is what `lines` answers with. `examples/files.nvs` runs green
+> against its seven frozen lines, over an `[[app]]` block of its own. **Stage 3's process half is
+> closed**: `Core\Process::run` is a row, a card, a body and a `process.exec` grant over
+> `nvs_runtime::capability::exec`'s door, and ADR 0044 § 1's `ProcessResult` is the instance class
+> `Core\Process\Result` — three slot reads, both captured streams `bytes`. `examples/process.nvs`
+> runs green against its three frozen lines, and stage 3's four named checks over the member are on
+> disk — two in `nvs-stdlib` over the rows and the door, two in `nvs-types` over the qualifier and
+> the capability — beside the `.nvst` pinning both spellings of a command line as a diagnostic.
+> **Stage 3's terminal profile is closed**: ADR 0086 § 3's `isTty`, `width`, `height` and
+> `colorDepth` are rows over `nvs_runtime::terminal`, which resolves the four facts once per
+> process. **`Core\Command::help` and `::run` are rows over the compiled table**: § 6's rows ride on
+> the request's `Ctx`, `run` matches `nvs run`'s trailing words against them and reaches a `static`
+> handler through its class descriptor, and `--ARGS--` is honoured. **A declared default crosses on
+> the row**, so an argument left out takes it — a flag excepted, which § 6 records. What goals 1-3
+> landed is unchanged and is not re-derived here: `git log` and each crate's module doc own it.
+> Conformance 1122, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
