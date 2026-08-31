@@ -48,9 +48,8 @@
 > XChaCha20-Poly1305, neither with an algorithm argument. **Stage 4 is closed**: ADR 0060 § 1's
 > roster is all four entries. **Stage 5 is closed**: `Core\Http::allowUrl` answers a pinned
 > `Core\Http\Target`, and two cases pin ADR 0058 §§ 3 and 5. **Stage 6 has opened**: `Core\Cache`'s
-> two tiers are one `Store` over ADR 0023 § 3's byte payload, `shared()` the `net.connect` door onto
-> RESP and `local()` the `None` row beside it; both of § 1's limiters are rows over them, and
-> `examples/cache.nvs` is green under `[cache.local] max_size`. **Stage 7 has opened**:
+> two tiers are one `Store`, `shared()` the `net.connect` door onto RESP and `local()` the `None`
+> row beside it; both of § 1's limiters are rows over them. **Stage 7 has opened**:
 > `Core\Log::write` is a row over ADR 0020 § 6's tier-4 floor, and § 3's tier 3 runs above it as
 > `[app.log] handler`, an isolate on `Ctx::handler_isolate`'s reserve; `examples/logging.nvs` is
 > green. **Stage 8 has opened**: `Core\Reflect` is `forObject`, `forClass` and `typeOf`, and
@@ -59,9 +58,11 @@
 > descriptors, `Core\IO\FileMode` is R11's enum, and `read`, `readLine`, `write`, `seek`, `tell`,
 > `flush` and `close` are its members; `truncate` and `lock` are owed, and `writeStream` streams a
 > chunk at a time. **`[2 filesystem]` is green**: ADR 0052 § 2's closed door on scheme dispatch is
-> asserted over the roster and over the path modules' own sources. **Stage 3's wait is off the
-> core**: `Core\Process::run` waits through `nvs_host::blocking`, so a child a request waits on
-> holds no worker. Conformance 1201, differential 210 of 210, migration 37% over its 36% floor.
+> asserted over the roster and over the path modules' own sources. **Stage 3's wait is off the core
+> and its terminal is a sink**: `Core\Process::run` waits through `nvs_host::blocking`, and `echo`
+> performs ADR 0086 § 1's substitution over `nvs_render::text`'s one table, with `Core\Cli::escape`
+> the named launderer beside it. Conformance 1204, differential 210 of 210, migration 37% over its
+> 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
