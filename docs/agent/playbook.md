@@ -3514,6 +3514,18 @@ is why" — is this file.
   consumes them, and the next turn then waits on readiness the test itself is holding back.
   `a_socket_read_runs_on_the_reactor_and_parks_its_coroutine` in
   `crates/nvs-stdlib/src/http/transport.rs` is the whole shape, and it runs in 40ms.
+- **Registering a `Core` class costs three conformance cases per member, and the gate that says so is
+  not the one that names the member.** `every_part_one_member_has_a_conformance_case` wants one `.nvst`
+  writing `Class::member(` or `->member(`, which reads like the whole obligation — and then
+  `every_core_class_has_a_conformance_floor_of_three` in the same file wants **three** cases naming each
+  member of every class in `registry::CLASSES`, with `BELOW_THE_FLOOR` explicitly a list that only
+  shrinks. So a two-member class with a two-member instance beside it is three cases before
+  `cargo test -p nvs-stdlib` is green, and each has to ask a *different* question of the same member for
+  the exemption note to be honest. Budget them with the slice rather than discovering them after the
+  rows are written. Two smaller gates fire at the same moment and are cheap to fix once seen:
+  `no_registry_card_cites_an_adr` refuses an `ADR 0023` in a `MethodDoc` (the citation belongs in the
+  module doc or the helper's own comment), and a class declaring `slots` must declare `instance` members
+  too.
 
 ## Splitting a file that got too big
 

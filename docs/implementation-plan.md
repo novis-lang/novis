@@ -57,12 +57,11 @@
 > the denied table is the capability's and refuses before a socket. `Core\Http\Client`'s five rows
 > are compile-time whole (§ 7's keyless `post` retry is `E0796`), and `crate::http::transport` fills
 > `Core\Http\Response`'s two slots over `nvs_host::net`: hops re-pinned, retries jittered under one
-> deadline, `https` refused. **`Core\Env` is a class**: `get` and `all` over
-> `nvs_runtime::environment`, the name a `Qual::Sink` and every value `tainted`, and `.nvst`'s
-> `--ENV--` is honoured now that a case can read one back. The harness serves 8099
-> (`tools/origin.py`), so `examples/http.nvs` prints all five lines, `traceparent` crosses, and an
-> outbound read parks on the reactor. Conformance 1162, differential 210 of 210, migration 37% over
-> its 36% floor.
+> deadline, `https` refused. **Stage 6 has opened**: `Core\Cache::local` and `::shared` are two
+> members over a `Core\Cache\Store`, an entry is ADR 0023 § 3's byte payload, and the local tier
+> needs no grant (ADR 0059 § 1). The harness serves 8099 (`tools/origin.py`), so `examples/http.nvs`
+> prints all five lines, `traceparent` crosses, and an outbound read parks on the reactor.
+> Conformance 1165, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
