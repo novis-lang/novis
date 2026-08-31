@@ -325,6 +325,11 @@ spellings rejected, and the reasoning.
   argument and never back, and a `new` over it is refused when an implementor of `T` declares an
   incompatible constructor
   ([0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)).
+- **`property<T>` is a type whose values are `T`'s public declared property names, and `as` is its only
+  source** — `$obj->$key` is admitted for that operand alone and `E0235` moves to the checker for every
+  other, a read is the union of the set's types, a write is the checked erased store, and a class with a
+  `readonly` property refuses the write
+  ([0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)).
 - **One grammar and one tree: the resilient parse is the AST plus a trivia layer and an offset index,
   `nvs-lsp` is synchronous on `lsp-server`/`lsp-types` so no async runtime enters the workspace, an LSP
   answer is frozen as a `.lspt` case, and syntax highlighting is two layers with two tests**

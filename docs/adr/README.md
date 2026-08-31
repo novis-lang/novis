@@ -101,6 +101,7 @@ so you never have to open this file to route a topic.
 | A conversion that shouldn't throw, `as ?int`, `tryParse`, validating untrusted input without `try`/`catch` | [0066](0066-nullable-conversion-operator.md) |
 | A one-line `try`/`catch`, the expression form `expr catch (Class $e) => value`, a fallback value for a call that throws, why an arm may `throw` but not `return`, `catch (Throwable) => …` warning, Swift's `try?`, Zig's `catch`, Go's comma-ok | [0119](0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md) |
 | A class picked at run time, `new $cls(...)`, `$cls::make()`, `$x instanceof $cls`, `Foo::class` as a value, a factory over a discriminator string, `class<T>`, why a bare `string` is `E0496` | [0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md) |
+| A field named at run time, `$obj->$name`, a sort column or patch key from a request, mass assignment, `property<T>`, why a computed member name is `E0235` and where that refusal now lives | [0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md) |
 | Images — `gd`, `exif`, `imagick`, `imagecreatefromjpeg`, `imagecopyresampled`, `getimagesize`, `Novis\Image`, `nvs/image`, resizing, cropping, thumbnails, `srcset` variants, WebP/AVIF/JPEG XL, a pixel bomb and `[image] max_pixels`, EXIF orientation, ICC profiles, stripping GPS, comparing two images in a test, perceptual hashes, BlurHash, text on an image, QR codes, rasterising an SVG | [0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) |
 | PDF — HTML to PDF, `dompdf`, `mpdf`, `tcpdf`, `fpdf`, `wkhtmltopdf`, headless Chromium, invoices and reports, `Novis\Pdf`, `nvs/pdf`, the no-I/O render and its asset map, the CSS subset and the dropped-declarations report, an inert byte-reproducible output, the browser escape hatch | [0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md) |
 | Spreadsheets — xlsx, xlsm, xlsb, xls, ods, PhpSpreadsheet, uploaded workbook imports, export and report generation, `Novis\Spreadsheet`, `nvs/spreadsheet`, formulas as typed values, formula injection, the macro refusal, template fill, explicit evaluation | [0123](0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md) |
@@ -349,6 +350,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0123](0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md) | Spreadsheet reading and generation are one sandboxed component with no I/O | Accepted |
 | [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) | PHP 8.6 lands as four compile-time refusals and one session rule | Accepted |
 | [0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md) | A class reference is a type, and `as` is its only source | Accepted |
+| [0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md) | A property key is a checked name, and `as` is its only source | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

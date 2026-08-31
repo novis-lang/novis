@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
-- **Amended by:** 0036
+- **Amended by:** 0036, 0126
 - **Scope:** what runs when a declared property is read or written beyond a plain field access — PHP
   8.4-style per-property hooks (already scoped for parsing in [M1](../implementation-plan.md)) and a new
   global `PropertyObserver` interface; what happens when the property named at a read or write site does
@@ -154,18 +154,24 @@ not on the list:
   outside it throws rather than silently creating a new property the way PHP does (deprecated, but still
   permitted, before 8.2's opt-in `#[AllowDynamicProperties]`).
 
-A name arrives late in exactly two ways, and a *computed property-access expression* is not one of them.
-`$obj->$name` and `$obj->{$expr}` are refused where they are written, `E0235`, in front of the parentheses of
-a call as much as on a property — the sibling of `$$name`'s own refusal one level in, and the access-side
-twin of the computed shape key [ADR 0036](0036-anonymous-object-shapes.md) § 2 already refuses. Novis has no
-spelling that computes which member is meant: a name only known when the statement runs defeats the
+A name arrives late in exactly three ways, and an *unchecked* computed property-access expression is not one
+of them. `$obj->$name` and `$obj->{$expr}` are refused, `E0235`, in front of the parentheses of a call as
+much as on a property — the sibling of `$$name`'s own refusal one level in, and the access-side twin of the
+computed shape key [ADR 0036](0036-anonymous-object-shapes.md) § 2 already refuses. Novis has no spelling
+that computes which member is meant out of nothing: a name only known when the statement runs defeats the
 resolution every access below the checker is built on, and it is the one construct that would let a
-request-controlled string pick which field to read or write, which priority 1 does not trade.
+request-controlled string pick which field to read or write, which priority 1 does not trade. The one
+operand that carries its own answer is a **property key**,
+[ADR 0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)'s `property<T>`, whose value
+is by construction one of `T`'s public declared property names — so `$obj->$key` is admitted for it and
+`E0235` is the **checker's** refusal for every other operand, the operand's type being the question a
+parser cannot answer.
 
 What is left, and what the runtime throw above is *for*, is the pair where the name is written out and
 something else is unknown: a **reflection-based get/set**, whose name is a `string` by construction, and
 [ADR 0036](0036-anonymous-object-shapes.md) § 4's **erased receiver**, where the class behind the handle is
-what the compiler cannot see. Both throw for a name the concrete class does not declare, and § 4's write half
+what the compiler cannot see. The property key is the third, and it is the same runtime throw moved to the
+one place the name enters — the conversion — rather than repeated at every access. Both throw for a name the concrete class does not declare, and § 4's write half
 additionally checks the incoming value against the field's real declared type.
 
 Either way, `PropertyObserver` is never consulted for a name that does not exist — unlike PHP, where
@@ -256,26 +262,12 @@ Deferred deliberately, each needing its own argument:
   logic look like observation, convertible to `PropertyObserver`, or computation, belonging in a per-property
   hook?) and for `__call`/`__callStatic` (no mechanical destination at all). Belongs with M11's own design,
   not this ADR.
-- **A checked property key, `property<T>` — the typed spelling of *5*'s reflection-based get/set, decided
-  in principle on 2026-08-30 and taken up after `Core\Reflect` lands.** *5*'s two late-name paths stay as
-  they are; this is a third that is the same mechanism with a compile-time set. `property<T>` is a type
-  whose values are `T`'s **public** declared properties, obtained only through `as` —
-  `$name as property<User>` throws for any other name, and a literal operand is decided where it is
-  written — and `$obj->$key` with a `property<T>` operand is then admitted where `E0235` refuses a computed
-  name today: the read is typed as the union of those properties' declared types (which widens into
-  `mixed` or any covering union without `as`), and the write is
-  [ADR 0036](0036-anonymous-object-shapes.md) § 4's checked erased write, never a creation. The set is
-  public by construction, so visibility is decided at the conversion, and a request-controlled string
-  selects among the fields the class already exposes — the bound that keeps *5*'s priority-1 reason
-  intact. It takes the shape the class reference `class<T>` gives
-  [ADR 0007](0007-explicit-type-system.md) § 2: one atom, one `as` row, and the refusal moving from the
-  parser to the checker, where it stays for every other operand. Sequenced after `Core\Reflect` so that
-  the run-time visibility and hook check is the one shared implementation
-  [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) § 2 demands, not a copy written first.
-  **The one open choice, decided when its ADR is written:** whether the set excludes hooked and `readonly`
-  properties (simpler; adding a hook later turns an existing `as` into a throw) or the descriptor carries
-  a hook entry and a `readonly` flag per field (complete; more in `nvs-runtime` and `nvs-codegen`).
-  `$obj->$m()` is not part of it: *6* rejects the concept, not the spelling.
+
+Settled since, and no longer deferred: **a checked property key, `property<T>`** — the typed spelling of
+*5*'s late-arriving name — is
+[ADR 0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md), which decides the set, the
+one source, the widening direction and the `readonly` question that were open here; *5* above states what
+it changed about `E0235`.
 
 Verification, in the order it becomes possible:
 

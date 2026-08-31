@@ -5,7 +5,7 @@
 - **Scope:** the type grammar; the declaration requirement at every binding site; `uint`; typed and
   nested arrays; string-only array keys; unions and `mixed`; the conversion operator; the result type of
   every arithmetic operator
-- **Amended by:** 0008, 0010, 0011, 0012, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036, 0037, 0047, 0053, 0054, 0063, 0066, 0069, 0090, 0109, 0114, 0125
+- **Amended by:** 0008, 0010, 0011, 0012, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036, 0037, 0047, 0053, 0054, 0063, 0066, 0069, 0090, 0109, 0114, 0125, 0126
 
 > **In short:** every binding — parameter, property, constant, local, loop variable, closure parameter,
 > return — declares a type, and **a binding's declared type never changes**. A *value's* type changes only
@@ -105,6 +105,7 @@ owns which conversions admit that form.
 | every row involving `decimal` | [ADR 0054](0054-decimal-scalar-type.md) § 4 owns them |
 | `string` ↔ `bytes` | [ADR 0009](0009-string-and-bytes.md) § 3 owns them |
 | `string` / `class<U>` → `class<T>` | the name must be `T` or a class that is one, or it throws; `Foo::class` is decided at compile time ([0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)) |
+| `string` / `property<U>` → `property<T>` | the name must be one of `T`'s public declared properties, or it throws; a written-out name is decided at compile time, and `property<T>` → `string` is total ([0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)) |
 | any row above, under a qualifier | a successful checked conversion strips `tainted` and `secret` ([0024](0024-taint-tracking-for-injection-sinks.md), [0033](0033-secret-qualifier-for-confidential-values.md)); `as` is never a launderer for a value that keeps its type |
 
 PHP's cast syntax `(int)$x` does not parse — [ADR 0034](0034-legacy-cast-syntax-rejected.md) rejects it with
@@ -135,6 +136,7 @@ atom         := 'null' | 'bool' | 'int' | 'uint' | 'float' | 'decimal'
               | 'string' | 'bytes'
               | 'array' | 'array' '<' type '>'
               | 'class' '<' Name '>'                       // the class reference, 0125
+              | 'property' '<' Name '>'                    // the property key, 0126
               | 'object' | 'mixed' | 'void' | 'never' | 'true' | 'false'
               | 'iterable' | 'callable' | 'self' | 'static' | 'parent'
               | StringLiteral | IntLiteral                // 0047
