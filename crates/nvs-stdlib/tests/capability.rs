@@ -1,10 +1,14 @@
 //! [ADR 0118]'s claims, as tests: the refusal names the capability, a path escape does not match a
 //! granted root, the declaration table names real members, every member of a class that bears one
-//! declares its own, and no member reaches the operating system except through the door.
+//! declares its own, no member reaches the operating system except through the door, and no member
+//! reads a URI scheme off a path.
 //!
-//! The last two are § 7's closure claim and § 2's, and neither subsumes the other: the first catches
-//! a member that goes through a door without being declared as doing so, the second a member that
-//! reaches the operating system with no door at all.
+//! The middle two are § 7's closure claim and § 2's, and neither subsumes the other: the first
+//! catches a member that goes through a door without being declared as doing so, the second a
+//! member that reaches the operating system with no door at all. The last is
+//! [ADR 0052](../../../docs/adr/0052-closed-doors.md) § 2's rather than 0118's, and sits here
+//! because it is the same question one layer up: a door that asks about the path it was handed is
+//! no protection if the path the caller wrote names somewhere else entirely.
 //!
 //! The path cases split deliberately. The `..` half runs against the **real** filesystem, because a
 //! canonicalizer that resolves `..` textually rather than by asking the OS is exactly the bug the rule
@@ -370,6 +374,157 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
             }
         }
     }
+}
+
+/// [ADR 0052] § 2's closed door — a path is a filesystem path — asserted **by construction** rather
+/// than by a blocklist of the schemes PHP shipped. `phar://` is not named as forbidden anywhere
+/// below, because a rule that refused a roster of scheme names would be exactly the registry § 2
+/// refuses to have: what is asserted is that nothing reads a scheme off a path at all.
+///
+/// Three claims, each total over what it sweeps. **The signature half:** a member that dispatched
+/// on a scheme would have to take one, and no member of a path-taking class names a scheme, a
+/// wrapper, a protocol or a URL in its signature column. **The implementation half:** those
+/// classes' modules contain no `://` on any line a release build compiles. **The behavioural
+/// half:** `php://filter/resource=registry.rs` names no file this crate has, at the launderer and
+/// at the door alike.
+///
+/// The path-taking classes are *derived*, not listed — every class with an `fs.read`/`fs.write` row
+/// in [`nvs_stdlib::registry::CAPABILITIES`], plus `Core\Path`, which has no row precisely because
+/// it touches nothing. Pure string algebra over paths is where a textual scheme parse would hide,
+/// and no capability row can find it.
+///
+/// The spellings this refuses are legitimate one class over, which is what makes the sweep a claim
+/// about *paths* rather than a ban on a word: `Core\Uri` has a `scheme` member because a URI is its
+/// subject, and `Core\Http::allowUrl` takes a URL because ADR 0058's outbound door is where a URL
+/// belongs. Neither takes a path.
+///
+/// [ADR 0052]: ../../../docs/adr/0052-closed-doors.md
+#[test]
+fn no_member_dispatches_on_a_uri_scheme() {
+    const SPELLINGS: &[&str] = &["scheme", "wrapper", "protocol", "url", "uri"];
+
+    let path_taking: Vec<_> = nvs_stdlib::registry::CLASSES
+        .iter()
+        .filter(|class| {
+            class.name == "Core\\Path"
+                || nvs_stdlib::registry::CAPABILITIES
+                    .iter()
+                    .any(|(name, _, cap)| {
+                        *name == class.name && matches!(cap, Some(Cap::FsRead | Cap::FsWrite))
+                    })
+        })
+        .collect();
+
+    // The positive control on the derivation itself: the class that reaches the filesystem and the
+    // class that is nothing but paths are both in it, so neither half below sweeps an empty set.
+    for expected in ["Core\\IO", "Core\\Path"] {
+        assert!(
+            path_taking.iter().any(|class| class.name == expected),
+            "`{expected}` takes a path, so it is what this test is about; a run where it is not in \
+             the derived set means the derivation has stopped finding the classes it is a claim over"
+        );
+    }
+
+    for class in &path_taking {
+        for member in class.members() {
+            let names = std::iter::once(member.name).chain(member.names.iter().copied());
+            for name in names {
+                let lowered = name.to_ascii_lowercase();
+                for spelling in SPELLINGS {
+                    assert!(
+                        !lowered.contains(spelling),
+                        "`{}::{}` takes a path, and `{name}` names a {spelling}; ADR 0052 § 2 \
+                         refuses dispatch on the textual content of a path, so there is no \
+                         argument for a member like this to read one from",
+                        class.name,
+                        member.name
+                    );
+                }
+            }
+        }
+    }
+
+    // And the contrast that keeps the sweep from being a ban on a word nobody writes: `Core\Uri`
+    // holds the spelling, on the class whose subject is a URI and which touches no disk.
+    let uri = nvs_stdlib::registry::CLASSES
+        .iter()
+        .find(|class| class.name == "Core\\Uri")
+        .expect("`Core\\Uri` is the class a scheme belongs to");
+    assert!(
+        uri.members().any(|member| member.name == "scheme"),
+        "a scheme is a URI's component and `Core\\Uri` is where it is read; a run where it is not \
+         means the sweep above forbids a spelling the roster no longer contains"
+    );
+
+    // The implementation half. `://` is the structural spelling of a scheme prefix and not one
+    // scheme's name — a bare `:` is not the pattern, because `Core\Path` parses a Windows drive
+    // letter on every platform (see its module doc) and reads one legitimately.
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    for class in &path_taking {
+        let module = class
+            .name
+            .rsplit('\\')
+            .next()
+            .expect("a class name has a last segment")
+            .to_ascii_lowercase();
+        let file = src.join(format!("{module}.rs"));
+        let text = std::fs::read_to_string(&file).unwrap_or_else(|error| {
+            panic!(
+                "`{}` is implemented by `{}`, which this scan has to read: {error}",
+                class.name,
+                file.display()
+            )
+        });
+        // The same two conventions as `nvs_stdlib_reaches_the_os_only_through_the_gate` above, for
+        // the same reasons: a `#[cfg(test)]` module is not in a released binary, and a comment
+        // naming what is refused is this rule's own documentation.
+        let shipped = text
+            .lines()
+            .take_while(|line| line.trim_start() != "#[cfg(test)]");
+        for (number, line) in shipped.enumerate() {
+            if line.trim_start().starts_with("//") {
+                continue;
+            }
+            assert!(
+                !line.contains("://"),
+                "{}:{} spells a URI scheme in a module whose subject is a path; ADR 0052 § 2 is \
+                 that a path naming one is a file with that name and nothing more",
+                file.display(),
+                number + 1
+            );
+        }
+    }
+
+    // The behavioural half, at the launderer every supplied path goes through. The pair is the
+    // whole claim: the same trailing name resolves when it is a name, and does not when a scheme
+    // is glued in front of it.
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let base = manifest.join("src");
+    let mut ctx = ctx_reading(&[&canonical(manifest)]);
+    let plain = within(&mut ctx, &base, "registry.rs").expect("a name inside the base");
+    let dispatched = within(&mut ctx, &base, "php://filter/resource=registry.rs").ok();
+    assert_ne!(
+        dispatched.as_deref(),
+        Some(plain.as_str()),
+        "a member that read the scheme off `php://filter/resource=registry.rs` would have found \
+         `registry.rs` behind the filter, which is the `php://filter` chain ADR 0052 § 2 names. \
+         Whether the odd file name is refused or resolved as the name it is, what it must never \
+         resolve to is the file spelled after the scheme"
+    );
+
+    // And at the door, where the grant is compared: a granted root spelled inside a URL is text in
+    // a file name, so it carries none of the grant it quotes.
+    let caps = reading(&["/granted"]);
+    assert!(caps.allows(Cap::FsRead, Scope::Path(Path::new("/granted/own")), &Fake));
+    assert!(
+        !caps.allows(
+            Cap::FsRead,
+            Scope::Path(Path::new("php://filter/resource=/granted/own")),
+            &Fake
+        ),
+        "the grant is a prefix of a resolved path and never a substring of the argument; a URL \
+         quoting a granted root is a relative name under whatever the process's directory is"
+    );
 }
 
 fn sources(dir: &Path) -> Vec<PathBuf> {
