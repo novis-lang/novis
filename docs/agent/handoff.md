@@ -2,51 +2,61 @@
 
 ## State
 
-**Stage 7 has opened.** `crates/nvs-stdlib/src/log.rs` is `Core\Log::write` and ADR 0092 § 2's
-`Core\Log\Level` — rows, cards, a body and an `address()` arm — plus the class row beside its
-ADR 0020 sibling `Core\Fatal` and a `None` row in `registry::CAPABILITIES` saying what a log write
-reaches instead of a door. The enum's integers **are** the syslog severities ADR 0092 § 2 fixes,
-so the mapping is the roster rather than a second table; that module's doc comment is its home.
+**Stage 7's serialiser question is closed: there is one, and it is `nvs_render::json`.** ADR 0092
+§ 3's JSON rendering sits beside `nvs_render::plain::render` rather than in `nvs-runtime` beside the
+ladder, because § 1 already puts the model *and all three renderings* in the one crate both the
+runtime and the front end depend on — a JSON writer in `nvs-runtime` for the floor plus this one for
+everything else is two writers that agree today. That module's own doc comment is the home of the
+decision, of the `$`-tagged spelling for a kind JSON has no value for, and of why `msg` is § 6's
+`message` spelled short.
 
-**A record is `{"level":…,"msg":…}` plus a `fields` object when the bag is not empty**, written to
-the program's own output stream (`Ctx::write_output`, not `write_diagnostic` — the module doc owns
-the split). `fields` goes through `crate::json::Encodable`, now `pub(crate)` with a `document`
-constructor, so the value encoder is shared with `Core\Json::encode`. Three conformance cases pin
-the renderings, the empty-bag omission and the `bytes` refusal.
+**`Core\Log::write` is now a thin binding over it**: `log.rs`'s `record` fills an
+`nvs_render::Record` and `nvs_render::json::line` renders it. Three second copies went with it — the
+private `Level` enum and its `tag()` table (now `nvs_render::Level::name` and the new
+`from_syslog_severity`, which *searches* `Level::ALL` rather than matching the five severities
+again), and the hand-written `Serialize` impl. `fields` is walked by `crate::debug::node`, the one
+walk `Core\Debug::dump` uses, so ADR 0092 § 5's substitution, redaction and elision now reach a log
+record for free.
 
-**The record itself is still written here, which is the thing ADR 0020 § 6 exists to prevent** —
-`nvs_render::Record` (`crates/nvs-render/src/lib.rs:387`) is ADR 0092 § 1's model and nothing in
-`nvs-runtime` emits a record at all yet. That is the next slice, and `log.rs`'s module doc says so
-under *Known gap*. `examples/logging.nvs` is still red: the acceptance check's third line needs
-`nvs.toml` to name `examples/logging/handler.nvs` for the child, which nothing configures yet.
+**A `bytes` field renders rather than throwing.** § 1's model carries the scalar and a reporting
+path that throws while reporting has nothing left to report with, so `Core\Log::write` has no
+`errors` row at all now. The old refusal case is replaced by
+`log-write-renders-a-field-json-has-no-value-for.nvst`; the other two are unchanged.
+
+**`examples/logging.nvs`'s third line is blocked on the floor, not on a config line.** `[log]
+handler` exists as `nvs_config::tree::Log::handler` and **nothing reads it** — the only `handler`
+readers in `nvs-cli` are the router's. So the acceptance check needs the tier-3/tier-4 rungs, not an
+`nvs.toml` key, and the previous handoff understated it.
 
 ## Next group
 
-**Stage 7's remaining three, over `crates/nvs-stdlib/src/log.rs`, `crates/nvs-render/src/lib.rs`,
-`crates/nvs-types/src/expr/quals.rs` and `nvs.toml`.**
+**The floor — ADR 0020 § 6's second caller — over `crates/nvs-runtime/src/deferred.rs`,
+`crates/nvs-runtime/src/throwable.rs`, `crates/nvs-config/src/tree.rs` and `nvs.toml`.**
 
-- [ ] **`write` reaches one serialiser rather than a second one** — ADR 0020 § 6's whole claim.
-      `crates/nvs-stdlib/src/log.rs:322`'s `Record` and `crates/nvs-stdlib/src/log.rs:289`'s
-      `render` are what move; `crates/nvs-render/src/lib.rs:387` is ADR 0092 § 1's model they
-      should become, and the floor that calls it directly is what does not exist yet. Decide there
-      whether the JSON Lines rendering belongs beside `nvs_render::plain::render` or in
-      `nvs-runtime` beside the ladder, and say which in the ADR-owning module doc.
-- [ ] **`Core\Log::write` refuses a `secret` argument and accepts `tainted` freely** — ADR 0033 § 4
-      and ADR 0024. The sibling to copy is `crates/nvs-types/src/expr/quals.rs:511`'s
-      `reject_secret_debug_argument`, which asks the same question of `Core\Debug::dump`'s open
-      `mixed`; `crates/nvs-types/src/expr/quals.rs:557`'s `contains_secret` is what reaches inside
-      the `array<string, mixed>` bag. The goal check names the test:
-      `a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type`, `-p nvs-types`.
+- [ ] **The tier-4 floor writes a record through `nvs_render::json`** — ADR 0020 §§ 5-6. An uncaught
+      throw becomes an `nvs_render::Record` at `Level::Error` and is rendered by the same call
+      `Core\Log::write` makes, on the diagnostic channel rather than the program's output.
+      `crates/nvs-runtime/src/deferred.rs:129` already names the ladder in a comment and
+      `crates/nvs-runtime/src/throwable.rs:362` is what `nvs run` prints today. This adds the
+      `nvs-runtime` → `nvs-render` edge, whose price — moving `nvs_syntax::bidi` down — is
+      `crates/nvs-render/src/lib.rs:56`'s § *Where this sits*, and it is paid now rather than
+      deferred.
+- [ ] **Tier 3 reads `[log] handler` and spawns it** — ADR 0020 § 3. The key is declared at
+      `crates/nvs-config/src/tree.rs:332` with its two reserve settings beside it and has no reader;
+      the handler is a `spawn script` isolate taking one `ErrorReport`, charged to the engine's own
+      reserve. `crates/nvs-config/src/tree.rs:335`'s two reserve settings are what sizes it, and
+      the repository's own entry goes in the root `nvs.toml` beside its `[[app]]` block.
 - [ ] **`examples/logging.nvs` green on its three frozen lines** — `docs/agent/loop-goal.toml:2455`.
-      The first two lines land already; the third is the child's handler script, so `nvs.toml`
-      needs an `[[app]]` block for `examples/logging/throws.nvs` naming
-      `examples/logging/handler.nvs` — the reader is `crates/nvs-cli/src/main.rs`'s
-      `configured_origin` neighbourhood, and ADR 0020 § 3 is the contract the block spells.
+      The third line is `handler ran`, printed by `examples/logging/handler.nvs` when the child
+      `examples/logging/throws.nvs` escalates past every `catch`. Both files are on disk already.
 
 ## Backlog
 
-- ADR 0020 § 6's `ts`, `request_id`, `trace_id`, `span_id`: no source for any of them yet — `log.rs`'s module doc.
-- `[log] target`/`format`/`level` are unimplemented directives — ADR 0020 § 4, ADR 0092 §§ 2-3.
-- ADR 0106 § 10's floor rotation and identical-record coalescing — the goal check names the test.
-- Stage 8's `Core\Reflect`/`Core\Ast`/`Core\Decimal` — `docs/agent/loop-goal.toml:2465`.
-- `Core\Debug::dump` writes to the diagnostic channel while a log record writes to output; ADR 0092 § 4 says dump goes to the log, so one of the two is wrong once the floor lands.
+- **`Core\Log::write` refuses a `secret` argument and accepts `tainted` freely** — ADR 0033 § 4, its
+  own file set: `crates/nvs-types/src/expr/quals.rs:447` is the positional-argument refusal and
+  `:573` the serialiser sink beside it. Small and unblocked.
+- `msg` versus § 6's `message` is one word in one of two places — ADR 0020 § 6's prose or the
+  fixtures. `crates/nvs-render/src/json.rs`'s module doc names the choice.
+- The HTML rendering is ADR 0092 § 3's third and has no milestone open on it.
+- `Core\Debug::render` selects a rendering by the sink in force (ADR 0092 § 3's table); it always
+  answers plaintext today.

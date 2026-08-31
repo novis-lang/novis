@@ -60,8 +60,9 @@
 > `shed` the same GCRA over the local tier. `examples/cache.nvs` prints its five lines against
 > `tests/db/compose.yaml`'s `redis`, and `[cache.local] max_size` caps the local tier `shed` shares
 > — it forgets rather than fails. **Stage 7 has opened**: `Core\Log::write` and ADR 0092 § 2's
-> `Core\Log\Level` are a row, a card and a body, one JSON Lines record per call on the program's own
-> output stream. Conformance 1175, differential 210 of 210, migration 37% over its 36% floor.
+> `Core\Log\Level` are a row, a card and a body; ADR 0092 § 3's `nvs_render::json` renders it, on
+> the program's own output stream. Conformance 1175, differential 210 of 210, migration 37% over its
+> 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
