@@ -1,0 +1,80 @@
+--TEST--
+Core\IO::writeStream refuses an ungranted path naming `fs.write`, in every spelling of its options bag and with an empty source as readily as a full one — so a member that reached its stream before it reached the door would answer something else on the last of them — ADR 0105 § 4, ADR 0118 §§ 1-2
+--FILE--
+<?nvs
+// The claim is an ordering, and counting is what turns it into one. Four of
+// these calls differ only in what the trailing shape says, so a member that
+// read an option before asking would refuse for a different reason on one of
+// them; the fifth hands over a source with nothing in it, which is the call a
+// member that drew from its stream first would return from happily, having
+// written nothing and asked nobody.
+//
+// Nothing is granted here, so the destination is never created either way --
+// what is being pinned is the message, which is the operator's half: the
+// capability's own name in the spelling `nvs.toml` grants it under.
+array<bytes> $chunks = ["one " as bytes, "two" as bytes];
+array<bytes> $nothing = [];
+string $path = "stream.bin";
+string $needs = "Core\\IO::writeStream needs the capability `fs.write` for " . $path . ", which is not granted";
+
+int $calls = 0;
+int $refused = 0;
+int $namingFsWrite = 0;
+
+try {
+    $calls = $calls + 1;
+    Core\IO::writeStream($path, $chunks);
+} catch (RuntimeError $denied) {
+    $refused = $refused + 1;
+    if ($denied->message == $needs) {
+        $namingFsWrite = $namingFsWrite + 1;
+    }
+}
+
+try {
+    $calls = $calls + 1;
+    Core\IO::writeStream($path, $chunks, {max: 4});
+} catch (RuntimeError $denied) {
+    $refused = $refused + 1;
+    if ($denied->message == $needs) {
+        $namingFsWrite = $namingFsWrite + 1;
+    }
+}
+
+try {
+    $calls = $calls + 1;
+    Core\IO::writeStream($path, $chunks, {overwrite: true});
+} catch (RuntimeError $denied) {
+    $refused = $refused + 1;
+    if ($denied->message == $needs) {
+        $namingFsWrite = $namingFsWrite + 1;
+    }
+}
+
+try {
+    $calls = $calls + 1;
+    Core\IO::writeStream($path, $chunks, {max: 4, overwrite: true});
+} catch (RuntimeError $denied) {
+    $refused = $refused + 1;
+    if ($denied->message == $needs) {
+        $namingFsWrite = $namingFsWrite + 1;
+    }
+}
+
+// The ordering half: an empty stream is still a write, and the door is asked
+// about it before anything asks the source how long it is.
+try {
+    $calls = $calls + 1;
+    Core\IO::writeStream($path, $nothing);
+} catch (RuntimeError $denied) {
+    $refused = $refused + 1;
+    if ($denied->message == $needs) {
+        $namingFsWrite = $namingFsWrite + 1;
+    }
+}
+
+echo "calls: ", $calls as string, "\n";
+echo "refused: ", $refused as string, ", naming fs.write: ", $namingFsWrite as string, "\n";
+--EXPECT--
+calls: 5
+refused: 5, naming fs.write: 5

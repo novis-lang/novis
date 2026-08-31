@@ -1232,6 +1232,13 @@ is why" — is this file.
   advancing, not regressing. Two `peek.py` calls settle it — grep the named test across
   `crates/**/*.rs`, then read the check's block in `loop-goal.toml` for the rest of its `tests` list
   — and the answer decides whether the session takes the handoff's group at all.
+- **A `"` inside a `peek.py` pattern is eaten before Python sees it, and the error names the
+  *regex* rather than the quoting.** `python tools/peek.py 'file.rs:re:name: "[a-z]' 'other:re:x'`
+  comes back as `bad regex /name: [a-z] other:re:x/: multiple repeat` — Windows re-quotes a native
+  command's arguments after PowerShell has finished with them, so the embedded double quote opens a
+  quoted region that swallows the *next* target as well. The tell is a regex in the message that is
+  visibly two targets joined. Write the pattern without `"` (`name: .[a-z]` matches the same rows),
+  which costs nothing, rather than hunting for an escape that survives both layers.
 
 ## Running things
 
@@ -3608,6 +3615,22 @@ is why" — is this file.
   fixture's own header says which half is frozen — for these files it is the `[[check]]`'s `want`
   lines and never the program — so a member spelling in a fixture is a *guess* until one `grep -n
   'name: "…"'` in the owning module confirms it.
+- **A new `Core` member owes *three* conformance cases, not one, and `cargo test -p nvs-stdlib`
+  is where you find that out.** `conformance_coverage.rs`'s
+  `every_core_class_has_a_conformance_floor_of_three` counts cases per member and fails the whole
+  crate at two, so a member landed with a single case is a red build with the work already done —
+  budget the cases with the member rather than after it. The other half of the same surprise is
+  that a case *can* reach a capability-bearing member for real: `--FILE nvs.toml--` writes a config
+  beside `case.nvs` and ADR 0103 § 1 step 2 resolves it out of the case's own working directory, so
+  `[capabilities.fs]` with `read = ["."]` grants the run. `tests/conformance/core/io-*.nvst` is the
+  worked shape, and without it every case for such a member is another spelling of "refused", which
+  is the one thing the floor is designed to reject.
+- **`nvs_stdlib_reaches_the_os_only_through_the_gate` is a *textual* scan, so naming a forbidden
+  type is as fatal as calling it.** The list is spellings — `std::fs`, `std::process::Command`,
+  `std::env::var` — matched against the source above the file's `#[cfg(test)]` marker, so
+  `fn write_chunk(file: &mut std::fs::File, …)` fails a gate about *effects* on a signature that
+  performs none, and so does a `use std::fs::File;` at the top. Make the helper generic over
+  `W: Write` (or infer the type from the door that answered it) and the spelling never appears.
 
 ## Splitting a file that got too big
 

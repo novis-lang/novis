@@ -60,8 +60,9 @@
 > `ClassInfo::call` acts through the ordinary erased-receiver check rather than restating it.
 > **Stage 2's handle half has opened**: `Core\IO::open` answers a `Core\IO\File` whose slot is a key
 > into the request's own table of descriptors, `Core\IO\FileMode` is R11's enum, and
-> `read`/`write`/`close` are its members; § 14's other handle members and `writeStream` are owed.
-> Conformance 1192, differential 210 of 210, migration 37% over its 36% floor.
+> `read`/`write`/`close` are its members; § 14's other handle members are owed, and `writeStream`
+> streams to disk a chunk at a time. Conformance 1195, differential 210 of 210, migration 37% over
+> its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

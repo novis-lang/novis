@@ -108,6 +108,25 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&WRITE_DOC),
         },
         CoreMethod {
+            name: "writeStream",
+            names: &["path", "src"],
+            // The path is a sink and the chunks are not, exactly as `write`'s
+            // pair is and for the same reason: what arrives from outside here
+            // is the *content*, which is what this member exists to accept.
+            // `Iterated` is spec § 14's `Iterable<bytes>` — ADR 0053 § 3's
+            // three shapes, so an `array<bytes>` a program already holds is
+            // one of them and no caller has to build a generator to write.
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Iterated(&CoreTy::Blob(Qual::Neutral)),
+                CoreTy::Options(WRITE_STREAM_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_io_write_stream",
+            doc: Some(&WRITE_STREAM_DOC),
+        },
+        CoreMethod {
             name: "exists",
             names: &["path"],
             params: &[CoreTy::Text(Qual::Sink)],
@@ -228,6 +247,35 @@ const READ_TEXT_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::EnumCase(crate::encoding::CHARSET_NAME, "Utf8"),
 }];
 
+/// `Core\IO::writeStream`'s `{max?, overwrite?}` — ADR 0105 § 4's two rules,
+/// and the whole of what this member decides that [`nvs_core_io_write`] does
+/// not.
+///
+/// **`overwrite` defaults to `false`** because the destination is normally a
+/// name a client claimed, which is the case the member was written for: a
+/// default that replaced would make the safe spelling the one a caller has to
+/// remember. `Core\IO::write` replaces without asking and keeps that default,
+/// because a whole-buffer write is a path the program itself chose.
+///
+/// **`max` defaults to no ceiling at all**, unlike every other bound in this
+/// class, because there is nothing behind it: [`nvs_core_io_read`]'s doc argues
+/// that the request's memory limit already bounds a buffer, and a file on disk
+/// is charged to no such limit. So a caller who means a limit is the only one
+/// who can say what it is, and one who says nothing has said unbounded rather
+/// than inherited a number.
+const WRITE_STREAM_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "max",
+        ty: CoreTy::Uint,
+        default: Const::Uint(u64::MAX),
+    },
+    CoreOption {
+        name: "overwrite",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
 /// `Core\IO::read`'s reference card — ADR 0117.
 const READ_DOC: MethodDoc = MethodDoc {
     short: "The whole content of a file, as text — `file_get_contents`. Needs the `fs.read` \
@@ -283,6 +331,53 @@ const WRITE_DOC: MethodDoc = MethodDoc {
             error: "IOError",
             desc: "The capability allowed it and the operating system did not — a missing \
                    directory, a read-only filesystem, a permission the process lacks.",
+        },
+    ],
+};
+
+/// `Core\IO::writeStream`'s reference card — ADR 0117.
+const WRITE_STREAM_DOC: MethodDoc = MethodDoc {
+    short: "Writes a sequence of `bytes` chunks to `$path` as they arrive, holding no more than one \
+            of them — an upload part, a response body, a decompressed archive. Needs the `fs.write` \
+            capability for the path.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "The file to write. It must not already exist unless `overwrite` says otherwise.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "src",
+            desc: "The chunks, in order — an `array<bytes>`, an `Iterable<bytes>` or an \
+                   `Iterator<bytes>`. Each is written and then dropped, so the source's length is \
+                   not what this holds.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "max",
+            desc: "The most bytes to accept across the whole stream. Unbounded when it is not \
+                   given: nothing else bounds a file on disk, so this is the only ceiling there is.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "overwrite",
+            desc: "Whether an existing file may be replaced. `false` by default, because the \
+                   destination is usually a name a client claimed.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. A failure part-way through removes the partial file before it throws, so a later \
+          reader never finds a truncated write the program believes it completed.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.write` for this path, or the stream ran \
+                   past `max` bytes.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "Something is already at the path and `overwrite` is `false`, or the operating \
+                   system refused the create or one of the writes.",
         },
     ],
 };
@@ -809,6 +904,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_read" => (nvs_core_io_read as *const ()).cast(),
         "nvs_core_io_read_text" => (nvs_core_io_read_text as *const ()).cast(),
         "nvs_core_io_write" => (nvs_core_io_write as *const ()).cast(),
+        "nvs_core_io_write_stream" => (nvs_core_io_write_stream as *const ()).cast(),
         "nvs_core_io_exists" => (nvs_core_io_exists as *const ()).cast(),
         "nvs_core_io_size" => (nvs_core_io_size as *const ()).cast(),
         "nvs_core_io_remove" => (nvs_core_io_remove as *const ()).cast(),
@@ -1133,6 +1229,158 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\IO::writeStream(string $path, Iterable<bytes> $src, {max?, overwrite?}): void` —
+    /// ADR 0105 § 4's one way a stream reaches disk.
+    ///
+    /// Argument reading only; [`stream_to_disk`] is the member. The two
+    /// options arrive already defaulted, so there is nothing here that decides
+    /// what `overwrite` means when a caller says nothing — that is
+    /// [`WRITE_STREAM_OPTIONS`], which is the one place it is written.
+    fn nvs_core_io_write_stream(ctx, args: [4]) {
+        let path = Path::new(text(&args[0], "writeStream", "path")?);
+        // Both option reads below are unreachable from source, on `access_of`'s
+        // reading: the rows in [`WRITE_STREAM_OPTIONS`] are `CoreTy::Uint` and
+        // `CoreTy::Bool`, so `E0401` refuses anything else at the call site and
+        // an absent option arrives as the row's own default. Fatal rather than
+        // thrown, because what is left is a lowering bug.
+        let max = args[2].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\IO::writeStream expected {:?} for its max, got tag {}",
+                Tag::Uint,
+                args[2].tag_byte()
+            ))
+        })?;
+        // Unreachable from source for the reason above: `E0401`.
+        let overwrite = args[3].as_bool().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\IO::writeStream expected {:?} for its overwrite, got tag {}",
+                Tag::Bool,
+                args[3].tag_byte()
+            ))
+        })?;
+        stream_to_disk(ctx, path, args[1], max, overwrite)?;
+        Ok(Value::null())
+    }
+}
+
+/// `Core\IO::writeStream`'s member name, in one place: five refusals name it
+/// and one of them is raised from a closure two frames down.
+const WRITE_STREAM: &str = "Core\\IO::writeStream";
+
+/// ADR 0105 § 4's member: the door, the drive, and the two rules the ADR gives
+/// this member of its own.
+///
+/// A plain function rather than the helper's body so that this module's own
+/// cases can drive it with a source they built — what those cases assert is
+/// the failure path, and reading four argument slots has nothing to do with
+/// it.
+///
+/// **Nothing is materialised.** `nvs_runtime::sequence::for_each` hands over
+/// one chunk at a time and this writes it and drops it, so what the call holds
+/// is the largest single chunk rather than the length of the stream. That is
+/// the whole difference from [`nvs_core_io_write`], which already has every
+/// byte before it starts.
+///
+/// **A failure removes the partial file**, which the ADR asks for because a
+/// truncated file the application believes it wrote is worse than a throw: the
+/// caller learns from the error rather than from a later reader. The removal
+/// is best effort and its own failure is swallowed — the fault that reaches
+/// the program is the one that stopped the write, never a second one about the
+/// cleanup. The handle is dropped first, because Windows refuses to remove a
+/// file that is still open.
+///
+/// A sibling temporary renamed into place was the rejected alternative. It
+/// makes the cleanup unnecessary, and buys that with two names where the
+/// program chose one: the capability was granted for `path`, so the temporary
+/// would need a grant of its own, and `overwrite: false` would become a check
+/// followed by a rename — a window another process can create the file in.
+/// `create_new` closes that window in the kernel, and the door's own docs say
+/// so.
+///
+/// # Errors
+///
+/// The door's catchable `RuntimeError` when `fs.write` does not cover `path`,
+/// a `RuntimeError` when the stream runs past `max`, or
+/// [`nvs_runtime::capability::io_failure`]'s `IOError` when the create or a
+/// write fails. Whatever the source's own `advance`/`current` threw reaches
+/// the caller unchanged.
+fn stream_to_disk(
+    ctx: &mut nvs_runtime::Ctx,
+    path: &Path,
+    src: Value,
+    max: u64,
+    overwrite: bool,
+) -> Result<(), Fault> {
+    let mut file = nvs_runtime::capability::create(ctx, path, overwrite, WRITE_STREAM)?;
+    let mut written = 0_u64;
+    let mut write = |chunk: Value| {
+        let outcome = write_chunk(&mut file, &mut written, max, chunk, path);
+        #[expect(
+            unsafe_code,
+            reason = "`for_each`'s sink owns every value handed to it, on the \
+                      failing call as much as on any other, and this one is \
+                      written to the file rather than kept"
+        )]
+        unsafe {
+            chunk.release();
+        }
+        outcome
+    };
+    let result = nvs_runtime::sequence::for_each(ctx, src, WRITE_STREAM, &mut write);
+    // Before the removal below, and explicitly: Windows refuses to unlink a
+    // file that is still open, so a handle left alive until the end of the
+    // function would turn the cleanup into a no-op on one platform only.
+    drop(file);
+    if let Err(fault) = result {
+        let _ = nvs_runtime::capability::remove_file(ctx, path, WRITE_STREAM);
+        return Err(fault);
+    }
+    Ok(())
+}
+
+/// One chunk of [`stream_to_disk`]'s source, written and counted.
+///
+/// The ceiling is checked against the running total *before* the write rather
+/// than after it, so a stream that would pass `max` never puts the byte that
+/// passes it on disk — the file the cleanup removes is the one the earlier
+/// chunks made, and nothing beyond the limit was ever there.
+///
+/// # Errors
+///
+/// A catchable `RuntimeError` when the total would pass `max`, or
+/// [`nvs_runtime::capability::io_failure`]'s `IOError` when the write fails. A
+/// `Fault::fatal` for a chunk that is not `bytes`, on [`text`]'s reading: the
+/// row's parameter is an `Iterable<bytes>`, so anything else was refused at the
+/// call site.
+fn write_chunk<W: Write>(
+    file: &mut W,
+    written: &mut u64,
+    max: u64,
+    chunk: Value,
+    path: &Path,
+) -> Result<(), Fault> {
+    // Unreachable from source: the row's parameter is an `Iterable<bytes>`, so
+    // `E0401` refuses a source of anything else at the call site.
+    let octets = chunk.as_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{WRITE_STREAM} expected {:?} from its src, got tag {}",
+            Tag::Bytes,
+            chunk.tag_byte()
+        ))
+    })?;
+    let total = written.saturating_add(octets.len() as u64);
+    if total > max {
+        return Err(Fault::thrown(format!(
+            "{WRITE_STREAM}: {} would pass the `max` of {max} bytes at {total}",
+            path.display()
+        )));
+    }
+    *written = total;
+    file.write_all(octets)
+        .map_err(|err| nvs_runtime::capability::io_failure(WRITE_STREAM, path, &err))
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\IO::exists(string $path): bool` — replacing `file_exists`.
     ///
     /// One member for a file and a directory alike, where PHP has three
@@ -1256,5 +1504,159 @@ nvs_runtime::nvs_helper! {
         Ok(Value::str(NvsStr::new(
             resolved.to_string_lossy().as_bytes(),
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A context granting `fs.write` everywhere and nothing else.
+    ///
+    /// Everywhere rather than under a root because what these cases assert is
+    /// on the far side of the door: ADR 0118's own suite
+    /// (`crates/nvs-stdlib/tests/capability.rs`) is where the grant decides
+    /// anything, and a root here would only add a way for them to fail for a
+    /// reason they are not about.
+    fn writing() -> nvs_runtime::Ctx {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config: nvs_config::tree::Config {
+                capabilities: Some(nvs_config::tree::Capabilities {
+                    fs: Some(nvs_config::tree::CapFs {
+                        read: None,
+                        write: Some(nvs_config::tree::Setting::Bool(true)),
+                    }),
+                    ..nvs_config::tree::Capabilities::default()
+                }),
+                ..nvs_config::tree::Config::default()
+            },
+            ..nvs_config::Snapshot::default()
+        }));
+        ctx
+    }
+
+    /// `chunks` as an `array<bytes>` — one of ADR 0053 § 3's three iterable
+    /// shapes, and the one a case can build with no compiler in front of it.
+    /// The caller owns what this answers with.
+    fn source(chunks: &[&[u8]]) -> Value {
+        let mut array = NvsArray::new();
+        for chunk in chunks {
+            array.append(Value::bytes(NvsStr::new(chunk)));
+        }
+        Value::array(array)
+    }
+
+    /// Releases what [`source`] built, so a case leaves the counters where it
+    /// found them.
+    fn discard(src: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the case owns the one reference `source` produced and \
+                      has handed it nowhere: `for_each` retains and releases \
+                      each element around the sink"
+        )]
+        unsafe {
+            src.release();
+        }
+    }
+
+    /// A path under the host's temporary directory that one case owns, with
+    /// anything a previous run left there removed.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join("nvs-write-stream");
+        std::fs::create_dir_all(&dir).expect("a temporary directory the tests own");
+        let path = dir.join(name);
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    #[test]
+    fn write_stream_defaults_to_no_overwrite() {
+        // ADR 0105 § 4's first rule, in both places it has to hold. The row's
+        // default alone would pass over a body that never read the option, and
+        // the behaviour alone would pass over a row whose default was `true` —
+        // it is the pair that says a caller who writes nothing is safe.
+        let overwrite = WRITE_STREAM_OPTIONS
+            .iter()
+            .find(|option| option.name == "overwrite")
+            .expect("§ 4's second option is a row");
+        assert!(
+            matches!(overwrite.default, Const::Bool(false)),
+            "a caller who says nothing must not replace what is there"
+        );
+
+        let mut ctx = writing();
+        let path = scratch("existing.bin");
+        std::fs::write(&path, b"already here").expect("the file the write must not replace");
+        let src = source(&[b"one", b"two"]);
+
+        let refused = stream_to_disk(&mut ctx, &path, src, u64::MAX, false)
+            .expect_err("the default refuses a destination that already exists");
+        let Fault::Thrown(_, message) = refused else {
+            panic!("a destination that is already there is catchable, not a fatal");
+        };
+        assert!(
+            message.contains("writeStream"),
+            "the refusal names the member that raised it: {message}"
+        );
+        assert_eq!(
+            std::fs::read(&path).expect("the file"),
+            b"already here",
+            "and the refusal happened before anything was written"
+        );
+
+        // The same call with the rule turned off, which is what makes the
+        // refusal above a *default* rather than the only thing this member does.
+        stream_to_disk(&mut ctx, &path, src, u64::MAX, true)
+            .expect("`overwrite: true` replaces what is there");
+        assert_eq!(
+            std::fs::read(&path).expect("the file"),
+            b"onetwo",
+            "the chunks arrive in order and are the whole content"
+        );
+
+        discard(src);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_write_stream_that_fails_midway_removes_the_partial_file() {
+        // ADR 0105 § 4's second rule. `max` is the failure the case reaches
+        // for because it is the one this member can be made to raise part-way
+        // through on any host and without a source that throws: two chunks
+        // land, the third passes the ceiling, and the claim is that the two
+        // that landed are gone.
+        let mut ctx = writing();
+        let path = scratch("partial.bin");
+        let src = source(&[b"aaaa", b"bbbb", b"cccc"]);
+
+        let refused = stream_to_disk(&mut ctx, &path, src, 10, false)
+            .expect_err("twelve bytes do not fit under a ceiling of ten");
+        let Fault::Thrown(_, message) = refused else {
+            panic!("passing `max` is the program's own limit and so is catchable");
+        };
+        assert!(
+            message.contains("max"),
+            "the throw names the ceiling it passed: {message}"
+        );
+        assert!(
+            !path.exists(),
+            "a write that stopped part-way leaves nothing behind: {}",
+            path.display()
+        );
+
+        // And the removal is the failure path and not something the member
+        // does every time: the same stream under a ceiling that fits is on
+        // disk afterwards, whole.
+        stream_to_disk(&mut ctx, &path, src, 12, false).expect("twelve bytes fit under twelve");
+        assert_eq!(
+            std::fs::read(&path).expect("the file"),
+            b"aaaabbbbcccc",
+            "the bound is asserted on both sides, and the accepted side is complete"
+        );
+
+        discard(src);
+        let _ = std::fs::remove_file(&path);
     }
 }

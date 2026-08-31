@@ -1,0 +1,37 @@
+--TEST--
+Core\IO::writeStream lands its chunks in order as one file, and a second write to the same name refuses unless `overwrite` says otherwise — the default asserted by what is still on disk after the refusal rather than by the throw on its own — ADR 0105 § 4, spec § 14
+--FILE--
+<?nvs
+// Three chunks, one file: what a caller gets is `write`'s result over a source
+// it never had to join itself. The size is read back from the operating system
+// rather than counted here, so a member that wrote a chunk twice or dropped one
+// moves a number even where the text still looks plausible.
+array<bytes> $chunks = ["one " as bytes, "two " as bytes, "three" as bytes];
+Core\IO::writeStream("out.txt", $chunks);
+echo "wrote: ", Core\IO::read("out.txt"), "\n";
+echo "size: ", Core\IO::size("out.txt") as string, "\n";
+
+// ADR 0105 § 4's first rule. The refusal is not the claim -- what is, is that
+// the file still holds what the first call put there, which is the difference
+// between refusing and truncating before refusing.
+array<bytes> $second = ["replaced" as bytes];
+try {
+    Core\IO::writeStream("out.txt", $second);
+    echo "the second write was allowed\n";
+} catch (IOError $refused) {
+    echo "refused: ", Core\IO::read("out.txt"), "\n";
+}
+
+// And with the rule turned off it replaces, which is what makes the refusal
+// above a default rather than the only thing this member does.
+Core\IO::writeStream("out.txt", $second, {overwrite: true});
+echo "after overwrite: ", Core\IO::read("out.txt"), "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+wrote: one two three
+size: 13
+refused: one two three
+after overwrite: replaced

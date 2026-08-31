@@ -1,0 +1,34 @@
+--TEST--
+Core\IO::writeStream accepts a stream exactly as long as `max` and refuses the one a byte past it, and the refused write leaves nothing on disk — the bound named on both sides, and the partial-file rule asserted by the `exists` after the throw rather than by the throw itself — ADR 0105 § 4
+--FILE--
+<?nvs
+// The same twelve bytes twice, under two ceilings one apart. A member that
+// counted the wrong way round prints plausibly against either half alone: the
+// accepted side and the refused side have to be named together for the bound to
+// be pinned at all.
+array<bytes> $chunks = ["aaaa" as bytes, "bbbb" as bytes, "cccc" as bytes];
+
+Core\IO::writeStream("fits.txt", $chunks, {max: 12});
+echo "fits: ", Core\IO::read("fits.txt"), "\n";
+
+// ADR 0105 § 4's second rule. Two of the three chunks had already reached the
+// file when the third passed the ceiling, so a member that only threw would
+// leave eight bytes behind that nothing ever wrote on purpose -- and the
+// `exists` is the only thing that can tell that apart from this one.
+try {
+    Core\IO::writeStream("over.txt", $chunks, {max: 11});
+    echo "a ceiling of eleven accepted twelve bytes\n";
+} catch (RuntimeError $refused) {
+    if (Core\IO::exists("over.txt")) {
+        echo "refused, and the partial file was left behind\n";
+    } else {
+        echo "refused, and nothing was left behind\n";
+    }
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+fits: aaaabbbbcccc
+refused, and nothing was left behind

@@ -1340,6 +1340,11 @@ pub const CLASSES: &[CoreClass] = &[
 pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::io::NAME, "read", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "write", Some(nvs_config::Cap::FsWrite)),
+    (
+        crate::io::NAME,
+        "writeStream",
+        Some(nvs_config::Cap::FsWrite),
+    ),
     (crate::io::NAME, "exists", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "size", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "remove", Some(nvs_config::Cap::FsWrite)),

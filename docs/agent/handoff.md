@@ -2,58 +2,61 @@
 
 ## State
 
-**Stage 2's *Handles* bullet has opened, and it outranked the handoff's own next group** — the
-driver's acceptance report had advanced to `nvs-stdlib (Core\IO) [2 filesystem]`, where five of
-seven named tests had never existed because `Core\IO::open` did not. Two of the five are closed now.
-The playbook bullet under *Tooling* is the home of how to read that report; do not treat an early
-stage in it as stale.
+**Stage 2's `[2 filesystem]` acceptance check has one test left**: five of its seven named tests
+exist now, and `no_member_dispatches_on_a_uri_scheme` (ADR 0052) is the only one that has never
+been written. It is the driver's next failure and the next group's first item.
 
-**`Core\IO::open` answers a `Core\IO\File`, and the descriptor lives in the request.** The object's
-first slot is a key into `nvs_runtime::Ctx`'s own `open_files` table and its second is the path, so
-every refusal names the file. `Ctx::hold_open_file`'s doc comment is the one home of the accounting
-and of why a key is never reused; `Core\Script\Handle` is the same shape and landed first, and
-`crates/nvs-stdlib/src/instance.rs`'s first decision is why a `std::fs::File` cannot be in a slot.
+**`Core\IO::writeStream` is on disk** — spec § 14's streaming write and ADR 0105 § 4's two rules.
+`crates/nvs-stdlib/src/io.rs`'s `stream_to_disk` is the member and its doc comment is the one home
+of both decisions: nothing is materialised (one chunk is held, never the stream), and a failure
+part-way removes the partial file. A sibling temporary renamed into place was rejected there, in
+writing — it needs a grant for a second name the program never chose, and it turns `overwrite:
+false` into a check followed by a rename.
 
-**The mode decides the capability, which is new.** `nvs_runtime::capability::Access` is the runtime's
-own spelling of the four `Core\IO\FileMode` cases, and `capability::open` asks `fs.read` for `Read`,
-`fs.write` for `Write`/`Append` and **both** for `ReadWrite`. `registry::CAPABILITIES` has one cap
-per member and cannot express that, so `open`'s row names the stronger one and its comment says why;
-`Core\IO\File`'s three members carry `None` rows, because the descriptor was checked at the door.
+**Two doors are new, one per crate.** `nvs_runtime::capability::create` is the streaming-write door:
+`fs.write` on the path, then `create_new` when `overwrite` is false, so the refusal is `O_EXCL` in
+the kernel rather than an `exists` call with a window after it. `nvs_runtime::sequence::for_each` is
+the one-element-at-a-time drive, and `drain` is now written over it, so there is a single cursor
+loop; its doc comment owns the ownership contract, which is that **the sink owns every value handed
+to it, including on the call it fails**.
 
-**What stage 2 still owes** is `writeStream` (ADR 0105 § 4 — `overwrite` defaults to `false`, and a
-write that fails mid-stream removes the partial file), the `no_member_dispatches_on_a_uri_scheme`
-test over landed work, and the rest of § 14's handle roster (`readLine`, `seek`, `tell`, `truncate`,
-`flush`, `lock`) plus `stdin`/`stdout`/`stderr`. Stage 8's reflective property write — the group the
-previous handoff named — is untouched and moves to the backlog with its finding intact.
+**What stage 2 still owes** after the URI-scheme sweep: § 14's remaining handle roster — `readLine`,
+`seek`, `tell`, `truncate`, `flush`, `lock` — and `Core\IO::stdin`/`stdout`/`stderr`, each a
+signature over the same slot with nothing new to decide. Stage 8's reflective property write is
+untouched and stays in the backlog with its finding intact.
+
+**The orientation pack was missing two things** this session paid a call each for, both worth a
+`[context]` selector: spec § 14's own row for the member being written (`docs/spec/01-core-library.md`
+is in no manifest field), and `crates/nvs-test`'s module doc, which is where a `.nvst` learns it can
+grant a capability with `--FILE nvs.toml--`.
 
 ## Next group
 
-**The rest of stage 2's named check, over `crates/nvs-stdlib/src/io.rs`, `crates/nvs-runtime/src/capability.rs`
-and `crates/nvs-stdlib/tests/capability.rs` — the same three files this session held. ADR 0105 § 4
-and spec § 14 are the specification, and `docs/agent/loop-goal.toml:2218` is the check.**
+**The rest of stage 2, over `crates/nvs-stdlib/src/io.rs`, `crates/nvs-stdlib/src/registry.rs` and
+`crates/nvs-stdlib/tests/capability.rs` — one file set, and the same three files this session held.
+Spec § 14 is the member list and `docs/agent/loop-goal.toml:2221` is the check.**
 
-- [ ] **`Core\IO::writeStream(string $path, Iterable<bytes> $src, {max?, overwrite?})` — the five
-      edits** over `crates/nvs-stdlib/src/io.rs:1126`'s sibling `write`, with the door extended at
-      `crates/nvs-runtime/src/capability.rs:225`. The `Iterable<bytes>` is consumed through
-      `nvs_runtime::sequence::ITERATE` the way `crates/nvs-stdlib/src/io.rs:655`'s neighbour
-      `Core\IO\Lines` answers one; ADR 0105 § 4 is the contract. Write to a sibling temporary and
-      rename, so "removes the partial file" is the failure path doing nothing rather than a cleanup
-      that can itself fail.
-- [ ] **`write_stream_defaults_to_no_overwrite` and
-      `a_write_stream_that_fails_midway_removes_the_partial_file`**, beside this session's two at
-      `crates/nvs-stdlib/tests/capability.rs:427`, with `ctx_reading_and_writing` already there for
-      the grants. Both are named by the acceptance check and neither exists.
-- [ ] **`no_member_dispatches_on_a_uri_scheme`** — ADR 0052, over landed work only: a sweep asserting
-      that no `Core\IO` body branches on a `://` prefix and that no registry row anywhere spells a
-      scheme. Same file, `crates/nvs-stdlib/tests/capability.rs:427`.
+- [ ] **`no_member_dispatches_on_a_uri_scheme`** — ADR 0052's closed door on stream wrappers,
+      asserted by construction over landed work: no `Core` member takes a scheme, and no path
+      argument is parsed as one. A sweep over `crates/nvs-stdlib/src/registry.rs:1340`'s roster
+      beside its neighbours in `crates/nvs-stdlib/tests/capability.rs:316`. This closes the
+      driver's failing check and outranks the two below.
+- [ ] **`Core\IO\File::readLine` and `::flush`** — spec § 14's handle roster, two rows on
+      `crates/nvs-stdlib/src/io.rs:750`'s `FILE`, cards beside
+      `crates/nvs-stdlib/src/io.rs:789`, bodies beside `crates/nvs-stdlib/src/io.rs:1134`. Each
+      needs three conformance cases; `tests/conformance/core/io-write-stream-*.nvst` is the shape,
+      `--FILE nvs.toml--` and all.
+- [ ] **`Core\IO\File::seek`, `::tell` and `::truncate`** — the same five edits over
+      `crates/nvs-stdlib/src/io.rs:750`, `crates/nvs-stdlib/src/io.rs:789` and
+      `crates/nvs-stdlib/src/io.rs:1134`, and the one decision between them is what a seek past the
+      end answers.
 
 ## Backlog
 
-- **Stage 8's reflective property write** — ADR 0014's hook is emitted at the *call site* by
-  `crates/nvs-ir/src/lower/expr.rs:3539`, so a native member cannot reach it and
-  `crates/nvs-runtime/src/object.rs:2481` is not where it lives; the decision is still open.
-  `docs/agent/loop-goal.toml:2474` names the test.
-- Stage 7 still owes the schema-identity test — application code and the engine floor produce
-  schema-identical records (`docs/plan/m8.md`, ADR 0020's M7/M8 list).
-- § 14's remaining handle members and the standard streams, per `crates/nvs-stdlib/src/io.rs:655`'s
-  own doc comment.
+- `Core\IO::stdin`/`stdout`/`stderr` answer `Core\IO\File` too — `crates/nvs-stdlib/src/io.rs:750`.
+- Stage 8's reflective property write — `ClassInfo::call` landed; the write half is untouched
+  (ADR 0019).
+- `Core\IO\File::lock` — the one handle member with a capability question of its own to settle.
+- Spec § 14's `append`, `copy`, `move`, `makeDir`, `list`, `walk` are unwritten (`docs/spec/01-core-library.md` § 14).
+- `docs/agent/loop-goal.toml`'s `[context]` gains `docs/spec/01-core-library.md` and
+  `crates/nvs-test/src/lib.rs`'s format docs.
