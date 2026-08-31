@@ -266,6 +266,7 @@ pub mod sequence;
 mod string;
 pub mod terminal;
 pub mod throwable;
+pub mod trace_context;
 mod value;
 
 /// The leak guard in [`object`] measures the allocator rather than trusting a
@@ -344,4 +345,5 @@ pub use throwable::{
     BACKTRACE_SLOT, ISSUES_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT, Thrown,
     ThrownClass, nvs_raise, nvs_raise_new, nvs_take_thrown, nvs_trace_push,
 };
+pub use trace_context::TraceContext;
 pub use value::{Tag, Value, nvs_value_release, nvs_value_retain};

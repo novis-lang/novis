@@ -1688,6 +1688,7 @@ dependencies = [
  "bitflags 2.13.1",
  "libc",
  "nvs-config",
+ "rand",
  "subtle",
  "toml",
  "unicode-segmentation",

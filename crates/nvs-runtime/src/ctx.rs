@@ -533,6 +533,23 @@ pub struct Ctx {
     /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) — the tree
     /// itself is shared and is charged to the snapshot, not to the request.
     config: Option<nvs_config::Request>,
+    /// This request's place in a distributed trace —
+    /// [ADR 0076](../../../docs/adr/0076-observability-export.md) § 2, whose id
+    /// is Novis's only request identifier.
+    ///
+    /// **Not [`Self::trace`]**, which is ADR 0018's per-call-site event list;
+    /// [`crate::trace_context`]'s module doc opens on why the two are separate
+    /// and what each is for.
+    ///
+    /// Drawn eagerly in [`Self::new`] rather than on first ask, because § 2 has
+    /// an id exist for every request whatever the sampling decision — a lazy one
+    /// would be the same id in the end and a second place for two readers to
+    /// disagree about whether there is one at all. A request that arrived with a
+    /// `traceparent` gets [`Self::set_trace_context`] before it runs, exactly as
+    /// [`Self::config`] does.
+    ///
+    /// **What it spends:** 25 bytes per request and one CSPRNG draw.
+    trace_context: crate::trace_context::TraceContext,
     /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
     /// command table, or `None` for a program that declared no `#[Command]` —
     /// [`crate::commands`] owns why the rows cross into the runtime at all and
@@ -1113,6 +1130,7 @@ impl Ctx {
             arguments: Vec::new(),
             program_name: String::new(),
             config: None,
+            trace_context: crate::trace_context::TraceContext::started(),
             fixed_clock: None,
             random_state: None,
             captures: Vec::new(),
@@ -1186,6 +1204,23 @@ impl Ctx {
     pub fn set_config(&mut self, snapshot: std::sync::Arc<nvs_config::Snapshot>) {
         self.config = Some(nvs_config::Request::new(snapshot));
         self.refresh_limits();
+    }
+
+    /// This request's place in a distributed trace — ADR 0076 § 2, and never
+    /// `None`, because § 2 has an id exist for every request.
+    #[must_use]
+    pub fn trace_context(&self) -> &crate::trace_context::TraceContext {
+        &self.trace_context
+    }
+
+    /// Continues the trace an inbound request arrived carrying, replacing the
+    /// root [`Self::new`] drew.
+    ///
+    /// Written before the program runs, exactly as [`Self::set_config`] is: the
+    /// id appears in log records and on the response, so a second write
+    /// mid-request would split one request across two traces.
+    pub fn set_trace_context(&mut self, trace: crate::trace_context::TraceContext) {
+        self.trace_context = trace;
     }
 
     /// This program's command table, or `None` for one that declares no

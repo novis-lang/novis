@@ -30,6 +30,12 @@ bitflags.workspace = true
 # `nvs-config` depends on `nvs-diagnostics`, `serde` and `toml` and on nothing
 # in this crate, so the edge is one-way.
 nvs-config.workspace = true
+# ADR 0076 § 2's trace id is drawn once per request, in `Ctx::new` — so the draw
+# has to happen in the crate that owns per-request state, not in `nvs-stdlib`
+# where `Core\Random` already uses this same generator for the same reason its
+# module doc argues at length. No new crate reaches the tree: `nvs-stdlib`
+# depends on both this crate and `rand` already.
+rand.workspace = true
 # ADR 0033 § 5's `secret == secret` is a constant-time comparison, and this
 # crate cannot call `nvs-stdlib`, where `Core\Hash::equals` already uses the
 # same crate for the same reason — the workspace manifest's own comment beside
