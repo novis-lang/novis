@@ -1540,6 +1540,28 @@ is why" — is this file.
   when the binary frees; never kill the loop's `nvs.exe` to win the race. A docs-only session can
   also lean on `python tools/adr.py` and `python tools/reference.py`, which prove the docs side
   without touching cargo.
+- **`tools/try.py` cannot run a case that carries a second `--FILE <name>--` section, and what it
+  prints reads as if the case itself were broken.** It hands everything after `--FILE--` to the
+  compiler, so a `--FILE nvs.toml--` capability grant arrives as Novis source and the case answers
+  with a dozen parse errors on `[capabilities.net]` — `E0105`, `E0319`, `E0101` — not one of which
+  is about the case. `target/debug/nvs.exe test <case.nvst>` runs one case the way the suite does,
+  honours the extra file sections, and prints `1 passed`; it takes several paths in one call. For a
+  case with only the one file, `try.py` is still the right tool and is the cheap way to capture an
+  `--EXPECTF-ERROR--` block: write the section as a placeholder, run it, and paste the diagnostic
+  it prints — only the `error[...]` line and the `--> case.nvs:L:C` under it, since `%A` covers the
+  snippet between them.
+- **A new `Core` member trips two gates the five-edit recipe does not name, one of them in another
+  crate, and each costs a whole verification run to find.** The first is
+  `registry::tests::no_registry_card_cites_an_adr`: `nvs meta --json` ships a card verbatim to a
+  reader with no ADR tree, so a `short`, a `ret` or a `desc` may not cite one — not even a
+  parenthetical `(ADR 0024 § 1)` closing an otherwise self-contained sentence. State the fact and
+  leave the citation to the doc comment above the row. The second fires only on a row answering
+  `CoreTy::TaintedStr`: `nvs_types::core_lib`'s `a_verified_signature_does_not_launder_its_claims`
+  holds the **closed set** of members whose answer is qualified `tainted`, so a new one arrives as
+  a failure whose message is about ADR 0060 § 5 and JWT claims and reads like a regression in
+  neither. Widening it is the point — the set is where a promise invisible from every other row
+  gets looked at — but the edit is in `crates/nvs-types`, which a `-p nvs-stdlib` loop never
+  compiles.
 
 ## Writing a test case
 

@@ -56,12 +56,13 @@
 > `Core\Csrf` binds a token under a domain tag, `Core\Totp` answers the step a code belonged to, and
 > `Core\Jwt` compares `alg` against a key it never selects from, writes `exp` from a positional
 > `Duration`, and answers `array<tainted string>` — `CoreTy::TaintedStr`, the return-position
-> spelling ADR 0060 § 5 was owed. **Stage 5 is open at its door**: `Core\Http::allowUrl` is a row, a
-> card and a body, answering a pinned `Core\Http\Target` rather than a laundered string, and ADR
-> 0058 § 3's denied ranges are one table in `nvs_config` behind `nvs_runtime::capability::pin_host`.
-> `Core\Http\Client` is five rows over one `Core\Http\Options` bag — compile-time whole, § 7's
-> keyless `post` retry refused as `E0796`, and no transport behind it, so `examples/http.nvs` still
-> fails. Conformance 1152, differential 210 of 210, migration 37% over its 36% floor.
+> spelling ADR 0060 § 5 was owed. **Stage 5 is open at its door**: `Core\Http::allowUrl` answers a
+> pinned `Core\Http\Target`, and ADR 0058 § 3's denied ranges are one table in `nvs_config` behind
+> `nvs_runtime::capability::pin_host`. `Core\Http\Client` is five rows over one `Core\Http\Options`
+> bag — compile-time whole, § 7's keyless `post` retry `E0796` — and `Core\Http\Response` reads
+> `status(): int` and `text(): tainted string` off two slots no transport fills, so
+> `examples/http.nvs` now fails on `Core\Env` alone. Conformance 1155, differential 210 of 210,
+> migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
