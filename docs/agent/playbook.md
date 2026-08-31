@@ -1163,6 +1163,17 @@ is why" — is this file.
   `Remove-Item -Recurse -Force target/debug/incremental`, which is a pure cache and costs one cold
   build. Adding six crates to the lock file is what tipped it over, so a slice taking a dependency
   is the one that should run `python tools/disk.py` before it starts.
+- **A `.rs` the Write tool creates on Windows lands with CRLF, and the gate that catches it names
+  something else entirely.** `.gitattributes` normalises on commit, so the *committed* file is fine
+  and only the working copy is wrong — which means the failure looks like a logic bug, not a
+  whitespace one. `every_error_path_is_asserted_or_declared_unreachable` in
+  `crates/nvs-stdlib/tests/conformance_coverage.rs` reads a `Fault::` message literal off disk and
+  unescapes it, and a Rust line continuation is `\` followed by **LF**: with CRLF the stem keeps a
+  literal backslash, the CR and the next line's indentation, so it can never match a case's output
+  no matter how right the case is. The tell is `\\\r\n` inside the `{:?}` stem the failure prints.
+  One `python -c` rewrite of `\r\n` to `\n` fixes it; do it to any new source file before the first
+  `cargo test` rather than after reading the case four times. The `.nvst` files written in the same
+  session came out LF, so this is not reliably visible by inspecting one file.
 
 ## Running things
 

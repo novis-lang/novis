@@ -49,19 +49,20 @@
 > `examples/files.nvs` runs green. **Stage 3's process half is closed**: `Core\Process::run` is a
 > row, a card, a body and a `process.exec` grant over `nvs_runtime::capability::exec`'s door, and
 > ADR 0044 § 1's `ProcessResult` is `Core\Process\Result`. `examples/process.nvs` runs green and
-> stage 3's four named checks are on disk. **Stage 3's terminal profile is closed**: § 3's four
-> facts are rows over `nvs_runtime::terminal`, resolved once per process. **§ 6 is closed**:
-> `Core\Command::help`, `::run` and `completions` are rows over the compiled table, a declared
-> default crosses on the row, and `--ARGS--` is honoured. What goals 1-3 landed is unchanged and is
-> not re-derived here: `git log` and each crate's module doc own it. **Stage 4's password half is
-> closed**: `Core\Password`'s three members are rows, cards and bodies over Argon2id at OWASP's
-> floor, with no algorithm or cost argument, `needsRehash` answering *weaker* rather than
-> *different*, and `hash`/`verify` the second and last writers of `Qual::Reveal` — a roster
-> `nvs-types` now closes by test. **Stage 4's AEAD half is closed**: `Core\Crypto`'s three members
-> are rows, cards and bodies over XChaCha20-Poly1305, with no cipher, mode, padding or nonce
-> argument, one message for every forgery, and a key that is a `secret bytes` in the row itself —
+> stage 3's four named checks are on disk.  **§ 6 is closed**: `Core\Command::help`, `::run` and
+> `completions` are rows over the compiled table, a declared default crosses on the row, and
+> `--ARGS--` is honoured. What goals 1-3 landed is unchanged and is not re-derived here: `git log`
+> and each crate's module doc own it. **Stage 4's password half is closed**: `Core\Password`'s three
+> members are rows, cards and bodies over Argon2id at OWASP's floor, with no algorithm or cost
+> argument, `needsRehash` answering *weaker* rather than *different*, and `hash`/`verify` the second
+> and last writers of `Qual::Reveal` — a roster `nvs-types` now closes by test. **Stage 4's AEAD
+> half is closed**: `Core\Crypto`'s three members are rows, cards and bodies over
+> XChaCha20-Poly1305, with no cipher, mode, padding or nonce argument, one message for every
+> forgery, and a key that is a `secret bytes` in the row itself —
 > `CoreTy::SecretBytes`/`SecretBlob`, the spelling `Core\Hash::hmac` was owed. `examples/crypto.nvs`
-> runs green. Conformance 1133, differential 210 of 210, migration 37% over its 36% floor.
+> runs green. **Stage 4's protocol half is opened**: `Core\SignedCookie` seals with `$keys[0]` and
+> opens against the ring, over `Core\Crypto`'s one construction. Conformance 1136, differential 210
+> of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

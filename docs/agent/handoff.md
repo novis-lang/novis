@@ -2,74 +2,67 @@
 
 ## State
 
-**Goal 4's stage 4 is closed, both halves.** `Core\Crypto::generateKey`, `::seal` and `::open` are
-rows, cards and bodies in `crates/nvs-stdlib/src/crypto.rs`, whose module doc is the one home for
-the construction (XChaCha20-Poly1305, and why the extended nonce rather than RFC 8439's 96-bit
-one), the sealed layout (`nonce ‖ ciphertext ‖ tag`, a flat 40 octets of overhead), what it spends,
-and why every way of failing to be authentic throws one message. `examples/crypto.nvs` prints its
-six frozen lines, so the driver's acceptance failure is closed.
+**Stage 4's protocol half is open, and its first entry is closed.** `Core\SignedCookie::seal` and
+`::open` are rows, cards and bodies in `crates/nvs-stdlib/src/signed_cookie.rs`, whose module doc is
+the one home for which end of the key ring is the newest key, why `open` is the only verification in
+the language that removes `tainted`, what a cookie is on the wire, and why two members sharing
+`Core\Crypto`'s verb names is not ADR 0063 R17's "reachable two ways".
 
-**A registry row can now declare `secret bytes`, which it could not before.** `CoreTy::SecretBytes`
-and `CoreTy::SecretBlob(Qual)` are the unclassified and classified spellings, mirroring
-`Bytes`/`Blob` one axis over; they are the first `CoreTy` variants carrying a *qualifier* rather
-than an ADR 0088 classification, and the variant's own doc comment is the home of that difference.
-`generateKey` returns one, so a key cannot be assigned to a plain `bytes`; `seal`/`open` declare
-one, so a `secret` key crosses without any member removing the mark and **the `Qual::Reveal` roster
-stays closed at two classes**. `Core\Hash::hmac`'s key took the same spelling — `hash.rs`'s module
-doc had recorded that gap and named that parameter as wanting it first.
+**There is one AEAD in `nvs-stdlib` and both classes are on the near side of it.**
+`crates/nvs-stdlib/src/crypto.rs` now exposes `cipher` (306), `seal_under` (339) and `open_under`
+(396) as `pub(crate)`, and `Core\Crypto`'s own two members are three lines each over them. That
+refactor is the whole of why a signed cookie has no second nonce policy and no second opinion about
+tags; `crypto.rs`'s module doc carries it, and `open_under`'s doc is the home of why "not authentic"
+is one answer rather than three.
 
-**Sealing a `secret` message is deliberately a written `Core\Secret::revealBytes` call.** The
-`$message` parameter is an ordinary `Blob(Qual::Contagious)`, so a `secret` plaintext is refused
-there like anywhere else. That is a decision, not an omission: `crypto.rs`'s module doc argues it,
-and the alternative was making `Core\Crypto` a third launderer.
+**`$keys[0]` is the newest key**, seals, and is the only key `seal` looks at; `open` walks the whole
+ring in order. An empty ring and a ring entry that is not 32 octets are `LogicError`s naming the
+index; everything else is one `RuntimeError` sentence. Three `.nvst` cases pin the order contract,
+the four-way refusal agreement and the wire form's stated length.
 
-**`chacha20poly1305` 0.11 is a new dependency**, six crates — itself, `aead`, `cipher`, `inout`,
-`poly1305`, `universal-hash` — with no second copy of anything, since `chacha20` was already in the
-lock file as `rand` 0.10's own generator. `[workspace.dependencies]`'s comment carries ADR 0051
-§ 4's two answers and that cost; `THIRD-PARTY-LICENSES.txt` is regenerated. **`cargo deny check`
-was not run — `cargo-deny` is not installed on this machine**; every added crate is MIT/Apache-2.0.
+**The driver's acceptance failure is stage 5's, not a regression.** `examples/http.nvs` names
+`Core\Http::allowUrl`, which no stage before 5 lands, and a non-`0` stage's cargo checks run *after*
+the program legs — so that fixture will mask stage 4's named checks until `Core\Http` exists. It is
+the same shape `examples/crypto.nvs` had through sessions 0004-0009.
 
-**The manifest is unchanged and still wrong in the same ways** as the last handoff recorded: two
-dead `[context] modules` selectors (`crates/nvs-host/src/pool.rs`, `crates/nvs-host/src/stream.rs`),
-and it wants `crates/nvs-runtime/src/commands.rs`, `crates/nvs-types/src/defaults.rs`,
-`crates/nvs-test/src/case.rs`, `crates/nvs-cli/src/main.rs`, `crates/nvs-runtime/src/ctx.rs`,
-`crates/nvs-stdlib/src/password.rs` and now `crates/nvs-stdlib/src/crypto.rs` added. For the group
-below, `[context] adrs` needs **ADR 0060 §§ 1, 4, 5** — none of it was printed this session and all
-of it specifies the next three slices. Nothing is blocked.
+**Manifest gaps, unchanged plus one.** Two dead `[context] modules` selectors
+(`crates/nvs-host/src/pool.rs`, `crates/nvs-host/src/stream.rs`); it wants
+`crates/nvs-runtime/src/commands.rs`, `crates/nvs-types/src/defaults.rs`, `crates/nvs-test/src/case.rs`,
+`crates/nvs-cli/src/main.rs`, `crates/nvs-runtime/src/ctx.rs`, `crates/nvs-stdlib/src/password.rs`,
+`crates/nvs-stdlib/src/crypto.rs` and now `crates/nvs-stdlib/src/signed_cookie.rs` added. **`[context]
+adrs` still needs ADR 0060 §§ 1, 4, 5** — none was printed and all three specify the group below.
+Nothing is blocked.
 
 ## Next group
 
-**Stage 4's protocol half — ADR 0060's closed four-entry roster, of which three are the named
-checks still owing.** All three sit directly on the members this session landed and share one file
-set: `crates/nvs-stdlib/src/registry.rs:1150` (the `CLASSES` tail, where `crate::crypto::CLASS`
-now is), `crates/nvs-stdlib/src/lib.rs:323` (the `address` chain) and one new module each beside
-`crates/nvs-stdlib/src/crypto.rs:140`. The class names are the spec's, at
-`docs/spec/01-core-library.md:1101`: `Core\SignedCookie`, `Core\Csrf`, `Core\Totp`, `Core\Jwt`.
+**Stage 4's protocol half, entries two to four — ADR 0060 § 1's remaining bullets, each a named
+check still owing.** They share one file set with what just landed:
+`crates/nvs-stdlib/src/registry.rs:1158` (the `CLASSES` tail),
+`crates/nvs-stdlib/src/lib.rs:248` and `:348` (the `mod` line and the `address` chain),
+`crates/nvs-stdlib/src/crypto.rs:306` (the three shared helpers) and one new module each beside
+`crates/nvs-stdlib/src/signed_cookie.rs:115`.
 
-- [ ] **`Core\SignedCookie`, AEAD only and with key rotation** — ADR 0060 § 1's first bullet and
-      § 4. Sign with the newest key, verify against several, and no unauthenticated mode in the
-      API — which is `crates/nvs-stdlib/src/crypto.rs:153`'s `seal` and `:169`'s `open` with a key
-      list over them rather than a second construction. Registered at
-      `crates/nvs-stdlib/src/registry.rs:1150` and `crates/nvs-stdlib/src/lib.rs:323`. The named
-      check is `a_signed_cookie_round_trips_and_a_tampered_one_is_refused`.
 - [ ] **`Core\Csrf`, where the comparison is the only exposed operation** — ADR 0060 § 1's second
-      bullet: a caller must not be able to write `==`, so there is no member answering the token
-      for comparison. The binding is to a session *identifier* a caller passes, not to
-      `Core\Session`, which is goal 6's. Draw through `crates/nvs-stdlib/src/random.rs:473`'s seam
-      and compare through `crates/nvs-stdlib/src/hash.rs`'s constant-time `equals`. Same two
-      registration anchors. The check is `a_csrf_token_is_bound_to_the_session_that_issued_it`.
-- [ ] **`Core\Totp`, with a bounded window and no replay** — ADR 0060 § 1's third bullet. The
-      base32 pair `docs/spec/01-core-library.md:630` names as existing "for TOTP" is already on
-      disk at `crates/nvs-stdlib/src/encoding.rs:397`. Same two registration anchors. The check is
-      `a_totp_window_is_bounded_and_a_replay_is_refused`.
+      bullet. **`Core\Session` is goal 6's**, so the session the token is bound to arrives as an
+      argument rather than being read: a member answering a token and a member answering `bool`, and
+      no member answering the expected token for a caller to `==`. Registered at
+      `crates/nvs-stdlib/src/registry.rs:1158` and `crates/nvs-stdlib/src/lib.rs:348`, keyed through
+      `crates/nvs-stdlib/src/crypto.rs:306`. The named check is
+      `a_csrf_token_is_bound_to_the_session_that_issued_it`.
+- [ ] **`Core\Totp`, with a bounded window and no replay** — ADR 0060 § 1's third bullet. There is no
+      cross-request store in this goal (ADR 0059's is stage 6), so "no replay" has to be a *counter
+      the member answers* for the caller to store, not state the class keeps. Same registration
+      anchors: `crates/nvs-stdlib/src/registry.rs:1158`, `crates/nvs-stdlib/src/lib.rs:348`. The named
+      check is `a_totp_window_is_bounded_and_a_replay_is_refused`.
+- [ ] **`Core\Jwt`, whose algorithm comes from the key** — ADR 0060 § 4's first three bullets and § 5:
+      `alg` is checked against the key and never consulted to choose, `exp` is mandatory with no flag,
+      and verified claims come back **`tainted`** — the opposite of
+      `crates/nvs-stdlib/src/signed_cookie.rs:115`'s `Qual::Launder`, and the contrast is worth a
+      sentence in each module doc. The named check is `a_jwt_with_an_unexpected_algorithm_is_refused`.
 
 ## Backlog
 
-- `Core\Jwt`, plus `a_verified_signature_does_not_launder_its_claims` in `nvs-types` — ADR 0060
-  §§ 4-5, the algorithm from the key and never the token.
-- Three fixtures still owe configuration: `examples/http.nvs` a stage-5 origin,
-  `examples/logging.nvs` an `[[app]]` block, the rest their `net.connect` grant.
-- `nvs_runtime::commands`' gap 1, recorded in that module's own doc.
-- `cargo deny check` has never run on this machine — `docs/adr/0051` § 4 is what it enforces.
-- `orient.py`'s `[context]` manifest, the six additions and two dead selectors above —
-  `docs/agent/loop-goal.toml`.
+- `examples/http.nvs` and the whole of stage 5 — `docs/agent/loop-goal.toml:2340`.
+- Stage 6's two stores, `Core\Cache` local and shared — `docs/agent/loop-goal.toml:2369`.
+- `cargo deny check` has never run on this machine; `cargo-deny` is not installed — `docs/adr/0051-standard-library-tiers.md` § 4.
+- The `[context]` manifest edits listed under *State*, in `docs/agent/loop-goal.toml`.

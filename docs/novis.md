@@ -104,6 +104,7 @@ Conventions the whole file uses:
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
 | [`Core\Crypto`](#core-core-crypto) | authenticated encryption with no cipher, mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted |
+| [`Core\SignedCookie`](#core-core-signedcookie) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -14934,6 +14935,52 @@ Authenticates `$sealed` under `$key` and answers the plaintext, or throws. A mes
 **Returns** `bytes` — The original plaintext, byte for byte.
 
 **Throws** `LogicError` — `$key` is not 32 octets long — a `bytes` that was never a key.; `RuntimeError` — `$sealed` is not an authentic message under `$key` — it was altered, it is too short to be one at all, or the key is the wrong one. The three are one message on purpose: telling them apart tells a forger which half landed.
+
+<a id="core-core-signedcookie"></a>
+### `Core\SignedCookie`
+
+Keywords: seal, open
+
+| Member | Signature |
+|---|---|
+| [`Core\SignedCookie::seal`](#core-core-signedcookie-seal) | `seal(string $value, array<secret bytes> $keys): string` |
+| [`Core\SignedCookie::open`](#core-core-signedcookie-open) | `open(string $cookie, array<secret bytes> $keys): string` |
+
+<a id="core-core-signedcookie-seal"></a>
+#### `Core\SignedCookie::seal`
+
+```nvs skip
+Core\SignedCookie::seal(string $value, array<secret bytes> $keys): string
+```
+
+Seals `$value` under the newest key in `$keys` and answers cookie-safe text. The construction is `Core\Crypto`'s, so the cookie is encrypted as well as authenticated and there is no unauthenticated spelling to reach for.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `string` | The payload. It comes back from `open` exactly as it went in. |
+| `$keys` | `array<secret bytes>` | The key ring, **newest first**: `$keys[0]` seals, and the rest exist so that `open` still accepts cookies sealed before the last rotation. A ring of one is `[$key]`. |
+
+**Returns** `string` — Unpadded URL-safe base64 — `A-Za-z0-9-_`, every octet of which a `Set-Cookie` header carries unescaped. About `4/3 × (length + 40)` characters, and different on every call for the same inputs, because each seals under its own nonce.
+
+**Throws** `LogicError` — `$keys` is empty, so there is no newest key; or `$keys[0]` is not 32 octets long — a `bytes` that was never a key.; `RuntimeError` — This process cannot spare a buffer the size of the sealed value.
+
+<a id="core-core-signedcookie-open"></a>
+#### `Core\SignedCookie::open`
+
+```nvs skip
+Core\SignedCookie::open(string $cookie, array<secret bytes> $keys): string
+```
+
+Authenticates `$cookie` against every key in `$keys` and answers the value that was sealed, or throws. The answer is **unqualified**: a payload this application sealed itself is the one verification in the language that gives back a value free of the `tainted` mark it arrived with.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$cookie` | `string` (launder) | The cookie text, as it arrived. A `tainted` value is accepted here — that is the point of the member. |
+| `$keys` | `array<secret bytes>` | The same ring `seal` was given, newest first. A cookie sealed under any key still in the ring opens; one sealed under a key that has been dropped off the end does not. |
+
+**Returns** `string` — The original value, character for character.
+
+**Throws** `LogicError` — `$keys` is empty, or one of its entries is not 32 octets long.; `RuntimeError` — `$cookie` is not an authentic cookie under any key in `$keys` — it was altered, it is not base64 at all, or it was sealed under a key that has been retired. The four are one message on purpose: telling them apart tells a forger which half landed, and which key of the ring to aim at.
 
 <a id="core-enums"></a>
 ### `Core` enums
