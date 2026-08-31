@@ -908,6 +908,7 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
             DEFAULT_BACKOFF,
         )?,
         idempotency_key: args[RETRY_KEY].as_text().map(str::to_owned),
+        traceparent: traceparent_of(ctx),
     };
 
     let reply = transport::send(&call, &mut |hop| pin(ctx, hop, &named))?;
@@ -918,6 +919,31 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
             Value::str(NvsStr::new(reply.body.as_bytes())),
         ],
     ))
+}
+
+/// The `traceparent` this call carries: the request's own trace, when
+/// `[trace] propagate` is on.
+///
+/// [ADR 0076](../../../docs/adr/0076-observability-export.md) § 2 — propagating
+/// it is what makes a trace cross a service boundary at all — and § 6 ships the
+/// directive **on**, so a deployment that configured nothing propagates. There
+/// is no per-call option beside it: which traces leave this process is a
+/// deployment decision, which is why § 6 makes the whole `[trace]` block
+/// `System`.
+///
+/// Off is the word `false` and nothing else. A value that is not a boolean is
+/// the shipped default rather than a refusal, for [`bound_of`]'s reason:
+/// `nvs.toml` is validated where it is loaded, and failing a request over a key
+/// the operator can no longer see is the wrong direction.
+///
+/// The id itself is the runtime's and not this class's — `Ctx` holds one for
+/// every request whatever the sampling decision, per
+/// [`nvs_runtime::trace_context`].
+fn traceparent_of(ctx: &Ctx) -> Option<String> {
+    ctx.config()
+        .and_then(|config| config.get("trace.propagate"))
+        .is_none_or(|text| text.trim() != "false")
+        .then(|| ctx.trace_context().traceparent())
 }
 
 /// How many redirect hops this call may follow: the option, then
@@ -1186,5 +1212,39 @@ mod tests {
             }
             Err(err) => panic!("the listener failed for a reason that is not the point: {err}"),
         }
+    }
+
+    /// ADR 0076 §§ 2 and 6: `[trace] propagate` decides whether this request's
+    /// trace leaves the process, it ships **on**, and what leaves is the
+    /// runtime's own id — one per request, not one per call.
+    ///
+    /// The last assertion is the one that fails if this class ever mints an id
+    /// of its own: a per-call id would still print a well-formed header on every
+    /// line above it.
+    #[test]
+    fn traceparent_is_the_requests_own_id_and_only_while_propagate_is_on() {
+        let mut on = Ctx::buffered();
+        on.set_config(granting(GRANTED));
+        let sent = super::traceparent_of(&on).expect("§ 6 ships `propagate` on");
+        assert_eq!(sent, on.trace_context().traceparent());
+        assert_eq!(
+            super::traceparent_of(&on).as_deref(),
+            Some(sent.as_str()),
+            "a second call in one request is the same trace"
+        );
+
+        let mut off = Ctx::buffered();
+        off.set_config(granting("[trace]\npropagate = false\n"));
+        assert_eq!(
+            super::traceparent_of(&off),
+            None,
+            "`propagate = false` is the whole of how a trace stops here"
+        );
+
+        // A context nobody configured is § 6's shipped defaults and not a
+        // refusal — the same reading `bound_of` gives a directive nothing set.
+        let unconfigured = Ctx::buffered();
+        let other = super::traceparent_of(&unconfigured).expect("nothing configured propagates");
+        assert_ne!(other, sent, "two requests are two traces");
     }
 }

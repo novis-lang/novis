@@ -91,6 +91,13 @@ pub(crate) struct Call<'a> {
     pub(crate) backoff: Duration,
     /// `Idempotency-Key`, for the one verb that needs one.
     pub(crate) idempotency_key: Option<String>,
+    /// The W3C `traceparent` naming the request this call is made from, or
+    /// `None` where `[trace] propagate` is off.
+    ///
+    /// Already the answer, like every other field here: whether to propagate and
+    /// what the id is are both read in [`super::traceparent_of`], off the `Ctx`
+    /// this module deliberately cannot reach.
+    pub(crate) traceparent: Option<String>,
 }
 
 /// What came back: the two things `Core\Http\Response` holds, plus the headers
@@ -298,6 +305,17 @@ fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
     ));
     if let Some(key) = &call.idempotency_key {
         field(&mut out, "Idempotency-Key", key, call.member)?;
+    }
+    // ADR 0076 § 2. Skipped where the caller wrote its own: two `traceparent`
+    // headers are what the W3C format says to treat as no header at all, so
+    // sending both would end the trace here rather than continue it.
+    if let Some(traceparent) = &call.traceparent
+        && !call
+            .headers
+            .iter()
+            .any(|(name, _)| name.eq_ignore_ascii_case("traceparent"))
+    {
+        field(&mut out, "traceparent", traceparent, call.member)?;
     }
     for (name, value) in &call.headers {
         field(&mut out, name, value, call.member)?;
@@ -586,6 +604,7 @@ mod tests {
             attempts: 1,
             backoff: Duration::from_millis(1),
             idempotency_key: None,
+            traceparent: None,
         }
     }
 
@@ -610,6 +629,48 @@ mod tests {
             "the authority the URL wrote is what `Host:` carries: {}",
             asked[0]
         );
+    }
+
+    /// ADR 0076 § 2: an outbound call propagates `traceparent`, which is what
+    /// makes a trace cross a service boundary at all.
+    ///
+    /// Asserted on the head that crossed the socket rather than on
+    /// [`compose`]'s return, and by **counting** the lines rather than reading
+    /// one off: a second `traceparent` is what the W3C format tells a receiver
+    /// to read as no header at all, so a rule that emitted one beside the
+    /// caller's own would end the trace here while still looking right on the
+    /// line that asserts ours was sent.
+    #[test]
+    fn an_outbound_request_carries_traceparent() {
+        let ours = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        let theirs = "00-11111111111111111111111111111111-2222222222222222-00";
+        let empty = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+        let (at, served) = origin(vec![empty, empty, empty]);
+
+        let mut propagating = call(at, "test");
+        propagating.traceparent = Some(ours.to_owned());
+        send(&propagating, &mut never).expect("an answer");
+
+        // `[trace] propagate = false` reaches this module as nothing to send.
+        let quiet = call(at, "test");
+        send(&quiet, &mut never).expect("an answer");
+
+        // A caller that wrote its own keeps it, and gets exactly one.
+        let mut written = call(at, "test");
+        written.traceparent = Some(ours.to_owned());
+        written.headers = vec![("traceparent".to_owned(), theirs.to_owned())];
+        send(&written, &mut never).expect("an answer");
+
+        let asked = served.join().expect("the origin thread");
+        let carried = |head: &String| {
+            head.lines()
+                .filter(|line| line.to_ascii_lowercase().starts_with("traceparent:"))
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(carried(&asked[0]), [format!("traceparent: {ours}")]);
+        assert_eq!(carried(&asked[1]), [] as [String; 0], "{}", asked[1]);
+        assert_eq!(carried(&asked[2]), [format!("traceparent: {theirs}")]);
     }
 
     /// ADR 0058 § 4: every hop is re-checked and re-pinned, and a hop refused
