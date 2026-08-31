@@ -220,6 +220,7 @@ mod csv;
 mod cursor;
 mod debug;
 mod encoding;
+mod env;
 mod fatal;
 pub mod format;
 pub mod granularity;
@@ -331,6 +332,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| cursor::address(symbol))
         .or_else(|| debug::address(symbol))
         .or_else(|| encoding::address(symbol))
+        .or_else(|| env::address(symbol))
         .or_else(|| fatal::address(symbol))
         .or_else(|| io::address(symbol))
         .or_else(|| hash::address(symbol))

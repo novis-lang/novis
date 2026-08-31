@@ -726,14 +726,18 @@ mod tests {
     /// promise would have to stop writing `CoreTy::TaintedStr`. Both edits
     /// land here.
     ///
-    /// **The promising side is two, and the second is not a signature at all.**
+    /// **The promising side is four, and only one of them is a signature.**
     /// `Core\Http\Response::text` answers `tainted string` because a reply is
     /// bytes another host chose, and pinning an address settles which host they
     /// came from rather than what is in them — ADR 0024 § 1's roster, which
-    /// `nvs_stdlib::http`'s module doc argues from. It belongs in this set for
-    /// the same reason the claims do: a member that promises `tainted` is
-    /// invisible from every row but its own, so this is where a third arrival
-    /// has to be looked at rather than waved through.
+    /// `nvs_stdlib::http`'s module doc argues from. `Core\Env::get` and
+    /// `Core\Env::all` are the other two, and the plainest reading of that same
+    /// roster: the environment is outside the program's own text, so a value
+    /// out of it is untrusted however the operator wrote it, and a variable
+    /// holding a URL still has to reach `Core\Http::allowUrl`. All three belong
+    /// in this set for the reason the claims do: a member that promises
+    /// `tainted` is invisible from every row but its own, so this is where a
+    /// new arrival has to be looked at rather than waved through.
     #[test]
     fn a_verified_signature_does_not_launder_its_claims() {
         use std::collections::BTreeSet;
@@ -762,13 +766,16 @@ mod tests {
         assert_eq!(
             promises,
             BTreeSet::from([
+                (r"Core\Env", "all", "array<tainted string>".to_owned()),
+                (r"Core\Env", "get", "null|tainted string".to_owned()),
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at two — a \
-             verified claim and an outbound reply's body — and for the claims the element type \
-             is what carries it, since `nvs_types` has no tainted array and a member answering \
-             `array<mixed>` would have laundered every claim silently"
+            "the roster of members whose *answer* is qualified `tainted` is closed at four — a \
+             verified claim, an outbound reply's body and the two environment reads — and where \
+             the answer is a collection the element type is what carries it, since `nvs_types` \
+             has no tainted array and a member answering `array<mixed>` would have laundered \
+             every entry silently"
         );
 
         assert!(

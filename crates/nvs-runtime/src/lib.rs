@@ -252,6 +252,7 @@ mod ctx;
 pub mod decimal;
 pub mod deferred;
 pub mod dispatch;
+pub mod environment;
 mod fmt;
 pub mod graph;
 pub mod graphemes;

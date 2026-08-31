@@ -1154,6 +1154,14 @@ pub const CLASSES: &[CoreClass] = &[
     // format's ADR rather than by the library spec. [`crate::config`] owns why
     // every member of it is four lines long.
     crate::config::CLASS,
+    // § 15's environment half — ADR 0012 § 1's replacement for `$_ENV` and
+    // `getenv`, and beside `Core\Config` because the two are the same operator's
+    // two answers to "what was this process started with". The one class here
+    // that reaches the operating system and is deliberately *not* in the
+    // capability table below: [`crate::env`]'s module doc owns why a
+    // process-wide fact the operator chose is not a door, and why every value
+    // it hands back is `tainted` instead.
+    crate::env::CLASS,
     // ADR 0020 § 1, and no spec § of its own: the escalation ladder's ADR is
     // where this member is specified, because what it registers is a rung of
     // that ladder rather than a library facility. [`crate::fatal`] owns why the
