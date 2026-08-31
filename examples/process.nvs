@@ -31,9 +31,13 @@ if (Core\IO::exists("target/debug/nvs.exe")) {
 }
 
 // argv only: the subcommand and the script are elements, never a line.
+//
+// The captured streams are `bytes` and not `string` (ADR 0044 § 1): a child
+// process makes no UTF-8 promise, so `as string` is the checked conversion
+// that throws rather than a silent mangling.
 var $result = Core\Process::run($nvs, ["run", "examples/process/hello.nvs"]);
-echo "exit=", $result->exitCode, "\n";
-echo "stdout=", Core\Str::trim($result->stdout), "\n";
+echo "exit=", $result->exitCode(), "\n";
+echo "stdout=", Core\Str::trim($result->stdout() as string), "\n";
 
 // The target kind this API declines to run. The clause is `RuntimeError`
 // and not `Throwable`, so a missing file or a capability denial would not
