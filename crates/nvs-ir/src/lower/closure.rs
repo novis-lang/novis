@@ -381,7 +381,7 @@ fn check_param_class(
         Ty::Bool,
         InstKind::InstanceOf {
             value,
-            class: class.to_owned(),
+            class: TestedClass::Named(class.to_owned()),
         },
     );
     let body = low.new_block();

@@ -13,7 +13,8 @@ use nvs_diagnostics::{SourceFile, Span};
 
 use crate::ids::BlockId;
 use crate::ir::{
-    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Program, Terminator, UnOp,
+    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Program, Terminator,
+    TestedClass, UnOp,
 };
 use crate::ty::Ty;
 
@@ -230,9 +231,12 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             object.index(),
             value.index()
         ),
-        InstKind::InstanceOf { value, class } => {
-            format!("instanceof v{}, {class}", value.index())
-        }
+        InstKind::InstanceOf { value, class } => match class {
+            TestedClass::Named(class) => format!("instanceof v{}, {class}", value.index()),
+            TestedClass::Descriptor(desc) => {
+                format!("instanceof v{}, v{}", value.index(), desc.index())
+            }
+        },
         InstKind::Concat { pieces } => {
             let parts: Vec<String> = pieces.iter().map(|p| format!("v{}", p.index())).collect();
             format!("concat {}", parts.join(", "))

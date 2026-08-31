@@ -56,7 +56,7 @@ use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use nvs_ir::Ty;
 use nvs_ir::ids::{BlockId, ValueId};
 use nvs_ir::ir::{
-    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp,
+    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, TestedClass, UnOp,
 };
 use nvs_runtime::{
     DEBUG_FLAGS_OFFSET, Decimal as NvsDecimal, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN,
@@ -2340,15 +2340,29 @@ impl Emitter<'_, '_> {
         Ok(answer)
     }
 
-    fn emit_instanceof(&mut self, value: ValueId, class: &str) -> Result<Value, CodegenError> {
-        let desc = self.classes.desc(class).ok_or_else(|| {
-            CodegenError::Unsupported(format!(
-                "`instanceof {class}`, whose class this unit declares no descriptor for"
-            ))
-        })?;
-        let address = i64::try_from(desc.addr())
-            .map_err(|_| internal("a class descriptor above i64::MAX"))?;
-        let desc = self.b.ins().iconst(types::I64, address);
+    /// `$x instanceof C` and ADR 0125 § 4's `$x instanceof $cls` — the same
+    /// runtime call either way, differing only in where the descriptor comes
+    /// from: an `iconst` of the address this unit laid the written class out
+    /// at, or the [`Ty::ClassDesc`] the class reference already holds. See
+    /// [`nvs_ir::ir::TestedClass`].
+    fn emit_instanceof(
+        &mut self,
+        value: ValueId,
+        class: &TestedClass,
+    ) -> Result<Value, CodegenError> {
+        let desc = match class {
+            TestedClass::Named(class) => {
+                let desc = self.classes.desc(class).ok_or_else(|| {
+                    CodegenError::Unsupported(format!(
+                        "`instanceof {class}`, whose class this unit declares no descriptor for"
+                    ))
+                })?;
+                let address = i64::try_from(desc.addr())
+                    .map_err(|_| internal("a class descriptor above i64::MAX"))?;
+                self.b.ins().iconst(types::I64, address)
+            }
+            TestedClass::Descriptor(desc) => self.value(*desc)?.0,
+        };
         let (bare, subject_ty) = self.value(value)?;
         let (symbol, subject) = if matches!(subject_ty, Ty::Tagged) {
             ("nvs_value_instanceof", self.materialize_receiver(value)?)

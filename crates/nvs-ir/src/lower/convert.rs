@@ -1037,7 +1037,7 @@ impl<'a> Lowering<'a> {
             Ty::Bool,
             InstKind::InstanceOf {
                 value,
-                class: class.to_owned(),
+                class: TestedClass::Named(class.to_owned()),
             },
         );
         let hit = self.new_block();

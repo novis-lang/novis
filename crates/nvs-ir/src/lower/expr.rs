@@ -260,8 +260,8 @@ impl<'a> Lowering<'a> {
             ExprKind::Index { base, index } => {
                 self.lower_index(base, index.as_deref(), expr, env, cur)
             }
-            ExprKind::InstanceOf { expr: inner, .. } => {
-                self.lower_instanceof(inner, expr, env, cur)
+            ExprKind::InstanceOf { expr: inner, class } => {
+                self.lower_instanceof(inner, class, expr, env, cur)
             }
             ExprKind::Clone(inner) => self.lower_clone_expr(inner, env, cur),
             // Two things wear this syntax, and both are inlined constants.
@@ -4229,11 +4229,19 @@ impl<'a> Lowering<'a> {
     /// `$x instanceof Name` — the tested class comes from
     /// `self.exprs`, exactly like a property access's declaring class,
     /// because resolving a bare `Animal` to `Ns\Animal` needs the
-    /// namespace/import context this crate cannot see. Every spelling
-    /// that records nothing — the dynamic `$x instanceof $name` form, a
-    /// `Core` class, an enum, an undeclared name — is refused at the
-    /// checker (`E0496`/`E0303`), so the miss below is an
+    /// namespace/import context this crate cannot see. A `Core` class, an
+    /// enum and an undeclared name all record nothing and are refused at
+    /// the checker (`E0496`/`E0303`), so the miss below is an
     /// internal-consistency failure rather than a hole.
+    ///
+    /// **A right-hand side that is not a written name is ADR 0125 § 4's
+    /// `$x instanceof $cls`**, and it records nothing either — for the
+    /// opposite reason. There is no name to resolve: the operand is a
+    /// `class<T>`, so the descriptor to test against is the value it
+    /// evaluates to, and which form this site takes is decided by the shape
+    /// of the expression rather than by an entry. The checker refuses every
+    /// *other* dynamic spelling where it is written (`E0496`), which is what
+    /// makes reading the syntax sufficient here.
     ///
     /// **The subject may be a [`Ty::Tagged`], and the runtime checks its
     /// tag.** A `mixed` or an untested `?Box` is the shape `instanceof`
@@ -4245,20 +4253,11 @@ impl<'a> Lowering<'a> {
     fn lower_instanceof(
         &mut self,
         inner: &Expr,
+        class: &Expr,
         expr: &Expr,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let Some(ExprInfo::InstanceOf { class }) = self.exprs.lookup(expr.span) else {
-            panic!(
-                "nvs-ir: an `instanceof` at {:?} has no resolved class recorded in the \
-                 typed-expression table — it wasn't checked with the same table, every \
-                 right-hand side naming no declared class being `E0496` or `E0303` at \
-                 the checker",
-                expr.span
-            );
-        };
-        let class_label = class.to_string();
         let (value, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
             matches!(ty, Ty::Object | Ty::Tagged),
@@ -4266,12 +4265,36 @@ impl<'a> Lowering<'a> {
              got representation {ty:?}, every subject whose declared type cannot being \
              `E0497` at the checker"
         );
+        // The subject is written first and evaluated first; the class side is
+        // second, and for the dynamic form it is an expression of its own.
+        let tested = match &class.kind {
+            ExprKind::ConstFetch(_) => {
+                let Some(ExprInfo::InstanceOf { class }) = self.exprs.lookup(expr.span) else {
+                    panic!(
+                        "nvs-ir: an `instanceof` at {:?} has no resolved class recorded in the \
+                         typed-expression table — it wasn't checked with the same table, every \
+                         right-hand side naming no declared class being `E0496` or `E0303` at \
+                         the checker",
+                        expr.span
+                    );
+                };
+                TestedClass::Named(class.to_string())
+            }
+            // The class side needs no lifecycle: [`Ty::ClassDesc`] is not
+            // refcounted, the same reason
+            // [`Self::lower_static_call_on_a_class_reference`] lowers its own
+            // and moves on.
+            _ => {
+                let (desc, _) = self.lower_expr(class, Some(Ty::ClassDesc), env, cur);
+                TestedClass::Descriptor(desc)
+            }
+        };
         let result = self.emit(
             *cur,
             Ty::Bool,
             InstKind::InstanceOf {
                 value,
-                class: class_label,
+                class: tested,
             },
         );
         // The subject is only read, so a fresh one nothing else owns —

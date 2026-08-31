@@ -773,11 +773,14 @@ pub enum InstKind {
     /// `$obj instanceof Class` — one linear scan of the receiver's flattened
     /// supertype set, defining a [`Ty::Bool`].
     ///
-    /// `class` is a label into [`crate::ir::Program::classes`], exactly like
-    /// [`InstKind::New::class`], and it may name an *interface* as readily as
-    /// a class: `nvs_types::layout` gives an interface a descriptor with no
-    /// slots for precisely this test (and for a typed `catch`, which lowers
-    /// to the same instruction). Reads `value` without retaining it, the way
+    /// `class` is usually a label into [`crate::ir::Program::classes`],
+    /// exactly like [`InstKind::New::class`], and it may name an *interface*
+    /// as readily as a class: `nvs_types::layout` gives an interface a
+    /// descriptor with no slots for precisely this test (and for a typed
+    /// `catch`, which lowers to the same instruction). ADR 0125 § 4's
+    /// `$x instanceof $cls` supplies a [`Ty::ClassDesc`] value in its place
+    /// and asks the identical question — [`TestedClass`] owns why the two
+    /// forms are one instruction. Reads `value` without retaining it, the way
     /// [`InstKind::FieldGet`] reads its receiver.
     ///
     /// **The subject may be a [`Ty::Tagged`], and the tag is checked at run
@@ -793,9 +796,10 @@ pub enum InstKind {
         /// The subject, already lowered — a [`Ty::Object`], or a
         /// [`Ty::Tagged`] whose tag this instruction checks.
         value: ValueId,
-        /// The class or interface tested against, rendered the same way
-        /// `New::class` is.
-        class: String,
+        /// The class or interface tested against: a name written at the site,
+        /// or the descriptor a `class<T>` operand evaluated to. See
+        /// [`TestedClass`].
+        class: TestedClass,
     },
     /// `.` string concatenation: builds a fresh [`Ty::Str`] value from the
     /// cooked bytes of every piece, each already [`Ty::Str`] by the time this
@@ -1403,6 +1407,33 @@ pub enum InstKind {
         /// The already-lowered arguments, positional.
         args: Vec<ValueId>,
     },
+}
+
+/// Which class an [`InstKind::InstanceOf`] tests against.
+///
+/// Two forms rather than two instructions, because the test is the same test:
+/// `nvs-codegen` calls the same runtime helper with the same two arguments,
+/// and all that differs is where the descriptor's address comes from. A
+/// written name is one the unit already laid out, so its address is an
+/// `iconst`; ADR 0125 § 4's `$x instanceof $cls` already has the address in a
+/// register, because a `class<T>` value *is* a descriptor.
+///
+/// The written form keeps its label rather than lowering to a
+/// [`TestedClass::Descriptor`] over an [`InstKind::ClassDescConst`], for the
+/// reason [`InstKind::New`] keeps its own: the class is a fact of the program
+/// that every consumer of this instruction reads by name — the printer,
+/// `crate::lower::tests`, and codegen's refusal for a class this unit declares
+/// no descriptor for — and none of them can name a [`ValueId`].
+#[derive(Debug)]
+pub enum TestedClass {
+    /// A class or interface written at the site. Every producer but ADR 0125
+    /// § 4's dynamic one gives this, including the two `catch` ladders and
+    /// `as`'s own downcast check.
+    Named(String),
+    /// The [`Ty::ClassDesc`] a `class<T>` operand evaluated to, tested against
+    /// by address. Never a null descriptor: `as` is a class reference's only
+    /// source and throws rather than yielding one ([`InstKind::ClassDescIn`]).
+    Descriptor(ValueId),
 }
 
 /// What an [`InstKind::ArrayGet`] answers when its key names no entry.

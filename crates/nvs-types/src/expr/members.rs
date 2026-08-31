@@ -309,10 +309,13 @@ pub(crate) fn infer_instanceof(
         // consults nothing about `T`: a class reference over any base answers
         // the same question, and the answer is `bool` either way.
         //
-        // Nothing is recorded for it. `ExprInfo::InstanceOf` names a *written*
-        // class, which is what `nvs-codegen` bakes an address in for; § 4's
-        // descriptor-valued form is a different entry and arrives with the
-        // lowering that reads it.
+        // Nothing is recorded for it, and nothing needs to be.
+        // `ExprInfo::InstanceOf` exists because resolving a written `Animal`
+        // to `Ns\Animal` needs context `nvs-ir` does not have; here there is
+        // no name at all, only the operand, whose descriptor `nvs-ir` lowers
+        // straight into `InstKind::InstanceOf`'s descriptor form. Which of the
+        // two forms a site takes is decided by the shape of the right-hand
+        // side, and this refusal is what leaves only these two shapes.
         let operand = check_expr(class, None, live, scope, ctx, env);
         if class_ref_argument(operand, env.interner).is_none() {
             reject_dynamic_class_name(

@@ -181,7 +181,7 @@ impl<'a> Lowering<'a> {
                 Ty::Bool,
                 InstKind::InstanceOf {
                     value: thrown,
-                    class: caught,
+                    class: TestedClass::Named(caught),
                 },
             );
             let handler = self.new_block();
@@ -495,7 +495,7 @@ impl<'a> Lowering<'a> {
                 Ty::Bool,
                 InstKind::InstanceOf {
                     value: thrown_v,
-                    class: caught,
+                    class: TestedClass::Named(caught),
                 },
             );
             let taken = self.new_block();

@@ -84,7 +84,9 @@ use nvs_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{BlockId, EdgeId, IdGen, ValueId};
-use crate::ir::{AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
+use crate::ir::{
+    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, TestedClass, UnOp,
+};
 use crate::ty::{EnumRepr, Ty};
 use crate::{span_text, strip_sigil};
 
