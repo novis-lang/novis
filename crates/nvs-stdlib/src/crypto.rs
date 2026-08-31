@@ -101,6 +101,18 @@
 //! greppable, and encryption is not an exemption from it — it is the case it
 //! was written for.
 //!
+//! # This construction has one home, and two classes are on the near side of it
+//!
+//! [`cipher`], [`seal_under`] and [`open_under`] are `pub(crate)`, and
+//! [`crate::signed_cookie`] — [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)
+//! § 1's first roster entry — is their second caller. That is what makes a
+//! signed cookie *this* AEAD with a key ring over it rather than a second
+//! construction with its own nonce policy and its own opinion about tags: there
+//! is exactly one `XChaCha20Poly1305::new_from_slice` in `nvs-stdlib`, and
+//! everything above reaches it through those three functions. Nothing outside
+//! this module reads a *field* of a sealed message, which is the sentence above
+//! and is still true — a caller gets the whole buffer or nothing.
+//!
 //! # The nonce is drawn through `Core\Random`'s seam
 //!
 //! `chacha20poly1305`'s `getrandom` feature is off in `Cargo.toml`, for
@@ -284,6 +296,122 @@ fn bytes_of<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8
     })
 }
 
+/// The construction keyed by `key`, or `None` for a `bytes` that is not a key.
+///
+/// The one place in this tree a key becomes a cipher. [`crate::signedcookie`]
+/// reads it too, which is what makes ADR 0060 § 1's cookie entry *this*
+/// construction with a key ring over it rather than a second one: there is one
+/// `XChaCha20Poly1305::new_from_slice` in `nvs-stdlib` and both classes are on
+/// the near side of it.
+pub(crate) fn cipher(key: &[u8]) -> Option<XChaCha20Poly1305> {
+    XChaCha20Poly1305::new_from_slice(key).ok()
+}
+
+/// The `LogicError` a key of the wrong length earns, in one sentence for every
+/// member that keys [`cipher`].
+///
+/// `who` is the member, spelled `Core\Class::member`, and `param` the argument
+/// as the caller wrote it — `$key` here and `$keys[0]` one class over, where a
+/// key ring's entries are what get keyed.
+pub(crate) fn wrong_key_length(who: &str, param: &str, got: usize) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{who}(): {param} is {got} octets, and a key is {KEY_LEN} — \
+             Core\\Crypto::generateKey() answers one of the right length. The value is \
+             not quoted here, because a key does not belong in a log."
+        ),
+    )
+}
+
+/// Seals `message` under `cipher`, drawing its own nonce and prefixing it.
+///
+/// Factored out of [`nvs_core_crypto_seal`] for [`cipher`]'s reason: the answer
+/// `Core\SignedCookie` puts in a cookie has to be the same bytes this member
+/// produces, and the only way to guarantee that is for it to be produced here.
+/// `who` names the member for the two throws.
+///
+/// # Errors
+///
+/// A `RuntimeError` when the sealed message is larger than this construction
+/// can produce or than this process can hold — both unreachable from source,
+/// and both explained where they are raised.
+pub(crate) fn seal_under(
+    ctx: &mut nvs_runtime::Ctx,
+    cipher: &XChaCha20Poly1305,
+    message: &[u8],
+    who: &str,
+) -> Result<Vec<u8>, Fault> {
+    // The answer's size is known exactly here, so the policy seam is asked
+    // once with the real number rather than twice with halves of it.
+    let sealed_len = message.len().saturating_add(OVERHEAD);
+    nvs_runtime::affordable(Some(sealed_len), who)?;
+
+    let mut nonce = [0_u8; NONCE_LEN];
+    crate::random::draw(ctx, |rng| rng.fill_bytes(&mut nonce));
+
+    // Unreachable from source with no diagnostic to name: `aead::Error` is
+    // deliberately opaque and carries no reason, and on this path there is
+    // exactly one — a plaintext past ChaCha20's 256 GiB-per-nonce bound,
+    // which no `bytes` a request can hold comes near under any memory cap.
+    // A throw rather than an `expect` because what it reports is the world
+    // saying no, which a request can catch.
+    let body = cipher.encrypt(&XNonce::from(nonce), message).map_err(|_| {
+        Fault::thrown(format!(
+            "{who}(): the message could not be sealed — it is larger than this \
+             construction can encrypt under one key"
+        ))
+    })?;
+
+    let mut sealed = Vec::new();
+    // Unreachable from source with no diagnostic to name, for the reason
+    // above one layer down: the allocator refusing a buffer `affordable`
+    // has already admitted, over a length `saturating_add` cannot have
+    // wrapped.
+    sealed.try_reserve_exact(sealed_len).map_err(|_| {
+        Fault::thrown(format!(
+            "{who}(): the sealed message is larger than any buffer this process could hold"
+        ))
+    })?;
+    sealed.extend_from_slice(&nonce);
+    sealed.extend_from_slice(&body);
+    Ok(sealed)
+}
+
+/// Opens `sealed` under `cipher`: the plaintext, or `None` for anything that is
+/// not authentic under this key.
+///
+/// **`None` is one answer for every way of failing to be authentic** — a tag
+/// that does not verify, a buffer too short to hold a nonce and a tag, and the
+/// wrong key are indistinguishable to the caller, which is the module doc's
+/// *a forgery throws* section as a return type. It is also what lets
+/// `Core\SignedCookie` try a key ring: a caller that could tell "wrong key"
+/// from "altered" apart would learn which of a rotated pair a forgery was aimed
+/// at.
+///
+/// # Errors
+///
+/// A `RuntimeError` when this process cannot spare the plaintext's buffer.
+/// `who` names the member for it.
+pub(crate) fn open_under(
+    cipher: &XChaCha20Poly1305,
+    sealed: &[u8],
+    who: &str,
+) -> Result<Option<Vec<u8>>, Fault> {
+    // `split_first_chunk` rather than a length check and a slice, so the
+    // nonce arrives as a `[u8; NONCE_LEN]` and there is no second place
+    // where it could be the wrong width.
+    let Some((nonce, body)) = sealed.split_first_chunk::<NONCE_LEN>() else {
+        return Ok(None);
+    };
+    if body.len() < TAG_LEN {
+        return Ok(None);
+    }
+
+    nvs_runtime::affordable(Some(body.len() - TAG_LEN), who)?;
+    Ok(cipher.decrypt(&XNonce::from(*nonce), body).ok())
+}
+
 /// The cipher keyed by slot 1, or the `LogicError` a wrong-length key earns.
 ///
 /// Reachable from source despite the parameter's `secret bytes`: the qualifier
@@ -291,17 +419,7 @@ fn bytes_of<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8
 /// of any size widens onto it. `Core\Random::bytes(8)` is the one-line witness.
 fn keyed(args: &[Value], member: &str) -> Result<XChaCha20Poly1305, Fault> {
     let key = bytes_of(args, 1, member)?;
-    XChaCha20Poly1305::new_from_slice(key).map_err(|_| {
-        Fault::thrown_as(
-            ThrownClass::Logic,
-            format!(
-                "{NAME}::{member}(): $key is {} octets, and a key is {KEY_LEN} — \
-                 Core\\Crypto::generateKey() answers one of the right length. The value is \
-                 not quoted here, because a key does not belong in a log.",
-                key.len()
-            ),
-        )
-    })
+    cipher(key).ok_or_else(|| wrong_key_length(&format!("{NAME}::{member}"), "$key", key.len()))
 }
 
 nvs_runtime::nvs_helper! {
@@ -329,42 +447,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_crypto_seal(ctx, args: [2]) {
         let message = bytes_of(args, 0, "seal")?;
         let cipher = keyed(args, "seal")?;
-
-        // The answer's size is known exactly here, so the policy seam is asked
-        // once with the real number rather than twice with halves of it.
-        let sealed_len = message.len().saturating_add(OVERHEAD);
-        nvs_runtime::affordable(Some(sealed_len), "Core\\Crypto::seal()")?;
-
-        let mut nonce = [0_u8; NONCE_LEN];
-        crate::random::draw(ctx, |rng| rng.fill_bytes(&mut nonce));
-
-        // Unreachable from source with no diagnostic to name: `aead::Error` is
-        // deliberately opaque and carries no reason, and on this path there is
-        // exactly one — a plaintext past ChaCha20's 256 GiB-per-nonce bound,
-        // which no `bytes` a request can hold comes near under any memory cap.
-        // A throw rather than an `expect` because what it reports is the world
-        // saying no, which a request can catch.
-        let body = cipher.encrypt(&XNonce::from(nonce), message).map_err(|_| {
-            Fault::thrown(
-                "Core\\Crypto::seal(): the message could not be sealed — it is larger than \
-                 this construction can encrypt under one key"
-            )
-        })?;
-
-        let mut sealed = Vec::new();
-        // Unreachable from source with no diagnostic to name, for the reason
-        // above one layer down: the allocator refusing a buffer `affordable`
-        // has already admitted, over a length `saturating_add` cannot have
-        // wrapped.
-        sealed.try_reserve_exact(sealed_len).map_err(|_| {
-            Fault::thrown(
-                "Core\\Crypto::seal(): the sealed message is larger than any buffer this \
-                 process could hold"
-            )
-        })?;
-        sealed.extend_from_slice(&nonce);
-        sealed.extend_from_slice(&body);
-
+        let sealed = seal_under(ctx, &cipher, message, "Core\\Crypto::seal")?;
         Ok(Value::bytes(NvsStr::new(&sealed)))
     }
 }
@@ -381,30 +464,16 @@ nvs_runtime::nvs_helper! {
         let sealed = bytes_of(args, 0, "open")?;
         let cipher = keyed(args, "open")?;
 
-        // A buffer too short to hold a nonce and a tag cannot be split, so it
-        // is refused here — with the same message the tag check produces, and
-        // deliberately not a more specific one.
-        let refuse = || {
+        // A buffer too short to hold a nonce and a tag, a tag that does not
+        // verify and the wrong key are one `None` out of `open_under` and one
+        // sentence here, deliberately not three.
+        let plain = open_under(&cipher, sealed, "Core\\Crypto::open")?.ok_or_else(|| {
             Fault::thrown(
                 "Core\\Crypto::open(): $sealed is not an authentic message under $key — it \
                  has been altered, it is too short to be one, or the key is not the one it \
                  was sealed under"
             )
-        };
-        // `split_first_chunk` rather than a length check and a slice, so the
-        // nonce arrives as a `[u8; NONCE_LEN]` and there is no second place
-        // where it could be the wrong width.
-        let Some((nonce, body)) = sealed.split_first_chunk::<NONCE_LEN>() else {
-            return Err(refuse());
-        };
-        if body.len() < TAG_LEN {
-            return Err(refuse());
-        }
-
-        nvs_runtime::affordable(Some(body.len() - TAG_LEN), "Core\\Crypto::open()")?;
-        let plain = cipher
-            .decrypt(&XNonce::from(*nonce), body)
-            .map_err(|_| refuse())?;
+        })?;
 
         Ok(Value::bytes(NvsStr::new(&plain)))
     }

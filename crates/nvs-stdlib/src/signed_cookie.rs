@@ -1,0 +1,485 @@
+//! `Core\SignedCookie` — [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)
+//! § 1's first roster entry: [`crate::crypto`]'s construction with a key ring
+//! over it and a cookie-safe spelling around it, and no second cipher anywhere.
+//!
+//! ADR 0060 places the class and § 2 says why the roster is closed at four;
+//! what belongs here is which end of the ring is the newest key, why `open`
+//! removes `tainted` when [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+//! § 3 refuses that nearly everywhere else, and why two members named `seal`
+//! and `open` are not a second way to reach `Core\Crypto`'s two.
+//!
+//! # The key ring is an `array<secret bytes>`, newest first
+//!
+//! ADR 0060 § 1 asks for key rotation in five words — "verify against several
+//! keys, sign with the newest" — and every part of the cost of getting it wrong
+//! is in which end of the list *newest* means. So it is written into the
+//! surface rather than into a comment: **`$keys[0]` is the newest**, [`seal`]
+//! uses it and nothing else, and [`open`] tries the whole ring in order.
+//! Rotating a key is prepending one; retiring a key is dropping the tail.
+//!
+//! The alternative was a `{current, previous}` shape, which reads better at one
+//! call site and stops working the moment an operator wants two overlapping
+//! retirements — a real thing during a slow deploy, and the case where a
+//! hand-written fallback would otherwise appear. A list has no such edge, and a
+//! ring of one is the ordinary case spelled `[$key]`.
+//!
+//! Order is also what makes the ring *cheap*: the newest key opens almost every
+//! cookie, so the common path is one AEAD open and the loop is a rotation-window
+//! tax rather than a per-request one. **What this spends** is one open attempt
+//! per key until one authenticates, so a ring of `n` costs at most `n` opens of
+//! a cookie-sized buffer, all inside the call and none held between calls.
+//!
+//! # `open` launders, and it is the only cookie in the language that does
+//!
+//! [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md) § 5
+//! is emphatic that a verified signature does not launder — JWT claims come
+//! back `tainted` because a signature proves origin and not safety — and then
+//! names this one exception: a cookie payload the application itself sealed
+//! round-trips through our own AEAD unchanged, and comes back **unqualified**.
+//! The distinction is not about the strength of the authentication, which is
+//! identical; it is that the plaintext here was *ours and plain* when it went
+//! in, so returning it qualified would mark a value the program already held
+//! unmarked one line earlier.
+//!
+//! That makes [`open`]'s `$cookie` a [`Qual::Launder`] parameter, and the sink
+//! it launders for is **none of them** — it does not make a value safe for
+//! HTML, for SQL or for a shell, it restores the qualifier the value had before
+//! `seal`. A program that sealed a `tainted` value gets a plain one back, which
+//! is the one sharp edge of this design and is why `seal` is not reachable with
+//! a `tainted` argument: the round trip cannot launder what it was never
+//! allowed to seal.
+//!
+//! # `seal` and `open` here are not `Core\Crypto`'s, and R17 is why they can
+//! share the names
+//!
+//! [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R17 refuses an
+//! operation reachable two ways. These rows are not a second route to
+//! `Core\Crypto::seal`: that member takes `bytes` and one key and answers the
+//! raw sealed message, and these take a `string` and a *ring* and answer text a
+//! `Set-Cookie` header can carry. Neither substitutes for the other, and a
+//! program that writes the `Core\Crypto` pair plus a base64 call plus a loop
+//! over keys has written this member badly rather than reached it twice. The
+//! names are the same because the operation is the same one layer up, and
+//! giving it a second vocabulary would be the actual confusion.
+//!
+//! # What a cookie is on the wire
+//!
+//! Unpadded URL-safe base64 (RFC 4648 § 5) of exactly the bytes
+//! [`crate::crypto::seal_under`] produced. That alphabet is `A-Za-z0-9-_`,
+//! every octet of which is an RFC 6265 `cookie-octet`, so the answer needs no
+//! further escaping and no `=`. There is no version prefix, no key
+//! identifier and no separator: a key hint would tell an attacker which key of
+//! a rotating ring to attack, and every other field would be one more thing to
+//! parse before the tag has been checked.
+//!
+//! The size is the plaintext's length plus 40 octets of AEAD overhead, then
+//! base64's four-thirds — about `4/3 × (len + 40)` characters, which is the
+//! number to hold against a browser's 4 KiB per-cookie limit.
+//!
+//! # One refusal, and it is constant-time underneath
+//!
+//! [`open`] answers the plaintext or throws, and **every way of not being an
+//! authentic cookie is one `RuntimeError` with one sentence** — text that is
+//! not base64, a payload too short to hold a nonce and a tag, one flipped bit,
+//! and a cookie sealed under a key that has been retired past the end of the
+//! ring. [`crate::crypto::open_under`]'s own docs are the home of why they are
+//! indistinguishable; here there is a second reason, which is that a
+//! distinguishable "wrong key" would say which key of the ring a forgery was
+//! aimed at.
+//!
+//! ADR 0060 § 4's constant-time rule is satisfied by the construction rather
+//! than by anything in this module: Poly1305's tag comparison is the
+//! `chacha20poly1305` crate's, done through `subtle`, and no member here
+//! exposes a tag, a key or a raw sealed buffer for a caller to compare with
+//! `==`. That is the whole of § 4's "no API exposes the raw value" for this
+//! entry — the only thing a caller ever holds is the cookie text and the
+//! plaintext.
+
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+
+use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
+
+use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+
+/// The class name, once, for the messages that all name it.
+const NAME: &str = r"Core\SignedCookie";
+
+/// The key ring's element type, written once so both rows declare the same
+/// thing: a `secret bytes`, so the array a program builds out of
+/// `Core\Crypto::generateKey()` answers is exactly the type these rows want,
+/// and a plain `bytes` ring still widens onto it.
+const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
+
+/// ADR 0060 § 1's first roster entry, as two rows.
+pub(crate) const CLASS: CoreClass = CoreClass {
+    name: NAME,
+    methods: &[
+        CoreMethod {
+            name: "seal",
+            names: &["value", "keys"],
+            // The value is contagious — the cookie is made of it — and the
+            // ring is neutral, because not one octet of a key reaches the
+            // answer.
+            params: &[CoreTy::Text(Qual::Contagious), CoreTy::Array(&KEY)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_signed_cookie_seal",
+            doc: Some(&SEAL_DOC),
+        },
+        CoreMethod {
+            name: "open",
+            names: &["cookie", "keys"],
+            // The cookie **launders**: the module doc's own section is the
+            // home of why this one round trip may, when ADR 0060 § 5 refuses
+            // it for a verified signature everywhere else.
+            params: &[CoreTy::Text(Qual::Launder), CoreTy::Array(&KEY)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_signed_cookie_open",
+            doc: Some(&OPEN_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\SignedCookie::seal`'s reference card — ADR 0117.
+const SEAL_DOC: MethodDoc = MethodDoc {
+    short: "Seals `$value` under the newest key in `$keys` and answers cookie-safe text. \
+            The construction is `Core\\Crypto`'s, so the cookie is encrypted as well as \
+            authenticated and there is no unauthenticated spelling to reach for.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The payload. It comes back from `open` exactly as it went in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keys",
+            desc: "The key ring, **newest first**: `$keys[0]` seals, and the rest exist so \
+                   that `open` still accepts cookies sealed before the last rotation. A ring \
+                   of one is `[$key]`.",
+            shape: &[],
+        },
+    ],
+    ret: "Unpadded URL-safe base64 — `A-Za-z0-9-_`, every octet of which a `Set-Cookie` \
+          header carries unescaped. About `4/3 × (length + 40)` characters, and different \
+          on every call for the same inputs, because each seals under its own nonce.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$keys` is empty, so there is no newest key; or `$keys[0]` is not 32 \
+                   octets long — a `bytes` that was never a key.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This process cannot spare a buffer the size of the sealed value.",
+        },
+    ],
+};
+
+/// `Core\SignedCookie::open`'s reference card — ADR 0117.
+const OPEN_DOC: MethodDoc = MethodDoc {
+    short: "Authenticates `$cookie` against every key in `$keys` and answers the value that \
+            was sealed, or throws. The answer is **unqualified**: a payload this application \
+            sealed itself is the one verification in the language that gives back a value \
+            free of the `tainted` mark it arrived with.",
+    params: &[
+        ParamDoc {
+            name: "cookie",
+            desc: "The cookie text, as it arrived. A `tainted` value is accepted here — that \
+                   is the point of the member.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keys",
+            desc: "The same ring `seal` was given, newest first. A cookie sealed under any \
+                   key still in the ring opens; one sealed under a key that has been dropped \
+                   off the end does not.",
+            shape: &[],
+        },
+    ],
+    ret: "The original value, character for character.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$keys` is empty, or one of its entries is not 32 octets long.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$cookie` is not an authentic cookie under any key in `$keys` — it was \
+                   altered, it is not base64 at all, or it was sealed under a key that has \
+                   been retired. The four are one message on purpose: telling them apart \
+                   tells a forger which half landed, and which key of the ring to aim at.",
+        },
+    ],
+};
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that
+/// belongs to another domain. See [`crate::symbols`].
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_signed_cookie_seal" => (nvs_core_signed_cookie_seal as *const ()).cast(),
+        "nvs_core_signed_cookie_open" => (nvs_core_signed_cookie_open as *const ()).cast(),
+        _ => return None,
+    })
+}
+
+/// The `string` in slot 0.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member: slot 0 is a `string` in both rows, so
+/// another tag is a compiled-code bug rather than anything a program can write.
+fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
+    args[0].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} expected a `string`, got tag {}",
+            args[0].tag_byte()
+        ))
+    })
+}
+
+/// The key ring in slot 1, borrowed for the length of the call.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for [`text_of`]'s reason, and a `LogicError` for an empty
+/// ring — which *is* reachable from source, because `array<secret bytes>` says
+/// nothing about how many entries an array has, and `[]` is one of them.
+fn ring_of(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
+    let raw = args[1].array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} expected {:?} for $keys, got tag {}",
+            Tag::Array,
+            args[1].tag_byte()
+        ))
+    })?;
+    let ring = crate::arr::borrowed(raw);
+    if ring.next_slot(0).is_none() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{NAME}::{member}(): $keys is empty, and a key ring needs at least the key \
+                 that seals — Core\\Crypto::generateKey() answers one."
+            ),
+        ));
+    }
+    Ok(ring)
+}
+
+/// The cipher keyed by the ring entry at `slot`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for an entry that is not a `bytes`, and the shared
+/// `LogicError` [`crate::crypto::wrong_key_length`] writes for one that is a
+/// `bytes` of the wrong length — a program bug either way, and reported as one
+/// even when the cookie would have been refused anyway, because a ring that
+/// cannot key the construction is broken whatever arrives in it.
+fn cipher_at(
+    held: &Value,
+    slot: usize,
+    member: &str,
+) -> Result<chacha20poly1305::XChaCha20Poly1305, Fault> {
+    let key = held.as_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} expected a `bytes` at $keys[{slot}], got tag {}",
+            held.tag_byte()
+        ))
+    })?;
+    crate::crypto::cipher(key).ok_or_else(|| {
+        crate::crypto::wrong_key_length(
+            &format!("{NAME}::{member}"),
+            &format!("$keys[{slot}]"),
+            key.len(),
+        )
+    })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\SignedCookie::seal(string $value, array<secret bytes> $keys): string`
+    /// — the write half of ADR 0060 § 1's first entry, replacing the
+    /// `hash_hmac` + `base64_encode` + `hash_equals` triple every PHP codebase
+    /// grows its own slightly-different copy of.
+    ///
+    /// The newest key is the ring's first live slot, which for the list a
+    /// program writes is `$keys[0]`; the module doc's own section is the home
+    /// of why the newest end is the front and not the back.
+    fn nvs_core_signed_cookie_seal(ctx, args: [2]) {
+        let value = text_of(args, "seal")?;
+        let ring = ring_of(args, "seal")?;
+
+        let newest = ring.next_slot(0).expect("`ring_of` refused an empty ring");
+        let held = ring.value_at(newest).expect("a live slot holds a value");
+        let cipher = cipher_at(&held, newest, "seal")?;
+
+        let sealed = crate::crypto::seal_under(
+            ctx,
+            &cipher,
+            value.as_bytes(),
+            "Core\\SignedCookie::seal",
+        )?;
+        Ok(Value::str(NvsStr::new(URL_SAFE_NO_PAD.encode(&sealed).as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\SignedCookie::open(string $cookie, array<secret bytes> $keys): string`
+    /// — the read half, answering the sealed value **unqualified** per ADR 0060
+    /// § 5's one named exception.
+    ///
+    /// Every key is keyed before the cookie is tried against it, so a ring
+    /// carrying a `bytes` that was never a key is a `LogicError` whatever the
+    /// cookie says; and the decode is folded into the same one refusal as the
+    /// tag check, so a cookie that is not base64 at all is not a distinguishable
+    /// answer.
+    ///
+    /// The `string` the plaintext comes back as is safe to tag without
+    /// re-validating: only this module's own `seal` produces bytes that
+    /// authenticate, and it sealed a `string`. That is authenticity buying
+    /// something concrete rather than being a formality.
+    fn nvs_core_signed_cookie_open(_ctx, args: [2]) {
+        let cookie = text_of(args, "open")?;
+        let ring = ring_of(args, "open")?;
+
+        // A cookie that is not base64 is not authentic, and it is not a
+        // *different* kind of not-authentic: the ring is still walked, so the
+        // key-shape check below happens either way and the refusal is the one
+        // sentence at the end.
+        let sealed = URL_SAFE_NO_PAD.decode(cookie).ok();
+
+        let mut slot = 0;
+        while let Some(live) = ring.next_slot(slot) {
+            slot = live + 1;
+            let held = ring.value_at(live).expect("a live slot holds a value");
+            let cipher = cipher_at(&held, live, "open")?;
+            if let Some(sealed) = sealed.as_deref()
+                && let Some(plain) =
+                    crate::crypto::open_under(&cipher, sealed, "Core\\SignedCookie::open")?
+            {
+                return Ok(Value::str(NvsStr::new(&plain)));
+            }
+        }
+
+        Err(Fault::thrown(
+            "Core\\SignedCookie::open(): $cookie is not an authentic cookie under any key in \
+             $keys — it has been altered, it is not a cookie this application sealed, or the \
+             key it was sealed under has been retired"
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chacha20poly1305::aead::Aead;
+
+    use super::*;
+
+    /// Stage 4's cookie check — ADR 0060 § 1's first bullet and its M8
+    /// verification line, which asks for three things in one breath: a round
+    /// trip, a tampered cookie refused, and a cookie under a rotated-out key
+    /// still opening while new ones use the newest.
+    ///
+    /// Asserted over the construction rather than through the registry, for
+    /// [`crate::crypto`]'s reason: what could go wrong is the *layering* — the
+    /// wrong end of the ring sealing, a decode that accepts a re-encoded
+    /// forgery, a loop that stops at the first key — and every one of those is
+    /// visible here without a compiler in front of it.
+    #[test]
+    fn a_signed_cookie_round_trips_and_a_tampered_one_is_refused() {
+        let newest = crate::crypto::cipher(&[9_u8; 32]).expect("a 32-octet key keys");
+        let retired = crate::crypto::cipher(&[4_u8; 32]).expect("a 32-octet key keys");
+
+        // The round trip, through the same base64 spelling the member uses, so
+        // an alphabet that drifted fails here rather than at a browser.
+        let sealed = retired
+            .encrypt(
+                &chacha20poly1305::XNonce::from([1_u8; 24]),
+                b"user=ada".as_ref(),
+            )
+            .expect("a short value seals");
+        let mut wire = Vec::from([1_u8; 24]);
+        wire.extend_from_slice(&sealed);
+        let cookie = URL_SAFE_NO_PAD.encode(&wire);
+        assert!(
+            cookie
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'),
+            "every octet of {cookie} is an RFC 6265 cookie-octet"
+        );
+
+        // A cookie under the *retired* key still opens — the ring is walked,
+        // not just its head — while the newest key refuses it, which is what
+        // makes the walk load-bearing rather than decoration.
+        let raw = URL_SAFE_NO_PAD
+            .decode(&cookie)
+            .expect("its own encoding decodes");
+        assert_eq!(
+            crate::crypto::open_under(&retired, &raw, "test")
+                .expect("nothing is unaffordable here")
+                .as_deref(),
+            Some(b"user=ada".as_ref()),
+            "a key still in the ring opens a cookie sealed under it"
+        );
+        assert!(
+            crate::crypto::open_under(&newest, &raw, "test")
+                .expect("nothing is unaffordable here")
+                .is_none(),
+            "and the newest key alone would not have — so a ring of one is not this test"
+        );
+
+        // Tampering, at every position, including inside the nonce that
+        // travels in the clear. A signed-but-not-encrypted cookie passes the
+        // round trip above and fails here.
+        for index in 0..raw.len() {
+            let mut forged = raw.clone();
+            forged[index] ^= 1;
+            assert!(
+                crate::crypto::open_under(&retired, &forged, "test")
+                    .expect("nothing is unaffordable here")
+                    .is_none(),
+                "one flipped bit at octet {index} of {} is refused",
+                raw.len()
+            );
+        }
+
+        // And the two shapes a forger reaches for before flipping a bit: a
+        // truncated payload, and text that is not base64 at all.
+        assert!(
+            crate::crypto::open_under(&retired, &raw[..raw.len() - 1], "test")
+                .expect("nothing is unaffordable here")
+                .is_none(),
+            "a truncated cookie is refused"
+        );
+        assert!(
+            URL_SAFE_NO_PAD.decode("not base64!").is_err(),
+            "and text outside the alphabet never reaches the tag check at all"
+        );
+    }
+
+    /// The ring's *order* is the whole of the rotation contract, and nothing a
+    /// program can observe says which end is newest — so it is pinned here.
+    ///
+    /// `seal` takes `next_slot(0)`, which for the list a program writes is
+    /// index 0. A member that took the last slot instead would round-trip
+    /// perfectly, pass every assertion above, and quietly seal every new
+    /// cookie under the oldest key an operator had been trying to retire.
+    #[test]
+    fn the_newest_key_is_the_rings_first_slot() {
+        let mut ring = NvsArray::new();
+        ring.append(Value::bytes(NvsStr::new(&[9_u8; 32])));
+        ring.append(Value::bytes(NvsStr::new(&[4_u8; 32])));
+
+        let newest = ring.next_slot(0).expect("two entries");
+        assert_eq!(newest, 0, "the first live slot is the front of the list");
+        let held = ring.value_at(newest).expect("a live slot holds a value");
+        assert_eq!(
+            held.as_bytes(),
+            Some([9_u8; 32].as_ref()),
+            "and it is the key written first, which is the one `seal` uses"
+        );
+    }
+}

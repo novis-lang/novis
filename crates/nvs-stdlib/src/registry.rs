@@ -1148,6 +1148,14 @@ pub const CLASSES: &[CoreClass] = &[
     // above closed at two. [`crate::crypto`] owns the construction and why
     // there is no cipher argument.
     crate::crypto::CLASS,
+    // ADR 0060 § 1's first roster entry, and beside `Core\Crypto` because it
+    // *is* `Core\Crypto` — [`crate::signed_cookie`] keys the same construction
+    // through the same three helpers, with a key ring over it and a
+    // cookie-safe spelling around it, so there is one AEAD in this crate and
+    // not two. Its own module doc owns which end of the ring is the newest key
+    // and why its `open` is the one verification in the language that removes
+    // `tainted`.
+    crate::signed_cookie::CLASS,
 ];
 
 /// Every `Core` member that needs a capability, and which one —
