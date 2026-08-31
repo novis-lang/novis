@@ -561,9 +561,14 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::{Call, Reply, backoff, dechunk, parse, send};
-    use nvs_runtime::Fault;
+    use nvs_host::reactor::{Reactor, install, run_until_idle, with_current};
+    use nvs_host::scheduler::Scheduler;
+    use nvs_runtime::{Ctx, Fault, OutputSink, TaskRoot};
+    use std::cell::RefCell;
     use std::io::{Read, Write};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
+    use std::rc::Rc;
+    use std::sync::mpsc;
     use std::time::{Duration, Instant};
 
     /// A listener on loopback that answers each connection with the next of
@@ -811,5 +816,103 @@ mod tests {
         let raw = b"HTTP/1.1 301 Moved\r\nLOCATION: /next\r\nContent-Length: 0\r\n\r\n";
         let reply: Reply = parse(raw, "test").expect("a redirect");
         assert_eq!(super::redirect_of(&reply).as_deref(), Some("/next"));
+    }
+
+    /// ADR 0051 § 3's "over the runtime's own reactor rather than a second
+    /// event loop", asserted from the core's side rather than the caller's: the
+    /// exchange is driven with `Scheduler::run` alone, so a core that came back
+    /// is what the assertions describe. A transport that blocked in `read` — or
+    /// that waited on a poll of its own — would never have returned from that
+    /// call with the reply still half-written.
+    ///
+    /// The origin writes its reply in two halves and holds the second until
+    /// this thread releases it, and the loop below turns until the origin says
+    /// it has the request. Both are what make the park a **read**'s: on a
+    /// platform whose non-blocking connect is still in flight when
+    /// `finish_connecting` first asks, the connect parks too, so a test
+    /// asserting the first park it sees would pass with the read never reaching
+    /// the reactor at all. Past the origin's signal the task has written
+    /// everything it is going to write and the reply cannot be complete, so
+    /// parked has only the one meaning left.
+    #[test]
+    fn a_socket_read_runs_on_the_reactor_and_parks_its_coroutine() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        let (asked, has_request) = mpsc::channel();
+        let (release, permitted) = mpsc::channel();
+        let served = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("a connection");
+            let mut request = [0_u8; 4096];
+            let read = stream.read(&mut request).expect("a request");
+            // Announced before the half-reply and not after it: a signal that
+            // trailed the bytes could be missed by exactly the turn that
+            // consumed them, and the loop would then wait on a readiness this
+            // thread is holding back.
+            asked.send(()).expect("the test thread is waiting");
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nCon")
+                .expect("half a head");
+            stream.flush().expect("a flushed half");
+            permitted.recv().expect("the test releases the rest");
+            stream
+                .write_all(b"tent-Length: 2\r\n\r\nok")
+                .expect("the rest of the reply");
+            stream.flush().expect("a flushed reply");
+            String::from_utf8_lossy(&request[..read]).into_owned()
+        });
+
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        // The outcome is carried out as text rather than asserted inside the
+        // task: a panic at a task root is contained by `run_task` and reported
+        // through the scheduler, so an `expect` in there would fail quietly.
+        let outcome: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+        let answered = Rc::clone(&outcome);
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_ctx| {
+            let answer = match send(&call(at, "test"), &mut never) {
+                Ok(reply) => format!("{} {}", reply.status, reply.body),
+                Err(fault) => format!("{fault:?}"),
+            };
+            *answered.borrow_mut() = Some(answer);
+        });
+
+        let mut report = sched.run();
+        let mut turns = 0;
+        while has_request.try_recv().is_err() {
+            with_current(|reactor| reactor.turn(&mut sched))
+                .expect("no reactor is installed on this thread")
+                .expect("the poll failed");
+            report = sched.run();
+            turns += 1;
+            assert!(turns < 64, "the request never reached the origin");
+        }
+
+        assert_eq!(
+            report.finished, 0,
+            "the exchange returned with half a reply on the wire"
+        );
+        assert_eq!(report.parked, 1, "the read did not park its coroutine");
+        assert_eq!(
+            with_current(|reactor| reactor.registrations()),
+            Some(1),
+            "the park filed nothing for the reactor to wake it on"
+        );
+        assert!(
+            outcome.borrow().is_none(),
+            "the task ran past its read without a whole reply to read"
+        );
+
+        // Left running rather than abandoned parked: a test that ends here
+        // would assert the park and never that the park is survivable.
+        release.send(()).expect("the origin thread");
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(
+            outcome.borrow().as_deref(),
+            Some("200 ok"),
+            "the parked read never came back with the whole reply"
+        );
+        let request = served.join().expect("the origin thread");
+        assert!(request.starts_with("GET /ok HTTP/1.1\r\n"), "{request}");
     }
 }
