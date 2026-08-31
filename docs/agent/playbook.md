@@ -4987,6 +4987,19 @@ sibling in the same namespace unqualified.
   `ask_terminal`, it would have been unreachable for exactly the two prompts whose flow a test most
   wants to script. What holds is a second predicate beside `watched` — `answerable`, which is the
   queue *or* a terminal — that the deciding-early members read instead.
+- **A rule the compiler enforces at the call site has no enforcement at all on the path where the
+  class is unknown, and nothing in the tree says so.** ADR 0014 § 3 makes `onPropertySet` a second
+  step over *every* property write, and `nvs_ir::lower` emits it beside the `FieldSet` — which is
+  correct precisely because § 4 answers "does this class implement `PropertyObserver`" from the
+  declaration. A write through an **erased** receiver has no declaration to answer from, so
+  `nvs_object_slot_set` stored the slot and told nobody, and had done since ADR 0036 § 4 landed. It
+  reads as complete from either end: the ADR says "always both", the lowering plainly emits both, and
+  the one path that bypasses both is the one no `.nvst` case reaches, because writing through a
+  `mixed` on an observing class is a shape nobody writes by hand. The general question worth asking of
+  any compile-time-answered rule: *what does the erased path do* — `SlotGet`/`SlotSet`,
+  `call_erased_method`, `value_to_string`'s `Tag::Object` arm — and is there a case that goes through
+  it. `nvs_runtime::write_erased_property` is where the write half's answer lives now; the read half
+  (`nvs_object_slot_get`, and so `Core\Reflect\ClassInfo::get`) still has the gap.
 
 ## Divergences and refusals already pinned
 

@@ -1,0 +1,68 @@
+--TEST--
+`Core\Reflect\ClassInfo::set` writes a `public` property and refuses a `private` one, and the value it is handed is checked against what the class declares — ADR 0019 § 2
+--FILE--
+<?nvs
+// ADR 0019 § 2: writing a reflected property runs exactly the check ordinary
+// code at the call site would run, and there is no `setAccessible` to lift it
+// with — the write half of the rule the `get` case pins.
+class Account {
+    public string $email = "someone@example.test";
+    public int $logins = 0;
+    private string $token = "secret-ish";
+}
+
+var $account = new Account();
+var $described = Core\Reflect::forObject($account);
+
+$described->set($account, "email", "moved@example.test");
+echo $described->get($account, "email"), "\n";
+
+// The refusal is a `RuntimeError`, for the reason the read's is: it is a fact
+// about this value's class, not a mistake in the program.
+try {
+    $described->set($account, "token", "anything");
+    echo "private write", "\n";
+} catch (RuntimeError $refused) {
+    echo "private refused", "\n";
+}
+
+// A name that matches no property at all is a `LogicError` instead, so a
+// misspelling is never miscounted as a visibility refusal.
+try {
+    $described->set($account, "emial", "anything");
+    echo "misspelled write", "\n";
+} catch (LogicError $wrong) {
+    echo "no such property", "\n";
+}
+
+// A description is of a *class*, so another class's instance is a `LogicError`
+// too, even where the name would have resolved on it.
+class Impostor {
+    public string $email = "elsewhere@example.test";
+}
+try {
+    $described->set(new Impostor(), "email", "anything");
+    echo "borrowed write", "\n";
+} catch (LogicError $mismatch) {
+    echo "wrong class", "\n";
+}
+
+// `$value` is `mixed` because the property's declared type is not knowable
+// where the call is written — so the type it declares is checked where it *is*
+// knowable, against the class, at the write.
+try {
+    $described->set($account, "logins", "not a number");
+    echo "mistyped write", "\n";
+} catch (RuntimeError $mistyped) {
+    echo "wrong type", "\n";
+}
+
+// And nothing above stored anything it refused.
+echo $described->get($account, "email"), " ", $described->get($account, "logins"), "\n";
+--EXPECT--
+moved@example.test
+private refused
+no such property
+wrong class
+wrong type
+moved@example.test 0

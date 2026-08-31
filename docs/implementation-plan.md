@@ -51,17 +51,18 @@
 > opened**: § 6's two writers are one serialiser, § 3's tier 3 is `[app.log] handler` on
 > `Ctx::handler_isolate`'s reserve, § 2's `onUncaughtThrow` hands both roots the real `Throwable`,
 > and ADR 0106 § 10's two bounds are on the floor's sink; `write`'s `fields` refuses a `secret` and
-> reading `[log] target` is owed. **Stage 8 has opened**: `Core\Reflect` is `forObject`, `forClass`
-> and `typeOf`, and `Core\Ast::parse` answers the compiler's own tree. **Stage 2's handle half has
-> opened**: `Core\IO::open` answers a `Core\IO\File` whose slot keys the request's own descriptor
-> table, `Core\IO\FileMode` is R11's enum, and `read`, `readLine`, `write`, `seek`, `tell`, `flush`
-> and `close` are its members; `truncate` and `lock` are owed. **`[2 filesystem]` is green**: ADR
-> 0052 § 2's closed door on scheme dispatch is asserted over the roster and the path modules.
-> **Stage 3's terminal is a sink with named streams, a raw path, a styling type, § 4's prompts and §
-> 5's region**: `write` performs § 1's table onto `Out` or `Err`, § 2 is `Cli\Color`, `Cli\Style`
-> and `Text::styled`, § 4's five prompts read under a deadline or from a test's scripted queue, and
-> `live<T>`/`progress<T>` open a region a `Drop` restores; `arguments` has landed and `displayWidth`
-> is owed. Conformance 1233, differential 210 of 210, migration 37% over its 36% floor.
+> reading `[log] target` is owed. **Stage 8 has opened**: `Core\Reflect` is `forObject`, `forClass`,
+> `typeOf` and `ClassInfo`'s get, set and call — the set runs ADR 0014 § 3's observer — and
+> `Core\Ast::parse` answers the compiler's own tree. **Stage 2's handle half has opened**:
+> `Core\IO::open` answers a `Core\IO\File` whose slot keys the request's own descriptor table,
+> `Core\IO\FileMode` is R11's enum, and `read`, `readLine`, `write`, `seek`, `tell`, `flush` and
+> `close` are its members; `truncate` and `lock` are owed. **`[2 filesystem]` is green**: ADR 0052 §
+> 2's closed door on scheme dispatch is asserted over the roster and the path modules. **Stage 3's
+> terminal is a sink **: `write` performs § 1's table onto `Out` or `Err`, § 2 is `Cli\Color`,
+> `Cli\Style` and `Text::styled`, § 4's five prompts read under a deadline or from a test's scripted
+> queue, and `live<T>`/`progress<T>` open a region a `Drop` restores; `arguments` has landed and
+> `displayWidth` is owed. Conformance 1236, differential 210 of 210, migration 37% over its 36%
+> floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

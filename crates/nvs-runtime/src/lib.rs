@@ -335,7 +335,7 @@ pub use object::{
     ObjHeader, construct, field_offset, nvs_abstract_method, nvs_class_method,
     nvs_object_class_name, nvs_object_field_get, nvs_object_field_set, nvs_object_instanceof,
     nvs_object_new, nvs_object_release, nvs_object_retain, nvs_object_slot_get,
-    nvs_object_slot_set, nvs_value_instanceof,
+    nvs_object_slot_set, nvs_value_instanceof, write_erased_property,
 };
 pub use string::{
     CAP_OFFSET, COUNT_UNKNOWN, GRAPHEMES_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET,

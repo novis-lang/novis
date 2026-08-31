@@ -1,0 +1,83 @@
+--TEST--
+A write through `Core\Reflect\ClassInfo::set` reaches the same `PropertyObserver` an ordinary write reaches, and a throwing observer fails it the same way — ADR 0019 § 2, ADR 0014 § 3
+--FILE--
+<?nvs
+// ADR 0019 § 2: acting on a reflected property runs the `PropertyObserver`
+// hook ordinary code at that call site would face. This asks that as an
+// agreement rather than as a sentence — the same write through both doors,
+// with the observer saying which door it was told about being impossible,
+// because it is told the same thing either way.
+class Ledger implements PropertyObserver {
+    public int $balance = 0;
+
+    public function onPropertyGet(string $name, mixed $value): void {
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  set ", $name, " = ", $value, "\n";
+        Tally::$writes = Tally::$writes + 1;
+    }
+}
+
+final class Tally {
+    public static int $writes = 0;
+}
+
+Ledger $book = new Ledger();
+var $described = Core\Reflect::forObject($book);
+
+echo "ordinary:\n";
+$book->balance = 7;
+
+echo "reflective:\n";
+$described->set($book, "balance", 7);
+
+// ADR 0014 § 3: the observer is told the value that was *committed*, which is
+// what a following read answers — so the line above is a report of a store and
+// not a report instead of one.
+echo "stored ", $described->get($book, "balance"), "\n";
+
+// § 4: a class that implements nothing pays nothing, through either door.
+final class Plain {
+    public int $n = 0;
+}
+Plain $p = new Plain();
+var $flat = Core\Reflect::forObject($p);
+echo "a class that implements nothing:\n";
+$p->n = 99;
+$flat->set($p, "n", 99);
+
+// § 3: "a throwing `onPropertySet` still fails the overall write", and a
+// reflective write is not the place that changes.
+final class Fussy implements PropertyObserver {
+    public int $n = 0;
+
+    public function onPropertyGet(string $name, mixed $value): void {
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        throw new LogicError("refusing " . $name);
+    }
+}
+Fussy $f = new Fussy();
+var $strict = Core\Reflect::forObject($f);
+try {
+    $strict->set($f, "n", 1);
+    echo "unreachable\n";
+} catch (LogicError $thrown) {
+    echo "caught ", $thrown->message, "\n";
+}
+
+// The count is the invariant, not any one line above it: two writes on an
+// observing class, one per door, and the class that implements nothing added
+// neither.
+echo "writes=", Tally::$writes, "\n";
+--EXPECT--
+ordinary:
+  set balance = 7
+reflective:
+  set balance = 7
+stored 7
+a class that implements nothing:
+caught refusing n
+writes=2

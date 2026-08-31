@@ -78,10 +78,14 @@
 //!    as from outside it. § 2's rule is stated over the *call site*, and a
 //!    native member has no view of its caller's class — so this answers the
 //!    narrower question, which is the one that cannot leak a member.
-//! 3. Reading a property and calling a method are here; *writing* a property,
-//!    which § 2 governs on the same terms and which additionally owes ADR
-//!    0014's hook, is not. Nor is invoking a constructor reflectively, which is
-//!    the third acting member § 2 names.
+//! 3. Invoking a constructor reflectively — the third acting member § 2 names,
+//!    after the read and the write that are both here now — is not. What the
+//!    write does *not* do is run a per-property `set` hook (ADR 0014 § 1): it
+//!    reaches storage through [`nvs_runtime::write_erased_property`], which is
+//!    the erased store and not the hook call a known class's write lowers to,
+//!    so a hooked property is written past its own hook and its observer is
+//!    told what storage took. The observer step itself is § 3's and is not a
+//!    gap.
 
 use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
 
@@ -317,6 +321,19 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             doc: Some(&GET_DOC),
         },
         CoreMethod {
+            name: "set",
+            names: &["object", "name", "value"],
+            // `mixed` for `$value` for the mirror of `get`'s reason: the
+            // property's declared type is not known where the call is written,
+            // so what the write is checked against is the *class's* answer, at
+            // run time — `nvs_runtime::write_erased_property`'s tag check.
+            params: &[CoreTy::Mixed, CoreTy::Text(Qual::Neutral), CoreTy::Mixed],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_reflect_class_info_set",
+            doc: Some(&SET_DOC),
+        },
+        CoreMethod {
             name: "call",
             names: &["object", "name", "arguments"],
             params: &[
@@ -395,10 +412,58 @@ const GET_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Reflect\ClassInfo::set`'s reference card — ADR 0117.
+const SET_DOC: MethodDoc = MethodDoc {
+    short: "Writes `$object`'s `$name` property, under exactly the visibility ordinary code at \
+            this call site would face, and then runs the `PropertyObserver` an ordinary write \
+            runs. Replaces `ReflectionProperty::setValue`, again with no `setAccessible`.",
+    params: &[
+        ParamDoc {
+            name: "object",
+            desc: "An instance of the described class — `get`'s own argument, for `get`'s reason.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "name",
+            desc: "The property's name, `$`-sigil excluded, as `properties` spells it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "What to store. It is checked against what the concrete class declares the \
+                   property to hold, since the declared type is not knowable here.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. What was stored is what a following `get` answers, and what the observer was \
+          told about.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$object` is not an object, `$name` names a property that is not `public`, or \
+                   `$value` is not of the type that property declares — the first two being the \
+                   refusals an ordinary out-of-class write would meet, and the third the one a \
+                   write through an erased view meets.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$object` is not an instance of the described class, or `$name` names no \
+                   property of it at all — `get`'s pair, told apart from the refusals above for \
+                   `get`'s reason.",
+        },
+        ErrorDoc {
+            error: "Throwable",
+            desc: "Whatever the class's own `onPropertySet` observer throws. It is told of the \
+                   write once the value is stored, and a throw out of it still fails the write — \
+                   a reflective write is not the place that changes.",
+        },
+    ],
+};
+
 /// The `$object` argument of an *acting* member, checked against the class the
 /// receiving description is of — its pointer, and that class's name.
 ///
-/// Both acting members ask exactly this before anything else, and the two
+/// Every acting member asks exactly this before anything else, and the two
 /// refusals are written once because a description answering the same question
 /// two ways would be describing two rules rather than one class. The order is
 /// [`nvs_core_reflect_class_info_get`]'s, and its doc comment owns why: a value
@@ -571,6 +636,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_reflect_class_info_properties as *const ()).cast()
         }
         "nvs_core_reflect_class_info_get" => (nvs_core_reflect_class_info_get as *const ()).cast(),
+        "nvs_core_reflect_class_info_set" => (nvs_core_reflect_class_info_set as *const ()).cast(),
         "nvs_core_reflect_class_info_call" => {
             (nvs_core_reflect_class_info_call as *const ()).cast()
         }
@@ -755,6 +821,64 @@ nvs_runtime::nvs_helper! {
             held.retain();
         }
         Ok(held)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::set(mixed $object, string $name, mixed $value): void`
+    /// — [`nvs_core_reflect_class_info_get`]'s write half, and ADR 0019 § 2's
+    /// rule for the direction that changes something.
+    ///
+    /// The four refusals above it are `get`'s four, in `get`'s order and for
+    /// `get`'s reasons — the doc comment there owns why visibility is asked
+    /// last. What is *not* written here is everything past them: the store
+    /// itself, the check of the incoming value against what the class declares
+    /// the property to hold, and ADR 0014 § 3's observer step all belong to
+    /// [`nvs_runtime::write_erased_property`], which is the same function an
+    /// ordinary write through an erased receiver reaches.
+    ///
+    /// That is `nvs_core_reflect_class_info_call`'s decision applied to the
+    /// other direction, and it is what makes the hook question answerable at
+    /// all: § 2 says a reflective write runs "the `PropertyObserver` hook that
+    /// ordinary code at that call site would face", and the strongest reading
+    /// of *would face* is the same code facing it. A copy here would be a
+    /// second pipeline to keep in step with ADR 0014 § 3, and the copy is the
+    /// one nothing else dispatches through.
+    ///
+    /// Ownership is that function's too: it retains what it stores and leaves
+    /// this frame's own borrowed slots alone.
+    fn nvs_core_reflect_class_info_set(ctx, args: [4]) {
+        let member = "set";
+        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
+        let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::set")?;
+        let (subject, class) = subject_of(receiver, args[1], member)?;
+        #[expect(
+            unsafe_code,
+            reason = "the argument owns a reference to a live allocation, so it is \
+                      live for this borrow; the handle is never dropped, so that \
+                      reference is not released twice, and the descriptor is owned \
+                      by the unit's class table, which outlives every instance of \
+                      the class it describes"
+        )]
+        let (slot, visible) = unsafe {
+            let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(subject));
+            let desc = &*object.class();
+            let slot = desc.field_slot(name, 0);
+            (slot, slot.is_some_and(|at| desc.field_is_public(at)))
+        };
+        if slot.is_none() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!("{CLASS_INFO_NAME}::set(): `{class}` has no property named `{name}`"),
+            ));
+        }
+        if !visible {
+            return Err(Fault::thrown(format!(
+                "{CLASS_INFO_NAME}::set(): `{class}::{name}` is not writable from outside the \
+                 class, and reflection does not lift that"
+            )));
+        }
+        nvs_runtime::write_erased_property(ctx, args[1], name, 0, args[3])
     }
 }
 
@@ -954,6 +1078,216 @@ mod tests {
         unsafe {
             info.release();
             subject.release();
+        }
+    }
+
+    // Every `onPropertySet` call `ledger_observed` has been handed, in arrival
+    // order, as the two things ADR 0014 § 3 says it is told: the property's
+    // name and the value that was committed.
+    thread_local! {
+        static OBSERVED: std::cell::RefCell<Vec<(String, u64)>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// `Ledger::onPropertySet`'s body, as `nvs-codegen` would have compiled it:
+    /// slot 0 is the receiver and slots 1 and 2 are `(string $name, mixed
+    /// $value)`, so the exit sweep is three releases — `call_at` retained every
+    /// one of them on the way in.
+    #[expect(
+        unsafe_code,
+        reason = "compiled code's own signature, which `call_at` calls through: \
+                  three live values and the address of a live `Value` for the \
+                  result, neither expressible in the type"
+    )]
+    unsafe extern "C" fn ledger_observed(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        unsafe {
+            let name = (*args.add(1))
+                .as_text()
+                .expect("`onPropertySet`'s first parameter is a `string`")
+                .to_owned();
+            let value = (*args.add(2))
+                .as_uint()
+                .expect("`Ledger::n` is declared `uint`, so that is what was committed");
+            OBSERVED.with_borrow_mut(|seen| seen.push((name, value)));
+            for slot in 0..3 {
+                (*args.add(slot)).release();
+            }
+            *out = Value::null();
+        }
+        OK
+    }
+
+    /// A `Ledger` with one `public uint $n`, an instance of it, and a context
+    /// anchored into the table — [`vault`]'s shape, plus the two things ADR
+    /// 0014 § 4 answers from a declaration: whether the class conforms to
+    /// `PropertyObserver` at all, and the body it answers `onPropertySet` with.
+    ///
+    /// `observes` is a parameter rather than two fixtures because § 4's "not
+    /// one line from a class that implements nothing" is asserted over the same
+    /// writes as the observed half, and a second fixture would let the two
+    /// drift into being different writes.
+    fn ledger(observes: bool) -> (Ctx, Value) {
+        let mut classes = ClassTable::new();
+        let interface = classes.define("PropertyObserver", &[] as &[&str], &[]);
+        let conforms: &[_] = if observes { &[interface] } else { &[] };
+        let id = classes.define("Ledger", &["n"], conforms);
+        classes.set_public_fields(id, vec![true]);
+        classes.set_field_tags(id, vec![Some(Tag::Uint)]);
+        if observes {
+            classes.set_methods(
+                id,
+                vec![MethodRow {
+                    name: "onPropertySet".to_owned(),
+                    code: (ledger_observed as NvsFn) as *const u8,
+                    arity: 2,
+                    // Both nibbles are `CLOSURE_PARAM_TAG_ANY`: the callee
+                    // above reads its own two arguments and says what it
+                    // expected, so a tag rule written here would be a second
+                    // opinion about a signature this test declares.
+                    param_tags: 0xff,
+                    public: true,
+                    native: false,
+                }],
+            );
+        }
+        let classes = std::rc::Rc::new(classes);
+        let desc = classes.desc(id);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, id));
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor belongs to the table the context above now \
+                      holds for its whole life, and `NvsObj::new` writes every \
+                      slot before it hands the allocation back"
+        )]
+        let subject = Value::object(unsafe { NvsObj::new(desc) });
+        (ctx, subject)
+    }
+
+    /// `$ledger->n = $value;` through an erased receiver — the door compiled
+    /// code reaches, called exactly as `nvs-codegen` emits it.
+    #[expect(
+        unsafe_code,
+        reason = "`nvs_object_slot_set` is compiled code's own entry point: a \
+                  context, three values by address and a static byte range, \
+                  none of which its signature can bound"
+    )]
+    fn ordinary_write(ctx: &mut Ctx, subject: Value, name: &str, value: Value) -> i32 {
+        let mut out = Value::null();
+        unsafe {
+            nvs_runtime::nvs_object_slot_set(
+                std::ptr::from_mut(ctx),
+                std::ptr::from_ref(&subject),
+                name.as_ptr(),
+                name.len(),
+                0,
+                std::ptr::from_ref(&value),
+                std::ptr::from_mut(&mut out),
+            )
+        }
+    }
+
+    /// ADR 0019 § 2's rule for the direction that changes something, asked as
+    /// an **agreement** for the reason its sibling above is: a reflective write
+    /// and an ordinary one have to reach the same `PropertyObserver`, so this
+    /// puts the same value through both doors and compares what the observer
+    /// was told. A `set` that stored the slot itself would still store the
+    /// right value and would still read correctly on its own line — and would
+    /// record nothing here, which is the whole reason the question is put this
+    /// way round.
+    ///
+    /// The ordinary write is [`ordinary_write`], because ADR 0036 § 4's erased
+    /// store is the one ordinary write whose class is unknown until it runs,
+    /// which is exactly the premise a reflective write site has. ADR 0014 § 4's
+    /// other half is asserted in the same test, so that "they agree" cannot be
+    /// satisfied by two doors that observe nothing.
+    #[test]
+    fn a_reflective_property_write_runs_the_hook_an_ordinary_write_runs() {
+        OBSERVED.with_borrow_mut(Vec::clear);
+        let (mut ctx, subject) = ledger(true);
+        let info = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
+            .expect("every object has a description");
+
+        assert_eq!(ordinary_write(&mut ctx, subject, "n", Value::uint(7)), OK);
+
+        let name = Value::str(NvsStr::new(b"n"));
+        call(
+            super::nvs_core_reflect_class_info_set,
+            &mut ctx,
+            &[info, subject, name, Value::uint(7)],
+        )
+        .expect("`n` is public, and 7 is the `uint` it declares");
+
+        let seen = OBSERVED.with_borrow(Clone::clone);
+        assert_eq!(
+            seen.len(),
+            2,
+            "one observation per write, from the two doors a write can arrive through"
+        );
+        assert_eq!(
+            seen[0], seen[1],
+            "the same name and the same committed value, because it is the same \
+             pipeline: `set` dispatches through the erased write rather than \
+             restating ADR 0014 § 3"
+        );
+        assert_eq!(
+            seen[0],
+            ("n".to_owned(), 7),
+            "and it is the write that actually happened, so the agreement above \
+             is not two doors observing nothing"
+        );
+
+        // The value is what a following read answers, which is what makes the
+        // observation above a report of a store rather than a report instead
+        // of one.
+        let read = call(
+            super::nvs_core_reflect_class_info_get,
+            &mut ctx,
+            &[info, subject, name],
+        )
+        .expect("`n` is public");
+        assert_eq!(read.as_uint(), Some(7));
+
+        // ADR 0014 § 4: a class that implements nothing pays nothing, through
+        // either door.
+        let (mut plain_ctx, plain) = ledger(false);
+        let plain_info = call(super::nvs_core_reflect_for_object, &mut plain_ctx, &[plain])
+            .expect("every object has a description");
+        assert_eq!(
+            ordinary_write(&mut plain_ctx, plain, "n", Value::uint(9)),
+            OK
+        );
+        call(
+            super::nvs_core_reflect_class_info_set,
+            &mut plain_ctx,
+            &[plain_info, plain, name, Value::uint(9)],
+        )
+        .expect("`n` is public on this one too");
+        assert_eq!(
+            OBSERVED.with_borrow(Vec::len),
+            2,
+            "not one line from a class that implements nothing, and no door is \
+             an exception to that"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns one reference to each — `forObject` handed \
+                      two back, `ledger` built the two subjects and this frame \
+                      made the name — and every call above borrowed rather than \
+                      consumed them"
+        )]
+        unsafe {
+            read.release();
+            name.release();
+            info.release();
+            subject.release();
+            plain_info.release();
+            plain.release();
         }
     }
 

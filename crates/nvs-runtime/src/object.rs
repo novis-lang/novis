@@ -2393,66 +2393,15 @@ pub unsafe extern "C" fn nvs_object_slot_set(
                   this call"
     )]
     let name = unsafe { std::slice::from_raw_parts(name, len) };
-    let body = move |_ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
+    let body = move |ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
         let name = std::str::from_utf8(name)
             .map_err(|_| Fault::fatal("internal error: a field name that is not UTF-8"))?;
         #[expect(
             unsafe_code,
-            reason = "the caller guarantees this points at one initialized value"
+            reason = "the caller guarantees each points at one initialized value"
         )]
-        let receiver = unsafe { *receiver };
-        let Some(ptr) = receiver.obj_ptr() else {
-            return Err(Fault::thrown(format!(
-                "attempt to assign property `{name}` on {}",
-                receiver.tag().map_or("a malformed value", Tag::describe)
-            )));
-        };
-        if ptr.is_null() {
-            return Err(Fault::fatal(format!(
-                "internal error: `->{name} =` reached a null receiver"
-            )));
-        }
-        #[expect(
-            unsafe_code,
-            reason = "the caller guarantees the allocation is live, so its descriptor \
-                      is too"
-        )]
-        let desc = unsafe { &*NvsObj::class_of(ptr) };
-        let Some(slot) = desc.field_slot(name, hint) else {
-            return Err(Fault::thrown(format!(
-                "`{}` has no field `{name}`",
-                desc.name()
-            )));
-        };
-        #[expect(
-            unsafe_code,
-            reason = "the caller guarantees this points at one initialized value"
-        )]
-        let value = unsafe { *value };
-        if let Some(declared) = desc.field_tag(slot) {
-            let actual = value.tag();
-            if actual != Some(declared) {
-                return Err(Fault::thrown(format!(
-                    "`{}` declares field `{name}` as {}, so a {} cannot be written to it",
-                    desc.name(),
-                    declared.describe(),
-                    actual.map_or("malformed value", Tag::describe)
-                )));
-            }
-        }
-        #[expect(
-            unsafe_code,
-            reason = "the slot came out of this object's own descriptor, so it is \
-                      inside the allocation and was initialized by `new`; the \
-                      retain pairs with the reference the slot now owns"
-        )]
-        unsafe {
-            value.retain();
-            let slot = field_ptr(ptr, slot);
-            (*slot).release();
-            slot.write(value);
-        }
-        Ok(Value::null())
+        let (receiver, value) = unsafe { (*receiver, *value) };
+        write_erased_property(ctx, receiver, name, hint, value)
     };
     #[expect(
         unsafe_code,
@@ -2461,6 +2410,119 @@ pub unsafe extern "C" fn nvs_object_slot_set(
     unsafe {
         crate::run_helper(ctx, std::ptr::null(), 0, out, body)
     }
+}
+
+/// ADR 0036 § 4's erased write and
+/// [ADR 0014](../../../docs/adr/0014-property-observer.md) § 3's observer step
+/// over it — the whole of what [`nvs_object_slot_set`] does, written here so
+/// that a *reflective* write reaches the same code rather than a second copy of
+/// its rules. `nvs_stdlib::reflect`'s `Core\Reflect\ClassInfo::set` is the
+/// other caller, and ADR 0019 § 2's "fails the same way an ordinary write
+/// would" is why it is a caller rather than a reimplementation — the same
+/// reading `crate::dispatch::call_erased_method` already carries for the call
+/// half.
+///
+/// **The observer step is here rather than at the call site**, unlike every
+/// other property write in the language. ADR 0014 § 4 answers "does this class
+/// implement `PropertyObserver`" from the *declaration*, so where the
+/// receiver's class is known `nvs_ir::lower` emits `onPropertySet` beside the
+/// `FieldSet` itself and nothing reaches this function. An erased receiver has
+/// no such answer to emit from, and § 3 says the observer sees **every** write
+/// — so the question is simply asked later, of the descriptor the value
+/// arrived with, once the store has committed. A class that implements nothing
+/// pays one name comparison against a conformance list `new` already built.
+///
+/// There is no `set` hook on this path — a hooked property's write lowers to a
+/// call to the hook, never to a slot store — so the value written is exactly
+/// the value committed, and it is the one the observer is told about.
+///
+/// # Errors
+///
+/// [`nvs_object_slot_set`]'s three throws, which are its own documentation's,
+/// plus [`Fault::Pending`] when the observer itself throws: § 3's "a throwing
+/// `onPropertySet` still fails the overall write", even though the store has
+/// already happened.
+pub fn write_erased_property(
+    ctx: &mut Ctx,
+    receiver: Value,
+    name: &str,
+    hint: usize,
+    value: Value,
+) -> Result<Value, Fault> {
+    let Some(ptr) = receiver.obj_ptr() else {
+        return Err(Fault::thrown(format!(
+            "attempt to assign property `{name}` on {}",
+            receiver.tag().map_or("a malformed value", Tag::describe)
+        )));
+    };
+    if ptr.is_null() {
+        return Err(Fault::fatal(format!(
+            "internal error: `->{name} =` reached a null receiver"
+        )));
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this object, so the allocation \
+                  is live and its descriptor is too"
+    )]
+    let desc = unsafe { &*NvsObj::class_of(ptr) };
+    let Some(slot) = desc.field_slot(name, hint) else {
+        return Err(Fault::thrown(format!(
+            "`{}` has no field `{name}`",
+            desc.name()
+        )));
+    };
+    if let Some(declared) = desc.field_tag(slot) {
+        let actual = value.tag();
+        if actual != Some(declared) {
+            return Err(Fault::thrown(format!(
+                "`{}` declares field `{name}` as {}, so a {} cannot be written to it",
+                desc.name(),
+                declared.describe(),
+                actual.map_or("malformed value", Tag::describe)
+            )));
+        }
+    }
+    // Read before the store, so nothing borrows the descriptor across the call
+    // below. `PropertyObserver` is spelled as a literal because its one home,
+    // `nvs_hir::interfaces::PROPERTY_OBSERVER`, is above this crate.
+    let observed = desc.conforms_to_name("PropertyObserver");
+    #[expect(
+        unsafe_code,
+        reason = "the slot came out of this object's own descriptor, so it is \
+                  inside the allocation and was initialized by `new`; the \
+                  retain pairs with the reference the slot now owns"
+    )]
+    unsafe {
+        value.retain();
+        let slot = field_ptr(ptr, slot);
+        (*slot).release();
+        slot.write(value);
+    }
+    if !observed {
+        return Ok(Value::null());
+    }
+    let told = Value::str(crate::NvsStr::new(name.as_bytes()));
+    let answered =
+        crate::dispatch::call_erased_method(ctx, receiver, "onPropertySet", &[told, value]);
+    #[expect(
+        unsafe_code,
+        reason = "this frame made that string and still owns it — the call \
+                  retained what it passed on and the callee's exit sweep \
+                  released that reference, not this one"
+    )]
+    unsafe {
+        told.release();
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the observer's return is a fresh reference this frame owns, \
+                  and § 3 makes it a `void` nothing reads"
+    )]
+    unsafe {
+        answered?.release();
+    }
+    Ok(Value::null())
 }
 
 /// Overwrites field slot `index` on the object at `ptr`, releasing whatever it
