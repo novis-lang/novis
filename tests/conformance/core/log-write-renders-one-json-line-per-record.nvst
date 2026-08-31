@@ -1,0 +1,25 @@
+--TEST--
+`Core\Log::write` renders each record as one JSON Lines object carrying its level's own lowercase name, whatever the message contains -- ADR 0020 § 6 and ADR 0092 § 2
+--FILE--
+<?nvs
+// ADR 0092 § 2's five cases, loudest first, which is also the order their
+// syslog severities run in. What the record carries is the case's own name
+// lowercased, never the number it is valued by -- the severity is what a
+// `syslog` target needs and a JSON Lines target has no use for.
+Core\Log::write(Core\Log\Level::Critical, "the floor");
+Core\Log::write(Core\Log\Level::Error, "an operation failed");
+Core\Log::write(Core\Log\Level::Warn, "a retry");
+Core\Log::write(Core\Log\Level::Info, "started");
+Core\Log::write(Core\Log\Level::Debug, "detail");
+
+// ADR 0020 § 6 chose JSON over logfmt for exactly this: whatever a message
+// wanted to be, a record is one line, and the quoting is the encoder's rather
+// than a judgement made at the site that writes it.
+Core\Log::write(Core\Log\Level::Info, "a \"quoted\" word\nand a second line");
+--EXPECT--
+{"level":"critical","msg":"the floor"}
+{"level":"error","msg":"an operation failed"}
+{"level":"warn","msg":"a retry"}
+{"level":"info","msg":"started"}
+{"level":"debug","msg":"detail"}
+{"level":"info","msg":"a \"quoted\" word\nand a second line"}

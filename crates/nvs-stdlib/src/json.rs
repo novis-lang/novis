@@ -423,7 +423,7 @@ fn max_depth(value: &Value) -> Result<u32, Fault> {
 /// every array this walks into is reached through a *borrowed* handle
 /// ([`crate::arr::borrowed`]) that takes no reference of its own.
 #[derive(Clone, Copy, Debug)]
-struct Encodable {
+pub(crate) struct Encodable {
     value: Value,
     /// This value's own nesting level, counted as [`DEFAULT_MAX_DEPTH`]
     /// counts: the document is 1.
@@ -431,6 +431,20 @@ struct Encodable {
 }
 
 impl Encodable {
+    /// A whole document — the value at the top level, which is where
+    /// [`DEFAULT_MAX_DEPTH`] counts from.
+    ///
+    /// A constructor rather than public fields because the depth is the
+    /// invariant: a caller outside this module has no business choosing a
+    /// nesting level, and [`crate::log`] — the second writer of a JSON value
+    /// in this crate, and the reason this type is `pub(crate)` at all — writes
+    /// a `fields` bag that is a document exactly as `Core\Json::encode`'s
+    /// argument is. One encoder, so a `float` or a nested array cannot be
+    /// spelled two ways depending on which member wrote it.
+    pub(crate) fn document(value: Value) -> Self {
+        Self { value, depth: 1 }
+    }
+
     /// This value's elements, one level deeper.
     fn child(self, value: Value) -> Self {
         Self {
@@ -674,7 +688,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_json_encode(_ctx, args: [3]) {
         let pretty = flag(&args[1], "pretty")?;
         let escape = flag(&args[2], "escapeUnicode")?;
-        let subject = Encodable { value: args[0], depth: 1 };
+        let subject = Encodable::document(args[0]);
         let written = if pretty {
             serde_json::to_string_pretty(&subject)
         } else {

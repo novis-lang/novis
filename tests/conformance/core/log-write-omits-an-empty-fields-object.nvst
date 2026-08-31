@@ -1,0 +1,29 @@
+--TEST--
+`Core\Log::write` writes structured context as a `fields` object and omits the key entirely when the bag is empty -- ADR 0020 § 6
+--FILE--
+<?nvs
+// The bound on both sides: the call that carries no key, and the smallest one
+// that does. § 6 omits a field with no content rather than writing it empty,
+// which is the rule `trace_id` is already stated under.
+Core\Log::write(Core\Log\Level::Info, "bare");
+
+array<mixed> $one = ["user" => 7];
+Core\Log::write(Core\Log\Level::Info, "given", $one);
+
+// The bag is `array<string, mixed>`, so a field is whatever the call site had
+// -- and it is written by the encoder `Core\Json::encode` uses rather than by
+// a second one, so a `float`, a `bool` and a nested array cannot be spelled
+// one way in a log record and another way in a response body.
+array<mixed> $several = ["ratio" => 1.5, "retried" => true, "codes" => [1, 2]];
+Core\Log::write(Core\Log\Level::Warn, "mixed", $several);
+
+// An empty bag written out is the same record as one not written at all: the
+// omission is decided by what the bag holds, not by whether the argument was
+// given.
+array<mixed> $none = [];
+Core\Log::write(Core\Log\Level::Info, "bare", $none);
+--EXPECT--
+{"level":"info","msg":"bare"}
+{"level":"info","msg":"given","fields":{"user":7}}
+{"level":"warn","msg":"mixed","fields":{"ratio":1.5,"retried":true,"codes":[1,2]}}
+{"level":"info","msg":"bare"}
