@@ -4338,6 +4338,20 @@ sibling in the same namespace unqualified.
   `EqDomain` variant (the enum, `equality_domain`, and `reject_unordered_operand`'s match; the other two
   `EqDomain` matches already have catch-alls). Decide it in the ADR that adds the type, not at the
   compiler error.
+- **A representation that can hold `null` has six lowering sites, not the four a `grep` for
+  `Ty::Tagged` finds — and `==` against a written `null` is the one that looks covered and is
+  not.** ADR 0125 § 2's `?class<T>` erases to `Ty::ClassDesc` with the null descriptor as its
+  `null`, which meant giving that representation a row everywhere the crate had been reading
+  "only a tagged operand can be null" off the operand. Five were where they looked —
+  `lower_coalesce`, `lower_isset_operand`, `truthy_convert`, `coerce` and `lower_binary` — and
+  the sixth is `lower_expr`'s own dispatch arm, which routes `$x == null` to
+  `lower_null_identity` *before* `lower_binary` ever sees it whenever exactly one side is the
+  written literal. So a row added to `lower_binary` is dead for the spelling every test writes,
+  and the symptom is a null value comparing unequal to `null` while `isset` on it answers
+  correctly one line above. The general shape: when a construct has a fast path keyed on one
+  operand being a literal, the fast path is a separate site and a `grep` for the operator's own
+  lowering will not find it. `truthy_convert` is the one that announces itself, with a panic
+  naming the representation.
 
 ## Divergences and refusals already pinned
 
