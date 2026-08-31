@@ -1,0 +1,58 @@
+--TEST--
+Core\RateLimit::shed decides from this core's own memory, with no store configured — ADR 0075 §§ 1 and 2
+--FILE--
+<?nvs
+// ADR 0075 § 1's second job: dropping load to keep a host up, where an
+// approximate answer is adequate and the state is this core's own memory. No
+// `[cache.shared] url` is configured here and none is needed — which is the
+// whole difference from `consume`, and the reason this member declares no
+// capability at all.
+//
+// Two per hour, so nothing measurable drains between these three lines: the
+// burst defaults to the limit, which admits a period's worth at once.
+var $first = Core\RateLimit::shed("checkout", 2, 1h);
+var $second = Core\RateLimit::shed("checkout", 2, 1h);
+var $third = Core\RateLimit::shed("checkout", 2, 1h);
+
+if ($first->allowed() && $second->allowed()) {
+    echo "two admitted", "\n";
+} else {
+    echo "the burst is not the limit", "\n";
+}
+
+if ($third->allowed()) {
+    echo "a third admitted past the burst", "\n";
+} else {
+    echo "third refused", "\n";
+}
+
+// ADR 0075 § 2: a refusal carries the exact wait, computed rather than
+// estimated — half an hour, because one of the two units drains in half the
+// period. Not "sometime in the next hour", which is the answer that makes every
+// refused client come back in the same instant. Rounded up for the same reason
+// `examples/cache.nvs` rounds up: the third call arrives a moment after the
+// first, so the exact wait is a whisker under.
+var $wait = $third->retryAfter();
+if ($wait == null) {
+    echo "refused with no wait", "\n";
+} else {
+    var $seconds = $wait->toSeconds();
+    if ($wait->toMilliseconds() % 1000 != 0) {
+        $seconds = $seconds + 1;
+    }
+    echo "retryAfter=", $seconds, "\n";
+}
+
+// The key is what the allowance is per, here as everywhere: another key has its
+// own arrival time, and the two do not share one.
+var $other = Core\RateLimit::shed("signup", 2, 1h);
+if ($other->allowed()) {
+    echo "another key admitted", "\n";
+} else {
+    echo "one key's arrivals charged another", "\n";
+}
+--EXPECT--
+two admitted
+third refused
+retryAfter=1800
+another key admitted

@@ -1,0 +1,51 @@
+--TEST--
+Core\RateLimit::shed's $cost weighs one call and its $burst bounds one instant — ADR 0075 § 2
+--FILE--
+<?nvs
+// ADR 0075 § 2: `cost` weights one call, so an expensive endpoint may charge
+// several units of the same quota — four per hour, taken two at a time.
+var $first = Core\RateLimit::shed("export", 4, 1h, {cost: 2});
+var $second = Core\RateLimit::shed("export", 4, 1h, {cost: 2});
+var $third = Core\RateLimit::shed("export", 4, 1h, {cost: 2});
+
+// The decision carries the limit it was made against, so a `RateLimit` header
+// can be written from the decision alone rather than from the call site.
+echo "limit=", $first->limit(), "\n";
+
+// And what is left after each, which is the count that makes `cost` visible:
+// two charges of two exhaust four, and the third has nothing to take.
+echo "remaining=", $first->remaining(), " ", $second->remaining(), "\n";
+
+if ($third->allowed()) {
+    echo "a third charge of two fitted in four", "\n";
+} else {
+    echo "third refused", "\n";
+}
+
+// `burst` is the other option, and it bounds an *instant* rather than a rate:
+// the same four per hour, but only one may arrive at a time.
+var $one = Core\RateLimit::shed("narrow", 4, 1h, {burst: 1});
+var $two = Core\RateLimit::shed("narrow", 4, 1h, {burst: 1});
+if ($one->allowed() && !$two->allowed()) {
+    echo "one at a time", "\n";
+} else {
+    echo "the burst did not bound the instant", "\n";
+}
+
+// A quarter of an hour, because one unit of four drains in a quarter of the
+// period — the drain rate is unchanged by the narrower burst.
+var $wait = $two->retryAfter();
+var $seconds = 0;
+if ($wait != null) {
+    $seconds = $wait->toSeconds();
+    if ($wait->toMilliseconds() % 1000 != 0) {
+        $seconds = $seconds + 1;
+    }
+}
+echo "retryAfter=", $seconds, "\n";
+--EXPECT--
+limit=4
+remaining=2 0
+third refused
+one at a time
+retryAfter=900

@@ -43,25 +43,26 @@
 >
 > **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
 > running**, over goals 1-3, each reached at its own acceptance.   **The goal's eight acceptance
-> fixtures are on disk**, and each prints its frozen output once its stage closes. **Stages 2 and 3
-> are closed**: `Core\IO`'s ten members and `Core\Process::run` are rows, cards, bodies and grants
-> over ADR 0118's doors, and `examples/files.nvs` and `examples/process.nvs` run green.  **§ 6 is
-> closed**: `Core\Command::help`, `::run` and `completions` are rows over the compiled table, a
-> declared default crosses on the row, and `--ARGS--` is honoured.  **`Core\Password` and
-> `Core\Crypto` are closed**: Argon2id at OWASP's floor and XChaCha20-Poly1305, neither with an
-> algorithm argument, and `examples/crypto.nvs` runs green. **Stage 4 is closed**: ADR 0060 § 1's
-> roster is all four entries — `Core\SignedCookie` seals with `$keys[0]` and opens against the ring,
-> `Core\Csrf` binds a token under a domain tag, `Core\Totp` answers the step a code belonged to, and
-> `Core\Jwt` answers `array<tainted string>` off `CoreTy::TaintedStr`. **Stage 5 is closed**:
+> fixtures are on disk.** **Stages 2 and 3 are closed**: `Core\IO`'s ten members and
+> `Core\Process::run` are rows, cards, bodies and grants over ADR 0118's doors, and
+> `examples/files.nvs` and `examples/process.nvs` run green.  **§ 6 is closed**:
+> `Core\Command::help`, `::run` and `completions` are rows over the compiled table, a declared
+> default crosses on the row, and `--ARGS--` is honoured.  **`Core\Password` and `Core\Crypto` are
+> closed**: Argon2id at OWASP's floor and XChaCha20-Poly1305, neither with an algorithm argument,
+> and `examples/crypto.nvs` runs green. **Stage 4 is closed**: ADR 0060 § 1's roster is all four
+> entries — `Core\SignedCookie` seals with `$keys[0]` and opens against the ring, `Core\Csrf` binds
+> a token under a domain tag, `Core\Totp` answers the step a code belonged to, and `Core\Jwt`
+> answers `array<tainted string>` off `CoreTy::TaintedStr`. **Stage 5 is closed**:
 > `Core\Http::allowUrl` answers a pinned `Core\Http\Target`, and two cases pin ADR 0058 §§ 3 and 5 —
 > the denied table is the capability's and refuses before a socket. `Core\Http\Client`'s five rows
 > are compile-time whole, and `crate::http::transport` fills `Core\Http\Response` over
 > `nvs_host::net`. **Stage 6 has opened**: `Core\Cache`'s two tiers are one `Store` over ADR 0023 §
-> 3's byte payload, `local()` needs no grant and `shared()` is the `net.connect` door onto RESP over
-> the parking stream; `Core\RateLimit::consume` is GCRA over that same store, one `EVAL` of our own
-> script, throwing where an unreachable store would decide *allowed*. `examples/cache.nvs` prints
-> its five lines against `tests/db/compose.yaml`'s `redis`, up per run from the goal's `[docker]`
-> block. Conformance 1168, differential 210 of 210, migration 37% over its 36% floor.
+> 3's byte payload, `shared()` is the `net.connect` door onto RESP and `local()` the `None` row
+> beside it — ADR 0118 § 7 has no allowlist now, since every member of a door-bearing class owes a
+> row. Both of § 1's limiters are rows: `consume` GCRA over that store, throwing where an
+> unreachable one would decide *allowed*; `shed` the same GCRA over the local tier.
+> `examples/cache.nvs` prints its five lines against `tests/db/compose.yaml`'s `redis`. Conformance
+> 1171, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

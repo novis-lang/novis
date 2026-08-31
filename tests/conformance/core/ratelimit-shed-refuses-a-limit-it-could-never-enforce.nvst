@@ -1,0 +1,50 @@
+--TEST--
+Core\RateLimit::shed throws for a limit that can never be enforced, and charges nothing — ADR 0075 § 5
+--FILE--
+<?nvs
+// ADR 0075 § 5's direction, in the tier that has no store to blame: a limiter
+// that quietly does not limit is worse than no limiter, so a policy that could
+// never admit anything or could never be measured is refused where it is
+// written rather than answered.
+//
+// Both tiers derive one window, so these are the same refusals `consume` makes.
+var $refusals = 0;
+
+// A limit of nothing per anything: there is no rate to enforce.
+try {
+    Core\RateLimit::shed("k", 0, 1h);
+    echo "a limit of zero was accepted", "\n";
+} catch (RuntimeError $e) {
+    $refusals = $refusals + 1;
+}
+
+// A burst of nothing: every arrival would be refused however long it waited.
+try {
+    Core\RateLimit::shed("k", 5, 1h, {burst: 0});
+    echo "a burst of zero was accepted", "\n";
+} catch (RuntimeError $e) {
+    $refusals = $refusals + 1;
+}
+
+// And a period too short to divide into `$limit` units — two thousand of them
+// in a millisecond is half a microsecond each, finer than this limiter counts.
+try {
+    Core\RateLimit::shed("k", 2000, 1ms);
+    echo "an unmeasurable rate was accepted", "\n";
+} catch (RuntimeError $e) {
+    $refusals = $refusals + 1;
+}
+
+echo "refusals=", $refusals, "\n";
+
+// The refusals happen before any arrival is recorded, so the key they named is
+// untouched: a burst's worth still arrives afterwards.
+var $after = Core\RateLimit::shed("k", 2, 1h);
+if ($after->allowed()) {
+    echo "nothing was charged", "\n";
+} else {
+    echo "a refused policy charged the key anyway", "\n";
+}
+--EXPECT--
+refusals=3
+nothing was charged
