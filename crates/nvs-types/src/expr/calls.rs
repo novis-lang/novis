@@ -228,6 +228,10 @@ pub(crate) fn infer_static_call(
     // the override at run time is § 4's `InstKind::CallVirtual`.
     let class_ref_arg = class_ref_argument(class_ty, env.interner);
     let class_ref = class_ref_arg.and_then(|inner| class_qname_of(inner, env.interner));
+    // Kept as a flag because the name itself is consumed by the resolution
+    // below, and two of the rules under it are about *how* the class side was
+    // written rather than about which class it named.
+    let through_class_ref = class_ref.is_some();
     // Any other class side that is not a written name is the same mistake
     // `new $c()` and `$x instanceof $c` make, and gets the same report — see
     // [`super::members::reject_dynamic_class_name`]. Everything below resolves
@@ -280,9 +284,21 @@ pub(crate) fn infer_static_call(
                     {
                         if owner.is_core() {
                             report_core_instance_member(expr.span, owner, &name, env);
-                        } else if !scope.holds_receiver()
-                            && !matches!(args, CallArgs::FirstClassCallable)
+                        } else if through_class_ref
+                            || (!scope.holds_receiver()
+                                && !matches!(args, CallArgs::FirstClassCallable))
                         {
+                            // A `class<T>` class side takes the refusal
+                            // unconditionally, and that is the same rule rather
+                            // than an extra one: what makes `self::f()` legal
+                            // for a non-static `f` is that it forwards the
+                            // enclosing frame's `$this`, and a class reference
+                            // has no frame and no receiver to forward. `$this`
+                            // where one is in scope is an instance of the
+                            // enclosing class, which is not the class the
+                            // reference denotes — passing it would be a field
+                            // write through the wrong layout rather than a
+                            // diagnostic. See `ExprInfo::ClassRefCall`.
                             report_instance_method_called_statically(expr.span, owner, &name, env);
                         }
                     }
@@ -364,12 +380,18 @@ pub(crate) fn infer_static_call(
     // See [`infer_method_call`]: persisted for `nvs-ir` to read back a resolved
     // static call's target, always as the *substituted* signature.
     //
-    // Not for ADR 0125 § 4's class-reference side, for the reason [`infer_new`]
-    // gives at its own record: `T` is what the member was *checked* against,
-    // and lowering a direct call to `T::f` would call the base's body rather
-    // than the implementor's. § 4's `InstKind::CallVirtual` entry arrives with
-    // the lowering that reads it.
-    if is_written_class_side(class)
+    // ADR 0125 § 4's class-reference side takes the other entry, for the reason
+    // [`infer_new`] gives at its own record: `T` is what the member was
+    // *checked* against, so a direct call to `T::f` would run the base's body
+    // rather than the implementor's. `ExprInfo::ClassRefCall` carries the same
+    // resolved call and says which of the two it is.
+    if !is_written_class_side(class)
+        && let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
+        && through_class_ref
+    {
+        let call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
+        env.exprs.record(expr.span, ExprInfo::ClassRefCall(call));
+    } else if is_written_class_side(class)
         && let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
     {
         let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
@@ -523,28 +545,33 @@ pub(crate) fn infer_new(
         // `nvs-ir` needs the constructed class and its resolved constructor (if
         // any) to lower `new` — see `crate::expr_table`'s own module docs.
         //
-        // Not for ADR 0125 § 4's dynamic form, where `T` is the class this
-        // *checks* against and never the one allocated: `ExprInfo::New` names
-        // the class a layout comes from, and here that is whichever implementor
-        // the descriptor holds. Recording `T` would lower an allocation of the
-        // base. The entry § 4's `InstKind::NewDynamic` reads is a different
-        // shape and arrives with the lowering, so until then this span is one
-        // `nvs-ir` finds nothing for — the loud failure rather than the silent
-        // one, and unreachable meanwhile because `lower_decl_type` refuses the
-        // atom first.
-        if !matches!(target, NewTarget::Expr(_)) {
-            let ctor = sig.as_ref().zip(ctor_owner).map(|(s, owner)| {
-                resolved_call(owner, "constructor".to_owned(), s, slots, env.signatures)
-            });
-            env.exprs.record(
-                expr.span,
-                ExprInfo::New {
-                    class: qname.clone(),
-                    ctor,
-                    ty: target_ty,
-                },
-            );
-        }
+        // Two entries, because ADR 0125 § 4's dynamic form cannot answer the
+        // question `ExprInfo::New` is built around: that variant names the
+        // class a layout comes from, and for `new $cls(...)` that is whichever
+        // implementor the descriptor holds rather than `T`. So the bound goes
+        // into [`ExprInfo::NewDynamic`] instead, where it reads as what it is —
+        // the declaration this site checked against and the run-time lookup's
+        // fallback — and the class actually allocated stays the operand, which
+        // `nvs-ir` lowers to the descriptor `InstKind::NewDynamic` takes. The
+        // constructor is resolved identically for both: § 5's `E0794` above is
+        // what makes `T`'s signature sound to check a dynamic call against.
+        let ctor = sig.as_ref().zip(ctor_owner).map(|(s, owner)| {
+            resolved_call(owner, "constructor".to_owned(), s, slots, env.signatures)
+        });
+        let info = if matches!(target, NewTarget::Expr(_)) {
+            ExprInfo::NewDynamic {
+                bound: qname.clone(),
+                ctor,
+                ty: target_ty,
+            }
+        } else {
+            ExprInfo::New {
+                class: qname.clone(),
+                ctor,
+                ty: target_ty,
+            }
+        };
+        env.exprs.record(expr.span, info);
     }
     target_ty
 }

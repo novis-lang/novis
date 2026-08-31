@@ -92,3 +92,99 @@ class<Animal> $cls = $name as class<Animal>;
     // string through the conversion.
     assert_eq!(descriptor_sources(&program), vec!["in Animal".to_owned()]);
 }
+
+/// Every allocation the program performs, rendered as which of the two `new`
+/// instructions it is and what constructor label it carries — the two facts
+/// § 4's row is about.
+///
+/// [`descriptor_sources`]'s reason for rendering rather than comparing values.
+fn allocations(program: &Program) -> Vec<String> {
+    program
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.insts)
+        .filter_map(|inst| match &inst.kind {
+            InstKind::New { class, ctor, args } => Some(format!(
+                "new {class} via {} with {} arg(s)",
+                ctor.as_deref().unwrap_or("<none>"),
+                args.len()
+            )),
+            InstKind::NewDynamic { ctor, args, .. } => Some(format!(
+                "new dynamic via {} with {} arg(s)",
+                ctor.as_deref().unwrap_or("<none>"),
+                args.len()
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_new_through_a_class_reference_lowers_to_new_dynamic() {
+    let program = compile(
+        "<?nvs
+class Animal { public function constructor(public int $legs) {} }
+class Dog extends Animal {}
+class<Animal> $cls = Dog::class as class<Animal>;
+Animal $pet = new $cls(4);
+",
+    );
+    // Two claims, and the fixture is built so that either one failing changes
+    // this line. **`NewDynamic`, on a descriptor the folded conversion baked**:
+    // the class is in the compiler's hand here, so an `InstKind::New { class:
+    // "Dog" }` would run this program correctly and still be wrong — the
+    // checker typed the site as `Animal`, and the same `$cls` reaching this
+    // `new` from a parameter or a walk has no class to fold. **The label is
+    // `Animal::constructor`**, the bound's, because it is the lookup's
+    // *fallback*: `NewDynamic` asks the allocated class first, so a `Dog` that
+    // declared its own would win at run time without this site knowing.
+    assert_eq!(
+        allocations(&program),
+        vec!["new dynamic via Animal::constructor with 1 arg(s)".to_owned()]
+    );
+}
+
+/// Every call this program makes, rendered as whether it bound to a label or
+/// dispatched on a descriptor — the distinction § 4's second row is entirely
+/// about, and one a program that printed the right answer would not show.
+fn calls(program: &Program) -> Vec<String> {
+    program
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.insts)
+        .filter_map(|inst| match &inst.kind {
+            InstKind::Call { target, .. } => Some(format!("direct {target}")),
+            InstKind::CallVirtual {
+                method, fallback, ..
+            } => Some(format!(
+                "virtual {method} over {}",
+                fallback.as_deref().unwrap_or("<none>")
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_static_call_through_a_class_reference_dispatches_on_the_descriptor() {
+    let program = compile(
+        "<?nvs
+class Animal { public static function noise(): string { return \"...\"; } }
+class Dog extends Animal { public static function noise(): string { return \"woof\"; } }
+class<Animal> $cls = Dog::class as class<Animal>;
+echo $cls::noise(), \"\\n\";
+",
+    );
+    // Virtual, not direct, even though the fold above put `Dog` in the
+    // compiler's own hand: the checker resolved `noise` on `Animal`, which is
+    // the only roster this site can see, so a direct call would run the base's
+    // body — the one wrong answer that still compiles and still prints. The
+    // label `Animal::noise` is present as the *fallback*, which is what an
+    // implementor declaring no `noise` of its own falls through to.
+    assert_eq!(
+        calls(&program),
+        vec!["virtual noise over Animal::noise".to_owned()]
+    );
+}

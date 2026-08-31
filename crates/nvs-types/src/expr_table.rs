@@ -359,6 +359,57 @@ pub enum ExprInfo {
         /// recorded directly so a consumer never needs to re-intern it.
         ty: TypeId,
     },
+    /// `new $cls(...)` over a `class<T>` operand —
+    /// [ADR 0125](../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// § 4's dynamic form, and a variant of its own precisely because it
+    /// cannot answer the question [`ExprInfo::New`] is built around. A `New`
+    /// entry names **the class a layout comes from**, and here that is
+    /// whichever implementor the descriptor in hand holds — a fact no compile
+    /// has. Recording the bound as a `New` would lower an allocation of the
+    /// base, silently and only for the one site where the base is the wrong
+    /// answer.
+    ///
+    /// So the class allocated is not in this entry at all: it is the operand,
+    /// which a consumer lowers to a class-descriptor value and hands to
+    /// `nvs_ir::ir::InstKind::NewDynamic` as its `desc`, exactly as
+    /// `new static()` hands that instruction late static binding's own
+    /// descriptor. What is recorded here is the bound, which is what the site
+    /// *checked* against.
+    NewDynamic {
+        /// The `class<T>` operand's bound — `T`, never the class allocated.
+        bound: QName,
+        /// `T`'s resolved `constructor`, if its chain declares one, and
+        /// [`ExprInfo::New`]'s `ctor` in every other respect. Sound to check a
+        /// call against even though the allocated class may declare its own,
+        /// because ADR 0125 § 5 refuses at this very site any implementor of
+        /// `T` whose constructor is not compatible with it (`E0794`).
+        ctor: Option<ResolvedCall>,
+        /// The expression's own result type — always `Ty::Class(bound)`, which
+        /// is § 4's "resolves against `T`" as a consumer sees it.
+        ty: TypeId,
+    },
+    /// `$cls::f(...)` over a `class<T>` class side — ADR 0125 § 4's second
+    /// site, and an [`ExprInfo::Call`] in every field it carries.
+    ///
+    /// A variant of its own for [`ExprInfo::NewDynamic`]'s reason, one step
+    /// on: a `Call`'s target is a label a consumer binds straight to, and
+    /// binding to it here would run `T`'s body wherever the descriptor holds
+    /// an implementor that overrides it. So the resolved call inside is `T`'s
+    /// declaration used as the *fallback*, and the call itself dispatches on
+    /// the descriptor the class side evaluates to.
+    ///
+    /// **The target is always `static`.** A class reference names a class and
+    /// never an object, so there is no receiver an instance member could be
+    /// reached through — including `$this`, which belongs to a class the
+    /// reference has nothing to do with. [`crate::expr::calls`]'s
+    /// static-call refusal is where that is reported.
+    ///
+    /// Known gap: `$cls::f(...)` written as ADR 0027's first-class callable
+    /// records [`ExprInfo::CallableRef`] like any other class side, so the
+    /// closure it names is `T`'s method rather than the implementor's. The
+    /// same fallback-versus-override question as above, at a site that has no
+    /// descriptor to dispatch on once the closure has escaped.
+    ClassRefCall(ResolvedCall),
     /// `$m->method(...)` on a **`mixed`** receiver — the one method call that
     /// resolves to no signature and is not refused where it is written.
     ///

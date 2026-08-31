@@ -2457,6 +2457,12 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        // ADR 0125 § 4's `new $cls(...)` is the other entry this span can
+        // carry, and it is a different lowering rather than a different label:
+        // the class to allocate is a value in hand, not a name.
+        if let Some(ExprInfo::NewDynamic { ctor, .. }) = self.exprs.lookup(expr.span) {
+            return self.lower_new_through_a_class_reference(target, args, ctor.as_ref(), env, cur);
+        }
         let Some(ExprInfo::New { class, ctor, .. }) = self.exprs.lookup(expr.span) else {
             panic!(
                 "nvs-ir: `new` at {:?} has no resolved class recorded in the \
@@ -2578,6 +2584,89 @@ impl<'a> Lowering<'a> {
         // instruction that evaluated them.
         self.forget_transferred_since(mark);
         let built = self.emit_fallible(*cur, Ty::Object, kind, env);
+        self.flush_ref_writebacks(staged_refs, env, *cur);
+        built
+    }
+
+    /// [ADR 0125](../../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// § 4's `new $cls(...)` — [`Self::lower_new`]'s dynamic half.
+    ///
+    /// The same [`InstKind::NewDynamic`] `new static()` lowers to, reached with
+    /// a different descriptor: there it is [`Self::lsb`], the class this frame
+    /// was called on, and here it is whatever the `class<T>` operand holds. The
+    /// constructor label carried is `T`'s, and it is a **fallback** in both
+    /// cases — the instruction asks the allocated class first, so a subclass's
+    /// own constructor wins. That is what makes checking the arguments against
+    /// `T`'s signature the right check rather than an optimistic one, together
+    /// with ADR 0125 § 5, which refuses at this site any implementor of `T`
+    /// whose constructor would not accept what `T`'s accepts.
+    ///
+    /// The operand is evaluated before the arguments, which is the order it is
+    /// written in. It needs no lifecycle of its own: a descriptor is immortal
+    /// and process-wide, so [`Ty::ClassDesc`] is not refcounted.
+    fn lower_new_through_a_class_reference(
+        &mut self,
+        target: &NewTarget,
+        args: &CallArgs,
+        ctor: Option<&ResolvedCall>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let NewTarget::Expr(operand) = target else {
+            panic!(
+                "nvs-ir: an `ExprInfo::NewDynamic` entry on a `new` whose target is a \
+                 written class name — only `nvs_types::expr::calls`'s `NewTarget::Expr` \
+                 arm records one, so this is two crates disagreeing about the table"
+            );
+        };
+        let (desc, _) = self.lower_expr(operand, Some(Ty::ClassDesc), env, cur);
+        let ctor_label = ctor.map(|call| format!("{}::{}", call.class, call.method));
+        // [`Self::lower_new`]'s bracket, for its reason: the callee owns every
+        // transferred argument only from the instruction onward, and until then
+        // an argument that throws is what abandons them.
+        let mark = self.temporaries_mark();
+        let staged_refs = self.pending_refs_mark();
+        let arg_values = match ctor {
+            Some(call) => {
+                let sig = ArgSig::of(call);
+                let checked_types = self.checked_types;
+                self.lower_call_args(
+                    args,
+                    &sig,
+                    checked_types,
+                    ArgOwnership::Transferred,
+                    env,
+                    cur,
+                )
+                .values
+            }
+            None => {
+                let CallArgs::List(list) = args else {
+                    panic!(
+                        "nvs-ir: `new $cls(...)` has no resolved constructor but wasn't \
+                         called with a plain argument list — {args:?}"
+                    );
+                };
+                assert!(
+                    list.is_empty(),
+                    "nvs-ir: `new $cls(...)` has no resolved constructor but was called \
+                     with arguments — `Self::lower_new`'s own note owns why this crate \
+                     cannot trust that was rejected upstream"
+                );
+                Vec::new()
+            }
+        };
+        self.forget_transferred_since(mark);
+        let built = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::NewDynamic {
+                desc,
+                ctor: ctor_label,
+                args: arg_values,
+            },
+            env,
+        );
         self.flush_ref_writebacks(staged_refs, env, *cur);
         built
     }
@@ -3031,6 +3120,12 @@ impl<'a> Lowering<'a> {
             let call = call.clone();
             return self.lower_callable_ref(&call, None, expr, env, cur);
         }
+        // ADR 0125 § 4's `$cls::f(...)`, which is the same resolved call
+        // reached through a value rather than a name — see
+        // [`Self::lower_static_call_on_a_class_reference`].
+        if let Some(ExprInfo::ClassRefCall(call)) = self.exprs.lookup(expr.span) {
+            return self.lower_static_call_on_a_class_reference(class, args, call, env, cur);
+        }
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
             panic!(
                 "nvs-ir: a static call at {:?} has no resolved target recorded in the \
@@ -3199,6 +3294,70 @@ impl<'a> Lowering<'a> {
         // instruction that evaluated them.
         self.forget_transferred_since(mark);
         let result = self.emit_fallible(*cur, return_ty, kind, env);
+        self.flush_ref_writebacks(staged_refs, env, *cur);
+        result
+    }
+
+    /// [ADR 0125](../../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// § 4's `$cls::f(...)` — [`Self::lower_static_call`]'s class-reference
+    /// half.
+    ///
+    /// One [`InstKind::CallVirtual`], and **always** virtual: the class side is
+    /// a descriptor, and a class reference exists to hold an implementor of its
+    /// bound, so the whole question at this site is which class's `f` runs. The
+    /// resolved label goes in as `fallback`, which is what a bound whose own
+    /// declaration has a body still needs when the descriptor's class declares
+    /// no `f` of its own.
+    ///
+    /// `receiver` is `None`, so the callee's slot 0 carries the dispatch
+    /// descriptor — the arrangement `static::f()` already uses, and the reason
+    /// late static binding inside `f` sees the implementor rather than the
+    /// bound. That is sound because the target is always `static`:
+    /// `nvs_types::expr_table::ExprInfo::ClassRefCall` owns why an instance one
+    /// cannot be reached here at all.
+    fn lower_static_call_on_a_class_reference(
+        &mut self,
+        class: &Expr,
+        args: &CallArgs,
+        call: &ResolvedCall,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let target_label = format!("{}::{}", call.class, call.method);
+        let method = call.method.clone();
+        let sig = ArgSig::of(call);
+        let has_body = call.has_body;
+        let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+        let checked_types = self.checked_types;
+        // [`Self::lower_static_call`]'s window, for its reason.
+        let mark = self.temporaries_mark();
+        // The class side is written first and evaluated first. It needs no
+        // lifecycle: [`Ty::ClassDesc`] is not refcounted.
+        let (desc, _) = self.lower_expr(class, Some(Ty::ClassDesc), env, cur);
+        let staged_refs = self.pending_refs_mark();
+        let arg_values = self
+            .lower_call_args(
+                args,
+                &sig,
+                checked_types,
+                ArgOwnership::Transferred,
+                env,
+                cur,
+            )
+            .values;
+        self.forget_transferred_since(mark);
+        let result = self.emit_fallible(
+            *cur,
+            return_ty,
+            InstKind::CallVirtual {
+                lsb: desc,
+                method,
+                fallback: has_body.then_some(target_label),
+                receiver: None,
+                args: arg_values,
+            },
+            env,
+        );
         self.flush_ref_writebacks(staged_refs, env, *cur);
         result
     }
