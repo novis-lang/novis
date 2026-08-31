@@ -62,6 +62,21 @@ pub struct ClassLayout {
     /// Every field slot in index order — every ancestor's first, then this
     /// class's own in declaration order. `$`-sigil not included.
     pub fields: Vec<String>,
+    /// Whether each field slot is readable from outside its class, in
+    /// [`Self::fields`]' own order — the property half of what
+    /// [`Self::methods`]' third element says about a method.
+    ///
+    /// Carried for [`Self::methods`]' reason exactly: visibility is a keyword
+    /// on a declaration and nothing below the front end can see one, while
+    /// [ADR 0019](../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+    /// § 2's rule — a reflective read faces the check ordinary code at that
+    /// site faces — has to be answered at run time, of a value whose class the
+    /// checker never saw. `nvs_ir::ir::Class::public_fields` carries it down and
+    /// `nvs_runtime::ClassDesc::field_is_public` is what
+    /// `nvs_stdlib::reflect`'s walk asks.
+    ///
+    /// **Cost:** one `bool` per field slot per class, once per compiled unit.
+    pub public_fields: Vec<bool>,
     /// Every *other* class and interface an instance of this one also is,
     /// rendered the same way [`ClassLayout`]'s own key is. Transitive, and
     /// deliberately excluding the class itself — `instanceof` checks identity
@@ -162,15 +177,18 @@ pub fn build_class_layouts(
     files: &[crate::ProgramFile<'_>],
     graph: &ClassGraph,
 ) -> ClassLayoutTable {
-    let mut own: FxHashMap<QName, Vec<String>> = FxHashMap::default();
+    let mut own: FxHashMap<QName, Vec<(String, bool)>> = FxHashMap::default();
     let mut own_methods: FxHashMap<QName, Vec<(String, bool)>> = FxHashMap::default();
     // The exception tree first: it has no source declaration to collect from
     // (`nvs_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
     for (name, _) in nvs_hir::errors::TREE {
+        // Public on `own_methods`' terms, and for its reason: spec § 10's four
+        // properties are read from inside every `catch` block, and a
+        // synthesized declaration writes no modifier to read.
         let fields = nvs_hir::errors::own_properties(name)
             .iter()
-            .map(|p| (*p).to_owned())
+            .map(|p| ((*p).to_owned(), true))
             .collect();
         // These constructors are synthesized rather than written
         // (`nvs_ir::lower::exception`), so they are the methods with a body
@@ -205,9 +223,10 @@ pub fn build_class_layouts(
 
     let mut table = ClassLayoutTable::default();
     for qname in own.keys() {
-        let mut fields = Vec::new();
+        let mut slots = Vec::new();
         let mut seen = Vec::new();
-        flatten_fields(qname, graph, &own, &mut fields, &mut seen);
+        flatten_fields(qname, graph, &own, &mut slots, &mut seen);
+        let (fields, public_fields): (Vec<String>, Vec<bool>) = slots.into_iter().unzip();
 
         let mut conforms = Vec::new();
         let mut visited = vec![qname.clone()];
@@ -221,6 +240,7 @@ pub fn build_class_layouts(
             qname.to_string(),
             ClassLayout {
                 fields,
+                public_fields,
                 conforms: conforms.iter().map(QName::to_string).collect(),
                 methods,
             },
@@ -235,7 +255,7 @@ fn collect_own(
     stmts: &[Stmt],
     src: &SourceFile,
     namespace: &[String],
-    out: &mut FxHashMap<QName, Vec<String>>,
+    out: &mut FxHashMap<QName, Vec<(String, bool)>>,
     methods: &mut FxHashMap<QName, Vec<(String, bool)>>,
 ) {
     let mut current = namespace.to_vec();
@@ -285,19 +305,31 @@ fn own_methods(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Ve
     members
         .iter()
         .filter_map(|member| match &member.kind {
-            ClassMemberKind::Method(m) if m.body.is_some() => Some((
-                span_text(src, m.name).to_owned(),
-                !m.modifiers.contains(&Modifier::Private)
-                    && !m.modifiers.contains(&Modifier::Protected),
-            )),
+            ClassMemberKind::Method(m) if m.body.is_some() => {
+                Some((span_text(src, m.name).to_owned(), is_public(&m.modifiers)))
+            }
             _ => None,
         })
         .collect()
 }
 
-/// One declaration's own instance-property names, in declaration order — a
-/// written `public int $n;` and a promoted constructor parameter alike, each
-/// where it stands among the members.
+/// Whether `modifiers` leave the member they decorate readable from outside its
+/// class — one reading, shared by [`own_methods`] and [`own_properties`],
+/// because a class's two rosters answering visibility differently is a
+/// difference no caller could justify.
+///
+/// The absent case is `public`, on [`own_methods`]' terms above.
+fn is_public(modifiers: &[Modifier]) -> bool {
+    !modifiers.contains(&Modifier::Private) && !modifiers.contains(&Modifier::Protected)
+}
+
+/// One declaration's own instance-property names, in declaration order, each
+/// with whether it is `public` — a written `public int $n;` and a promoted
+/// constructor parameter alike, each where it stands among the members.
+///
+/// The visibility bit is [`own_methods`]' bit, read the same way by
+/// [`is_public`]: ADR 0019 § 2's reflective read has to face the check ordinary
+/// code faces, and nothing below this crate can see a keyword.
 ///
 /// A promoted parameter occupies an ordinary slot, because it is an ordinary
 /// property: `nvs_types::signatures` records its type and visibility and
@@ -305,18 +337,29 @@ fn own_methods(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Ve
 /// Its place in the order is the `constructor` member's own, which is all
 /// that "declaration order" can mean for it — nothing reads a slot by number
 /// across two declarations, `flatten_fields` keying every field by name.
-fn own_properties(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<String> {
+fn own_properties(
+    members: &[nvs_syntax::ast::ClassMember],
+    src: &SourceFile,
+) -> Vec<(String, bool)> {
     members
         .iter()
         .flat_map(|member| match &member.kind {
             ClassMemberKind::Property(p) if !is_static(p) => {
-                vec![crate::strip_sigil(span_text(src, p.name)).to_owned()]
+                vec![(
+                    crate::strip_sigil(span_text(src, p.name)).to_owned(),
+                    is_public(&p.modifiers),
+                )]
             }
             ClassMemberKind::Method(m) if span_text(src, m.name) == "constructor" => m
                 .params
                 .iter()
                 .filter(|p| p.is_promoted())
-                .map(|p| crate::strip_sigil(span_text(src, p.name)).to_owned())
+                .map(|p| {
+                    (
+                        crate::strip_sigil(span_text(src, p.name)).to_owned(),
+                        is_public(&p.modifiers),
+                    )
+                })
                 .collect(),
             _ => Vec::new(),
         })
@@ -332,8 +375,8 @@ fn is_static(p: &PropertyMember) -> bool {
 fn flatten_fields(
     qname: &QName,
     graph: &ClassGraph,
-    own: &FxHashMap<QName, Vec<String>>,
-    fields: &mut Vec<String>,
+    own: &FxHashMap<QName, Vec<(String, bool)>>,
+    fields: &mut Vec<(String, bool)>,
     seen: &mut Vec<QName>,
 ) {
     if seen.contains(qname) {
@@ -349,13 +392,17 @@ fn flatten_fields(
         }
     }
     if let Some(names) = own.get(qname) {
-        for name in names {
+        for slot in names {
             // A subclass redeclaring an inherited property names the same
             // slot rather than claiming a second one — PHP's own behaviour,
             // and the only one under which a `FieldGet` naming the *declaring*
-            // class stays valid for every subclass.
-            if !fields.contains(name) {
-                fields.push(name.clone());
+            // class stays valid for every subclass. The ancestor's visibility
+            // is the slot's too, for the same reason it is one slot: there is
+            // one field, so there is one answer to who may read it, and the
+            // narrower one is the safe direction for a question ADR 0019 § 2
+            // makes a privilege check.
+            if !fields.iter().any(|(held, _)| *held == slot.0) {
+                fields.push(slot.clone());
             }
         }
     }

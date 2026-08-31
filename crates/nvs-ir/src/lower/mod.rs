@@ -670,6 +670,10 @@ pub fn lower_program(
                 // `secret` bit off the same join.
                 field_reprs,
                 secret_fields,
+                // ADR 0019 § 2's visibility bit, copied across with the slot
+                // order it is aligned to — `nvs_types::layout` decided it where
+                // the declaration's keyword still exists.
+                public_fields: layout.public_fields.clone(),
                 conforms: layout.conforms.clone(),
                 methods: layout.methods.clone(),
                 // ADR 0071's field list, joined to this class's slot order — the
@@ -1769,6 +1773,11 @@ impl<'a> Lowering<'a> {
             // $secret}` literal is `nvs_stdlib::debug`'s own known gap rather
             // than a bit this could set.
             secret_fields: vec![false; field_count],
+            // ADR 0036 § 2 gives a shape literal no visibility keyword to write
+            // and no class to be private to: every slot was written by the
+            // literal that built it and every one is readable, which is the one
+            // answer `Core\Reflect`'s walk can give a shape.
+            public_fields: vec![true; field_count],
             // ADR 0036 § 5: a shape literal's class has no methods, no
             // supertypes and no `implements`, it carries no attribute, and
             // every one of its slots is written by the literal that built it

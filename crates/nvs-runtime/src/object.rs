@@ -313,6 +313,23 @@ pub struct ClassDesc {
     /// [`ClassTable::set_secret_fields`]. **Cost:** one `bool` per field per
     /// class, once per process, not per instance.
     secret_fields: Vec<bool>,
+    /// Whether each field slot is readable from outside this class, in slot
+    /// order. **Empty** for a class nothing has told, and an empty list reads
+    /// as "no slot is readable" rather than as "unknown" — see
+    /// [`ClassDesc::field_is_public`] for why that direction is the safe one.
+    ///
+    /// This is the property half of
+    /// [ADR 0019](../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+    /// § 2 — a reflective read faces the check ordinary code at that site
+    /// faces — and it is carried rather than computed for the reason nothing
+    /// below the checker could compute it: visibility is a keyword on a
+    /// declaration, and a `private int $n` is byte-identical to a `public int
+    /// $n` in every representation under it. `nvs_types::layout` decides it,
+    /// `nvs_ir::ir::Class::public_fields` carries it, and
+    /// `nvs_stdlib::reflect`'s walk is its one reader. Filled by
+    /// [`ClassTable::set_public_fields`]. **Cost:** one `bool` per field per
+    /// class, once per process, not per instance.
+    public_fields: Vec<bool>,
     /// The address of the **native** function that renders an instance of this
     /// class as a `string`, or null for every class that has none — which is
     /// every class a program declares, and every `Core` class the spec gives
@@ -684,6 +701,22 @@ impl ClassDesc {
         self.secret_fields.get(index).copied().unwrap_or(false)
     }
 
+    /// Whether slot `index` is readable from outside this class — ADR 0019
+    /// § 2's visibility check, asked of an instance because that is all a
+    /// reflective walk has.
+    ///
+    /// `false` for a slot nothing told this class about, which is the opposite
+    /// direction from [`Self::field_is_secret`] and the safe one in both cases:
+    /// a class with no answer here is one no declaration laid out — a closure's
+    /// environment, a generator's state, a `Core` class's own slots — and none
+    /// of those has a property a program is entitled to read. A *declared*
+    /// property always reaches the join that fills this, so the fallback is
+    /// never the answer for a class a program wrote.
+    #[must_use]
+    pub fn field_is_public(&self, index: usize) -> bool {
+        self.public_fields.get(index).copied().unwrap_or(false)
+    }
+
     /// Whether an instance of this class is also an instance of `other` —
     /// `instanceof`'s whole test, and a typed `catch`'s.
     ///
@@ -915,6 +948,7 @@ impl ClassTable {
             defaults: Vec::new(),
             field_tags: Vec::new(),
             secret_fields: Vec::new(),
+            public_fields: Vec::new(),
             render: std::ptr::null(),
             unwind: std::ptr::null(),
         }));
@@ -974,6 +1008,33 @@ impl ClassTable {
             secret.len()
         );
         desc.secret_fields = secret;
+    }
+
+    /// Fills in `id`'s per-slot visibility bits — see
+    /// [`ClassDesc::public_fields`].
+    ///
+    /// Separate from [`ClassTable::set_secret_fields`] on that method's own
+    /// terms: the two are different questions of the same declaration, and a
+    /// class may carry one without the other.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if `public` is not one entry
+    /// per slot — a length disagreement would answer one property's visibility
+    /// with another's, which opens the member ADR 0019 § 2 exists to keep shut.
+    pub fn set_public_fields(&mut self, id: ClassId, public: Vec<bool>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            public.len() == desc.fields.len(),
+            "`{}` has {} field slots but {} declared visibility bits",
+            desc.name,
+            desc.fields.len(),
+            public.len()
+        );
+        desc.public_fields = public;
     }
 
     /// Fills in `id`'s declared property defaults — see [`ClassDesc::defaults`].

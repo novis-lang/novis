@@ -113,6 +113,23 @@ pub struct Class {
     /// `field_slots`. **Cost:** one `bool` per field slot per class, once per
     /// compiled unit, not per request.
     pub secret_fields: Vec<bool>,
+    /// Whether each field slot is readable from outside this class, in
+    /// [`Self::fields`]' own order — or **empty**, which means "nothing told
+    /// this class", never "no slot is readable".
+    ///
+    /// A straight copy of `nvs_types::layout::ClassLayout::public_fields`,
+    /// which owns why the bit is carried rather than recomputed:
+    /// [ADR 0019](../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+    /// § 2 makes a reflective read face the check ordinary code faces, and the
+    /// keyword that decides it exists nowhere below the front end.
+    /// `nvs-codegen` hands it to
+    /// `nvs_runtime::ClassTable::set_public_fields`, and `nvs_stdlib::reflect`
+    /// reads it off the *instance*'s descriptor — the only thing a value whose
+    /// class the checker never saw carries.
+    ///
+    /// **Cost:** one `bool` per field slot per class, once per compiled unit,
+    /// not per request.
+    pub public_fields: Vec<bool>,
     /// Every *other* class and interface an instance of this one also is,
     /// transitively, as labels. Excludes the class itself.
     pub conforms: Vec<String>,

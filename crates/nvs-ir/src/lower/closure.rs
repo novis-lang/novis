@@ -290,6 +290,11 @@ pub(crate) fn lower_closure(
             // shape type and no erased view reaches it. See `ir::Class`.
             field_reprs: Vec::new(),
             secret_fields: Vec::new(),
+            // Left empty on `secret_fields`' terms: a capture is not a declared
+            // property, so no keyword decided either bit — and an unreachable
+            // slot reading as unreadable is the direction `field_is_public`
+            // wants.
+            public_fields: Vec::new(),
             conforms: Vec::new(),
             // Public: a closure's environment class is unspellable, so nothing
             // can name this member at all except the runtime's own call path.
@@ -709,6 +714,7 @@ pub(crate) fn lower_callable(
                 .collect(),
             field_reprs: Vec::new(),
             secret_fields: Vec::new(),
+            public_fields: Vec::new(),
             conforms: Vec::new(),
             methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
             codec: Vec::new(),

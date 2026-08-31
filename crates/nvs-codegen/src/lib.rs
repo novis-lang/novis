@@ -705,6 +705,13 @@ impl Classes {
             self.table
                 .set_secret_fields(id, class.secret_fields.clone());
         }
+        // ADR 0019 § 2's visibility bit, at the one granularity a reflective
+        // read can ask: the slot it is about to open. Guarded on the same length
+        // agreement, for the same synthesized classes.
+        if class.public_fields.len() == class.fields.len() && !class.public_fields.is_empty() {
+            self.table
+                .set_public_fields(id, class.public_fields.clone());
+        }
         let slots = class
             .fields
             .iter()
