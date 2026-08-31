@@ -50,11 +50,30 @@
 //! answering for it here would mean answering visibility from one class's table
 //! about another class's slot.
 //!
+//! # Decision: `TypeKind` is one case per representation, and no case is a
+//! question about a value
+//!
+//! [`TYPE_KIND`] replaces fourteen `is_*` predicates plus `gettype`
+//! (`docs/spec/01-core-library.md` § 20) by being *finer* than any of them and
+//! overlapping none of them: `is_scalar` and `is_int` both answer `true` for a
+//! `7`, so a program asking both learns nothing the second time, while ten
+//! cases that partition [`nvs_runtime::Tag`]'s value-carrying half answer the
+//! whole family in one call and a `match` with no `default` is exhaustive.
+//! That is also why the cases stop where the *representations* do. `Callable`
+//! is not one, because ADR 0031 makes a closure an ordinary object and a case
+//! for it would be a second case one value satisfies; `Numeric` is not one,
+//! because `is_numeric` asks about a `string`'s **contents** and that is
+//! `Core\Validate`'s question, not this member's; and `Iterable` and
+//! `Countable` are not, because they ask what a value can *do* — which is
+//! [`CLASS_INFO`]'s half of this class, one call away and answering for a
+//! class rather than for a tag.
+//!
 //! # Known gaps
 //!
-//! 1. `forClass`, `typeOf` and § 1's remaining `*Info` classes are not here
-//!    yet; the spec's roster row (`docs/spec/01-core-library.md` § 20) is the
-//!    home of the full list.
+//! 1. § 1's remaining `*Info` classes are not here yet — a description names
+//!    its properties and no methods, so `get_class_methods` and
+//!    `method_exists` have no answer here yet; the spec's roster row
+//!    (`docs/spec/01-core-library.md` § 20) is the home of the full list.
 //! 2. A description's property walk is the same from inside the described class
 //!    as from outside it. § 2's rule is stated over the *call site*, and a
 //!    native member has no view of its caller's class — so this answers the
@@ -63,9 +82,11 @@
 //!    which § 2 governs on the same terms and which additionally owe ADR 0014's
 //!    hook, are not.
 
-use nvs_runtime::{Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The class name, as a program writes it.
 pub(crate) const NAME: &str = "Core\\Reflect";
@@ -82,21 +103,63 @@ const PROPERTIES_SLOT: usize = 1;
 /// `Core\Reflect` — the door onto a description, and nothing that acts.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    methods: &[CoreMethod {
-        name: "forObject",
-        names: &["object"],
-        // `mixed` rather than a class type: reflection exists for the receiver
-        // whose class the checker does not know, and there is no spelling for
-        // "any object" that a `mixed` does not already cover.
-        params: &[CoreTy::Mixed],
-        defaults: &[],
-        return_ty: CoreTy::Instance(CLASS_INFO_NAME),
-        symbol: "nvs_core_reflect_for_object",
-        doc: Some(&FOR_OBJECT_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "forClass",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            // `?ClassInfo`, and the `null` is what replaces `class_exists`:
+            // a name the running program declares no class for is an absence
+            // (ADR 0063 R6), not a failure — see the card.
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(CLASS_INFO_NAME)),
+            symbol: "nvs_core_reflect_for_class",
+            doc: Some(&FOR_CLASS_DOC),
+        },
+        CoreMethod {
+            name: "forObject",
+            names: &["object"],
+            // `mixed` rather than a class type: reflection exists for the receiver
+            // whose class the checker does not know, and there is no spelling for
+            // "any object" that a `mixed` does not already cover.
+            params: &[CoreTy::Mixed],
+            defaults: &[],
+            return_ty: CoreTy::Instance(CLASS_INFO_NAME),
+            symbol: "nvs_core_reflect_for_object",
+            doc: Some(&FOR_OBJECT_DOC),
+        },
+        CoreMethod {
+            name: "typeOf",
+            names: &["value"],
+            // `mixed` for the same reason `forObject`'s is, and here it is the
+            // *only* meaningful argument type: on anything narrower the checker
+            // already knows the answer and the call would be a constant.
+            params: &[CoreTy::Mixed],
+            defaults: &[],
+            return_ty: CoreTy::Enum(TYPE_KIND_NAME),
+            symbol: "nvs_core_reflect_type_of",
+            doc: Some(&TYPE_OF_DOC),
+        },
+    ],
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Reflect::forClass`'s reference card — ADR 0117.
+const FOR_CLASS_DOC: MethodDoc = MethodDoc {
+    short: "Describes the class `$name` names, reaching it by name rather than through a value. \
+            Replaces `ReflectionClass`'s constructor and `class_exists`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The class's name as its declaration writes it, namespace included and with no \
+               leading separator — what `Core\\Reflect\\ClassInfo::name` answers.",
+        shape: &[],
+    }],
+    ret: "A description of that class, or `null` where the running program declares no class of \
+          that name — the `null` is `class_exists`'s answer, which is why asking is not a \
+          failure.",
+    errors: &[],
 };
 
 /// `Core\Reflect::forObject`'s reference card — ADR 0117.
@@ -116,6 +179,106 @@ const FOR_OBJECT_DOC: MethodDoc = MethodDoc {
         desc: "`$object` is not an object — a `mixed` carries no promise that it is one, so the \
                check is made here rather than by the caller.",
     }],
+};
+
+/// `Core\Reflect::typeOf`'s reference card — ADR 0117.
+const TYPE_OF_DOC: MethodDoc = MethodDoc {
+    short: "Which of the language's representations `$value` currently holds. The single \
+            replacement for PHP's fourteen `is_*` predicates and `gettype`, which are only \
+            meaningful on a `mixed` at all.",
+    params: &[ParamDoc {
+        name: "value",
+        desc: "The value to ask about. On anything but a `mixed` the checker already knows the \
+               answer, so the interesting receiver is the one whose type was erased.",
+        shape: &[],
+    }],
+    ret: "One `Core\\Reflect\\TypeKind` case — exactly one, since the cases partition the \
+          representations rather than overlapping the way `is_scalar` and `is_int` do.",
+    errors: &[],
+};
+
+/// [`TYPE_KIND`]'s name, as a program writes it.
+pub(crate) const TYPE_KIND_NAME: &str = r"Core\Reflect\TypeKind";
+
+/// The answer [`nvs_core_reflect_type_of`] gives — one case per representation
+/// a value can be in.
+///
+/// The roster is `nvs_runtime::Tag`'s value-carrying half and nothing else, and
+/// this module's own doc comment owns why: a case that no value can produce is
+/// surface with nothing behind it, and a *pair* of cases one value could
+/// satisfy would put the caller back to asking a second question. The values
+/// are ordinals in declaration order, per ADR 0010 and the roster's siblings —
+/// deliberately not the tag byte, which is a representation this enum must be
+/// able to outlive.
+pub(crate) const TYPE_KIND: CoreEnum = CoreEnum {
+    name: TYPE_KIND_NAME,
+    cases: &[
+        ("Null", 0),
+        ("Bool", 1),
+        ("Int", 2),
+        ("Uint", 3),
+        ("Float", 4),
+        ("Decimal", 5),
+        ("Text", 6),
+        ("Bytes", 7),
+        ("Array", 8),
+        ("Object", 9),
+    ],
+    doc: Some(&TYPE_KIND_DOC),
+};
+
+/// [`TYPE_KIND`]'s reference card — ADR 0117.
+const TYPE_KIND_DOC: EnumDoc = EnumDoc {
+    short: "What a value is, once its static type is gone — ten cases, one per representation the \
+            runtime has, and every value is in exactly one of them.",
+    cases: &[
+        CaseDoc {
+            name: "Null",
+            desc: "The `null` value; what `is_null` asked.",
+        },
+        CaseDoc {
+            name: "Bool",
+            desc: "A `bool`, `true` or `false` alike.",
+        },
+        CaseDoc {
+            name: "Int",
+            desc: "A signed `int`.",
+        },
+        CaseDoc {
+            name: "Uint",
+            desc: "An unsigned `uint`, which is a type of its own here and so a case of its own — \
+                   the one PHP had no predicate to ask with.",
+        },
+        CaseDoc {
+            name: "Float",
+            desc: "A `float`; what `is_float` and its `is_double` alias asked.",
+        },
+        CaseDoc {
+            name: "Decimal",
+            desc: "A `decimal` — the exact scalar, and never a `float` that happens to be \
+                   round.",
+        },
+        CaseDoc {
+            name: "Text",
+            desc: "A `string`, which is UTF-8 by the language's own guarantee; what `is_string` \
+                   asked.",
+        },
+        CaseDoc {
+            name: "Bytes",
+            desc: "A `bytes` value — the same heap shape as `Text` without the UTF-8 promise, and \
+                   the distinction PHP's one string type could not make.",
+        },
+        CaseDoc {
+            name: "Array",
+            desc: "An `array<T>`; what `is_array`, `is_iterable` and `is_countable` between them \
+                   asked.",
+        },
+        CaseDoc {
+            name: "Object",
+            desc: "A class instance, a closure included — a closure is an ordinary object here, \
+                   so there is no `Callable` case to disagree with it.",
+        },
+    ],
 };
 
 /// `Core\Reflect\ClassInfo` — what [`CLASS`]'s member answers with.
@@ -212,18 +375,72 @@ const GET_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// The `$name` argument, as text.
+/// A `string` argument of `member`, as text.
 ///
 /// A [`Fault::fatal`] for the wrong tag, on `crate::json`'s own `text_of`
 /// terms: the parameter is a declared `string`, so compiled code wrote the tag
 /// and a mismatch is the ABI's problem rather than the program's.
-fn text_of(value: &Value) -> Result<&str, Fault> {
+fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
     value.as_text().ok_or_else(|| {
         Fault::fatal(format!(
-            "{CLASS_INFO_NAME}::get expected {:?}, got tag {}",
+            "{member} expected {:?}, got tag {}",
             Tag::Str,
             value.tag_byte()
         ))
+    })
+}
+
+/// The description of one class — [`CLASS_INFO`]'s two slots, filled.
+///
+/// Both doors onto a description share this, which is the point: `forObject`
+/// reaches a descriptor through a value and `forClass` reaches one through the
+/// unit's class table, and *what a description is* must not depend on which
+/// door was used. A slot the descriptor cannot name is skipped rather than
+/// numbered — `field_name` answers `None` only past the last slot, so the loop
+/// bound already excludes it, and a synthesized class reads as having nothing
+/// visible at all.
+fn describe(desc: &ClassDesc) -> Value {
+    let mut visible = NvsArray::new();
+    for slot in 0..desc.field_count() {
+        if !desc.field_is_public(slot) {
+            continue;
+        }
+        if let Some(name) = desc.field_name(slot) {
+            visible.append(Value::str(NvsStr::new(name.as_bytes())));
+        }
+    }
+    crate::instance::build(
+        &CLASS_INFO,
+        [
+            Value::str(NvsStr::new(desc.name().as_bytes())),
+            Value::array(visible),
+        ],
+    )
+}
+
+/// The [`TYPE_KIND`] case a tag is, or `None` for a tag no value carries.
+///
+/// The three `None`s are the whole of what [`TYPE_KIND`] leaves out, and each
+/// is unreachable for its own reason rather than by omission:
+/// [`Tag::Closure`] is reserved and unused, since ADR 0031's closure carries
+/// [`Tag::Object`]; [`Tag::Resource`] has no representation behind it yet; and
+/// [`Tag::Unset`] is a storage state that every read turns into a throw before
+/// a member can see one. A fourth tag arriving here would be a new
+/// representation, and answering it *some* case would be worse than the fatal
+/// [`nvs_core_reflect_type_of`] gives it.
+fn kind_of(tag: Tag) -> Option<i64> {
+    Some(match tag {
+        Tag::Null => 0,
+        Tag::Bool => 1,
+        Tag::Int => 2,
+        Tag::Uint => 3,
+        Tag::Float => 4,
+        Tag::Decimal => 5,
+        Tag::Str => 6,
+        Tag::Bytes => 7,
+        Tag::Array => 8,
+        Tag::Object => 9,
+        Tag::Closure | Tag::Resource | Tag::Unset => return None,
     })
 }
 
@@ -231,7 +448,9 @@ fn text_of(value: &Value) -> Result<&str, Fault> {
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "nvs_core_reflect_for_class" => (nvs_core_reflect_for_class as *const ()).cast(),
         "nvs_core_reflect_for_object" => (nvs_core_reflect_for_object as *const ()).cast(),
+        "nvs_core_reflect_type_of" => (nvs_core_reflect_type_of as *const ()).cast(),
         "nvs_core_reflect_class_info_name" => {
             (nvs_core_reflect_class_info_name as *const ()).cast()
         }
@@ -266,15 +485,39 @@ fn slot_of(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Reflect::forClass(string $name): ?Core\Reflect\ClassInfo` — ADR
+    /// 0019 § 1's description, reached by name.
+    ///
+    /// The name is resolved against the *running program's* class table
+    /// (`nvs_runtime::Ctx::class_desc`), which is the only table a native
+    /// member can reach and the only one the question is about: a class the
+    /// compiled unit does not carry is a class no value in this program can be
+    /// an instance of. So `Core` classes are not among the answers — they
+    /// declare no properties a walk could name, and their surface is the
+    /// reference cards rather than a description.
+    fn nvs_core_reflect_for_class(ctx, args: [1]) {
+        let name = text_of(&args[0], "Core\\Reflect::forClass")?;
+        let Some(desc) = ctx.class_desc(name) else {
+            return Ok(Value::null());
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`class_desc` answers with a pointer into the compiled unit's \
+                      class table, which outlives this context and is never \
+                      rewritten while a member of it is running"
+        )]
+        let description = unsafe { describe(&*desc) };
+        Ok(description)
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Reflect::forObject(mixed $object): Core\Reflect\ClassInfo` — ADR
     /// 0019 § 1's description, reached from a value.
     ///
-    /// The walk is the module doc's first decision in five lines: the object's
-    /// descriptor names every slot, and § 2's visibility bit says which of them
-    /// this description is allowed to name. A slot the descriptor cannot name
-    /// is skipped rather than numbered — `field_name` answers `None` only past
-    /// the last slot, so the loop bound already excludes it, and a synthesized
-    /// class reads as having nothing visible at all.
+    /// The walk is the module doc's first decision, and [`describe`] is where
+    /// it is written: the object's descriptor names every slot, and § 2's
+    /// visibility bit says which of them a description is allowed to name.
     fn nvs_core_reflect_for_object(_ctx, args: [1]) {
         let ptr = args[0].obj_ptr().ok_or_else(|| {
             Fault::thrown(format!(
@@ -290,27 +533,35 @@ nvs_runtime::nvs_helper! {
                       by the unit's class table, which outlives every instance of \
                       the class it describes"
         )]
-        let (class, visible) = unsafe {
+        let description = unsafe {
             let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(ptr));
-            let desc = &*object.class();
-            let mut visible = NvsArray::new();
-            for slot in 0..desc.field_count() {
-                if !desc.field_is_public(slot) {
-                    continue;
-                }
-                if let Some(name) = desc.field_name(slot) {
-                    visible.append(Value::str(NvsStr::new(name.as_bytes())));
-                }
-            }
-            (desc.name().to_owned(), visible)
+            describe(&*object.class())
         };
-        Ok(crate::instance::build(
-            &CLASS_INFO,
-            [
-                Value::str(NvsStr::new(class.as_bytes())),
-                Value::array(visible),
-            ],
-        ))
+        Ok(description)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect::typeOf(mixed $value): Core\Reflect\TypeKind` — the one
+    /// question that survives type erasure, and so the one replacement for
+    /// fourteen predicates that each asked a piece of it.
+    ///
+    /// An enum answers as its ordinal, exactly as a user-declared enum does
+    /// (ADR 0010) and as `Core\Cli::colorDepth` already does. The tag is read
+    /// rather than the value: nothing here dereferences a payload, so this is
+    /// the one `Core` member that is total over every argument shape without
+    /// looking at one.
+    fn nvs_core_reflect_type_of(_ctx, args: [1]) {
+        let kind = args[0].tag().and_then(kind_of).ok_or_else(|| {
+            // Not a throw: no source can write a value with one of these tags,
+            // so a program reaching here is the ABI's problem rather than its
+            // own — `text_of`'s fatal is the same reading.
+            Fault::fatal(format!(
+                "{NAME}::typeOf got tag {}, which is no value's",
+                args[0].tag_byte()
+            ))
+        })?;
+        Ok(Value::int(kind))
     }
 }
 
@@ -355,7 +606,7 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
-        let name = text_of(&args[2])?;
+        let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::get")?;
         #[expect(
             unsafe_code,
             reason = "the argument owns a reference to a live allocation, so it is \
@@ -412,5 +663,93 @@ nvs_runtime::nvs_helper! {
             held.retain();
         }
         Ok(held)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nvs_runtime::{Ctx, NvsArray, NvsStr, OutputSink, Tag, Value, call};
+
+    use super::{TYPE_KIND, kind_of};
+
+    /// The case a name is declared with, so the assertions below read in the
+    /// spellings a program writes rather than in ordinals.
+    fn case(name: &str) -> i64 {
+        TYPE_KIND
+            .cases
+            .iter()
+            .find(|(declared, _)| *declared == name)
+            .unwrap_or_else(|| panic!("`{name}` is a declared TypeKind case"))
+            .1
+    }
+
+    /// The member is one call where PHP had fifteen, and that rests on two
+    /// properties of the roster rather than on any one answer: every
+    /// representation a value can be in has a case, and no two share one. The
+    /// sweep is over the runtime's own tag roster rather than over a list
+    /// written here, so a thirteenth tag fails this rather than silently
+    /// answering `Object`.
+    #[test]
+    fn type_of_is_the_single_replacement_for_the_is_predicates() {
+        let mut answered = Vec::new();
+        let mut unrepresented = Vec::new();
+        for byte in 0..=u8::MAX {
+            let Some(tag) = Tag::from_byte(byte) else {
+                continue;
+            };
+            match kind_of(tag) {
+                Some(kind) => answered.push(kind),
+                None => unrepresented.push(tag),
+            }
+        }
+
+        // The three the enum leaves out, named rather than counted: each is a
+        // tag no value carries, and `kind_of`'s own doc says why per tag.
+        assert_eq!(
+            unrepresented,
+            [Tag::Closure, Tag::Resource, Tag::Unset],
+            "every other tag is a value's, so every other tag owes a case"
+        );
+
+        answered.sort_unstable();
+        let declared: Vec<i64> = TYPE_KIND.cases.iter().map(|(_, value)| *value).collect();
+        assert_eq!(
+            answered, declared,
+            "the cases and the representations are the same roster: a case with \
+             no tag is surface nothing can produce, and a tag with no case is a \
+             value the member cannot answer for"
+        );
+
+        let asked = |value: Value| {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            call(super::nvs_core_reflect_type_of, &mut ctx, &[value])
+                .expect("typeOf reads a tag and never fails")
+                .as_int()
+                .expect("an enum answers as its ordinal")
+        };
+        let text = Value::str(NvsStr::new(b"x"));
+        let bytes = Value::bytes(NvsStr::new(b"x"));
+        let array = Value::array(NvsArray::new());
+        assert_eq!(asked(Value::null()), case("Null"));
+        assert_eq!(asked(Value::bool(true)), case("Bool"));
+        assert_eq!(asked(Value::int(7)), case("Int"));
+        assert_eq!(asked(Value::uint(7)), case("Uint"));
+        assert_eq!(asked(Value::float(7.5)), case("Float"));
+        // The pair PHP's one string type could not tell apart, and the pair
+        // `is_int`/`is_float` answered as one `is_numeric` besides.
+        assert_eq!(asked(text), case("Text"));
+        assert_eq!(asked(bytes), case("Bytes"));
+        assert_eq!(asked(array), case("Array"));
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built for each of the \
+                      three, and the helper borrowed rather than consumed them"
+        )]
+        unsafe {
+            text.release();
+            bytes.release();
+            array.release();
+        }
     }
 }

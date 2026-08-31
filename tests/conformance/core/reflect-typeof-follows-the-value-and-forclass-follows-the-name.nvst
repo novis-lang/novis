@@ -1,0 +1,65 @@
+--TEST--
+`Core\Reflect::typeOf` answers about the value a `mixed` holds now, and `forClass` describes the class its name declares rather than an ancestor of it — ADR 0019 § 1
+--FILE--
+<?nvs
+// `typeOf` reads the value and not the declaration, which is the whole reason
+// it is only meaningful on a `mixed`: one variable answers a different case
+// after each assignment.
+mixed $slot = 7;
+echo Core\Reflect::typeOf($slot) == Core\Reflect\TypeKind::Int ? "int\n" : "other\n";
+$slot = "seven";
+echo Core\Reflect::typeOf($slot) == Core\Reflect\TypeKind::Text ? "text\n" : "other\n";
+$slot = null;
+echo Core\Reflect::typeOf($slot) == Core\Reflect\TypeKind::Null ? "null\n" : "other\n";
+
+// The same question asked of every element of an `array<mixed>`: a container
+// does not flatten what it holds, so this counts the answers rather than
+// reading one off a line — a member answering `Array` for the elements as well
+// as for the array would still print plausibly on any single one of them.
+array<mixed> $mixture = [1, "two", 3, true];
+int $ints = 0;
+int $texts = 0;
+foreach ($mixture as mixed $element) {
+    if (Core\Reflect::typeOf($element) == Core\Reflect\TypeKind::Int) {
+        $ints = $ints + 1;
+    }
+    if (Core\Reflect::typeOf($element) == Core\Reflect\TypeKind::Text) {
+        $texts = $texts + 1;
+    }
+}
+echo "ints=", $ints, " texts=", $texts, "\n";
+echo Core\Reflect::typeOf($mixture) == Core\Reflect\TypeKind::Array ? "container array\n" : "container other\n";
+
+// `forClass` describes the class the *name* declares. Slot order is every
+// ancestor's first and then the class's own, so a subclass's description
+// overlaps its parent's without being it — and the `private` slot is missing
+// from both, since visibility is the description's rule and not the door's.
+class Point {
+    public int $x = 1;
+    private int $scratch = 0;
+}
+class Origin extends Point {
+    public string $label = "o";
+}
+
+class Describe {
+    public static function of(string $name): void {
+        var $info = Core\Reflect::forClass($name);
+        if ($info == null) {
+            echo $name, " absent\n";
+            return;
+        }
+        echo $info->name(), " ", Core\Arr::count($info->properties()), "\n";
+    }
+}
+
+Describe::of("Point");
+Describe::of("Origin");
+--EXPECT--
+int
+text
+null
+ints=2 texts=1
+container array
+Point 1
+Origin 2

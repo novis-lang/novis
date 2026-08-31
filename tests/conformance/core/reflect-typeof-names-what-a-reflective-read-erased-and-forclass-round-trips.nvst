@@ -1,0 +1,47 @@
+--TEST--
+`Core\Reflect::typeOf` names what a reflective read erased, and `forClass` accepts exactly the name a description answers — ADR 0019 §§ 1-2
+--FILE--
+<?nvs
+class Point {
+    public int $x = 3;
+    public string $label = "p";
+    private int $scratch = 0;
+}
+
+// ADR 0019 § 2's read erases the property's declared type to `mixed`, and this
+// is what puts it back — the answer is about the slot's value, so two
+// properties of one object answer differently through the same member.
+var $point = new Point();
+var $described = Core\Reflect::forObject($point);
+mixed $x = $described->get($point, "x");
+mixed $label = $described->get($point, "label");
+echo Core\Reflect::typeOf($x) == Core\Reflect\TypeKind::Int ? "x int\n" : "x other\n";
+echo Core\Reflect::typeOf($label) == Core\Reflect\TypeKind::Text ? "label text\n" : "label other\n";
+
+// A description is an ordinary object, which is why it has no `Object`-shaped
+// exception here: a `Core`-owned instance answers the same case a program's
+// own instance does.
+echo Core\Reflect::typeOf($described) == Core\Reflect\TypeKind::Object ? "description object\n" : "description other\n";
+
+// The two doors meet on the name: whatever a description answers is a name
+// `forClass` accepts. This is the pairing that would break first if either
+// side spelled a class differently from the other.
+var $again = Core\Reflect::forClass($described->name());
+if ($again == null) {
+    echo "round trip lost\n";
+} else {
+    echo $again->name() == $described->name() ? "round trip\n" : "round trip differs\n";
+}
+
+// Both sides of that name's boundary: nothing normalises a name on the way in,
+// so an empty one and a leading-separator one are absences rather than the
+// same class under another spelling.
+echo Core\Reflect::forClass("") == null ? "empty absent\n" : "empty present\n";
+echo Core\Reflect::forClass("\\Point") == null ? "rooted absent\n" : "rooted present\n";
+--EXPECT--
+x int
+label text
+description object
+round trip
+empty absent
+rooted absent

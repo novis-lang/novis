@@ -1,0 +1,63 @@
+--TEST--
+`Core\Reflect::forClass` reaches the same description by name that `forObject` reaches through a value, and a name nothing declares is `null` — ADR 0019 §§ 1-2, ADR 0063 R6
+--FILE--
+<?nvs
+class Point {
+    public int $x = 3;
+    public int $y = 4;
+    private int $scratch = 0;
+}
+
+// ADR 0063 R6: absence is `?T`, so a name the program declares no class for is
+// `null` rather than a throw — that `null` is the whole of what `class_exists`
+// answered, and asking about a name that turns out to be nothing is not a
+// mistake in the program.
+class Describe {
+    public static function of(string $name): void {
+        var $info = Core\Reflect::forClass($name);
+        if ($info == null) {
+            echo $name, " absent\n";
+            return;
+        }
+        echo $info->name(), " ", Core\Arr::count($info->properties()), "\n";
+    }
+}
+
+Describe::of("Point");
+Describe::of("Nowhere");
+
+// ADR 0019 § 1: the two doors are two ways to the same descriptor, so the
+// description must not depend on which one was used. Asserted as an agreement
+// between them rather than as two right-looking answers.
+var $byName = Core\Reflect::forClass("Point");
+var $byValue = Core\Reflect::forObject(new Point());
+if ($byName == null) {
+    echo "unreachable\n";
+} else {
+    echo $byName->name() == $byValue->name() ? "same class\n" : "different class\n";
+    echo Core\Arr::count($byName->properties()) == Core\Arr::count($byValue->properties())
+        ? "same properties\n"
+        : "different properties\n";
+    // § 2's visibility check is the description's, not the door's: the
+    // `private` slot is missing from a description reached by name too, and
+    // reading it through one is refused on the same terms.
+    echo $byName->get(new Point(), "y"), "\n";
+    try {
+        echo $byName->get(new Point(), "scratch"), "\n";
+    } catch (RuntimeError $refused) {
+        echo "private refused\n";
+    }
+}
+
+// A `Core` class is not among the answers: it declares no properties a walk
+// could name, and its surface is its reference cards rather than a
+// description.
+Describe::of("Core\\Str");
+--EXPECT--
+Point 2
+Nowhere absent
+same class
+same properties
+4
+private refused
+Core\Str absent

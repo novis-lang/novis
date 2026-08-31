@@ -1,0 +1,87 @@
+--TEST--
+`Core\Reflect::typeOf` answers exactly one `TypeKind` case per representation, and a closure is an object — ADR 0019 § 1, ADR 0031 § 1
+--FILE--
+<?nvs
+// ADR 0019 § 1: reflection is read-only, and this member is the extreme of
+// that — it reads the tag and never the value. The cases partition the
+// representations, so the `match` below needs no `default`: every value
+// reaches exactly one arm, which is what makes one call the replacement for
+// PHP's fourteen `is_*` predicates plus `gettype`.
+class Kind {
+    public static function of(mixed $value): string {
+        return match (Core\Reflect::typeOf($value)) {
+            Core\Reflect\TypeKind::Null => "null",
+            Core\Reflect\TypeKind::Bool => "bool",
+            Core\Reflect\TypeKind::Int => "int",
+            Core\Reflect\TypeKind::Uint => "uint",
+            Core\Reflect\TypeKind::Float => "float",
+            Core\Reflect\TypeKind::Decimal => "decimal",
+            Core\Reflect\TypeKind::Text => "text",
+            Core\Reflect\TypeKind::Bytes => "bytes",
+            Core\Reflect\TypeKind::Array => "array",
+            Core\Reflect\TypeKind::Object => "object",
+        };
+    }
+}
+
+class Point {
+    public int $x = 1;
+}
+
+// Each value is placed at its own declared type first and widened to `mixed`
+// second, so the answer is about the representation the value is in rather
+// than about which type a literal adapted to.
+uint $size = 7;
+float $ratio = 0.5;
+decimal $money = 19.90;
+bytes $raw = Core\Encoding::fromHex("6162");
+array<int> $numbers = [1, 2];
+
+mixed $nothing = null;
+mixed $flag = true;
+mixed $count = 7;
+mixed $unsigned = $size;
+mixed $fraction = $ratio;
+mixed $exact = $money;
+mixed $text = "novis";
+mixed $octets = $raw;
+mixed $list = $numbers;
+mixed $instance = new Point();
+
+echo Kind::of($nothing), "\n";
+echo Kind::of($flag), "\n";
+echo Kind::of($count), "\n";
+echo Kind::of($unsigned), "\n";
+echo Kind::of($fraction), "\n";
+echo Kind::of($exact), "\n";
+echo Kind::of($text), "\n";
+echo Kind::of($octets), "\n";
+echo Kind::of($list), "\n";
+echo Kind::of($instance), "\n";
+
+// ADR 0031 § 1: a closure is an ordinary object, which is why there is no
+// `Callable` case for this to disagree with. The pair that would drift is
+// this one — a case added here and a representation that never arrives.
+mixed $callable = fn (int $n): int => $n + 1;
+echo Kind::of($callable), "\n";
+
+// `Uint` and `Decimal` are cases PHP had no predicate for at all: `is_int`
+// answered for both of its integers and `is_float` for a `decimal`'s
+// neighbours, so the two asserted together are what makes this finer than the
+// family it replaces rather than a rename of it.
+echo Kind::of($unsigned) == Kind::of($count) ? "same\n" : "distinct\n";
+echo Kind::of($exact) == Kind::of($fraction) ? "same\n" : "distinct\n";
+--EXPECT--
+null
+bool
+int
+uint
+float
+decimal
+text
+bytes
+array
+object
+object
+distinct
+distinct
