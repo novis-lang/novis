@@ -1236,6 +1236,14 @@ pub const CLASSES: &[CoreClass] = &[
     // with the transport that fills them, and [`crate::http`]'s module doc is
     // the home of that list.
     crate::http::RESPONSE,
+    // ADR 0059's two tiers, as the two members that hand back a store — the
+    // sanctioned exception to ADR 0052 § 3's closed door on cross-request
+    // state, and the one place a value outlives the request that made it.
+    crate::cache::CLASS,
+    // What those two answer with: one class for both tiers, because a tier is a
+    // destination and not a different operation. [`crate::cache`]'s module doc
+    // is the home of why an entry is a byte payload rather than a live graph.
+    crate::cache::STORE,
 ];
 
 /// Every `Core` member that needs a capability, and which one —

@@ -1,0 +1,33 @@
+--TEST--
+A local cache entry may be absent at any time: a miss answers `null` rather than throwing, and an unreachable shared store does the opposite — ADR 0059 § 1
+--FILE--
+<?nvs
+var $cache = Core\Cache::local();
+
+// § 1: any entry may be absent at any time, for any reason. A miss is an
+// ordinary answer, so nothing here is a `try` — a program that would be
+// incorrect when this happens is using the wrong tier, and that is the whole
+// contract this member offers.
+var $missing = $cache->get("nothing-wrote-this") ?? "absent";
+echo "missing=", $missing as string, "\n";
+
+// The same member, the same question, one write later: absence is not an error
+// state the store enters, it is what a key with no entry answers.
+$cache->put("written", "value");
+var $written = $cache->get("written") as string;
+echo "written=", $written, "\n";
+
+// § 1's other side, and the reason the two tiers cannot be one member: an
+// unreachable store *throws*. Absence is an answer here and a failure there, so
+// a caller that would be incorrect on a miss has to be able to say which of the
+// two it asked for.
+try {
+    Core\Cache::shared();
+    echo "shared answered\n";
+} catch (RuntimeError $error) {
+    echo "shared threw rather than answering absent\n";
+}
+--EXPECT--
+missing=absent
+written=value
+shared threw rather than answering absent

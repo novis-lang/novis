@@ -209,6 +209,7 @@
 pub mod arr;
 mod attributes;
 mod bytes;
+mod cache;
 mod channel;
 pub mod cldr;
 mod cli;
@@ -322,6 +323,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| arr::address(symbol))
         .or_else(|| attributes::address(symbol))
         .or_else(|| bytes::address(symbol))
+        .or_else(|| cache::address(symbol))
         .or_else(|| channel::address(symbol))
         .or_else(|| cli::address(symbol))
         .or_else(|| command::address(symbol))

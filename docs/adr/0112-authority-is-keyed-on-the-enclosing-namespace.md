@@ -22,8 +22,8 @@
   grants a compile-time input, and now reads correctly because `[grants]` is not in `package.toml`.
   § 4's citation of a roster held elsewhere is corrected: the roster is § 8 below.
   [0006](0006-isolated-script-execution.md) — one stale capability name, `net.out`, becomes `net.connect`.
-  [0059](0059-cross-request-state-is-explicit.md) § 1 — `Core\Cache::local()` is named in § 8's table as
-  the one member whose grant that ADR leaves unstated, so the gap is visible rather than latent.
+  [0059](0059-cross-request-state-is-explicit.md) § 1 — `Core\Cache::local()` is named in § 8's roster as
+  needing no grant, which is that ADR's own answer and is recorded here so the roster is complete.
   [docs/spec/01-core-library.md](../spec/01-core-library.md) Part II — gains `Core\Cap`, one member.
   [docs/plan/m15.md](../plan/m15.md) — the compiler half is this ADR's, not § 4's.
 - **Amended by:** none.
@@ -265,10 +265,9 @@ argues what it permits is named beside it. A name not in this table is not a cap
 | `debug.profile` | profiling | [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
 
 `Core\Cache::shared()` needs `net.connect` and is not a separate entry
-([0059 § 1](0059-cross-request-state-is-explicit.md)). **`Core\Cache::local()` is the one capability-bearing
-member with no grant named for it**: 0059 gates the tier without naming what gates it, and closing that is
-0059's to do, not this ADR's. It is listed here so the gap is visible in the roster rather than latent in a
-cross-reference.
+([0059 § 1](0059-cross-request-state-is-explicit.md)). **`Core\Cache::local()` needs no grant at all**, which
+is 0059 § 1's own answer and not an omission here: the local tier performs no effect for a door to sit in
+front of, so what bounds it is that ADR's memory cap rather than a row in this table.
 
 `Core` itself is never a grantee. [0011 § 2](0011-functions-and-constants-are-class-members.md) reserves
 `Core` and everything nested under it, so no user code can be declared there and no grant line can name a

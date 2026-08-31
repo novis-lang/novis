@@ -1,0 +1,26 @@
+--TEST--
+`Core\Cache::local` and `Core\Cache::shared` are two members with two contracts rather than one API with a flag, and the tier a program chose is visible where it wrote it — ADR 0059 § 1
+--FILE--
+<?nvs
+// § 1: the tier is the member's own name. Neither takes an argument, so there
+// is no value computed at run time that could turn one call into the other —
+// which is what makes the choice reviewable rather than merely documented.
+var $cache = Core\Cache::local();
+$cache->put("greeting", "hello");
+var $back = $cache->get("greeting") as string;
+echo "local=", $back, "\n";
+
+// § 1: the coherent tier is a different member making a different promise, and
+// a deployment that has configured no store is told so by name. It is never
+// handed the per-core store under the other tier's name, because a program that
+// asked for coherence and got forgetfulness would be wrong in a way nothing
+// downstream could detect.
+try {
+    Core\Cache::shared();
+    echo "shared handed back a store\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+--EXPECT--
+local=hello
+Core\Cache::shared(): no shared store is configured, so there is nothing coherent to answer with — configure one, or use `Core\Cache::local()` and accept its contract

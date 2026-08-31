@@ -39,9 +39,13 @@
 - **`Core\Cache::local()`** — per-core, in process. One instance per core, no coherence between cores. Its
   contract states that any entry may be absent at any time, for any reason, and that a write on one core is
   not visible on another. A program that would be incorrect if a `get` returned nothing is using the wrong
-  tier. **Which capability gates this tier is not settled here**, and
-  [0112 § 8](0112-authority-is-keyed-on-the-enclosing-namespace.md)'s roster lists it as the one
-  capability-bearing member with no grant named for it — naming it is this ADR's to do.
+  tier. **No capability gates this tier**, which closes the one hole
+  [0112 § 8](0112-authority-is-keyed-on-the-enclosing-namespace.md)'s roster left open:
+  [0118](0118-a-capability-is-checked-at-the-door-to-the-effect.md) § 1 checks a grant at the door to an
+  *effect*, and this tier has no door — nothing leaves the process, no name is resolved and no file is
+  opened. What is left to bound is footprint, and § 3's `nvs.toml` cap is the instrument for a bound; a
+  boolean grant is not one, and adding it would price the tier as an authority question that a
+  deployment would then have to answer for every application that caches anything.
 - **`Core\Cache::shared()`** — a real store over the network (Redis by default), coherent across cores and
   across machines, gated by `net.connect` under [ADR 0058](0058-outbound-request-policy.md)'s policy.
 

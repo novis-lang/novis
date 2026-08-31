@@ -1,0 +1,54 @@
+--TEST--
+A cached entry is a copy in both directions — a write through the original does not reach it, each `get` answers a fresh one, and a value with no meaning across a copy boundary is refused — ADR 0059 § 2
+--FILE--
+<?nvs
+class Note {
+    public string $text = "";
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+var $cache = Core\Cache::local();
+
+// § 2: `put` copies *out* of the request heap. The request's own object stays
+// the request's, so a write through it after the fact cannot reach the entry —
+// which is what lets the entry outlive the heap that is dropped at the end of
+// the request.
+var $note = new Note("written");
+$cache->put("note", $note);
+$note->text = "changed after the put";
+var $back = $cache->get("note") as Note;
+echo "copy=", $back->text, "\n";
+
+// § 2: and `get` copies *in*, once per call. Two reads are two graphs, so a
+// write through the first is invisible to the second and no request can reach
+// another's values by holding onto one.
+$back->text = "changed after the get";
+var $again = $cache->get("note") as Note;
+echo "again=", $again->text, "\n";
+
+// § 2: a cached value is subject to the same restrictions as any crossing
+// value, because it *is* the same copy — so a closure, which captures a heap
+// and a scope, is refused here exactly as it is at the isolate boundary.
+var $fn = fn(): int => 1;
+try {
+    $cache->put("closure", $fn);
+    echo "stored a closure\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// The shared tier copies the same way, at the same boundary — the refusal
+// below is the store's absence and not a second answer about what may cross.
+try {
+    Core\Cache::shared();
+    echo "shared answered\n";
+} catch (RuntimeError $unreachable) {
+    echo "shared refused before there was anything to copy\n";
+}
+--EXPECT--
+copy=written
+again=written
+Core\Cache\Store::put(): a closure captures a heap and a scope, so it has no meaning on the other side of a copy boundary
+shared refused before there was anything to copy
