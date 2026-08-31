@@ -628,6 +628,110 @@ mod tests {
         }
     }
 
+    /// ADR 0044 § 1, asked of the resolved signature the way a call site asks
+    /// it: **neither half** of what `Core\Process::run` is handed can carry a
+    /// tainted value into the child, and the two halves are refused by
+    /// different mechanisms. `$path` is a [`Qual::Sink`], so a
+    /// `tainted string` is refused at the parameter. `$argv`'s elements carry
+    /// no mark of their own and need none — [`qual_of`] reads no nested
+    /// classification — because `array<tainted string>` is simply a different
+    /// type from the `array<string>` the row declares, which the ordinary
+    /// argument check refuses without a qualifier rule at all.
+    ///
+    /// The second half is the one worth a test: a reader who knows only that
+    /// the elements are unclassified would conclude the argv is the hole, and
+    /// what closes it is the interner rather than [`Qual`].
+    #[test]
+    fn a_tainted_path_or_argv_element_is_a_compile_time_diagnostic() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+
+        let (owner, sig) = resolve_method(
+            &QName::parse(r"Core\Process"),
+            "run",
+            &table,
+            &ClassGraph::default(),
+        )
+        .expect("Core\\Process::run is registered");
+        assert_eq!(owner.to_string(), r"Core\Process");
+        assert_eq!(sig.params.len(), 2);
+
+        assert_eq!(
+            sig.qual_at(0),
+            Some(Qual::Sink),
+            "a program's name is an instruction, so the path is a sink — ADR 0044 § 1"
+        );
+        assert!(
+            !crate::expr::quals::admits_tainted_argument(
+                sig.qual_at(0),
+                sig.return_ty,
+                &mut interner
+            ),
+            "and a sink admits no tainted argument, which is the diagnostic"
+        );
+
+        assert_eq!(
+            interner.describe(sig.params[1]),
+            "array<string>",
+            "the argv is an array of plain strings"
+        );
+        assert_eq!(
+            sig.qual_at(1),
+            None,
+            "an array parameter has no cell to classify, and needs none here"
+        );
+        let tainted = interner.tainted_string();
+        let tainted_argv = interner.array(tainted);
+        assert_ne!(
+            sig.params[1], tainted_argv,
+            "`array<tainted string>` is not the declared `array<string>`, so an argv built out of \
+             request data is refused by the argument check rather than by a qualifier rule"
+        );
+    }
+
+    /// ADR 0044 § 6, held at the row rather than at the door: starting a
+    /// program is a capability, it is the one `nvs.toml` spells `process.exec`,
+    /// a host that configured nothing has granted it to nobody, and a request
+    /// cannot widen it because the whole `capabilities` block is
+    /// [`nvs_config::Class::RuntimeTighten`].
+    ///
+    /// Enforcement is `nvs_runtime::capability::require`, inside the door — the
+    /// table this reads is audit data and grants nothing, which
+    /// `nvs_stdlib::registry::CAPABILITIES`' own docs state. What is asserted
+    /// here is that the member is *on* it under the right capability, since a
+    /// member reaching the operating system with no row is the shape that would
+    /// go unreported.
+    #[test]
+    fn process_exec_is_deny_by_default() {
+        let (_, _, cap) = *nvs_stdlib::registry::CAPABILITIES
+            .iter()
+            .find(|(class, member, _)| *class == r"Core\Process" && *member == "run")
+            .expect("Core\\Process::run starts a program, so it carries a capability row");
+        assert_eq!(cap, nvs_config::Cap::ProcessExec);
+        assert_eq!(
+            nvs_config::Cap::parse("process.exec"),
+            Some(nvs_config::Cap::ProcessExec),
+            "and that is the spelling an operator writes in `nvs.toml`"
+        );
+        assert!(
+            cap.grant(&nvs_config::tree::Capabilities::default())
+                .is_none(),
+            "a host that configured no capabilities has granted this one to nobody: deny by \
+             default is the absence of a setting, not a setting that says no"
+        );
+
+        let block = nvs_config::DIRECTIVES
+            .iter()
+            .find(|directive| directive.key == "capabilities")
+            .expect("the capability block is a directive, so a reload knows what it takes");
+        assert_eq!(
+            block.class,
+            nvs_config::Class::RuntimeTighten,
+            "and a request may narrow the grant it was started under, never widen it"
+        );
+    }
+
     /// The same classification, read the way a call site reads it: through the
     /// seeded table and [`MethodSig::qual_at`], which is the only accessor a
     /// consumer may use.
