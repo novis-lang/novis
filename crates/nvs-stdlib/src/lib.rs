@@ -230,6 +230,7 @@ mod instance;
 pub mod io;
 mod issue;
 pub mod json;
+mod jwt;
 pub mod math;
 mod objmap;
 mod objset;
@@ -334,6 +335,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| hash::address(symbol))
         .or_else(|| heap::address(symbol))
         .or_else(|| json::address(symbol))
+        .or_else(|| jwt::address(symbol))
         .or_else(|| math::address(symbol))
         .or_else(|| objmap::address(symbol))
         .or_else(|| objset::address(symbol))

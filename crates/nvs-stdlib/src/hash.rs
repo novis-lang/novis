@@ -764,6 +764,28 @@ pub(crate) fn hmac_sha1(key: &[u8], data: &[u8]) -> [u8; 20] {
     mac.finalize().into_bytes().into()
 }
 
+/// HMAC-SHA-256 of `data` under `key`, as the fixed size it always is.
+///
+/// [`crate::jwt`] needs one algorithm and only one — ADR 0060 § 4's "the
+/// algorithm comes from the key, never from the token" is a statement about a
+/// *closed* choice, and a member that could be handed a [`DigestKind`] would
+/// have re-opened it one call site later. So this is the strong set's entry
+/// point narrowed to the single row JWS calls `HS256`, and it goes through
+/// [`hmac_of`] rather than constructing a second `hmac::Hmac`: unlike
+/// [`hmac_sha1`], which exists because the strong set deliberately refuses its
+/// algorithm, nothing here is an exception to anything.
+///
+/// The `expect` is the enum's own guarantee restated at a call that has already
+/// chosen: `DigestKind::Sha256` is in [`STRONG`], so the `None` arm belongs to
+/// the digests this function does not name.
+pub(crate) fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
+    let mac = hmac_of(DigestKind::Sha256, key, data)
+        .expect("SHA-256 is in the strong set, which is what `hmac_of` answers for");
+    let mut tag = [0_u8; 32];
+    tag.copy_from_slice(&mac);
+    tag
+}
+
 // ============================================================================
 // The members
 // ============================================================================

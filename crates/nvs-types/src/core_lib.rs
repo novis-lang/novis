@@ -389,6 +389,14 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // argument still reaches this parameter, because `super::assign` widens
         // onto a qualifier bit and never off one.
         CoreTy::SecretBytes | CoreTy::SecretBlob(_) => interner.secret_bytes(),
+        // The same pair of questions as the arm above, on the other axis: this
+        // is a qualifier and not a classification, so it interns qualified.
+        // ADR 0060 § 5 is what needs it — a verified signature does not
+        // launder, and the only way to say that of a *result* is to type the
+        // result. A `Qual::Contagious` parameter would have made the claims
+        // tainted exactly when the token already was, which is the property
+        // that ADR reads like an oversight for not having.
+        CoreTy::TaintedStr => interner.tainted_string(),
         CoreTy::Void => interner.void(),
         CoreTy::Array(elem) => {
             let elem = lower(elem, interner);
@@ -701,6 +709,65 @@ mod tests {
             "an unclassified parameter refuses a `secret` argument"
         );
         assert!(admits_secret_argument(Some(Qual::Reveal)));
+    }
+
+    /// ADR 0060 § 5, which reads like an oversight and is a decision: a
+    /// verified signature proves origin, not safety for any sink, so
+    /// `Core\Jwt::verify`'s claims come back **`tainted`** — and the one
+    /// signature check in the language that does the opposite is the cookie,
+    /// which laundered a value the application itself sealed.
+    ///
+    /// Asked as a **pair of sets** rather than of the two rows, for
+    /// `reveal_and_the_password_helpers_are_the_only_launderers_of_secret`'s
+    /// reason. A member that promises `tainted` is invisible from any row but
+    /// its own, and the whole content of § 5 is that a *third* signature
+    /// verifier cannot quietly join the laundering side: a row that wanted to
+    /// would have to write `Qual::Launder`, and one that wanted to drop the
+    /// promise would have to stop writing `CoreTy::TaintedStr`. Both edits
+    /// land here.
+    #[test]
+    fn a_verified_signature_does_not_launder_its_claims() {
+        use std::collections::BTreeSet;
+
+        let mut interner = TypeInterner::new();
+        let mut promises: BTreeSet<(&'static str, &'static str, String)> = BTreeSet::new();
+        let mut launderers: BTreeSet<(&'static str, &'static str)> = BTreeSet::new();
+        for class in CLASSES {
+            for method in class.members() {
+                let sig = method_sig(method, true, &mut interner);
+                let answer = interner.describe(sig.return_ty);
+                if answer.contains("tainted") {
+                    promises.insert((class.name, method.name, answer));
+                }
+                if sig
+                    .param_quals
+                    .iter()
+                    .flatten()
+                    .any(|qual| matches!(qual, Qual::Launder))
+                {
+                    launderers.insert((class.name, method.name));
+                }
+            }
+        }
+
+        assert_eq!(
+            promises,
+            BTreeSet::from([(r"Core\Jwt", "verify", "array<tainted string>".to_owned())]),
+            "the roster of members whose *answer* is qualified `tainted` is closed at one, and \
+             the element type is what carries it — `nvs_types` has no tainted array, so a \
+             member answering `array<mixed>` would have laundered every claim silently"
+        );
+
+        assert!(
+            !launderers.contains(&(r"Core\Jwt", "verify")),
+            "a JWT verification removes no qualifier from anything: the token's issuer is not \
+             this application, and even a self-issued token routinely carries user input"
+        );
+        assert!(
+            launderers.contains(&(r"Core\SignedCookie", "open")),
+            "the cookie is § 5's one admitted exception — the value round-trips through our own \
+             AEAD unchanged, and it was already plain when it went in"
+        );
     }
 
     /// ADR 0044 § 1, asked of the resolved signature the way a call site asks

@@ -246,6 +246,35 @@ pub enum CoreTy {
     /// still owes ADR 0088 § 2's separate answer about where the value came
     /// from.
     SecretBlob(Qual),
+    /// `tainted string` — [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+    /// qualifier written into a row's own signature, and
+    /// [`Self::SecretBytes`]'s opposite number on the other axis.
+    ///
+    /// **Return position, where it is a promise rather than an admission.**
+    /// A [`Qual`] on a parameter says what the member does with *that
+    /// argument*, so the strongest thing it can produce is
+    /// [`Qual::Contagious`]'s conditional — a qualified argument yields a
+    /// qualified result, and a plain one yields a plain one. That is not what
+    /// [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)
+    /// § 5 asks for. Claims out of a verified JWT are `tainted` *whatever the
+    /// token's own type was*, because a signature proves origin and not safety
+    /// for any sink, and a token written as a literal in a test is no safer
+    /// than one off the wire. Only a spelling that says what the value **is**
+    /// can state that, which is why this variant exists and why
+    /// [`Self::Text`] could not have been stretched to cover it.
+    ///
+    /// It nests: `Core\Jwt::verify`'s answer is
+    /// `CoreTy::Array(&CoreTy::TaintedStr)`, one `tainted string` per claim,
+    /// which is the only shape that keeps the qualifier on the value a program
+    /// actually reaches — there is no `tainted array<T>` in `nvs_types`,
+    /// because the qualifier axes are defined over `string` and `bytes` alone.
+    ///
+    /// In parameter position it means what [`Self::Str`] means and adds
+    /// nothing, for the reason [`Self::SecretBytes`] gives: `nvs_types`'
+    /// assignment relation widens onto a qualifier bit and narrows through
+    /// none, so a row that wrote it there would be documenting a demand no
+    /// caller can fail to meet.
+    TaintedStr,
     /// `void`, return position only.
     Void,
     /// `mixed` — ADR 0007 § 3's one unchecked position.
@@ -1171,6 +1200,13 @@ pub const CLASSES: &[CoreClass] = &[
     // widening argument, and why "no replay" is a counter the caller stores
     // rather than state this class keeps.
     crate::totp::CLASS,
+    // ADR 0060 § 1's fourth roster entry, which closes it — and the only one
+    // of the four whose wire format was designed elsewhere, so [`crate::jwt`]
+    // is the one class here that reads a field an attacker wrote. Its own
+    // module doc is the home of why `alg` is only ever compared, why the
+    // expiry is a positional `Duration` rather than a claim, and why a claim
+    // comes back as `tainted string` when the cookie above launders.
+    crate::jwt::CLASS,
 ];
 
 /// Every `Core` member that needs a capability, and which one —
