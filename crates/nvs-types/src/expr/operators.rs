@@ -148,6 +148,13 @@ fn reject_impossible_class_reference_conversion(
     let ExprKind::ClassNameConst { class } = &inner.kind else {
         return;
     };
+    // Under `as ?class<T>` as well, and by the same sentence: ADR 0066 § 3
+    // makes the sugar answer `null` where the checked form throws, and § 2's
+    // written-out operand never throws — it is decided here — so a name
+    // outside `T`'s hierarchy has no run-time failure for the `?` to convert
+    // into a `null` and is the same refusal. The target reaches here as
+    // `Union([Null, ClassRef])`, which [`nullable_inner_target`] unwraps.
+    let to = nullable_inner_target(to, env).unwrap_or(to);
     let Ty::ClassRef(arg) = *env.interner.get(to) else {
         return;
     };

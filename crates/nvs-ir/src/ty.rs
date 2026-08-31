@@ -353,6 +353,32 @@ pub enum Ty {
     /// for the same reason — every decision that needs `T` is ADR 0125 § 4's
     /// and is taken by the checker, above this boundary.
     ///
+    /// **It is the one representation other than [`Self::Tagged`] that can
+    /// hold `null`, and `?class<T>` is why.** ADR 0066's sugar interns as
+    /// `Union([Null, ClassRef])` and [`crate::lower`]'s `shared_erasure` folds
+    /// that pair to this variant rather than tagging it: no class lives at
+    /// address zero, so a descriptor already has a spare value meaning "no
+    /// class", and [`crate::ir::InstKind::ClassDescIn`] already produces it on
+    /// a miss. Tagging instead is not available — a descriptor materializes as
+    /// a `Tag::Null` byte over its address, so a tagged `?class<T>` could not
+    /// tell its two answers apart without a `Tag` of its own, and a tag would
+    /// make a descriptor an Novis value, which the paragraph below says it is
+    /// not.
+    ///
+    /// The cost is that "only a [`Self::Tagged`] operand can hold `null`" is
+    /// no longer the whole rule, so the six sites that ask carry a row of
+    /// their own, all of them the same test — the word, through
+    /// `Lowering::class_desc_word`, against zero:
+    /// `Lowering::lower_null_identity` (`$c == null` against the written
+    /// literal), `Lowering::lower_binary` (`==`/`!=` between two of them),
+    /// `Lowering::lower_coalesce` (`??`), `Lowering::lower_isset_operand`
+    /// (`isset`), `Lowering::truthy_convert` (a condition, `!` and `empty`),
+    /// and `Lowering::coerce` (a written `null` reaching a `?class<T>`
+    /// binding). Each is written for a [`Self::ClassDesc`] operand whether or
+    /// not its checked type was nullable, since a non-nullable one is never
+    /// the zero word: the comparison then answers the constant the row it
+    /// displaced would have, so there is no second rule to keep in step.
+    ///
     /// Not refcounted — a descriptor is owned by the compiled unit's class
     /// table for that unit's whole life (`nvs_runtime::object`), so there is
     /// nothing to retain and nothing to free. Materialized into a

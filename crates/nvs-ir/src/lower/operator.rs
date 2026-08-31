@@ -509,6 +509,29 @@ impl<'a> Lowering<'a> {
         // receiver that cannot be `null`. The operand is still
         // lowered (it may have side effects) and released if nothing
         // else owns it, exactly like the general arm's comparison.
+        // ADR 0125 § 2's `?class<T>`: not tagged, and still able to hold
+        // `null` — see [`Ty::ClassDesc`], which owns why and lists every site
+        // this one is among. The test is the word against zero, and a
+        // non-nullable `class<T>` operand takes it too rather than needing a
+        // rule of its own: a descriptor is never at address zero, so the
+        // comparison answers the constant the arm below would have.
+        if ty == Ty::ClassDesc {
+            let word = self.class_desc_word(v, ty, *cur);
+            let (zero, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
+            return self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::BinOp {
+                    op: if op == BinaryOp::Eq {
+                        BinOp::Eq
+                    } else {
+                        BinOp::NotEq
+                    },
+                    lhs: word,
+                    rhs: zero,
+                },
+            );
+        }
         if ty != Ty::Tagged {
             if ty.is_refcounted() && !self.aliasing_read(operand) {
                 self.emit_release(*cur, v);
@@ -730,6 +753,27 @@ impl<'a> Lowering<'a> {
         // Only `==`/`!=` are relabelled. `<` over two cases has no row in any
         // ADR, and ADR 0090 § 2 keeps the two domains apart on purpose, so
         // ordering an enum stays something `$e as int` says out loud.
+        // ADR 0125 § 2's `?class<T>` against `null`, and the reason it is a row
+        // here rather than the `Ty::Tagged` arm above: that erasure is a
+        // `Ty::ClassDesc` ([`Ty::ClassDesc`]'s own doc comment says why), so
+        // neither operand is tagged and neither has a `BinOp` row of its own.
+        // Both sides relabel to the word they already are — the descriptor
+        // through `InstKind::Reinterpret`, `null` as the zero a missed
+        // `InstKind::ClassDescIn` answers with — and the `Ty::Int` row below
+        // is the machine compare. Written for a `class<T>` operand as well as
+        // a `?class<T>` one: a non-nullable descriptor is never zero, so
+        // `$c == null` on one folds to `false` rather than needing a rule.
+        let (lv, lty, rv, rty) = if matches!(op, BinaryOp::Eq | BinaryOp::NotEq)
+            && (lty == Ty::ClassDesc || rty == Ty::ClassDesc)
+            && matches!(lty, Ty::ClassDesc | Ty::Null)
+            && matches!(rty, Ty::ClassDesc | Ty::Null)
+        {
+            let lv = self.class_desc_word(lv, lty, *cur);
+            let rv = self.class_desc_word(rv, rty, *cur);
+            (lv, Ty::Int, rv, Ty::Int)
+        } else {
+            (lv, lty, rv, rty)
+        };
         let (lv, lty, rv, rty) = if matches!(op, BinaryOp::Eq | BinaryOp::NotEq)
             && matches!(lty, Ty::Enum(_))
             && matches!(rty, Ty::Enum(_))

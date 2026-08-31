@@ -2091,9 +2091,36 @@ impl<'a> Lowering<'a> {
                 )
                 .0
             }
+            // ADR 0125 § 2's `?class<T>`: `null` into a class-reference
+            // position is the *null descriptor*, which is the zero word
+            // relabelled — see [`Ty::ClassDesc`] for why that representation
+            // holds `null` at all, and [`InstKind::Reinterpret`] for why a
+            // relabelling is free. Ahead of the tagging rows below only in
+            // reading order; neither target overlaps.
+            (Ty::Null, Ty::ClassDesc) => {
+                let (zero, _) = self.emit(cur, Ty::Int, InstKind::ConstInt(0));
+                self.emit(cur, Ty::ClassDesc, InstKind::Reinterpret { operand: zero })
+                    .0
+            }
             (_, Ty::Tagged) => self.emit(cur, Ty::Tagged, InstKind::Tag { operand: v }).0,
             (Ty::Tagged, _) => self.emit(cur, to, InstKind::Untag { operand: v }).0,
             _ => v,
+        }
+    }
+    /// The machine word behind a [`Ty::ClassDesc`] operand, as a [`Ty::Int`] a
+    /// `BinOp` has a row for — and the zero word for the literal `null`, which
+    /// is the same value a missed [`InstKind::ClassDescIn`] answers with.
+    ///
+    /// The one question every site asking "is this `?class<T>` null?" reduces
+    /// to. [`Ty::ClassDesc`]'s own doc comment lists those sites and owns why
+    /// they cannot read `Ty::Tagged` off the operand instead.
+    pub(crate) fn class_desc_word(&mut self, v: ValueId, ty: Ty, cur: BlockId) -> ValueId {
+        match ty {
+            Ty::Null => self.emit(cur, Ty::Int, InstKind::ConstInt(0)).0,
+            _ => {
+                self.emit(cur, Ty::Int, InstKind::Reinterpret { operand: v })
+                    .0
+            }
         }
     }
     /// Appends an [`InstKind::RefStore`] to `b` — see that variant's own doc
@@ -3076,6 +3103,17 @@ fn shared_erasure(members: &[TypeId], checked_types: &TypeInterner) -> Ty {
         match (erase_checked_ty(*member, checked_types), shared) {
             (Some(ty), None) => shared = Some(ty),
             (Some(ty), Some(seen)) if ty == seen => {}
+            // ADR 0125 § 2's `?class<T>` — the one pair of *different*
+            // erasures that is still one representation, and the reason this
+            // fold is not simply "every member erases the same way". A
+            // descriptor is an address and no class lives at address zero, so
+            // [`Ty::ClassDesc`] has a spare value that means "no class" and
+            // `null` is spelled with it. See that variant's own doc comment
+            // for the four sites that then have to ask a `ClassDesc` whether
+            // it is null rather than reading `Ty::Tagged` off the operand.
+            (Some(Ty::Null), Some(Ty::ClassDesc)) | (Some(Ty::ClassDesc), Some(Ty::Null)) => {
+                shared = Some(Ty::ClassDesc);
+            }
             _ => return Ty::Tagged,
         }
     }

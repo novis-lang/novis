@@ -553,6 +553,27 @@ impl<'a> Lowering<'a> {
             // spellings that get here, and nothing about the value needs
             // reading to answer them.
             Ty::Null => self.emit(cur, Ty::Bool, InstKind::ConstBool(false)).0,
+            // ADR 0035 § 4's class-instance row read one representation over:
+            // a class *reference* is a descriptor, so a `class<T>` is always
+            // truthy the way an instance is — and ADR 0125 § 2's `?class<T>`
+            // is the same row with § 2's first, `null` for the miss. That
+            // pairing is exactly the word against zero, since the two answers
+            // are one representation here ([`Ty::ClassDesc`], which owns the
+            // decision and names every site it obliges).
+            Ty::ClassDesc => {
+                let word = self.class_desc_word(v, ty, cur);
+                let (zero, _) = self.emit(cur, Ty::Int, InstKind::ConstInt(0));
+                self.emit(
+                    cur,
+                    Ty::Bool,
+                    InstKind::BinOp {
+                        op: BinOp::NotEq,
+                        lhs: word,
+                        rhs: zero,
+                    },
+                )
+                .0
+            }
             // ADR 0035 § 2's last row, and the one this table answers at run
             // time rather than at compile time: a `mixed`, a union or a `?T`
             // no test narrowed carries its row in its tag, so the dispatch
@@ -650,6 +671,14 @@ impl<'a> Lowering<'a> {
         // member call now, so nothing about a class reaches this function.
         match nullable_target(ty) {
             Some(target) => {
+                // ADR 0125 § 2's `as ?class<T>`, ahead of everything below:
+                // its answer is a `Ty::ClassDesc` rather than the `Ty::Tagged`
+                // every other `?T` erases to, so it never reaches
+                // `Self::convert_or_null` and needs no `?` helper of its own —
+                // [`InstKind::ClassDescIn`]'s miss *is* the `null`.
+                if self.class_ref_base(ty).is_some() {
+                    return self.lower_class_reference(inner, ty, true, env, cur);
+                }
                 // No placement here, unlike the arm below: placing a
                 // literal at the target would make `3 as ?uint` the
                 // `from == to` shape ADR 0066 § 3 calls a compile
@@ -698,7 +727,7 @@ impl<'a> Lowering<'a> {
                 // `class<Animal>` through under a `class<Dog>` declaration
                 // with nothing checked at all.
                 if to == Ty::ClassDesc {
-                    return self.lower_class_reference(inner, ty, env, cur);
+                    return self.lower_class_reference(inner, ty, false, env, cur);
                 }
                 // ADR 0054 § 2: `expr as T` is itself a *placing*
                 // position, so a numeric literal written directly
@@ -855,23 +884,26 @@ impl<'a> Lowering<'a> {
     /// released by [`Self::release_temporaries_since`] on the normal edge and
     /// by [`Self::landing_block`] on the throwing one, with no arm of its own.
     ///
+    /// **`nullable` is ADR 0066's `as ?class<T>`, and it is the same lowering
+    /// with the refused edge deleted.** § 2 says the sugar "yields `null`
+    /// exactly where it would throw", and here that is not a second path but a
+    /// shorter one: [`InstKind::ClassDescIn`] answers a miss with the *null
+    /// descriptor* already, so the null test below — the only thing the
+    /// checked form adds — is what the `?` takes away. `?class<T>` erases to
+    /// [`Ty::ClassDesc`] rather than to [`Ty::Tagged`] for exactly that
+    /// reason; that variant's own doc comment owns the decision and names the
+    /// four sites it obliges. The compile-time fold above is taken under `?`
+    /// as well, and safely: § 2's written-out `::class` operand is decided by
+    /// `nvs_types` under **both** spellings — a name outside the hierarchy is
+    /// refused either way, by that crate's own
+    /// `reject_impossible_class_reference_conversion` — so what folds here is
+    /// always a pair that is a widening.
+    ///
     /// # Known gaps
     ///
     /// The message names the bound, not the name that failed to resolve; § 2
     /// asks for the offending class in it, which needs the operand's own string
     /// concatenated in on the refused edge.
-    ///
-    /// And `as ?class<T>` has no row: both spellings of it reach
-    /// [`Self::convert_or_null`]'s own two refusals instead, which is where a
-    /// `?T` with no `?` helper already lands. It is not a helper away, either —
-    /// a descriptor materializes into a `nvs_runtime::Value` as a `Tag::Null`
-    /// over its address ([`Ty::ClassDesc`]), which is the representation `null`
-    /// itself has, so a `?class<T>` cannot tell its two answers apart by tag.
-    /// The shape that would work is the *null descriptor*
-    /// [`InstKind::ClassDescIn`] already produces on a miss — no class ever
-    /// lives at address zero — which makes `?class<T>` a [`Ty::ClassDesc`]
-    /// rather than a [`Ty::Tagged`] and needs `null`'s comparison rows against
-    /// that representation before ADR 0066 § 3 can have it.
     ///
     /// # Panics
     ///
@@ -881,6 +913,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         inner: &Expr,
         ty: &Type,
+        nullable: bool,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
@@ -914,6 +947,11 @@ impl<'a> Lowering<'a> {
                 base: base.clone(),
             },
         );
+        // ADR 0066 § 3 over § 2's rows: the miss `ClassDescIn` just answered
+        // *is* the `null`, so the sugar's whole content is stopping here.
+        if nullable {
+            return (desc, Ty::ClassDesc);
+        }
         let (word, _) = self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: desc });
         let (zero, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
         let (missed, _) = self.emit(
@@ -982,6 +1020,20 @@ impl<'a> Lowering<'a> {
     /// compile.
     fn class_ref_base(&self, ty: &Type) -> Option<String> {
         let id = self.exprs.declared_ty(ty.span)?;
+        // `?class<T>` is `Union([Null, ClassRef])` and the `T` node inside the
+        // sugar records no checked type of its own (`Self::nullable_target_atoms`
+        // says why), so the `?` is unwrapped here — the same place and the same
+        // way `super::array_element_tags` unwraps it for `as ?array<U>`.
+        let id = match self.checked_types.get(id) {
+            CheckedTy::Union(members) => {
+                let mut named = members
+                    .iter()
+                    .filter(|member| !matches!(self.checked_types.get(**member), CheckedTy::Null));
+                let only = *named.next()?;
+                named.next().is_none().then_some(only)?
+            }
+            _ => id,
+        };
         let CheckedTy::ClassRef(argument) = self.checked_types.get(id) else {
             return None;
         };

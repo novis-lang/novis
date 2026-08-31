@@ -1179,6 +1179,68 @@ impl<'a> Lowering<'a> {
         // at runtime, so `??` is the left operand and the right one is never
         // evaluated — which is what short-circuiting already means. The
         // mirror case, a statically `null` left operand, is the right one.
+        // ADR 0125 § 2's `?class<T>` is the exception to the paragraph below:
+        // it is not tagged and it can still be `null`, so it takes the same
+        // branch/merge shape the tagged path takes, with the null test written
+        // on the word ([`Ty::ClassDesc`] owns why) and no untagging, retain or
+        // release — a descriptor is immortal and outside the refcount
+        // discipline. A non-nullable `class<T>` left operand takes this path
+        // too and is simply never zero.
+        if lhs_ty == Ty::ClassDesc {
+            let word = self.class_desc_word(lhs_v, lhs_ty, *cur);
+            let (zero, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
+            let (is_null, _) = self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::BinOp {
+                    op: BinOp::Eq,
+                    lhs: word,
+                    rhs: zero,
+                },
+            );
+            let pre_block = *cur;
+            let null_block = self.new_block();
+            let value_block = self.new_block();
+            let merge_block = self.new_block();
+            let null_edge = self.ids.next_edge(rhs.span);
+            let value_edge = self.ids.next_edge(lhs.span);
+            self.seal(
+                pre_block,
+                Terminator::Branch {
+                    cond: is_null,
+                    then_block: null_block,
+                    then_edge: null_edge,
+                    else_block: value_block,
+                    else_edge: value_edge,
+                },
+            );
+            let value_v = self.coerce(value_block, lhs_v, lhs_ty, result_repr, env);
+            self.seal(value_block, Terminator::Jump(merge_block));
+
+            let pre_env = env.clone();
+            let mut null_env = pre_env.clone();
+            let mut rhs_cur = null_block;
+            let (rv, rty) = self.lower_expr(rhs, Some(result_repr), &mut null_env, &mut rhs_cur);
+            if rty.is_refcounted() && self.aliasing_read(rhs) {
+                self.emit_retain(rhs_cur, rv);
+            }
+            let null_v = self.coerce(rhs_cur, rv, rty, result_repr, &mut null_env);
+            self.seal(rhs_cur, Terminator::Jump(merge_block));
+            *env = self.merge_envs(
+                merge_block,
+                &[(value_block, pre_env.clone()), (rhs_cur, null_env)],
+                &pre_env,
+            );
+            let (value, _) = self.emit(
+                merge_block,
+                result_repr,
+                InstKind::Phi {
+                    incoming: vec![(value_block, value_v), (rhs_cur, null_v)],
+                },
+            );
+            *cur = merge_block;
+            return (value, result_repr);
+        }
         if lhs_ty != Ty::Tagged {
             if lhs_ty == Ty::Null {
                 let mut rhs_cur = *cur;
@@ -1340,6 +1402,24 @@ impl<'a> Lowering<'a> {
         let (v, ty) = self.lower_expr(operand, None, env, cur);
         let present = match ty {
             Ty::Null => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)).0,
+            // ADR 0125 § 2's `?class<T>` — the one non-tagged representation
+            // the paragraph above is not the whole rule for. See
+            // [`Ty::ClassDesc`]; the test is the word against zero, and a
+            // non-nullable `class<T>` takes it too and always answers `true`.
+            Ty::ClassDesc => {
+                let word = self.class_desc_word(v, ty, *cur);
+                let (zero, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
+                self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::BinOp {
+                        op: BinOp::NotEq,
+                        lhs: word,
+                        rhs: zero,
+                    },
+                )
+                .0
+            }
             Ty::Tagged => {
                 let is_null = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: v }).0;
                 self.emit(

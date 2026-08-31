@@ -1,0 +1,59 @@
+--TEST--
+`as ?class<T>` answers `null` on every miss the checked form throws for, and the value is an ordinary `?T` under `==`, `??`, `isset` and a condition — ADR 0125 § 2, ADR 0066 § 3
+--FILE--
+<?nvs
+class Animal {
+    public function constructor() {}
+    public function speak(): string { return "..."; }
+}
+class Dog extends Animal {
+    public function speak(): string { return "woof"; }
+}
+// A real class that is not an `Animal` — ADR 0125 § 2 makes it the *same*
+// failure as a name that resolves to nothing, so both answer `null` here.
+class Rock {}
+
+string $hit = "Dog";
+string $unresolved = "Nope";
+string $outside = "Rock";
+
+?class<Animal> $a = $hit as ?class<Animal>;
+?class<Animal> $b = $unresolved as ?class<Animal>;
+?class<Animal> $c = $outside as ?class<Animal>;
+echo "hit ", $a == null ? "null" : "set", "\n";
+echo "unresolved ", $b == null ? "null" : "set", "\n";
+echo "outside ", $c == null ? "null" : "set", "\n";
+
+// § 2's second row, the `class<U>` narrowing, under the same sugar.
+class<Dog> $dog = "Dog" as class<Dog>;
+?class<Animal> $widened = $dog as ?class<Animal>;
+echo "widened ", $widened == null ? "null" : "set", "\n";
+
+// ADR 0066 § 3's answer is an ordinary `?T`, so `??` takes the right side on
+// the miss and the left one on the hit.
+class<Animal> $fallback = "Animal" as class<Animal>;
+class<Animal> $missed = $b ?? $fallback;
+class<Animal> $found = $a ?? $fallback;
+echo "coalesce ", (new $missed())->speak(), " ", (new $found())->speak(), "\n";
+
+// ADR 0007 § 6's narrowing: past a `!= null` test the binding is a
+// `class<Animal>` and ADR 0125 § 4's `new $cls()` accepts it.
+if ($a != null) {
+    Animal $made = new $a();
+    echo "narrowed ", $made->speak(), "\n";
+}
+
+// ADR 0028 § 3 and ADR 0035 § 2 over the same representation, plus a written
+// `null` reaching the binding.
+?class<Animal> $written = null;
+echo "isset ", isset($a) ? "y" : "n", isset($b) ? "y" : "n", isset($written) ? "y" : "n", "\n";
+echo "truthy ", $a ? "y" : "n", $b ? "y" : "n", $written ? "y" : "n", "\n";
+--EXPECT--
+hit set
+unresolved null
+outside null
+widened set
+coalesce ... woof
+narrowed woof
+isset ynn
+truthy ynn
