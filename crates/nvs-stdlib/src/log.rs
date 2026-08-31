@@ -301,7 +301,10 @@ fn named(fields: Value) -> Vec<(String, Node)> {
 #[cfg(test)]
 mod tests {
     use nvs_render::Level;
-    use nvs_runtime::{ClassTable, Ctx, ErrorClass, NvsArray, NvsStr, Value, call, floor};
+    use nvs_runtime::logfile::LogFile;
+    use nvs_runtime::{
+        ClassTable, Ctx, ErrorClass, NvsArray, NvsStr, OutputSink, Value, call, floor,
+    };
 
     use super::{LEVEL, nvs_core_log_write};
 
@@ -399,6 +402,155 @@ mod tests {
             "and the shape both wrote is § 6's — the envelope keys they have a \
              source for, then the bag, and nothing empty: {written}"
         );
+    }
+
+    /// ADR 0106 § 10's two bounds on the floor, asked of the **sink** rather
+    /// than of either caller — which is the section's own shape, so that no
+    /// caller has to be trusted to be rare.
+    ///
+    /// The rate limit is asked in three steps, because two of them pass on
+    /// their own over a sink that simply dropped repeats: a burst becomes one
+    /// line, the *next* occurrence after the window carries how many it stands
+    /// for, and a record that differs is never held back at all. A limiter
+    /// missing the second would lose the multiplicity silently, and one missing
+    /// the third would delay the one line a developer is waiting for behind an
+    /// unrelated loop.
+    ///
+    /// Rotation is asked as the **product** that is the actual bound —
+    /// everything on disk, live file and retained rotations together, against
+    /// `(keep + 1) * max_bytes` — rather than as a count of files, since a
+    /// target that rotated diligently and retained everything would pass a file
+    /// count while filling the disk anyway. The records are made distinct so
+    /// the rate limit above does not answer for the rotation below, which is
+    /// also the one arrangement in which both bounds are in force at once.
+    #[test]
+    fn the_engine_floor_rotates_and_rate_limits_itself() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
+        let repeated = floor::note(Level::Error, "the store said no");
+
+        for _ in 0..5 {
+            floor::report(&mut ctx, &repeated);
+        }
+        let burst = diagnostic(&mut ctx);
+        assert_eq!(
+            burst.len(),
+            1,
+            "five identical records inside one window are one line: {burst:?}"
+        );
+        assert!(
+            !burst[0].contains("\"count\""),
+            "and the first of them stands only for itself: {}",
+            burst[0]
+        );
+
+        floor::expire_coalescing_window();
+        floor::report(&mut ctx, &repeated);
+        let carried = diagnostic(&mut ctx);
+        assert_eq!(carried.len(), 1, "the window reopens on one line");
+        assert!(
+            carried[0].contains("\"count\":5"),
+            "carrying the four it swallowed and itself: {}",
+            carried[0]
+        );
+
+        floor::report(&mut ctx, &floor::note(Level::Error, "a different failure"));
+        let other = diagnostic(&mut ctx);
+        assert_eq!(other.len(), 1, "a record that differs is written at once");
+        assert!(
+            !other[0].contains("\"count\""),
+            "and stands only for itself: {}",
+            other[0]
+        );
+
+        // ADR 0106 § 10's first bullet. Two records fit in a 256-byte file and
+        // 64 of them do not, so the rotation is reached many times over and the
+        // retention bound is what stops the target growing with the loop.
+        const MAX_BYTES: u64 = 256;
+        const KEEP: usize = 2;
+        let path = scratch("floor.log", KEEP);
+        ctx.set_diagnostic_sink(OutputSink::File(LogFile::with_bounds(
+            path.clone(),
+            MAX_BYTES,
+            KEEP,
+        )));
+        let mut produced = 0;
+        for n in 0..64 {
+            let record = floor::note(Level::Error, &format!("failure {n}"));
+            produced += nvs_render::json::line(&record).len() as u64;
+            floor::report(&mut ctx, &record);
+        }
+        // Drop the sink, so the handle is closed before the assertions read
+        // what it wrote.
+        ctx.set_diagnostic_sink(OutputSink::Sink);
+
+        let mut held = 0;
+        for n in 0..=KEEP {
+            let rotation = rotation(&path, n);
+            let bytes = std::fs::read(&rotation)
+                .unwrap_or_else(|why| panic!("rotation {n} is on disk: {why}"));
+            assert!(
+                bytes.len() as u64 <= MAX_BYTES,
+                "no file passes its own bound: rotation {n} holds {} bytes",
+                bytes.len()
+            );
+            for line in String::from_utf8(bytes.clone())
+                .expect("JSON Lines is text")
+                .lines()
+            {
+                assert!(
+                    line.starts_with('{') && line.ends_with('}'),
+                    "a record is a line, and a rotation never cuts one: {line}"
+                );
+            }
+            held += bytes.len() as u64;
+        }
+        assert!(
+            !rotation(&path, KEEP + 1).exists(),
+            "the retention bound is {KEEP} rotations beside the live file"
+        );
+        assert!(
+            held <= (KEEP as u64 + 1) * MAX_BYTES && held < produced,
+            "the target holds at most `(keep + 1) * max_bytes` however much is \
+             written through it: {held} of {produced} produced"
+        );
+    }
+
+    /// Everything on the diagnostic channel since it was last read, one line
+    /// each.
+    fn diagnostic(ctx: &mut Ctx) -> Vec<String> {
+        String::from_utf8(
+            ctx.take_buffered_diagnostic()
+                .expect("the case pointed the channel at a buffer"),
+        )
+        .expect("a JSON Lines line is text")
+        .lines()
+        .map(ToOwned::to_owned)
+        .collect()
+    }
+
+    /// The path rotation `n` of `path` takes, where 0 is the live file — the
+    /// spelling `nvs_runtime::logfile` writes, restated here because a case
+    /// asserting a retention bound has to name the file the bound is about.
+    fn rotation(path: &std::path::Path, n: usize) -> std::path::PathBuf {
+        if n == 0 {
+            return path.to_owned();
+        }
+        let mut name = path.to_owned().into_os_string();
+        name.push(format!(".{n}"));
+        std::path::PathBuf::from(name)
+    }
+
+    /// A path under the host's temporary directory that this case owns, with
+    /// its live file and every rotation a previous run left behind removed.
+    fn scratch(name: &str, keep: usize) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join("nvs-floor-rotation");
+        std::fs::create_dir_all(&dir).expect("a temporary directory the tests own");
+        let path = dir.join(name);
+        for n in 0..=keep + 1 {
+            let _ = std::fs::remove_file(rotation(&path, n));
+        }
+        path
     }
 
     /// [`LEVEL`]'s rows and the record model's roster name the same five cases,
