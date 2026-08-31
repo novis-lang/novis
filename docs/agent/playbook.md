@@ -4782,6 +4782,23 @@ sibling in the same namespace unqualified.
   chain onto one method per line and pushes the site to ten. An early `if let … { return Ok(…) }`
   with the comment directly over a bare `Err(Fault::fatal(…))` is immune to reflowing, and reads
   better anyway: the refusal is the tail of the function rather than a closure inside its answer.
+- **A reference card may not cite an ADR, and every doc comment around it is expected to.**
+  `registry.rs`'s `no_registry_card_cites_an_adr` scans every `MethodDoc`, `EnumDoc`, `CaseDoc`
+  and `CoreConst::desc` field for an `ADR` mention and fails the whole `-p nvs-stdlib` leg,
+  because `nvs meta --json` ships a card verbatim to a reader who has no ADR tree. The trap is
+  that the *rule* the card is describing lives two lines above it in a `///` that must name its
+  ADR, so the citation carries straight across: "ADR 0031 makes a closure an ordinary object"
+  reads exactly right in the module doc and is a failure in a `CaseDoc`. State the fact without
+  the number — "a closure is an ordinary object here" — and note that the conventions' § *A
+  `Core` member* lists the card's other rules and not this one, so the first time you meet it is
+  at the full verify.
+- **A new `Core` member owes *three* conformance cases, not the one the five-edit recipe names.**
+  Conventions' § *A `Core` member* step 5 asks for "a `.nvst` case that calls it", and
+  `conformance_coverage.rs`'s `every_core_class_has_a_conformance_floor_of_three` then fails the
+  `-p nvs-stdlib` leg with "asked by 1 case(s)" — the floor is per *member*, counted in cases,
+  and a second case asking the same question does not count. So budget the three while the
+  member is still fresh: the conventions' four depth shapes are what to spend them on, and for
+  two members landed together one file can ask both, which is three files rather than six.
 
 ## Divergences and refusals already pinned
 

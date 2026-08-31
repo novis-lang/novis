@@ -2,60 +2,56 @@
 
 ## State
 
-**Stage 8 has opened.** `Core\Reflect::forObject` answers a `Core\Reflect\ClassInfo`, and that
-description's `name()`, `properties()` and `get($object, $name)` are rows, cards, bodies and
-`.nvst` cases (`crates/nvs-stdlib/src/reflect.rs`, whose module doc is the home of why the
-description holds *answers* rather than the described object, and why `get` refuses a value of
-another class).
+**`Core\Reflect` is three doors over one walk.** `forObject` reaches a descriptor through a
+value, `forClass` reaches one through the running program's class table
+(`nvs_runtime::Ctx::class_desc`), and both build the description in `describe`
+(`crates/nvs-stdlib/src/reflect.rs`) so that what a description *is* cannot depend on which door
+was used. `forClass` answers `?ClassInfo`: the `null` is the whole of `class_exists`, and a
+`Core` class is not among the answers.
 
-**A field slot's visibility is now a carried bit, not a recomputed one.** `nvs_types::layout` decides
-it where the keyword still exists, `nvs_ir::ir::Class::public_fields` carries it, `nvs-codegen`
-installs it and `nvs_runtime::ClassDesc::field_is_public` answers it — ADR 0092 § 5's `secret` bit's
-plumbing exactly, and each of those four doc comments owns its own half. An unclassified slot reads
-as **unreadable**, which is the opposite fallback from `field_is_secret`; `field_is_public`'s doc
-says why both directions are the safe one.
+**`typeOf` answers `Core\Reflect\TypeKind`**, ten cases partitioning `nvs_runtime::Tag`'s
+value-carrying half, registered on `nvs_stdlib::registry::ENUMS`. The module doc is the home of
+why there is no `Callable`, `Numeric`, `Iterable` or `Countable` case; `kind_of`'s doc is the
+home of why exactly three tags have none.
 
 **The driver's acceptance check is still red, and still is not a regression.**
-`examples/reflect.nvs` now compiles as far as line 53 and stops at `Core\Reflect::typeOf`, which is
-the next group's first item. Two wrong spellings in that fixture were fixed on the way past
-(`->name` as a property, `Core\Arr::length`) — see the new playbook bullet.
+`examples/reflect.nvs` now runs through line 59 and stops at `Core\Ast::parse`, which is the next
+group's first item and the fixture's last two frozen lines.
 
 **Stage 7 still owes one item**, the schema-identity test in the backlog below.
 
 ## Next group
 
-**Stage 8's remainder — `Core\Reflect`'s last member, its enum, and `Core\Ast`, over
-`crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-stdlib/src/registry.rs`,
-`crates/nvs-stdlib/src/lib.rs`, a new `crates/nvs-stdlib/src/ast.rs` and `tests/conformance/core/`.
-Stage 8's rules and the fixture's five frozen lines are `docs/agent/loop-goal.toml:2463`.**
+**`Core\Ast` — stage 8's second half, over a new `crates/nvs-stdlib/src/ast.rs`,
+`crates/nvs-stdlib/src/registry.rs:1054`, `crates/nvs-stdlib/src/lib.rs:249` and `:359`, and
+`tests/conformance/core/`. ADR 0019 § 3 is the specification and `docs/agent/loop-goal.toml:2463`
+is stage 8's own rules.**
 
-- [ ] **`Core\Reflect::typeOf(mixed): Core\Reflect\TypeKind`, and the enum it answers with** — the
-      spec's single replacement for PHP's fourteen `is_*` predicates plus `gettype`
-      (`docs/spec/01-core-library.md:964`). The member is a fifth row on
-      `crates/nvs-stdlib/src/reflect.rs:83`; the enum is one line on
-      `crates/nvs-stdlib/src/registry.rs:1545`'s `ENUMS` beside its `EnumDoc`. The goal check names
-      `type_of_is_the_single_replacement_for_the_is_predicates`, and the fixture's fourth frozen line
-      is `examples/reflect.nvs:53` — its `match` arms fix the case spellings (`Int`, `Float`, `Text`).
-- [ ] **`Core\Ast::parse` as inert typed data** — ADR 0019 § 3, and ADR 0052's door stays shut, so
-      the answer is data with no path back into execution. A new module registered on
-      `crates/nvs-stdlib/src/registry.rs:1054`, over `nvs_syntax`'s own entry point
-      `crates/nvs-syntax/src/parser/mod.rs:504`. The fixture asks `$tree->nodes()` and counts four at
-      `examples/reflect.nvs:63`; the goal check is
-      `a_parsed_ast_is_inert_data_with_no_path_back_into_execution`.
-- [ ] **`Core\Reflect::forClass`** — the spec row's other door
-      (`docs/spec/01-core-library.md:954`), reaching the compiled unit's class table rather than an
-      instance's descriptor. Same five edits on `crates/nvs-stdlib/src/reflect.rs:83`; the route from
-      a native member to a program's class is `Ctx::class_desc`, whose own doc comment says it is
-      reached through `Ctx::set_runtime_error_class`'s handle and nothing else.
+- [ ] **`Core\Ast::parse(string): Core\Ast\Node` as inert typed data** — ADR 0019 § 3, whose
+      mechanism is not illustrative: it calls `crates/nvs-syntax/src/parser/mod.rs:504`'s
+      `parse_file`, because there is no second grammar in this project. Register the class at
+      `crates/nvs-stdlib/src/registry.rs:1054` and the module and its `address` arm at
+      `crates/nvs-stdlib/src/lib.rs:249` and `crates/nvs-stdlib/src/lib.rs:359`. The fixture's
+      frozen shape is `examples/reflect.nvs:62` — `Core\Arr::count($tree->nodes())` is **4** for
+      `<?nvs echo 1 + 2;`, so `nodes()` answers a walk rather than the root's children alone.
+      `crates/nvs-stdlib/src/reflect.rs:122`'s `CLASS_INFO` is the shape a `Core`-owned answer
+      class takes, slots and readers included.
+- [ ] **`a_parsed_ast_is_inert_data_with_no_path_back_into_execution`** — the goal check's own
+      test name, in the new module's `mod tests`; ADR 0019 § 3 and ADR 0052's closed door on
+      `eval` are what it pins. Anchor: `crates/nvs-stdlib/src/lib.rs:359`.
+- [ ] **The two reflective-*action* checks** —
+      `a_reflective_call_to_a_private_method_from_outside_fails_like_the_ordinary_call` and
+      `a_reflective_property_write_runs_the_hook_an_ordinary_write_runs`, ADR 0019 § 2 plus ADR
+      0014's hook. They are `CLASS_INFO`'s next two instance rows at
+      `crates/nvs-stdlib/src/reflect.rs:122`, and known gap 3 in that module's doc is where the
+      absence is currently recorded.
 
 ## Backlog
 
-- Stage 7's last item: application code and the engine floor produce schema-identical log records —
-  `docs/agent/loop-goal.toml:2440`.
-- A reflective *call* to a `private` method, and a reflective property *write* running ADR 0014's
-  hook — `crates/nvs-stdlib/src/reflect.rs`'s known gap 3; two of stage 8's named checks.
-- `Core\Decimal`'s `divExact`/`divRound` split — stage 8's check
-  `div_exact_throws_where_div_round_rounds`, ADR 0054.
-- Item 35's `property<T>` and its ADR, the goal's one ADR slot — `docs/agent/loop-goal.toml:2500`.
-- § 1's remaining `*Info` classes (`MethodInfo`, `ParameterInfo`, …) —
-  `crates/nvs-stdlib/src/reflect.rs`'s known gap 1.
+- Stage 7's `application_code_and_the_engine_floor_produce_schema_identical_records` —
+  `docs/agent/loop-goal.toml` stage 7.
+- `Core\Ast::parseFile` — ADR 0019 § 3 names it beside `parse`; it needs ADR 0118's `io` door.
+- Method reflection (`get_class_methods`, `method_exists`) — `crates/nvs-stdlib/src/reflect.rs`
+  known gap 1.
+- Item 35's `property<T>`, the goal's one ADR slot — `docs/agent/loop-goal.md`.
+- Stage 8's `nvs-types` half, the four attribute-retrieval fold checks — ADR 0046 §§ 4-6.
