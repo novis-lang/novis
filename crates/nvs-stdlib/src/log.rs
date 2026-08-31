@@ -31,13 +31,17 @@
 //! owns why the rendering sits beside `nvs_render::plain::render` rather than in
 //! `nvs-runtime` beside the ladder.
 //!
-//! **Known gap: the floor is the caller that does not exist yet.** Nothing in
-//! `nvs-runtime` emits a record today, so ADR 0020 § 6's second caller is still
-//! a claim about one that will be written rather than about one that is — but
-//! the thing it has to reach is now a `Record` and a rendering it can call,
-//! rather than a serialiser private to this crate. What that caller costs is the
-//! `nvs-runtime` → `nvs-render` dependency edge, which ADR 0092 § 1 sanctions
-//! and `nvs-render`'s own § *Where this sits* prices.
+//! **The second caller is `nvs_runtime::floor`**, and its module doc owns the
+//! floor's half of § 6. `floor::uncaught` builds the same [`Record`] out of an
+//! uncaught `Throwable` and renders it through the same
+//! [`nvs_render::json::line`]; the one difference is *where* the bytes go, not
+//! what they are, and § *Where the bytes go* below owns that. The claim is
+//! asserted rather than asserted-about:
+//! `application_code_and_the_engine_floor_produce_schema_identical_records`
+//! puts one error through both callers and compares the two lines byte for
+//! byte. What that caller cost is the `nvs-runtime` → `nvs-render` dependency
+//! edge, which ADR 0092 § 1 sanctions and `nvs-render`'s own § *Where this
+//! sits* prices.
 //!
 //! **The envelope is `level` and `msg` and stops there.** § 6 lists `ts`,
 //! `request_id`, `trace_id` and `span_id` as well; none of them has a source
@@ -297,8 +301,105 @@ fn named(fields: Value) -> Vec<(String, Node)> {
 #[cfg(test)]
 mod tests {
     use nvs_render::Level;
+    use nvs_runtime::{ClassTable, Ctx, ErrorClass, NvsArray, NvsStr, Value, call, floor};
 
-    use super::LEVEL;
+    use super::{LEVEL, nvs_core_log_write};
+
+    /// The integer `Core\Log\Level::Error` arrives as, read off [`LEVEL`]'s own
+    /// row rather than written out here: a lowered enum case *is* that integer,
+    /// and a second copy would be exactly the drift the row exists to prevent.
+    fn error_severity() -> i64 {
+        LEVEL
+            .cases
+            .iter()
+            .find(|(case, _)| *case == "Error")
+            .map(|(_, severity)| *severity)
+            .expect("ADR 0092 § 2's roster has an `Error`")
+    }
+
+    /// ADR 0020 § 6's headline claim, asked as an **agreement** rather than as
+    /// a sentence: the tier-4 engine floor and ordinary application code
+    /// produce the *same* record for the same error, so a log pipeline never
+    /// has to reconcile two shapes depending on which tier happened to write a
+    /// line.
+    ///
+    /// Both halves are driven for real — the floor through
+    /// [`nvs_runtime::floor::uncaught`], the application through
+    /// [`super::nvs_core_log_write`] itself — and the comparison is of the two
+    /// rendered lines, byte for byte. That is what makes this a check on the
+    /// *serialiser* rather than on two struct literals: a second writer growing
+    /// on either side would still print plausibly on its own line, and would
+    /// differ here in the first key it spelled its own way.
+    ///
+    /// The application's side is written the way a program writes it: the class
+    /// and the backtrace are an ordinary `fields` bag, since § 6 makes them
+    /// fields and not envelope keys, and the level crosses as the integer a
+    /// lowered case is. `ts`, `request_id`, `trace_id` and `span_id` are absent
+    /// from both, which is the same agreement one step further out — a floor
+    /// that filled an envelope key its ordinary-code twin does not would be the
+    /// divergence this test exists to catch.
+    #[test]
+    fn application_code_and_the_engine_floor_produce_schema_identical_records() {
+        // ADR 0020 § 6's error, thrown the way a helper's failure is and
+        // unwound through one compiled frame so that it carries a backtrace.
+        // The class table is spec § 10's root shape and arrives the one way a
+        // context takes one (`Ctx::set_runtime_error_class`).
+        const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut classes = ClassTable::new();
+        let root = classes.define("RuntimeError", &SLOTS, &[]);
+        let mut ctx = Ctx::buffered();
+        ctx.set_runtime_error_class(ErrorClass::new(std::rc::Rc::new(classes), root));
+        ctx.set_pending("the store said no");
+        ctx.push_frame("Main::main");
+        let thrown = ctx.take_thrown();
+        assert!(
+            !thrown.is_none(),
+            "an installed class is what promotes a bare failure to an object"
+        );
+        let trace = thrown.trace_as_string();
+        assert!(!trace.is_empty(), "one unwound frame is one backtrace");
+
+        let floored = nvs_render::json::line(&floor::uncaught(&thrown));
+
+        let mut fields = NvsArray::new();
+        fields.set(
+            NvsStr::new(b"class"),
+            Value::str(NvsStr::new(thrown.class_name().as_bytes())),
+        );
+        fields.set(
+            NvsStr::new(b"backtrace"),
+            Value::str(NvsStr::new(trace.as_bytes())),
+        );
+        call(
+            nvs_core_log_write,
+            &mut ctx,
+            &[
+                Value::int(error_severity()),
+                Value::str(NvsStr::new(thrown.message().as_bytes())),
+                Value::array(fields),
+            ],
+        )
+        .expect("a buffered sink is the one output that cannot fail");
+        let written = String::from_utf8(
+            ctx.take_buffered_output()
+                .expect("a buffered context hands its bytes back"),
+        )
+        .expect("a JSON Lines line is text");
+
+        assert_eq!(
+            written, floored,
+            "ADR 0020 § 6: one record, two callers — every key, in one order, \
+             from one serialiser"
+        );
+        assert!(
+            written.starts_with(
+                "{\"level\":\"error\",\"msg\":\"the store said no\",\
+                 \"fields\":{\"class\":\"RuntimeError\",\"backtrace\":\""
+            ) && written.ends_with("\"}}\n"),
+            "and the shape both wrote is § 6's — the envelope keys they have a \
+             source for, then the bag, and nothing empty: {written}"
+        );
+    }
 
     /// [`LEVEL`]'s rows and the record model's roster name the same five cases,
     /// and each row's integer is the severity the model reads it back by. These
