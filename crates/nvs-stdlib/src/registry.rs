@@ -1207,6 +1207,17 @@ pub const CLASSES: &[CoreClass] = &[
     // expiry is a positional `Duration` rather than a claim, and why a claim
     // comes back as `tainted string` when the cookie above launders.
     crate::jwt::CLASS,
+    // ADR 0058 § 2's launderer, which is where every outbound URL in the
+    // language has to pass through — and the first ADR 0024 launderer whose
+    // answer is a value rather than a plain string. [`crate::http`]'s own
+    // module doc is the home of why that is the whole design, and of which
+    // half of the policy lives in the capability instead.
+    crate::http::CLASS,
+    // The value that launderer answers with. No members at all: a program
+    // names it and hands it to the member that connects, and reading the
+    // approved address back out is the one operation that would make pinning
+    // decorative.
+    crate::http::TARGET,
 ];
 
 /// Every `Core` member that needs a capability, and which one —
@@ -1230,11 +1241,12 @@ pub const CLASSES: &[CoreClass] = &[
 /// [`CoreClass::name`] and [`CoreMethod::name`] use;
 /// `every_capability_entry_names_a_member` fails on one naming neither.
 ///
-/// Eleven entries, which is the whole of what this runtime can currently do to
+/// Twelve entries, which is the whole of what this runtime can currently do to
 /// a machine: read a file, decode one as text, split one into lines, measure
 /// one, ask whether one is there, resolve one inside a base, write one, remove
-/// a file or an empty directory, make a temporary directory — and start another
-/// program. Every other `Core` member reaches no
+/// a file or an empty directory, make a temporary directory, start another
+/// program — and resolve a hostname while approving an outbound URL. Every
+/// other `Core` member reaches no
 /// spelling that performs an effect, which
 /// `nvs_stdlib_reaches_the_os_only_through_the_gate` holds mechanically rather
 /// than by this table being kept honest.
@@ -1262,6 +1274,12 @@ pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
     // members need no row — the child has exited by the time one exists, and a
     // slot read performs no effect.
     (crate::process::NAME, "run", nvs_config::Cap::ProcessExec),
+    // ADR 0058 §§ 2-3: approving a URL resolves its host, which is an effect,
+    // and the grant is host-scoped. The address policy behind the same door is
+    // not a second capability — it is deny-by-default and applies to every
+    // grant, which is why it is a table in `nvs_config::capability` rather than
+    // a row here.
+    (crate::http::NAME, "allowUrl", nvs_config::Cap::NetConnect),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
@@ -2971,7 +2989,11 @@ mod tests {
     /// ([`crate::script`]). The fourth is `Core\IO\Lines`, whose one slot the
     /// `iterate()` on [`crate::instance`]'s dispatch roster reads — spec § 14
     /// writes `lines(string $path): Iterable<string>` and no member *on* the
-    /// thing it answers with, so a `foreach` is the whole of its surface.
+    /// thing it answers with, so a `foreach` is the whole of its surface. The
+    /// fifth is `Core\Http\Target`, whose two slots the member that connects
+    /// reads: ADR 0058 § 2 pins an approved address into it, and a member
+    /// handing that address back would let a program rebuild the request
+    /// around a different one ([`crate::http`]).
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
         const HANDLES: &[&str] = &[
@@ -2979,6 +3001,7 @@ mod tests {
             nvs_runtime::CARRIER_CLI_TEXT,
             crate::script::HANDLE_NAME,
             crate::io::LINES_NAME,
+            crate::http::TARGET_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

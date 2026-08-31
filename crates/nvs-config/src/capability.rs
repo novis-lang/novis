@@ -67,6 +67,68 @@ pub enum Scope<'a> {
     Name(&'a str),
 }
 
+/// The address ranges [ADR 0058](../../../docs/adr/0058-outbound-request-policy.md) § 3 denies
+/// before any grant is consulted, named so a refusal can say which one it was.
+///
+/// **Here rather than in the client**, which is § 5: `Core\Http`, `Core\Net`, `Core\Db::open`'s
+/// program-supplied target and any socket a host import hands a Tier 1 extension are all subject to
+/// the same policy, and a copy of this table in each of them is four copies that agree until one of
+/// them does not. The one class of address it does not govern is a `[db.<name>]` block an operator
+/// wrote into root-owned configuration and granted by name (§ 3), which is why the caller asks this
+/// rather than it being folded into [`Cap::NetConnect`]'s own grant check.
+///
+/// It is asked of a **resolved address**, never of a hostname: a hostname the operator never named
+/// can resolve into any of these, which is the whole of why § 2's launderer pins.
+///
+/// The operator's exception half — a service that must reach an internal API saying so in
+/// `nvs.toml` — is not here yet; today the answer is the default-deny table and nothing widens it.
+#[must_use]
+pub fn denied_by_default(address: std::net::IpAddr) -> Option<&'static str> {
+    use std::net::IpAddr;
+
+    // An IPv4-mapped IPv6 address is the same machine reached under a second spelling, so it is
+    // asked as the address it maps to rather than as a sixteenth of the v6 space -- ADR 0058 § 3
+    // names the mapped forms explicitly because omitting them is how this check is usually
+    // defeated.
+    let address = match address {
+        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+            Some(v4) => IpAddr::V4(v4),
+            None => IpAddr::V6(v6),
+        },
+        held => held,
+    };
+    match address {
+        IpAddr::V4(v4) => {
+            let octets = v4.octets();
+            if v4.is_loopback() {
+                Some("loopback (127.0.0.0/8)")
+            } else if octets[0] == 0 {
+                Some("unspecified (0.0.0.0/8)")
+            } else if v4.is_link_local() {
+                Some("link-local (169.254.0.0/16)")
+            } else if v4.is_private() {
+                Some("private (10/8, 172.16/12, 192.168/16)")
+            } else {
+                None
+            }
+        }
+        IpAddr::V6(v6) => {
+            let first = v6.segments()[0];
+            if v6.is_loopback() {
+                Some("loopback (::1)")
+            } else if v6.is_unspecified() {
+                Some("unspecified (::)")
+            } else if first & 0xffc0 == 0xfe80 {
+                Some("link-local (fe80::/10)")
+            } else if first & 0xfe00 == 0xfc00 {
+                Some("private (fc00::/7)")
+            } else {
+                None
+            }
+        }
+    }
+}
+
 impl Cap {
     /// Every capability, for a guard test and for `nvs meta`.
     pub const ALL: &'static [Self] = &[

@@ -28,7 +28,7 @@
 string $origin = "http://127.0.0.1:8099";
 
 // Allowed: laundered, pinned, and then fetched.
-string $url = Core\Http::allowUrl($origin . "/ok");
+Core\Http\Target $url = Core\Http::allowUrl($origin . "/ok");
 var $response = Core\Http\Client::get($url);
 echo "status=", $response->status, "\n";
 echo "body=", Core\Str::trim($response->text()), "\n";
@@ -39,7 +39,7 @@ echo "body=", Core\Str::trim($response->text()), "\n";
 // having been read from the environment.
 ?tainted string $configured = Core\Env::get("NVS_EXAMPLE_ORIGIN");
 try {
-    string $laundered = Core\Http::allowUrl($configured ?? "http://elsewhere.invalid/");
+    Core\Http\Target $laundered = Core\Http::allowUrl($configured ?? "http://elsewhere.invalid/");
     var $unreachable = Core\Http\Client::get($laundered);
     echo "accepted: tainted url", "\n";
 } catch (RuntimeError $refused) {
@@ -51,7 +51,7 @@ try {
 // grant reaches. Pinning is what makes this checkable at all — a policy
 // applied to the hostname would be re-resolved out from under itself.
 try {
-    string $metadata = Core\Http::allowUrl("http://169.254.169.254/latest/meta-data/");
+    Core\Http\Target $metadata = Core\Http::allowUrl("http://169.254.169.254/latest/meta-data/");
     var $leak = Core\Http\Client::get($metadata);
     echo "accepted: denied range", "\n";
 } catch (RuntimeError $refused) {

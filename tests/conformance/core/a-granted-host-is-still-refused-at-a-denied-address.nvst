@@ -1,0 +1,37 @@
+--TEST--
+a `net.connect` grant does not reach an address ADR 0058 § 3 denies, and the refusal names the range — ADR 0058 §§ 2-3, 5
+--FILE--
+<?nvs
+// Both hosts below are granted by name in `nvs.toml`, and both are still
+// refused. That is § 3's point: the grant answers "may this program talk to
+// that name", and the address policy answers "is that address one no
+// deployment means to expose", and the second question is asked of the
+// resolved address rather than of the name. A policy applied to the hostname
+// would be re-resolved out from under itself.
+try {
+    var $metadata = Core\Http::allowUrl("http://169.254.169.254/latest/meta-data/");
+    echo "accepted", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The private ranges are denied on the same reading, and for the reason the
+// link-local one above is called out separately: the cloud metadata endpoint
+// is the canonical target, and its omission is catastrophic rather than merely
+// regrettable.
+try {
+    var $internal = Core\Http::allowUrl("http://10.0.0.7/admin");
+    echo "accepted", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+# The grant is as wide as an operator can write it for these two names, and it
+# still buys nothing: ADR 0058 § 5 puts the address policy in the capability,
+# where it applies to every outbound connection rather than to whichever client
+# remembered to check.
+[capabilities.net]
+connect = ["169.254.169.254", "10.0.0.7"]
+--EXPECT--
+Core\Http::allowUrl refuses 169.254.169.254: it is link-local (169.254.0.0/16), which no grant reaches
+Core\Http::allowUrl refuses 10.0.0.7: it is private (10/8, 172.16/12, 192.168/16), which no grant reaches

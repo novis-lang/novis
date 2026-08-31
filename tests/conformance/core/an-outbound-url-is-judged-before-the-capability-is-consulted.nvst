@@ -1,0 +1,48 @@
+--TEST--
+`Core\Http::allowUrl` judges the text before it asks the deployment, so a refusal on the URL itself never depends on a grant — ADR 0058 §§ 1-2
+--FILE--
+<?nvs
+// ADR 0058 § 2 makes this the one door an outbound URL passes through, and the
+// order of its questions is part of the contract: what is wrong with the text
+// is decided here, and what is wrong with the deployment is decided by the
+// capability. A caller reading these four sentences can tell which of the two
+// they are looking at without knowing what the operator granted.
+
+// Not a URL at all. There is no host in it, so there is nothing the policy
+// could even be asked about.
+try {
+    var $bad = Core\Http::allowUrl("not a url");
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// A scheme outside the roster. `http` and `https` are the whole of it — a
+// launderer that approved anything else would be approving a protocol the
+// client cannot speak and the policy was never written for.
+try {
+    var $ftp = Core\Http::allowUrl("ftp://example.com/archive");
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// A URL with no authority. Pinning is a statement about an address, so a URL
+// naming no host is refused rather than approved vacuously.
+try {
+    var $hostless = Core\Http::allowUrl("http:/nothing");
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// And only then the deployment: this configuration grants `net.connect` to
+// nobody, so the host is refused before it is looked up. An ungranted program
+// cannot use this member as a resolver.
+try {
+    var $ungranted = Core\Http::allowUrl("http://example.com/status");
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--EXPECT--
+Core\Http::allowUrl: this text is not a URL, so there is no host in it to approve
+Core\Http::allowUrl: the scheme must be `http` or `https`, and this URL names `ftp`
+Core\Http::allowUrl: the URL names no host, so there is nothing to resolve and pin
+Core\Http::allowUrl needs the capability `net.connect` for example.com, which is not granted

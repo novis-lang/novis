@@ -1,0 +1,35 @@
+--TEST--
+`Core\Http::allowUrl` answers a `Core\Http\Target` rather than a `string`, and a name that resolves to nothing is refused — ADR 0058 § 2
+--FILE--
+<?nvs
+// The approval succeeds and the answer is a value, not laundered text. That is
+// the whole of § 2: a `string` answer would have removed `tainted` and left the
+// URL exactly as resolvable as it was, so a second lookup between the check and
+// the connection could answer differently. The type is written out here because
+// what it *is* is the guarantee — nothing is fetched, and no member of the
+// target exposes the address it holds.
+Core\Http\Target $pinned = Core\Http::allowUrl("http://93.184.216.34/ok");
+echo "pinned", "\n";
+
+// A granted name that resolves to no address at all is refused rather than
+// approved without one: there is no address to pin, and a target that carried
+// none would be a target the client had to re-resolve.
+try {
+    var $missing = Core\Http::allowUrl("http://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.invalid/");
+    echo "accepted", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+# A literal address is the one host a case can approve without a resolver: it
+# is public, so § 3's table lets it through, and nothing about the case depends
+# on what a name server would have said. The second name is over DNS's 63-octet
+# label limit, so every resolver refuses it locally.
+[capabilities.net]
+connect = [
+  "93.184.216.34",
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.invalid",
+]
+--EXPECT--
+pinned
+Core\Http::allowUrl could not resolve aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.invalid, so there is no address to pin

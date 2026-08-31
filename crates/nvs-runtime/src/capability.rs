@@ -7,9 +7,9 @@
 //! § 2's filesystem doors — [`open_read`], [`metadata`], [`exists`] and [`canonicalize`] behind
 //! `fs.read`, [`write()`],
 //! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write` — [`exec`] is the process
-//! door behind `process.exec`, and `connect` arrives
-//! with the first `Core` member that needs it; each of them calls [`require`] before it names a
-//! spelling that
+//! door behind `process.exec`, and [`pin_host`] is the outbound one behind `net.connect`, which
+//! answers an address rather than a yes for ADR 0058 § 2's reason; each of them calls [`require`]
+//! before it names a spelling that
 //! performs the effect, which is what makes § 2's claim structural rather than a convention: a member
 //! reaches the OS through a door or not at all, and every door has already asked.
 //!
@@ -82,6 +82,68 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
         Scope::Host(host) | Scope::Name(host) => {
             format!("{member} needs the capability `{name}` for {host}, which is not granted")
         }
+    }
+}
+
+/// [ADR 0058](../../../docs/adr/0058-outbound-request-policy.md)'s outbound door: the one address
+/// `host` is approved to be reached at, once [`Cap::NetConnect`] has been shown to cover the name
+/// and § 3's policy has been shown to cover the address.
+///
+/// **The address is the answer, and that is § 2's load-bearing part.** A door that said only "yes"
+/// would leave a gap between this check and the connection in which a second DNS resolution could
+/// answer differently — the rebinding attack — so the caller is handed the address that was
+/// approved and connects to *that*. Every retry of a call reuses it and only a redirect hop asks
+/// again ([ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 6).
+///
+/// **Here rather than in `nvs-stdlib`**, for § 5's reason and for this crate's: the policy is one
+/// policy across `Core\Http`, `Core\Net` and `Core\Db::open`, and resolution is an operating-system
+/// effect, which every `Core` member reaches through a door in this module and through nothing
+/// else.
+///
+/// The resolution is synchronous. `Core\Http\Client`'s own transport will run over the parking
+/// stream, and moving this call onto the blocking pool belongs with it rather than ahead of it —
+/// what it costs today is one core parked in the resolver for the length of a lookup, which is the
+/// same cost the file doors above already pay.
+///
+/// `member` is what a refusal names — see [`require`].
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `net.connect` for
+/// `host`; a `RuntimeError` when the name resolves to no address at all; and a `RuntimeError`
+/// naming the range when the address it resolves to is one § 3 denies. The order is the point: a
+/// host outside the grant is refused before it is looked up, so an ungranted program cannot use
+/// this door as a resolver.
+pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
+    use std::net::{IpAddr, ToSocketAddrs};
+
+    require(ctx, Cap::NetConnect, Scope::Host(host), member)?;
+
+    // A bracketed IPv6 literal is written `[::1]` inside an authority and is not one anywhere else,
+    // so the brackets come off before the address is read and stay off afterwards.
+    let bare = host
+        .strip_prefix('[')
+        .and_then(|held| held.strip_suffix(']'))
+        .unwrap_or(host);
+    let address = match bare.parse::<IpAddr>() {
+        Ok(literal) => literal,
+        Err(_) => (host, 0_u16)
+            .to_socket_addrs()
+            .ok()
+            .and_then(|mut found| found.next())
+            .map(|socket| socket.ip())
+            .ok_or_else(|| {
+                Fault::thrown(format!(
+                    "{member} could not resolve {host}, so there is no address to pin"
+                ))
+            })?,
+    };
+
+    match nvs_config::capability::denied_by_default(address) {
+        Some(range) => Err(Fault::thrown(format!(
+            "{member} refuses {address}: it is {range}, which no grant reaches"
+        ))),
+        None => Ok(address),
     }
 }
 

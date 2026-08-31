@@ -225,6 +225,7 @@ pub mod format;
 pub mod granularity;
 mod hash;
 mod heap;
+mod http;
 mod identity_store;
 mod instance;
 pub mod io;
@@ -334,6 +335,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| io::address(symbol))
         .or_else(|| hash::address(symbol))
         .or_else(|| heap::address(symbol))
+        .or_else(|| http::address(symbol))
         .or_else(|| json::address(symbol))
         .or_else(|| jwt::address(symbol))
         .or_else(|| math::address(symbol))
