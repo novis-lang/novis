@@ -103,7 +103,7 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
     }
 
     if let Some(source) = &case.skipif {
-        match run_nvs(opts, workdir, "skipif.nvs", source, Subcommand::Run) {
+        match run_nvs(opts, workdir, "skipif.nvs", source, Subcommand::Run, &[]) {
             Err(error) => return Outcome::Fail(vec![format!("--SKIPIF--: {error}")]),
             Ok(output) => {
                 let text = String::from_utf8_lossy(&output.stdout);
@@ -126,13 +126,13 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         // `--CLEAN--`'s whole job is tidying up after the case; its own
         // output is not an expectation and a failure in it must not turn a
         // passing case red.
-        let _ = run_nvs(opts, workdir, "clean.nvs", source, Subcommand::Run);
+        let _ = run_nvs(opts, workdir, "clean.nvs", source, Subcommand::Run, &[]);
     }
     outcome
 }
 
 fn judge(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
-    let output = match run_nvs(opts, workdir, "case.nvs", &case.file, case.run) {
+    let output = match run_nvs(opts, workdir, "case.nvs", &case.file, case.run, &case.args) {
         Ok(output) => output,
         Err(error) => return Outcome::Fail(vec![format!("could not run the case: {error}")]),
     };
@@ -233,12 +233,17 @@ fn run_nvs(
     name: &str,
     source: &str,
     sub: Subcommand,
+    program_args: &[String],
 ) -> io::Result<Output> {
     fs::write(workdir.join(name), source)?;
     let mut args: Vec<&OsStr> = sub.args().iter().map(AsRef::as_ref).collect();
     if sub.takes_file() {
         args.push(name.as_ref());
     }
+    // Past the file, so `nvs run` reads none of them as its own — the same
+    // boundary `nvs run`'s trailing arguments have on a real command line, and
+    // the reason a case's arguments can name a `--dryRun` of their own.
+    args.extend(program_args.iter().map(|arg| arg.as_ref() as &OsStr));
     spawn(&opts.nvs, &args, workdir)
 }
 

@@ -128,6 +128,16 @@ pub struct Case {
     pub file: String,
     /// `--RUN--`, the subcommand that program is run through.
     pub run: Subcommand,
+    /// `--ARGS--`, the program's own arguments — **one per line**, and never a
+    /// command line to be split.
+    ///
+    /// A line is an argument whatever it contains, so a space, a quote or a
+    /// backslash in one needs no escaping and gets none: this format has no
+    /// shell, exactly as [ADR 0044](../../../docs/adr/0044-core-process-argv-only-no-shell.md)
+    /// gives `Core\Process` none. Empty lines are dropped, which is what makes a
+    /// section written with a blank line under the header the same as an absent
+    /// one.
+    pub args: Vec<String>,
     /// Every `--FILE <relative/path>--`, in the order they were written.
     pub aux: Vec<AuxFile>,
     /// `--EXPECT--` or `--EXPECTF--`, matched against standard output.
@@ -216,10 +226,6 @@ const NOT_YET: &[(&str, &str)] = &[
     (
         "INI",
         "`nvs.toml` is not read until M6 (ADR 0064), so an --INI-- section cannot be honoured",
-    ),
-    (
-        "ARGS",
-        "argv is unreachable until `Core\\Cli` lands at M8, so an --ARGS-- section cannot be honoured",
     ),
     (
         "ENV",
@@ -477,6 +483,13 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
     Ok(Case {
         path: path.to_path_buf(),
         title,
+        args: take("ARGS").map_or_else(Vec::new, |(_, body)| {
+            body.lines()
+                .map(str::trim_end)
+                .filter(|line| !line.is_empty())
+                .map(str::to_owned)
+                .collect()
+        }),
         skipif: take("SKIPIF")
             .map(|(_, body)| body)
             .filter(|body| !body.trim().is_empty()),
@@ -651,8 +664,8 @@ mod tests {
     }
 
     #[test]
-    fn the_three_deferred_sections_parse_but_mark_the_case_unsupported() {
-        for (name, needle) in [("INI", "M6"), ("ARGS", "M8"), ("ENV", "M8")] {
+    fn the_two_deferred_sections_parse_but_mark_the_case_unsupported() {
+        for (name, needle) in [("INI", "M6"), ("ENV", "M8")] {
             let text = format!("--TEST--\nt\n--{name}--\nx=1\n--FILE--\n<?nvs\n--EXPECT--\n\n");
             let parsed = case(&text).expect("a deferred section still parses");
             let why = parsed.unsupported.expect("it marks the case unsupported");
@@ -662,9 +675,23 @@ mod tests {
 
     #[test]
     fn an_empty_deferred_section_does_not_mark_the_case() {
-        let parsed = case("--TEST--\nt\n--ARGS--\n\n--FILE--\n<?nvs\n--EXPECT--\n\n")
+        let parsed = case("--TEST--\nt\n--INI--\n\n--FILE--\n<?nvs\n--EXPECT--\n\n")
             .expect("an empty deferred section parses");
         assert!(parsed.unsupported.is_none());
+    }
+
+    /// One line is one argument whatever it holds, and an empty line is not an
+    /// argument at all — the two halves of [`Case::args`]'s rule, which is what
+    /// makes a section written with a blank line the same as an absent one.
+    #[test]
+    fn every_args_line_is_one_argument_and_a_blank_one_is_none() {
+        let parsed = case(
+            "--TEST--\nt\n--ARGS--\ngreet\nada lovelace\n\n--dryRun\n--FILE--\n<?nvs\n--EXPECT--\n\n",
+        )
+        .expect("an args section parses");
+        assert_eq!(parsed.args, ["greet", "ada lovelace", "--dryRun"]);
+        let bare = case("--TEST--\nt\n--FILE--\n<?nvs\n--EXPECT--\n\n").expect("no args section");
+        assert!(bare.args.is_empty());
     }
 
     #[test]

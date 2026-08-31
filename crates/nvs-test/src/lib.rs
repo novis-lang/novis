@@ -29,7 +29,7 @@
 //! | `--SKIPIF--` | a program whose output starting `skip` skips the case |
 //! | `--CLEAN--` | a program run afterwards, whose output is ignored |
 //! | `--INI--` | configuration for the run |
-//! | `--ARGS--` | extra arguments for the run |
+//! | `--ARGS--` | the program's own arguments, one per line |
 //! | `--ENV--` | environment variables for the run |
 //!
 //! Six are Novis's own. Two of those are the differential pair
@@ -135,12 +135,19 @@
 //!
 //! ## What is parsed but not yet honoured
 //!
-//! `--INI--`, `--ARGS--` and `--ENV--` parse — that is what keeps the M11
-//! importer mechanical — but nothing can act on them yet: `nvs.toml` is not
-//! read until M6 ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)),
-//! and argv and the environment are unreachable until `Core\Cli` and
-//! `Core\Env` land at M8. A case that uses one is reported as a **failure**
-//! naming the milestone, never run-and-half-ignored.
+//! `--INI--` and `--ENV--` parse — that is what keeps the M11 importer
+//! mechanical — but nothing can act on them yet: `nvs.toml` is not read until
+//! M6 ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)), and
+//! the environment is unreachable until `Core\Env` lands at M8. A case that
+//! uses one is reported as a **failure** naming the milestone, never
+//! run-and-half-ignored.
+//!
+//! `--ARGS--` **is** honoured, since
+//! [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+//! `Core\Command::run` gave `nvs run` a command line to pass on. Its lines are
+//! appended past the case file, so they are the program's arguments and never
+//! the runner's, and each line is one argument with no splitting and no
+//! quoting — [`case::Case::args`] owns why.
 //!
 //! ## Known gaps
 //!

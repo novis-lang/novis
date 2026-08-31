@@ -1,0 +1,37 @@
+--TEST--
+`Core\Command::run` calls the handler the command line's first word names, with the arguments it matched — ADR 0086 § 6
+--FILE--
+<?nvs
+// § 6's one deliberate divergence from ADR 0077: this table *dispatches*. The
+// handler is a `public static` method, and the compiled table carries it as a
+// `Class::method` string, so nothing here names it a second time — the word
+// `greet` below selects it and the words past that fill its parameters.
+//
+// `string $name` arrives as the text that was written and the `#[Core\Option]
+// bool $loud` is a flag, given by being written rather than by carrying a
+// value. The handler's own `uint` is what the process should exit with, and it
+// is what `run` answers.
+class Greeter {
+    #[Core\Command(name: "greet", about: "Greet somebody by name")]
+    public static function greet(string $name, #[Core\Option] bool $loud = false): uint {
+        string $greeting = "Hello, " . $name . "!";
+        if ($loud) {
+            $greeting = Core\Str::upper($greeting);
+        }
+        echo "greet: ", $greeting, "\n";
+        return 3;
+    }
+}
+
+// The status is taken first, because the handler's own output is written while
+// `run` is still being evaluated: `echo "status: ", Core\Command::run()` would
+// print the label before the line the handler echoes.
+uint $status = Core\Command::run();
+echo "status: ", $status, "\n";
+--ARGS--
+greet
+ada lovelace
+--loud
+--EXPECT--
+greet: HELLO, ADA LOVELACE!
+status: 3

@@ -1,0 +1,28 @@
+--TEST--
+`Core\Command::run` throws for a `#[Command]` parameter no argument's text is converted into yet, rather than guessing — ADR 0086 § 6
+--FILE--
+<?nvs
+// § 6 admits `decimal` among the types an argument may be given at, and this
+// runtime does not convert one yet. The two wrong answers are a plausible zero
+// and a usage error blaming the command line, so it is neither: a `LogicError`,
+// which is what a mistake in the *program* is, since the table is fixed at
+// compile time and no input can change what this row declares.
+class Ledger {
+    #[Core\Command(name: "deposit")]
+    public static function deposit(decimal $amount): uint {
+        echo "deposit ran\n";
+        return 0;
+    }
+}
+
+try {
+    uint $status = Core\Command::run();
+    echo "status: ", $status, "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--ARGS--
+deposit
+1.50
+--EXPECT--
+`Core\Command::run` cannot convert an argument into the type `deposit`'s `amount` is declared at yet

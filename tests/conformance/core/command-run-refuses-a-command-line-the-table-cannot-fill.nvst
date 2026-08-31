@@ -1,0 +1,27 @@
+--TEST--
+`Core\Command::run` answers a command line its table cannot fill with a usage status, and runs no handler — ADR 0086 § 6
+--FILE--
+<?nvs
+// A command line is *input*, so nothing about one is a throw: § 6's answer to a
+// word the table has no row for is a usage error — the generated page to
+// standard error, and a status the caller decides what to do with. The two
+// halves worth pinning are that the status comes back at all, and that the
+// handler did not run: a matcher that called it with a missing argument would
+// print the first line below either way.
+class Greeter {
+    #[Core\Command(name: "greet", about: "Greet somebody by name")]
+    public static function greet(string $name, #[Core\Option] bool $loud = false): uint {
+        echo "greet ran, and nothing on this command line selected it\n";
+        return 0;
+    }
+}
+
+// `greet` is spelled right and its one positional is missing, which is the
+// failure a parser is most likely to answer with a plausible empty string.
+echo "status: ", Core\Command::run(), "\n";
+echo "still running", "\n";
+--ARGS--
+greet
+--EXPECT--
+status: 2
+still running
