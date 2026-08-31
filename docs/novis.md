@@ -110,6 +110,8 @@ Conventions the whole file uses:
 | [`Core\Jwt`](#core-core-jwt) |  |
 | [`Core\Http`](#core-core-http) |  |
 | [`Core\Http\Target`](#core-core-http-target) |  |
+| [`Core\Http\Client`](#core-core-http-client) |  |
+| [`Core\Http\Response`](#core-core-http-response) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -15155,6 +15157,147 @@ Checks `$url` against the outbound policy and pins it: the scheme, the `net.conn
 
 <a id="core-core-http-target"></a>
 ### `Core\Http\Target`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
+
+<a id="core-core-http-client"></a>
+### `Core\Http\Client`
+
+Keywords: get, post, put, delete, head
+
+| Member | Signature |
+|---|---|
+| [`Core\Http\Client::get`](#core-core-http-client-get) | `get(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string}): Core\Http\Response` |
+| [`Core\Http\Client::post`](#core-core-http-client-post) | `post(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string}): Core\Http\Response` |
+| [`Core\Http\Client::put`](#core-core-http-client-put) | `put(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string}): Core\Http\Response` |
+| [`Core\Http\Client::delete`](#core-core-http-client-delete) | `delete(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string}): Core\Http\Response` |
+| [`Core\Http\Client::head`](#core-core-http-client-head) | `head(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string}): Core\Http\Response` |
+
+<a id="core-core-http-client-get"></a>
+#### `Core\Http\Client::get`
+
+```nvs skip
+Core\Http\Client::get(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string}): Core\Http\Response
+```
+
+Fetches `$url` under a finite budget, over the address the outbound policy pinned.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
+| `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
+| `{headers: …}` | `array<string>` (default `[]`) | Extra request headers, by name. The runtime's own headers are added around these. |
+| `{followRedirects: …}` | `uint` (default `null`) | How many redirect hops to follow. Omitted, the runtime's `[http.client] max_redirects` applies, and that is `0` with nothing configured: each hop is re-checked and re-pinned against the outbound policy. |
+| `{retryAttempts: …}` | `uint` (default `null`) | The total number of attempts including the first, so `1` is the default behaviour written out and `0` is refused. Retries are jittered and share the one deadline. |
+| `{retryBackoff: …}` | `Core\Time\Duration` (default `null`) | The base delay retries grow from, exponentially and with full jitter. Omitted, it is `100ms`; the jitter is not configurable. |
+| `{retryIdempotencyKey: …}` | `string` (default `null`, neutral) | Sent as `Idempotency-Key`, identical across attempts. Required for `post` when `retryAttempts` is given, and accepted by every other member. |
+
+**Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status, the headers and the body of the reply. **The transport behind this member is not built yet**, so today it throws instead of answering.
+
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. And, while the transport is unbuilt, the send itself.
+
+<a id="core-core-http-client-post"></a>
+#### `Core\Http\Client::post`
+
+```nvs skip
+Core\Http\Client::post(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string}): Core\Http\Response
+```
+
+Sends a `POST` to `$url` under a finite budget. The one member whose retries need `retryIdempotencyKey`, because a repeated `POST` is a second effect rather than a second question.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
+| `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
+| `{headers: …}` | `array<string>` (default `[]`) | Extra request headers, by name. The runtime's own headers are added around these. |
+| `{followRedirects: …}` | `uint` (default `null`) | How many redirect hops to follow. Omitted, the runtime's `[http.client] max_redirects` applies, and that is `0` with nothing configured: each hop is re-checked and re-pinned against the outbound policy. |
+| `{retryAttempts: …}` | `uint` (default `null`) | The total number of attempts including the first, so `1` is the default behaviour written out and `0` is refused. Retries are jittered and share the one deadline. |
+| `{retryBackoff: …}` | `Core\Time\Duration` (default `null`) | The base delay retries grow from, exponentially and with full jitter. Omitted, it is `100ms`; the jitter is not configurable. |
+| `{retryIdempotencyKey: …}` | `string` (default `null`, neutral) | Sent as `Idempotency-Key`, identical across attempts. Required for `post` when `retryAttempts` is given, and accepted by every other member. |
+
+**Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status, the headers and the body of the reply. **The transport behind this member is not built yet**, so today it throws instead of answering.
+
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. And, while the transport is unbuilt, the send itself.
+
+<a id="core-core-http-client-put"></a>
+#### `Core\Http\Client::put`
+
+```nvs skip
+Core\Http\Client::put(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string}): Core\Http\Response
+```
+
+Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its retries need no key.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
+| `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
+| `{headers: …}` | `array<string>` (default `[]`) | Extra request headers, by name. The runtime's own headers are added around these. |
+| `{followRedirects: …}` | `uint` (default `null`) | How many redirect hops to follow. Omitted, the runtime's `[http.client] max_redirects` applies, and that is `0` with nothing configured: each hop is re-checked and re-pinned against the outbound policy. |
+| `{retryAttempts: …}` | `uint` (default `null`) | The total number of attempts including the first, so `1` is the default behaviour written out and `0` is refused. Retries are jittered and share the one deadline. |
+| `{retryBackoff: …}` | `Core\Time\Duration` (default `null`) | The base delay retries grow from, exponentially and with full jitter. Omitted, it is `100ms`; the jitter is not configurable. |
+| `{retryIdempotencyKey: …}` | `string` (default `null`, neutral) | Sent as `Idempotency-Key`, identical across attempts. Required for `post` when `retryAttempts` is given, and accepted by every other member. |
+
+**Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status, the headers and the body of the reply. **The transport behind this member is not built yet**, so today it throws instead of answering.
+
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. And, while the transport is unbuilt, the send itself.
+
+<a id="core-core-http-client-delete"></a>
+#### `Core\Http\Client::delete`
+
+```nvs skip
+Core\Http\Client::delete(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string}): Core\Http\Response
+```
+
+Sends a `DELETE` to `$url` under a finite budget.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
+| `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
+| `{headers: …}` | `array<string>` (default `[]`) | Extra request headers, by name. The runtime's own headers are added around these. |
+| `{followRedirects: …}` | `uint` (default `null`) | How many redirect hops to follow. Omitted, the runtime's `[http.client] max_redirects` applies, and that is `0` with nothing configured: each hop is re-checked and re-pinned against the outbound policy. |
+| `{retryAttempts: …}` | `uint` (default `null`) | The total number of attempts including the first, so `1` is the default behaviour written out and `0` is refused. Retries are jittered and share the one deadline. |
+| `{retryBackoff: …}` | `Core\Time\Duration` (default `null`) | The base delay retries grow from, exponentially and with full jitter. Omitted, it is `100ms`; the jitter is not configurable. |
+| `{retryIdempotencyKey: …}` | `string` (default `null`, neutral) | Sent as `Idempotency-Key`, identical across attempts. Required for `post` when `retryAttempts` is given, and accepted by every other member. |
+
+**Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status, the headers and the body of the reply. **The transport behind this member is not built yet**, so today it throws instead of answering.
+
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. And, while the transport is unbuilt, the send itself.
+
+<a id="core-core-http-client-head"></a>
+#### `Core\Http\Client::head`
+
+```nvs skip
+Core\Http\Client::head(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string}): Core\Http\Response
+```
+
+Asks `$url` for its headers alone, under the same budget a `get` would have.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
+| `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
+| `{headers: …}` | `array<string>` (default `[]`) | Extra request headers, by name. The runtime's own headers are added around these. |
+| `{followRedirects: …}` | `uint` (default `null`) | How many redirect hops to follow. Omitted, the runtime's `[http.client] max_redirects` applies, and that is `0` with nothing configured: each hop is re-checked and re-pinned against the outbound policy. |
+| `{retryAttempts: …}` | `uint` (default `null`) | The total number of attempts including the first, so `1` is the default behaviour written out and `0` is refused. Retries are jittered and share the one deadline. |
+| `{retryBackoff: …}` | `Core\Time\Duration` (default `null`) | The base delay retries grow from, exponentially and with full jitter. Omitted, it is `100ms`; the jitter is not configurable. |
+| `{retryIdempotencyKey: …}` | `string` (default `null`, neutral) | Sent as `Idempotency-Key`, identical across attempts. Required for `post` when `retryAttempts` is given, and accepted by every other member. |
+
+**Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status, the headers and the body of the reply. **The transport behind this member is not built yet**, so today it throws instead of answering.
+
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. And, while the transport is unbuilt, the send itself.
+
+<a id="core-core-http-response"></a>
+### `Core\Http\Response`
 
 Keywords: 
 
