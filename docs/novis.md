@@ -102,6 +102,7 @@ Conventions the whole file uses:
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
 | [`Core\Env`](#core-core-env) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
+| [`Core\Log`](#core-core-log) |  |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
 | [`Core\Crypto`](#core-core-crypto) | authenticated encryption with no cipher, mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted |
@@ -14644,6 +14645,34 @@ Registers the closure this request runs when a resource limit stops it — memor
 
 **Returns** `void` — Nothing. Registering is request-local and a second call replaces the first: the handler is gone when the request ends, and no other request on this core can see it.
 
+<a id="core-core-log"></a>
+### `Core\Log`
+
+Keywords: write
+
+| Member | Signature |
+|---|---|
+| [`Core\Log::write`](#core-core-log-write) | `write(Core\Log\Level $level, string $message, array<mixed> $fields = []): void` |
+
+<a id="core-core-log-write"></a>
+#### `Core\Log::write`
+
+```nvs skip
+Core\Log::write(Core\Log\Level $level, string $message, array<mixed> $fields = []): void
+```
+
+Writes one log record — the same record, through the same writer, the engine itself uses when it reports for a program that has stopped, so a log pipeline never sees two shapes for one event. The rendering at a log target is JSON Lines: one object per line.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$level` | `Core\Log\Level` | How loud the record is. `Core\Log\Level`'s five cases carry their own syslog severities. |
+| `$message` | `string` (neutral) | What happened, as one plain sentence. A `tainted` value is accepted here — a log record is data and recording untrusted input is the point — while a `secret` one is refused, which is the rule for every message a human reads. |
+| `$fields` | `array<mixed>` (default `[]`) | Structured context, written as a `fields` object beside the message rather than pasted into it. Omitted from the record entirely when it is empty, so an ordinary call costs no key. |
+
+**Returns** `void` — Nothing. A record that cannot be written is dropped rather than retried: the log is not the program's storage.
+
+**Throws** `LogicError` — A `fields` value has no JSON encoding — a closure, or a value nested past the depth `Core\Json::encode` accepts. The bag was built by the program, so an unwritable one is a bug in it.
+
 <a id="core-core-secret"></a>
 ### `Core\Secret`
 
@@ -15674,6 +15703,19 @@ The algorithm a `Core\Hash` member computes — every one PHP's `hash()` names t
 | `Core\Digest::Sha3_512` | SHA3-512, 64 octets; a `StrongDigest`. |
 | `Core\Digest::Crc32c` | CRC-32C/Castagnoli, 4 octets — the checksum S3 and GCS stamp objects with. |
 | `Core\Digest::Blake3` | BLAKE3, 32 octets — the fastest here and the one PHP cannot compute; outside `StrongDigest` because it is keyed natively rather than through HMAC. |
+
+<a id="enum-core-log-level"></a>
+#### `Core\Log\Level`
+
+How loud a log record is — five cases, each valued by its own syslog severity so that a `syslog` target needs no second table. A smaller number is a louder record.
+
+| Case | Meaning |
+|---|---|
+| `Core\Log\Level::Debug` | Detail kept for whoever is looking at this run; `Core\Debug::dump`'s own destination. |
+| `Core\Log\Level::Info` | Something the program did that an operator would want in the record. |
+| `Core\Log\Level::Warn` | Something recoverable that nobody chose — a retry, a fallback, a deprecated path still in use. |
+| `Core\Log\Level::Error` | An operation failed. An uncaught `Throwable` is reported at this level. |
+| `Core\Log\Level::Critical` | The escalation ladder's own level: a resource limit stopped the request, or the engine floor is reporting for a program that can no longer report for itself. |
 
 <a id="enum-core-http-method"></a>
 #### `Core\Http\Method`
