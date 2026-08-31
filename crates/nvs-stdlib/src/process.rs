@@ -381,9 +381,9 @@ fn captured(receiver: Value, index: usize, member: &str) -> Result<Value, Fault>
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use nvs_runtime::{Ctx, Fault, ThrownClass};
+
+    use crate::tests::granting;
 
     use super::{CLASS, CoreTy, Path, RESULT, RUN_MEMBER};
 
@@ -391,21 +391,6 @@ mod tests {
     /// of this class, because [`super::nvs_core_process_run`] is all five: they differ only in
     /// what they do with the output, and this module's own docs own that reading.
     const SHELL_SPELLINGS: &[&str] = &["exec", "system", "shellExec", "passthru", "backtick"];
-
-    /// A snapshot built from the text an operator would have written, for the reason
-    /// `nvs_runtime::capability`'s own cases state: the boot path deserializes, so a case that
-    /// constructed the typed tree directly would pin a grant no configuration file can express.
-    fn granting(written: &str) -> Arc<nvs_config::Snapshot> {
-        let table: toml::Table = written.parse().expect("the case writes valid TOML");
-        Arc::new(nvs_config::Snapshot {
-            config: table
-                .clone()
-                .try_into()
-                .expect("the case writes a block this tree has"),
-            table,
-            ..nvs_config::Snapshot::default()
-        })
-    }
 
     /// Whether a parameter is somewhere a command line could be written — both spellings of
     /// `string`, since [`CoreTy::Str`] and [`CoreTy::Text`] differ in classification and not in

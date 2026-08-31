@@ -369,6 +369,29 @@ fn address_of(symbol: &'static str) -> *const u8 {
 mod tests {
     use super::*;
 
+    /// A snapshot built from the text an operator would have written, for the
+    /// reason `nvs_runtime::capability`'s own cases state: the boot path
+    /// deserializes, so a case that constructed the typed tree directly would
+    /// pin a grant no configuration file can express.
+    ///
+    /// Here rather than in each module that grants something, because a
+    /// capability case in `process` and one in `http` ask the same question of
+    /// the same loader, and a second copy would be a second reading of what a
+    /// configuration file can say. Inside this module rather than beside it
+    /// because `nvs_stdlib_reaches_the_os_only_through_the_gate` scans each file
+    /// down to its *first* `#[cfg(test)]` and asserts there is only one.
+    pub(crate) fn granting(written: &str) -> std::sync::Arc<nvs_config::Snapshot> {
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        std::sync::Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        })
+    }
+
     /// Every registered member — and every constructible class's `new` symbol
     /// — resolves to an address, which is the check the `symbols` panic
     /// exists for, run once rather than left to whichever program first calls
