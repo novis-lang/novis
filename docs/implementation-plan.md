@@ -59,9 +59,9 @@
 > spelling ADR 0060 § 5 was owed. **Stage 5 is open at its door**: `Core\Http::allowUrl` is a row, a
 > card and a body, answering a pinned `Core\Http\Target` rather than a laundered string, and ADR
 > 0058 § 3's denied ranges are one table in `nvs_config` behind `nvs_runtime::capability::pin_host`.
-> `Core\Http\Client` is five rows over one `Core\Http\Options` bag — the compile-time half whole,
-> and no transport behind it, so `examples/http.nvs` still fails. Conformance 1151, differential 210
-> of 210, migration 37% over its 36% floor.
+> `Core\Http\Client` is five rows over one `Core\Http\Options` bag — compile-time whole, § 7's
+> keyless `post` retry refused as `E0796`, and no transport behind it, so `examples/http.nvs` still
+> fails. Conformance 1152, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

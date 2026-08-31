@@ -3419,6 +3419,14 @@ is why" — is this file.
   appeared verbatim in the failure's *actual* column, so the diff reads as "identical text, refused"
   and the eye goes to the line numbers. Pin a help line when it is the claim — the option roster in
   `no-client-member-accepts-an-unbounded-wait.nvst` is — and put a `%A` on the line after it.
+- **A `nvs-types` test that has to *compile a snippet* lives in `crates/nvs-types/tests/`, never
+  beside the registry tests in `src/`.** The handoff anchored
+  `a_post_retried_without_an_idempotency_key_is_a_compile_error` at `core_lib.rs:896`, whose inline
+  `mod tests` asks the *lowered registry* its questions — it holds no source-checking harness and
+  never sees a diagnostic, so the anchor was for the wrong host. `tests/common/mod.rs`'
+  `check_in_method`/`check_src` are the harness, and `tests/core_members.rs` is the file that owns
+  every options-bag rule. A `loop-goal.toml` check spelled `args = ["test", "-p", "nvs-types"]` runs
+  both targets, so nothing about *being found* decides this — only which fixture exists.
 
 ## Splitting a file that got too big
 

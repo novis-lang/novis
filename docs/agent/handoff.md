@@ -2,67 +2,59 @@
 
 ## State
 
-**Stage 5's compile-time half is closed.** `Core\Http\Client` is five rows — `get`, `post`, `put`,
-`delete`, `head` — each over ADR 0058 § 1's sink (`string | Core\Http\Target`, both unqualified) and
-one trailing `Core\Http\Options` bag, in `crates/nvs-stdlib/src/http.rs`. Its module doc is the one
-home for why `retry` is flat, why there is no body parameter yet, and why `Core\Http\Response` is a
-name with nothing behind it.
+**Stage 5's compile-time half is closed, ADR 0074 § 7 included.** A `post` writing `retryAttempts`
+without `retryIdempotencyKey` is `E0796`: `nvs_types::expr::args`' `reject_keyless_retry`, reached
+from the static-call path in `expr/calls.rs` and from nowhere else, because every member carrying
+the obligation is a static one. Its own doc comment is the home for why R2 is what makes the
+question answerable while compiling.
 
-**ADR 0074 § 5's nested `retry` shape is now three flat options** — `retryAttempts`, `retryBackoff`,
-`retryIdempotencyKey`. A bag flattens to one ABI argument per option, so a bag nested inside one has
-nothing to flatten into and the registry refuses it. § 5's own type block, §§ 6-7's prose and the
-spec's § 16 row were amended to the flat spelling; the ADR body is the rule.
+**The rule holds no copy of a spelling, and one absence in it is a decision.**
+`nvs_stdlib::registry::idempotent_retry_rule` answers which member owes a key and under which two
+option names; `crate::http`'s `RETRY_ATTEMPTS_OPTION`/`RETRY_KEY_OPTION` are what both the rows and
+the rule read. An omitted `retryAttempts` obliges nothing — `IdempotentRetry::asks` is that
+judgement's home — because no `[http.client]` figure turns retries on behind a call today; if a
+config default ever lands, that is what has to move with it. `patch` is already named though no
+such row exists.
 
-**There is no transport, and every row says so at run time.** A request member resolves and pins
-(`string` argument), judges § 5's bounds and § 6's attempt count, and then throws
-`… the request is approved and there is no transport behind it yet`. That sentence is pinned by
-`every-client-member-judges-a-request-before-it-leaves-the-process.nvst` and is the one expectation
-in the suite the transport slice deletes.
+**There is still no transport**, so every row ends at
+`crates/nvs-stdlib/src/http.rs:629`'s refusal and `examples/http.nvs` still fails. That is what the
+driver's acceptance check reports and it is this stage's ordinary state, not a regression: closing
+it needs all three of the transport, `Core\Http\Response`'s slots and readers, and a spelling for
+the example's environment read.
 
-**Three of the item's four `nvs-types` tests are green.**
-`no_client_member_accepts_an_unbounded_timeout` (`crates/nvs-types/src/core_lib.rs:896`) asks the
-lowered bag, not the row: every bound describes as exactly `Core\Time\Duration`, none is nullable,
-and each defaults to *not given*. `a_post_retried_without_an_idempotency_key_is_a_compile_error` is
-still open — it needs a diagnostic, and it is the next group's first slice.
-
-**`examples/http.nvs` fails on three things now, none of them the client's rows.**
-`$response->status` is a property read, and a `Core` instance has no property a program can reach
-(`registry::CoreClass::slots`' own doc) — so either the example takes a member call or that rule
-moves; `$response->text()` needs `Core\Http\Response`'s readers; and `Core\Env::get` has no row in
-`nvs_stdlib::registry` at all.
-
-**The manifest gap the last two handoffs carried is closed, by being wrong.** `[context] modules`
-already globs `crates/nvs-stdlib/src/*.rs`, and names `nvs-host/src/net.rs` and `blocking.rs` rather
-than the dead `pool.rs`/`stream.rs` pair. ADR 0074 §§ 5-7 are ~3k of pack and belong to three stage-5
-sessions out of the goal's remainder, so they stay sliced per item rather than added to
-`[context] adrs`. Nothing is blocked.
+**`Core\Env` exists nowhere but in that example.** No ADR 0051 § 3 roster line, no
+`docs/spec/01-core-library.md` row, no registry class — so item 3 below is a *placement* decision
+(roster line, spec row, and whether reading the environment is one of ADR 0118's doors), not a
+five-edit member. `Core\Config::get` reads `nvs.toml` rather than the environment, so it is not the
+existing spelling either.
 
 ## Next group
 
-**Stage 5's transport, and the one refusal that is still a promise.** The file set is
-`crates/nvs-stdlib/src/http.rs`, `crates/nvs-types/src/expr/args.rs`,
-`crates/nvs-types/src/core_lib.rs` and `tests/conformance/core/`.
+**The transport, and the two things `examples/http.nvs` needs beside it.** The file set is
+`crates/nvs-stdlib/src/http.rs`, `crates/nvs-host/src/net.rs`, `crates/nvs-stdlib/src/registry.rs`
+and `tests/conformance/core/`.
 
-- [ ] **`post` with a retry and no idempotency key is a compile error** — ADR 0074 § 7. The options
-      bag is a written shape literal and the verb is the member's own name, so both halves are known
-      at `crates/nvs-types/src/expr/args.rs:631`, where `E0454` already refuses an unknown option
-      key. A new code beside `crates/nvs-diagnostics/src/lib.rs:2608` (`E0796` is free), and the
-      test goes beside `crates/nvs-types/src/core_lib.rs:896`.
-- [ ] **`Core\Http\Response`, its readers and the transport** — ADR 0074 §§ 5-6, ADR 0058 § 4. The
-      class is `crates/nvs-stdlib/src/http.rs:410` with no slots and no members on purpose; the
-      request body that throws instead of sending is `crates/nvs-stdlib/src/http.rs:589`, over
-      goal 2's parking stream (`crates/nvs-host/src/net.rs`). A redirect hop re-pins through
-      `crates/nvs-stdlib/src/http.rs:207`'s `pin`, and retries reuse the target rather than
-      re-resolving.
-- [ ] **`Core\Env::get`, which `examples/http.nvs:40` needs** — the class has no row in
-      `crates/nvs-stdlib/src/registry.rs:1225`'s list. Its answer is `?tainted string`: the
-      environment is outside the process, so ADR 0024 § 2 makes it tainted and `allowUrl` is what a
-      program does with it.
+- [ ] **`Core\Http\Response`, its slots and its readers** — ADR 0074 §§ 5-6, ADR 0058 § 4. The empty
+      class is `crates/nvs-stdlib/src/http.rs:427` and every new body owes an arm at
+      `crates/nvs-stdlib/src/http.rs:166`. `examples/http.nvs:33` writes `$response->status` as a
+      *property*, and a `Core` instance has no property a program can reach
+      (`nvs_stdlib::registry::CoreClass::slots`' own doc), so either the example takes `->status()`
+      or that rule moves — decide it and record it where the deciding doc is.
+- [ ] **The transport behind the five rows** — ADR 0074 § 6, ADR 0051 § 3's "over the runtime's own
+      reactor rather than a second event loop". `crates/nvs-stdlib/src/http.rs:606` is `request`,
+      which already does everything but send; `crates/nvs-stdlib/src/http.rs:629` is the refusal it
+      ends with, and deleting it also rewrites
+      `tests/conformance/core/every-client-member-judges-a-request-before-it-leaves-the-process.nvst:73`.
+      `crates/nvs-host/src/net.rs:223` is the parking stream to build on.
+- [ ] **A spelling for `examples/http.nvs:40`'s environment read** — placement first, per ## State.
+      `crates/nvs-stdlib/src/registry.rs:1054` is `CLASSES`, and a new class owes its spec row.
 
 ## Backlog
 
-- A request body for `post`/`put`, decided with `send(Core\Http\Request)` — `crates/nvs-stdlib/src/http.rs`'s module doc owns why it is not guessed here.
-- `examples/http.nvs:33`'s `$response->status`: a property on a `Core` instance, which `registry::CoreClass::slots` says does not exist.
-- Stage 5's local origin harness for `examples/http.nvs` — `docs/agent/loop-goal.toml`'s stage 5 `exact` check.
-- `an_outbound_request_carries_traceparent` and the reactor test — ADR 0076 § 2, with the transport.
-- Header values are `Qual::Neutral` and refuse `tainted` by assignability alone; ADR 0088's classification is not read at calls yet (`crates/nvs-types/src/core_lib.rs:366`).
+- `Core\Http\Client::send(Core\Http\Request)` — § 7's dynamic-verb half, which throws before the
+  first attempt; `docs/spec/01-core-library.md` § 16 owns the row.
+- A request body for `post`/`put`, which the same `send` row's taint decision governs —
+  `crates/nvs-stdlib/src/http.rs`'s module doc says why it is not guessed.
+- `website/src/content/docs/docs/adr/0074.md:335` still says `idempotencyKey` where
+  `docs/adr/0074-http-defaults-safe-and-finite.md:360` says `retryIdempotencyKey`; whatever
+  regenerates the site copy has not run since the flattening.
