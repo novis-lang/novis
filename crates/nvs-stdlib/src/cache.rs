@@ -46,32 +46,56 @@
 //! door: nothing leaves the process, no name is resolved and no file is opened.
 //! What is left to bound is footprint, and § 3's `nvs.toml` cap is the
 //! instrument for a bound — a boolean grant would not be one. The shared tier
-//! keeps its `net.connect` row, which lands with the connection that needs it.
+//! has the `net.connect` row instead, in [`crate::registry::CAPABILITIES`]
+//! beside it, and that asymmetry is the whole of what the two rows say.
+//!
+//! # Decision: `shared()` is the door, and the two operations are behind it
+//!
+//! [`nvs_core_cache_shared`] is where the grant is asked for and where the
+//! address is pinned; `put` and `get` on the store it answers ask nothing. That
+//! is [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 4's own
+//! shape — `Core\Http::allowUrl` is the launderer and `Core\Http\Client` the
+//! thing that talks — and it is what makes the address a *pin*: a check at the
+//! operation instead would leave a window in which a second resolution answers
+//! differently, and re-resolving per command would be that window per command.
+//! So [`STORE`] carries no capability row of its own, exactly as
+//! `Core\Http\Client` carries none.
+//!
+//! Which store, and how long a command may take, are `[cache.shared] url` and
+//! `[cache.shared] timeout` — both `System`-class, because where a fleet's
+//! coherent state lives is not a decision a request may make for itself.
 //!
 //! # What is not here yet
-//!
-//! **The shared tier's store.** [`nvs_core_cache_shared`] answers the refusal
-//! its own doc states and nothing else, because there is no configured store
-//! for it to reach; the Redis client, its `net.connect` row in
-//! [`crate::registry::CAPABILITIES`] and the tier slot's second value arrive
-//! together.
 //!
 //! **A TTL, an eviction and a `forget`.** § 3's cap is what evicts, and a
 //! lifetime is meaningless before something enforces one. `put` grows the
 //! trailing options shape ADR 0063 R2 puts last when that lands, which is an
 //! addition to the row rather than a change to it.
 //!
-//! **What it spends:** per core, one map entry per live key — the key's bytes
-//! plus its payload's — held until it is overwritten and charged to the core
-//! rather than to any request, which is § 3's O(cores × working set) and
-//! deliberately not O(requests served).
+//! **A shared store behind a password, a database index or TLS.** The URL this
+//! reads is `redis://host[:port]` and nothing else, and each of the three is
+//! refused with a sentence rather than half-served: `AUTH` needs ADR 0103 § 7's
+//! secret plumbing to carry the credential, a database index is a second
+//! namespace nothing yet names, and a `rediss://` client needs the trust-anchor
+//! decision `crate::http::transport` is also waiting on.
+//!
+//! **What it spends:** on the local tier, per core, one map entry per live key —
+//! the key's bytes plus its payload's — held until it is overwritten and charged
+//! to the core rather than to any request, which is § 3's O(cores × working set)
+//! and deliberately not O(requests served). On the shared tier, one socket per
+//! core and nothing per entry: the bytes are the store's.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::time::Duration;
 
-use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
+use nvs_syntax::duration;
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+
+mod redis;
 
 /// The class name, once, for the messages that all name it.
 pub(crate) const NAME: &str = r"Core\Cache";
@@ -126,8 +150,10 @@ const SHARED_DOC: MethodDoc = MethodDoc {
     ret: "A `Core\\Cache\\Store` over the configured shared store, whose entries every core sees.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "No shared store is configured, or the configured one cannot be reached — an \
-               unreachable store throws rather than answering as though the entry were absent.",
+        desc: "No `[cache.shared] url` is configured; the capability `net.connect` is not granted \
+               for that host, or the address it resolves to is one the outbound policy denies; or \
+               the configured store cannot be reached — an unreachable store throws rather than \
+               answering as though the entry were absent.",
     }],
 };
 
@@ -181,6 +207,26 @@ const TIER_SLOT: usize = 0;
 
 /// What [`nvs_core_cache_local`] writes into [`TIER_SLOT`].
 const LOCAL_TIER: &str = "local";
+
+/// What [`nvs_core_cache_shared`] writes into [`TIER_SLOT`].
+const SHARED_TIER: &str = "shared";
+
+/// `[cache.shared] url` — which store the coherent tier is, as
+/// `redis://host[:port]`. Absent, there is no shared tier and `shared()` says so.
+const URL: &str = "cache.shared.url";
+
+/// `[cache.shared] timeout` — the bound on a handshake and on a command, each.
+const TIMEOUT: &str = "cache.shared.timeout";
+
+/// The bound a deployment that configured none inherits.
+///
+/// A shared `get` is on the request path, so this is a latency question and not
+/// a patience one: a store that has not answered in five seconds is a store the
+/// request should be told about rather than one it should keep waiting for. It
+/// is deliberately not "unbounded unless configured", which
+/// [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 5
+/// refuses to give any outbound wait a spelling for.
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// `Core\Cache\Store::put`'s reference card — ADR 0117.
 const PUT_DOC: MethodDoc = MethodDoc {
@@ -285,22 +331,170 @@ fn key_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fau
     })
 }
 
-/// Refuses a store that is not the local tier.
+/// Which tier a store is — [`TIER_SLOT`] read back, as the one choice every
+/// operation on it makes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Tier {
+    /// This core's own entries, in process.
+    Local,
+    /// The configured store, over the connection [`nvs_core_cache_shared`]
+    /// opened for this core.
+    Shared,
+}
+
+/// The tier of the store the call was made on.
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`], because the only member that builds a store today is
-/// [`nvs_core_cache_local`] — a second tier arrives with the member that can
-/// produce one, and until then this is unreachable from source.
-fn local_store(args: &[Value], member: &str) -> Result<(), Fault> {
+/// A [`Fault::fatal`] for a slot holding neither word: the two members that
+/// build a store write one of the two and nothing else can build one, so a third
+/// value is compiled code's bug rather than anything a program can write.
+fn tier_of(args: &[Value], member: &str) -> Result<Tier, Fault> {
     let receiver = crate::instance::receiver(args[0], &STORE, member)?;
     let tier = crate::instance::slot(receiver, TIER_SLOT);
-    if tier.as_text() == Some(LOCAL_TIER) {
-        return Ok(());
+    match tier.as_text() {
+        Some(LOCAL_TIER) => Ok(Tier::Local),
+        Some(SHARED_TIER) => Ok(Tier::Shared),
+        _ => Err(Fault::fatal(format!(
+            "{STORE_NAME}::{member} found a `tier` slot that is neither `{LOCAL_TIER}` nor \
+             `{SHARED_TIER}`"
+        ))),
     }
-    Err(Fault::fatal(format!(
-        "{STORE_NAME}::{member} found a `tier` slot that is not `{LOCAL_TIER}`"
-    )))
+}
+
+thread_local! {
+    /// This core's connection to the shared store, opened by
+    /// [`nvs_core_cache_shared`] and reused by every request that runs here.
+    ///
+    /// Per core rather than per request for the reason a socket is expensive and
+    /// a round trip is not: a request that had to hand-shake before its first
+    /// `get` would pay the handshake on the request path, every request. What it
+    /// spends is one socket per core — O(cores), released when the core ends —
+    /// and it is the same shape [`ENTRIES`] above already has, so the tier
+    /// question is answered the same way on both sides.
+    static SHARED: RefCell<Option<redis::Connection>> = const { RefCell::new(None) };
+}
+
+/// The directive `key`'s value, with an empty one read as absent.
+///
+/// Absent and blank are the same answer on purpose: `url = ""` is an operator
+/// clearing a setting, and reading it as a host would produce a refusal about a
+/// name rather than about the configuration.
+fn configured(ctx: &Ctx, key: &str) -> Option<String> {
+    ctx.config()
+        .and_then(|config| config.get(key))
+        .map(|text| text.trim().to_owned())
+        .filter(|text| !text.is_empty())
+}
+
+/// `[cache.shared] timeout`, or [`DEFAULT_TIMEOUT`].
+///
+/// A directive that will not parse, or that parses to zero, is the shipped bound
+/// rather than a refusal — `crate::http`'s `bound_of` reasoning, that `nvs.toml`
+/// is validated where it is loaded and failing a request over a key the operator
+/// can no longer see is the wrong direction.
+fn timeout_of(ctx: &Ctx) -> Duration {
+    configured(ctx, TIMEOUT)
+        .and_then(|text| duration::parse(&text).ok())
+        .map(|nanos| Duration::from_nanos(nanos.unsigned_abs()))
+        .filter(|bound| !bound.is_zero())
+        .unwrap_or(DEFAULT_TIMEOUT)
+}
+
+/// `[cache.shared] url` split into the host the grant is asked about and the
+/// port the connection is made to.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` naming what this client reads, for a URL carrying a
+/// scheme it does not speak, a path, or a port that is not one. Each of the
+/// three is refused rather than ignored: a `rediss://` treated as `redis://`
+/// would be a plaintext connection wearing a TLS spelling, and a database index
+/// dropped on the floor would put the entries somewhere the operator did not
+/// ask for.
+fn endpoint(url: &str, member: &str) -> Result<(String, u16), Fault> {
+    let refuse = |why: &str| {
+        Fault::thrown(format!(
+            "{member}: `{URL}` is `{url}`, and {why} — this client reads `redis://host[:port]`"
+        ))
+    };
+    let Some(authority) = url.strip_prefix("redis://") else {
+        return Err(refuse(
+            "that is not a scheme it speaks; a `rediss://` store is refused rather than \
+             half-served, for the reason `Core\\Http\\Client` refuses `https`, that which \
+             certificates this binary trusts has no decision yet",
+        ));
+    };
+    let authority = authority.trim_end_matches('/');
+    if authority.contains('/') {
+        return Err(refuse(
+            "a database index is a namespace nothing here names yet",
+        ));
+    }
+    // An IPv6 literal is written `[::1]` and carries colons of its own, so the
+    // last one is a port separator only when nothing after it belongs to the
+    // address. `pin_host` takes the brackets off itself.
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((head, tail)) if !tail.contains(']') => {
+            let port = tail
+                .parse::<u16>()
+                .map_err(|_| refuse(&format!("`{tail}` is not a port")))?;
+            (head, port)
+        }
+        _ => (authority, redis::DEFAULT_PORT),
+    };
+    if host.is_empty() {
+        return Err(refuse("it names no host"));
+    }
+    Ok((host.to_owned(), port))
+}
+
+/// Makes this core's connection the one to `address`, and dials it.
+///
+/// A connection already open to that same address is kept — the ordinary case,
+/// since every request on this core asks for the same configured store. One to a
+/// *different* address is replaced, which is what a reloaded configuration looks
+/// like from here.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a store that cannot be reached, which is the
+/// second half of [`SHARED_DOC`]'s card: an unreachable store throws at the door
+/// rather than answering a handle whose every operation would fail.
+fn open_shared(address: SocketAddr, timeout: Duration, member: &str) -> Result<(), Fault> {
+    SHARED.with_borrow_mut(|held| {
+        if held.as_ref().is_none_or(|open| open.address() != address) {
+            *held = Some(redis::Connection::new(address, timeout));
+        }
+        held.as_mut()
+            .expect("the connection was just written")
+            .ensure()
+            .map_err(|why| Fault::thrown(format!("{member}: {why}")))
+    })
+}
+
+/// One command on this core's connection to the shared store.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a store this core never opened, for one that
+/// cannot be reached, and for one that refuses the command. Never an answer that
+/// looks like absence: ADR 0075 § 5's standing rule is that an unreachable store
+/// throws, because the failure mode belongs to the application that knows
+/// whether the entry was a cache or a lock.
+fn on_shared<T>(
+    member: &str,
+    command: impl FnOnce(&mut redis::Connection) -> Result<T, String>,
+) -> Result<T, Fault> {
+    SHARED.with_borrow_mut(|held| {
+        let open = held.as_mut().ok_or_else(|| {
+            Fault::thrown(format!(
+                "{STORE_NAME}::{member}: this core has no connection to the shared store, and \
+                 `{NAME}::shared()` is the only thing that opens one"
+            ))
+        })?;
+        command(open).map_err(|why| Fault::thrown(format!("{STORE_NAME}::{member}: {why}")))
+    })
 }
 
 nvs_runtime::nvs_helper! {
@@ -321,20 +515,42 @@ nvs_runtime::nvs_helper! {
     /// `Core\Cache::shared(): Core\Cache\Store` — ADR 0059 § 1's coherent tier,
     /// which no deployment can configure yet.
     ///
-    /// It throws rather than answering a store that would silently behave like
-    /// the local one: the two tiers make different promises, and a `shared`
-    /// that quietly served per-core entries would be the accident § 1 splits
-    /// the members to prevent.
+    /// This is the **door**, and the module doc's third decision is why: the
+    /// grant is asked for here, the address is pinned here, and the connection
+    /// is dialled here, so the two operations on the store it answers ask
+    /// nothing and re-resolve nothing.
+    ///
+    /// A deployment that configured no store gets a refusal rather than a store
+    /// that would silently behave like the local one: the two tiers make
+    /// different promises, and a `shared` that quietly served per-core entries
+    /// would be the accident § 1 splits the members to prevent.
     ///
     /// # Errors
     ///
-    /// Always, until the Redis client and its `[cache.shared]` configuration
-    /// land — see this module's own *What is not here yet*.
-    fn nvs_core_cache_shared(_ctx, _args: [0]) {
-        Err(Fault::thrown(format!(
-            "{NAME}::shared(): no shared store is configured, so there is nothing coherent to \
-             answer with — configure one, or use `{NAME}::local()` and accept its contract"
-        )))
+    /// A thrown `RuntimeError` when no `[cache.shared] url` is set, when the URL
+    /// is not one this client reads, when `net.connect` does not cover its host
+    /// or the outbound policy denies its address, or when the store cannot be
+    /// reached.
+    fn nvs_core_cache_shared(ctx, _args: [0]) {
+        let member = format!("{NAME}::shared");
+        let Some(url) = configured(ctx, URL) else {
+            return Err(Fault::thrown(format!(
+                "{member}(): no shared store is configured, so there is nothing coherent to \
+                 answer with — set `[cache.shared] url`, or use `{NAME}::local()` and accept \
+                 its contract"
+            )));
+        };
+
+        let (host, port) = endpoint(&url, &member)?;
+        // ADR 0058 § 2: the door answers with the address, and the connection is
+        // made to *that* — the whole of why a name is not resolved again below.
+        let address = nvs_runtime::capability::pin_host(ctx, &host, &member)?;
+        open_shared(SocketAddr::new(address, port), timeout_of(ctx), &member)?;
+
+        Ok(crate::instance::build(
+            &STORE,
+            [Value::str(NvsStr::new(SHARED_TIER.as_bytes()))],
+        ))
     }
 }
 
@@ -346,9 +562,16 @@ nvs_runtime::nvs_helper! {
     ///
     /// A thrown `LogicError` for a value that may not cross — the graph copy's
     /// own refusal, classified as [`crate::serialize`]'s `encode` classifies it,
-    /// because a value the program itself built is the program's bug.
+    /// because a value the program itself built is the program's bug — and a
+    /// thrown `RuntimeError` on the shared tier for a store that cannot be
+    /// reached or that refuses the write.
+    ///
+    /// **The copy happens before the tier is consulted**, which is § 2's "not a
+    /// third mechanism" written as control flow: there is one call to the walk
+    /// in this module and both tiers are downstream of it, so a tier cannot grow
+    /// a representation of its own without deleting that structure first.
     fn nvs_core_cache_put(_ctx, args: [3]) {
-        local_store(args, "put")?;
+        let tier = tier_of(args, "put")?;
         let key = key_of(args, 1, "put")?.as_bytes().to_vec();
 
         // The walk consumes one reference and the argument slot keeps its own,
@@ -365,7 +588,10 @@ nvs_runtime::nvs_helper! {
             Fault::thrown_as(ThrownClass::Logic, format!("{STORE_NAME}::put(): {why}"))
         })?;
 
-        store_put(&key, payload);
+        match tier {
+            Tier::Local => store_put(&key, payload),
+            Tier::Shared => on_shared("put", |open| open.set(&key, &payload))?,
+        }
         Ok(Value::null())
     }
 }
@@ -378,12 +604,23 @@ nvs_runtime::nvs_helper! {
     ///
     /// A thrown `ParseError` for an entry naming a class this program cannot
     /// resolve, which is [`crate::serialize`]'s `decode` refusal reached through
-    /// the same resolver — the program's own class table.
+    /// the same resolver — the program's own class table — and, on the shared
+    /// tier, a thrown `RuntimeError` for a store that cannot be reached. An
+    /// entry that is simply not there is `null` on either tier, which is the
+    /// difference § 1 draws between a miss and a failure.
+    ///
+    /// **The tier is consulted before the copy, and only for the bytes**: it
+    /// answers where the payload comes from and nothing about how it is read
+    /// back, which is [`nvs_core_cache_put`]'s structure in the other direction.
     fn nvs_core_cache_get(ctx, args: [2]) {
-        local_store(args, "get")?;
+        let tier = tier_of(args, "get")?;
         let key = key_of(args, 1, "get")?.as_bytes().to_vec();
 
-        let Some(payload) = store_get(&key) else {
+        let held = match tier {
+            Tier::Local => store_get(&key),
+            Tier::Shared => on_shared("get", |open| open.get(&key))?,
+        };
+        let Some(payload) = held else {
             return Ok(Value::null());
         };
         let resolve = |name: &str| ctx.class_desc(name);
@@ -395,7 +632,45 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use super::{CLASS, GET_DOC, LOCAL_DOC, SHARED_DOC, store_get, store_put};
+    use super::{CLASS, GET_DOC, LOCAL_DOC, SHARED_DOC, Value, store_get, store_put};
+
+    /// ADR 0059 § 2: the copy across this boundary is the graph copy ADR 0023
+    /// already defines and the isolate boundary already shares — not a third
+    /// mechanism, and still not a second one now that there are two tiers.
+    ///
+    /// Two claims, because either alone would pass a module that had grown a
+    /// carrier of its own. The **bytes** an entry holds are exactly what
+    /// `nvs_runtime::encode` answers for the value that went in, so an entry is
+    /// that walk's output rather than a rendering of it. And each half of the
+    /// carrier is reached from exactly **one** place in this module's shipped
+    /// code, so the tier a `put` is bound for cannot select a representation:
+    /// the copy happens first and the tier only decides where the bytes go.
+    #[test]
+    fn a_cache_put_and_get_use_the_same_graph_copy_as_the_isolate_boundary() {
+        let payload = nvs_runtime::encode(Value::int(7)).expect("an `int` crosses any boundary");
+        store_put(b"the-same-walk", payload.clone());
+        assert_eq!(
+            store_get(b"the-same-walk"),
+            Some(payload),
+            "an entry is the carrier's own bytes, byte for byte"
+        );
+
+        // The scan stops where `crate::registry`'s own do, at the test module:
+        // what a member can reach at run time is the shipped half.
+        let shipped: Vec<&str> = include_str!("cache.rs")
+            .lines()
+            .take_while(|line| line.trim_start() != "#[cfg(test)]")
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect();
+        for half in ["nvs_runtime::encode(", "nvs_runtime::decode("] {
+            let sites = shipped.iter().filter(|line| line.contains(half)).count();
+            assert_eq!(
+                sites, 1,
+                "`{half}` is reached from {sites} places in this module; both tiers share one \
+                 carrier, so there is exactly one"
+            );
+        }
+    }
 
     /// ADR 0059 § 1: two members, not one API with a flag — and the check that
     /// makes that structural is that neither takes an argument at all, so no

@@ -23,4 +23,4 @@ try {
 }
 --EXPECT--
 local=hello
-Core\Cache::shared(): no shared store is configured, so there is nothing coherent to answer with — configure one, or use `Core\Cache::local()` and accept its contract
+Core\Cache::shared(): no shared store is configured, so there is nothing coherent to answer with — set `[cache.shared] url`, or use `Core\Cache::local()` and accept its contract

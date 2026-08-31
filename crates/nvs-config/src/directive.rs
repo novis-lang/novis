@@ -119,6 +119,12 @@ pub const DIRECTIVES: &[Directive] = &[
     // records as unspelled. `[server]`'s whole block is `Boot` per ADR 0097 § 5, which is more than
     // 0078's "the server's listen addresses" and includes them.
     Directive { key: "cache.dir", class: Class::System, apply: Apply::Boot },
+    // The other half of `[cache]` is not an artifact directory at all: ADR 0059 § 1's shared tier,
+    // which is `System` because where a fleet's coherent state lives is not a decision a request may
+    // make for itself, and `Boot` because each core holds one connection to it — moving the store
+    // re-dials every one of them, which is the same "re-creates the runtime's mapping" the row above
+    // is `Boot` for. A more specific row than `cache.dir`'s sibling and so found by `lookup` first.
+    Directive { key: "cache.shared", class: Class::System, apply: Apply::Boot },
     Directive { key: "control.socket", class: Class::System, apply: Apply::Boot },
     Directive { key: "server", class: Class::System, apply: Apply::Boot },
     // `System` and `Reload` together: the pairing ADR 0078 § 2 exists to make expressible.

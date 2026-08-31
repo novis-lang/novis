@@ -1306,6 +1306,15 @@ pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
     // grant, which is why it is a table in `nvs_config::capability` rather than
     // a row here.
     (crate::http::NAME, "allowUrl", nvs_config::Cap::NetConnect),
+    // ADR 0059 § 1: the shared tier is a real store over the network, gated by
+    // `net.connect` under ADR 0058's policy, and `shared()` is the door — it
+    // resolves the configured host and connects, while `Core\Cache\Store`'s two
+    // operations run on what it approved and so declare nothing, exactly as
+    // `Core\Http\Client` declares nothing behind `Core\Http::allowUrl`. Its
+    // sibling `local()` is in `NEEDS_NO_CAPABILITY` and that asymmetry is the
+    // decision: a tier that leaves the process has a door, and one that cannot
+    // has nothing to put a door on.
+    (crate::cache::NAME, "shared", nvs_config::Cap::NetConnect),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)

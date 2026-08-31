@@ -583,13 +583,34 @@ pub struct Mount {
     pub origin: Option<String>,
 }
 
-/// `[cache]` — ADR 0042's artifact cache.
+/// `[cache]` — ADR 0042's artifact cache, and under it the one block that is not about artifacts.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Cache {
     /// `System` **and** `Boot` — one of the four directives ADR 0078 § 2 names as needing a restart,
     /// because moving it re-creates the runtime's mapping of every cached unit.
     pub dir: Option<String>,
+    /// `[cache.shared]` — ADR 0059 § 1's coherent tier, which is a *store* and not this block's
+    /// compiled artifacts. It sits here rather than in a block of its own because `Core\Cache` is
+    /// one class and an operator looking for where its entries live looks under its own name;
+    /// nothing else about the two halves is shared.
+    pub shared: Option<CacheShared>,
+}
+
+/// `[cache.shared]` — where `Core\Cache::shared()` connects, and what bounds a command.
+///
+/// Two keys and no third: the URL and the wait. Which store a fleet's coherent state lives in is a
+/// deployment decision and both keys are `System`-class, per `crate::directive`'s `cache.shared`
+/// row. Authentication, a database index and TLS are refused rather than configured — the reasons
+/// are `nvs_stdlib::cache`'s module doc, which is the one home for them.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct CacheShared {
+    /// `redis://host[:port]`. Absent, there is no shared tier and `Core\Cache::shared()` throws
+    /// saying so rather than answering a store that would behave like the local one.
+    pub url: Option<String>,
+    /// The bound on the handshake, and on each command. Omitted, the shipped five seconds.
+    pub timeout: Option<String>,
 }
 
 /// `[control]` — ADR 0078 § 3's one local socket.

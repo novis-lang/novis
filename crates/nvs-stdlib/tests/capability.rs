@@ -264,9 +264,19 @@ fn every_capability_entry_names_a_member() {
 /// member whose capability has not been thought about. The ADR's own example of what belongs here is
 /// a `Core\IO::basename` that splits a string and never opens anything.
 ///
-/// It is empty, and that is the strongest state it can be in: every member of every
-/// capability-bearing class on disk today declares what it needs.
-const NEEDS_NO_CAPABILITY: &[(&str, &str)] = &[];
+/// One entry, and it is the case ADR 0118 § 7 describes rather than the one it forbids: the
+/// capability of `Core\Cache::local` was *decided* — by ADR 0059 § 1, which states outright that no
+/// capability gates the local tier and closes the hole ADR 0112 § 8's roster left open — before it
+/// was written, and it is the deciding, not the exempting, that this list is really a record of.
+///
+/// **`Core\Cache::local()` reaches nothing.** The tier is a `HashMap` in this core's own thread,
+/// per `nvs_stdlib::cache`'s module doc: nothing leaves the process, no name is resolved and no
+/// file is opened, so there is no door for § 1's check to sit at. What is left to bound is
+/// footprint, and ADR 0059 § 3's `nvs.toml` cap is the instrument for that — a boolean grant would
+/// not be one, and adding it would price caching anything as an authority question every
+/// deployment then has to answer. Its sibling `shared()` does leave the process and does declare
+/// `net.connect`, which is why the class is capability-bearing at all.
+const NEEDS_NO_CAPABILITY: &[(&str, &str)] = &[("Core\\Cache", "local")];
 
 #[test]
 fn every_capability_bearing_member_declares_its_capability() {
