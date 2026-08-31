@@ -1599,6 +1599,7 @@ dependencies = [
  "sha2",
  "sha3",
  "subtle",
+ "toml",
  "unicode-normalization",
  "unicode-segmentation",
  "uuid",
@@ -1620,6 +1621,7 @@ version = "0.0.1"
 name = "nvs-types"
 version = "0.0.1"
 dependencies = [
+ "nvs-config",
  "nvs-diagnostics",
  "nvs-hir",
  "nvs-stdlib",

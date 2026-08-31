@@ -378,3 +378,142 @@ fn captured(receiver: Value, index: usize, member: &str) -> Result<Value, Fault>
     }
     Ok(held)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use nvs_runtime::{Ctx, Fault, ThrownClass};
+
+    use super::{CLASS, CoreTy, Path, RESULT, RUN_MEMBER};
+
+    /// The five spellings a port of PHP's shell family would reach for. None of them is a member
+    /// of this class, because [`super::nvs_core_process_run`] is all five: they differ only in
+    /// what they do with the output, and this module's own docs own that reading.
+    const SHELL_SPELLINGS: &[&str] = &["exec", "system", "shellExec", "passthru", "backtick"];
+
+    /// A snapshot built from the text an operator would have written, for the reason
+    /// `nvs_runtime::capability`'s own cases state: the boot path deserializes, so a case that
+    /// constructed the typed tree directly would pin a grant no configuration file can express.
+    fn granting(written: &str) -> Arc<nvs_config::Snapshot> {
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        })
+    }
+
+    /// Whether a parameter is somewhere a command line could be written — both spellings of
+    /// `string`, since [`CoreTy::Str`] and [`CoreTy::Text`] differ in classification and not in
+    /// what a caller can put in one.
+    fn is_text(ty: CoreTy) -> bool {
+        matches!(ty, CoreTy::Str | CoreTy::Text(_))
+    }
+
+    /// ADR 0044 § 1, asserted over the whole roster rather than off `run`'s signature: **no member
+    /// of this class takes a command line**, and what proves it is that every member naming a
+    /// program carries exactly one text parameter — the name — with its arguments in an
+    /// `array<string>` beside it. A `spawn` that arrived later with a second text parameter, or
+    /// with no argv at all, fails here while still looking reasonable on its own line.
+    #[test]
+    fn there_is_no_shell_string_form_of_run_or_spawn() {
+        let mut starters = 0usize;
+        for method in CLASS.methods.iter().chain(CLASS.instance) {
+            assert!(
+                !SHELL_SPELLINGS.contains(&method.name),
+                "`{}` is one of PHP's shell entry points, and this class has one member for all \
+                 five: {}",
+                method.name,
+                RUN_MEMBER
+            );
+            let texts = method.params.iter().filter(|ty| is_text(**ty)).count();
+            if texts == 0 {
+                continue;
+            }
+            starters += 1;
+            assert_eq!(
+                texts, 1,
+                "`{}` takes {texts} `string` parameters: a member that names a program takes the \
+                 name and nothing else as text, or the second one is a command line by another \
+                 route",
+                method.name
+            );
+            let argvs = method
+                .params
+                .iter()
+                .filter(|ty| matches!(**ty, CoreTy::Array(element) if is_text(*element)))
+                .count();
+            assert_eq!(
+                argvs, 1,
+                "`{}` names a program and takes no `array<string>` of arguments, so its caller has \
+                 nowhere to put them but inside the name — ADR 0044 § 1",
+                method.name
+            );
+        }
+        assert!(
+            starters >= 1,
+            "the sweep asserted nothing: this class has no member that starts a program at all"
+        );
+        assert!(
+            RESULT.methods.is_empty() && RESULT.instance.iter().all(|m| m.params.is_empty()),
+            "a result is read, never re-run: no member of it takes an argument, let alone a \
+             command line"
+        );
+    }
+
+    /// ADR 0044 § 4, driven through the door [`super::nvs_core_process_run`] calls, on a context
+    /// that grants everything — so a refusal here cannot be the capability denial wearing the same
+    /// class. Both halves of the rule: the three kinds are refused **however they are spelled**,
+    /// since the extension is lower-cased before it is matched, and the refusal names the kind in
+    /// that one spelling regardless of how the target was written.
+    #[test]
+    fn a_windows_batch_or_powershell_target_is_refused() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
+        for (target, named) in [
+            ("examples/process/say.bat", "bat"),
+            ("examples/process/SAY.BAT", "bat"),
+            ("C:/deploy/release.cmd", "cmd"),
+            ("C:/deploy/RELEASE.CMD", "cmd"),
+            ("./build.ps1", "ps1"),
+            ("./BUILD.PS1", "ps1"),
+            ("./Build.Ps1", "ps1"),
+        ] {
+            let refused = nvs_runtime::capability::exec(&ctx, Path::new(target), &[], RUN_MEMBER)
+                .expect_err("a second command-line parser is not a target this API has");
+            let Fault::Thrown(class, message) = refused else {
+                panic!("§ 4's refusal is catchable, like every refusal this member writes");
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            assert!(
+                message.contains(&format!(".{named}")) && message.contains(RUN_MEMBER),
+                "the refusal names the kind and the member, lower-cased however `{target}` was \
+                 spelled: {message}"
+            );
+            assert!(
+                !message.contains("process.exec"),
+                "and is not the capability denial, which `exec = true` does not produce: {message}"
+            );
+        }
+
+        // The control the sweep above cannot supply: under the same grant a target of any other
+        // kind reaches the spawn, so the refusals are about the kind and not about the door being
+        // shut. Nothing is at this path, so what comes back is the operating system's answer.
+        let missing =
+            nvs_runtime::capability::exec(&ctx, Path::new("./say.bat.gz"), &[], RUN_MEMBER)
+                .expect_err("nothing is at that path");
+        let Fault::Thrown(class, message) = missing else {
+            panic!("a failed spawn is catchable too — ADR 0118 § 5");
+        };
+        assert_eq!(
+            class,
+            ThrownClass::Io,
+            "a target that only looks like one of the three is started, and fails as the operating \
+             system's problem: {message}"
+        );
+    }
+}
