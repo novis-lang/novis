@@ -1,0 +1,71 @@
+--TEST--
+Core\IO::exists, ::size, ::remove and ::removeDir agree about one file and one directory across the whole of their life — the size is the operating system's byte count rather than the length of the string that was handed over, and each removal is asserted by the `exists` after it rather than by the call having returned — spec § 14, ADR 0118 § 2
+--FILE--
+<?nvs
+// The four members are one story about one name: it is not there, it is, it is
+// this big, it is not there again. Asserting a removal by the `exists` after it
+// is the point -- a `remove` that returned without unlinking anything looks
+// identical from the call site, and only the question afterwards can tell.
+if (Core\IO::exists("note.txt")) {
+    echo "before: note.txt is there\n";
+} else {
+    echo "before: note.txt is not there\n";
+}
+
+Core\IO::write("note.txt", "hello world\n");
+
+if (Core\IO::exists("note.txt")) {
+    echo "after write: note.txt is there\n";
+} else {
+    echo "after write: note.txt is not there\n";
+}
+
+// Twelve, not eleven: the trailing newline is a byte the file holds, and this
+// is the operating system's count of what is on disk rather than anything the
+// program is still holding in a `string`.
+int $size = Core\IO::size("note.txt") as int;
+echo "size: ", $size as string, "\n";
+
+Core\IO::remove("note.txt");
+
+if (Core\IO::exists("note.txt")) {
+    echo "after remove: note.txt is there\n";
+} else {
+    echo "after remove: note.txt is not there\n";
+}
+
+// The directory half. `exists` is one member for both kinds -- PHP splits this
+// three ways and the difference between `file_exists`, `is_file` and `is_dir`
+// is the first thing a caller of the wrong one gets wrong -- while removal is
+// split, because unlink and rmdir are different syscalls with different
+// failures.
+if (Core\IO::exists("sub")) {
+    echo "before: sub is there\n";
+} else {
+    echo "before: sub is not there\n";
+}
+
+// `removeDir` empties nothing, so the entry goes first. That is a security
+// decision and not an omission: a recursive form would be one grant check
+// standing in for a whole tree of them.
+Core\IO::remove("sub/keep.txt");
+Core\IO::removeDir("sub");
+
+if (Core\IO::exists("sub")) {
+    echo "after removeDir: sub is there\n";
+} else {
+    echo "after removeDir: sub is not there\n";
+}
+--FILE sub/keep.txt--
+keep
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+before: note.txt is not there
+after write: note.txt is there
+size: 12
+after remove: note.txt is not there
+before: sub is there
+after removeDir: sub is not there

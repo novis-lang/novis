@@ -1,0 +1,82 @@
+--TEST--
+Core\IO::exists, ::size, ::remove and ::removeDir each refuse an ungranted path naming the capability their own half of the door asks for — `fs.read` for the two that look and `fs.write` for the two that destroy — counted over a sweep of present, absent and impossible paths so that a member answering plausibly for one of them still fails here — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// The claim is an *agreement*: four members that share a door say the same
+// thing about a path with no grant behind it, and each names the capability an
+// operator would have to paste into `nvs.toml` to change the answer. Counting
+// is what makes it an agreement rather than four separate assertions -- a
+// member that grew its own message moves a number here whatever it printed.
+//
+// The paths are chosen so that no two of them fail the same way once a grant
+// *does* exist: one is a name nothing could be at, one is the current directory
+// which is certainly there, and one is a plain relative name. With nothing
+// granted the distinction has to vanish -- that is the leak this case pins.
+array<string> $paths = [
+    "notes.txt",
+    "no-such-dir/no-such-file.txt",
+    ".",
+];
+int $total = Core\Arr::count($paths) as int;
+
+int $refused = 0;
+int $namingFsRead = 0;
+int $namingFsWrite = 0;
+
+int $i = 0;
+for (; $i < $total; $i = $i + 1) {
+    string $path = $paths[$i];
+    string $read = " needs the capability `fs.read` for " . $path . ", which is not granted";
+    string $write = " needs the capability `fs.write` for " . $path . ", which is not granted";
+
+    // `exists` is the one whose refusal is worth the most: it has a perfectly
+    // good `false` available and must not use it, or a program learns from the
+    // answer what it was never granted the root to learn.
+    try {
+        bool $there = Core\IO::exists($path);
+        echo "exists answered for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::exists" . $read) {
+            $namingFsRead = $namingFsRead + 1;
+        }
+    }
+
+    try {
+        int $size = Core\IO::size($path) as int;
+        echo "size answered for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::size" . $read) {
+            $namingFsRead = $namingFsRead + 1;
+        }
+    }
+
+    try {
+        Core\IO::remove($path);
+        echo "remove ran for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::remove" . $write) {
+            $namingFsWrite = $namingFsWrite + 1;
+        }
+    }
+
+    try {
+        Core\IO::removeDir($path);
+        echo "removeDir ran for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::removeDir" . $write) {
+            $namingFsWrite = $namingFsWrite + 1;
+        }
+    }
+}
+
+echo "paths: ", $total as string, "\n";
+echo "refused: ", $refused as string, "\n";
+echo "naming fs.read: ", $namingFsRead as string, ", naming fs.write: ", $namingFsWrite as string, "\n";
+--EXPECT--
+paths: 3
+refused: 12
+naming fs.read: 6, naming fs.write: 6

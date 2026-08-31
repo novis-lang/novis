@@ -3,9 +3,11 @@
 //!
 //! [`require`] is deliberately the only *decision* here. The decision procedure is
 //! [`nvs_config::capability`] and is pure; this is the half that knows about a request — where the
-//! snapshot comes from, and what a denial looks like to the program that hit it. [`open_read`] and
-//! [`write()`] are the first two of § 2's doors and the rest (`connect`, `exec`) arrive with the first
-//! `Core` member that needs one; each of them calls [`require`] before it names a spelling that
+//! snapshot comes from, and what a denial looks like to the program that hit it. The seven below are
+//! § 2's filesystem doors — [`open_read`], [`metadata`] and [`exists`] behind `fs.read`, [`write()`],
+//! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write` — and the rest (`connect`, `exec`) arrive
+//! with the first `Core` member that needs one; each of them calls [`require`] before it names a
+//! spelling that
 //! performs the effect, which is what makes § 2's claim structural rather than a convention: a member
 //! reaches the OS through a door or not at all, and every door has already asked.
 //!
@@ -15,8 +17,8 @@
 //!
 //! [ADR 0118]: ../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md
 
-use std::fs::File;
-use std::path::Path;
+use std::fs::{File, Metadata};
+use std::path::{Path, PathBuf};
 
 use nvs_config::capability::{Cap, Scope};
 
@@ -115,6 +117,165 @@ pub fn open_read(ctx: &Ctx, path: &Path, member: &str) -> Result<File, Fault> {
 pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), Fault> {
     require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
     std::fs::write(path, bytes).map_err(|err| io_failure(member, path, &err))
+}
+
+/// § 2's metadata door: what the operating system knows about `path`, once [`Cap::FsRead`] has been
+/// shown to cover it.
+///
+/// Reading a file's size, kind or timestamps is reading the file, so this is the same capability
+/// [`open_read`] asks for and not a weaker one: a program that can measure a path it was not granted
+/// can enumerate a directory it was never allowed to open.
+///
+/// The whole [`Metadata`] rather than the one field a caller wants, because every question a
+/// `Core\IO` metadata member asks is answered by one `stat` and a second door per field would be a
+/// second syscall for the same permission.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
+/// `path`, or [`io_failure`]'s `IOError` when the `stat` itself fails — a path that is not there is
+/// a failure here, because a member asking for a size has no answer for one.
+pub fn metadata(ctx: &Ctx, path: &Path, member: &str) -> Result<Metadata, Fault> {
+    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    std::fs::metadata(path).map_err(|err| io_failure(member, path, &err))
+}
+
+/// § 2's existence door: whether anything is at `path`, once [`Cap::FsRead`] has been shown to cover
+/// it.
+///
+/// Separate from [`metadata`] for the one reason that matters to a caller: **absence is an answer
+/// here, not a failure.** Everything else about the two is the same, including which capability is
+/// asked and that it is asked first — so a path outside the grant is refused whether or not it
+/// exists, and the difference between a missing file and an unreadable one leaks nothing.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
+/// `path`, or [`io_failure`]'s `IOError` when the operating system could answer neither yes nor no —
+/// a parent directory it will not traverse, for instance, which is not the same as "no".
+pub fn exists(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
+    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    path.try_exists()
+        .map_err(|err| io_failure(member, path, &err))
+}
+
+/// § 2's unlink door: `path` stops existing, once [`Cap::FsWrite`] has been shown to cover it.
+///
+/// Removal is a write and not a fifth capability, for the reason § 3 gives for not splitting one:
+/// an account that may replace a file's whole content can already destroy it, so a separate grant
+/// would name a distinction the filesystem does not make.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
+/// `path`, or [`io_failure`]'s `IOError` when the unlink itself fails — the path is not there, or is
+/// a directory, which [`remove_dir`] is the door for.
+pub fn remove_file(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
+    require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+    std::fs::remove_file(path).map_err(|err| io_failure(member, path, &err))
+}
+
+/// § 2's rmdir door: the **empty** directory at `path` stops existing, once [`Cap::FsWrite`] has
+/// been shown to cover it.
+///
+/// Empty deliberately, and this is the door's own decision rather than the caller's: a recursive
+/// removal is one grant check standing in for a whole tree of them, so a single wrong argument
+/// deletes everything under it. A program that means to empty a directory first walks it, and every
+/// entry it removes is a path the capability was asked about.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
+/// `path`, or [`io_failure`]'s `IOError` when the removal itself fails — the directory is not there,
+/// is not a directory, or still has entries in it.
+pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
+    require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+    std::fs::remove_dir(path).map_err(|err| io_failure(member, path, &err))
+}
+
+/// § 2's temporary-directory door: a new, empty, private directory under the system temporary root,
+/// once [`Cap::FsWrite`] has been shown to cover **the path it is about to create**.
+///
+/// The check is the ordinary one and the argument is the ordinary argument, which is the whole
+/// decision here: a member that creates a directory the program never named could plausibly have
+/// been exempt from the grant, or have widened it to cover what it created, and both would make a
+/// capability something a running program can enlarge. So the name is chosen first and asked about
+/// second, exactly as [`write()`] asks about a path that does not exist yet, and an operator grants
+/// the temporary root — or `true` — or the member does not run.
+///
+/// **Nothing here relies on the name being unpredictable.** The defence is that creating a directory
+/// is atomic: a name an attacker has already taken, including as a symlink, fails with
+/// `AlreadyExists` and is retried rather than adopted. On Unix the mode is `0o700` at creation
+/// rather than after it, so there is no window in which the directory is readable by anyone else; on
+/// Windows the per-user temporary root already carries that ACL and the directory inherits it.
+///
+/// The caller owns what it gets. Nothing here registers the directory for later cleanup — a program
+/// removes what it made, and a runtime that swept temporary directories at request end would be
+/// deciding the lifetime of data it knows nothing about.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for the
+/// temporary root, or [`io_failure`]'s `IOError` when every attempt to create one failed.
+pub fn temp_dir(ctx: &Ctx, member: &str) -> Result<PathBuf, Fault> {
+    /// Enough attempts that exhausting them means something other than a collision — a full disk, a
+    /// root that is not writable, a temporary directory someone has filled with our names.
+    const ATTEMPTS: u32 = 16;
+
+    let root = std::env::temp_dir();
+    for _ in 0..ATTEMPTS {
+        let path = root.join(format!("nvs-{}-{:016x}", std::process::id(), nonce()));
+        require(ctx, Cap::FsWrite, Scope::Path(&path), member)?;
+        match create_private_dir(&path) {
+            Ok(()) => return Ok(path),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(err) => return Err(io_failure(member, &path, &err)),
+        }
+    }
+    Err(io_failure(
+        member,
+        &root,
+        &std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!("no unused name after {ATTEMPTS} attempts"),
+        ),
+    ))
+}
+
+/// A value unlikely to repeat within a process or between two of them, for [`temp_dir`]'s candidate
+/// name. Not a secret and not required to be one — see that function's own paragraph on why.
+fn nonce() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let ticks = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| u64::from(since.subsec_nanos()));
+    let counted = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    // An odd multiplier so consecutive counter values do not produce consecutive names, which is
+    // what would let one process's directories be guessed from another's.
+    ticks.wrapping_add(counted.wrapping_mul(0x9e37_79b9_7f4a_7c15))
+}
+
+/// [`temp_dir`]'s one create, with the mode applied by the create itself rather than after it.
+fn create_private_dir(path: &Path) -> std::io::Result<()> {
+    private_builder().create(path)
+}
+
+/// A builder that creates owner-only directories: `0o700` from the moment the directory exists, so
+/// there is no window in which anyone else on the machine can read it.
+#[cfg(unix)]
+fn private_builder() -> std::fs::DirBuilder {
+    use std::os::unix::fs::DirBuilderExt;
+
+    let mut builder = std::fs::DirBuilder::new();
+    builder.mode(0o700);
+    builder
+}
+
+/// The same builder where the mode is not a concept: Windows has no `mode` bits to set, and the
+/// per-user temporary root already carries the ACL a new directory under it inherits.
+#[cfg(not(unix))]
+fn private_builder() -> std::fs::DirBuilder {
+    std::fs::DirBuilder::new()
 }
 
 /// What a door reports when the operating system refuses something the capability allowed: an
