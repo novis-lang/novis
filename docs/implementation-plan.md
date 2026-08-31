@@ -55,13 +55,13 @@
 > `Core\Jwt` answers `array<tainted string>` off `CoreTy::TaintedStr`. **Stage 5 is closed**:
 > `Core\Http::allowUrl` answers a pinned `Core\Http\Target`, and two cases pin ADR 0058 §§ 3 and 5 —
 > the denied table is the capability's and refuses before a socket. `Core\Http\Client`'s five rows
-> are compile-time whole (§ 7's keyless `post` retry is `E0796`), and `crate::http::transport` fills
-> `Core\Http\Response`'s two slots over `nvs_host::net`: hops re-pinned, retries jittered under one
-> deadline, `https` refused. **Stage 6 has opened**: `Core\Cache`'s two tiers are one `Store` over
-> ADR 0023 § 3's byte payload, `local()` needs no grant and `shared()` is the `net.connect` door
-> onto RESP over the parking stream. The harness serves 8099 (`tools/origin.py`), so
-> `examples/http.nvs` prints all five lines, `traceparent` crosses, and an outbound read parks on
-> the reactor. Conformance 1165, differential 210 of 210, migration 37% over its 36% floor.
+> are compile-time whole, and `crate::http::transport` fills `Core\Http\Response` over
+> `nvs_host::net`. **Stage 6 has opened**: `Core\Cache`'s two tiers are one `Store` over ADR 0023 §
+> 3's byte payload, `local()` needs no grant and `shared()` is the `net.connect` door onto RESP over
+> the parking stream; `Core\RateLimit::consume` is GCRA over that same store, one `EVAL` of our own
+> script, throwing where an unreachable store would decide *allowed*. The harness serves 8099
+> (`tools/origin.py`) and `examples/http.nvs` prints all five lines. Conformance 1168, differential
+> 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

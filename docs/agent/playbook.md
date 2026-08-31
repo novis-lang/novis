@@ -3526,6 +3526,14 @@ is why" — is this file.
   `no_registry_card_cites_an_adr` refuses an `ADR 0023` in a `MethodDoc` (the citation belongs in the
   module doc or the helper's own comment), and a class declaring `slots` must declare `instance` members
   too.
+- **A `Core` instance has no property a program can reach, so an ADR that writes one is writing a
+  member.** ADR 0075 § 3 spells `Core\RateLimit\Decision` as `readonly allowed: bool, …`, and
+  `examples/cache.nvs` was written against that: `$d->allowed`. There is no spelling of it that
+  compiles — `CoreTy::Instance`'s own doc comment is the rule ("no constructor, no property and no
+  subclass"), `registry::CoreClass::slots` restates it, and `examples/http.nvs` carries the
+  precedent in a comment beside its `$response->status()`. So a `Decision` is four zero-argument
+  instance members and the ADR's field list is a *field* list, not a syntax. Check
+  `CoreTy::Instance` before transcribing any ADR that writes a `Core` value's fields with a colon.
 
 ## Splitting a file that got too big
 
