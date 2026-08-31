@@ -1041,7 +1041,18 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
+    use std::net::{IpAddr, Ipv4Addr, TcpListener};
+
+    use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
+
+    use crate::tests::granting;
+
     use super::{BODY_SLOT, RESPONSE, STATUS_SLOT, TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT};
+
+    /// The grant every case here starts from: the host is reachable and no
+    /// address is excepted, which is § 3's table exactly as it ships.
+    const GRANTED: &str = "[capabilities.net]\nconnect = [\"127.0.0.1\"]\n";
 
     /// [`TARGET`]'s layout, asserted for [`RESPONSE`]'s reason and one more:
     /// these two slots are written by the launderer and read back by the
@@ -1060,5 +1071,120 @@ mod tests {
     fn a_responses_slot_constants_are_the_names_it_declares() {
         assert_eq!(STATUS_SLOT, RESPONSE.slot("status"));
         assert_eq!(BODY_SLOT, RESPONSE.slot("body"));
+    }
+
+    /// ADR 0058 § 5, asserted as **agreement** rather than as a value: the
+    /// address policy is the capability's, and this module holds no copy of it.
+    /// The launderer and `nvs_runtime::capability::pin_host` are asked about the
+    /// same host on the same two deployments, and what is pinned is that they
+    /// answer the *same thing* — a client that had grown a table of its own
+    /// would read plausibly on either line alone and disagree only here.
+    ///
+    /// Both of § 3's keys, because both are the operator's: `net.connect`
+    /// decides the host and `net.internal` decides the address, and nothing a
+    /// caller writes reaches either one.
+    #[test]
+    fn the_address_policy_is_read_from_the_capability_and_not_from_the_client() {
+        const MEMBER: &str = "Core\\Http::allowUrl";
+        const URL: &str = "http://127.0.0.1:8099/ok";
+        const HOST: &str = "127.0.0.1";
+
+        // The deployment grants the host and excepts no address, so § 3's table
+        // refuses what the name resolves to.
+        let mut denied = Ctx::buffered();
+        denied.set_config(granting(GRANTED));
+        let by_client = super::pin(&mut denied, URL, MEMBER)
+            .expect_err("loopback is the first range § 3 denies");
+        let by_door = nvs_runtime::capability::pin_host(&denied, HOST, MEMBER)
+            .expect_err("and the door is where that refusal is written");
+        assert_eq!(
+            format!("{by_client:?}"),
+            format!("{by_door:?}"),
+            "the refusal a caller reads is the door's own sentence, not one `Core\\Http` composed"
+        );
+        assert!(
+            format!("{by_client:?}").contains("net.internal"),
+            "and it names the key an operator would have to write: {by_client:?}"
+        );
+
+        // One line added to the *configuration*, nothing changed in this crate,
+        // and both answers move together.
+        let mut excepted = Ctx::buffered();
+        excepted.set_config(granting(
+            "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = [\"127.0.0.1\"]\n",
+        ));
+        let pinned =
+            super::pin(&mut excepted, URL, MEMBER).expect("an address the deployment bought back");
+        assert_eq!(pinned, IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(
+            nvs_runtime::capability::pin_host(&excepted, HOST, MEMBER)
+                .expect("the door approves it too, or the two had drifted"),
+            pinned
+        );
+
+        // The grant side is the capability's as well, and asked first: a context
+        // that configures nothing refuses on `net.connect` without ever looking
+        // at an address, so this member is not a resolver for names it may not
+        // reach.
+        let mut ungranted = Ctx::buffered();
+        let refused = super::pin(&mut ungranted, URL, MEMBER)
+            .expect_err("a context with no configuration grants nothing");
+        let Fault::Thrown(class, message) = refused else {
+            panic!("a capability refusal is catchable — ADR 0118 § 5");
+        };
+        assert_eq!(class, ThrownClass::Runtime);
+        assert!(
+            message.contains("net.connect") && !message.contains("net.internal"),
+            "the host is refused before the address is judged: {message}"
+        );
+    }
+
+    /// ADR 0058 § 3's other half, which a thrown `Fault` on its own does not
+    /// pin: the refusal lands **before the socket**. A listener is bound on the
+    /// address the URL names, and the assertion is that it was never accepted —
+    /// a client that connected first and asked the policy afterwards throws the
+    /// very same error, having already announced this process to the address the
+    /// deployment denied.
+    ///
+    /// Driven through [`super::request`], the body all five client rows share,
+    /// so what is pinned is the order the *member* runs in and not the order
+    /// [`super::pin`] alone does.
+    #[test]
+    fn a_denied_address_range_fails_before_a_connection_is_made() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        listener
+            .set_nonblocking(true)
+            .expect("a listener that answers now rather than waiting");
+        let at = listener.local_addr().expect("its own address");
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(GRANTED));
+
+        let url = Value::str(NvsStr::new(format!("http://{at}/ok").as_bytes()));
+        let mut args = [Value::null(); 8];
+        args[0] = url;
+        let refused = super::request(&mut ctx, &args, "get")
+            .expect_err("loopback, which `net.internal` does not except");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the reference `NvsStr::new` just \
+                      produced, and a native member never releases an argument \
+                      its caller still owns"
+        )]
+        unsafe {
+            url.release();
+        }
+        assert!(
+            format!("{refused:?}").contains("net.internal"),
+            "{refused:?}"
+        );
+
+        match listener.accept() {
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {}
+            Ok(_) => {
+                panic!("the door refused the address and a socket was opened to it anyway")
+            }
+            Err(err) => panic!("the listener failed for a reason that is not the point: {err}"),
+        }
     }
 }
