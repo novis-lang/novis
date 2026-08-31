@@ -14821,6 +14821,18 @@ How much colour standard output can show. The cases ascend, so a sink degrading 
 | `Core\Cli\ColorDepth::Ansi256` | The 256-entry indexed palette, reported by a `TERM` naming `256color`. |
 | `Core\Cli\ColorDepth::TrueColor` | 24-bit colour, reported by `COLORTERM=truecolor` and by a Windows console that accepted virtual terminal processing. |
 
+<a id="enum-core-cli-shell"></a>
+#### `Core\Cli\Shell`
+
+Which shell `Core\Command::completions` writes a completion script for. Four cases and no catch-all: a script is generated in the named shell's own syntax, so a case with no generator behind it would complete nothing.
+
+| Case | Meaning |
+|---|---|
+| `Core\Cli\Shell::Bash` | GNU Bash, whose script registers a function with `complete -F`. |
+| `Core\Cli\Shell::Zsh` | Z shell, whose script is a `#compdef` function driving `_arguments`. |
+| `Core\Cli\Shell::Fish` | fish, whose script is one `complete -c` line per command and per option. |
+| `Core\Cli\Shell::Pwsh` | PowerShell — 7 and Windows PowerShell alike, whose script calls `Register-ArgumentCompleter`. |
+
 # Part C — The toolchain
 
 <a id="tools-cli"></a>
