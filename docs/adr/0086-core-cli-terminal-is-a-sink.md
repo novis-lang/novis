@@ -150,7 +150,11 @@ Cli::write(Cli\Text::styled("deleting ", $warn) + Cli\Text::plain($path));
   integer type does not fit a set with sixteen million members. The sixteen named colours are class
   constants — `Color::RED` is exactly as short at the use site as an enum case would be — and
   `Color::rgb(uint, uint, uint)` and `Color::index(uint)` construct the rest. A `Core` class constant that
-  is an instance is machinery `nvs-stdlib` already has.
+  is an instance is machinery `nvs-stdlib` already has, and this is what it is: a registry constant's value
+  may be the **call that builds it** rather than a literal, and the compiler inlines that call at every use
+  site exactly as it inlines a scalar. So `Color::RED` *is* `Color::index(1)`, written shorter — one
+  per-request allocation where it appears, no storage, no descriptor, and nothing shared between isolates.
+  `Core\Time\Zone::UTC` is the same shape and came first; the sixteen colours are sixteen more rows of it.
 - **`Cli\Style::of({color?, background?, bold?, dim?, italic?, underline?, strikethrough?})`** — R5's `of`
   for a canonical construction, R2's one trailing shape for the options.
 - **`Cli\Text` is peer to `Core\Html\Markup`.** `Text::plain(string)` and
@@ -158,6 +162,18 @@ Cli::write(Cli\Text::styled("deleting ", $warn) + Cli\Text::plain($path));
   a `Text` can carry are the ones `Style` put there. That is the structural guarantee: `Text` is not a
   trust assertion a developer can be tricked into making, it is a constructor that cannot produce an
   injected sequence. `Text + Text` is `Text`, immutable (R20), composing the way `Markup` already does.
+
+**A `Text` holds bytes, so the styling is rendered when it is built** — by `Text::styled`, against the
+profile § 3 resolves once for the process, and not at the write. The two produce the same bytes: the colour
+depth is a process-wide answer, so a style rendered at construction and the same style rendered at the write
+degrade identically. The one difference is per-stream, and it is a known limit rather than a second rule: a
+`Text` written to a terminal standard output and to a redirected standard error in the same run sends both
+the same thing, where § 3's "when the stream is not a terminal, styling is dropped entirely" would want the
+second plain. Closing it means a `Text` that carries **runs** — text and style in pairs, rendered by
+whichever stream receives it — and the cost is that ADR 0088 § 5's carrier, which is the return of
+`Core\Out::capture` and therefore arbitrary captured bytes, becomes two representations instead of one.
+That trade is not worth making before `Cli::write` takes a stream at all, since `echo` writes standard
+output and nothing else can observe the difference.
 
 ### 3. Streams, tty, colour depth and width resolve once
 
@@ -176,7 +192,8 @@ common case.
 **The profile is resolved once per process, not per call**: whether each stream is a terminal, the colour
 depth (honouring `NO_COLOR`, `CLICOLOR_FORCE`, `FORCE_COLOR` and `TERM=dumb`, and enabling Windows virtual
 terminal processing where it is available), and the width. A program never asks what the terminal supports;
-it writes `Text` and the sink degrades truecolor → 256 → 16 → none at write time. **When the stream is not a
+it writes `Text`, and the styling degrades truecolor → 256 → 16 → none against this profile — in
+`Text::styled`, for the reason § 2's body gives. **When the stream is not a
 terminal, styling is dropped entirely**, so `myprog | grep` and a CI log are plain — while § 1's
 substitution still applies, because that is a safety rule and not a presentation one.
 
