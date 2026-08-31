@@ -1,0 +1,43 @@
+--TEST--
+Core\Cli::multiSelect answers an array<T> rather than a T, and is the one prompt with no default — ADR 0086 § 4
+--FILE--
+<?nvs
+// This case runs with every standard stream redirected, which is § 4's "no
+// controlling terminal". The four prompts beside this one answer a `default`
+// there; § 4's table gives `multiSelect` none, because an empty line already
+// names the empty set and that is the only thing a default would have been for.
+array<string> $choices = ["alpha", "beta"];
+try {
+    array<string> $picked = Core\Cli::multiSelect("Pick some", $choices);
+    echo Core\Arr::count($picked), "\n";
+} catch (Core\Cli\NotInteractive $noTerminal) {
+    echo $noTerminal->message, "\n";
+}
+
+// The binding above is the other half of this case, and it is checked at
+// compile time rather than printed: `select<T>` answers `T` and `multiSelect<T>`
+// answers `array<T>`, so a case that binds one to an `array<string>` and still
+// compiles has pinned which of the two this member is. `$choices` is written as
+// a typed local rather than inline for ADR 0007 § 2's reason — an array literal
+// in a generic position has nothing to be placed against, so `T` would come out
+// `mixed` here exactly as it does for `select`.
+try {
+    string $one = Core\Cli::select("Pick one", $choices);
+    echo $one, "\n";
+} catch (Core\Cli\NotInteractive $noChoice) {
+    echo "select answers one\n";
+}
+
+// An empty list is refused before the terminal is consulted at all, exactly as
+// `select`'s is: there is nothing that could be chosen either way, so it is a
+// bug in the program rather than a question about the environment.
+array<string> $empty = [];
+try {
+    Core\Cli::multiSelect("Pick some", $empty);
+} catch (LogicError $nothingToPick) {
+    echo $nothingToPick->message, "\n";
+}
+--EXPECT--
+no answer for Core\Cli::multiSelect: there is no controlling terminal
+select answers one
+Core\Cli::multiSelect was given nothing to choose between

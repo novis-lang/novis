@@ -2,9 +2,10 @@
 Every prompt with no default throws Core\Cli\NotInteractive rather than waiting, and a validate callback never runs without a terminal — ADR 0086 § 4
 --FILE--
 <?nvs
-// Agreement across the three prompts that take a default: asked the same
-// question with none given, each throws the same class, so a program that
-// wants a fallback writes one `catch` and not three.
+// Agreement across the prompts: asked with no default given — and, for
+// `multiSelect`, with no default there is any spelling for — each throws the
+// same class, so a program that wants a fallback writes one `catch` and not
+// four.
 int $threw = 0;
 try {
     Core\Cli::ask("Your name?");
@@ -21,6 +22,11 @@ try {
 } catch (Core\Cli\NotInteractive $noChoice) {
     $threw = $threw + 1;
 }
+try {
+    Core\Cli::multiSelect("Pick some", ["alpha", "beta"]);
+} catch (Core\Cli\NotInteractive $noChoices) {
+    $threw = $threw + 1;
+}
 echo $threw, " threw\n";
 
 // `validate` runs on what was typed, so a run with nothing to type at never
@@ -34,5 +40,5 @@ echo Core\Cli::ask(
     }
 ), "\n";
 --EXPECT--
-3 threw
+4 threw
 ada

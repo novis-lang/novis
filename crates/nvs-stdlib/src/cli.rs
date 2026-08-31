@@ -117,11 +117,9 @@
 //!    stream argument rather than a rule; `displayWidth` is a question about
 //!    how a renderer would lay a string out, belongs beside `Cli\Style`, and
 //!    additionally owes a UAX #11 table this tree does not carry yet.
-//! 2. **The rest of § 15 does not exist** — no `arguments` and no
-//!    `multiSelect`, which is the one prompt whose answer is a set rather than
-//!    a value and so owes a second reading loop.
-//!    `docs/spec/01-core-library.md` § 15 lists them and `docs/plan/m8.md`
-//!    owns when. ADR 0086 § 4's last paragraph is owed with them: under
+//! 2. **The rest of § 15 does not exist** — no `arguments`.
+//!    `docs/spec/01-core-library.md` § 15 lists it and `docs/plan/m8.md`
+//!    owns when. ADR 0086 § 4's last paragraph is owed with it: under
 //!    `nvs test` a prompt should drain a scripted answer queue rather than
 //!    read a terminal, and today it takes the not-interactive path there
 //!    instead — a test's output is a buffer, so [`watched`] answers `false` —
@@ -136,7 +134,7 @@
 //!    per-stream `Cli::write` would need.
 
 use nvs_runtime::terminal::{Answer, ColorDepth, Echo, Stream};
-use nvs_runtime::{Fault, NvsStr, Tag, Value};
+use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
     CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
@@ -150,16 +148,16 @@ pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 /// ADR 0086 § 3's profile, § 1's launderer and § 4's prompts, as registry
 /// rows. See [`crate::registry::CLASSES`].
 ///
-/// Eleven members and still no `write`: the module docs' gap 1 owns that split,
+/// Twelve members and still no `write`: the module docs' gap 1 owns that split,
 /// and [`nvs_core_cli_escape`] owns why the launderer could land ahead of it.
 ///
 /// In the spec's own order (§ 15), which is why `escape` is first: `arguments`
-/// and `write` come before it and are the two rows still owed, and § 4's
-/// `multiSelect` is the third — it is the one prompt whose answer is a set
-/// rather than a value, so it owes a second reading loop rather than another
-/// row of the shape below. `live` and `progress` are last because § 5 is the
-/// section after the prompts, and they are one region with two ways of writing
-/// a frame rather than two surfaces.
+/// and `write` come before it and are the two rows still owed. § 4's five
+/// prompts are all here now — `multiSelect` is the one whose answer is a set
+/// rather than a value, so it is `select`'s menu under a second reading loop
+/// rather than another row of the shape below. `live` and `progress` are last
+/// because § 5 is the section after the prompts, and they are one region with
+/// two ways of writing a frame rather than two surfaces.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
     methods: &[
@@ -246,6 +244,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_cli_select",
             doc: Some(&SELECT_DOC),
+        },
+        CoreMethod {
+            name: "multiSelect",
+            names: &["question", "choices"],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Options(MULTI_SELECT_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "nvs_core_cli_multi_select",
+            doc: Some(&MULTI_SELECT_DOC),
         },
         CoreMethod {
             name: "secret",
@@ -401,6 +412,16 @@ const SELECT_OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `Core\Cli::multiSelect`'s bag — [`SELECT_OPTIONS`] without the `default`,
+/// which ADR 0086 § 4's table omits and which this member has nothing to do
+/// with: an empty line already names the empty set, so the one thing a
+/// `default` would be for is already spelled.
+const MULTI_SELECT_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "labels",
+    ty: CoreTy::Callable,
+    default: Const::Null,
+}];
+
 /// `Core\Cli::ask`'s reference card — ADR 0117.
 const ASK_DOC: MethodDoc = MethodDoc {
     short: "Asks `$question` at the controlling terminal and answers the line typed back — \
@@ -499,6 +520,49 @@ const SELECT_DOC: MethodDoc = MethodDoc {
             error: "Core\\Cli\\NotInteractive",
             desc: "There is no controlling terminal to ask, its input ended, or nobody answered \
                    within the prompt deadline — and the call named no `default`.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$choices` is empty, so there is nothing that could be chosen.",
+        },
+    ],
+};
+
+/// `Core\Cli::multiSelect`'s reference card — ADR 0117.
+const MULTI_SELECT_DOC: MethodDoc = MethodDoc {
+    short: "Offers `$choices` as a numbered list and answers every one chosen, as the values \
+            themselves — `select` where the answer is a set, so the numbers are typed together \
+            on one line and an empty line names none of them.",
+    params: &[
+        ParamDoc {
+            name: "question",
+            desc: "What to write above the list, substituted as `ask` substitutes it. The \
+                   accepted range and separator are appended to it, the way `confirm` appends \
+                   `[y/n]`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "choices",
+            desc: "The values to choose between, listed in their own order. An empty array is a \
+                   `LogicError`: there is nothing that could be chosen.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "labels",
+            desc: "Called with each option to produce the line shown for it. Absent renders each \
+                   option as text the way `echo` would.",
+            shape: &[],
+        },
+    ],
+    ret: "The chosen elements of `$choices`, in that array's own order and each at most once, \
+          whatever order they were typed in. An empty line answers an empty array; there is no \
+          `default`, so a run with no terminal throws instead.",
+    errors: &[
+        ErrorDoc {
+            error: "Core\\Cli\\NotInteractive",
+            desc: "There is no controlling terminal to ask, its input ended, or nobody answered \
+                   within the prompt deadline. Unlike the other prompts this one has no \
+                   `default` to fall back on.",
         },
         ErrorDoc {
             error: "LogicError",
@@ -856,6 +920,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cli_ask" => (nvs_core_cli_ask as *const ()).cast(),
         "nvs_core_cli_confirm" => (nvs_core_cli_confirm as *const ()).cast(),
         "nvs_core_cli_select" => (nvs_core_cli_select as *const ()).cast(),
+        "nvs_core_cli_multi_select" => (nvs_core_cli_multi_select as *const ()).cast(),
         "nvs_core_cli_secret" => (nvs_core_cli_secret as *const ()).cast(),
         _ => return None,
     })
@@ -1275,10 +1340,7 @@ nvs_runtime::nvs_helper! {
             };
         }
 
-        let mut menu = String::new();
-        for (at, option) in options.iter().enumerate() {
-            menu.push_str(&format!("{}) {}\n", at + 1, label_of(ctx, labels, *option)?));
-        }
+        let mut menu = menu_of(ctx, &options, labels)?;
         menu.push_str(&question);
         menu.push(' ');
 
@@ -1300,9 +1362,120 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The menu `select` and `multiSelect` write above their question: one
+/// `1) label` per line, in the options' own order.
+///
+/// One builder for both, because the numbering a caller types against is the
+/// same numbering — a second copy is how the two would come to disagree about
+/// what `2` means, which is the one thing a menu cannot afford.
+fn menu_of(ctx: &mut nvs_runtime::Ctx, options: &[Value], labels: Value) -> Result<String, Fault> {
+    let mut menu = String::new();
+    for (at, option) in options.iter().enumerate() {
+        menu.push_str(&format!(
+            "{}) {}\n",
+            at + 1,
+            label_of(ctx, labels, *option)?
+        ));
+    }
+    Ok(menu)
+}
+
+/// Which options `answer` names, as one flag per option — or `None` where a
+/// token was not a number on the menu, which [`nvs_core_cli_multi_select`] asks
+/// again rather than guessing at.
+///
+/// A flag per option rather than the numbers as typed, because that is what
+/// makes the answer a **set**: an option named twice is chosen once, and the
+/// order it comes back in is the menu's rather than the typing's. Splitting on
+/// commas and spaces only — rather than on every non-digit — is what keeps
+/// `1-3` a refusal instead of a range spelling silently read as two. An empty
+/// token is dropped rather than refused, so a trailing separator is forgiven:
+/// it has exactly one reading, which is not true of anything else here.
+fn chosen_of(answer: &str, offered: usize) -> Option<Vec<bool>> {
+    let mut chosen = vec![false; offered];
+    for token in answer
+        .split([',', ' ', '\t'])
+        .filter(|token| !token.is_empty())
+    {
+        let at = token.parse::<usize>().ok()?.checked_sub(1)?;
+        *chosen.get_mut(at)? = true;
+    }
+    Some(chosen)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::multiSelect<T>(string $question, array<T> $choices, {labels?: callable}): array<T>`
+    /// — § 4's fourth prompt, and the only one whose answer is a set.
+    ///
+    /// It is [`nvs_core_cli_select`] with a second reading loop and nothing
+    /// else: the same menu from the same [`menu_of`], the same numbering, the
+    /// same refusal of anything off the list. What differs is the parse — a
+    /// line of numbers rather than one — and three decisions that follow from
+    /// the answer being a set rather than a value:
+    ///
+    /// - **The order is the menu's, and each choice appears once.** Numbers
+    ///   typed as `3,1,3` answer options 1 and 3 in that order. The order
+    ///   someone typed is not information they meant to give, and an answer
+    ///   paired against `$choices` at the call site is the whole reason § 4
+    ///   returns values rather than indices.
+    /// - **An empty line is the empty array, not a silence.** Choosing none is
+    ///   an answer a multi-select has to be able to give, and it is the only
+    ///   spelling for it — the alternative forces every caller to add a "none
+    ///   of these" choice of its own. § 4's table gives this member no
+    ///   `default` precisely because it needs none.
+    /// - **A token that is not a number on the menu is asked again**, exactly
+    ///   as `select` re-asks: `1-3` is refused rather than read as a range,
+    ///   because reading it as one would silently drop option 2.
+    ///
+    /// The accepted range and separator are appended to the question, which is
+    /// `confirm`'s `[y/n]` rather than a new idea: the shape of the answer
+    /// belongs to the member, so the member is what can state it.
+    fn nvs_core_cli_multi_select(ctx, args: [3]) {
+        let question = question_of(&args[0], "multiSelect")?;
+        let labels = args[2];
+        let options = options_of(args[1], "multiSelect")?;
+        if options.is_empty() {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                "Core\\Cli::multiSelect was given nothing to choose between",
+            ));
+        }
+
+        // `select`'s reasoning: the empty list is a bug either way, but the
+        // menu is only built where it can be read, so an unattended run calls
+        // no `labels` callback.
+        if !watched(ctx) {
+            return Err(not_interactive("multiSelect"));
+        }
+
+        let mut menu = menu_of(ctx, &options, labels)?;
+        menu.push_str(&question);
+        menu.push_str(&format!(" [1-{}, comma-separated] ", options.len()));
+
+        loop {
+            let answer = match ask_terminal(ctx, &menu, Echo::Shown) {
+                Answer::Line(line) => line,
+                // No `default` in § 4's row, so the shared helper is reached
+                // with a `null` and always throws.
+                ref quiet => return unanswered(quiet, "multiSelect", Value::null()),
+            };
+            let Some(chosen) = chosen_of(answer.trim(), options.len()) else {
+                continue;
+            };
+            let mut picked = NvsArray::new();
+            for (at, option) in options.iter().enumerate() {
+                if chosen[at] {
+                    picked.append(handed_back(*option));
+                }
+            }
+            return Ok(Value::array(picked));
+        }
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Cli::secret(string $question): secret tainted string` — § 4's
-    /// fourth prompt, and the clearest demonstration of why
+    /// fifth prompt, and the clearest demonstration of why
     /// [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
     /// qualifier was worth having: a password typed here structurally cannot
     /// be echoed, logged, dumped, put in a `Throwable` message or serialized,
@@ -2732,7 +2905,7 @@ mod tests {
             ANSWER_DEADLINE > Duration::ZERO && ANSWER_DEADLINE <= Duration::from_secs(600),
             "a prompt's deadline is finite and scaled to a person answering a question"
         );
-        for prompt in ["ask", "confirm", "select", "secret"] {
+        for prompt in ["ask", "confirm", "select", "multiSelect", "secret"] {
             let row = CLASS
                 .methods
                 .iter()
@@ -2745,6 +2918,60 @@ mod tests {
                      longer than ADR 0086 § 4's deadline"
                 );
             }
+        }
+    }
+
+    /// ADR 0086 § 4: `multiSelect`'s answer is a **set**, which is the whole of
+    /// what it adds to `select` — and the only part of it a conformance case
+    /// cannot reach, since the parse runs after a line has been read from a
+    /// terminal a piped case does not have.
+    ///
+    /// Four claims, and each is a decision the shipped body would still look
+    /// right without. A choice named twice is chosen once and the order is the
+    /// **menu's** rather than the typing's, because an answer paired against
+    /// `$choices` at the call site is why § 4 answers values and not indices.
+    /// An empty line is the empty set rather than a silence, which is why this
+    /// member needs no `default` where the other four take one. And a token
+    /// that is not a number on the menu is a refusal rather than a guess —
+    /// `1-3` in particular, where reading a range would silently drop the
+    /// option between its ends, and `0`, where the menu starts at one.
+    #[test]
+    fn multi_select_reads_a_set_and_refuses_what_it_cannot_read() {
+        let chosen = |answer: &str| {
+            chosen_of(answer, 3).map(|flags| {
+                flags
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, taken)| **taken)
+                    .map(|(at, _)| at + 1)
+                    .collect::<Vec<_>>()
+            })
+        };
+
+        // A set: named twice is once, and the order comes back the menu's.
+        assert_eq!(chosen("3,1,3"), Some(vec![1, 3]));
+        // Commas, spaces or both, since a person typing a list uses all three.
+        for spelling in ["1,2", "1 2", "1, 2", " 1 ,2 ", "1,2,"] {
+            assert_eq!(chosen(spelling), Some(vec![1, 2]), "`{spelling}`");
+        }
+        // The empty set is an answer, and it is the one no `default` is needed
+        // for — § 4's table gives this member none.
+        assert_eq!(chosen(""), Some(Vec::new()));
+        assert!(
+            !MULTI_SELECT_OPTIONS
+                .iter()
+                .any(|option| option.name == "default"),
+            "an empty line already names the empty set"
+        );
+
+        // Off the menu at either end, and anything that is not a number at all,
+        // is asked again rather than clamped or read as something near it.
+        for refused in ["0", "4", "1-3", "all", "1,x", "-1", "1.0"] {
+            assert_eq!(
+                chosen(refused),
+                None,
+                "`{refused}` is not a choice on offer"
+            );
         }
     }
 

@@ -19,6 +19,20 @@ echo Core\Cli::select(
     }
 ), "\n";
 
+// `multiSelect` carries `labels` and nothing else, so the callback is still
+// not called — and this time there is no default to hand back afterwards. That
+// order is the assertion: the terminal is checked before the menu is built, so
+// no run renders a list it would then throw away.
+try {
+    Core\Cli::multiSelect(
+        "Pick some",
+        ["alpha", "beta"],
+        {labels: fn(string $choice): string => "seen: " . $choice}
+    );
+} catch (Core\Cli\NotInteractive $noChoices) {
+    echo "no menu\n";
+}
+
 // `secret` has no default at all, so the same run throws where the three
 // above answered.
 try {
@@ -30,4 +44,5 @@ try {
 []
 no
 alpha
+no menu
 threw
