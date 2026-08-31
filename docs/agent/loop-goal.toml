@@ -2354,6 +2354,14 @@ tests = [
   "a_socket_read_runs_on_the_reactor_and_parks_its_coroutine",
 ]
 
+# The origin these five lines need is the DRIVER's, not the example's. `tools/loop.py` holds one
+# `tools/origin.py` open per leg around the whole sweep -- on Windows for the native fixtures, and a
+# second inside the distro for the WSL leg and the valgrind sweep, because a WSL loopback is its own.
+# The example spawns nothing of its own: `Core\Process::run` runs a program to completion (ADR 0044),
+# and Novis's own server is ADR 0097's, a later milestone -- so an example that started its origin
+# would be an example nobody could run until then. `origin.py` holds every answer 25ms, which is what
+# makes the last line decided by arithmetic rather than by a race between a 1ms budget and a
+# sub-millisecond loopback round trip; its module doc is the home of that reasoning.
 [[check]]
 kind = "exact"
 stage = "5 network"

@@ -18,9 +18,12 @@
 // is the whole budget, covering every attempt and every redirect hop, so a
 // deadline this short is the one thing a caller can reliably prove.
 //
-// The origin the first two lines talk to is stage 5's own harness to bring
-// up; it is the same local origin the network checks use, and this file
-// names it rather than discovering it.
+// The origin the first two lines talk to is the harness's, not this file's:
+// `tools/origin.py`, which the driver holds up around the acceptance sweep and
+// which you start by hand to run this file — `python tools/origin.py &`. The
+// address is named here rather than discovered, and the reason the origin is
+// the harness's is recorded beside the stage 5 check in
+// `docs/agent/loop-goal.toml`.
 //
 // The five lines this prints are frozen in `docs/agent/loop-goal.toml`
 // (stage 5); the source is not.

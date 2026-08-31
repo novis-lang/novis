@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import _thread
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -1065,6 +1066,10 @@ class NativeLeg:
     def run(self, nvs_args):
         return capture(self.binary, ["run", *nvs_args])
 
+    def origin_command(self):
+        """`tools/origin.py` where this leg's fixtures run -- see `local_origin` below."""
+        return [sys.executable, "-u", str(ROOT / "tools" / "origin.py")]
+
     def suite(self, nvs_args):
         """`nvs test <dir>` on this leg. Separate from `run` because a suite takes its own
         subcommand, and separate from calling `self.binary` directly because on the WSL leg that
@@ -1104,8 +1109,65 @@ class WslLeg(NativeLeg):
     def run(self, nvs_args):
         return self.bash(f"cd {self.repo} && {self.binary} run " + " ".join(nvs_args))
 
+    def origin_command(self):
+        """Inside the distro, because a WSL loopback is its own: a listener bound on the Windows
+        side of 127.0.0.1 is not the one `examples/http.nvs` reaches from here. The mirrored-
+        networking case, where the two loopbacks *are* the same one, is handled by `origin.py`
+        itself -- it leaves an existing listener alone and idles as a lifetime handle."""
+        return ["wsl.exe", "--", "bash", "-lc",
+                f"cd {self.repo} && exec python3 -u tools/origin.py"]
+
     def suite(self, nvs_args):
         return self.bash(f"cd {self.repo} && {self.binary} " + " ".join(nvs_args))
+
+
+@contextlib.contextmanager
+def local_origin(leg):
+    """`tools/origin.py` on this leg, up for as long as the caller's fixtures run.
+
+    `examples/http.nvs` names `http://127.0.0.1:8099` rather than discovering it, so the harness is
+    what has to be serving there -- that decision, and why it is not the example spawning its own,
+    is recorded beside the stage 5 check in `docs/agent/loop-goal.toml`. One per leg: the native
+    fixtures reach the Windows listener, and the WSL leg's fixtures and valgrind sweep reach one
+    inside the distro.
+
+    Readiness is the origin's own line on stdout, not a sleep and not a probe from here -- the WSL
+    one cannot be probed from Windows at all. The reader thread stays for the process's life so a
+    full pipe buffer can never stall it, and closing stdin is the whole shutdown protocol.
+
+    A leg whose origin does not come up is loud but not fatal: the fixture that needed it then
+    fails on its own line with the connection error, which says more than a harness failure would.
+    """
+    proc = subprocess.Popen(leg.origin_command(), cwd=str(ROOT), stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    ready, up = [], threading.Event()
+
+    def watch():
+        for line in proc.stdout:
+            if line.startswith("origin:") and not ready:
+                ready.append(line.strip())
+                up.set()
+        up.set()  # it ended without ever saying it -- do not wait the timeout out for nothing
+
+    threading.Thread(target=watch, daemon=True).start()
+    up.wait(60)
+    if ready:
+        say(f"{leg.name} {ready[0]}", C.GRAY)
+    else:
+        why = (proc.stderr.read() or "").strip() if proc.poll() is not None else "it never answered"
+        say(f"the {leg.name} leg has no origin on 8099 -- {why.splitlines()[-1] if why else '?'}",
+            C.RED)
+    try:
+        yield
+    finally:
+        try:
+            proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
 
 
 def wsl_available():
@@ -1863,6 +1925,14 @@ class Goal:
         return ""
 
     def check(self, verbose=False):
+        """The acceptance sweep, with the local origins its network fixtures need held open around
+        it. An `ExitStack` rather than a `with` per leg because `_check` returns from a dozen places
+        and the second origin's lifetime begins in the middle of it."""
+        with contextlib.ExitStack() as origins:
+            self.origins = origins
+            return self._check(verbose)
+
+    def _check(self, verbose=False):
         self.verbose = verbose
         trace = self.trace
 
@@ -1888,6 +1958,10 @@ class Goal:
             if fail:
                 return fail
 
+        # Held for the whole sweep and not just for the fixtures: on a Linux host `leg` stays
+        # `native`, so this is also the origin the valgrind sweep's own run of `examples/http.nvs`
+        # reaches.
+        self.origins.enter_context(local_origin(native))
         for c in self.program_checks:
             trace(f"{native.name} {c['file']}")
             fail = self.program_check(native, c)
@@ -1922,6 +1996,9 @@ class Goal:
             fail = self.timed("wsl build", leg.prepare)
             if fail:
                 return fail
+            # Before the branch below rather than inside it: the sweep runs on this leg even when
+            # its fixtures are already green on these inputs, and it runs `examples/http.nvs` too.
+            self.origins.enter_context(local_origin(leg))
             if self.remembered("wsl leg"):
                 trace("wsl fixtures (green on these inputs already)")
             else:
@@ -1967,6 +2044,13 @@ class Goal:
         return self.short[0] if self.short else ""
 
     def leg_check(self, verbose=False):
+        """The Linux leg, with the origin its network fixtures need held open around it -- the same
+        shape as `check` above, and for the same reason."""
+        with contextlib.ExitStack() as origins:
+            self.origins = origins
+            return self._leg_check(verbose)
+
+    def _leg_check(self, verbose=False):
         """The Linux leg on its own: every fixture, both suites and the valgrind sweep against a
         Linux build. The cargo suites are left out because they do not divide by target -- what
         this leg exists to catch is a calling-convention divergence in the JIT or a leak in the
@@ -1992,6 +2076,7 @@ class Goal:
         fail = self.timed(f"{leg.name} build", leg.prepare)
         if fail:
             return fail
+        self.origins.enter_context(local_origin(leg))
 
         for c in self.program_checks:
             trace(f"{leg.name} {c['file']}")
