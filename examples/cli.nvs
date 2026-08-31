@@ -21,17 +21,26 @@
 // The three lines this prints are frozen in `docs/agent/loop-goal.toml`
 // (stage 3); the source is not.
 
-#[Command(name: "greet", about: "Greet somebody by name")]
-function greet(#[Argument] string $name, #[Option] bool $loud = false): uint {
-    string $greeting = "Hello, " . $name . "!";
-    if ($loud) {
-        $greeting = Core\Str::upper($greeting);
+// The handler is a `public static` method of a class, and both halves of that
+// are rules rather than style: Novis has no top-level functions at all
+// ([ADR 0011](../docs/adr/0011-functions-and-constants-are-class-members.md)),
+// and § 6's compiled table holds a `Class::method` string with no constructor
+// arguments anywhere in it, so there is no instance for a handler to be called
+// on. A parameter is a positional argument unless it carries `#[Core\Option]`
+// — one sentence, with no inference from defaults or types.
+class Greeter {
+    #[Core\Command(name: "greet", about: "Greet somebody by name")]
+    public static function greet(string $name, #[Core\Option] bool $loud = false): uint {
+        string $greeting = "Hello, " . $name . "!";
+        if ($loud) {
+            $greeting = Core\Str::upper($greeting);
+        }
+        echo "greet: ", $greeting, "\n";
+        return 0;
     }
-    echo "greet: ", $greeting, "\n";
-    return 0;
 }
 
-var $status = greet("ada");
+var $status = Greeter::greet("ada");
 
 // The generated page, of which the usage line is the first. `Cli\Text`
 // renders as the bytes it already holds (ADR 0088 § 5), so concatenating it
