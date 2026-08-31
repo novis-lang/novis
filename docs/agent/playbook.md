@@ -3249,6 +3249,17 @@ is why" — is this file.
   Only the *differential gap* block's roster ("a PHP twin and no oracle case") answers the question
   the Stage 8 differential count asks. One `ls tests/differential/core/ | grep <class>` before
   writing settles it, and the members with no differential case at all are the ones with room.
+- **A `Core` member arrives owing *three* conformance cases, not one, and the floor counts files
+  rather than assertions.** `every_core_class_has_a_conformance_floor_of_three` in
+  `crates/nvs-stdlib/tests/conformance_coverage.rs` counts the `.nvst` **cases** that name each
+  member, and `BELOW_THE_FLOOR` is empty and "only shrinks", so a group of four members added under
+  a handoff item saying "one `.nvst` case covers the group" fails the full verify unless three
+  separate files each name all four. Write them as three different *questions* — the round trip, the
+  refusal, the boundary — and one file can carry a whole group's worth of each. The second thing
+  worth knowing before writing any of them: a case grants capabilities with a `--FILE nvs.toml--`
+  section, `read = true` / `write = true` is an unrestricted grant (`nvs_config::tree::Setting`), and
+  `--FILE sub/keep.txt--` creates a directory to test against, which is the only way to have one
+  before `makeDir` exists.
 
 ## Splitting a file that got too big
 
