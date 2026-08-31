@@ -1,0 +1,33 @@
+--TEST--
+the local tier forgets an older entry rather than failing the write that crossed `[cache.local] max_size` — ADR 0059 §§ 1 and 3
+--FILE--
+<?nvs
+// § 3 caps this tier and says exceeding the cap **evicts** rather than failing
+// an allocation, so nothing here is wrapped in a `try`: a `put` that has to
+// make room answers exactly what a `put` with room to spare answers, and this
+// case fails on an uncaught throw the moment that stops being true.
+var $cache = Core\Cache::local();
+var $payload = Core\Str::repeat('x', 1024);
+
+$cache->put('first', $payload);
+$cache->put('second', $payload);
+// Three kilobyte entries do not fit under a three-kilobyte cap, so writing the
+// third forgets the one written longest ago — § 1's "any entry may be absent at
+// any time", reached by the one mechanism that decides which entry it is.
+$cache->put('third', $payload);
+
+// `null` is an ordinary answer here and never a failure, which is the whole
+// difference between forgetting an entry and refusing a write.
+echo $cache->get('first') == null ? 'forgotten' : 'kept', "\n";
+echo $cache->get('second') == null ? 'forgotten' : 'kept', "\n";
+echo $cache->get('third') == null ? 'forgotten' : 'kept', "\n";
+--FILE nvs.toml--
+# The cap is a `System` directive an operator sets, and nothing in the program
+# above can raise it for itself: the memory it bounds belongs to the core, not
+# to this request.
+[cache.local]
+max_size = "3K"
+--EXPECT--
+forgotten
+kept
+kept
