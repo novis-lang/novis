@@ -1,0 +1,38 @@
+--TEST--
+`Core\Http\Response`'s readers are reached as members: a `Core` instance has no property a program can name, whichever member roster the class carries — ADR 0074 § 6, ADR 0063
+--FILE--
+<?nvs
+// The claim is *a bound asserted on both sides*: the accepted spelling and the
+// refused one are written against the same value in the same file, so a class
+// that grew a reachable field would take the second half of this green while
+// the first still passed.
+//
+// `nvs_stdlib::registry::CoreClass::slots` is the home of the rule — a slot is
+// this crate's layout and not a surface — and `crate::http`'s module doc is
+// where the decision to leave `Core\Http\Response` inside it was written down.
+Core\Http\Target $pinned = Core\Http::allowUrl("http://93.184.216.34/ok");
+
+// The accepted side. Refused at run time by the missing transport, which is
+// not what this case is about and never gets that far anyway.
+try {
+    Core\Http\Response $ok = Core\Http\Client::get($pinned);
+    echo $ok->status() as string, " ", $ok->text(), "\n";
+} catch (RuntimeError $unsent) {
+    echo $unsent->message, "\n";
+}
+
+// The refused side, once per reader: the member exists and the property does
+// not, so this is `E0405` rather than a name-resolution error.
+Core\Http\Response $r = Core\Http\Client::get($pinned);
+echo $r->status, "\n";
+echo $r->text, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Http\Response` has no property named `status`
+   --> case.nvs:24:6
+%A
+error[E0405]: `Core\Http\Response` has no property named `text`
+   --> case.nvs:25:6
+%A
+error: aborting due to 2 errors

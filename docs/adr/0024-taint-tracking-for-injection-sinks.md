@@ -81,7 +81,11 @@ checker the way § 2's semantic rules are. See *Consequences* and the plan's M1 
 Every method on `Core\Request`, `Core\Server` (header values and any other client-influenced field —
 `REQUEST_METHOD` from a fixed enum-shaped set is not attacker-shaped the same way and is not required to be
 tainted), `Core\Session`, `Core\Env`, `Core\Cli`, and `Core\Script::args()` returns the tainted form of
-whatever it already returned. Structured input stays `array<mixed>` exactly as
+whatever it already returned. **An outbound reply's body is input in the same sense**, so
+`Core\Http\Response::text()` answers `tainted string`: pinning an address
+([ADR 0058](0058-outbound-request-policy.md) § 2) settles which host the bytes came from and says nothing
+about what is in them, and a reply a program asked for is no safer than one it was sent. Its `status()` is
+not tainted — three digits carry nothing a sink can misread. Structured input stays `array<mixed>` exactly as
 [ADR 0007](0007-explicit-type-system.md) § 6 and [ADR 0009](0009-string-and-bytes.md) § 4 already decided —
 this ADR is about the scalar payload once it is pulled out of `mixed`, the same framing those two ADRs
 already used.

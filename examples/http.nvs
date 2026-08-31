@@ -30,7 +30,10 @@ string $origin = "http://127.0.0.1:8099";
 // Allowed: laundered, pinned, and then fetched.
 Core\Http\Target $url = Core\Http::allowUrl($origin . "/ok");
 var $response = Core\Http\Client::get($url);
-echo "status=", $response->status, "\n";
+// `status` is a member and not a property: a `Core` instance has no property a
+// program can reach, so this is `->status()` and `crate::http`'s module doc is
+// where that decision is written down.
+echo "status=", $response->status() as string, "\n";
 echo "body=", Core\Str::trim($response->text()), "\n";
 
 // Refused at the door: a URL that arrived from outside the process. The

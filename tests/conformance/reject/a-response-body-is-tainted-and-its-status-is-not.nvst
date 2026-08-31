@@ -1,0 +1,35 @@
+--TEST--
+`Core\Http\Response::text` answers a `tainted string` and `::status` an ordinary `int`, so a plain `string` binding refuses the body and nothing refuses the code — ADR 0024 § 1, ADR 0074 § 6
+--FILE--
+<?nvs
+// The claim is *a bound asserted on both sides*: the two readers of one value
+// are bound to the two types, and only the body's binding is refused. A
+// `text()` that quietly lost the qualifier passes the second half of this and
+// fails the first; a `status()` that gained one fails the other way round.
+//
+// A reply is bytes another host chose, and pinning an address settles where
+// they came from rather than what is in them — ADR 0024 § 1's roster names
+// this reader for that reason.
+Core\Http\Target $pinned = Core\Http::allowUrl("http://93.184.216.34/ok");
+Core\Http\Response $r = Core\Http\Client::get($pinned);
+
+// Accepted: three digits carry nothing a sink can misread.
+int $status = $r->status();
+echo $status as string, "\n";
+
+// Accepted: the qualifier is what the value is, and a `tainted string` is
+// where it can be held.
+tainted string $held = $r->text();
+echo $held, "\n";
+
+// Refused: narrowing through an assignment is the one direction the qualifier
+// never goes, and there is no generic launderer to put in front of it.
+string $body = $r->text();
+echo $body, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:24:16
+%A
+error: aborting due to 1 error

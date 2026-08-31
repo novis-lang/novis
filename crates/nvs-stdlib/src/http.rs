@@ -67,6 +67,28 @@
 //! The dynamic half § 7 also names — a verb chosen at run time — arrives with the spec's
 //! `send(Core\Http\Request)` row and throws before the first attempt rather than before the second.
 //!
+//! # The reply is read through members, and its body is `tainted`
+//!
+//! [`RESPONSE`] carries two slots and the two members that read them back, and both halves of that
+//! are decisions rather than layout.
+//!
+//! **`status` is a call, not a property.** A `Core` instance has no property a program can reach —
+//! [`crate::registry::CoreClass::slots`] is that rule's home — so `$response->status` is `E0405`
+//! and `$response->status()` is the spelling, and `examples/http.nvs` was corrected to it rather
+//! than the rule being bent. The alternative was giving `Core` its first reachable field, which
+//! would have made this crate's slot layout part of the language and left every class after this
+//! one choosing between two surfaces for one piece of state.
+//!
+//! **`text()` answers a `tainted string`.** A reply is bytes another host chose, and pinning says
+//! where they came from and nothing about what is in them, so a body is input in exactly the sense
+//! [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md) § 1 means — its
+//! roster names these readers for that reason. `status()` is an `int` and carries no qualifier,
+//! because there is nothing in three digits for a sink to misread.
+//!
+//! The `body` slot holds a `string` rather than the bytes that arrived. Decoding is one question,
+//! answered by the transport where the charset is known; a reader that decoded on every call would
+//! answer it again, and a second answer is the one that will disagree.
+//!
 //! # What is not here yet, and why each is deliberate rather than forgotten
 //!
 //! **The transport.** Every row resolves, pins and judges its options exactly as it will, and then
@@ -79,9 +101,9 @@
 //! transport is what makes it testable — posting user-supplied data is ordinary, so the answer is
 //! not the URL's answer, and guessing it here would pin the wrong one in a signature.
 //!
-//! **Reading a response.** [`RESPONSE`] is a name with nothing behind it: a slot and the member
-//! that reads it are one decision, so the transport that fills a reply is what declares both. A
-//! reader over slots nothing writes would be a surface with no behaviour under it.
+//! **The reply's headers.** [`RESPONSE`] answers `status()` and `text()` and nothing else: a slot
+//! and the member that reads it are one decision, and a `header()` over a map nothing fills would
+//! be a surface with no behaviour under it. It arrives with the transport that writes the map.
 //!
 //! **What it spends:** one `Core\Http\Target` allocation per laundered URL, two slots wide, charged
 //! to the request that laundered it — and one synchronous resolution per call, which
@@ -171,6 +193,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_http_client_put" => (nvs_core_http_client_put as *const ()).cast(),
         "nvs_core_http_client_delete" => (nvs_core_http_client_delete as *const ()).cast(),
         "nvs_core_http_client_head" => (nvs_core_http_client_head as *const ()).cast(),
+        "nvs_core_http_response_status" => (nvs_core_http_response_status as *const ()).cast(),
+        "nvs_core_http_response_text" => (nvs_core_http_response_text as *const ()).cast(),
         _ => return None,
     })
 }
@@ -417,19 +441,66 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// What every request member answers with, as a name and nothing else yet.
+/// What every request member answers with — ADR 0074 §§ 5-6's reply, as the
+/// two slots a transport fills and the two members that read them back.
 ///
-/// Empty rather than carrying the slots a reply is made of: a slot and the
-/// member that reads it are one decision — `a_class_with_slots_has_instance_
-/// members_and_the_reverse` is that rule — and the transport is what decides
-/// both. A program can name the type it is holding today, which is what the
-/// five rows need from it.
+/// `status` is a member rather than a property and `text` answers a `tainted`
+/// string; this module's own docs are the home of both decisions. The roster
+/// stops at two because a slot and the member that reads it are one decision
+/// — `a_class_with_slots_has_instance_members_and_the_reverse` is that rule —
+/// so the header map arrives with the transport that fills it.
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
     methods: &[],
-    instance: &[],
-    slots: &[],
+    instance: &[
+        CoreMethod {
+            name: "status",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_http_response_status",
+            doc: Some(&STATUS_DOC),
+        },
+        CoreMethod {
+            name: "text",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_http_response_text",
+            doc: Some(&TEXT_DOC),
+        },
+    ],
+    slots: &["status", "body"],
     constants: &[],
+};
+
+/// [`RESPONSE`]'s status slot, by index — the layout its `slots` names, which
+/// `CoreClass::slot` is the check on.
+const STATUS_SLOT: usize = 0;
+/// [`RESPONSE`]'s body slot. See [`STATUS_SLOT`].
+const BODY_SLOT: usize = 1;
+
+/// `Core\Http\Response::status`'s reference card — ADR 0117.
+const STATUS_DOC: MethodDoc = MethodDoc {
+    short: "The reply's HTTP status code, as the origin sent it and with nothing read into it — \
+            replacing `curl_getinfo`'s `CURLINFO_RESPONSE_CODE` key.",
+    params: &[],
+    ret: "The status line's three-digit code. A `404` and a `500` are answers, so they arrive \
+          here rather than as a throw; only a request that got no reply at all throws.",
+    errors: &[],
+};
+
+/// `Core\Http\Response::text`'s reference card — ADR 0117.
+const TEXT_DOC: MethodDoc = MethodDoc {
+    short: "The reply's body as text, replacing `curl_exec`'s return value and the \
+            `CURLOPT_RETURNTRANSFER` flag that decided whether there was one.",
+    params: &[],
+    ret: "The body, `tainted`: it is bytes another host chose, and a pinned address settles where \
+          they came from rather than what is in them. A sink's own launderer is the way out of \
+          it, and there is no generic one.",
+    errors: &[],
 };
 
 /// The parameters every row of [`CLIENT`] documents — one bag, so the seven
@@ -668,5 +739,79 @@ nvs_runtime::nvs_helper! {
     /// — ADR 0074 § 5. See [`nvs_core_http_client_get`].
     fn nvs_core_http_client_head(ctx, args: [8]) {
         request(ctx, args, "head")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Response::status(): int` — ADR 0074 § 6.
+    ///
+    /// A call rather than a property access, for the reason this module's own
+    /// docs give: `$response->status` is `E0405` and always will be.
+    ///
+    /// # Errors
+    ///
+    /// A [`Fault::fatal`] naming the member if the receiver is not a
+    /// `Core\Http\Response` or its `status` slot holds no `int`. Both are
+    /// unreachable from source — `E0401` refuses a receiver of another type
+    /// before any of this runs, and the slot is written by the transport in
+    /// this crate and by nothing else.
+    fn nvs_core_http_response_status(_ctx, args: [1]) {
+        let object = crate::instance::receiver(args[0], &RESPONSE, "status")?;
+        crate::instance::slot(object, STATUS_SLOT)
+            .as_int()
+            .map(Value::int)
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{RESPONSE_NAME}::status found a non-`int` `status` slot"
+                ))
+            })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Response::text(): tainted string` — ADR 0074 § 6, ADR 0024
+    /// § 1.
+    ///
+    /// The slot is handed straight back with a reference taken, since the
+    /// transport decoded once already; `crate::instance::slot` borrows, and a
+    /// value returned to Novis code owes the retain.
+    ///
+    /// # Errors
+    ///
+    /// A [`Fault::fatal`] naming the member if the receiver is not a
+    /// `Core\Http\Response` or its `body` slot holds no `string` — both
+    /// unreachable from source, exactly as in
+    /// [`nvs_core_http_response_status`].
+    fn nvs_core_http_response_text(_ctx, args: [1]) {
+        let object = crate::instance::receiver(args[0], &RESPONSE, "text")?;
+        let body = crate::instance::slot(object, BODY_SLOT);
+        if body.as_text().is_none() {
+            return Err(Fault::fatal(format!(
+                "{RESPONSE_NAME}::text found a non-`string` `body` slot"
+            )));
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the receiver owns a reference for the length of the call, so the \
+                      slot it holds is live, which is `Value::retain`'s whole obligation"
+        )]
+        unsafe {
+            body.retain();
+        }
+        Ok(body)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BODY_SLOT, RESPONSE, STATUS_SLOT};
+
+    /// The two halves of the layout agree: the index a body reads by and the
+    /// name the registry declares are one decision written twice, which is the
+    /// pairing [`crate::registry::CoreClass::slots`] exists to keep honest.
+    #[test]
+    fn a_responses_slot_constants_are_the_names_it_declares() {
+        assert_eq!(STATUS_SLOT, RESPONSE.slot("status"));
+        assert_eq!(BODY_SLOT, RESPONSE.slot("body"));
     }
 }
