@@ -67,6 +67,8 @@ Conventions the whole file uses:
 | [`Core\Path`](#core-core-path) | path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem |
 | [`Core\IO`](#core-core-io) | whole-file read and write on paths the configuration has granted |
 | [`Core\IO\Lines`](#core-core-io-lines) |  |
+| [`Core\Process`](#core-core-process) |  |
+| [`Core\Process\Result`](#core-core-process-result) |  |
 | [`Core\Time`](#core-core-time) | the clock and the constructors — an absolute `Instant`, or a civil `DateTime` built in a named `Zone` |
 | [`Core\Time\Instant`](#core-core-time-instant) | an absolute point on the timeline, to the nanosecond, with no zone |
 | [`Core\Time\DateTime`](#core-core-time-datetime) | a civil date and time in a zone — calendar arithmetic and CLDR formatting |
@@ -10223,6 +10225,77 @@ Keywords:
 
 | Member | Signature |
 |---|---|
+
+<a id="core-core-process"></a>
+### `Core\Process`
+
+Keywords: run
+
+| Member | Signature |
+|---|---|
+| [`Core\Process::run`](#core-core-process-run) | `run(string $path, array<string> $argv): Core\Process\Result` |
+
+<a id="core-core-process-run"></a>
+#### `Core\Process::run`
+
+```nvs skip
+Core\Process::run(string $path, array<string> $argv): Core\Process\Result
+```
+
+Runs `$path` with `$argv`, waits for it to exit, and answers what it did — PHP's `exec`, `system`, `shell_exec`, `passthru` and the backtick operator, all of which differ only in what they do with the output. There is no command-line form of this member anywhere in the surface: nothing is escaped because there is nothing to escape into. Needs the `process.exec` capability for the target.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The program to start, absolute or relative to the working directory. It is started directly, never through a shell, so a `PATH` lookup is the caller's own to make. |
+| `$argv` | `array<string>` | The arguments, one element each — `["-n", "1", $host]` and never `"-n 1 $host"`. An element carrying a space, a quote or a semicolon is one argument that contains those characters, on every platform. |
+
+**Returns** `Core\Process\Result` — A `Core\Process\Result` carrying the exit code and both captured streams. The child inherits none of this process's own standard streams — all three are piped — so a program that runs a child cannot have its own output interleaved with it.
+
+**Throws** `RuntimeError` — The configuration does not grant `process.exec` for this target, or the target is a `.bat`, `.cmd` or `.ps1` file, which this API refuses on every platform because starting one hands the argv it just built to a second parser.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is not executable, or the child could not be waited for.
+
+<a id="core-core-process-result"></a>
+### `Core\Process\Result`
+
+Keywords: exitCode, stdout, stderr
+
+| Member | Signature |
+|---|---|
+| [`Core\Process\Result->exitCode`](#core-core-process-result-exitcode) | `exitCode(): int` |
+| [`Core\Process\Result->stdout`](#core-core-process-result-stdout) | `stdout(): bytes` |
+| [`Core\Process\Result->stderr`](#core-core-process-result-stderr) | `stderr(): bytes` |
+
+<a id="core-core-process-result-exitcode"></a>
+#### `Core\Process\Result->exitCode`
+
+```nvs skip
+$result->exitCode(): int
+```
+
+The status the child exited with — `$?`, and the third out-parameter `exec` writes.
+
+**Returns** `int` — The exit status, `0` for success by the convention every operating system shares, and `-1` for a child a signal stopped before it could report one.
+
+<a id="core-core-process-result-stdout"></a>
+#### `Core\Process\Result->stdout`
+
+```nvs skip
+$result->stdout(): bytes
+```
+
+Everything the child wrote to its standard output, captured whole.
+
+**Returns** `bytes` — The octets, as `bytes` and not `string`: Novis guarantees a `string` is UTF-8, and a child process makes no such promise about what it writes. A caller who knows the output is text writes `as string`, which throws on a sequence that is not.
+
+<a id="core-core-process-result-stderr"></a>
+#### `Core\Process\Result->stderr`
+
+```nvs skip
+$result->stderr(): bytes
+```
+
+Everything the child wrote to its standard error, captured whole and kept separate from `stdout` — the stream PHP's `exec` discards and `shell_exec` merges.
+
+**Returns** `bytes` — The octets, as `bytes`, for the reason `stdout` states.
 
 <a id="core-core-time"></a>
 ### `Core\Time`
