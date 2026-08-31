@@ -2,71 +2,67 @@
 
 ## State
 
-**Stage 10 item 38's first slice is closed — `class<T>` lowers, and ADR 0125 § 2's two `as` rows
-run.** `Ty::ClassRef` erases to `Ty::ClassDesc` in both directions the crate translates a type
-(`crates/nvs-ir/src/lower/mod.rs:2748`'s `lower_decl_type` and its `erase_checked_ty` twin), so a
-descriptor now reaches a local, a parameter, a field and a return — `Ty::ClassDesc`'s own doc
-comment is the home for what that costs and what the erasure drops.
+**Stage 10 item 38 has two of its three dynamic sites.** `new $cls(...)` lowers to
+`InstKind::NewDynamic` with the operand's descriptor, and `$cls::f(...)` to one
+`InstKind::CallVirtual` dispatching on it — both run end to end under `nvs run`, over a folded
+`Dog::class as class<Animal>` and over a walked `$name as class<Animal>` alike, and an implementor
+that overrides the member wins while one that does not falls back to the bound's body.
 
-**§ 2's rows are one function and one instruction.** `Lowering::lower_class_reference`
-(`crates/nvs-ir/src/lower/convert.rs:886`) folds a written-out `Foo::class` to the
-`InstKind::ClassDescConst` `Foo::bar()` already bakes, and sends everything else through
-`InstKind::ClassDescIn` (`crates/nvs-ir/src/ir.rs:593`) — whose null answer it turns into ADR 0007
-§ 2's throw. Codegen answers that instruction from the closed set `Classes::conforming_to`
-(`crates/nvs-codegen/src/lib.rs:741`) reads off the unit's own hierarchy: a branch-free chain of
-`nvs_str_eq` calls for the string door and of `icmp` for the `class<U>` narrowing, no runtime
-function and no name registry. Both rows were run end to end under `nvs run` before the wrap.
+**The seam the last two sessions described is closed by two `ExprInfo` variants**, each recorded
+where the guarded `New`/`Call` entry refused to be: `ExprInfo::NewDynamic { bound, ctor, ty }` and
+`ExprInfo::ClassRefCall(ResolvedCall)` (`crates/nvs-types/src/expr_table.rs:362`). Their own doc
+comments are the home for why each is a variant rather than a field on its sibling — in both cases
+because the existing variant names a class a consumer may bind straight to, and the class here is
+whichever implementor the descriptor holds.
 
-**What item 38 still owes is the three dynamic sites**, and the seam is unchanged from the last
-session: the checker records nothing in the expr table for `new $cls()`, `$cls::f()` or
-`$x instanceof $cls`, deliberately and with both record sites guarded, so `nvs-ir` finds no entry
-and panics. That is what the next group closes, and item 39's `.nvst` cases wait on it.
+**One refusal widened.** A non-`static` member reached through a `class<T>` class side now takes
+`report_instance_method_called_statically` unconditionally, where a written class side still only
+takes it with no `$this` in scope: `self::f()` is legal for an instance `f` because it forwards the
+enclosing frame's receiver, and a class reference has none to forward. That is the sentence guarding
+`lower_static_call_on_a_class_reference`'s `receiver: None`.
 
-**`as ?class<T>` has no row and needs a representation decision**, which ADR 0125 § 2 promises and
-nothing yet delivers: both spellings reach `convert_or_null`'s existing refusals today.
-`Lowering::lower_class_reference`'s *Known gaps* names the shape that would work — the null
-descriptor `ClassDescIn` already produces, which makes `?class<T>` a `Ty::ClassDesc` rather than a
-`Ty::Tagged` and needs `null`'s comparison rows against that representation.
+**Known gap, recorded on `ExprInfo::ClassRefCall`:** `$cls::f(...)` written as ADR 0027's
+first-class callable still records `ExprInfo::CallableRef`, so the `Closure` names `T`'s method
+rather than the implementor's. It predates this session and needs a refusal or a descriptor-carrying
+closure, not a lowering.
 
-**`orient.py`'s `[context]` gaps.** Unchanged and standing: the pack prints the goal item but not
-the `[[check]]` grading it; no field selects `docs/reference/lang/*.md` (item 39 needs it);
-`docs/adr/README.md` and `ground-rules.md` are not in `modules`. In `adrs`: **0125 §§ 4-5** for the
-next group. The `crates/nvs-host/src/budget.rs` warning is the documented forward anchor.
+**`as ?class<T>` still has no row** and still needs the representation decision ADR 0125 § 2
+promises — unchanged, and `Lowering::lower_class_reference`'s *Known gaps* names the shape.
+
+**`orient.py`'s `[context]` gaps.** Standing: no field selects `docs/reference/lang/*.md` (item 39
+needs it); `docs/adr/README.md` and `ground-rules.md` are not in `modules`; the pack prints the goal
+item but not the `[[check]]` grading it. `crates/nvs-host/src/budget.rs` is the documented forward
+anchor. Nothing new was missing this session.
 
 ## Next group
 
-**Item 38, the three dynamic sites — file set `crates/nvs-types/src/expr_table.rs`,
-`crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/expr/members.rs` and
-`crates/nvs-ir/src/lower/expr.rs`.** The checker has to record `T` somewhere the guarded `New`/
-`Call`/`InstanceOf` entries cannot hold it, and lowering has to read whatever it records.
+**Item 38's last site, then item 39's corpus — file set `crates/nvs-types/src/expr/members.rs`,
+`crates/nvs-types/src/expr_table.rs`, `crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/lower/expr.rs`
+and `crates/nvs-codegen/src/emit.rs`.** The instruction is the work: `InstKind::InstanceOf` takes a
+`class: String` label today and § 4 needs a descriptor-valued form, which is five emit sites plus
+codegen.
 
-- [ ] **`new $cls(...)` records its class reference and lowers to `NewDynamic`.** The entry is the
-      one `crates/nvs-types/src/expr_table.rs:353`'s `New` guard refuses to be, so it is a variant
-      of its own carrying the bound rather than a written class; `check_new_target`
-      (`crates/nvs-types/src/expr/calls.rs:1274`) is where `T` is in hand, and
-      `crates/nvs-ir/src/lower/expr.rs:212` reads it back into `InstKind::NewDynamic` with the
-      operand's descriptor as `desc`. ADR 0125 § 4. The goal check names
-      `a_new_through_a_class_reference_lowers_to_new_dynamic`.
-- [ ] **`$cls::f()` lowers to `CallVirtual` on the descriptor in hand.** `infer_static_call`
-      (`crates/nvs-types/src/expr/calls.rs:212`) resolves the member on `T`'s roster already; what
-      is missing is the record and `crates/nvs-ir/src/lower/expr.rs:212`'s neighbouring call arm
-      reading it. `lsb` is the shape to copy — a `CallVirtual` whose `lsb` is the operand rather
-      than the frame's. ADR 0125 § 4.
 - [ ] **`$x instanceof $cls` tests two descriptors.** `infer_instanceof`
-      (`crates/nvs-types/src/expr/members.rs:281`) accepts the operand without consulting `T`, and
-      `crates/nvs-types/src/expr_table.rs:615`'s `InstanceOf` entry names a written class;
-      `crates/nvs-ir/src/lower/expr.rs:263` needs `ClassDescOf` on the subject plus a compare
-      against the operand, which is `InstKind::ClassDescIn`'s descriptor arm with the bound taken
-      from the operand instead. ADR 0125 § 4.
+      (`crates/nvs-types/src/expr/members.rs:281`) already accepts the operand; the entry it records
+      is `crates/nvs-types/src/expr_table.rs:666`. `InstKind::InstanceOf`
+      (`crates/nvs-ir/src/ir.rs:792`) grows the descriptor form beside its label —
+      `crates/nvs-ir/src/lower/expr.rs:4272` is the `$x instanceof C` emit and the four others
+      (`lower/closure.rs:382`, `lower/convert.rs:1038`, `lower/exception.rs:182` and `:496`) keep
+      the label. Codegen is `crates/nvs-codegen/src/emit.rs:3437`. ADR 0125 § 4.
+- [ ] **The three positive `.nvst` cases the goal check names**, once the site above lands:
+      `tests/conformance/class/a-class-reference-instantiates-the-subclass-it-names.nvst`,
+      `…/a-class-reference-carries-a-static-call-and-an-instanceof.nvst` and
+      `…/a-name-outside-the-hierarchy-throws-at-the-conversion.nvst`. Item 39; every shape they
+      need is already known to run, and `crates/nvs-ir/tests/class_reference.rs:171` is the
+      hierarchy each was exercised over.
+- [ ] **The reject case**,
+      `tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst`,
+      over the `E0794` at `crates/nvs-types/src/expr/calls.rs:653` — `--EXPECTF-ERROR--`, whose
+      indentation widens with the line number.
 
 ## Backlog
 
-- Item 39: the four `.nvst` cases the stage 10 check names, plus the reference section —
-  `docs/agent/loop-goal.toml`'s stage 10 `nvs-suite` check lists the paths.
-- `as ?class<T>` needs a representation decision before it can lower —
-  `crates/nvs-ir/src/lower/convert.rs:886`'s *Known gaps*.
-- § 2 asks for the offending class in the conversion's throw message; the message names the bound
-  instead — same *Known gaps*.
-- `class<Animal>` is not a row in `crates/nvs-ir/tests/type_atoms.rs`'s atom ratchet, so the shape
-  is not held by that gate.
+- `as ?class<T>` needs a representation decision — `nvs-ir`'s `lower_class_reference` *Known gaps*.
+- `$cls::f(...)` as a first-class callable names the bound's method — `ExprInfo::ClassRefCall`.
 - Stage 8: conformance 1087, differential 206 of 210, migration 37% — `docs/plan/m6.md`.
+- `orient.py` `[context]` has no `docs/reference/lang/*.md` selector — `docs/agent/loop-goal.toml`.
