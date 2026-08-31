@@ -9986,7 +9986,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, exists, size, remove, removeDir, temporaryDir, within
+Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, exists, size, remove, removeDir, temporaryDir, within, readText
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -10043,6 +10043,7 @@ outside: refused
 | [`Core\IO::removeDir`](#core-core-io-removedir) | `removeDir(string $path): void` |
 | [`Core\IO::temporaryDir`](#core-core-io-temporarydir) | `temporaryDir(): string` |
 | [`Core\IO::within`](#core-core-io-within) | `within(string $base, string $path): string` |
+| [`Core\IO::readText`](#core-core-io-readtext) | `readText(string $path, {charset?: Core\Charset}): string` |
 
 <a id="core-core-io-read"></a>
 #### `Core\IO::read`
@@ -10177,6 +10178,24 @@ Resolves `$path` against `$base` and then **proves** the answer is still under i
 **Returns** `string` — The resolved absolute path, as a plain `string`. Every `..`, every symlink and every separator is already gone, so what the caller holds is a name the operating system agrees with rather than one it still has to be trusted about.
 
 **Throws** `RuntimeError` — The resolved path is not inside `$base`. The message names the base and the argument and never where the argument led, so a refusal discloses nothing about a symlink's target. A configuration that does not grant `fs.read` for either path refuses earlier, in the same class.; `IOError` — The capability allowed it and nothing could be resolved — `$base` is not there, or no ancestor of the joined path is.
+
+<a id="core-core-io-readtext"></a>
+#### `Core\IO::readText`
+
+```nvs skip
+Core\IO::readText(string $path, {charset?: Core\Charset}): string
+```
+
+The whole content of a file, decoded from the charset it is written in — `file_get_contents` and the `mb_convert_encoding` a caller writes after it, with the failure that pair does not have. Needs the `fs.read` capability for the path, exactly as `read` does.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file to read, absolute or relative to the working directory. |
+| `{charset: …}` | `Core\Charset` (default `Core\Charset::Utf8`) | The encoding the file's octets are in. `Core\Charset::Utf8` when it is not given, which is the decode that is the identity on text already written the way Novis spells it. |
+
+**Returns** `string` — The file's content as a `string`, converted from `$charset` — never with a replacement character in it, because a conversion that cannot be exact throws instead.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path, or the file's bytes are not `$charset` — the second message names the offset of the first sequence that is not.; `IOError` — The capability allowed it and the operating system did not — the file does not exist, is a directory, or could not be read.
 
 <a id="core-core-time"></a>
 ### `Core\Time`
