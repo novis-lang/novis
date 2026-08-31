@@ -1563,10 +1563,12 @@ name = "nvs-runtime"
 version = "0.0.1"
 dependencies = [
  "bitflags 2.13.1",
+ "libc",
  "nvs-config",
  "subtle",
  "toml",
  "unicode-segmentation",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

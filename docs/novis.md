@@ -96,6 +96,7 @@ Conventions the whole file uses:
 | [`Core\Script\Handle`](#core-core-script-handle) | what `spawn script` answers — a handle on a running child script that `await` collects exactly once |
 | [`Core\Script`](#core-core-script) |  |
 | [`Core\Program`](#core-core-program) | what the compiler knows about the whole program — every class implementing an interface, enumerated at compile time |
+| [`Core\Cli`](#core-core-cli) |  |
 | [`Core\Cli\Text`](#core-core-cli-text) | the value a captured terminal write comes back as — bytes that have already been through the output sink |
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
@@ -14279,6 +14280,66 @@ Expands, at compile time, to an array literal of `new` expressions — one per n
 
 **Returns** `array<T>` — One fresh instance per implementing class, as an `array<T>`; an empty array when no class implements `T`.
 
+<a id="core-core-cli"></a>
+### `Core\Cli`
+
+Keywords: isTty, width, height, colorDepth
+
+| Member | Signature |
+|---|---|
+| [`Core\Cli::isTty`](#core-core-cli-istty) | `isTty(Core\Cli\Stream $stream): bool` |
+| [`Core\Cli::width`](#core-core-cli-width) | `width(): uint` |
+| [`Core\Cli::height`](#core-core-cli-height) | `height(): uint` |
+| [`Core\Cli::colorDepth`](#core-core-cli-colordepth) | `colorDepth(): Core\Cli\ColorDepth` |
+
+<a id="core-core-cli-istty"></a>
+#### `Core\Cli::isTty`
+
+```nvs skip
+Core\Cli::isTty(Core\Cli\Stream $stream): bool
+```
+
+Reports whether one standard stream is attached to a terminal — `posix_isatty` and `stream_isatty`, which PHP splits between two extensions. Resolved once for the process, so two calls in one run cannot disagree.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$stream` | `Core\Cli\Stream` | Which stream to ask about. It is a parameter rather than a single process-wide answer because colour on standard output while standard input is a pipe is the common case, and one `isTty()` cannot express it. |
+
+**Returns** `bool` — `true` when that stream is a terminal, `false` when it is a pipe, a file or closed.
+
+<a id="core-core-cli-width"></a>
+#### `Core\Cli::width`
+
+```nvs skip
+Core\Cli::width(): uint
+```
+
+The controlling terminal's width in columns — `tput cols`, without a child process. Resolved once for the process.
+
+**Returns** `uint` — The column count, or `80` when no standard stream is a terminal. Never `0`, so a caller may subtract a margin from it without checking.
+
+<a id="core-core-cli-height"></a>
+#### `Core\Cli::height`
+
+```nvs skip
+Core\Cli::height(): uint
+```
+
+The controlling terminal's height in rows — `tput lines`. Resolved once for the process, alongside the width it was read with.
+
+**Returns** `uint` — The row count, or `24` when no standard stream is a terminal. Never `0`, for `width`'s reason.
+
+<a id="core-core-cli-colordepth"></a>
+#### `Core\Cli::colorDepth`
+
+```nvs skip
+Core\Cli::colorDepth(): Core\Cli\ColorDepth
+```
+
+How much colour standard output can show, honouring `NO_COLOR`, `CLICOLOR_FORCE`, `FORCE_COLOR`, `COLORTERM` and `TERM`. A program does not normally ask: it writes `Cli\Text` and the sink degrades to what the terminal has. Resolved once for the process.
+
+**Returns** `Core\Cli\ColorDepth` — The depth as a `Core\Cli\ColorDepth` case — `None` whenever standard output is not a terminal and nothing forced colour on, which is what makes `myprog | grep` and a CI log plain.
+
 <a id="core-core-cli-text"></a>
 ### `Core\Cli\Text`
 
@@ -14695,6 +14756,29 @@ The one access decision `Core` names for `#[Access(allow: …)]`: a route open t
 | Case | Meaning |
 |---|---|
 | `Core\Audience::Public` | The route is open to every caller; every other decision is the application's own enum case or class constant. |
+
+<a id="enum-core-cli-stream"></a>
+#### `Core\Cli\Stream`
+
+One of the three standard streams a process begins with. It exists because "is a terminal" is always a question about one of them and never about the process.
+
+| Case | Meaning |
+|---|---|
+| `Core\Cli\Stream::In` | Standard input — what a prompt reads and what a pipeline feeds. |
+| `Core\Cli\Stream::Out` | Standard output — what `echo` writes, and the stream the colour depth is decided for. |
+| `Core\Cli\Stream::Err` | Standard error — diagnostics, which stay visible when output is redirected. |
+
+<a id="enum-core-cli-colordepth"></a>
+#### `Core\Cli\ColorDepth`
+
+How much colour standard output can show. The cases ascend, so a sink degrading to what a terminal has is a comparison rather than a lookup.
+
+| Case | Meaning |
+|---|---|
+| `Core\Cli\ColorDepth::None` | No colour at all — a pipe, a file, `NO_COLOR`, or `TERM=dumb`. Styling is dropped entirely rather than approximated. |
+| `Core\Cli\ColorDepth::Ansi16` | The eight ANSI colours and their bright halves, which every terminal has. |
+| `Core\Cli\ColorDepth::Ansi256` | The 256-entry indexed palette, reported by a `TERM` naming `256color`. |
+| `Core\Cli\ColorDepth::TrueColor` | 24-bit colour, reported by `COLORTERM=truecolor` and by a Windows console that accepted virtual terminal processing. |
 
 # Part C — The toolchain
 
