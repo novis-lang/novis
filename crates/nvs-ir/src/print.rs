@@ -511,6 +511,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ToArrayOf => "to_array_of",
         Helper::ToArrayOfOrNull => "to_array_of_or_null",
         Helper::EchoStr => "echo_str",
+        Helper::EchoValue => "echo_value",
         Helper::Exit => "exit",
         Helper::LiteralMismatch => "literal_mismatch",
         Helper::Identical => "identical",

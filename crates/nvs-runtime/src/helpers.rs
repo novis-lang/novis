@@ -2406,8 +2406,10 @@ crate::nvs_helper! {
     ///
     /// The table is idempotent — a Control Picture is not a control byte — so
     /// output that has already passed a sink, `Core\Out::capture`'s buffer most
-    /// of all, is unchanged by a second write. That is the whole of what makes
-    /// `echo`ing a captured `Core\Cli\Text` correct today.
+    /// of all, is unchanged by a second write. A **carrier** does not arrive
+    /// here at all: `echo` of one takes [`nvs_echo_value`], which is § 1's one
+    /// raw path and the reason this helper never has to ask what its operand
+    /// used to be.
     ///
     /// **Ill-formed UTF-8 goes through `from_utf8_lossy` first.** A `Tag::Str`
     /// is UTF-8 by [ADR 0009](../../../docs/adr/0009-string-and-bytes.md), so
@@ -2420,13 +2422,127 @@ crate::nvs_helper! {
     /// Ordinary text — nearly every write — costs one scan and no allocation:
     /// both `from_utf8_lossy` and `substitute` answer the borrow.
     fn nvs_echo_str(ctx, args: [1]) {
-        let bytes = args[0]
-            .as_str_bytes()
-            .ok_or_else(|| wrong_tag("nvs_echo_str", Tag::Str, args[0]))?;
-        let text = String::from_utf8_lossy(bytes);
-        let neutralized = nvs_render::text::substitute(&text);
-        ctx.write_output(neutralized.as_bytes())
-            .map_err(|error| Fault::fatal(format!("could not write output: {error}")))?;
+        write_rendered(ctx, "nvs_echo_str", args[0], Raw::No)?;
+        Ok(Value::null())
+    }
+}
+
+/// Whether a write to the sink carries bytes the sink must leave alone.
+///
+/// A two-case enum rather than a `bool` because the call sites read
+/// `Raw::No` / `Raw::Yes` and a bare `false` at a sink is the kind of argument
+/// that gets flipped by a refactor without anyone noticing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Raw {
+    /// Ordinary text: [`nvs_render::text::substitute`] runs over it.
+    No,
+    /// Bytes that came out of a sink carrier, written through unchanged.
+    Yes,
+}
+
+/// Writes one already-rendered operand to the request's output — the single
+/// place `echo` turns a `Tag::Str` into bytes on the stream.
+///
+/// Both [`nvs_echo_str`] and [`nvs_echo_value`] reach the stream through this,
+/// so the two spellings of `echo` cannot come to write different bytes for the
+/// same text; the only thing that differs between them is which [`Raw`] they
+/// pass, and that is decided from the operand's *class* rather than from its
+/// bytes. `who` names the caller so a wrong-tag refusal still says which helper
+/// was handed what.
+fn write_rendered(
+    ctx: &mut crate::Ctx,
+    who: &'static str,
+    rendered: Value,
+    raw: Raw,
+) -> Result<(), Fault> {
+    let bytes = rendered
+        .as_str_bytes()
+        .ok_or_else(|| wrong_tag(who, Tag::Str, rendered))?;
+    match raw {
+        Raw::Yes => ctx.write_output(bytes),
+        Raw::No => {
+            let text = String::from_utf8_lossy(bytes);
+            ctx.write_output(nvs_render::text::substitute(&text).as_bytes())
+        }
+    }
+    .map_err(|error| Fault::fatal(format!("could not write output: {error}")))
+}
+
+/// Whether `value` is a **sink carrier** — the one shape the terminal sink
+/// must not substitute over.
+///
+/// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1 puts
+/// exactly one raw path in the language and § 2 makes it a *type*,
+/// `Core\Cli\Text`, rather than a member or a bit riding on a string. Both of
+/// that type's constructors apply § 1's substitution to their own input, so the
+/// only control bytes a carrier can hold are the ones `Cli\Style` put there,
+/// and a program cannot be talked into building one that carries an injected
+/// sequence. Keying the raw path on the class is what makes that structural: a
+/// `raw` flag on a `Tag::Str` would leave the carrier on the first member that
+/// answered one, and from then on the sink would be trusting a bit rather than
+/// a constructor.
+///
+/// The roster is [`crate::ctx::is_carrier`]'s and not a second one — this asks
+/// the question of a value where that one asks it of a name. What a carrier
+/// *renders as* stays [`value_to_string`]'s own `Tag::Object` arm, so there is
+/// still exactly one reader of [`crate::ctx::CARRIER_TEXT_SLOT`] in the tree.
+#[must_use]
+pub fn is_carrier_value(value: Value) -> bool {
+    let Some(ptr) = value.obj_ptr() else {
+        return false;
+    };
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Object value's payload is a live allocation the caller \
+                  owns a reference to, so its class is readable for the length \
+                  of this call"
+    )]
+    unsafe {
+        crate::ctx::is_carrier((*crate::object::NvsObj::class_of(ptr)).name())
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::EchoValue` — [`nvs_echo_str`]'s sink reached one
+    /// conversion earlier, so that it can recognise its own carrier before
+    /// anything has turned the operand into bytes.
+    ///
+    /// **The sink substitutes everything except its own carrier.** That is
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1's
+    /// "exactly one raw path, `Cli\Text`" read literally: the raw path is a
+    /// *type*, so it has to be recognised while the operand still has one.
+    /// `nvs-ir` sends every `Ty::Object` and `Ty::Tagged` operand here for that
+    /// reason — those are the two static types a carrier can arrive under, and
+    /// a scalar or a `Ty::Str` still takes [`nvs_echo_str`] and one helper call
+    /// less. [`is_carrier_value`] owns why the question is asked of the class
+    /// rather than of a bit travelling with the bytes.
+    ///
+    /// Without this, `echo Cli\Text::styled("…", $warn)` would print `␛` where
+    /// the style belongs: the carrier would lower through [`value_to_string`]
+    /// to a `Tag::Str` and the sink would neutralize the very bytes `Cli\Style`
+    /// had just put there. Nothing was broken before styling existed — the one
+    /// producer was `Core\Out::capture`, whose bytes have already been through
+    /// a sink and which the table's idempotence covers — so this is the
+    /// mechanism § 2 needed rather than a fix.
+    ///
+    /// The render itself is [`fn@stringify`], unchanged and shared with `.`
+    /// concatenation: ADR 0028 § 1's `toString` dispatch still runs for an
+    /// object that declares one, and a class that renders as nothing still
+    /// throws with the same sentence. What that answers is a fresh reference
+    /// this helper owns and releases, exactly as `nvs-ir` would have.
+    fn nvs_echo_value(ctx, args: [1]) {
+        let raw = if is_carrier_value(args[0]) { Raw::Yes } else { Raw::No };
+        let rendered = stringify(ctx, args[0])?;
+        let written = write_rendered(ctx, "nvs_echo_value", rendered, raw);
+        #[expect(
+            unsafe_code,
+            reason = "`stringify` answers a fresh reference this helper owns, \
+                      and the write above is the last read of it"
+        )]
+        unsafe {
+            rendered.release();
+        }
+        written?;
         Ok(Value::null())
     }
 }
@@ -2675,6 +2791,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_decimal_to_float", address(nvs_decimal_to_float)),
         ("nvs_decimal_to_string", address(nvs_decimal_to_string)),
         ("nvs_echo_str", address(nvs_echo_str)),
+        ("nvs_echo_value", address(nvs_echo_value)),
         ("nvs_exit", address(nvs_exit)),
         ("nvs_literal_mismatch", address(nvs_literal_mismatch)),
         (

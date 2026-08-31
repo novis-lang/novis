@@ -1827,6 +1827,25 @@ pub enum Helper {
     /// this one — whether `echo` under `nvs serve` becomes that sink is an
     /// M7 decision this deliberately does not pre-empt.
     EchoStr,
+    /// [`Self::EchoStr`]'s sink over an operand that has **not** been converted
+    /// to [`crate::ty::Ty::Str`] first — `echo`'s row for a
+    /// [`crate::ty::Ty::Object`] or [`crate::ty::Ty::Tagged`] operand, which are
+    /// the two static types ADR 0088 § 5's sink carrier can arrive under.
+    ///
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1
+    /// puts exactly one raw path in the language and § 2 makes it a *type*,
+    /// `Core\Cli\Text`. A type can only be recognised while the operand still
+    /// has one, so the conversion [`crate::lower::Lowering::concat_operand`]
+    /// would perform has to happen *inside* the sink rather than in front of
+    /// it: `nvs_runtime::nvs_echo_value` asks the class first and then renders
+    /// through the same `stringify` this crate would have called. That is one
+    /// helper call rather than two for these operands, and the substitution
+    /// decision is taken where the class is still known.
+    ///
+    /// Defines no value and is emitted with `result: None`, exactly as
+    /// [`Self::EchoStr`] is; the operand stays the caller's, and a non-aliasing
+    /// one is released by the same `owned_temporaries` sweep.
+    EchoValue,
     /// `exit`/`exit(...)`: record the process status its one
     /// [`crate::ty::Ty::Int`] argument names, then end the request.
     ///

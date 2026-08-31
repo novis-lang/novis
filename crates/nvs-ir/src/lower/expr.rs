@@ -501,13 +501,17 @@ impl<'a> Lowering<'a> {
     /// `nvs serve` becomes that sink is an M7 decision this does not
     /// pre-empt.
     ///
-    /// Each operand is converted to [`Ty::Str`] by [`Self::concat_operand`]
-    /// — the same shared path `.` concatenation already uses, so a scalar
-    /// goes through its own [`Helper`] conversion and a `Stringable`-object
-    /// operand panics naming the identical gap — and then handed to one
-    /// [`Helper::EchoStr`] [`InstKind::HelperCall`] each. That call defines
-    /// no value, so it is pushed with `result: None` rather than emitted
-    /// through [`Self::emit`].
+    /// A scalar or [`Ty::Str`] operand is converted by
+    /// [`Self::convert_operand`] — the same shared path `.` concatenation
+    /// uses, so it goes through its own [`Helper`] conversion — and handed to
+    /// one [`Helper::EchoStr`] [`InstKind::HelperCall`]. A [`Ty::Object`] or
+    /// [`Ty::Tagged`] operand is handed **unconverted** to
+    /// [`Helper::EchoValue`] instead, because ADR 0086 § 1's one raw path is
+    /// the *type* `Core\Cli\Text` and a conversion in front of the sink would
+    /// have thrown that away; that helper's own doc comment owns the rule and
+    /// [`Self::convert_operand`]'s rows still describe what it renders. Either
+    /// call defines no value, so it is pushed with `result: None` rather than
+    /// emitted through [`Self::emit`].
     ///
     /// An operand `concat_operand` reports as non-aliasing (a literal, a
     /// nested `Concat`'s own result, or a freshly converted `HelperCall`
@@ -521,7 +525,23 @@ impl<'a> Lowering<'a> {
     pub(crate) fn lower_echo(&mut self, operands: &[Expr], cur: &mut BlockId, env: &mut Env) {
         for operand in operands {
             let mark = self.temporaries_mark();
-            let (v, aliasing) = self.concat_operand(operand, env, cur);
+            // The sink substitutes everything except its own carrier, and a
+            // carrier is a *class* — ADR 0086 § 1's one raw path is the type
+            // `Core\Cli\Text`, so it can only be recognised while the operand
+            // still has a type. `Ty::Object` and `Ty::Tagged` are the two it
+            // can arrive under, and both go to `Helper::EchoValue` with no
+            // conversion in front: that helper renders through the same
+            // `stringify` `Self::convert_operand` would have called, after
+            // asking the class. Everything else is converted here as before
+            // and takes `Helper::EchoStr`, which no carrier can reach.
+            let (v, ty) = self.lower_expr(operand, None, env, cur);
+            let (v, aliasing, helper) = match ty {
+                Ty::Object | Ty::Tagged => (v, self.aliasing_read(operand), Helper::EchoValue),
+                scalar => {
+                    let (sv, aliasing) = self.convert_operand(operand, v, scalar, env, cur);
+                    (sv, aliasing, Helper::EchoStr)
+                }
+            };
             if !aliasing {
                 self.own_temporary(v);
             }
@@ -534,7 +554,7 @@ impl<'a> Lowering<'a> {
                 result: None,
                 ty: None,
                 kind: InstKind::HelperCall {
-                    helper: Helper::EchoStr,
+                    helper,
                     args: vec![v],
                 },
                 on_error: Some(landing),
@@ -698,6 +718,25 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
+        self.convert_operand(expr, v, ty, env, cur)
+    }
+    /// [`Self::concat_operand`]'s conversion half, over an operand the caller
+    /// has already lowered.
+    ///
+    /// Split out for [`Self::lower_echo`], which has to see the operand's
+    /// [`Ty`] *before* deciding whether to convert it at all: ADR 0086 § 1's
+    /// raw path is a class, so the sink recognises it from the static type and
+    /// then does its own rendering. Nothing about the rows below changed in the
+    /// split — `.` concatenation reaches them through `concat_operand` exactly
+    /// as it did.
+    pub(crate) fn convert_operand(
+        &mut self,
+        expr: &Expr,
+        v: ValueId,
+        ty: Ty,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, bool) {
         match ty {
             Ty::Str => (v, self.aliasing_read(expr)),
             Ty::Bool | Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal => {

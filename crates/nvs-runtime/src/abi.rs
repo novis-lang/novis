@@ -269,8 +269,9 @@ fn deadline_passed(member: &str) -> Fault {
 
 /// What a helper body returns: the result value, or a [`Fault`].
 ///
-/// A helper invoked purely for its effect — `nvs_ir::Helper::EchoStr` is the
-/// only one so far — returns [`Value::null`].
+/// A helper invoked purely for its effect — `nvs_ir::Helper::EchoStr` and its
+/// carrier-aware twin `EchoValue` are the ones so far — returns
+/// [`Value::null`].
 pub type HelperResult = Result<Value, Fault>;
 
 /// The body of every helper, shared so [`crate::nvs_helper!`] expands to one line.
