@@ -1,0 +1,72 @@
+<?nvs
+// The filesystem, as a program: the four things a script does to a file and
+// the two things `Core\IO` does that no string algebra can.
+//
+// The split this fixture exists to show is the one
+// [spec § 8](../docs/spec/01-core-library.md) states twice: `Core\Path` is
+// pure algebra and touches no disk, `Core\IO` is every member that does and
+// so every member that needs an `fs.read` or `fs.write` grant. `join` below
+// is `Core\Path`; everything else is `Core\IO`.
+//
+// `within` is the line worth reading twice. It is the path-traversal
+// launderer — it resolves and *then proves containment*, which is the check
+// `Core\Path::normalize` structurally cannot make, because normalising a
+// path says nothing about where it ended up. The two `within` lines are one
+// bound asserted on both sides: the name that stays inside the base, and
+// the first one that escapes it.
+//
+// The seven lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 2); the source is not.
+
+// A directory this program owns, so the fixture leaves nothing behind.
+string $dir = Core\IO::temporaryDir();
+string $note = Core\Path::join($dir, "note.txt");
+
+// Whole-file write, then the size the operating system agrees on rather
+// than the length of the string we handed it.
+Core\IO::write($note, "hello world\n");
+echo "wrote ", Core\IO::size($note), " bytes\n";
+
+// Whole-file read, back through the `bytes`/`string` boundary: `readText`
+// decodes, `read` would have handed back the twelve bytes.
+echo "read back: ", Core\Str::trim(Core\IO::readText($note)), "\n";
+
+// `lines` is an `Iterable<string>`, not an array — the file is not held.
+string $roster = Core\Path::join($dir, "roster.txt");
+Core\IO::write($roster, "one\ntwo\nthree\n");
+int $count = 0;
+foreach (Core\IO::lines($roster) as string $line) {
+    $count = $count + 1;
+}
+echo "lines=", $count, "\n";
+
+// Metadata, over the file we just wrote.
+if (Core\IO::exists($note)) {
+    echo "exists=true", "\n";
+} else {
+    echo "exists=false", "\n";
+}
+
+// The launderer, accepting: a name that resolves inside the base.
+try {
+    string $inside = Core\IO::within($dir, "note.txt");
+    echo "within ok", "\n";
+} catch (RuntimeError $refused) {
+    echo "within refused unexpectedly", "\n";
+}
+
+// The launderer, refusing: the same base, a path that climbs out of it.
+// `Core\Path::normalize` would have returned a tidy string here and told us
+// nothing about whether it was still under `$dir`.
+try {
+    string $outside = Core\IO::within($dir, "../../etc/passwd");
+    echo "within accepted an escape", "\n";
+} catch (RuntimeError $refused) {
+    echo "within refused", "\n";
+}
+
+// And back to nothing.
+Core\IO::remove($note);
+Core\IO::remove($roster);
+Core\IO::removeDir($dir);
+echo "removed", "\n";

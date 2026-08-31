@@ -1,0 +1,74 @@
+<?nvs
+// The two stores, as a program: the tier that may forget, the tier that may
+// not, and the limit built on the second one.
+//
+// [ADR 0059](../docs/adr/0059-cross-request-state-is-explicit.md) § 1 makes
+// these **two methods rather than one API with a flag**, so which
+// guarantee a program relies on is visible in review rather than hidden in
+// an argument. `local()` is per-core and in-process, and its contract says
+// any entry may be absent at any time, for any reason — the first two lines
+// below are the only order in which that tier can be asserted at all, and a
+// program that would be wrong if a `get` returned nothing is using the
+// wrong one. `shared()` is a real store over the network, coherent across
+// cores and machines, and gated by `net.connect`.
+//
+// Values cross by the recursive graph copy the isolate boundary already
+// uses (ADR 0023), not by a third mechanism: `put` copies out of the
+// request heap, `get` copies back into it, because the request heap is
+// dropped wholesale at the end of the request.
+//
+// [ADR 0075](../docs/adr/0075-core-ratelimit.md) is the last two lines.
+// `Core\RateLimit` takes **no configuration at all** — the limit is an
+// argument because only the application knows whether this is a quota or a
+// lock — and an unreachable store **throws** rather than deciding
+// *allowed*. The `retryAfter` on a refusal is what makes a `429` honest.
+//
+// The five lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 6); the source is not.
+
+var $local = Core\Cache::local();
+
+// Cold, on this core, in this process. Nothing has written it yet.
+var $before = $local->get("greeting");
+if ($before == null) {
+    echo "local miss", "\n";
+} else {
+    echo "local hit before any write", "\n";
+}
+
+// Warm, immediately after our own write — which is the strongest thing the
+// local tier promises and the only one worth asserting.
+$local->put("greeting", "hello");
+var $after = $local->get("greeting");
+if ($after == null) {
+    echo "local miss after a write", "\n";
+} else {
+    echo "local hit", "\n";
+}
+
+// The other tier, over the network, and coherent.
+var $shared = Core\Cache::shared();
+$shared->put("greeting", "hello");
+var $seen = $shared->get("greeting");
+if ($seen == null) {
+    echo "shared miss", "\n";
+} else {
+    echo "shared hit", "\n";
+}
+
+// One request per two seconds, for this key. The first is inside the limit.
+var $first = Core\RateLimit::consume("account:1", 1, 2s);
+if ($first->allowed) {
+    echo "allowed=true", "\n";
+} else {
+    echo "allowed=false", "\n";
+}
+
+// The second is not, and the decision carries the wait rather than leaving
+// the caller to invent one.
+var $second = Core\RateLimit::consume("account:1", 1, 2s);
+if ($second->allowed) {
+    echo "allowed=true unexpectedly", "\n";
+} else {
+    echo "allowed=false retryAfter=", ($second->retryAfter?->toSeconds()) ?? 0, "\n";
+}

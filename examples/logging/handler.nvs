@@ -1,0 +1,12 @@
+<?nvs
+// The operator's error-handler script — ADR 0020 § 1's rung above every
+// `catch`. `nvs.toml` names this file for `examples/logging/throws.nvs`,
+// and the engine runs it after that program has stopped, out of a budget
+// reserved for exactly this so that a script which died at its memory
+// ceiling still has enough left to say so.
+//
+// It prints one line because that is all a handler owes: evidence it ran.
+// Anything it wants to know about the failure arrives through
+// `Core\Fatal`, whose `onUncaughtThrow` receives the real `Throwable`
+// rather than a rendering of it.
+echo "handler ran", "\n";

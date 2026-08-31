@@ -1,0 +1,46 @@
+<?nvs
+// Running another program, as a program: an argv, a result, and the target
+// this language will not run at all.
+//
+// [ADR 0044](../docs/adr/0044-core-process-argv-only-no-shell.md) is the
+// whole of it. `Core\Process::run` takes a path and an `array<string>`, and
+// there is no shell-string form *anywhere* in the surface — nothing to
+// escape, because there is nothing to escape into. A tainted `$path` or
+// `$argv` element is a compile-time diagnostic, which is why this fixture
+// cannot demonstrate that half: a program that tried would not compile.
+//
+// What it can demonstrate is the runtime half of the same rule. A Windows
+// batch or PowerShell target is refused by the API, because `cmd.exe`
+// re-parses its own arguments after we have finished quoting them — an
+// argv Novis built correctly is a shell string again by the time the batch
+// file sees it. The refusal is by target kind and not by content, so
+// `examples/process/say.bat` exists on disk: the third line below is
+// evidence about what the target *is*, not about whether it is there.
+//
+// The child is this repository's own `nvs`, which the loop driver has
+// already built — `Core\IO::exists` picks the platform's spelling rather
+// than a `Core\Env::OS` comparison, so the fixture reads the same on both
+// legs.
+//
+// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 3); the source is not.
+
+string $nvs = "target/debug/nvs";
+if (Core\IO::exists("target/debug/nvs.exe")) {
+    $nvs = "target/debug/nvs.exe";
+}
+
+// argv only: the subcommand and the script are elements, never a line.
+var $result = Core\Process::run($nvs, ["run", "examples/process/hello.nvs"]);
+echo "exit=", $result->exitCode, "\n";
+echo "stdout=", Core\Str::trim($result->stdout), "\n";
+
+// The target kind this API declines to run. The clause is `RuntimeError`
+// and not `Throwable`, so a missing file or a capability denial would not
+// have been quietly counted as this refusal.
+try {
+    Core\Process::run("examples/process/say.bat", []);
+    echo "accepted: a batch target", "\n";
+} catch (RuntimeError $refused) {
+    echo "refused: no shell form", "\n";
+}

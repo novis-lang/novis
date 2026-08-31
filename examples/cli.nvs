@@ -1,0 +1,49 @@
+<?nvs
+// The command line, as a program: a command declared as an attribute, the
+// help text nobody wrote, and the terminal fact that resolves once.
+//
+// [ADR 0086](../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6 is the
+// reason `#[Command]` exists at all: the argument table is built *while
+// compiling*, from the function's own parameters, so the usage line below
+// is derived from the same declaration the call is checked against. There
+// is no second place to keep them in step, which is the point — a `--help`
+// that drifts from the parser is the defect the compiled table removes.
+//
+// § 3 is the third line. Streams, tty-ness, colour depth and width resolve
+// **once per process** rather than per call, so two reads of `width` in one
+// program are the same number by construction and not by luck.
+//
+// `Core\Command::run()` is the dispatching entry point and is what a real
+// CLI calls; this fixture calls the command directly instead, because the
+// driver runs it with no arguments of its own and the frozen line is about
+// the command's body rather than about argv parsing.
+//
+// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 3); the source is not.
+
+#[Command(name: "greet", about: "Greet somebody by name")]
+function greet(#[Argument] string $name, #[Option] bool $loud = false): uint {
+    string $greeting = "Hello, " . $name . "!";
+    if ($loud) {
+        $greeting = Core\Str::upper($greeting);
+    }
+    echo "greet: ", $greeting, "\n";
+    return 0;
+}
+
+var $status = greet("ada");
+
+// The generated page, of which the usage line is the first. `Cli\Text`
+// renders as the bytes it already holds (ADR 0088 § 5), so concatenating it
+// is how a program reads what the terminal would have been sent.
+array<string> $page = Core\Str::lines("" . Core\Command::help("greet"));
+echo Core\Arr::first($page) ?? "", "\n";
+
+// Resolved once per process: asked twice, answered identically.
+uint $first = Core\Cli::width();
+uint $second = Core\Cli::width();
+if ($first == $second) {
+    echo "width resolved once", "\n";
+} else {
+    echo "width changed between calls", "\n";
+}

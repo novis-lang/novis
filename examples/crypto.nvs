@@ -1,0 +1,70 @@
+<?nvs
+// Crypto, as a program: a password that is stored without being kept, and
+// a message that cannot be altered without the alteration being noticed.
+//
+// Two rules are on display and both are structural rather than advisory.
+// `Core\Password` has **no algorithm argument** — the parameters are the
+// library's to choose and `needsRehash` is how a stored hash learns it has
+// fallen behind, which is the whole reason a caller never names a cost.
+// And `Core\Crypto` is **AEAD only**: there is no ECB, no unauthenticated
+// CBC and no cipher-name-as-string in the surface, so "encrypted" and
+// "authenticated" are not two decisions a caller can get half right.
+//
+// The last line is the one the roster exists for. Truncating one byte of a
+// sealed message is the cheapest tamper there is; an unauthenticated mode
+// would have decrypted it into plausible rubbish, and an AEAD refuses to
+// return anything at all. `Core\Secret::reveal` is not needed here —
+// `Core\Password::hash` is one of exactly two operations that legitimately
+// take a `secret` and give back a value that is not one (ADR 0033).
+//
+// The six lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 4); the source is not.
+
+secret string $password = "correct horse battery staple";
+
+// Stored, not kept. A freshly made hash is by definition current, so
+// `needsRehash` answering `false` is the assertion rather than a non-empty
+// string would be.
+string $stored = Core\Password::hash($password);
+if (Core\Password::needsRehash($stored)) {
+    echo "hash stale on the day it was made", "\n";
+} else {
+    echo "hash ok", "\n";
+}
+
+// The bound, named on both sides: the password that made it, and one that
+// did not.
+if (Core\Password::verify($password, $stored)) {
+    echo "verify ok", "\n";
+} else {
+    echo "verify refused the right password", "\n";
+}
+
+secret string $wrong = "hunter2";
+if (Core\Password::verify($wrong, $stored)) {
+    echo "verify accepted the wrong password", "\n";
+} else {
+    echo "verify failed", "\n";
+}
+
+// AEAD, both directions.
+secret bytes $key = Core\Crypto::generateKey();
+bytes $message = Core\Encoding::toBytes("attack at dawn");
+bytes $sealed = Core\Crypto::seal($message, $key);
+echo "sealed", "\n";
+
+if (Core\Crypto::open($sealed, $key) == $message) {
+    echo "opened", "\n";
+} else {
+    echo "opened the wrong plaintext", "\n";
+}
+
+// One byte short is a forgery, and an authenticated mode says so rather
+// than returning what is left.
+bytes $tampered = Core\Bytes::slice($sealed, 0, Core\Bytes::length($sealed) - 1);
+try {
+    bytes $forged = Core\Crypto::open($tampered, $key);
+    echo "tamper accepted", "\n";
+} catch (RuntimeError $refused) {
+    echo "tamper refused", "\n";
+}

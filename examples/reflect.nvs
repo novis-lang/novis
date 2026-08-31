@@ -1,0 +1,63 @@
+<?nvs
+// Introspection, as a program: a class described by itself, a member the
+// description will not open, the one question only a `mixed` can be asked,
+// and source read as data.
+//
+// [ADR 0019](../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+// makes both of these built in rather than extension-provided, and gives
+// them the two rules the third and fourth lines below exist for.
+//
+// **Reflection enforces the same visibility and hook checks ordinary code
+// does.** A `private` member is not reachable through `Core\Reflect` from
+// outside its class, because a reflection API that quietly lifts the rules
+// is a way of writing code that the type checker cannot see — which is the
+// half PHP's `setAccessible` gave away. So `members` counts two, not
+// three, and the read of the third is refused.
+//
+// **A parsed AST is inert typed data**, with no path back into execution.
+// `Core\Ast::parse` is a reader, not an `eval` behind a longer name; ADR
+// 0052 keeps that door shut and this is the member that would otherwise
+// have propped it open.
+//
+// The five lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 8); the source is not.
+
+class Point {
+    public int $x = 3;
+    public int $y = 4;
+    private int $scratch = 0;
+}
+
+var $point = new Point();
+var $described = Core\Reflect::forObject($point);
+echo "class=", $described->name, "\n";
+
+// The visibility-respecting walk: two of the three, seen from out here.
+echo "members=", Core\Arr::length($described->properties()), "\n";
+
+// And the third, asked for by name. The clause is `RuntimeError` rather
+// than `Throwable`, so a misspelled member would not have been counted as
+// a visibility refusal.
+try {
+    var $hidden = $described->get($point, "scratch");
+    echo "private read", "\n";
+} catch (RuntimeError $refused) {
+    echo "private refused", "\n";
+}
+
+// `typeOf` is the single replacement for PHP's fourteen `is_*` predicates
+// plus `gettype`, and it is only meaningful here: on anything but a
+// `mixed`, the checker already knows the answer and this call would be a
+// constant.
+mixed $value = 7;
+string $kind = match (Core\Reflect::typeOf($value)) {
+    Core\Reflect\TypeKind::Int => "int",
+    Core\Reflect\TypeKind::Float => "float",
+    Core\Reflect\TypeKind::Text => "string",
+    default => "other",
+};
+echo "kind=", $kind, "\n";
+
+// Source as data. Nothing below runs the program it just read.
+var $tree = Core\Ast::parse("<?nvs echo 1 + 2;");
+echo "parsed ", Core\Arr::length($tree->nodes()), " nodes\n";
