@@ -64,9 +64,10 @@ echo "empty=", Core\Arr::count($empty) as string, "\n";
 ?Route $method = Core\Attributes::get<Route>(Controller::show(...));
 if ($method != null) { echo "method route=", $method->path, "\n"; }
 
-?{inject: string} $param = Core\Attributes::get<{inject: string}>(Controller::show(...), "repo");
-echo "param=", $param != null ? "some" : "none", "\n";
-
+// A member name is the *parameter's* name and never a word out of the payload:
+// `"repo"` here would be `E0798`, which
+// `reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst`
+// pins.
 ?{inject: string} $named = Core\Attributes::get<{inject: string}>(Controller::show(...), "id");
 if ($named != null) { echo "param inject=", $named->inject, "\n"; }
 
@@ -98,7 +99,6 @@ age columns=2
   years
 empty=0
 method route=/show
-param=none
 param inject=repo
 computed=none
 agreed=4/4

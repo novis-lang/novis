@@ -44,6 +44,12 @@ callable $fn = fn (): int => 1;
 // value of its own to compile in — the constant folder's gap surfacing at the
 // one site that needs the value rather than the name.
 ?{code: mixed} $unfoldable = Core\Attributes::get<{code: mixed}>(Relay::constructor(...));
+
+// § 4: a *written* member name is checked against the target's real
+// declarations. It has to be — the `null` a misspelling folds to is the answer
+// a correct retrieval of an absent attribute gives, so nothing downstream
+// could tell them apart. Only a computed name falls back to that empty result.
+?Route $misspelled = Core\Attributes::get<Route>(Twice::constructor(...), "path");
 --EXPECTF-ERROR--
 error[E0792]: `Limits::RELAY` has no compile-time value to inline
    --> case.nvs:20:10
@@ -80,4 +86,11 @@ error[E0730]: a `Core\Attributes` retrieval names no declaration
    |                                                ^^^ this is not a declaration reference
    = help: ADR 0046 § 4: the target is written as a first-class-callable reference and inspected where it is written — `Foo::bar(...)` for a method, and `Foo::constructor(...)` for the class itself, plus a literal member name for one of its properties or parameters
 
-error: aborting due to 5 errors
+error[E0798]: a `Core\Attributes` retrieval names `$path`, which `Twice` does not declare
+   --> case.nvs:49:75
+   |
+49 | ?Route $misspelled = Core\Attributes::get<Route>(Twice::constructor(...), "path");
+   |                                                                           ^^^^^^ no parameter or property of that name
+   = help: ADR 0046 § 4: a *written* member name is checked against the target's real declarations here, because the answer a misspelling would fold to — `null`, or the empty array — is the same one a correct retrieval of an absent attribute gives, and nothing later can tell them apart; only a computed `$member` falls back to that empty result
+
+error: aborting due to 6 errors

@@ -137,6 +137,30 @@ impl DeclaredTypes {
             .declared_ty(span)
             .unwrap_or_else(|| panic!("no type was recorded for the annotation `{needle}`"))
     }
+
+    /// The [`nvs_types::expr_table::ExprInfo`] recorded for the call written
+    /// as `call` — `None` where the run recorded nothing for it.
+    ///
+    /// Located by the call's own text for [`Self::of`]'s reason, and it is the
+    /// only handle a fixture has on a *folded* call: the answer is keyed by
+    /// the call's span, and a fold leaves no name, no local and no diagnostic
+    /// behind to find it by. `call` is written out whole, from the class name
+    /// through the closing `)`, which is exactly the span the parser gives a
+    /// static call.
+    ///
+    /// # Panics
+    /// Panics if `call` appears nowhere in the fixture — the assertion and the
+    /// fixture have drifted apart, which is worth failing loudly for.
+    pub(crate) fn folded_at(&self, call: &str) -> Option<&nvs_types::expr_table::ExprInfo> {
+        let start = self
+            .src
+            .find(call)
+            .unwrap_or_else(|| panic!("the fixture does not contain `{call}`"));
+        let start = u32::try_from(start).expect("fixtures are small");
+        let end = start + u32::try_from(call.len()).expect("fixtures are small");
+        self.exprs
+            .lookup(nvs_diagnostics::Span::new(self.file, start, end))
+    }
 }
 
 /// The capture names a fixture's one closure recorded, in order.

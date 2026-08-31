@@ -2635,6 +2635,24 @@ pub mod code {
     /// decision rather than an accident of what was in the bag.
     pub const E_SECRET_LOGGED: Code = Code::new("E0797");
 
+    /// A `Core\Attributes` retrieval whose literal `$member` names no declared
+    /// parameter or property of the target.
+    ///
+    /// ADR 0046 § 4's last paragraph: a written `$member` is checked against
+    /// the target's real declarations at the call site, the same
+    /// literal-inspection ADR 0033 § 4's sinks make. Only a *computed*
+    /// `$member` falls back to the empty result § 4's *Consequences* fixes,
+    /// because there is no literal left to check.
+    ///
+    /// Distinct from [`E_ATTRIBUTE_TARGET_NOT_A_DECLARATION`], which is the
+    /// mistake of writing something that is not a declaration reference at
+    /// all: here the target resolves and it is the member name inside it that
+    /// reaches nothing. Reported instead of folding, since the fold a
+    /// misspelling produces — `null`, or the empty array — is exactly what a
+    /// correct retrieval of an absent attribute produces, and nothing later
+    /// can tell the two apart.
+    pub const E_ATTRIBUTE_MEMBER_NOT_DECLARED: Code = Code::new("E0798");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

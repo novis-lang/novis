@@ -43,10 +43,14 @@
 //! is the one arrangement that reads a promoted parameter's attribute once and
 //! an unpromoted one's at all.
 //!
-//! A `$member` that is not a string *literal* names nothing this pass can
-//! resolve. § 4's *Consequences* already fixes that case as an empty result
-//! rather than a diagnostic, and so it is here: `get` folds to `null` and
-//! `all` to the empty array.
+//! A *written* `$member` is checked against the target's real declarations
+//! ([`declares_member`]) and a name reaching neither roster is `E0798`. It has
+//! to be: the answer a misspelling would otherwise fold to — `null`, or the
+//! empty array — is the very answer a correct retrieval of an absent attribute
+//! gives, so nothing downstream could ever tell the two apart. A `$member`
+//! that is not a string literal has no name to check, and § 4's *Consequences*
+//! already fixes that case as an empty result rather than a diagnostic: `get`
+//! folds to `null` and `all` to the empty array.
 //!
 //! # What a matched payload has to be
 //!
@@ -81,6 +85,7 @@ use crate::defaults::ConstArg;
 use crate::expr::{check_object_literal, is_assignable, resolve_class_expr};
 use crate::expr_table::ExprInfo;
 use crate::locals::LocalScope;
+use crate::signatures::{resolve_method, resolve_property};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
 
@@ -341,10 +346,40 @@ pub(crate) fn fold_retrieval(
         return;
     };
     let member_name = list.get(1).and_then(|arg| match &arg.value.kind {
-        ExprKind::Str(span) => Some(crate::string_lit::cook_string_literal(env.src, *span)),
+        ExprKind::Str(span) => Some((
+            arg.value.span,
+            crate::string_lit::cook_string_literal(env.src, *span),
+        )),
         _ => None,
     });
-    let sites = sites_for(env, &class, &method, member_name.as_deref());
+    if let Some((span, name)) = &member_name
+        && !declares_member(&class, &method, name, env)
+    {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ATTRIBUTE_MEMBER_NOT_DECLARED,
+                format!(
+                    "a `Core\\Attributes` retrieval names `${name}`, which `{class}` does not \
+                     declare"
+                ),
+            )
+            .with_primary(*span, "no parameter or property of that name")
+            .with_help(
+                "ADR 0046 § 4: a *written* member name is checked against the target's real \
+                 declarations here, because the answer a misspelling would fold to — `null`, or \
+                 the empty array — is the same one a correct retrieval of an absent attribute \
+                 gives, and nothing later can tell them apart; only a computed `$member` falls \
+                 back to that empty result",
+            ),
+        );
+        return;
+    }
+    let sites = sites_for(
+        env,
+        &class,
+        &method,
+        member_name.as_ref().map(|(_, name)| name.as_str()),
+    );
     let matched = matching(&sites, want, env);
     let value = match (member, matched.len()) {
         ("get", 0) => ConstArg::Null,
@@ -398,6 +433,33 @@ fn target_declaration(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QN
     };
     let qname = resolve_class_expr(class, ctx, env)?;
     Some((qname, span_text(env.src, *name).to_owned()))
+}
+
+/// Whether `member` names a real declaration of the target — § 4's validation
+/// of a *written* member name, and the whole of what `E0798` reports on.
+///
+/// Asked of [`crate::signatures`] rather than of [`AttributeTable`], which
+/// carries the same two rosters: a declaration is real whether or not anything
+/// is attached to it, and one inherited from an ancestor is as real as an own
+/// one, neither of which the attach table can answer. Both rosters are
+/// consulted for the same reason [`sites_for`] consults both — `constructor`
+/// plus a name is both a property and a constructor parameter, and for an ADR
+/// 0043 § 4 promoted parameter it is one declaration reached two ways.
+///
+/// [`MethodSig::param_names`] is read directly rather than through
+/// [`MethodSig::param_index`]: a variadic tail is a parameter that can carry an
+/// attribute even though no call may fill it *by name*, which is the one thing
+/// that index excludes.
+///
+/// [`MethodSig::param_names`]: crate::signatures::MethodSig::param_names
+/// [`MethodSig::param_index`]: crate::signatures::MethodSig::param_index
+fn declares_member(class: &QName, method: &str, member: &str, env: &Env<'_>) -> bool {
+    if let Some((_, sig)) = resolve_method(class, method, env.signatures, env.graph)
+        && sig.param_names.iter().any(|name| name == member)
+    {
+        return true;
+    }
+    method == "constructor" && resolve_property(class, member, env.signatures, env.graph).is_some()
 }
 
 /// The attach sites `$target` plus `$member` names, joined where § 4's two
