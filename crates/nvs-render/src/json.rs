@@ -19,10 +19,16 @@
 //! # The envelope's keys
 //!
 //! ADR 0020 § 6's list, in reading order: `ts`, `level`, `msg`, `request_id`,
-//! `trace_id`, `span_id`, `source`, `fields`, then the record's own `nodes`.
-//! Only `level` is unconditional; every other key is **omitted rather than
-//! written empty**, which is [`Envelope`]'s own rule and § 6's for
+//! `trace_id`, `span_id`, `source`, `count`, `fields`, then the record's own
+//! `nodes`. Only `level` is unconditional; every other key is **omitted rather
+//! than written empty**, which is [`Envelope`]'s own rule and § 6's for
 //! `trace_id`/`span_id` in particular.
+//!
+//! `count` is the one key § 6 does not list, because it is
+//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! § 10's later amendment; it sits last of the envelope's own keys and ahead of
+//! the producer's `fields` for the reason [`Envelope::count`] gives — it is the
+//! sink talking about the record, not the call site talking about the failure.
 //!
 //! **`msg` is § 6's `message`, spelled short.** That is what
 //! `examples/logging.nvs` and `Core\Log::write`'s conformance cases pin, while
@@ -104,6 +110,7 @@ impl Serialize for AsRecord<'_> {
             trace_id,
             span_id,
             source,
+            count,
             fields,
         } = &self.0.envelope;
         let mut map = ser.serialize_map(None)?;
@@ -125,6 +132,9 @@ impl Serialize for AsRecord<'_> {
         }
         if let Some(source) = source {
             map.serialize_entry("source", &AsSource(source))?;
+        }
+        if let Some(count) = count {
+            map.serialize_entry("count", count)?;
         }
         if !fields.is_empty() {
             map.serialize_entry("fields", &AsFields(fields))?;

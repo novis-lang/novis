@@ -411,6 +411,17 @@ pub struct Envelope {
     pub span_id: Option<String>,
     /// Where the record was produced.
     pub source: Option<Source>,
+    /// How many identical records this one stands for —
+    /// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// § 10's coalescing counter, absent for the ordinary record that stands
+    /// only for itself.
+    ///
+    /// **Written by the sink, not by the producer**, which is why it is an
+    /// envelope key rather than an entry in [`Self::fields`]: a producer's bag
+    /// is the call site's own vocabulary, and a `count` the rate limiter added
+    /// would collide with one a program had named. `nvs_runtime::floor` is the
+    /// only writer today.
+    pub count: Option<u64>,
     /// Named fields, each carrying a node — **not** a stringly bag, which is
     /// what lets the compile-time field schema ADR 0092 § 8 keeps possible
     /// arrive without changing the model.

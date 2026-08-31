@@ -43,6 +43,8 @@
   sink"* — they are different axes, and that row gains `write`'s signature and the `Log\Level` enum.
   [docs/implementation-plan.md](../implementation-plan.md) — M4's `var_dump`/`print_r` line item is
   renamed to this model and its plaintext rendering.
+- **Amended by:** [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 10 — § 1's
+  envelope gains `count`, written by the sink rather than by the producer.
 
 > **In short:** every language has three or four half-answers to *show me this value* — PHP has
 > `var_dump`, `print_r`, `var_export` and `json_encode`, and each looks acceptable in exactly one output
@@ -116,6 +118,7 @@ The **envelope** carries what is true of the whole record and nothing about how 
 | `request_id` | |
 | `trace_id`, `span_id` | present only when a trace is active, omitted rather than empty — [0076](0076-observability-export.md) § 6 |
 | `source` | file, line, and the enclosing member |
+| `count` | how many identical records this one stands for — [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 10's coalescing counter, and the one envelope key a **sink** writes rather than a producer, which is why it is not an entry in `fields` |
 | `fields` | named, each carrying a node — **not** a stringly bag; § 8 says why that matters |
 
 A **node** is one of:

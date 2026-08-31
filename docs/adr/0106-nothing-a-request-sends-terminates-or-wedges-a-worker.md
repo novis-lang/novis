@@ -17,6 +17,8 @@
   helper, and `panic = "unwind"` gains the companion rule that no path may reach `abort()`.
   [0020](0020-error-escalation-ladder.md) — § 1's call-stack bound gains an engine-side counterpart, and
   § 4's floor gains a rotation and rate limit so the floor cannot fill the disk it writes to.
+  [0092](0092-one-diagnostic-record-three-renderings.md) § 1 — the envelope gains § 10's `count`, which is
+  the one key written by a sink rather than by a producer.
   [0078](0078-config-reload-and-control-socket.md) — a reload that changes `env_hash` staggers
   recompilation. [0097](0097-development-server-and-proxied-origin.md) — `max_in_flight` becomes the
   result of an arithmetic rather than a free number, the accept loop backs off, and a wedged core is

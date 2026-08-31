@@ -80,6 +80,11 @@ pub fn render_nodes(nodes: &[Node]) -> String {
 
 /// The envelope's one line: the level, then each present field in the order
 /// ADR 0092 § 1's table writes them.
+///
+/// ADR 0106 § 10's `count` closes the line as `x37` rather than as a
+/// `name=value` like its neighbours: it is a multiplier on the line it trails,
+/// not another identifier to read, and a reader tailing a log wants it where
+/// the eye already is.
 fn header(envelope: &Envelope) -> String {
     let mut parts = vec![format!("[{}]", envelope.level.name())];
     if let Some(ts) = &envelope.ts {
@@ -103,6 +108,9 @@ fn header(envelope: &Envelope) -> String {
             .as_ref()
             .map_or_else(String::new, |m| format!(" in {m}"));
         parts.push(format!("at {}:{}{member}", source.file, source.line));
+    }
+    if let Some(count) = envelope.count {
+        parts.push(format!("x{count}"));
     }
     parts.join(" ")
 }
