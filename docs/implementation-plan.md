@@ -45,13 +45,16 @@
 > running**, over goals 1-3, each reached at its own acceptance. **Stage 0's compile-time half is
 > closed**: `crates/nvs-stdlib/src/regex.rs`'s `build` re-tiers a pattern only when the linear
 > engine's parser refuses a construct, `validate` now reports which tier that was, and `nvs-types`'
-> ADR 0057 fold records it on `ExprTypeTable` for `nvs-ir`. Stage 0's last item is § 4's `tainted`
-> pattern operand. **The goal's eight acceptance fixtures are on disk** — `examples/` gained
-> `files`, `process`, `cli`, `crypto`, `http`, `cache`, `logging` and `reflect` — so the driver's
-> check runs past `begin` again after one iteration measuring nothing; each is the program its stage
-> will make compile, and none does yet. What goals 1-3 landed is unchanged and is not re-derived
-> here: `git log` and each crate's module doc own it. Conformance 1093, differential 210 of 210,
-> migration 37% over its 36% floor.
+> ADR 0057 fold records it on `ExprTypeTable` for `nvs-ir`. **Stage 0 is closed** — § 4's pattern
+> sink refuses a `tainted` operand, which the rows already said and no test had asked. **The goal's
+> eight acceptance fixtures are on disk** — `examples/` gained `files`, `process`, `cli`, `crypto`,
+> `http`, `cache`, `logging` and `reflect` ; each is the program its stage will make compile, and
+> none does yet. **Stage 2 has opened**: the filesystem class is `Core\IO` throughout, module and
+> symbols included, and its member list is what is next. The acceptance list is measurable again — a
+> program leg had been listed among a `cargo test` check's test names, where nothing could ever
+> match it, and it stopped every run after four checks. What goals 1-3 landed is unchanged and is
+> not re-derived here: `git log` and each crate's module doc own it. Conformance 1093, differential
+> 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

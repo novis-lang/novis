@@ -1139,6 +1139,17 @@ is why" — is this file.
   this way (`examples/config.nvs`, `error[E0405]: Core\Config has no member named get`, for four
   sessions). Writing only the file the message names buys one iteration, because the next message names
   the next one — write the whole `files` list in one slice.
+- **A `loop-goal.toml` check can name something that is not a test at all, and the tell is the *check
+  count* rather than the message.** Stage 0's `cargo-named` check listed `examples/limits.nvs` beside
+  three real test names; a program leg cannot appear in `cargo test -p nvs-stdlib`'s output, so the
+  check failed forever, and because the driver stops at the first failure it held the whole list to
+  four checks an iteration — `goal cost: 8s over 4 check(s)` in `.loop/log.md`, where a healthy
+  iteration reads `over 137 check(s)`, is the line that says so. The message it produces ("test
+  'examples/limits.nvs' did not run") is exactly the one an item still open produces, which
+  `orient.py` calls the ordinary state of the goal, so it reads as work rather than as a bug. That
+  same file already measured the fixture properly, as a `contains` check on the same path. Before
+  writing a test to satisfy a name, check that the name *could* be a `#[test]`; and fix
+  `docs/agent/goals/<goal>.toml` alongside the live copy, or the next `goal-switch.py` restores it.
 
 ## Running things
 
