@@ -454,6 +454,14 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         // than the floor beneath a missing one. What the operator asked for is
         // the handler; what the parent asked for is the value; neither is the
         // floor.
+        // ADR 0020 § 2's tier 2, at the *isolate* root that section names
+        // beside the request one: this child's own registration, fired before
+        // the tier below it and before the buffer is taken, so its output
+        // crosses at the await with everything else the child wrote. A parent's
+        // handler is not reached from here — a registration is request-local
+        // (`Ctx::set_uncaught_handler`), and ADR 0006's failure-is-a-value is
+        // how this throw reaches the parent at all.
+        isolate_ctx.run_uncaught_handler(thrown);
         let record = nvs_runtime::floor::uncaught(thrown);
         crate::ladder::escalate(isolate_ctx, &record);
     }

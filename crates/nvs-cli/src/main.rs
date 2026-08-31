@@ -904,6 +904,16 @@ fn run_run(
                 // run installed — all three of which are taken down with the
                 // run itself, a dozen lines before the exit code is decided.
                 let thrown = ctx.take_thrown();
+                // ADR 0020 § 2's tier 2, and this is the "request root" that
+                // section names for a CLI run: every frame below returned
+                // without catching, so the program's own last word comes before
+                // the operator's. It is handed the real object rather than the
+                // record built from it, and running it suppresses neither of
+                // the tiers below — `Ctx::run_uncaught_handler` owns both
+                // rules, and the record is built afterwards so that a handler
+                // that faulted has already been abandoned by the time tier 3
+                // is offered one.
+                ctx.run_uncaught_handler(&thrown);
                 let record = nvs_runtime::floor::uncaught(&thrown);
                 if !nvs_host::ladder::escalate(ctx, &record) {
                     nvs_runtime::floor::report(ctx, &record);
