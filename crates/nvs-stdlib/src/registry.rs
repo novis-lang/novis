@@ -1083,6 +1083,12 @@ pub const CLASSES: &[CoreClass] = &[
     // and implemented by nothing — see [`crate::attributes`].
     crate::attributes::CLASS,
     crate::math::CLASS,
+    // Beside `Core\Math` because it is the other half of one question: § 3's
+    // rounding is over `float`, and ADR 0054 § 3's two named-rounding members
+    // are the same decision made exactly. No spec § of its own — the spec's
+    // own roster table points at that ADR for the non-operator members of the
+    // `decimal` scalar.
+    crate::decimal::CLASS,
     crate::regex::CLASS,
     crate::regex::MATCH,
     crate::regex::PATTERN,

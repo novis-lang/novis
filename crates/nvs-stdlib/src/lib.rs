@@ -221,6 +221,7 @@ mod csrf;
 mod csv;
 mod cursor;
 mod debug;
+mod decimal;
 mod encoding;
 mod env;
 mod fatal;
@@ -338,6 +339,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| csv::address(symbol))
         .or_else(|| cursor::address(symbol))
         .or_else(|| debug::address(symbol))
+        .or_else(|| decimal::address(symbol))
         .or_else(|| encoding::address(symbol))
         .or_else(|| env::address(symbol))
         .or_else(|| fatal::address(symbol))

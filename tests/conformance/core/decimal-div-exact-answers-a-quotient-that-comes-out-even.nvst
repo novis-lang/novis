@@ -1,0 +1,30 @@
+--TEST--
+ADR 0054 § 3: `Core\Decimal::divExact` answers where the quotient is exact, at the scale that quotient needs
+--FILE--
+<?nvs
+// § 3's "throws unless the quotient is exact" -- the half that answers. The
+// scale is the quotient's own rather than either operand's, so an answer that
+// needs no fractional digits carries none.
+decimal $bill = 1.00;
+echo Core\Decimal::divExact($bill, 4), "\n";
+echo Core\Decimal::divExact(10.00, 8), "\n";
+echo Core\Decimal::divExact(100.00, 4), "\n";
+
+// A scale on the dividend does not survive a division that reduces it: this
+// is the operator's own answer, not a second rule.
+echo Core\Decimal::divExact(19.90, 1), "|", 19.90 as decimal / 1, "\n";
+
+// Signs multiply, and a zero dividend divides by anything. The negative is
+// built by subtraction because § 2's placing rule reaches a literal and not a
+// unary minus in front of one.
+decimal $four = 4;
+decimal $minusFour = 0 - $four;
+decimal $nothing = 0;
+echo Core\Decimal::divExact($bill, $minusFour), "|",
+     Core\Decimal::divExact($nothing, $minusFour), "\n";
+--EXPECT--
+0.25
+1.25
+25
+19.9|19.9
+-0.25|0

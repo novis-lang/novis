@@ -1765,7 +1765,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_math_round(_ctx, args: [3]) {
         let value = float_at(args, 0, "round")?;
         let precision = int_at(args, 1, "round")?;
-        let mode = round_mode(args, 2)?;
+        let mode = round_mode(args, 2, "Core\\Math::round")?;
         Ok(Value::float(round_to(value, precision, mode)))
     }
 }
@@ -2172,8 +2172,12 @@ fn owned(value: Value) -> Value {
 }
 
 /// Spec § 3's six rounding rules, decoded from the `mode` option's integer.
+///
+/// `pub(crate)` because `Core\RoundMode` is a `Core` enum rather than this
+/// class's own — [`ROUND_MODE`]'s own doc says why it is flat — and
+/// [`crate::decimal`]'s `divRound` is the second member to take one.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum RoundMode {
+pub(crate) enum RoundMode {
     /// A tie goes away from zero — PHP's `PHP_ROUND_HALF_UP`, and `round`'s
     /// default there and here.
     HalfUp,
@@ -2192,7 +2196,11 @@ enum RoundMode {
 }
 
 /// The `mode` option at `index`, or the `FATAL` a value that is no case is.
-fn round_mode(args: &[Value], index: usize) -> Result<RoundMode, Fault> {
+///
+/// `member` is the caller's own spelling, because the two members that take a
+/// `Core\RoundMode` are in two classes and a `FATAL` names the one that got
+/// the value.
+pub(crate) fn round_mode(args: &[Value], index: usize, member: &str) -> Result<RoundMode, Fault> {
     match args[index].as_int() {
         Some(0) => Ok(RoundMode::HalfUp),
         Some(1) => Ok(RoundMode::HalfDown),
@@ -2200,14 +2208,14 @@ fn round_mode(args: &[Value], index: usize) -> Result<RoundMode, Fault> {
         Some(3) => Ok(RoundMode::HalfOdd),
         Some(4) => Ok(RoundMode::Up),
         Some(5) => Ok(RoundMode::Down),
-        // Unreachable from source: `ROUND_OPTIONS` declares `mode` as
-        // `CoreTy::Enum(r"Core\RoundMode")`, so anything else is
-        // `E0401: expected `Core\RoundMode`, found `int`` at the option's value,
+        // Unreachable from source: every parameter that reaches here is
+        // declared `CoreTy::Enum(r"Core\RoundMode")`, so anything else is
+        // `E0401: expected `Core\RoundMode`, found `int`` at the argument,
         // and the enum has exactly the six cases matched above — the arms are
         // its whole roster, not a prefix of it, so a case cannot arrive here
         // either.
         _ => Err(Fault::fatal(format!(
-            "Core\\Math::round expected a `Core\\RoundMode` case for `mode`, got tag {} value {}",
+            "{member} expected a `Core\\RoundMode` case for `mode`, got tag {} value {}",
             args[index].tag_byte(),
             args[index].bits()
         ))),

@@ -1,0 +1,32 @@
+--TEST--
+ADR 0054 § 3: `Core\Decimal::divExact` throws where the quotient repeats, and names the division it could not answer
+--FILE--
+<?nvs
+// The refusal is the whole point of the member. The operator answers here --
+// rounded half to even at the widest scale the result admits, which § 3 fixes
+// in the language -- and this call site said it was not willing to lose
+// anything.
+echo 1.00 as decimal / 3, "\n";
+try {
+    echo Core\Decimal::divExact(1.00, 3);
+} catch (ArithmeticError $repeats) {
+    echo $repeats->message, "\n";
+}
+
+// One seventh is the other classic, and a third of a penny the money one.
+int $refusals = 0;
+try {
+    echo Core\Decimal::divExact(1.00, 7);
+} catch (ArithmeticError $seventh) {
+    $refusals = $refusals + 1;
+}
+try {
+    echo Core\Decimal::divExact(0.01, 3);
+} catch (ArithmeticError $penny) {
+    $refusals = $refusals + 1;
+}
+echo "refusals: ", $refusals, "\n";
+--EXPECT--
+0.3333333333333333333333333333
+Core\Decimal::divExact cannot answer 1.00 / 3 exactly: the quotient repeats or is wider than a `decimal` holds
+refusals: 2

@@ -1,0 +1,28 @@
+--TEST--
+ADR 0054 § 3: `Core\Decimal::divRound` names the scale and the mode at the call, and the six modes part at the tie
+--FILE--
+<?nvs
+// One eighth is 0.125 exactly, so two places is exactly the tie and every mode
+// has to say what it does with it. The operator has no spelling for any of
+// this: its half-even rule is fixed and takes no argument.
+decimal $one = 1;
+decimal $eight = 8;
+echo Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfUp), "|",
+     Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfDown), "|",
+     Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfEven), "|",
+     Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfOdd), "|",
+     Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::Up), "|",
+     Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::Down), "\n";
+
+// The scale is the answer's, so it pads rather than reduces: § 4 makes a
+// trailing zero observable, which is what a rendered price needs.
+echo Core\Decimal::divRound($one, 4, 5, Core\RoundMode::HalfEven), "|",
+     Core\Decimal::divRound($one, 4, 0, Core\RoundMode::HalfEven), "\n";
+
+// A bill split three ways, rounded where the business says to round it.
+echo Core\Decimal::divRound(100.00, 3, 2, Core\RoundMode::HalfUp), "|",
+     Core\Decimal::divRound(100.00, 3, 2, Core\RoundMode::Up), "\n";
+--EXPECT--
+0.13|0.12|0.12|0.13|0.13|0.12
+0.25000|0
+33.33|33.34

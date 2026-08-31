@@ -1,0 +1,45 @@
+--TEST--
+ADR 0054 § 3: every rounding mode agrees with `Core\Decimal::divExact` where the quotient is exact at the named scale
+--FILE--
+<?nvs
+// A mode is a decision about what the truncation discarded, not a
+// transformation of the answer -- so with nothing discarded, `Up` and `Down`
+// answer the same thing `divExact` does. Asserted by counting, so a mode that
+// grew a rule of its own fails here while still looking right on its own line.
+decimal $bill = 1.00;
+decimal $four = 4;
+decimal $exact = Core\Decimal::divExact($bill, $four);
+int $agreed = 0;
+if (Core\Decimal::divRound($bill, $four, 2, Core\RoundMode::HalfUp) == $exact) {
+    $agreed = $agreed + 1;
+}
+if (Core\Decimal::divRound($bill, $four, 2, Core\RoundMode::HalfDown) == $exact) {
+    $agreed = $agreed + 1;
+}
+if (Core\Decimal::divRound($bill, $four, 2, Core\RoundMode::HalfEven) == $exact) {
+    $agreed = $agreed + 1;
+}
+if (Core\Decimal::divRound($bill, $four, 2, Core\RoundMode::HalfOdd) == $exact) {
+    $agreed = $agreed + 1;
+}
+if (Core\Decimal::divRound($bill, $four, 2, Core\RoundMode::Up) == $exact) {
+    $agreed = $agreed + 1;
+}
+if (Core\Decimal::divRound($bill, $four, 2, Core\RoundMode::Down) == $exact) {
+    $agreed = $agreed + 1;
+}
+echo "modes agreeing with divExact: ", $agreed, "\n";
+
+// And the disagreement that says the count above is not vacuous: where the
+// quotient does not come out even at that scale, the two whole-direction modes
+// part, and `divExact` refuses the division altogether.
+decimal $three = 3;
+if (Core\Decimal::divRound($bill, $three, 2, Core\RoundMode::Up)
+    == Core\Decimal::divRound($bill, $three, 2, Core\RoundMode::Down)) {
+    echo "still agreeing where the quotient repeats\n";
+} else {
+    echo "parting where the quotient repeats\n";
+}
+--EXPECT--
+modes agreeing with divExact: 6
+parting where the quotient repeats
