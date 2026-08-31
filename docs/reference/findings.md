@@ -74,7 +74,9 @@ in that goal. An item's owner is the row it sits in.
 - [x] **P9** `new $className()` with a `string` variable panics ("`new` … has no resolved class");
       likewise `$className::f()`. *ref30; php-diff probes* — both are `E0496` where they are written,
       the code the third spelling `$x instanceof $className` already had: one mistake under one report
-      (`nvs_types::expr::members::reject_dynamic_class_name`), so neither reaches the lowerer.
+      (`nvs_types::expr::members::reject_dynamic_class_name`), so neither reaches the lowerer. All
+      three now accept a `class<T>` value instead (ADR 0125 § 4), and the refusal's help names the
+      `as` that produces one — a `string` stays refused at every one of them.
 - [x] **P10** Anonymous classes `new class { … }` pass the checker and panic in `nvs-ir`. *probes p03*
       `E0244` at `new class` stops the pipeline before `nvs-ir`; the declaration is still parsed whole,
       so `nvs_syntax::casing` reaches its members as it reaches a named class's.

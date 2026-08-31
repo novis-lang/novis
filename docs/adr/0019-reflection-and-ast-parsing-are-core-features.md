@@ -118,7 +118,11 @@ as `Core\Json::decode()` on one.
 - One parser, two call sites (`nvs` toolchain, running program) — a rejected construct is rejected
   identically everywhere, unlike PHP's engine-parser/userland-parser split.
 - A migrated framework's DI container or ORM hydration gets the reflection surface it already expects, with
-  no new privilege-escalation primitive PHP's `setAccessible(true)` gave it. **An attribute-driven router is
+  no new privilege-escalation primitive PHP's `setAccessible(true)` gave it. Its other half — *construct
+  the class this name denotes* — is not reflection at all and never reaches `Core\Reflect`:
+  [ADR 0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)'s `class<T>` is the type a
+  container holds, checked once at the `as` that produced it, so a container binding a name to an
+  implementation is type-checked where PHP's throws at resolution time. **An attribute-driven router is
   no longer one of those cases**: [ADR 0077](0077-compile-time-routing.md) makes the route table a compiler
   pass over [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)'s program enumeration, so it
   never reaches `Core\Reflect` at all — which is the better outcome, since it turns three runtime routing

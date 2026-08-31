@@ -28,7 +28,7 @@ in and nothing the host populates.
 | `use function …;`, `use const …;` | nothing to import: functions and constants are class members | `E0306` |
 | `\Core\Str::length($s)` (leading `\`) | `Core\Str::length($s)` — a name with a `\` in it is already absolute | `E0240` |
 | `$obj->{$name}`, `$obj->$name` | write the member; hold run-time keys in an `array<string, T>` | `E0235` |
-| `new $className()`, `$className::f()`, `$x instanceof $className` | a written class name only | `E0496` at all three |
+| `new $className()`, `$className::f()`, `$x instanceof $className` over a `string` | a written class name, or a class reference: `class<T> $cls = $className as class<T>;` then the same three spellings. The `as` is where a name that is not a `T` throws, so every site downstream of it holds a class that already passed | `E0496` at all three |
 | `__DIR__`, `__FILE__`, `__LINE__`, `__CLASS__`, `PHP_EOL` | no magic constants; `Throwable::$location` carries a file and line, `"\n"` is the newline | `E0319` |
 
 # Functions, constants and scope

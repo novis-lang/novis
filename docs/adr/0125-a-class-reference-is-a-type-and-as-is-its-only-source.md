@@ -12,7 +12,8 @@
   declared list.
 - **Depends on:** [0007](0007-explicit-type-system.md)
 - **Amends:** [0007](0007-explicit-type-system.md) — § 3's `atom` production gains `'class' '<' Name '>'`,
-  and § 2's conversion grid gains the `string`/`class<U>` → `class<T>` row.
+  § 2's conversion grid gains the `string`/`class<U>` → `class<T>` row, and § 7 row 14's tail no longer
+  says the dynamic `instanceof` has no Novis spelling.
 - **Validated by:** [crates/nvs-syntax/src/parser/tests/ty.rs](../../crates/nvs-syntax/src/parser/tests/ty.rs)
 
 > **In short:** `class<T>` is a type, and its value is the run-time class descriptor an object is
