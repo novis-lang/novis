@@ -4980,10 +4980,6 @@ every session. Nothing below was reworded on the way.
   under the std one for 13, so the ulp is what a ported program comparing a round trip actually
   sees. AGENTS.md's priority 2 — PHP-compatible *observable* behaviour — is what decides it, and
   the accuracy spent is stated in `nvs_stdlib::math`'s own doc comments at both members.
-- **`Core\Math::gcd` and `::lcm` have no callable twin on either leg**: neither the Windows `php`
-  nor WSL's has `gmp`, so `gmp_gcd`/`gmp_lcm` are undefined functions and an oracle case for those
-  two has to compute its expectation with an explicit Euclidean loop in PHP or be left out of the
-  count.
 - **Novis's `float` rendering is PHP's**, precision 14 with trailing zeros trimmed — `sqrt(2.0)`
   prints `1.4142135623731`, `exp(-745.0)` prints `4.9406564584125E-324` and `0.1 + 0.2` prints
   `0.3` on both sides — so a `Core\Math` oracle case may echo a float directly and needs no
