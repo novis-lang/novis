@@ -1,0 +1,82 @@
+--TEST--
+`Core\Reflect\ClassInfo::call` runs a `public` method and refuses a `private` one, with a wrong class and a misspelling told apart from neither — ADR 0019 § 2
+--FILE--
+<?nvs
+// ADR 0019 § 2: *acting* on a member runs the check ordinary code at the call
+// site would run, and there is no `setAccessible` to lift it with. `call` does
+// not restate that rule anywhere — it hands the call to the same path an
+// ordinary call through an erased receiver takes — so what this pins is that
+// the two are one check rather than two that happen to agree today.
+class Vault {
+    public string $label = "main";
+
+    public function open(string $who): string {
+        return $who . " opened " . $this->label;
+    }
+
+    private function combination(): string {
+        return "0000";
+    }
+}
+
+var $vault = new Vault();
+var $described = Core\Reflect::forObject($vault);
+
+// The public half runs, and the entries fill the parameters in order.
+echo $described->call($vault, "open", ["ana"]), "\n";
+
+// The same call written ordinarily, through a `mixed` receiver — the one
+// ordinary call site that is outside every class by construction, which is
+// exactly the premise a reflective call site has. Both lines print, so the
+// agreement below is not two doors that are simply both shut.
+mixed $erased = $vault;
+echo $erased->open("ben"), "\n";
+
+// The private half is refused. `LogicError` rather than `RuntimeError`: a call
+// site outside the class was never entitled to that method, which is a fact
+// about the program rather than about this value.
+try {
+    var $secret = $described->call($vault, "combination", []);
+    echo "private call", "\n";
+} catch (LogicError $refused) {
+    echo "private refused", "\n";
+}
+
+// And ordinarily, from the same erased receiver — the refusal reflection did
+// not lift is the refusal an ordinary call already met.
+try {
+    var $ordinary = $erased->combination();
+    echo "private ordinary call", "\n";
+} catch (LogicError $also) {
+    echo "private refused ordinarily", "\n";
+}
+
+// A name that names no method at all is refused too, so a misspelling is never
+// mistaken for a member that exists and is closed.
+try {
+    var $missing = $described->call($vault, "opne", ["cass"]);
+    echo "misspelled call", "\n";
+} catch (LogicError $wrong) {
+    echo "no such method", "\n";
+}
+
+// A description is of a *class*, so another class's instance is refused even
+// where the name would have resolved on it.
+class Impostor {
+    public function open(string $who): string {
+        return $who . " opened nothing";
+    }
+}
+try {
+    var $borrowed = $described->call(new Impostor(), "open", ["dee"]);
+    echo "borrowed call", "\n";
+} catch (LogicError $mismatch) {
+    echo "wrong class", "\n";
+}
+--EXPECT--
+ana opened main
+ben opened main
+private refused
+private refused ordinarily
+no such method
+wrong class

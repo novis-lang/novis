@@ -1,0 +1,57 @@
+--TEST--
+`Core\Reflect\ClassInfo::call` judges `$arguments` against the callee's declared parameters — both sides of the arity bound, and a type the parameter does not accept — ADR 0019 § 2
+--FILE--
+<?nvs
+// ADR 0019 § 2's check is the ordinary call's, so what the argument list is
+// judged against is the *callee's* shape and never the array's. Both sides of
+// each bound are named here: a member that stopped one entry early would print
+// plausibly against either half alone.
+class Ledger {
+    public function post(string $who, int $amount): string {
+        return $who . " posted " . ($amount as string);
+    }
+
+    public function seal(): string {
+        return "sealed";
+    }
+}
+
+var $ledger = new Ledger();
+var $described = Core\Reflect::forObject($ledger);
+
+// Exactly the declared count, in declaration order.
+echo $described->call($ledger, "post", ["ana", 3]), "\n";
+
+// One short is refused — the first list the callee cannot be entered with.
+try {
+    var $short = $described->call($ledger, "post", ["ana"]);
+    echo "short call", "\n";
+} catch (LogicError $tooFew) {
+    echo "too few", "\n";
+}
+
+// One over is not: an argument nothing declares has no parameter to be
+// checked against, so the list is trimmed to the arity exactly as an ordinary
+// erased call trims it. This is the accepted side of the same bound.
+echo $described->call($ledger, "post", ["ben", 4, "ignored"]), "\n";
+
+// A zero-parameter method takes `[]`, which is the only spelling for it:
+// `$arguments` is required because the registry has no array default to give
+// it, and `crate::reflect`'s row says so.
+echo $described->call($ledger, "seal", []), "\n";
+
+// An entry whose type the parameter does not accept is refused at the same
+// check, before anything jumps — the reflective path never widens what an
+// ordinary call would not.
+try {
+    var $wrong = $described->call($ledger, "post", ["cass", "5"]);
+    echo "mistyped call", "\n";
+} catch (LogicError $refused) {
+    echo "wrong type", "\n";
+}
+--EXPECT--
+ana posted 3
+too few
+ben posted 4
+sealed
+wrong type

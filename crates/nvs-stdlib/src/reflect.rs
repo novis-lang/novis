@@ -78,9 +78,10 @@
 //!    as from outside it. § 2's rule is stated over the *call site*, and a
 //!    native member has no view of its caller's class — so this answers the
 //!    narrower question, which is the one that cannot leak a member.
-//! 3. Reading a property is here; *calling* a method and *writing* a property,
-//!    which § 2 governs on the same terms and which additionally owe ADR 0014's
-//!    hook, are not.
+//! 3. Reading a property and calling a method are here; *writing* a property,
+//!    which § 2 governs on the same terms and which additionally owes ADR
+//!    0014's hook, is not. Nor is invoking a constructor reflectively, which is
+//!    the third acting member § 2 names.
 
 use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
 
@@ -315,6 +316,25 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             symbol: "nvs_core_reflect_class_info_get",
             doc: Some(&GET_DOC),
         },
+        CoreMethod {
+            name: "call",
+            names: &["object", "name", "arguments"],
+            params: &[
+                CoreTy::Mixed,
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Array(&CoreTy::Mixed),
+            ],
+            // `$arguments` is required rather than defaulted to `[]`:
+            // `registry::Const` has no array variant, and a member whose
+            // spec signature the registry cannot express is one this crate
+            // declines to register at all rather than one it approximates.
+            defaults: &[],
+            // `mixed`, for `get`'s reason one line up: the method's declared
+            // return type is not known where the call is written.
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_reflect_class_info_call",
+            doc: Some(&CALL_DOC),
+        },
     ],
     slots: &["name", "properties"],
     constants: &[],
@@ -371,6 +391,99 @@ const GET_DOC: MethodDoc = MethodDoc {
             desc: "`$object` is not an instance of the described class, or `$name` names no \
                    property of it at all. Both are mistakes in the program rather than facts \
                    about the value, which is what separates them from the refusal above.",
+        },
+    ],
+};
+
+/// The `$object` argument of an *acting* member, checked against the class the
+/// receiving description is of — its pointer, and that class's name.
+///
+/// Both acting members ask exactly this before anything else, and the two
+/// refusals are written once because a description answering the same question
+/// two ways would be describing two rules rather than one class. The order is
+/// [`nvs_core_reflect_class_info_get`]'s, and its doc comment owns why: a value
+/// that is not an object at all is a `RuntimeError`, and one that is an object
+/// of the wrong class is a `LogicError`, so a misspelling and a mis-typed
+/// argument never arrive as the same refusal.
+fn subject_of(
+    receiver: *mut nvs_runtime::ObjHeader,
+    subject: Value,
+    member: &str,
+) -> Result<(*mut nvs_runtime::ObjHeader, String), Fault> {
+    let ptr = subject.obj_ptr().ok_or_else(|| {
+        Fault::thrown(format!(
+            "{CLASS_INFO_NAME}::{member}() expected an object, got tag {}",
+            subject.tag_byte()
+        ))
+    })?;
+    #[expect(
+        unsafe_code,
+        reason = "the argument owns a reference to a live allocation, so it is \
+                  live for this borrow; the handle is never dropped, so that \
+                  reference is not released twice, and the descriptor is owned \
+                  by the unit's class table, which outlives every instance of \
+                  the class it describes"
+    )]
+    let class = unsafe {
+        let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(ptr));
+        (*object.class()).name().to_owned()
+    };
+    // `as_text` rather than the bytes: the slot was written by `forObject`
+    // from a `Tag::Str`, and ADR 0009 § 3 makes that tag the UTF-8 guarantee —
+    // see `crate::str`'s `text` on why re-deriving it costs an O(n) pass for
+    // nothing.
+    let described = crate::instance::slot(receiver, NAME_SLOT);
+    let described = described.as_text().unwrap_or_default();
+    if described != class {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{CLASS_INFO_NAME}::{member}(): this describes `{described}`, and the value is a \
+                 `{class}`"
+            ),
+        ));
+    }
+    Ok((ptr, class))
+}
+
+/// `Core\Reflect\ClassInfo::call`'s reference card — ADR 0117.
+const CALL_DOC: MethodDoc = MethodDoc {
+    short: "Calls `$object`'s `$name` method with `$arguments`, under exactly the visibility \
+            ordinary code at this call site would face. Replaces `ReflectionMethod::invoke`, and \
+            there is no `setAccessible` to lift the check with.",
+    params: &[
+        ParamDoc {
+            name: "object",
+            desc: "An instance of the described class — the description is of a class, so the \
+                   value to call on is named here rather than held.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "name",
+            desc: "The method's name, `()` excluded, as the declaration writes it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "arguments",
+            desc: "One entry per declared parameter, in order, keys ignored. Required even where \
+                   the method takes none, which is then `[]`.",
+            shape: &[],
+        },
+    ],
+    ret: "Whatever the method returned, with its own declared type erased to `mixed`.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$name` is not `public`, names no method of the class, or names a `Core` \
+                   member; or `$arguments` has fewer entries than the method declares, or an \
+                   entry whose type the parameter does not accept. Every one of these is the \
+                   refusal an ordinary call through an erased receiver meets, raised by that same \
+                   check rather than by a second one written here.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$object` is not an object at all. A `$object` that is an object but not an \
+                   instance of the described class is the `LogicError` above.",
         },
     ],
 };
@@ -458,6 +571,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_reflect_class_info_properties as *const ()).cast()
         }
         "nvs_core_reflect_class_info_get" => (nvs_core_reflect_class_info_get as *const ()).cast(),
+        "nvs_core_reflect_class_info_call" => {
+            (nvs_core_reflect_class_info_call as *const ()).cast()
+        }
         _ => return None,
     })
 }
@@ -599,14 +715,8 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_reflect_class_info_get(_ctx, args: [3]) {
         let member = "get";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
-        let described = crate::instance::slot(receiver, NAME_SLOT);
-        let subject = args[1].obj_ptr().ok_or_else(|| {
-            Fault::thrown(format!(
-                "{CLASS_INFO_NAME}::get() expected an object, got tag {}",
-                args[1].tag_byte()
-            ))
-        })?;
         let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::get")?;
+        let (subject, class) = subject_of(receiver, args[1], member)?;
         #[expect(
             unsafe_code,
             reason = "the argument owns a reference to a live allocation, so it is \
@@ -615,30 +725,12 @@ nvs_runtime::nvs_helper! {
                       by the unit's class table, which outlives every instance of \
                       the class it describes"
         )]
-        let (class, slot, visible) = unsafe {
+        let (slot, visible) = unsafe {
             let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(subject));
             let desc = &*object.class();
             let slot = desc.field_slot(name, 0);
-            (
-                desc.name().to_owned(),
-                slot,
-                slot.is_some_and(|at| desc.field_is_public(at)),
-            )
+            (slot, slot.is_some_and(|at| desc.field_is_public(at)))
         };
-        // `as_text` rather than the bytes: the slot was written by `forObject`
-        // from a `Tag::Str`, and ADR 0009 § 3 makes that tag the UTF-8
-        // guarantee — see `crate::str`'s `text` on why re-deriving it costs an
-        // O(n) pass for nothing.
-        let described = described.as_text().unwrap_or_default();
-        if described != class {
-            return Err(Fault::thrown_as(
-                ThrownClass::Logic,
-                format!(
-                    "{CLASS_INFO_NAME}::get(): this describes `{described}`, and the value is a \
-                     `{class}`"
-                ),
-            ));
-        }
         let Some(slot) = slot else {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
@@ -666,11 +758,204 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::call(mixed $object, string $name, array<mixed> $arguments): mixed`
+    /// — ADR 0019 § 2's rule that *acting* on a member faces the ordinary
+    /// check, for the member that acts hardest.
+    ///
+    /// **No visibility rule is written here.** § 2 says a reflective call
+    /// "fails the same way an ordinary out-of-class call would", and the
+    /// strongest reading of *the same way* is the same code: past the two
+    /// questions a description owes about its own subject, this hands the call
+    /// to [`nvs_runtime::call_erased_method`], which is what an ordinary
+    /// `$value->name(...)` on a `mixed` receiver reaches. That path already
+    /// asks every question this one owes — is the member `public`, does the
+    /// class declare it at all, is it a native `Core` member that borrows its
+    /// receiver, are there enough arguments, does each argument carry the tag
+    /// its parameter requires — and asks them *on behalf of a site that is
+    /// outside every class by construction*, which is exactly the premise a
+    /// reflective call site has. A check re-implemented here would be a second
+    /// visibility rule to keep in step with the first, and the pair would
+    /// diverge in the direction that matters: the copy is the one nothing
+    /// dispatches through, so a program would keep passing while the rule it
+    /// states quietly stopped being the rule.
+    ///
+    /// So there is no `setAccessible` and nowhere to put one — the check is not
+    /// this member's to relax. Ownership is that path's too: the arguments are
+    /// this frame's borrowed slots, `call_at` retains each one and the callee's
+    /// own exit sweep releases them, and the [`Value`] handed back is already a
+    /// fresh reference.
+    fn nvs_core_reflect_class_info_call(ctx, args: [4]) {
+        let member = "call";
+        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
+        let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::call")?;
+        subject_of(receiver, args[1], member)?;
+        // Unreachable from source on `crate::arr`'s own terms: parameter 2 is
+        // `array<mixed>` in `CLASS_INFO` above, so a non-container argument is
+        // `E0401` at the checker. It stays because it is what makes
+        // `array_ptr`'s answer safe to unwrap.
+        let list = args[3].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{CLASS_INFO_NAME}::call expected {:?}, got tag {}",
+                Tag::Array,
+                args[3].tag_byte()
+            ))
+        })?;
+        // In slot order, keys ignored: a parameter list is positional, so an
+        // `array` with keys is one whose keys say nothing about the call. The
+        // arity the entries are then judged against is the callee's own, which
+        // is `call_erased_method`'s question and not asked twice here.
+        let list = crate::arr::borrowed(list);
+        let mut passed = Vec::with_capacity(list.count());
+        let mut slot = 0;
+        while let Some(live) = list.next_slot(slot) {
+            slot = live + 1;
+            passed.push(list.value_at(live).expect("a live slot has a value"));
+        }
+        nvs_runtime::call_erased_method(ctx, args[1], name, &passed)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use nvs_runtime::{Ctx, NvsArray, NvsStr, OutputSink, Tag, Value, call};
+    use nvs_runtime::{
+        ClassTable, Ctx, ErrorClass, MethodRow, NvsArray, NvsFn, NvsObj, NvsStr, OK, OutputSink,
+        Tag, Value, call,
+    };
 
     use super::{TYPE_KIND, kind_of};
+
+    /// What [`vault_open`] answers with, so the assertion that the public half
+    /// still runs reads as a value and not as an absence of a throw.
+    const OPENED: u64 = 11;
+
+    /// `Vault::open`'s body, as `nvs-codegen` would have compiled it: slot 0 is
+    /// the receiver and there are no parameters, so the exit sweep is one
+    /// release — `call_at` retained it on the way in.
+    #[expect(
+        unsafe_code,
+        reason = "compiled code's own signature, which `call_at` calls through: \
+                  one live value and the address of a live `Value` for the \
+                  result, neither expressible in the type"
+    )]
+    unsafe extern "C" fn vault_open(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        unsafe {
+            (*args).release();
+            *out = Value::uint(OPENED);
+        }
+        OK
+    }
+
+    /// A `Vault` declaring one `public` method and one `private` one, an
+    /// instance of it, and a context anchored into the table that holds both.
+    ///
+    /// The table arrives through `Ctx::set_runtime_error_class` because that
+    /// handle *is* this context's anchor into the compiled unit's classes —
+    /// `crate::command`'s `dispatching` is the same shape and its doc comment
+    /// owns why there is no second registration to make. Both rows carry the
+    /// same address: `sealed` is refused before anything jumps, so a body for
+    /// it would be a body no assertion here could reach.
+    fn vault() -> (Ctx, Value) {
+        let mut classes = ClassTable::new();
+        let id = classes.define("Vault", &[] as &[&str], &[]);
+        let row = |name: &str, public: bool| MethodRow {
+            name: name.to_owned(),
+            code: (vault_open as NvsFn) as *const u8,
+            arity: 0,
+            param_tags: 0,
+            public,
+            native: false,
+        };
+        classes.set_methods(id, vec![row("open", true), row("sealed", false)]);
+        let classes = std::rc::Rc::new(classes);
+        let desc = classes.desc(id);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, id));
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor belongs to the table the context above now \
+                      holds for its whole life, and `Vault` declares no fields, \
+                      so a fresh allocation is a fully initialized instance"
+        )]
+        let subject = Value::object(unsafe { NvsObj::new(desc) });
+        (ctx, subject)
+    }
+
+    /// ADR 0019 § 2's headline rule, asked as an **agreement** rather than as a
+    /// sentence: a reflective call to a `private` method and an ordinary
+    /// out-of-class call to the same method have to fail *the same way*, so
+    /// this asks both and compares the two refusals to each other. A `call`
+    /// that grew a visibility check of its own would still refuse, and would
+    /// still read correctly on its own line — and would fail here, which is the
+    /// whole reason the question is put this way round.
+    ///
+    /// The ordinary call is `call_erased_method`, because an erased receiver is
+    /// the one ordinary call site that is outside every class by construction,
+    /// which is exactly the premise a reflective call site has. The public half
+    /// is asserted in the same test so that "they agree" cannot be satisfied by
+    /// a member that refuses everything.
+    #[test]
+    fn a_reflective_call_to_a_private_method_from_outside_fails_like_the_ordinary_call() {
+        let (mut ctx, subject) = vault();
+        let info = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
+            .expect("every object has a description");
+
+        let ordinary = nvs_runtime::call_erased_method(&mut ctx, subject, "sealed", &[])
+            .expect_err("`sealed` is not public, and this site is outside every class");
+        let nvs_runtime::Fault::Thrown(ordinary_class, ordinary_said) = ordinary else {
+            panic!("an out-of-class call to a `private` method is a catchable throw");
+        };
+
+        let sealed = Value::str(NvsStr::new(b"sealed"));
+        let none = Value::array(NvsArray::new());
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_class_info_call,
+                &mut ctx,
+                &[info, subject, sealed, none],
+            )
+            .err(),
+            Some(nvs_runtime::THROWN),
+            "reflection does not lift the check, so the reflective call throws too"
+        );
+        assert_eq!(
+            ctx.take_pending().as_deref(),
+            Some(ordinary_said.as_ref()),
+            "the same sentence, because it is the same check: `call` dispatches \
+             through the ordinary path rather than restating its rule"
+        );
+        assert_eq!(
+            ordinary_class,
+            nvs_runtime::ThrownClass::Logic,
+            "and the same class, which is what a `catch` in a program sees"
+        );
+
+        let open = Value::str(NvsStr::new(b"open"));
+        let none = Value::array(NvsArray::new());
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_class_info_call,
+                &mut ctx,
+                &[info, subject, open, none],
+            )
+            .expect("`open` is public")
+            .as_uint(),
+            Some(OPENED),
+            "the public half runs and answers, so the agreement above is not \
+             two members refusing everything"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns one reference to each — `forObject` handed \
+                      back a fresh one and `vault` built the other — and every \
+                      call above borrowed rather than consumed them"
+        )]
+        unsafe {
+            info.release();
+            subject.release();
+        }
+    }
 
     /// The case a name is declared with, so the assertions below read in the
     /// spellings a program writes rather than in ordinals.

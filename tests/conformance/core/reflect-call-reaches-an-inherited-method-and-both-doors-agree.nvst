@@ -1,0 +1,78 @@
+--TEST--
+`Core\Reflect\ClassInfo::call` reaches an inherited `public` method, still refuses an inherited `private` one, and answers the same through both doors onto a description — ADR 0019 §§ 1-2
+--FILE--
+<?nvs
+// ADR 0019 § 1's two doors reach one descriptor, so *what a description does*
+// must not depend on which door was used — `describe`'s own reasoning, asked
+// here of the acting half rather than of the reading half. The class table the
+// check reads is the flattened one, so an inherited method is the class's own
+// as far as § 2 is concerned, and its visibility travels with it.
+class Base {
+    public function greet(string $who): string {
+        return "hello " . $who;
+    }
+
+    private function ledger(): string {
+        return "closed";
+    }
+}
+
+class Branch extends Base {
+    public function own(): string {
+        return "branch";
+    }
+}
+
+var $branch = new Branch();
+var $byValue = Core\Reflect::forObject($branch);
+
+// ADR 0063 R6: `forClass` answers `?T`, so both names are tested before either
+// is used — the nesting is the language's narrowing and not part of what this
+// case pins.
+var $byName = Core\Reflect::forClass("Branch");
+var $ofBase = Core\Reflect::forClass("Base");
+if ($byName != null) {
+    if ($ofBase != null) {
+        // One question asked through both doors, and the assertion is that they
+        // **agree** rather than what either answered: a door that grew its own
+        // lookup would still read correctly on its own line and fail here.
+        echo $byValue->call($branch, "greet", ["ana"]), "\n";
+        echo $byName->call($branch, "greet", ["ana"]), "\n";
+        echo $byValue->call($branch, "own", []), "\n";
+        echo $byName->call($branch, "own", []), "\n";
+
+        // The inherited `private` method is refused through both doors too —
+        // visibility is not something a subclass's description widens, and it is
+        // not something a door widens either.
+        try {
+            var $viaValue = $byValue->call($branch, "ledger", []);
+            echo "value door opened it", "\n";
+        } catch (LogicError $one) {
+            echo "refused through the value door", "\n";
+        }
+        try {
+            var $viaName = $byName->call($branch, "ledger", []);
+            echo "name door opened it", "\n";
+        } catch (LogicError $two) {
+            echo "refused through the name door", "\n";
+        }
+
+        // And a description is of a class exactly, not of its ancestors:
+        // `Base`'s will not act on a `Branch`, even though every instance of one
+        // is an instance of the other.
+        try {
+            var $lifted = $ofBase->call($branch, "greet", ["ben"]);
+            echo "ancestor description acted", "\n";
+        } catch (LogicError $three) {
+            echo "exact class, not instanceof", "\n";
+        }
+    }
+}
+--EXPECT--
+hello ana
+hello ana
+branch
+branch
+refused through the value door
+refused through the name door
+exact class, not instanceof
