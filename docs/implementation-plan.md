@@ -55,8 +55,11 @@
 > splits behind it by `Core\Str::lines`' own rule — answering `Core\IO\Lines`, the name the registry
 > gives spec § 14's `Iterable<string>` because `CoreTy::Iterated` is parameter position only.
 > `examples/files.nvs` runs green against its seven frozen lines, over an `[[app]]` block of its
-> own. What goals 1-3 landed is unchanged and is not re-derived here: `git log` and each crate's
-> module doc own it. Conformance 1108, differential 210 of 210, migration 37% over its 36% floor.
+> own. **Stage 3 is open at its door**: `nvs_runtime::capability::exec` starts a child behind
+> `process.exec` with all three streams piped and refuses a `.bat`/`.cmd`/`.ps1` target on every
+> platform (ADR 0044 § 4), and `Core\Process` itself is the next slice. What goals 1-3 landed is
+> unchanged and is not re-derived here: `git log` and each crate's module doc own it. Conformance
+> 1108, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
