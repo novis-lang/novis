@@ -755,7 +755,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// A thrown `RuntimeError` for a limit that cannot be enforced, from
     /// [`window`] and from nowhere else.
-    fn nvs_core_ratelimit_shed(_ctx, args: [5]) {
+    fn nvs_core_ratelimit_shed(ctx, args: [5]) {
         let key = key_of(args, 0, "shed")?;
         let limit = uint_of(args, 1, "shed")?.unwrap_or(0);
         let per = crate::time::nanos_of(args, 2, "shed")?;
@@ -771,7 +771,16 @@ nvs_runtime::nvs_helper! {
         let now = crate::time::monotonic_micros();
         let (reply, admitted) = step(stored_tat(namespaced.as_bytes()), now, window, cost);
         if let Some(next_tat) = admitted {
-            crate::cache::store_put(namespaced.as_bytes(), next_tat.to_string().into_bytes());
+            // Under the same `[cache.local] max_size` every other entry on this
+            // core is under (ADR 0059 § 3), which is the whole of what the
+            // `None` row in `registry::CAPABILITIES` says bounds this member: a
+            // limiter that outgrew the cap would be the footprint a grant could
+            // not have bounded anyway.
+            crate::cache::store_put(
+                namespaced.as_bytes(),
+                next_tat.to_string().into_bytes(),
+                crate::cache::local_cap(ctx),
+            );
         }
 
         decoded(&reply, limit).map_err(|why| {

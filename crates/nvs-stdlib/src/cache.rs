@@ -70,15 +70,37 @@
 //! the refusal, since what to do instead is the caller's own contract.
 //!
 //! Which store, and how long a command may take, are `[cache.shared] url` and
-//! `[cache.shared] timeout` — both `System`-class, because where a fleet's
-//! coherent state lives is not a decision a request may make for itself.
+//! `[cache.shared] timeout`; what the tier behind `local()` may hold is
+//! `[cache.local] max_size`. All three are `System`-class, because neither
+//! where a fleet's coherent state lives nor how much of a core's memory it
+//! keeps is a decision one request may make for the rest of them.
+//!
+//! # Decision: the cap is bytes on this core, and forgetting is how it is kept
+//!
+//! § 3 caps the local tier by an `nvs.toml` directive and says exceeding it
+//! **evicts rather than failing an allocation**, so [`Local::put`] never
+//! refuses: it forgets entries until the arrival fits, and an arrival too large
+//! for the whole tier is itself forgotten as it lands. Nothing about `put`'s
+//! contract changes, because § 1 already says an entry may be absent at any
+//! time — the cap is a second reason for the `null` a caller had to handle
+//! anyway, and a `put` that threw would be a third failure mode for a store
+//! whose whole contract is that it has none.
+//!
+//! **The victim is the key written longest ago**, not the least recently read:
+//! a read that reordered the queue would make `get` a write, taking a `&mut` on
+//! the request path and turning a `RefCell` shared with `Core\RateLimit` into
+//! something two live borrows could reach. What that costs is that a hot key
+//! written once and read forever ages out under a cold key rewritten often;
+//! what it buys is that `get` is a lookup and `put` is O(1) amortised. An
+//! eviction policy that measured *use* would need a clock or a counter per
+//! entry, which is footprint spent to protect footprint.
 //!
 //! # What is not here yet
 //!
-//! **A TTL, an eviction and a `forget`.** § 3's cap is what evicts, and a
-//! lifetime is meaningless before something enforces one. `put` grows the
-//! trailing options shape ADR 0063 R2 puts last when that lands, which is an
-//! addition to the row rather than a change to it.
+//! **A TTL and a `forget`.** A lifetime is a second reason an entry goes, and
+//! the cap above is the one that had to exist first; `put` grows the trailing
+//! options shape ADR 0063 R2 puts last when a TTL lands, which is an addition
+//! to the row rather than a change to it.
 //!
 //! **A shared store behind a password, a database index or TLS.** The URL this
 //! reads is `redis://host[:port]` and nothing else, and each of the three is
@@ -87,17 +109,22 @@
 //! namespace nothing yet names, and a `rediss://` client needs the trust-anchor
 //! decision `crate::http::transport` is also waiting on.
 //!
-//! **What it spends:** on the local tier, per core, one map entry per live key —
-//! the key's bytes plus its payload's — held until it is overwritten and charged
-//! to the core rather than to any request, which is § 3's O(cores × working set)
-//! and deliberately not O(requests served). On the shared tier, one socket per
-//! core and nothing per entry: the bytes are the store's.
+//! **What it spends:** on the local tier, per core, one map entry and one queue
+//! slot per live key — the key's bytes, its payload's and [`ENTRY_OVERHEAD`] —
+//! held until it is overwritten or forgotten, charged to the core rather than
+//! to any request, and bounded by `[cache.local] max_size`, which ships at
+//! [`DEFAULT_MAX_SIZE`]. That is § 3's O(cores × working set) with both factors
+//! named, and it is deliberately not O(requests served): a key rewritten on
+//! every request costs what it cost the first time. On the shared tier, one
+//! socket per core and nothing per entry: the bytes are the store's.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
+use std::rc::Rc;
 use std::time::Duration;
 
+use nvs_config::{Quantity, Setting, Unit};
 use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
 use nvs_syntax::duration;
 
@@ -318,39 +345,166 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 /// This core's entries, by key — a name of its own because the nesting is what
-/// `clippy::type_complexity` counts, and the two runs of bytes are a key and
-/// the payload stored under it.
-type Entries = HashMap<Box<[u8]>, Box<[u8]>>;
+/// `[cache.local] max_size` — what this core's entries may hold together.
+const MAX_SIZE: &str = "cache.local.max_size";
+
+/// The cap a deployment that configured none inherits: the 32 MiB APCu ships
+/// for the extension ADR 0051 records this class as answering, read per core
+/// rather than per host. Eight cores hold up to eight of it, which is § 3's
+/// O(cores × working set) with a number in front of it.
+const DEFAULT_MAX_SIZE: usize = 32 * 1024 * 1024;
+
+/// What one entry costs beyond its own bytes: a map bucket, an `Rc` header, a
+/// queue slot and the fat pointers over them, rounded to something a reader can
+/// hold in their head. Charged so the cap bounds the *allocation* — a tier full
+/// of one-byte entries under a cap that counted payloads alone would be a cap
+/// measuring almost none of what it holds.
+const ENTRY_OVERHEAD: usize = 64;
+
+/// This core's entries and what they cost, together, because a size is only
+/// meaningful against the map it measures: a second `thread_local` holding the
+/// number beside the map would be two writers of one fact.
+#[derive(Default)]
+struct Local {
+    /// The entries themselves, each an ADR 0023 § 3 payload. Keys are `Rc` so
+    /// that `order` below names one without a second copy of the bytes.
+    entries: HashMap<Rc<[u8]>, Box<[u8]>>,
+    /// Every live key, in the order it was **first** written, which is the
+    /// order [`Local::forget_oldest`] gives them up in.
+    ///
+    /// First written rather than last: an overwrite keeps its place, so this
+    /// holds exactly one slot per live key and a hot key rewritten a million
+    /// times leaves nothing behind it. Ordering by last write instead would
+    /// need a slot per *write*, which is the O(requests served) growth
+    /// `AGENTS.md` calls a leak rather than a policy.
+    order: VecDeque<Rc<[u8]>>,
+    /// What `entries` costs by [`charged`], maintained on every write so that
+    /// the cap is a comparison rather than a walk of the map.
+    held: usize,
+}
+
+impl Local {
+    /// Writes `payload` under `key`, forgetting whatever it has to.
+    ///
+    /// `cap` is `None` for the `false` an operator writes for no ceiling.
+    fn put(&mut self, key: &[u8], payload: Vec<u8>, cap: Option<usize>) {
+        let incoming = charged(key.len(), payload.len());
+
+        if cap.is_some_and(|cap| incoming > cap) {
+            // An entry the tier could not hold even empty is forgotten as it
+            // arrives rather than failing the write — § 3 evicts, and § 1 has
+            // already told the caller a `get` may answer nothing. What was
+            // under the key goes with it, because `put` replaced it. Its slot
+            // in `order` is the one that can outlive its entry, and
+            // `forget_oldest` skips it when it reaches the front.
+            if let Some((held, previous)) = self.entries.remove_entry(key) {
+                self.held -= charged(held.len(), previous.len());
+            }
+            return;
+        }
+
+        // Before the old entry is taken out, so that a key evicted here is
+        // evicted from both halves at once. The cost is that an overwrite is
+        // priced as an arrival: a tier at its cap forgets one more entry than
+        // the net change needs. Netting the two would have to name an entry
+        // this loop may have just forgotten, which is the more expensive bug.
+        if let Some(cap) = cap {
+            while self.held + incoming > cap && self.forget_oldest() {}
+        }
+
+        let key = match self.entries.remove_entry(key) {
+            Some((held, previous)) => {
+                self.held -= charged(held.len(), previous.len());
+                held
+            }
+            None => {
+                let fresh: Rc<[u8]> = Rc::from(key);
+                self.order.push_back(Rc::clone(&fresh));
+                fresh
+            }
+        };
+        self.held += incoming;
+        self.entries.insert(key, payload.into_boxed_slice());
+    }
+
+    /// Forgets the entry whose key was written longest ago, and answers whether
+    /// there was one to forget — which is what bounds [`Local::put`]'s loop.
+    ///
+    /// A slot naming nothing is skipped rather than counted: it is the oversized
+    /// write above, and skipping it here is what keeps that case from paying for
+    /// a scan of the queue at the time it happens.
+    fn forget_oldest(&mut self) -> bool {
+        while let Some(key) = self.order.pop_front() {
+            if let Some(previous) = self.entries.remove(&key) {
+                self.held -= charged(key.len(), previous.len());
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// What an entry of these two lengths costs the cap.
+fn charged(key: usize, payload: usize) -> usize {
+    key + payload + ENTRY_OVERHEAD
+}
 
 thread_local! {
-    /// The local tier itself: this core's entries, each an ADR 0023 § 3
-    /// payload, and nothing shared with any other core.
+    /// The local tier itself: this core's entries and nothing shared with any
+    /// other core.
     ///
     /// A `thread_local` rather than anything reachable from another thread is
     /// § 1's "no coherence between cores" as a *representation* rather than as
     /// a rule to remember — the runtime is thread-per-core, so a store another
     /// core could reach would need a lock this tier is defined not to have.
-    static ENTRIES: RefCell<Entries> = RefCell::new(HashMap::new());
+    static ENTRIES: RefCell<Local> = RefCell::new(Local::default());
 }
 
-/// Writes `payload` under `key` on this core, replacing any entry there.
+/// `[cache.local] max_size` as a byte count, or [`DEFAULT_MAX_SIZE`], and `None`
+/// for the `false` that removes the ceiling.
+///
+/// Read per write rather than once per core, because the directive is `Reload`
+/// and a cap cached at the first `put` would outlive the configuration that set
+/// it. What that costs is one small string and one parse on a path that is
+/// already an O(graph) encode, and [`nvs_config::Quantity`] is the parse every
+/// other size directive uses — a second reading of what `32M` means is exactly
+/// the divergence ADR 0064 § 5 keeps one parser to prevent.
+///
+/// A value that will not parse is the shipped cap, which is [`timeout_of`]'s
+/// reasoning: `nvs.toml` is refused where it is loaded, by the boundary that can
+/// name the file and the line.
+pub(crate) fn local_cap(ctx: &Ctx) -> Option<usize> {
+    let Some(written) = configured(ctx, MAX_SIZE) else {
+        return Some(DEFAULT_MAX_SIZE);
+    };
+    match Quantity::parse(MAX_SIZE, Unit::Bytes, &Setting::Text(written)) {
+        Ok(Quantity::Unbounded) => None,
+        Ok(Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(usize::MAX)),
+        _ => Some(DEFAULT_MAX_SIZE),
+    }
+}
+
+/// Writes `payload` under `key` on this core, replacing any entry there and
+/// forgetting whatever `cap` does not leave room for.
 ///
 /// Crate-visible because this tier is **the** per-core store rather than this
 /// class's: [`crate::ratelimit`]'s `shed` keeps its arrival times here, under
 /// its own key prefix, for the reason `consume` reaches [`on_shared`] — one
 /// store per tier means one thing to bound and one thing to configure, and a
 /// limiter that kept a second map would be a second footprint for no second
-/// guarantee. § 3's cap, when it lands, bounds both by bounding this.
-pub(crate) fn store_put(key: &[u8], payload: Vec<u8>) {
-    ENTRIES.with_borrow_mut(|entries| {
-        entries.insert(key.into(), payload.into_boxed_slice());
-    });
+/// guarantee. § 3's cap bounds both by bounding this, which is why `cap` is a
+/// parameter here rather than read inside: both callers read it from the same
+/// [`local_cap`], and a store that read it for itself would be reachable from a
+/// test with no configuration at all.
+pub(crate) fn store_put(key: &[u8], payload: Vec<u8>, cap: Option<usize>) {
+    ENTRIES.with_borrow_mut(|local| local.put(key, payload, cap));
 }
 
 /// This core's payload for `key`, or `None` — which is an ordinary answer and
-/// not a failure, per § 1. Crate-visible for [`store_put`]'s reason.
+/// not a failure, per § 1, and now also the answer for an entry the cap made
+/// room by forgetting. Crate-visible for [`store_put`]'s reason.
 pub(crate) fn store_get(key: &[u8]) -> Option<Vec<u8>> {
-    ENTRIES.with_borrow(|entries| entries.get(key).map(|payload| payload.to_vec()))
+    ENTRIES.with_borrow(|local| local.entries.get(key).map(|payload| payload.to_vec()))
 }
 
 /// The `string` in argument slot `at`.
@@ -642,7 +796,7 @@ nvs_runtime::nvs_helper! {
     /// third mechanism" written as control flow: there is one call to the walk
     /// in this module and both tiers are downstream of it, so a tier cannot grow
     /// a representation of its own without deleting that structure first.
-    fn nvs_core_cache_put(_ctx, args: [3]) {
+    fn nvs_core_cache_put(ctx, args: [3]) {
         let tier = tier_of(args, "put")?;
         let key = key_of(args, 1, "put")?.as_bytes().to_vec();
 
@@ -661,7 +815,7 @@ nvs_runtime::nvs_helper! {
         })?;
 
         match tier {
-            Tier::Local => store_put(&key, payload),
+            Tier::Local => store_put(&key, payload, local_cap(ctx)),
             Tier::Shared => on_shared(STORE_NAME, "put", |open| open.set(&key, &payload))?,
         }
         Ok(Value::null())
@@ -704,7 +858,9 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use super::{CLASS, GET_DOC, LOCAL_DOC, SHARED_DOC, Value, store_get, store_put};
+    use super::{
+        CLASS, ENTRIES, ENTRY_OVERHEAD, GET_DOC, LOCAL_DOC, SHARED_DOC, Value, store_get, store_put,
+    };
 
     /// ADR 0059 § 2: the copy across this boundary is the graph copy ADR 0023
     /// already defines and the isolate boundary already shares — not a third
@@ -720,7 +876,7 @@ mod tests {
     #[test]
     fn a_cache_put_and_get_use_the_same_graph_copy_as_the_isolate_boundary() {
         let payload = nvs_runtime::encode(Value::int(7)).expect("an `int` crosses any boundary");
-        store_put(b"the-same-walk", payload.clone());
+        store_put(b"the-same-walk", payload.clone(), None);
         assert_eq!(
             store_get(b"the-same-walk"),
             Some(payload),
@@ -783,7 +939,7 @@ mod tests {
     fn a_local_entry_may_be_absent_at_any_time_and_the_contract_says_so() {
         assert_eq!(store_get(b"absent-by-construction"), None);
 
-        store_put(b"present", b"payload".to_vec());
+        store_put(b"present", b"payload".to_vec(), None);
         assert_eq!(store_get(b"present"), Some(b"payload".to_vec()));
 
         assert!(
@@ -804,13 +960,13 @@ mod tests {
     /// *is* a second core for this question.
     #[test]
     fn a_local_write_on_one_core_is_not_visible_on_another() {
-        store_put(b"one-core-only", b"written here".to_vec());
+        store_put(b"one-core-only", b"written here".to_vec(), None);
         assert_eq!(store_get(b"one-core-only"), Some(b"written here".to_vec()));
 
         let elsewhere = std::thread::spawn(|| {
             let before = store_get(b"one-core-only");
             // And the other direction: what the second core writes stays there.
-            store_put(b"one-core-only", b"written there".to_vec());
+            store_put(b"one-core-only", b"written there".to_vec(), None);
             (before, store_get(b"one-core-only"))
         })
         .join()
@@ -818,5 +974,65 @@ mod tests {
 
         assert_eq!(elsewhere, (None, Some(b"written there".to_vec())));
         assert_eq!(store_get(b"one-core-only"), Some(b"written here".to_vec()));
+    }
+
+    /// ADR 0059 § 3: exceeding the cap **evicts** rather than failing an
+    /// allocation. The write that crosses it succeeds, and what goes is the key
+    /// written longest ago — which § 1 has already told every caller to expect,
+    /// since an entry may be absent at any time for any reason.
+    #[test]
+    fn the_cap_forgets_an_older_entry_rather_than_refusing_the_write() {
+        // Room for two of these three entries and no more.
+        let room = Some(2 * (2 + 6 + ENTRY_OVERHEAD));
+        store_put(b"k1", b"first!".to_vec(), room);
+        store_put(b"k2", b"second".to_vec(), room);
+        assert_eq!(store_get(b"k1"), Some(b"first!".to_vec()));
+
+        store_put(b"k3", b"third!".to_vec(), room);
+        assert_eq!(
+            store_get(b"k1"),
+            None,
+            "the oldest key is the one that goes"
+        );
+        assert_eq!(store_get(b"k2"), Some(b"second".to_vec()));
+        assert_eq!(store_get(b"k3"), Some(b"third!".to_vec()));
+    }
+
+    /// An entry the tier could not hold even empty is forgotten as it arrives,
+    /// and takes what was under its key with it — `put` replaced that entry.
+    /// The tier is unharmed afterwards, which is the half that would break if
+    /// the arrival's charge were left behind.
+    #[test]
+    fn an_entry_larger_than_the_whole_tier_is_forgotten_as_it_arrives() {
+        let room = Some(64 + ENTRY_OVERHEAD);
+        store_put(b"kept", vec![0; 8], room);
+        store_put(b"kept", vec![0; 4096], room);
+        assert_eq!(store_get(b"kept"), None);
+
+        store_put(b"kept", vec![7; 8], room);
+        assert_eq!(store_get(b"kept"), Some(vec![7; 8]));
+    }
+
+    /// `AGENTS.md`'s O(in-flight) rule, which is what makes the cap a bound at
+    /// all: one key rewritten forever costs what it cost the first time. The
+    /// eviction order holds one slot per live key rather than one per write —
+    /// `Core\RateLimit::shed` rewrites a single key on every request, so the
+    /// other spelling would grow with the traffic served.
+    #[test]
+    fn a_key_rewritten_forever_costs_what_it_cost_the_first_time() {
+        let room = Some(4 * (4 + 8 + ENTRY_OVERHEAD));
+        for step in 0..1_000u32 {
+            store_put(b"hot!", step.to_string().into_bytes(), room);
+        }
+        assert_eq!(store_get(b"hot!"), Some(b"999".to_vec()));
+
+        ENTRIES.with_borrow(|local| {
+            assert_eq!(local.entries.len(), 1);
+            assert_eq!(
+                local.order.len(),
+                1,
+                "an overwrite keeps its place rather than taking a second one"
+            );
+        });
     }
 }

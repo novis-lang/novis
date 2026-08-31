@@ -70,6 +70,9 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "deferred.max_concurrent",
         "metrics.listen",
         "trace.sample",
+        // Its sibling `cache.shared` is `Boot` above; this one bounds a map in the core's own
+        // memory (ADR 0059 § 3), so a new ceiling is read by the next write and re-dials nothing.
+        "cache.local.max_size",
     ] {
         let row = governing(key);
         assert_eq!(row.class, Class::System, "`{key}` is `System` (ADR 0005)");
