@@ -1,0 +1,49 @@
+--TEST--
+every path parameter of Core\IO refuses a tainted argument, and the seven of them agree across the whole class rather than each answering for itself — a filesystem path component is an instruction because `..` and the separators direct the resolver — ADR 0088 § 1, spec § 14
+--FILE--
+<?nvs
+// ADR 0088 § 1's table puts a filesystem path component on the instruction
+// side -- `..` and the separators direct the resolver -- so spec § 14's opening
+// sentence, which calls every member of `Core\IO` a path sink, is that
+// predicate applied rather than a second rule. What this file asks is that the
+// class *agrees*: a member that kept an answer of its own still reads right on
+// its own line and fails on this one.
+tainted string $t = "note.txt";
+
+string $content = Core\IO::read($t);
+Core\IO::write($t, "x");
+bool $there = Core\IO::exists($t);
+uint $size = Core\IO::size($t);
+Core\IO::remove($t);
+Core\IO::removeDir($t);
+
+// `within`'s *base* is a sink for the same reason. Its `$path` is the one
+// laundering row in the class, and the acceptance of that row is asserted in
+// tests/conformance/core/io-within-launders-a-tainted-path-and-the-sinks-take-its-answer.nvst.
+string $safe = Core\IO::within($t, "note.txt");
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:10:33
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:11:16
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:12:31
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:13:28
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:14:17
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:15:20
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:20:32
+%A
+error: aborting due to 7 errors

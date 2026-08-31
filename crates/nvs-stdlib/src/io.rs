@@ -3,9 +3,9 @@
 //! [ADR 0118](../../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 //! §§ 2-3's doors.
 //!
-//! **There is no capability check in this file, and that is the design.** Both
-//! bodies below call `nvs_runtime::capability::open_read` and `::write`, which
-//! ask before they act; a member here that forgot to ask would have to name
+//! **There is no capability check in this file, and that is the design.** Every
+//! body below calls a door in `nvs_runtime::capability`, which
+//! asks before it acts; a member here that forgot to ask would have to name
 //! `std::fs` to perform the effect at all, and
 //! `nvs_stdlib_reaches_the_os_only_through_the_gate` reads this crate's sources
 //! and fails on one. So the thing a reviewer would otherwise have to check —
@@ -19,6 +19,18 @@
 //! already have, and would suggest a validation that class does not perform.
 //! What decides whether a path is acceptable is the grant, checked at the door
 //! against the canonical spelling.
+//!
+//! **Every path parameter in this class is a `Qual::Sink`, and `within` is the
+//! one launderer that gets past them.** ADR 0088 § 1's table classifies a
+//! filesystem path component as an instruction — `..` and the separators
+//! *direct the resolver* — so spec § 14's opening sentence, which calls every
+//! member of this class a path sink, is that predicate applied rather than a
+//! second rule. The whole class carries the mark together: half of it marked
+//! would be a class where the refusal a developer met at `read` did not
+//! arrive at `remove`, which teaches the wrong rule more effectively than no
+//! rule at all. `Core\Path` is deliberately *not* marked the same way — its
+//! own module doc says why, and the difference is that nothing in § 8 resolves
+//! anything.
 //!
 //! **`read` answers with `string` rather than `bytes`.** Novis text is a byte
 //! string, so the two would carry the same content, and every caller of a
@@ -44,10 +56,12 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "read",
             names: &["path"],
-            // Neutral in the path: the answer is the file's content and carries
-            // no byte of the name it was found under, which is the registry's
-            // own rule for a member whose result holds none of its arguments.
-            params: &[CoreTy::Text(Qual::Neutral)],
+            // A sink in the path, like every other path in this class: ADR 0088
+            // § 1 classifies a path component as an instruction, because `..`
+            // and the separators direct the resolver. The module doc above owns
+            // why the whole class carries the mark together, and `within` is
+            // the row that makes it usable.
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Text(Qual::Neutral),
             symbol: "nvs_core_io_read",
@@ -56,7 +70,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "write",
             names: &["path", "content"],
-            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
+            // The path is a sink and `$content` is not: ADR 0088 § 1's table
+            // puts a file's *contents* on the data side, so bytes that arrived
+            // from outside may be written to a path this program chose.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_write",
@@ -65,7 +82,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "exists",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_io_exists",
@@ -74,7 +91,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "size",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             // `uint` rather than `int`, like `Core\Arr::count`: a byte count has
             // no negative half, and the spec's answer for "how big is it" is the
@@ -86,7 +103,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "remove",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_remove",
@@ -95,7 +112,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "removeDir",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_remove_dir",
@@ -109,6 +126,20 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Text(Qual::Neutral),
             symbol: "nvs_core_io_temporary_dir",
             doc: Some(&TEMPORARY_DIR_DOC),
+        },
+        CoreMethod {
+            name: "within",
+            names: &["base", "path"],
+            // The class's one laundering row, and the two marks are different
+            // on purpose. `$base` is a path this program chose, so it is a
+            // sink like every other; `$path` is the untrusted half the member
+            // exists to accept, and ADR 0024 § 3 makes a launderer's answer the
+            // plain, unqualified type.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_io_within",
+            doc: Some(&WITHIN_DOC),
         },
     ],
     instance: &[],
@@ -304,6 +335,47 @@ const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO::within`'s reference card — ADR 0117.
+const WITHIN_DOC: MethodDoc = MethodDoc {
+    short: "Resolves `$path` against `$base` and then **proves** the answer is still under it — the \
+            path-traversal launderer, so its result is accepted where a `tainted` string is not. \
+            `Core\\Path::normalize` cannot make this check: collapsing `..` textually says nothing \
+            about where a name ended up once a symlink is on the way. Needs the `fs.read` \
+            capability for both paths, because resolving one reads the directories above it.",
+    params: &[
+        ParamDoc {
+            name: "base",
+            desc: "The directory the answer must stay under. It has to exist, since containment is \
+                   proved against its canonical spelling.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "path",
+            desc: "The name to resolve against `$base` — the untrusted half, which is the whole \
+                   point of the member. An absolute path is no escape hatch: it is resolved and \
+                   then fails the same containment check.",
+            shape: &[],
+        },
+    ],
+    ret: "The resolved absolute path, as a plain `string`. Every `..`, every symlink and every \
+          separator is already gone, so what the caller holds is a name the operating system \
+          agrees with rather than one it still has to be trusted about.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The resolved path is not inside `$base`. The message names the base and the \
+                   argument and never where the argument led, so a refusal discloses nothing about \
+                   a symlink's target. A configuration that does not grant `fs.read` for either \
+                   path refuses earlier, in the same class.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and nothing could be resolved — `$base` is not there, \
+                   or no ancestor of the joined path is.",
+        },
+    ],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -315,6 +387,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_remove" => (nvs_core_io_remove as *const ()).cast(),
         "nvs_core_io_remove_dir" => (nvs_core_io_remove_dir as *const ()).cast(),
         "nvs_core_io_temporary_dir" => (nvs_core_io_temporary_dir as *const ()).cast(),
+        "nvs_core_io_within" => (nvs_core_io_within as *const ()).cast(),
         _ => return None,
     })
 }
@@ -442,5 +515,48 @@ nvs_runtime::nvs_helper! {
         // hold at all (ADR 0009): the alternative is refusing to answer for a
         // temporary root this process did not choose.
         Ok(Value::str(NvsStr::new(made.to_string_lossy().as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::within(string $base, tainted string $path): string` — ADR 0024
+    /// § 3's path-traversal launderer, and the one member of this class that
+    /// removes a qualifier rather than refusing one.
+    ///
+    /// **It resolves and *then* proves.** That order is the whole member.
+    /// `Core\Path::normalize` collapses `..` lexically, which is the answer a
+    /// symlink makes wrong — `base/link/../..` is outside the base exactly when
+    /// `link` points somewhere else, and no amount of string algebra can see
+    /// that. So containment is decided against what the operating system says
+    /// the name resolves to and never against the string that came in.
+    ///
+    /// **No operating system call happens here.**
+    /// `nvs_runtime::capability::canonicalize` is the door, asked once per
+    /// path, and what this body owns is one comparison: `Path::starts_with`,
+    /// which compares whole components and so does not accept `/base-more`
+    /// under `/base` the way a byte-wise prefix test would.
+    ///
+    /// The refusal names the base and the caller's own argument and never the
+    /// path it resolved to. A symlink under the base pointing out of it is
+    /// refused, and saying where it pointed would answer with one message the
+    /// question the refusal exists to prevent being asked.
+    fn nvs_core_io_within(ctx, args: [2]) {
+        const MEMBER: &str = "Core\\IO::within";
+
+        let given = Path::new(text(&args[0], "within", "base")?);
+        let candidate = text(&args[1], "within", "path")?;
+        let base = nvs_runtime::capability::canonicalize(ctx, given, MEMBER)?;
+        let resolved =
+            nvs_runtime::capability::canonicalize(ctx, &base.join(candidate), MEMBER)?;
+        if !resolved.starts_with(&base) {
+            return Err(Fault::thrown(format!(
+                "a path must stay inside the base it is resolved against: {candidate:?} does not \
+                 stay inside {} ({MEMBER})",
+                base.display()
+            )));
+        }
+        Ok(Value::str(NvsStr::new(
+            resolved.to_string_lossy().as_bytes(),
+        )))
     }
 }

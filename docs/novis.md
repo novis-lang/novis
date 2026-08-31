@@ -9986,7 +9986,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, exists, size, remove, removeDir, temporaryDir
+Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, exists, size, remove, removeDir, temporaryDir, within
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -10042,6 +10042,7 @@ outside: refused
 | [`Core\IO::remove`](#core-core-io-remove) | `remove(string $path): void` |
 | [`Core\IO::removeDir`](#core-core-io-removedir) | `removeDir(string $path): void` |
 | [`Core\IO::temporaryDir`](#core-core-io-temporarydir) | `temporaryDir(): string` |
+| [`Core\IO::within`](#core-core-io-within) | `within(string $base, string $path): string` |
 
 <a id="core-core-io-read"></a>
 #### `Core\IO::read`
@@ -10054,7 +10055,7 @@ The whole content of a file, as text — `file_get_contents`. Needs the `fs.read
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (neutral) | The file to read, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to read, absolute or relative to the working directory. |
 
 **Returns** `string` — The file's bytes as a `string`, with nothing stripped and no encoding assumed.
 
@@ -10071,7 +10072,7 @@ Replaces a file's whole content, creating it if it does not exist — `file_put_
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (neutral) | The file to write, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to write, absolute or relative to the working directory. |
 | `$content` | `string` (neutral) | The bytes to write. They become the file's entire content; there is no append in this signature. |
 
 **Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
@@ -10089,7 +10090,7 @@ Reports whether anything is at `$path` — `file_exists`, and true for a directo
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (neutral) | The name to look for, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The name to look for, absolute or relative to the working directory. |
 
 **Returns** `bool` — `true` if the name resolves to something, `false` if it resolves to nothing. Absence is an answer here and not a failure, which is what separates this from `size`.
 
@@ -10106,7 +10107,7 @@ The size of the file at `$path` in bytes, as the operating system reports it —
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (neutral) | The file to measure, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to measure, absolute or relative to the working directory. |
 
 **Returns** `uint` — The byte count as a `uint`. For a text file this is bytes and not characters — a `string`'s own length is `Core\Str::length`, which counts what § 1 says it counts.
 
@@ -10123,7 +10124,7 @@ Deletes the file at `$path` — `unlink`. Needs the `fs.write` capability: remov
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (neutral) | The file to delete. A directory is `removeDir`'s argument, not this one. |
+| `$path` | `string` (sink) | The file to delete. A directory is `removeDir`'s argument, not this one. |
 
 **Returns** `void` — Nothing. Removing a name that is not there throws rather than answering quietly, so a program that deleted nothing has not been told it succeeded.
 
@@ -10140,7 +10141,7 @@ Deletes the **empty** directory at `$path` — `rmdir`. Needs the `fs.write` cap
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (neutral) | The directory to delete, which must hold no entries. |
+| `$path` | `string` (sink) | The directory to delete, which must hold no entries. |
 
 **Returns** `void` — Nothing. A refusal throws rather than answering `false`.
 
@@ -10158,6 +10159,24 @@ Creates a new, empty, private directory under the system temporary root and answ
 **Returns** `string` — The absolute path of a directory that exists, holds nothing, and belongs to this process. Removing it is the program's own job — `remove` each entry, then `removeDir` — because a runtime that swept it would be deciding the lifetime of data it knows nothing about.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.write` for the temporary root; the message names the path a grant would have to cover.; `IOError` — The capability allowed it and no directory could be created — the root is full, read-only, or absent.
+
+<a id="core-core-io-within"></a>
+#### `Core\IO::within`
+
+```nvs skip
+Core\IO::within(string $base, string $path): string
+```
+
+Resolves `$path` against `$base` and then **proves** the answer is still under it — the path-traversal launderer, so its result is accepted where a `tainted` string is not. `Core\Path::normalize` cannot make this check: collapsing `..` textually says nothing about where a name ended up once a symlink is on the way. Needs the `fs.read` capability for both paths, because resolving one reads the directories above it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$base` | `string` (sink) | The directory the answer must stay under. It has to exist, since containment is proved against its canonical spelling. |
+| `$path` | `string` (launder) | The name to resolve against `$base` — the untrusted half, which is the whole point of the member. An absolute path is no escape hatch: it is resolved and then fails the same containment check. |
+
+**Returns** `string` — The resolved absolute path, as a plain `string`. Every `..`, every symlink and every separator is already gone, so what the caller holds is a name the operating system agrees with rather than one it still has to be trusted about.
+
+**Throws** `RuntimeError` — The resolved path is not inside `$base`. The message names the base and the argument and never where the argument led, so a refusal discloses nothing about a symlink's target. A configuration that does not grant `fs.read` for either path refuses earlier, in the same class.; `IOError` — The capability allowed it and nothing could be resolved — `$base` is not there, or no ancestor of the joined path is.
 
 <a id="core-core-time"></a>
 ### `Core\Time`

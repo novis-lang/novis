@@ -119,6 +119,129 @@ fn a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match() {
     ));
 }
 
+/// A context granting `fs.read` under `roots` and nothing else, with the roots canonicalized the
+/// way [`nvs_config::tree::Capabilities::canonicalize`] does when a real snapshot is built — a root
+/// still spelled the way this file typed it is a comparison against the wrong thing.
+fn ctx_reading(roots: &[&str]) -> nvs_runtime::Ctx {
+    let mut caps = reading(roots);
+    caps.canonicalize(&Disk);
+    let mut ctx = nvs_runtime::Ctx::buffered();
+    ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+        config: nvs_config::tree::Config {
+            capabilities: Some(caps),
+            ..nvs_config::tree::Config::default()
+        },
+        ..nvs_config::Snapshot::default()
+    }));
+    ctx
+}
+
+/// `Core\IO::within($base, $path)` as the member itself, not as a re-derivation of it: the answer,
+/// or the message the refusal carried.
+fn within(ctx: &mut nvs_runtime::Ctx, base: &Path, path: &str) -> Result<String, String> {
+    let args = [
+        nvs_runtime::Value::str(nvs_runtime::NvsStr::new(base.to_string_lossy().as_bytes())),
+        nvs_runtime::Value::str(nvs_runtime::NvsStr::new(path.as_bytes())),
+    ];
+    match nvs_runtime::call(nvs_stdlib::io::nvs_core_io_within, ctx, &args) {
+        Ok(answer) => Ok(answer
+            .as_text()
+            .expect("`within` answers a `string` or throws")
+            .to_owned()),
+        Err(status) => {
+            assert_eq!(
+                status,
+                nvs_runtime::THROWN,
+                "every refusal `within` makes is catchable — ADR 0118 § 5 for the capability half, \
+                 ADR 0024 § 3 for the containment half"
+            );
+            Err(ctx
+                .take_pending()
+                .expect("a throw leaves its message on the context")
+                .into_owned())
+        }
+    }
+}
+
+#[test]
+fn within_resolves_and_then_proves_containment() {
+    // Spec § 14's *Resolution* bullet over ADR 0024 § 3: the launderer answers a path that is
+    // resolved — every `..` and every symlink already gone — and proved to be under the base. Both
+    // halves matter, and the order is what separates this from `Core\Path::normalize`.
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let src = manifest.join("src");
+    let mut ctx = ctx_reading(&[&canonical(manifest)]);
+
+    // Resolved: the answer is the canonical spelling and not the argument re-joined. That is the
+    // property a caller relies on when it hands the result to a door.
+    let answer = within(&mut ctx, &src, "registry.rs").expect("a name inside the base");
+    assert_eq!(answer, canonical(&src.join("registry.rs")));
+
+    // And resolved through a `..` that stays inside, which is the case a member refusing every `..`
+    // textually would get wrong in the safe direction and still get wrong.
+    let inside = within(&mut ctx, &src, "../src/registry.rs").expect("a detour that comes back");
+    assert_eq!(inside, answer);
+
+    // A name that does not exist yet resolves through its deepest existing ancestor, so `within`
+    // answers for a path a program is about to create rather than only for one it can already open.
+    let fresh = within(&mut ctx, &src, "not-written-yet.rs").expect("a name inside the base");
+    assert!(
+        fresh.starts_with(&canonical(&src)),
+        "{fresh} is not under {}",
+        canonical(&src)
+    );
+}
+
+#[test]
+fn within_refuses_a_path_that_escapes_through_dotdot_or_a_symlink() {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let src = manifest.join("src");
+
+    // Granted wide enough that every refusal below is about *containment* and not about the grant —
+    // the two are both `RuntimeError` and a case that could not tell them apart would pass on the
+    // wrong one.
+    let mut ctx = ctx_reading(&[&canonical(manifest)]);
+    let refused = |ctx: &mut nvs_runtime::Ctx, path: &str| {
+        let message = within(ctx, &src, path).expect_err("this path leaves the base");
+        assert!(
+            message.contains("a path must stay inside the base it is resolved against"),
+            "the refusal is the containment one: {message}"
+        );
+        message
+    };
+
+    // The `..` escape, resolved by the operating system before the comparison.
+    let message = refused(&mut ctx, "../tests/capability.rs");
+    assert!(
+        !message.contains(&canonical(&manifest.join("tests").join("capability.rs"))),
+        "the message names the base and the caller's own argument, never the path that argument \
+         resolved to — where a symlink pointed is exactly what a refusal must not disclose: \
+         {message}"
+    );
+
+    // An absolute path is not an escape hatch. It replaces the base when it is joined, resolves,
+    // and then fails the same check.
+    refused(&mut ctx, &manifest.to_string_lossy());
+
+    // Containment is component-wise, so a sibling whose name merely starts the same way is out.
+    // (The symlink half of this claim is asserted one layer down, against the `Fake` canonicalizer
+    // in `a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match`: `within` and
+    // the grant check resolve through the same `nvs_config::capability::resolved`, and creating a
+    // real symlink needs a privilege CI does not have on Windows.)
+    refused(&mut ctx, "../srcmore/thing.rs");
+
+    // And with the grant narrowed to the base itself, the capability refusal arrives *first* — a
+    // path outside the grant is refused whether or not it would also have escaped, so `within` is
+    // not a way to learn what is outside a granted root.
+    let mut narrow = ctx_reading(&[&canonical(&src)]);
+    let message = within(&mut narrow, &src, "../tests/capability.rs")
+        .expect_err("outside the grant as well as outside the base");
+    assert!(
+        message.contains("fs.read"),
+        "the earlier refusal names the capability an operator would have to grant: {message}"
+    );
+}
+
 #[test]
 fn every_capability_entry_names_a_member() {
     for (class_name, member, cap) in nvs_stdlib::registry::CAPABILITIES {

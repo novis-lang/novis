@@ -224,7 +224,7 @@ mod hash;
 mod heap;
 mod identity_store;
 mod instance;
-mod io;
+pub mod io;
 mod issue;
 pub mod json;
 pub mod math;

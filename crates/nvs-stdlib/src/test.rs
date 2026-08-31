@@ -114,7 +114,10 @@
 //!   own.
 //! * **`assertThrows`'s `$expected` is not [`Qual::Sink`] either.** It is a
 //!   class name matched by [`nvs_runtime::Ctx::pending_conforms_to`], and
-//!   [`Qual::Sink`] is only ever ADR 0063 R11's four grammars; a name matched
+//!   [`Qual::Sink`] is ADR 0088 § 1's predicate — content that becomes an
+//!   instruction something executes, which on disk is ADR 0063 R11's four
+//!   grammars plus `Core\IO`'s paths, where `..` and the separators direct the
+//!   resolver. A name matched
 //!   against a roster compiles nothing and executes nothing. The spelling a
 //!   call uses is `Core\Test\Failure::class`, which folds to a constant, so a
 //!   qualified argument does not arise in practice either.

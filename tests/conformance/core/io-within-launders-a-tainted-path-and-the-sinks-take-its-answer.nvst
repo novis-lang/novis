@@ -1,0 +1,39 @@
+--TEST--
+Core\IO::within is the path sink's launderer — a tainted path may be declared as the plain `string` it answers, and every other member of the class then accepts that answer where the tainted value itself is refused — ADR 0024 § 3, ADR 0088 § 1
+--FILE--
+<?nvs
+// ADR 0024 § 3 gives exactly one way out of `tainted`: a narrow `Core` member
+// whose return type is the plain type and whose contract names the one sink it
+// is safe for. `within` names the path sink -- which, by ADR 0088 § 1's table,
+// is every path parameter of this class, because `..` and the separators direct
+// the resolver. The refusal itself is
+// tests/conformance/reject/a-core-io-path-refuses-a-tainted-argument.nvst; what
+// this file asserts is the route past it.
+string $base = Core\IO::temporaryDir();
+string $note = Core\Path::join($base, "note.txt");
+Core\IO::write($note, "laundered\n");
+
+// The untrusted half. Declaring the answer a plain `string` *is* the assertion:
+// a contagious row could not be spelled this way, and a sink would not have
+// taken the argument at all.
+tainted string $wanted = "note.txt";
+string $safe = Core\IO::within($base, $wanted);
+
+// And the sinks the row launders for take that answer. What earns the
+// laundering is that containment was proved rather than assumed: the value
+// reaching `read` is a path the resolver has already agreed with.
+echo Core\IO::read($safe);
+int $size = Core\IO::size($safe) as int;
+echo "size: ", $size as string, "\n";
+
+Core\IO::remove($safe);
+Core\IO::removeDir($base);
+echo "gone: ", Core\IO::exists($base) ? "y" : "n", "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = true
+write = true
+--EXPECT--
+laundered
+size: 10
+gone: n

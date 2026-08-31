@@ -1,0 +1,69 @@
+--TEST--
+Core\IO::within resolves a path and then proves containment — a name that stays inside the base comes back as a path the operating system agrees with, and three spellings that leave the base a different way each are refused by the same sentence, which is the bound `Core\Path::normalize` structurally cannot assert at either end — spec § 14 *Resolution*, ADR 0024 § 3
+--FILE--
+<?nvs
+// `within` is the one member of § 14 that answers a question *about* a path
+// rather than acting on one, and it is the question `Core\Path` cannot answer:
+// collapsing `..` lexically says nothing about where a name ended up once a
+// symlink is on the way. So the path is resolved first and proved second, and
+// this case asserts the bound on both sides -- what stays inside, and what
+// leaves.
+string $base = Core\IO::temporaryDir();
+string $note = Core\Path::join($base, "note.txt");
+Core\IO::write($note, "x\n");
+
+// The accepting side, and the *resolved* half of the claim with it: the answer
+// is a name the operating system already agrees with, so handing it on to a
+// door needs no second thought about the spelling that produced it.
+string $inside = Core\IO::within($base, "note.txt");
+echo "inside exists: ", Core\IO::exists($inside) ? "y" : "n", "\n";
+
+// A `..` that comes back is accepted, and answers the same path the plain name
+// did. A member that refused every `..` by looking at the string would be wrong
+// here in the safe direction, and still wrong.
+string $detour = Core\IO::within($base, ".." . "/" . Core\Path::basename($base) . "/note.txt");
+echo "detour agrees: ", $detour == $inside ? "y" : "n", "\n";
+
+// The refusing side, counted rather than read off three lines: three spellings
+// that each leave the base a different way have to *agree*, so one of them
+// growing an answer of its own moves a number here whatever it printed. The
+// third is the one a byte-wise containment test accepts -- a sibling whose name
+// merely starts the same way -- which is why containment compares components.
+array<string> $escapes = [
+    "../../../etc/passwd",
+    "..",
+    ".." . "/" . Core\Path::basename($base) . "more/thing.txt",
+];
+int $total = Core\Arr::count($escapes) as int;
+int $refused = 0;
+int $naming = 0;
+
+int $i = 0;
+for (; $i < $total; $i = $i + 1) {
+    try {
+        string $escaped = Core\IO::within($base, $escapes[$i]);
+        echo "accepted ", $escapes[$i], "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if (Core\Str::contains($denied->message, "a path must stay inside the base it is resolved against:")) {
+            $naming = $naming + 1;
+        }
+    }
+}
+
+echo "escapes: ", $total as string, ", refused: ", $refused as string, ", naming the rule: ", $naming as string, "\n";
+
+// And the program removes what it made, because nothing sweeps a temporary
+// directory for it.
+Core\IO::remove($note);
+Core\IO::removeDir($base);
+echo "cleaned: ", Core\IO::exists($base) ? "y" : "n", "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = true
+write = true
+--EXPECT--
+inside exists: y
+detour agrees: y
+escapes: 3, refused: 3, naming the rule: 3
+cleaned: n

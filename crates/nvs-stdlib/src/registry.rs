@@ -1099,8 +1099,9 @@ pub const CLASSES: &[CoreClass] = &[
 /// [`CoreClass::name`] and [`CoreMethod::name`] use;
 /// `every_capability_entry_names_a_member` fails on one naming neither.
 ///
-/// Seven entries, which is the whole of what this runtime can currently do to a
-/// machine: read a file, measure one, ask whether one is there, write one,
+/// Eight entries, which is the whole of what this runtime can currently do to a
+/// machine: read a file, measure one, ask whether one is there, resolve one
+/// inside a base, write one,
 /// remove a file or an empty directory, and make a temporary directory. Every other `Core` member reaches no
 /// spelling that performs an effect, which
 /// `nvs_stdlib_reaches_the_os_only_through_the_gate` holds mechanically rather
@@ -1109,7 +1110,10 @@ pub const CLASSES: &[CoreClass] = &[
 /// The `fs.read`/`fs.write` split is the filesystem's own and not a finer one:
 /// asking a file's size is reading it, and removing a file is writing it, so
 /// neither gets a capability of its own to be granted separately from the
-/// effect it already implies.
+/// effect it already implies. `within` is `fs.read` by the same reading:
+/// resolving a name follows the symlinks and reads the directories above it,
+/// which is what a program that could resolve an ungranted path would be
+/// enumerating.
 pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
     (crate::io::NAME, "read", nvs_config::Cap::FsRead),
     (crate::io::NAME, "write", nvs_config::Cap::FsWrite),
@@ -1118,6 +1122,7 @@ pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
     (crate::io::NAME, "remove", nvs_config::Cap::FsWrite),
     (crate::io::NAME, "removeDir", nvs_config::Cap::FsWrite),
     (crate::io::NAME, "temporaryDir", nvs_config::Cap::FsWrite),
+    (crate::io::NAME, "within", nvs_config::Cap::FsRead),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
