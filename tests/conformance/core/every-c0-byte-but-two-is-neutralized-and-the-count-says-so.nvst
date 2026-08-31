@@ -1,0 +1,43 @@
+--TEST--
+`Core\Cli::escape` passes exactly two of the thirty-two C0 bytes through, and each of the other thirty takes its own U+2400-block glyph — ADR 0086 § 1
+--FILE--
+<?nvs
+// ADR 0086 § 1's table is a *sweep*, not a handful of interesting rows, and a
+// member that neutralized only `ESC` would print plausibly against any single
+// line of it. So this counts over the whole C0 range instead of reading the
+// answer off one byte: `LF` and `TAB` pass through because they are legitimate
+// text layout that no terminal parses as an introducer, and the rule is that
+// nothing else does.
+int $through = 0;
+int $pictured = 0;
+for (int $c = 0; $c < 32; $c = $c + 1) {
+    string $one = Core\Str::fromCodePoint($c as uint);
+    string $escaped = Core\Cli::escape($one);
+    if ($escaped == $one) {
+        $through = $through + 1;
+    }
+    // § 1's column is "one code point per input byte, and the block is laid
+    // out to match" — so the replacement is not merely *some* glyph, it is
+    // U+2400 + the byte. A table with two rows transposed passes the count
+    // above and fails here.
+    if ($escaped == Core\Str::fromCodePoint(($c + 0x2400) as uint)) {
+        $pictured = $pictured + 1;
+    }
+}
+echo $through, " ", $pictured, "\n";
+
+// The two that pass are named, so the count above cannot be met by the wrong
+// pair. `TAB` is 9 and `LF` is 10, and U+2400 + 9 is `␉`, which is what a
+// member that pictured them instead would print.
+echo Core\Cli::escape(Core\Str::fromCodePoint(9)) == Core\Str::fromCodePoint(9) ? "tab" : "not tab", "\n";
+echo Core\Cli::escape(Core\Str::fromCodePoint(10)) == Core\Str::fromCodePoint(10) ? "lf" : "not lf", "\n";
+
+// `CR` is the row the ADR calls out by name: bare-`CR` overwriting is the
+// oldest text-hiding trick and needs no `ESC` at all, so it is in the table
+// even though it looks like layout beside `LF`.
+echo Core\Cli::escape(Core\Str::fromCodePoint(13)) == Core\Str::fromCodePoint(0x240D) ? "cr pictured" : "cr passed", "\n";
+--EXPECT--
+2 30
+tab
+lf
+cr pictured

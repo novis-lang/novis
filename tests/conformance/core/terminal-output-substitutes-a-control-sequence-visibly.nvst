@@ -1,0 +1,43 @@
+--TEST--
+`echo` replaces every control byte of a computed escape sequence with a visible glyph, and `Core\Cli::escape` answers the same bytes as the sink it launders for — ADR 0086 § 1, ADR 0024 § 3
+--FILE--
+<?nvs
+// ADR 0086 § 1: standard output is a sink, and a control byte is replaced by
+// its U+2400-block Control Picture *before* a byte reaches the stream. The
+// rule is uniform — no qualifier gates it and no tty test does either — so a
+// plain literal is enough to show it.
+//
+// The sequence is built from code points rather than written as "\e": § 1's
+// second mechanism makes an `ESC` in a source literal a compile error, so a
+// computed sequence is the only path left to run time, and it is also the
+// attack the ADR's *Context* names — a title report, `ESC ] 0 ; … BEL`, which
+// is CVE-2022-46387's shape.
+string $esc = Core\Str::fromCodePoint(27);
+string $bel = Core\Str::fromCodePoint(7);
+string $attack = $esc . "]0;owned" . $bel;
+
+// Every command byte comes out as a glyph and the human-readable text between
+// them is untouched: this is not an escaper of visible text.
+echo $attack, "\n";
+
+// § 1's named launderer is the same table reached as a value. ADR 0024 § 3
+// requires a launderer to name one sink; this one names the terminal, and the
+// property that would otherwise drift silently is that it answers exactly what
+// that sink writes.
+string $laundered = Core\Cli::escape($attack);
+echo $laundered, "\n";
+
+// Nothing was dropped, so an operator sees that something was there — the
+// half a substitution written as a deletion would fail while still printing
+// plausibly above. Asked of the laundered value, which is a plain `string`.
+echo Core\Str::contains($laundered, $esc) ? "leaked" : "no raw escape", "\n";
+
+// The two rows that pass through, which is what keeps the rule from
+// reformatting ordinary output.
+echo Core\Cli::escape("first\nsecond"), "\n";
+--EXPECT--
+␛]0;owned␇
+␛]0;owned␇
+no raw escape
+first
+second

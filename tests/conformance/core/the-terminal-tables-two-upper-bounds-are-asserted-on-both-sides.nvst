@@ -1,0 +1,39 @@
+--TEST--
+`Core\Cli::escape` replaces `DEL` and the whole C1 range and stops there — the last neutralized code point and the first passed-through one, named together — ADR 0086 § 1
+--FILE--
+<?nvs
+// ADR 0086 § 1's table has two upper bounds above the C0 block, and a member
+// that stopped one code point early — or ran one late — would print
+// plausibly against either half of each on its own. So each is asserted from
+// both sides: the last thing replaced, and the first thing left alone.
+
+// `DEL` is 0x7F and becomes `␡` (U+2421). 0x7E is `~`, which is ordinary text
+// and is the character a member with an off-by-one range would eat.
+echo Core\Cli::escape(Core\Str::fromCodePoint(0x7E)), "\n";
+echo Core\Cli::escape(Core\Str::fromCodePoint(0x7F)) == Core\Str::fromCodePoint(0x2421) ? "del pictured" : "del passed", "\n";
+
+// The C1 block, U+0080 to U+009F, loses its identity rather than taking a
+// Control Picture: the U+2400 block has no glyph for one, and § 1's column
+// says the loss is deliberate and bounded because a C1 code point is never
+// legitimate text. Several terminals still parse one as a CSI introducer,
+// which is why it is in the table at all.
+string $replacement = Core\Str::fromCodePoint(0xFFFD);
+echo Core\Cli::escape(Core\Str::fromCodePoint(0x80)) == $replacement ? "first c1 replaced" : "first c1 passed", "\n";
+echo Core\Cli::escape(Core\Str::fromCodePoint(0x9F)) == $replacement ? "last c1 replaced" : "last c1 passed", "\n";
+
+// U+00A0 is a no-break space — the first code point above the block, and
+// legitimate text. A range written as `0x80..=0xA0` passes both lines above.
+string $nbsp = Core\Str::fromCodePoint(0xA0);
+echo Core\Cli::escape($nbsp) == $nbsp ? "nbsp passed" : "nbsp replaced", "\n";
+
+// And U+007D, just under `DEL`'s neighbour, together with an ordinary letter:
+// the table transforms no visible text, which is the asymmetry with ADR 0024
+// § 5's HTML `&`→`&amp;` that makes this default affordable.
+echo Core\Cli::escape("}~ ok"), "\n";
+--EXPECT--
+~
+del pictured
+first c1 replaced
+last c1 replaced
+nbsp passed
+}~ ok

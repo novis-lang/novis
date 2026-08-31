@@ -23,7 +23,7 @@
 //! That module's own docs own the caching, what it spends, and why no
 //! capability gates it.
 //!
-//! What is left here is the surface: four rows, three enums, and the mapping
+//! What is left here is the surface: five rows, three enums, and the mapping
 //! between the runtime's Rust `ColorDepth` and the ordinals
 //! [`crate::registry::ENUMS`] gives `Core\Cli\ColorDepth`. The mapping is the
 //! one thing this file can get wrong on its own, so
@@ -49,53 +49,67 @@
 //! with a `Text` today it does by producing one (`Core\Out::capture`) or by
 //! writing one out (`echo`, whose row is `nvs_runtime::value_to_string`'s
 //! carrier arm). `Text::plain`, `Text::styled`, `Text + Text`, `Cli\Style` and
-//! `Cli\Color` are ADR 0086 § 2's and land with the sink's own substitution
-//! table — the one from § 1 that makes `Text::plain` a constructor which
-//! *cannot* produce an injected escape sequence.
+//! `Cli\Color` are ADR 0086 § 2's and are still owed. § 1's substitution, which
+//! is what makes `Text::plain` a constructor that *cannot* produce an injected
+//! escape sequence, has landed ahead of them and is at the sink.
 //!
-//! That ordering is why nothing here substitutes anything. A `Text` this module
-//! builds holds bytes the sink already wrote; applying § 1's table to them here
-//! would be the second escape ADR 0088 § 5 exists to prevent. The substitution
-//! belongs at the sink, on the way in, and `echo` does not perform it yet —
-//! which is a gap in the *sink*, not in the carrier, and is stated as gap 1
-//! below.
+//! That ordering is why the carrier builder here substitutes nothing. A `Text`
+//! this module builds holds bytes the sink already neutralized; applying § 1's
+//! table to them here would be the second escape ADR 0088 § 5 exists to
+//! prevent. The substitution belongs at the sink, on the way in, and
+//! `nvs_runtime`'s `nvs_echo_str` is where it happens — that helper's own doc
+//! comment owns it, including why the table's idempotence is what makes
+//! `echo`ing a captured `Text` correct.
+//!
+//! [`nvs_core_cli_escape`] is the same table reached as a *value* rather than
+//! as an effect — ADR 0024 § 3's named launderer for this sink — and it calls
+//! `nvs_render::text::substitute` exactly as the sink does, so the two cannot
+//! come to disagree.
 //!
 //! # Known gaps
 //!
-//! 1. **`echo` does not neutralize control bytes yet.** ADR 0086 § 1's table is
-//!    unbuilt, so the terminal sink today writes what it is given. When it
-//!    lands, nothing in this module changes: a captured `Text` will simply
-//!    already hold the neutralized form.
-//! 2. **§ 3's `write` and `displayWidth` are not here, and they are the sink's
-//!    half rather than the profile's.** `write` is the entry point § 1's
-//!    substitution table sits on, and `displayWidth` is a question about how a
-//!    renderer would lay a string out; both belong beside `Cli\Text`'s own
-//!    members and `Cli\Style`, and `displayWidth` additionally owes a UAX #11
-//!    table this tree does not carry yet. What is here is exactly the set § 3
-//!    calls *the profile*, which is the set that had to be cached.
-//! 3. **The rest of § 13 does not exist** — no `arguments`, no `escape`, no
-//!    prompts (`ask`, `confirm`, `select<T>`, `secret`), no scoped `live<T>` or
-//!    `progress<T>`, and no `Cli\Style` or `Cli\Color` beside the three enums
-//!    below. `docs/spec/01-core-library.md` § 13 lists them and
-//!    `docs/plan/m8.md` owns when.
+//! 1. **§ 3's `write` and `displayWidth` are not here.** `write` is a second
+//!    spelling of the sink `echo` already is, so what it owes is a row and a
+//!    stream argument rather than a rule; `displayWidth` is a question about
+//!    how a renderer would lay a string out, belongs beside `Cli\Style`, and
+//!    additionally owes a UAX #11 table this tree does not carry yet.
+//! 2. **The rest of § 13 does not exist** — no `arguments`, no prompts (`ask`,
+//!    `confirm`, `select<T>`, `secret`), no scoped `live<T>` or `progress<T>`,
+//!    and no `Cli\Style` or `Cli\Color` beside the three enums below.
+//!    `docs/spec/01-core-library.md` § 13 lists them and `docs/plan/m8.md` owns
+//!    when.
 
 use nvs_runtime::terminal::{ColorDepth, Stream};
-use nvs_runtime::{Fault, Value};
+use nvs_runtime::{Fault, NvsStr, Value};
 
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc,
+    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// `Core\Cli`'s fully-qualified name, in one place so the registry row and
 /// every refusal that names the class cannot drift apart.
 pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 
-/// ADR 0086 § 3's profile, as registry rows. See [`crate::registry::CLASSES`].
+/// ADR 0086 § 3's profile plus § 1's launderer, as registry rows. See
+/// [`crate::registry::CLASSES`].
 ///
-/// Four members and no `write`: the module docs' gap 2 owns that split.
+/// Five members and still no `write`: the module docs' gap 1 owns that split,
+/// and [`nvs_core_cli_escape`] owns why the launderer could land ahead of it.
+///
+/// In the spec's own order (§ 15), which is why `escape` is first: `arguments`
+/// and `write` come before it and are the two rows still owed.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
     methods: &[
+        CoreMethod {
+            name: "escape",
+            names: &["text"],
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_cli_escape",
+            doc: Some(&ESCAPE_DOC),
+        },
         CoreMethod {
             name: "isTty",
             names: &["stream"],
@@ -136,6 +150,24 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Cli::escape`'s reference card — ADR 0117.
+const ESCAPE_DOC: MethodDoc = MethodDoc {
+    short: "Answers `$text` with every control byte replaced by a visible, inert glyph — `ESC` as \
+            `␛`, a bare `CR` as `␍`, `DEL` as `␡`, a C1 code point or an unterminated \
+            bidirectional control as `�` — while `LF` and `TAB` pass through. This is the terminal \
+            sink's own table as a value; `echo` already performs it, so a program needs this only \
+            to hold the neutralized form.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The text to neutralize. Its `tainted` qualifier is removed, because the terminal \
+               is the sink this launders for and nothing is left in the answer for it to act on.",
+        shape: &[],
+    }],
+    ret: "The same text with the substitutions applied, and no other change — this is not an HTML \
+          escaper, so `<`, `&` and `\"` are returned as themselves.",
+    errors: &[],
 };
 
 /// `Core\Cli::isTty`'s reference card — ADR 0117.
@@ -313,6 +345,7 @@ const SHELL_DOC: EnumDoc = EnumDoc {
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "nvs_core_cli_escape" => (nvs_core_cli_escape as *const ()).cast(),
         "nvs_core_cli_is_tty" => (nvs_core_cli_is_tty as *const ()).cast(),
         "nvs_core_cli_width" => (nvs_core_cli_width as *const ()).cast(),
         "nvs_core_cli_height" => (nvs_core_cli_height as *const ()).cast(),
@@ -357,6 +390,57 @@ fn depth_ordinal(depth: ColorDepth) -> i64 {
         ColorDepth::Ansi16 => 1,
         ColorDepth::Ansi256 => 2,
         ColorDepth::TrueColor => 3,
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::escape(tainted string $text): string` — ADR 0086 § 1's named
+    /// launderer for the terminal sink, and PHP's missing counterpart to
+    /// `htmlspecialchars`.
+    ///
+    /// # Why this exists when `echo` already substitutes
+    ///
+    /// ADR 0086 § 1 puts the substitution at the sink and states outright that
+    /// *ordinary output does not need this member*. What needs it is a program
+    /// that wants the neutralized text **as a value** — to interpolate into a
+    /// `Core\Str::format` template, to measure, or to compare — and, under
+    /// [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// § 3, to hand a `tainted string` to something else that refuses one. That
+    /// is the whole of its job, which is why it could land before `write` did:
+    /// the sink is `echo`, `write` is a second spelling of it, and neither is
+    /// what this member answers.
+    ///
+    /// # One table, one implementation
+    ///
+    /// [`nvs_render::text::substitute`] is called rather than restated, so this
+    /// member and [`nvs_runtime`]'s `echo` cannot answer differently — which is
+    /// the property that would otherwise fail silently, since a launderer that
+    /// neutralizes *less* than its sink is exactly the false confidence ADR 0024
+    /// § 3 refuses a generic `sanitize()` over. That module owns the table and
+    /// its rows' reasoning; [ADR 0087](../../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+    /// owns the bidi row's predicate.
+    ///
+    /// # Why the qualifier comes off
+    ///
+    /// [`Qual::Launder`] on the parameter, per ADR 0024 § 3's rule that a
+    /// launderer names the one sink it is safe for: this one is safe for the
+    /// terminal and for nothing else. The answer is still not safe in an HTML
+    /// document, in a shell argument or in a SQL identifier, and each of those
+    /// has its own launderer for exactly that reason.
+    fn nvs_core_cli_escape(_ctx, args: [1]) {
+        // A fatal rather than a throw, because nothing may catch a broken ABI:
+        // the row's parameter is `CoreTy::Text`, so `E0401` refuses anything
+        // that is not a `string` before a single instruction of this body runs,
+        // which makes the message below unreachable from source.
+        let text = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Cli::escape expected a `string`, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        Ok(Value::str(NvsStr::new(
+            nvs_render::text::substitute(text).as_bytes(),
+        )))
     }
 }
 
@@ -449,6 +533,58 @@ mod tests {
     #[test]
     fn the_carrier_holds_one_slot() {
         assert_eq!(TEXT.slots.len(), 1);
+    }
+
+    /// ADR 0086 § 1: terminal output substitutes a control sequence
+    /// **visibly**, and it does so at the sink rather than at any caller's
+    /// discretion.
+    ///
+    /// Asserted over the *pair*, because either half alone passes while the
+    /// rule is broken. `echo` of a real CSI sequence is what an attacker
+    /// reaches — the payload here is the shape of a title-report injection,
+    /// `ESC ] 0 ; … BEL` — and every one of its command bytes has to come out
+    /// as a glyph, with the human-readable text between them untouched. Then
+    /// `Core\Cli::escape` is asked the same question and has to give the *same*
+    /// answer, which is the property that fails silently when a launderer and
+    /// its sink grow apart (ADR 0024 § 3). The third assertion is the one a
+    /// substitution written as a deletion would pass: nothing is dropped, so
+    /// the neutralized form is *longer* than what arrived and the operator sees
+    /// that something was there.
+    #[test]
+    fn terminal_output_substitutes_a_control_sequence_visibly() {
+        let attack = "\u{1B}]0;rm -rf /\u{7}ok\r";
+        let visible = "\u{241B}]0;rm -rf /\u{2407}ok\u{240D}";
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let written = Value::str(NvsStr::new(attack.as_bytes()));
+        nvs_runtime::call(nvs_runtime::helpers::nvs_echo_str, &mut ctx, &[written])
+            .expect("echo succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(visible.as_bytes()),
+            "the terminal sink let a control sequence through"
+        );
+
+        let argument = Value::str(NvsStr::new(attack.as_bytes()));
+        let laundered = nvs_runtime::call(nvs_core_cli_escape, &mut ctx, &[argument])
+            .expect("escape succeeded");
+        assert_eq!(
+            laundered.as_text(),
+            Some(visible),
+            "Core\\Cli::escape and the sink it launders for disagree"
+        );
+
+        assert!(
+            visible.chars().count() >= attack.chars().count(),
+            "a substitution dropped a byte instead of showing it"
+        );
+
+        #[expect(unsafe_code, reason = "each value owns the reference it releases")]
+        unsafe {
+            written.release();
+            argument.release();
+            laundered.release();
+        }
     }
 
     /// ADR 0086 § 3: the profile is resolved **once per process**, so every
