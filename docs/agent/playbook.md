@@ -3704,6 +3704,13 @@ is why" — is this file.
   `{"level":"error","msg":"boom","fields":{"class":"LogicError","backtrace":"%s"}}`.
   `tests/conformance/error/a-limit-fatal-is-not-catchable.nvst` is the same shape for a
   `FATAL`, whose stderr is a plain sentence rather than a record.
+- **A negative `decimal` has no literal spelling, and the diagnostic is `E0401: expected `decimal`,
+  found `int``.** ADR 0054 § 2 target-types the *literal*, and a unary minus in front of one is an
+  ordinary operator over an `int`, so the target type never reaches through it: `decimal $d = -4;`
+  does not compile. Build it by subtraction from a `decimal` that does —
+  `decimal $four = 4; decimal $minusFour = 0 - $four;` — which is what
+  `tests/conformance/lang/decimal-arithmetic-is-exact-and-keeps-its-scale.nvst` was already doing
+  with `0 - $price`, where it reads as a style choice and is in fact the only spelling.
 
 ## Splitting a file that got too big
 
