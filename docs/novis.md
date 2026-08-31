@@ -15104,7 +15104,7 @@ Every environment variable, keyed by name — the whole of `$_ENV`, and `getenv`
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
 
-Keywords: register_shutdown_function, memory limit, resource limit, FATAL, onLimit, cpu_time, wall_time, max_output, out of memory, shutdown handler, onLimit
+Keywords: register_shutdown_function, memory limit, resource limit, FATAL, onLimit, cpu_time, wall_time, max_output, out of memory, shutdown handler, onLimit, onUncaughtThrow
 
 `Core\Fatal::onLimit` registers the closure the request runs when a resource limit — memory, CPU time,
 output, wall time, script depth or call-stack depth — stops it. A limit breach is a `FATAL`, which no
@@ -15138,6 +15138,7 @@ work done: 1000 items, no limit reached
 | Member | Signature |
 |---|---|
 | [`Core\Fatal::onLimit`](#core-core-fatal-onlimit) | `onLimit(callable $handler): void` |
+| [`Core\Fatal::onUncaughtThrow`](#core-core-fatal-onuncaughtthrow) | `onUncaughtThrow(callable $handler): void` |
 
 <a id="core-core-fatal-onlimit"></a>
 #### `Core\Fatal::onLimit`
@@ -15153,6 +15154,21 @@ Registers the closure this request runs when a resource limit stops it — memor
 | `$handler` | `callable` | What to run. It is handed one array whose `limit` key names the limit that stopped the request — `memory` or `cpu_time`, the directive's own spelling — and answers nothing; declaring no parameter is allowed. A handler that throws, or that exhausts the reserved slice itself, is abandoned where it stands. |
 
 **Returns** `void` — Nothing. Registering is request-local and a second call replaces the first: the handler is gone when the request ends, and no other request on this core can see it.
+
+<a id="core-core-fatal-onuncaughtthrow"></a>
+#### `Core\Fatal::onUncaughtThrow`
+
+```nvs skip
+Core\Fatal::onUncaughtThrow(callable $handler): void
+```
+
+Registers the closure this request runs when a throw reaches the top of it with nothing left to catch it. It runs out of the request's ordinary remaining budget, once and never twice, and it is handed the exception itself.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$handler` | `callable` | What to run. It is handed the `Throwable` that went uncaught — the object the program threw, with its own class, message and backtrace — and answers nothing; declaring no parameter is allowed. A handler that throws, or that exhausts what the request has left, is abandoned where it stands, and the failure reported is still the one that reached the root. |
+
+**Returns** `void` — Nothing. Registering is request-local and a second call replaces the first: the handler is gone when the request ends, and no other request on this core can see it. It does not stop the failure being reported — the engine still writes its own record — and it does not change the exit status.
 
 <a id="core-core-log"></a>
 ### `Core\Log`
