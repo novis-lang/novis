@@ -1,0 +1,45 @@
+--TEST--
+`Core\Fatal`'s two tiers are two slots: registering one leaves the other alone, a caught throw fires neither, and a second `onUncaughtThrow` replaces the first rather than queueing behind it — ADR 0020 §§ 1-2
+--FILE--
+<?nvs
+// The two members are the same shape of registration over different slots
+// (`Ctx::set_limit_handler`, `Ctx::set_uncaught_handler`), and a single slot
+// shared between them passes every case written about one member alone. Here
+// both are registered and only one failure happens, so a shared slot prints
+// the wrong line or no line at all.
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    // § 1's tier fires for a resource limit and for nothing else. This program
+    // stays inside every ceiling it has, so this line is unreachable — an
+    // uncaught throw reaching it would mean the ladder had confused the two
+    // failures the ladder exists to keep apart.
+    echo "onLimit ran, for ", $report['limit'], "\n";
+});
+
+Core\Fatal::onUncaughtThrow(fn (Throwable $seen): void => {
+    echo "first handler\n";
+});
+
+// § 2 gives the tier one handler and not a chain, for § 1's reason. The
+// difference from its sibling's case is that this one can *watch* the
+// replacement happen: a queue and a replacement print differently below,
+// where tier 1's pair could only assert the silence of a ladder nobody fired.
+Core\Fatal::onUncaughtThrow(fn (Throwable $seen): void => {
+    echo "second handler: ", $seen->message, "\n";
+});
+
+// A throw that is caught never reaches the root, so no tier is climbed at all:
+// § 2 is about the frames *running out*, not about a `Throwable` existing.
+try {
+    throw new LogicError("handled here");
+} catch (LogicError $handled) {
+    echo "caught: ", $handled->message, "\n";
+}
+
+echo "start\n";
+throw new LogicError("boom");
+--EXPECT--
+caught: handled here
+start
+second handler: boom
+--EXPECTF-ERROR--
+{"level":"error","msg":"boom","fields":{"class":"LogicError","backtrace":"%s"}}

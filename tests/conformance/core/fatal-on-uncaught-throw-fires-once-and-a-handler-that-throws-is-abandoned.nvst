@@ -1,0 +1,26 @@
+--TEST--
+A `Core\Fatal::onUncaughtThrow` handler that throws is abandoned where it stands, is not entered a second time, and does not become the failure the engine reports — ADR 0020 §§ 2-3
+--FILE--
+<?nvs
+// § 2's "same zero-retry rule", asked at the boundary that makes it observable:
+// the handler throws, and the throw it was called *about* is still the one the
+// floor reports on standard error below. A ladder that let the reporter's own
+// failure replace the request's would print `the reporter failed too` there,
+// which is the failure mode worth being loud about — the original error would
+// be gone and the log would name the log handler.
+Core\Fatal::onUncaughtThrow(fn (Throwable $seen): void => {
+    echo "handler entered for: ", $seen->message, "\n";
+    throw new RuntimeError("the reporter failed too");
+});
+
+// Nor is it re-entered. The registration is taken out of the slot on the way
+// in (`Ctx::run_uncaught_handler`), so the handler's own uncaught throw finds
+// nothing to fire and the count of lines above is one — a ladder that re-armed
+// the slot instead prints two and then keeps going.
+echo "start\n";
+throw new LogicError("boom");
+--EXPECT--
+start
+handler entered for: boom
+--EXPECTF-ERROR--
+{"level":"error","msg":"boom","fields":{"class":"LogicError","backtrace":"%s"}}
