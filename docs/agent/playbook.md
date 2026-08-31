@@ -1680,6 +1680,14 @@ is why" — is this file.
   this macro attempted to match" — with nothing at all pointing at what you wrote. The macro's rule
   in `crates/nvs-runtime/src/abi.rs` is a single `fn`, no repetition. Close your block and open a new
   one; that is also why the file has three `nvs_helper!` invocations rather than one.
+- **`target/debug/nvs.exe run` on a three-line scratch file answers "can this reach lowering
+  at all" in one call, and it is the cheap half of writing an unreachability proof.** A checker
+  arm that returns a type without recording an `ExprInfo` is only safe while no compiled program
+  can take it, and reading `nvs-ir` to decide that is a whole file's worth of context. Writing the
+  smallest program that would take it is not: a local `var $k = "email" as property<User>;` stops
+  at `crates/nvs-ir/src/lower/mod.rs`'s known-gap panic, which names the type it will not lower —
+  so the tree answered "no key value exists in a lowered program" before a line of the new arm was
+  written, and the doc comment that carries the proof could name the panic that enforces it.
 
 ## Writing a test case
 

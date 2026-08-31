@@ -53,15 +53,16 @@
 > is owed. **Stage 8 has opened**: `Core\Reflect` is `forObject`, `forClass`, `typeOf` and
 > `ClassInfo`'s get, set and call — the set runs ADR 0014 § 3's observer — and `Core\Ast::parse`
 > answers the compiler's own tree, and `Core\Decimal` is § 3's two rounding members; ADR 0046 § 4's
-> `$member` is checked at the retrieval (`E0798`). ADR 0126's `property<T>` converts: § 2's three
-> rows and its written-out refusal (`E0405`); `$obj->$key` and the empty-set `E0799` are owed.
-> **Stage 2's handle half has opened**: `Core\IO::open` answers a `Core\IO\File` whose slot keys the
-> request's own descriptor table, `Core\IO\FileMode` is R11's enum, and `read`, `readLine`, `write`,
-> `seek`, `tell`, `flush` and `close` are its members; `truncate` and `lock` are owed. **Stage 3's
-> terminal is a sink **: `write` performs § 1's table onto `Out` or `Err`, § 2 is `Cli\Color`,
-> `Cli\Style` and `Text::styled`, § 4's prompts read under a deadline, and `live<T>`/`progress<T>`
-> open a region a `Drop` restores; `arguments` has landed and `displayWidth` is owed. Conformance
-> 1242, differential 210 of 210, migration 37% over its 36% floor.
+> `$member` is checked at the retrieval (`E0798`). ADR 0126's `property<T>` converts and reads: §
+> 2's rows, § 4's `$obj->$key` (`E0235` is the checker's) and § 5's union; the write half and
+> empty-set `E0799` are owed. **Stage 2's handle half has opened**: `Core\IO::open` answers a
+> `Core\IO\File` whose slot keys the request's own descriptor table, `Core\IO\FileMode` is R11's
+> enum, and `read`, `readLine`, `write`, `seek`, `tell`, `flush` and `close` are its members;
+> `truncate` and `lock` are owed. **Stage 3's terminal is a sink **: `write` performs § 1's table
+> onto `Out` or `Err`, § 2 is `Cli\Color`, `Cli\Style` and `Text::styled`, § 4's prompts read under
+> a deadline, and `live<T>`/`progress<T>` open a region a `Drop` restores; `arguments` has landed
+> and `displayWidth` is owed. Conformance 1242, differential 210 of 210, migration 37% over its 36%
+> floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

@@ -2,63 +2,57 @@
 
 ## State
 
-**ADR 0126's property key converts, and `as` is its only source as far as the checker.** § 2's three
-rows are in the conversion table (`crates/nvs-types/src/expr/operators.rs`): `string` → key (the
-run-time check), `property<U>` → `property<T>` (the narrowing), and the total key → `string`.
-`property<T>` is its own `ConvKind`, so nothing else produces one and a key converts to nothing but
-a `string` and a `bool`. A **written-out** operand is decided where it is written, per § 2's second
-paragraph: `"email" as property<User>` is a compile-time yes and `"token"`/`"emial"` is `E0405`
-(`E_UNKNOWN_MEMBER`, the diagnostic `$user->emial` already gets), with the help listing the roster.
-A `private` name and a name that names nothing are one failure with one message, which is § 2's
-sentence that visibility is decided at the conversion, once.
+**ADR 0126 §§ 4-5' read half is on disk.** `$obj->$key` and `$obj->{$expr}` are admitted where the
+operand's type is a `property<T>` whose argument the receiver satisfies, and the access reads as the
+**union of `T`'s public roster's declared types** — `crates/nvs-types/src/expr/members.rs`'s
+`check_keyed_property`, which is also where every other operand becomes `E0235`. The parser refuses
+no computed name at all now (`crates/nvs-syntax/src/parser/expr.rs`'s `parse_member_name`), the help
+names `as property<T>`, a call keeps the refusal unconditionally at both sites in
+`crates/nvs-types/src/expr/calls.rs`, and `unset($obj->$key)` is `E_UNSET_ON_PROPERTY`.
 
-The roster is one helper, `expr::members::public_property_names` — the class's own public
-declarations and its ancestors', walked exactly as `signatures::resolve_property_owned` walks for
-one name (`implements` chained for that function's reason: the two must agree, or a name refused at
-the conversion would still resolve at the access).
+**`->{expr}` moved with `->$name`, against the last handoff's item and with ADR 0126 § 4's body**,
+whose first sentence admits both spellings. Every checker site already matched
+`MemberName::Variable | MemberName::Expr` as one pattern, so one rule was less code than two. The
+caret for the brace form now sits on the operand rather than on the braces, since the checker holds
+the inner expression's span; `tests/conformance/lang/a-computed-member-name-is-a-diagnostic.nvst`
+pins that and the four refusals.
 
-**Nothing produces a key at run time yet** — `nvs-ir` has no lowering for the three rows — and
-`$obj->$key` is still the parser's `E0235`.
+**An admitted keyed access records no `ExprInfo`, and no program can reach the arm that would want
+one:** `nvs-ir` lowers no `property<T>` parameter, return or local, and says so with the known-gap
+panic at `crates/nvs-ir/src/lower/mod.rs:2943`. The proof is on `check_property_member`'s doc
+comment, which is the only home for it; § 5's erased store is the slice that records the entry and
+retires the proof.
 
-**The empty-set half of `E0799` is blocked on a siting decision, not on effort.** ADR 0126 § 1 also
-refuses a class declaring no public property, and the obvious home — beside the class-kind refusal
-in `lower_property_key` — cannot work: see the playbook bullet added this session. Decide between
-re-lowering at check time and a separate post-table walk over written types before writing it; the
-second is the only one that reaches a method parameter's annotation.
+Owed on the item: the empty-set half of `E0799` (siting still undecided — the playbook bullet the
+previous session left says why the obvious home cannot work) and § 5's write half.
 
 ## Next group
 
-**The property key's remaining three slices, over `crates/nvs-types/src/expr/members.rs`,
-`crates/nvs-syntax/src/parser/expr.rs` and `crates/nvs-types/src/lower.rs`.**
+**The property key's last two slices plus the lowering they both need, over
+`crates/nvs-types/src/lower.rs`, `crates/nvs-types/src/expr/members.rs` and
+`crates/nvs-ir/src/lower/`.**
 
-- [ ] **`$obj->$key`, and `E0235` moving to the checker** — ADR 0126 § 4. Delete the parser refusal
-      for the `TokenKind::Variable` arm at `crates/nvs-syntax/src/parser/expr.rs:951` (the
-      `TokenKind::LBrace` arm at `crates/nvs-syntax/src/parser/expr.rs:959` keeps it: `->{expr}` is
-      no key), and report `E0235` from the checker instead, where the operand's *type* is what
-      decides it — `crates/nvs-types/src/expr/members.rs:894` is the arm that already documents the
-      parser as owning this, and `crates/nvs-types/src/expr/members.rs:501`'s new
-      `property_key_argument` answers "is this a key". Grep the reject corpus first: every
-      `--EXPECTF-ERROR--` case pinning `E0235` moves phase with it. Tests:
-      `a_computed_member_name_without_a_property_key_is_still_e0235`.
-- [ ] **The read types as the union of the set** — ADR 0126 § 4's other half: `$obj->$key` at a
-      `property<T>` key is the union of the declared types of `T`'s public properties, built off
-      `crates/nvs-types/src/expr/members.rs:507`'s roster walk plus
-      `crates/nvs-types/src/signatures.rs:403`. The access records an
-      `ExprInfo::ShapeProperty`-shaped entry keyed on the *name*, which is ADR 0036 § 4's erased
-      access — `crates/nvs-types/src/expr/members.rs:875` is the comment that owns which of the four
-      arms this becomes. Test: `a_read_through_a_property_key_types_as_the_union_of_the_set`.
-- [ ] **The empty-set half of `E0799`** — ADR 0126 § 1, once the siting above is decided. The
-      refusal's text and shape are at `crates/nvs-types/src/lower.rs:225`; the roster is
-      `crates/nvs-types/src/expr/members.rs:507`.
+- [ ] **`property<T>` reaches `nvs-ir` at all** — ADR 0126 § 5. The known-gap panic at
+      `crates/nvs-ir/src/lower/mod.rs:2943` refuses the type in a parameter, a return and a local,
+      so no key-holding program lowers and neither of the two slices below can be tested end to
+      end. A key is a name, so the representation to give it is the one `Ty::String` already has;
+      the three § 2 conversions then lower at `crates/nvs-ir/src/lower/expr.rs:343`'s
+      `Conversion` arm. Do this one first.
 - [ ] **The write half** — ADR 0126 § 5: the erased store, and `E0782` at the write where the set's
-      member is `readonly`. `crates/nvs-types/src/expr/members.rs:952` is where the write's
-      visibility check already stands.
+      union is not assignable to the value. The read arm is
+      `crates/nvs-types/src/expr/members.rs:576`'s `check_keyed_property` and the write goes
+      through the same function (`is_unset` is already its third case); the entry it must record
+      is what `crates/nvs-ir/src/lower/expr.rs:3638` reads back, beside `ExprInfo::ShapeProperty`.
+- [ ] **The empty-set half of `E0799`** — ADR 0126 § 1, a class declaring no public property.
+      `crates/nvs-types/src/lower.rs:126` is where `lower_property_key` is reached from and
+      `crates/nvs-types/src/expr/members.rs:536`'s `public_property_names` is the roster to ask.
+      The siting decision is still open and the playbook says why the obvious home fails: prefer a
+      post-table walk over written types, which is the only one that reaches a method parameter's
+      annotation.
 
 ## Backlog
 
-- `Core\Cli::displayWidth` — outranked three sessions running; ADR 0086 § 1, `crates/nvs-stdlib/src/cli.rs`.
-- ADR 0126's run-time half: `nvs-ir` lowers no row of § 2 yet, so the three conformance cases in
-  `loop-goal.toml`'s *conformance (the property key)* check cannot pass — `docs/plan/m8.md`.
-- `Core\IO`'s `truncate` and `lock` — `docs/implementation-plan.md` § *Open now*.
-- `[log] target` is read by nothing — `docs/implementation-plan.md` § *Open now*.
-- `E07xx` is full; the next types diagnostic opens a new band — `docs/adr/README.md`.
+- `Core\IO::truncate` and `::lock` — docs/spec/01-core-library.md § 13, stage 2's handle half.
+- `Core\Cli::displayWidth` — ADR 0086 § 1, stage 3.
+- Reading `[log] target` — ADR 0020 § 6, stage 7.
+- Stage 6's shared store needs a reachable Docker daemon (`tests/db/compose.yaml`).
