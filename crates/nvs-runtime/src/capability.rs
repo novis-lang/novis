@@ -3,11 +3,12 @@
 //!
 //! [`require`] is deliberately the only *decision* here. The decision procedure is
 //! [`nvs_config::capability`] and is pure; this is the half that knows about a request — where the
-//! snapshot comes from, and what a denial looks like to the program that hit it. The eight below are
+//! snapshot comes from, and what a denial looks like to the program that hit it. Eight below are
 //! § 2's filesystem doors — [`open_read`], [`metadata`], [`exists`] and [`canonicalize`] behind
 //! `fs.read`, [`write()`],
-//! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write` — and the rest (`connect`, `exec`) arrive
-//! with the first `Core` member that needs one; each of them calls [`require`] before it names a
+//! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write` — [`exec`] is the process
+//! door behind `process.exec`, and `connect` arrives
+//! with the first `Core` member that needs it; each of them calls [`require`] before it names a
 //! spelling that
 //! performs the effect, which is what makes § 2's claim structural rather than a convention: a member
 //! reaches the OS through a door or not at all, and every door has already asked.
@@ -20,6 +21,7 @@
 
 use std::fs::{File, Metadata};
 use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 
 use nvs_config::capability::{Cap, Scope};
 
@@ -312,6 +314,73 @@ fn private_builder() -> std::fs::DirBuilder {
     std::fs::DirBuilder::new()
 }
 
+/// § 2's process door: `program` started as a child with `argv`, once [`Cap::ProcessExec`] has been
+/// shown to cover it and [ADR 0044] § 4's shell targets have been refused.
+///
+/// The started child rather than its output, for [`open_read`]'s reason: one door has to serve
+/// `Core\Process::run`'s captured wait and `::spawn`'s streamed handle alike, and the capability
+/// question belongs to the *child* — a process already started is a process already checked, so
+/// nothing downstream of this call has to ask again.
+///
+/// `argv` is what the program receives after its own name, which the operating system supplies:
+/// there is no command line anywhere in this function, and so nothing for a quoting rule to be
+/// wrong about. ADR 0044 § 1 is why that is the only shape offered.
+///
+/// **All three standard streams are pipes, and that is this door's decision rather than the
+/// caller's.** A child that inherited them would read the server's own stdin and write to the
+/// server's own stdout — a request reaching a descriptor no capability named, and one that no
+/// `Core\Process` member would have to ask for.
+///
+/// **A shell target is refused here, on every platform**, [ADR 0044] § 4: a `.bat`, `.cmd` or `.ps1`
+/// runs by handing a command line to `cmd.exe` or `powershell.exe`, which re-parses the arguments
+/// this door never built, so an argv Novis passed correctly becomes a shell string again by the time
+/// the target sees it. The check runs on Unix too, where the risk is not real — a `#!` line is read
+/// by the same `execve` that already has the split argv — because a refusal that exists on one
+/// platform only is a behaviour no test on the other can pin.
+///
+/// The capability is asked **first**, before the target's kind, so the rule every other door here
+/// states holds without an exception: the grant is consulted before anything else is looked at.
+/// Both refusals are the same catchable class, since neither is a condition a program can recover
+/// from by trying something adjacent.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `process.exec` for
+/// `program`, a `RuntimeError` naming the extension for § 4's refused target kinds, or
+/// [`io_failure`]'s `IOError` when the spawn itself fails — nothing is at `program`, or it is not
+/// executable.
+///
+/// [ADR 0044]: ../../../docs/adr/0044-core-process-argv-only-no-shell.md
+pub fn exec(ctx: &Ctx, program: &Path, argv: &[&str], member: &str) -> Result<Child, Fault> {
+    require(ctx, Cap::ProcessExec, Scope::Path(program), member)?;
+    if let Some(extension) = shell_target(program) {
+        return Err(Fault::thrown(format!(
+            "{member} will not run {}: a `.{extension}` target is started by handing a command line \
+             to a second parser, which re-quotes an argv this API passed across whole — start that \
+             interpreter yourself if it is what you mean",
+            program.display()
+        )));
+    }
+    Command::new(program)
+        .args(argv)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|err| io_failure(member, program, &err))
+}
+
+/// The lower-cased extension of a target [`exec`] refuses, or `None` for one it will start.
+///
+/// By extension and not by content, ADR 0044 § 4: what makes a `.bat` unsafe to start is which
+/// program the operating system hands the command line to, and that is decided by the name alone —
+/// so this answers the same way for a file that is not there, which is what lets the refusal be
+/// about the kind of target rather than about the filesystem.
+fn shell_target(program: &Path) -> Option<String> {
+    let extension = program.extension()?.to_str()?.to_ascii_lowercase();
+    matches!(extension.as_str(), "bat" | "cmd" | "ps1").then_some(extension)
+}
+
 /// What a door reports when the operating system refuses something the capability allowed: an
 /// `IOError`, catchable, naming the member, the path and what the OS said.
 ///
@@ -324,4 +393,105 @@ pub fn io_failure(member: &str, path: &Path, err: &std::io::Error) -> Fault {
         ThrownClass::Io,
         format!("{member} failed on {}: {err}", path.display()),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::{Cap, Ctx, Fault, Path, Scope, ThrownClass, exec, require, shell_target};
+
+    /// The member a case refuses on behalf of. `run` and not `spawn` for no reason beyond being the
+    /// one the fixture calls; the door does not know which it is serving.
+    const MEMBER: &str = "Core\\Process::run";
+
+    /// A snapshot built from the text an operator would have written, rather than from the typed
+    /// tree — the boot path deserializes, so a case that constructed the struct directly would pin
+    /// a grant no configuration file can express.
+    fn snapshot_of(written: &str) -> Arc<nvs_config::Snapshot> {
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        })
+    }
+
+    /// ADR 0118 § 5, asked of the process door: an unconfigured context starts nothing, and the
+    /// message names the capability in the spelling `nvs.toml` grants it under.
+    #[test]
+    fn a_child_starts_only_where_process_exec_is_granted() {
+        let ctx = Ctx::buffered();
+        let denied = exec(&ctx, Path::new("/usr/bin/convert"), &["-version"], MEMBER)
+            .expect_err("a context with no configuration grants nothing");
+        let Fault::Thrown(class, message) = denied else {
+            panic!("a denial is a throw and never a fatal — ADR 0118 § 5");
+        };
+        assert_eq!(class, ThrownClass::Runtime);
+        assert!(
+            message.contains("process.exec")
+                && message.contains(MEMBER)
+                && message.contains("convert"),
+            "the denial names the capability, who wanted it and what for: {message}"
+        );
+    }
+
+    /// ADR 0044 § 4, on a context that grants everything: the refusal is about the kind of target,
+    /// so a grant cannot buy it and no platform is exempt from it.
+    #[test]
+    fn a_shell_target_is_refused_however_wide_the_grant_is() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(snapshot_of("[capabilities.process]\nexec = true\n"));
+        // The positive control: without it every refusal below could be the capability denial in
+        // disguise, which is the same class and would satisfy a weaker assertion.
+        require(
+            &ctx,
+            Cap::ProcessExec,
+            Scope::Path(Path::new("examples/process/say.bat")),
+            MEMBER,
+        )
+        .expect("`exec = true` covers every program, this one included");
+
+        for (target, named) in [
+            ("examples/process/say.bat", "bat"),
+            ("C:/deploy/RELEASE.CMD", "cmd"),
+            ("./build.ps1", "ps1"),
+        ] {
+            let refused = exec(&ctx, Path::new(target), &[], MEMBER)
+                .expect_err("a second command-line parser is not a target this API has");
+            let Fault::Thrown(class, message) = refused else {
+                panic!("§ 4's refusal is catchable, like every other one this module writes");
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            assert!(
+                message.contains(&format!(".{named}")) && message.contains(MEMBER),
+                "the refusal names the extension and the member: {message}"
+            );
+            assert!(
+                !message.contains("process.exec"),
+                "and is not the capability denial, which this context does not produce: {message}"
+            );
+        }
+    }
+
+    /// The other half of the same rule, which the cases above cannot show: every other target kind
+    /// reaches the spawn, including the shebang script Unix runs through `execve` itself.
+    #[test]
+    fn nothing_but_those_three_extensions_is_a_shell_target() {
+        for allowed in [
+            "/usr/bin/convert",
+            "target/debug/nvs.exe",
+            "tools/deploy.sh",
+            "batch",
+            "archive.bat.gz",
+        ] {
+            assert!(
+                shell_target(Path::new(allowed)).is_none(),
+                "`{allowed}` is started by the operating system, not by a command-line parser"
+            );
+        }
+    }
 }
