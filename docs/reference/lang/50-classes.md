@@ -2,7 +2,7 @@
 id: classes
 title: Classes, interfaces and objects
 summary: declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies
-keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, instanceof, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, late static binding
+keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, instanceof, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
 ---
 
 # Declaring a class
@@ -374,7 +374,8 @@ echo $f(3) as int, "\n";
 
 A class constant is `public const int NAME = …;`, and like every other binding it writes its type
 (`E0246`). It is reached as `self::NAME` inside the class and `Class::NAME` anywhere. `Class::class` is the
-class's name as a string.
+class's name as a string, and it stays a `string` — the type that holds a class itself is `class<T>`,
+and the three sites that take one are below.
 
 A constant's value is **inlined at every read** — there is no storage a read loads it from — so the
 value has to have a compile-time form. Literals do, and so does an `array<T>` literal of them: each
@@ -532,7 +533,9 @@ writes the forwards for you.
 
 `$x instanceof T` is true for the object's own class, every ancestor, and every interface any of
 them implements; false for anything else, and false when `$x` is `null`. Inside the `if` it
-guards, a value declared `object` or at a base type is narrowed to `T`.
+guards, a value declared `object` or at a base type is narrowed to `T`. The right-hand side is a
+class name written out, or a `class<T>` value (below); a `string` there is refused whatever it
+holds.
 
 ```nvs
 <?nvs
@@ -563,6 +566,71 @@ if ($o instanceof Marks) {
 ```output
 111||
 not marked
+```
+
+## A class chosen at run time: `class<T>`
+
+A `class<T>` value is a class rather than an instance of one, and three sites take it:
+`new $cls(...)`, `$cls::f(...)` and `$x instanceof $cls`. All three take that value **and nothing
+else** — a `string` holding a class name is refused at every one of them, with the `as` that would
+produce one named in the help — and `$obj->$name` is not on the list and never will be, because a
+class reference answers *which class* and never *which member*. The type, and the `as` that is its
+only source, are in [the type chapter](20-types.md).
+
+A static call through one is virtual: the implementor's body wins where it declares one, and
+`static::` inside that body sees the implementor rather than the bound. A `new` through one is typed
+against **`T`'s** constructor, since that is the only signature the site can see — so the `new` is
+refused, where it is written, when any implementor of `T` declares a constructor that could not take
+the arguments there. Narrow the reference (`as class<Invoice>`) and instantiate that, or give the
+subclass a compatible constructor.
+
+```nvs
+<?nvs
+class Report {
+    public function constructor(public string $title) {}
+
+    public static function kind(): string {
+        return "report";
+    }
+
+    public function render(): string {
+        return static::kind() . ":" . $this->title;
+    }
+}
+
+class Invoice extends Report {
+    public static function kind(): string {
+        return "invoice";
+    }
+}
+
+string $wanted = "Invoice";
+class<Report> $cls = $wanted as class<Report>;
+Report $r = new $cls("March");
+echo $r->render(), " ", $cls::kind(), " ", ($r instanceof $cls) as string, "\n";
+```
+```output
+invoice:March invoice 1
+```
+
+```nvs error
+<?nvs
+class Formatter {
+    public function constructor(public string $prefix) {}
+}
+
+class Strict extends Formatter {
+    public function constructor(string $prefix, public int $width) {
+        parent::constructor($prefix);
+    }
+}
+
+class<Formatter> $cls = Formatter::class as class<Formatter>;
+Formatter $made = new $cls("p: ");
+echo $made->prefix, "\n";
+```
+```output
+`Strict::constructor` is not compatible with `Formatter::constructor`
 ```
 
 # Interfaces
