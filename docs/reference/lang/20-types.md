@@ -2,7 +2,7 @@
 id: types
 title: Types, declarations and conversions
 summary: every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers
-keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, instanceof, truthy, falsy, tainted, secret, resource
+keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, instanceof, truthy, falsy, tainted, secret, resource
 ---
 
 # Every binding has a type
@@ -190,6 +190,11 @@ echo $grid[0][1], " ", Core\Json::encode($a), "\n";
 - A class, interface or enum name is a type wherever a type is written. `object` is the top of every
   class type: any instance assigns to it, a property is read through it by name, and `instanceof` or
   `as ClassName` gets the class back.
+- `class<T>` is a **class reference**: not an instance, but a class itself, where `T` is the class or
+  interface every value of the type names. `class<Dog>` widens to `class<Animal>`. Three sites take
+  one and nothing else — `new $cls(...)`, `$cls::f(...)` and `$x instanceof $cls`, each refusing a
+  bare `string` — and `as` is its only source (below). `Foo::class` is a `string` and stays one. Two
+  class references are equal when they are the same class; nothing else is ever equal to one.
 - A **shape** `{x: int, y: string}` is a structural object type, and an **object literal**
   `{x: 1, y: "two"}` builds an instance with exactly those fields. A literal with more fields than a
   shape names still satisfies it. A shape type cannot open a statement (`{` there is a block), so
@@ -519,7 +524,8 @@ expected `uint`, found `int`
 but fails at run time throws: `ArithmeticError` when a number does not fit (a fractional `float`
 into `int`, a negative into `uint`, an `int` past 2^53 into `float`, a non-integral `decimal` into
 `int`), `RuntimeError` for everything else (a string that is not a number, malformed `bytes`, a
-`mixed` of the wrong tag, a value outside a literal or enum-case set, an object of another class).
+`mixed` of the wrong tag, a value outside a literal or enum-case set, an object of another class, a
+name that denotes no class this program declares to be a `T` when the target is `class<T>`).
 
 `expr as ?T` is the same conversion answering `null` instead of throwing. It is refused where
 `as T` cannot fail (`$i as ?int` on an `int`) and for a class target (`$o as ?Foo`): an object is
@@ -558,6 +564,41 @@ cannot convert `float` 3.9 to `int`
 cannot convert `int` -1 to `uint`
 cannot convert string "abc" to `int`
 -1 -1 42
+```
+
+`as` is also the only way to obtain a `class<T>`, and there are two doors. A `Foo::class` operand is
+decided where it is written — a compile error when `Foo` is not a `T`, never a throw the program has
+to reach — while any other `string` is checked at run time against the classes this program declares
+to be `T`s.
+
+```nvs
+<?nvs
+class Animal {
+    public function speak(): string {
+        return "...";
+    }
+}
+class Dog extends Animal {
+    public function speak(): string {
+        return "woof";
+    }
+}
+class<Animal> $folded = Dog::class as class<Animal>;
+string $name = "Dog";
+class<Animal> $picked = $name as class<Animal>;
+Animal $pet = new $picked();
+echo $pet->speak(), " ", ($pet instanceof $folded) ? "a Dog" : "not", "\n";
+string $missing = "Cat";
+try {
+    class<Animal> $bad = $missing as class<Animal>;
+    echo (new $bad())->speak(), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+woof a Dog
+cannot convert to `class<Animal>`: the value does not denote a class that is a `Animal`
 ```
 
 ```nvs error
@@ -600,6 +641,8 @@ The conversion table. A pair not listed is a compile error naming both types.
 | `array<T>` | `array<U>` | element by element, throwing at the first element `U` refuses; `array<mixed>` accepts every element |
 | `?T` | `T` | throws on `null` |
 | a class | `object`, a parent, an interface | free; `object as Foo` tests the runtime class |
+| `string` | `class<T>` | the name must denote `T` or a class that is one, or it throws; a written `Foo::class` operand is decided at compile time and never throws |
+| `class<U>` | `class<T>` | `U` must be a `T`, tested against the class the reference holds |
 | any | a literal or enum-case union | a `mixed` must equal a member; a typed operand converts first, then is tested |
 | any | `mixed` | free |
 
