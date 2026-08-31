@@ -3322,6 +3322,20 @@ is why" — is this file.
   cost time on the way: the runner's report is the expectation, so the echoed line sits at column 0
   above the indented `✓` row, and an empty `--EXPECTF-ERROR--` section is the claim that the run
   *failed* rather than a section left blank.
+- **A `Core` member owes three conformance cases and every `Fault` site owes an assertion or a
+  declaration, and both gates fire only on the *whole* `-p nvs-stdlib` run.** A new class passes
+  `cargo build`, passes its own `#[test]`s, passes `nvs test` on the case you just wrote, and then
+  `every_core_class_has_a_conformance_floor_of_three` and
+  `every_error_path_is_asserted_or_declared_unreachable` fail together — the first wanting three
+  cases *per member*, the second wanting each `Fault::thrown` message either printed by a case or
+  declared "unreachable from source" **within 8 lines of the site**, which a doc-comment-shaped
+  explanation above the statement is not. Two consequences worth knowing before writing the member
+  rather than after: a message that interpolates a dependency's own error text cannot be asserted
+  by an `--EXPECT--`, so a refusal a case must reach should carry a fixed sentence; and the corpus
+  the gate matches against is the whole text of every case file, `--EXPECT--` and comments alike,
+  so the honest way to satisfy it is `catch (LogicError $e) { echo $e->message, "\n"; }`. Two catch
+  clauses in one case may not share a variable name (`E0406`), and a `'single-quoted'` string is
+  the way to write a PHC literal, since `"$argon2id$v=19$…"` interpolates four variables.
 
 ## Splitting a file that got too big
 
