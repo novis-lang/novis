@@ -36,6 +36,13 @@
 //! materialise. `limit` is what bounds this against a generator that never
 //! ends: the spec's `{limit?: uint}` is that argument, and a caller passing
 //! `None` is trusting its own.
+//!
+//! [`for_each`] is the entry for the member that *can* consume one element at
+//! a time, and `Core\IO::writeStream` is the first — a stream reaching disk
+//! (ADR 0105 § 4) must not hold the file it is writing. It is the same drive
+//! with the `Vec` taken out: [`drain`] is now written over it, so there is one
+//! cursor loop rather than a second one that could disagree about when
+//! `iterate()` is called or who owns an element.
 
 use std::mem::ManuallyDrop;
 
@@ -84,89 +91,12 @@ pub fn drain(
     limit: Option<usize>,
     what: &str,
 ) -> Result<Vec<Value>, Fault> {
-    if let Some(array) = sequence.array_ptr() {
-        return Ok(drain_array(array, limit));
-    }
-    if sequence.obj_ptr().is_some() {
-        return drain_cursor(ctx, sequence, limit, what);
-    }
-    Err(Fault::fatal(format!(
-        "internal error: {what} was handed tag {} where a sequence was expected",
-        sequence.tag_byte()
-    )))
-}
-
-/// The array half: every value in key order, each retained on the way out
-/// because it belongs to the subject array rather than to this frame.
-fn drain_array(array: *mut ArrayHeader, limit: Option<usize>) -> Vec<Value> {
-    #[expect(
-        unsafe_code,
-        reason = "a Tag::Array argument owns a reference to a live allocation, \
-                  so it is live for the length of this call"
-    )]
-    // `ManuallyDrop`, because `from_raw` hands back an *owning* handle and the
-    // reference being read through here belongs to the caller's argument slot.
-    let subject = ManuallyDrop::new(unsafe { NvsArray::from_raw(array) });
-
     let mut out = Vec::new();
-    let mut from = 0usize;
-    while limit.is_none_or(|limit| out.len() < limit) {
-        let Some(slot) = subject.next_slot(from) else {
-            break;
-        };
-        let value = subject
-            .value_at(slot)
-            .expect("next_slot only names live entries");
-        #[expect(
-            unsafe_code,
-            reason = "the entry is owned by the subject array, which outlives \
-                      this call, so the copy handed to the caller needs a \
-                      reference of its own"
-        )]
-        unsafe {
-            value.retain();
-        }
+    let mut collect = |value: Value| {
         out.push(value);
-        from = slot + 1;
-    }
-    out
-}
-
-/// The object half: `iterate()` where the value reaches `Iterable<T>`, then
-/// the `advance()`/`current()` pair until it says it is exhausted.
-fn drain_cursor(
-    ctx: &mut Ctx,
-    sequence: Value,
-    limit: Option<usize>,
-    what: &str,
-) -> Result<Vec<Value>, Fault> {
-    let cursor = match method_address(sequence, ITERATE, what)? {
-        Some(iterate) => call_member(ctx, sequence, iterate)?,
-        // Not an `Iterable<T>`, so it is the cursor itself — retained so that
-        // both branches leave this frame owning exactly one reference to it.
-        None => {
-            #[expect(
-                unsafe_code,
-                reason = "the caller owns a reference to this argument, so the \
-                          allocation is live for the length of this call"
-            )]
-            unsafe {
-                sequence.retain();
-            }
-            sequence
-        }
+        Ok(())
     };
-
-    let mut out = Vec::new();
-    let result = pump(ctx, cursor, limit, what, &mut out);
-    #[expect(
-        unsafe_code,
-        reason = "this frame owns exactly the one reference the match above \
-                  produced"
-    )]
-    unsafe {
-        cursor.release();
-    }
+    let result = each(ctx, sequence, limit, what, &mut collect);
     match result {
         Ok(()) => Ok(out),
         // A throw partway through leaves this frame owning every element
@@ -187,18 +117,151 @@ fn drain_cursor(
     }
 }
 
-/// Drives `cursor` into `out`. Split out so [`drain_cursor`] has one place to
-/// release the cursor and the partial result from, whichever step failed.
+/// Reads `sequence` — an `array<T>`, an `Iterable<T>` or an `Iterator<T>` —
+/// one element at a time, handing each to `sink` and never holding two at
+/// once.
+///
+/// [`drain`] without the `Vec`, for the member that consumes as it goes rather
+/// than materialising: `Core\IO::writeStream` writes each chunk to the file
+/// and keeps none of them, so what it holds is bounded by the largest single
+/// element instead of by the length of the stream.
+///
+/// **`sink` is handed an owned reference and owns it from that moment**,
+/// including on the call it fails — this function releases nothing it has
+/// already given away. That is the same contract [`drain`] answers to, where
+/// the sink is the `Vec` and the caller frees it.
+///
+/// There is no `limit` here for the reason there is one on [`drain`]: a sink
+/// that wants to stop early stops by failing, and it is the sink — not this
+/// function — that knows what bound it is enforcing.
+///
+/// # Errors
+///
+/// Whatever `sink` returns, or [`drain`]'s own two faults for the same two
+/// reasons.
+pub fn for_each(
+    ctx: &mut Ctx,
+    sequence: Value,
+    what: &str,
+    sink: &mut dyn FnMut(Value) -> Result<(), Fault>,
+) -> Result<(), Fault> {
+    each(ctx, sequence, None, what, sink)
+}
+
+/// The drive both entries share: ADR 0053 § 3's three shapes, split into the
+/// two representations they arrive in.
+fn each(
+    ctx: &mut Ctx,
+    sequence: Value,
+    limit: Option<usize>,
+    what: &str,
+    sink: &mut dyn FnMut(Value) -> Result<(), Fault>,
+) -> Result<(), Fault> {
+    if let Some(array) = sequence.array_ptr() {
+        return each_array(array, limit, sink);
+    }
+    if sequence.obj_ptr().is_some() {
+        return each_cursor(ctx, sequence, limit, what, sink);
+    }
+    Err(Fault::fatal(format!(
+        "internal error: {what} was handed tag {} where a sequence was expected",
+        sequence.tag_byte()
+    )))
+}
+
+/// The array half: every value in key order, each retained on the way out
+/// because it belongs to the subject array rather than to this frame.
+fn each_array(
+    array: *mut ArrayHeader,
+    limit: Option<usize>,
+    sink: &mut dyn FnMut(Value) -> Result<(), Fault>,
+) -> Result<(), Fault> {
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Array argument owns a reference to a live allocation, \
+                  so it is live for the length of this call"
+    )]
+    // `ManuallyDrop`, because `from_raw` hands back an *owning* handle and the
+    // reference being read through here belongs to the caller's argument slot.
+    let subject = ManuallyDrop::new(unsafe { NvsArray::from_raw(array) });
+
+    let mut taken = 0usize;
+    let mut from = 0usize;
+    while limit.is_none_or(|limit| taken < limit) {
+        let Some(slot) = subject.next_slot(from) else {
+            break;
+        };
+        let value = subject
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        #[expect(
+            unsafe_code,
+            reason = "the entry is owned by the subject array, which outlives \
+                      this call, so the copy handed to the caller needs a \
+                      reference of its own"
+        )]
+        unsafe {
+            value.retain();
+        }
+        sink(value)?;
+        taken += 1;
+        from = slot + 1;
+    }
+    Ok(())
+}
+
+/// The object half: `iterate()` where the value reaches `Iterable<T>`, then
+/// the `advance()`/`current()` pair until it says it is exhausted.
+fn each_cursor(
+    ctx: &mut Ctx,
+    sequence: Value,
+    limit: Option<usize>,
+    what: &str,
+    sink: &mut dyn FnMut(Value) -> Result<(), Fault>,
+) -> Result<(), Fault> {
+    let cursor = match method_address(sequence, ITERATE, what)? {
+        Some(iterate) => call_member(ctx, sequence, iterate)?,
+        // Not an `Iterable<T>`, so it is the cursor itself — retained so that
+        // both branches leave this frame owning exactly one reference to it.
+        None => {
+            #[expect(
+                unsafe_code,
+                reason = "the caller owns a reference to this argument, so the \
+                          allocation is live for the length of this call"
+            )]
+            unsafe {
+                sequence.retain();
+            }
+            sequence
+        }
+    };
+
+    let result = pump(ctx, cursor, limit, what, sink);
+    #[expect(
+        unsafe_code,
+        reason = "this frame owns exactly the one reference the match above \
+                  produced"
+    )]
+    unsafe {
+        cursor.release();
+    }
+    result
+}
+
+/// Drives `cursor` into `sink`. Split out so [`each_cursor`] has one place to
+/// release the cursor from, whichever step failed — what the sink has already
+/// taken is the sink's, per [`for_each`]'s contract.
 fn pump(
     ctx: &mut Ctx,
     cursor: Value,
     limit: Option<usize>,
     what: &str,
-    out: &mut Vec<Value>,
+    sink: &mut dyn FnMut(Value) -> Result<(), Fault>,
 ) -> Result<(), Fault> {
     let advance = required_member(cursor, ADVANCE, what)?;
     let current = required_member(cursor, CURRENT, what)?;
-    while limit.is_none_or(|limit| out.len() < limit) {
+    let mut taken = 0usize;
+    while limit.is_none_or(|limit| taken < limit) {
         let more = call_member(ctx, cursor, advance)?;
         match more.as_bool() {
             Some(true) => {}
@@ -211,7 +274,8 @@ fn pump(
                 )));
             }
         }
-        out.push(call_member(ctx, cursor, current)?);
+        sink(call_member(ctx, cursor, current)?)?;
+        taken += 1;
     }
     Ok(())
 }

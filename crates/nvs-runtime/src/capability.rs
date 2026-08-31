@@ -244,6 +244,40 @@ pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File
         .map_err(|err| io_failure(member, path, &err))
 }
 
+/// § 2's streaming-write door: a handle on `path`, ready to become the whole of its content, once
+/// [`Cap::FsWrite`] has been shown to cover it.
+///
+/// [`write()`] hands back the finished effect because it already holds every byte; this is the same
+/// door for a caller that does not — `Core\IO::writeStream` writes what it is handed as it is handed
+/// it, so the handle has to cross. The create is still on this side of it, which is [`write()`]'s own
+/// reason for taking the bytes.
+///
+/// **`overwrite` is a parameter rather than a fifth [`Access`] case**, because that enum is
+/// `Core\IO\FileMode`'s four cases and nothing else: a case no mode spells would be a variant the
+/// surface enum could never produce. And **`overwrite == false` refuses through the operating
+/// system** — `create_new`, which is `O_EXCL` — rather than through an [`exists`] call first: a check
+/// followed by a create is a window another process can create the file in, and ADR 0105 § 4 makes
+/// this the default precisely because the destination is usually named by a client.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
+/// `path`, checked before anything is created for [`write()`]'s reason. [`io_failure`]'s `IOError`
+/// when the create itself fails — including `AlreadyExists`, which is what a refused overwrite is.
+pub fn create(ctx: &Ctx, path: &Path, overwrite: bool, member: &str) -> Result<File, Fault> {
+    require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true);
+    if overwrite {
+        options.create(true).truncate(true);
+    } else {
+        options.create_new(true);
+    }
+    options
+        .open(path)
+        .map_err(|err| io_failure(member, path, &err))
+}
+
 /// § 2's write door: `bytes` become the whole content of `path`, once [`Cap::FsWrite`] has been
 /// shown to cover it.
 ///
