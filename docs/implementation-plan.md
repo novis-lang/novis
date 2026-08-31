@@ -60,8 +60,9 @@
 > `nvs_host::net`: hops re-pinned, retries jittered under one deadline, `https` refused.
 > **`Core\Env` is a class**: `get` and `all` over `nvs_runtime::environment`, the name a
 > `Qual::Sink` and every value `tainted`, and `.nvst`'s `--ENV--` is honoured now that a case can
-> read one back. `examples/http.nvs` fails only on the `Launder` union and the missing origin.
-> Conformance 1160, differential 210 of 210, migration 37% over its 36% floor.
+> read one back. A mark admitting `tainted` admits a union carrying it (ADR 0088 § 2), so
+> `examples/http.nvs` needs only an origin. Conformance 1162, differential 210 of 210, migration 37%
+> over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
 > the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

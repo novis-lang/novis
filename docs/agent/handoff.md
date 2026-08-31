@@ -2,54 +2,43 @@
 
 ## State
 
-**`Core\Env` is on disk**, in `crates/nvs-stdlib/src/env.rs`: `get(string $name): ?tainted string`
-and `all(): array<string, tainted string>`, registered beside `crate::config::CLASS`. Two decisions
-that module's own doc is the home of — it is **not** a capability door (ADR 0012 § 7 makes the
-environment a process-wide fact the operator already chose, and `nvs_runtime::environment` is the
-door-that-asks-nothing beside `terminal`), and the **name is a `Qual::Sink`**, so a `tainted` name
-is `E0401` on `Core\IO`'s reasoning about a path. Every value is `tainted` unconditionally. A value
-that is not UTF-8 makes `get` throw and `all` omit; the throw is declared unreachable from source at
-its site, because no program can write the environment.
+**Stage 5's compile half is closed.** ADR 0088 § 2 now says a mark that admits `tainted` admits a
+**union** carrying it, arm by arm, and `examples/http.nvs` type-checks. `nvs_types::expr::quals`
+owns both halves: `untainted` reaches through a union so each arm is narrowed and then compared,
+and the new `carries_tainted` reads the contagion back out. The two reaches are **deliberately
+asymmetric** — `carries_tainted` reaches through `array<…>` as well, because over-tainting a result
+is safe while over-admitting an argument leaks — and `untainted`'s own doc comment is the home of
+why, including that `core_lib::qual_of` gives an array parameter no classification at all, so no
+array can reach the admission side today.
 
-**`--ENV--` is honoured.** `crates/nvs-test` no longer refuses a case that uses it: pairs are one
-`NAME=value` per line, split at the first `=`, added to the runner's own environment rather than
-replacing it, and given to a `--ORACLE--`'s PHP half too. `--INI--` is the only section left on
-`case.rs`'s `NOT_YET`.
+**`examples/http.nvs` has one blocker left**: nothing serves `127.0.0.1:8099`, so line 32 throws
+`connecting to 127.0.0.1:8099 failed`. That is the whole of what stands between the tree and the
+stage 5 `exact` check at `docs/agent/loop-goal.toml:2357`, which wants `status=200` and `body=ok`.
 
-**`examples/http.nvs` has two blockers left, both below.** `Core\Env` is no longer one of them:
-the file now stops at line 45's `string|tainted string`, and nothing serves `127.0.0.1:8099`.
-
-The spec needed no edit — `docs/spec/01-core-library.md` § 15 already carried `Core\Env`'s row,
-including `mode()` and the `EOL`/`OS`/`VERSION` constants this slice did not write.
+`unsecret` did **not** follow into a union: ADR 0033 § 3's escape hatch has no contagion to carry, so
+the reach would buy nothing and cost the axis its over-strict posture. Recorded at `unsecret`'s site.
 
 ## Next group
 
-**The two halves `examples/http.nvs` still needs**, in this order. They share that file and the
-stage 5 `exact` check it feeds — `docs/agent/loop-goal.toml:2357` — and nothing else, so the file
-sets differ.
+**The origin the acceptance check needs, and the case that covers it.** They share the driver's
+stage-5 setup and `examples/http.nvs`; nothing here touches `nvs-types` again.
 
-- [ ] **Whether a `Qual::Launder` parameter admits a union carrying the tainted arm.**
-      `examples/http.nvs:45` is the whole case and is `E0401` today, now that `Core\Env::get` gives
-      it a real `?tainted string` to write `?? "…"` over — which is how every environment read
-      will arrive, so this is the shape and not a corner. The rule is
-      `crates/nvs-types/src/expr/quals.rs:222`'s `admits_tainted_argument`; ADR 0024 § 3 is where a
-      launderer's argument shape is recorded, and whichever way it goes the answer belongs there.
-      A refusal that stands owes the example a spelling that is not `??`.
-- [ ] **An origin on `127.0.0.1:8099` for the acceptance check** — the driver's half.
-      `docs/agent/loop-goal.toml:2357`'s stage 5 check runs `examples/http.nvs` with nothing
-      listening, so its first two lines cannot print what the fixture freezes.
-      `crates/nvs-stdlib/src/http/transport.rs`'s own `#[cfg(test)]` listener is the shape a
-      harness would reuse; root `nvs.toml` already grants `127.0.0.1` by name and excepts it under
-      `net.internal`.
+- [ ] **An origin on `127.0.0.1:8099` for the acceptance check.** The stage 5 `exact` check at
+      `docs/agent/loop-goal.toml:2357` wants `status=200` and `body=ok` from a real server, and
+      `examples/http.nvs:32` is the call that asks for it. Decide *where* it is started — the driver
+      bringing one up around the stage, or the example spawning its own — and record the choice
+      beside the check. ADR 0097 § 1 is the development server's own section and the first place to
+      look for something already able to serve one route.
+- [ ] **A `.nvst` case for the transport's success path**, once an origin exists to talk to:
+      today every client case pins a refusal, so `crates/nvs-stdlib/src/http/transport.rs:1` has no
+      case asserting a 200 with a body is read back. `tests/conformance/core/every-client-member-refuses-a-tainted-url.nvst:1`
+      is the sibling to sit beside.
 
 ## Backlog
-- `Core\Env::mode()` and the `EOL`, `OS` and `VERSION` constants —
-  `crates/nvs-stdlib/src/env.rs`'s gap 1 owns them, and `EOL` carries a real decision: a
-  `CoreConst` is inlined by the machine that compiles, `PHP_EOL` by the machine that runs.
-- `Core\Http\Response::header()` and the header-map slot — `crates/nvs-stdlib/src/http.rs:452`.
-- A reader for a non-text body needs a `CoreTy::TaintedBytes`; `TaintedStr` is the only tainted
-  return spelling `crates/nvs-stdlib/src/registry.rs` has.
-- `Core\Http\Client::send(Request)` and `stream` — `docs/spec/01-core-library.md` § 16 names both.
-- ADR 0074 § 7's dynamic half — a verb chosen at run time throws before the first attempt.
-- `--INI--` is the last section `crates/nvs-test/src/case.rs`'s `NOT_YET` refuses; `nvs.toml` has
-  been read since M6, so the entry may be older than the tree.
+
+- `--INI--` is the last section on `crates/nvs-test`'s `case.rs` `NOT_YET` list.
+- `Core\Env::mode()` and the `EOL`/`OS`/`VERSION` constants are in the spec's § 15 row, unwritten —
+  `docs/spec/01-core-library.md` § 15 owns the roster.
+- Stage 6's two stores are next after stage 5 closes — `docs/agent/loop-goal.toml`, stage `6 stores`.
+- A `Qual::Launder` parameter declared `array<text>` is unreachable by construction; if a row ever
+  wants one, `crates/nvs-types/src/core_lib.rs:335`'s `qual_of` is the limit to lift first.

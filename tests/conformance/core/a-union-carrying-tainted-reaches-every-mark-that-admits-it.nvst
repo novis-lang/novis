@@ -1,0 +1,39 @@
+--TEST--
+a `string|tainted string` -- the shape a `?tainted string` takes the moment `??` gives it a default -- is admitted arm by arm wherever the atom would be, and the mark still decides the answer -- ADR 0088 § 2
+--FILE--
+<?nvs
+// `Core\Env::get` answers `?tainted string`, so `?? "…"` is how an environment
+// read is written and `string|tainted string` is the shape it arrives in.
+// Nothing in this case is a corner: it is the only spelling that door has.
+?tainted string $configured = Core\Env::get("NVS_CASE_UNSET_ORIGIN");
+var $chosen = $configured ?? "host.example";
+
+// A `Qual::Launder` parameter takes it: the arms are narrowed one at a time
+// and each is admissible, so a union is admitted exactly where every arm is.
+// The answer is the plain `string` the row declares -- laundering is the whole
+// contract of the mark, and a union argument does not weaken it.
+string $encoded = Core\Uri::encodeComponent($chosen);
+echo $encoded, "\n";
+
+// A `Qual::Neutral` parameter takes the same union, and answers plain for the
+// other reason: a count carries no byte of its subject.
+uint $n = Core\Str::length($chosen);
+echo $n, "\n";
+
+// A `Qual::Contagious` parameter takes it and carries the qualifier out --
+// `carries_tainted` reads the tainted arm the atom question cannot see, which
+// is what stops the admission above from laundering by union. The refusal that
+// pins this is `a-union-carrying-tainted-still-refuses-where-the-atom-does`.
+tainted string $decoded = Core\Uri::decodeComponent($chosen);
+echo $decoded, "\n";
+
+// The union is a property of the value, not of the call: with both arms plain,
+// the same three calls answer exactly what they answer for a bare `string`.
+var $plain = "host.example";
+string $twice = Core\Uri::decodeComponent(Core\Uri::encodeComponent($plain));
+echo $twice, "\n";
+--EXPECT--
+host.example
+12
+host.example
+host.example

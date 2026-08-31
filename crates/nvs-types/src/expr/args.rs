@@ -558,6 +558,11 @@ fn check_arg_admitting_quals(
 /// parameter an argument filled is the whole question and a `name:` argument
 /// does not fill the one it was written at. A caller reads it before
 /// [`resolved_call`] takes the slots by value.
+///
+/// The argument is asked with [`carries_tainted`] and not [`is_tainted`],
+/// because [`check_arg_admitting_quals`] admitted it with [`untainted`]'s
+/// reach: an argument admitted as a union or an array whose taint the atom
+/// question cannot see would be laundered by the call that took it.
 pub(crate) fn carries_contagion(
     sig: &MethodSig,
     slots: &[ArgSlot],
@@ -569,7 +574,7 @@ pub(crate) fn carries_contagion(
             slot,
             ArgSlot::Param(index)
                 if matches!(sig.qual_at(*index), Some(Qual::Contagious | Qual::Reveal))
-        ) && is_tainted(ty, interner)
+        ) && carries_tainted(ty, interner)
     })
 }
 

@@ -117,6 +117,15 @@ forgetting.
   unclassified at all, and the two together are why forgetting is no longer a security event.
 - **The four marks are unchanged** — *contagious*, *sink*, *launder*, *neutral*
   ([spec § *How to read an entry*](../spec/01-core-library.md)). Only the meaning of their absence changes.
+- **A mark that admits `tainted` admits a union carrying it, arm by arm** — and the contagion is read back
+  out with at least that reach. `Core\Env::get` answers `?tainted string`, so `$name ?? "default"` is a
+  `string|tainted string`, and that is the shape *every* environment read arrives in rather than a corner:
+  a launderer that took only the atom would be refusing the one spelling its own door produces. The
+  admission does not weaken, because each arm is narrowed and then compared, so a union is admitted only
+  where every arm of it is — one tainted arm at a *sink* still refuses the whole union. **The two
+  directions are deliberately not symmetric**: the answer that decides whether to *set* the qualifier on a
+  result reaches further than the narrowing that decides whether to *admit* an argument, because reaching
+  too far over-taints in the first and leaks in the second.
 
 The cost is one pass over the existing table, marking the overwhelming majority *contagious* — the
 overwhelming majority genuinely is. The benefit is that the pass never has to happen again: the next

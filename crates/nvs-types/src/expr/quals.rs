@@ -67,6 +67,38 @@ pub(crate) fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
     )
 }
 
+/// Whether `ty` carries `tainted` **anywhere it could be carried** — the atom
+/// itself, an array's element, or any member of a union.
+///
+/// [`is_tainted`] asks about one atom, which is the right question for a
+/// conversion, an operator and an assignment, because each of those already
+/// walks a composite structurally. An *argument* is the one position where it
+/// is the wrong question: ADR 0088 § 2's admission hands a whole argument to
+/// [`untainted`], so the contagion that admission implies has to be read with
+/// the same reach [`untainted`] and [`tainted_result`] have. A
+/// [`Qual::Contagious`] parameter handed a `string|tainted string` — which is
+/// what `$name ?? "default"` over a `?tainted string` is, and so what every
+/// environment read arrives as — would otherwise be admitted on one rule and
+/// found untainted on the other, and the call would launder for free.
+///
+/// It reaches one shape further than [`untainted`] does, through `array<…>` as
+/// well, and the asymmetry is the point: this answer decides whether to *set*
+/// the bit on a result, where reaching too far only over-taints, while
+/// [`untainted`]'s decides whether to *admit*, where reaching too far is a
+/// leak. So the safe direction is the wide one here and the narrow one there.
+pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
+    if is_tainted(ty, interner) {
+        return true;
+    }
+    match interner.get(ty) {
+        Ty::Array(elem) => carries_tainted(*elem, interner),
+        Ty::Union(members) => members
+            .iter()
+            .any(|&member| carries_tainted(member, interner)),
+        _ => false,
+    }
+}
+
 /// Whether `ty` carries ADR 0033 § 1's `secret` qualifier — on its own or
 /// composed with `tainted`. The `secret`-axis counterpart of [`is_tainted`];
 /// the two are independent bits, so a caller checking one never implies
@@ -121,11 +153,41 @@ pub(crate) fn qualified_scalar(
 /// type. That is what keeps the diagnostic honest: the parameter is what a
 /// mismatch names, and `expected tainted string` is a type no member declares
 /// and no reader would recognise.
+///
+/// It reaches through a **union**, arm by arm, because that is the shape a
+/// laundered value actually arrives in: `Core\Env::get` answers
+/// `?tainted string`, so `$name ?? "default"` is a `string|tainted string`, and
+/// a launderer that refused it would be refusing the only spelling an
+/// environment read has. The admission does not weaken by reaching — every arm
+/// is narrowed and then compared, so a union is admitted only where each of its
+/// arms is — and [`carries_tainted`] reads the contagion back out.
+///
+/// It deliberately does **not** reach through `array<…>`, where
+/// [`tainted_result`] does. The reach is not symmetric because the two
+/// directions are not: setting the bit further than necessary refuses, and
+/// clearing it further than necessary admits. No array can reach here anyway —
+/// [`crate::core_lib`]'s `qual_of` gives an `array<text>` parameter no
+/// classification at all, so the array's entries are the over-strictness that
+/// function's own comment records rather than something this one may spend.
+/// If a row ever classifies an array parameter, this is the second place to
+/// change and the first is that limit.
+///
+/// [`unsecret`] does not follow even into a union: ADR 0033 § 3's escape hatch
+/// is four parameters of two classes with no contagion to carry, so the same
+/// reach would buy a `secret` admission nothing and cost the axis its posture —
+/// being over-strict there is a refusal, not a leak.
 pub(crate) fn untainted(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
-    match qualifiable_base(ty, interner) {
-        Some(is_bytes) if is_tainted(ty, interner) => {
-            let secret = is_secret(ty, interner);
-            qualified_scalar(is_bytes, false, secret, interner)
+    if let Some(is_bytes) = qualifiable_base(ty, interner) {
+        let secret = is_secret(ty, interner);
+        return qualified_scalar(is_bytes, false, secret, interner);
+    }
+    match interner.get(ty).clone() {
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|&member| untainted(member, interner))
+                .collect();
+            interner.make_union(members)
         }
         _ => ty,
     }

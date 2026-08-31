@@ -1,0 +1,39 @@
+--TEST--
+a `string|tainted string` is refused wherever the bare `tainted string` is -- a sink, a contagious answer with nowhere to put the bit, and the plain type a contagious call does not answer -- so admitting the union arm by arm launders nothing -- ADR 0088 § 2
+--FILE--
+<?nvs
+// The other half of `a-union-carrying-tainted-reaches-every-mark-that-admits-it`.
+// Reaching into a union is a narrowing of the *admission*, so the three places
+// that refuse an atom have to refuse the union too, or the reach would be a
+// laundering hole rather than a spelling.
+?tainted string $configured = Core\Env::get("NVS_CASE_UNSET_ORIGIN");
+var $chosen = $configured ?? "host.example";
+
+// `Core\IO::within`'s `$base` is `Qual::Sink`: no reach applies at a mark that
+// admits nothing, and one tainted arm is enough to refuse the whole union.
+string $resolved = Core\IO::within($chosen, "child.txt");
+
+// `Core\Uri::parse` is contagious and answers an instance, which has no cell to
+// carry the qualifier -- ADR 0088 § 2's deliberately conservative half, which
+// the union reaches no further into than the atom did.
+Core\Uri $uri = Core\Uri::parse($chosen);
+
+// And the contagion the admission implies is really set: `decodeComponent`
+// takes the union, so its answer is `tainted string` and not the `string` its
+// row declares. This is the line that would silently pass if `carries_contagion`
+// asked the atom question about a union.
+string $decoded = Core\Uri::decodeComponent($chosen);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `string|tainted string`
+   --> case.nvs:11:36
+%A
+error[E0401]: expected `string`, found `string|tainted string`
+   --> case.nvs:16:33
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:22:19
+%A
+error: aborting due to 3 errors
