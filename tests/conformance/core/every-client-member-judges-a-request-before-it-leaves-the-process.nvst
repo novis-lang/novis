@@ -46,10 +46,12 @@ try {
     echo $four->message, "\n";
 }
 
-// And the far side of the same bound: a granted address, a positive deadline
-// and a legal retry count are approved, and what is left is the transport.
-// This is the one expectation in the suite that stage 5's socket deletes.
-Core\Http\Target $pinned = Core\Http::allowUrl("http://93.184.216.34/ok");
+// The fifth refusal is the transport's own, and it is still decided before a
+// socket: `https` needs a trust anchor set this build has not chosen yet, and
+// `crate::http::transport`'s module doc is where that is written down. The
+// URL passes every question above it — the scheme roster admits `https`, the
+// address is granted — so what refuses here is the send and nothing earlier.
+Core\Http\Target $pinned = Core\Http::allowUrl("https://93.184.216.34/ok");
 try {
     var $e = Core\Http\Client::delete($pinned, {deadline: 30s, retryAttempts: 3});
 } catch (RuntimeError $five) {
@@ -71,4 +73,4 @@ Core\Http\Client::get refuses 169.254.169.254: it is link-local (169.254.0.0/16)
 Core\Http\Client::post: the scheme must be `http` or `https`, and this URL names `ftp`
 Core\Http\Client::head: `deadline` must be a positive duration, and this one is 0ns
 Core\Http\Client::put: `retryAttempts` counts the first attempt too, so the smallest it can be is 1
-Core\Http\Client::delete: the request is approved and there is no transport behind it yet, so nothing was sent
+Core\Http\Client::delete: `https` needs a TLS client and a trust anchor set, and this build has neither yet, so nothing was sent. An `http` URL to a host the deployment granted is what works today

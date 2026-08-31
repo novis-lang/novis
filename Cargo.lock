@@ -1714,6 +1714,7 @@ dependencies = [
  "jiff",
  "md-5",
  "nvs-config",
+ "nvs-host",
  "nvs-render",
  "nvs-runtime",
  "nvs-syntax",

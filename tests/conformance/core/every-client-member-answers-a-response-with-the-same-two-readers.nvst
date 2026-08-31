@@ -9,11 +9,12 @@ Every `Core\Http\Client` member answers a `Core\Http\Response`, and the same two
 // grew its own reader, takes this off five while every line still reads
 // plausibly on its own.
 //
-// Nothing here reaches a socket: the address is granted, the options are
-// bounded, and what stops each call is the transport that is not built yet.
-// The readers below the call are therefore compiled and not run, which is the
-// half of them a case can assert while that is true.
-Core\Http\Target $pinned = Core\Http::allowUrl("http://93.184.216.34/ok");
+// Nothing here reaches a socket, and the scheme is why: `https` passes every
+// question the door asks and is then refused by the transport, which has no
+// trust anchor set yet. So all five calls fail identically and none of them
+// connects. The readers below the call are therefore compiled and not run,
+// which is the half of them a case can assert while that is true.
+Core\Http\Target $pinned = Core\Http::allowUrl("https://93.184.216.34/ok");
 var $refused = 0;
 
 try {

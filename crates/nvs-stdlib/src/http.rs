@@ -89,12 +89,17 @@
 //! answered by the transport where the charset is known; a reader that decoded on every call would
 //! answer it again, and a second answer is the one that will disagree.
 //!
-//! # What is not here yet, and why each is deliberate rather than forgotten
+//! # The transport is a module of its own, and it is handed an address rather than a `Ctx`
 //!
-//! **The transport.** Every row resolves, pins and judges its options exactly as it will, and then
-//! throws: stage 5's socket over the runtime's own reactor is the missing half, and a member that
-//! answered a fabricated `Core\Http\Response` would be worse than one that says so. That refusal is
-//! the one message in this module that a later slice deletes.
+//! [`transport`] composes the request, writes it, reads the reply and decides what is worth trying
+//! again; what stays here is every decision about *whether* a request may happen at all. The seam
+//! is [`transport::send`]'s `repin` closure: a redirect hop is re-checked by calling back into
+//! [`pin`], so ADR 0058 § 4's rule is enforced by the same four questions the first URL passed and
+//! there is no second copy of the policy under the socket. What that module's own doc owns is the
+//! rest — one connection per attempt, `https` refused until a trust anchor set has an owner, and
+//! what a reply is allowed to make this process hold.
+//!
+//! # What is not here yet, and why each is deliberate rather than forgotten
 //!
 //! **A request body.** `post` and `put` take a URL and options and nothing else, because a body's
 //! `tainted` behaviour is a decision the spec's own `send(Core\Http\Request)` row owns and the
@@ -109,11 +114,18 @@
 //! to the request that laundered it — and one synchronous resolution per call, which
 //! `pin_host`'s own docs own. A request member allocates nothing of its own before the transport:
 //! a `Target` argument is borrowed, and a `string` one is pinned without building a target, since
-//! nothing downstream of the check would read it.
+//! nothing downstream of the check would read it. What the exchange itself spends is
+//! [`transport`]'s to state.
+
+mod transport;
+
+use std::net::IpAddr;
+use std::time::{Duration, Instant};
 
 use fluent_uri::UriRef;
 use fluent_uri::component::{Authority, Scheme};
 use nvs_runtime::{Ctx, Fault, NvsStr, Tag, Value};
+use nvs_syntax::duration;
 
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -377,8 +389,29 @@ const OPTIONS: &[CoreOption] = &[
 /// one argument per option, in declaration order, after the URL at slot 0.
 const DEADLINE: usize = 1;
 const CONNECT_TIMEOUT: usize = 2;
+const HEADERS: usize = 3;
+const FOLLOW_REDIRECTS: usize = 4;
 const RETRY_ATTEMPTS: usize = 5;
 const RETRY_BACKOFF: usize = 6;
+const RETRY_KEY: usize = 7;
+
+/// [`TARGET`]'s two slots, by index — see [`STATUS_SLOT`].
+const TARGET_URL_SLOT: usize = 0;
+/// See [`TARGET_URL_SLOT`].
+const TARGET_ADDRESS_SLOT: usize = 1;
+
+/// ADR 0074 § 5's `[http.client]` block, as the answers an omitted option
+/// inherits when the deployment configured nothing.
+///
+/// The section's own TOML is the home of these three numbers; they are repeated
+/// here because a default no code holds is a default nothing applies, and
+/// [`bound_of`] reads the directive first in every case.
+const DEFAULT_DEADLINE: Duration = Duration::from_secs(30);
+/// See [`DEFAULT_DEADLINE`].
+const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+/// § 6's base delay, which the same section leaves out of the block because it
+/// is only reachable once a program has opted into retrying at all.
+const DEFAULT_BACKOFF: Duration = Duration::from_millis(100);
 
 /// ADR 0074 § 5's request members, over ADR 0058 § 1's sink.
 ///
@@ -559,19 +592,36 @@ const REQUEST_PARAMS: &[ParamDoc] = &[
 ];
 
 /// What every request member answers, once — see [`REQUEST_PARAMS`].
-const REQUEST_RET: &str = "A `Core\\Http\\Response` carrying the status, the headers and the body \
-                           of the reply. **The transport behind this member is not built yet**, so \
-                           today it throws instead of answering.";
+const REQUEST_RET: &str = "A `Core\\Http\\Response` carrying the status and the body of the reply. \
+                           A `404` and a `500` are answers and arrive here; only a request that \
+                           got no reply at all throws. An `https` URL is refused for now: this \
+                           build has no TLS client behind the member yet.";
 
 /// What every request member throws, once — see [`REQUEST_PARAMS`].
-const REQUEST_ERRORS: &[ErrorDoc] = &[ErrorDoc {
-    error: "RuntimeError",
-    desc: "The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names \
-           no host, `net.connect` does not grant that host, or it resolves to a loopback, private, \
-           link-local or unspecified address. An option is outside its bounds: a `deadline`, \
-           `connectTimeout` or `retryBackoff` that is not a positive duration, or a \
-           `retryAttempts` of zero. And, while the transport is unbuilt, the send itself.",
-}];
+const REQUEST_ERRORS: &[ErrorDoc] = &[
+    ErrorDoc {
+        error: "RuntimeError",
+        desc: "The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it \
+               names no host, `net.connect` does not grant that host, or it resolves to a \
+               loopback, private, link-local or unspecified address. An option is outside its \
+               bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive \
+               duration, or a `retryAttempts` of zero. A header name or value carries a control \
+               byte, which would end the line early. The scheme is `https`, which has no \
+               transport here yet. Or the reply is not HTTP, is larger than one request may hold, \
+               or has a body that is not valid UTF-8.",
+    },
+    ErrorDoc {
+        error: "TimeoutError",
+        desc: "The `deadline` passed before there was an answer. It covers the connection, every \
+               redirect hop, every retry attempt and every backoff between them, and a backoff \
+               that would end past it throws at once rather than sleeping first.",
+    },
+    ErrorDoc {
+        error: "IOError",
+        desc: "The last attempt could not reach the pinned address, or the connection failed while \
+               the request was being sent or the reply read.",
+    },
+];
 
 /// `Core\Http\Client::get`'s reference card — ADR 0117.
 const GET_DOC: MethodDoc = MethodDoc {
@@ -662,44 +712,230 @@ fn judge_attempts(args: &[Value], member: &str) -> Result<(), Fault> {
     Ok(())
 }
 
-/// Every request member's body: the URL through the outbound policy, the
-/// options through § 5's bounds, and then the transport that does not exist.
+/// One of § 5's time bounds as the transport wants it: the option if it was
+/// given, then the `[http.client]` directive, then `fallback`.
 ///
-/// The order is the contract. Everything a caller can get wrong is decided
-/// before anything leaves the process, so a program's own tests find a refused
-/// URL or an impossible deadline without a network — which is also why the
-/// missing transport is the *last* thing this reaches rather than the first.
+/// The three-step order is § 5's "the absence is the decision" read forwards —
+/// leaving a field out inherits the deployment's bound rather than removing it,
+/// and a deployment that configured nothing inherits the shipped one.
 ///
 /// # Errors
 ///
-/// [`pin`]'s four, [`judge_bound`]'s and [`judge_attempts`]', and then the
-/// unbuilt transport's own refusal.
-fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> {
-    let named = format!("{CLIENT_NAME}::{member}");
+/// [`judge_bound`]'s, for an option that is not a positive duration. A
+/// *directive* that will not parse is not an error here: `nvs.toml` is
+/// validated where it is loaded, and a second refusal at the call site would
+/// fail a request over a key the operator can no longer see.
+fn bound_of(
+    ctx: &Ctx,
+    args: &[Value],
+    at: usize,
+    option: &str,
+    directive: &str,
+    fallback: Duration,
+) -> Result<Duration, Fault> {
+    if !matches!(args[at].tag(), Some(Tag::Null)) {
+        let nanos = crate::time::nanos_of(args, at, option)?;
+        return Ok(Duration::from_nanos(nanos.unsigned_abs()));
+    }
+    let configured = ctx
+        .config()
+        .and_then(|config| config.get(directive))
+        .and_then(|text| duration::parse(&text).ok())
+        .map(|nanos| Duration::from_nanos(nanos.unsigned_abs()));
+    Ok(configured.unwrap_or(fallback))
+}
 
-    // A `Target` argument was pinned by the launderer that built it, and asking
-    // again would be the second resolution ADR 0058 § 2 exists to remove. A
-    // plain `string` is the form § 1 keeps for a URL the program authored, and
-    // it goes through the same door.
-    if !matches!(args[0].tag(), Some(Tag::Object)) {
-        let text = args[0].as_text().ok_or_else(|| {
+/// The `headers` bag, copied out as the lines the request will carry.
+///
+/// Copied rather than borrowed for `crate::str`'s reason: a key arrives as its
+/// own reference, and holding one per entry across the exchange would owe a
+/// release on every early return under it.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for an argument or an element that is not text, both
+/// ruled out by the row's `array<string>` and so unreachable from source.
+fn headers_of(args: &[Value], member: &str) -> Result<Vec<(String, String)>, Fault> {
+    let Some(array) = args[HEADERS].array_ptr() else {
+        return Err(Fault::fatal(format!(
+            "{member} expected {:?} for `headers`, got tag {}",
+            Tag::Array,
+            args[HEADERS].tag_byte()
+        )));
+    };
+    let mut headers = Vec::new();
+    let mut from = 0_usize;
+    loop {
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live allocation, \
+                      so it is live for the length of this call, and `from` only \
+                      ever advances past a slot this same cursor reported"
+        )]
+        let (slot, name, value) = unsafe {
+            let slot = nvs_runtime::nvs_array_next_slot(array, from);
+            let Ok(slot) = usize::try_from(slot) else {
+                break;
+            };
+            let name = NvsStr::from_raw(nvs_runtime::nvs_array_key_at(array, slot));
+            let mut value = Value::null();
+            nvs_runtime::nvs_array_value_at(array, slot, &raw mut value);
+            (slot, name, value)
+        };
+        from = slot + 1;
+
+        // An array key is `int|string` and neither can be invalid UTF-8, for
+        // the reasons `Core\Str::replaceAll`'s own cursor states in full.
+        let name = std::str::from_utf8(name.as_bytes())
+            .map_err(|_| Fault::fatal(format!("{member} found a header name that is not text")))?;
+        let text = value.as_text().ok_or_else(|| {
             Fault::fatal(format!(
-                "{named} expected a `string` or a `Core\\Http\\Target`, got tag {}",
-                args[0].tag_byte()
+                "{member} expected a `string` header value, got tag {}",
+                value.tag_byte()
             ))
         })?;
-        pin(ctx, text, &named)?;
+        headers.push((name.to_owned(), text.to_owned()));
     }
+    Ok(headers)
+}
+
+/// The URL to send to and the address it was approved at.
+///
+/// A `Target` argument was pinned by the launderer that built it, and asking
+/// again would be the second resolution ADR 0058 § 2 exists to remove — so its
+/// two slots are read back here and no name is looked up. A plain `string` is
+/// the form § 1 keeps for a URL the program authored, and it goes through the
+/// same door.
+///
+/// # Errors
+///
+/// [`pin`]'s four for a `string`. A [`Fault::fatal`] for an argument of another
+/// shape or a target whose slots this crate did not write, both unreachable
+/// from source.
+fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, IpAddr), Fault> {
+    if !matches!(args[0].tag(), Some(Tag::Object)) {
+        let text = args[0]
+            .as_text()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{member} expected a `string` or a `Core\\Http\\Target`, got tag {}",
+                    args[0].tag_byte()
+                ))
+            })?
+            .to_owned();
+        let address = pin(ctx, &text, member)?;
+        return Ok((text, address));
+    }
+
+    let target = crate::instance::receiver(args[0], &TARGET, member)?;
+    let url = crate::instance::slot(target, TARGET_URL_SLOT);
+    let address = crate::instance::slot(target, TARGET_ADDRESS_SLOT);
+    let malformed = || {
+        Fault::fatal(format!(
+            "{member} found a `Core\\Http\\Target` it cannot read"
+        ))
+    };
+    Ok((
+        url.as_text().ok_or_else(malformed)?.to_owned(),
+        address
+            .as_text()
+            .and_then(|text| text.parse::<IpAddr>().ok())
+            .ok_or_else(malformed)?,
+    ))
+}
+
+/// Every request member's body: the URL through the outbound policy, the
+/// options through § 5's bounds, and then the exchange itself.
+///
+/// The order is the contract. Everything a caller can get wrong is decided
+/// before anything leaves the process, so a program's own tests find a refused
+/// URL or an impossible deadline without a network — and the clock the deadline
+/// is measured from starts once all of it has passed, since a budget spent
+/// judging arguments is not a budget the other end was given.
+///
+/// # Errors
+///
+/// [`pin`]'s four, [`judge_bound`]'s and [`judge_attempts`]', and then
+/// [`transport::send`]'s.
+fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> {
+    let named = format!("{CLIENT_NAME}::{member}");
+    let (url, address) = approved(ctx, args, &named)?;
 
     judge_bound(args, DEADLINE, "deadline", &named)?;
     judge_bound(args, CONNECT_TIMEOUT, "connectTimeout", &named)?;
     judge_bound(args, RETRY_BACKOFF, "retryBackoff", &named)?;
     judge_attempts(args, &named)?;
 
-    Err(Fault::thrown(format!(
-        "{named}: the request is approved and there is no transport behind it yet, so nothing \
-         was sent"
-    )))
+    // The verb is the row's own name, which is what makes § 7's idempotency
+    // question answerable while compiling.
+    let verb = member.to_ascii_uppercase();
+    let call = transport::Call {
+        member: &named,
+        verb: &verb,
+        url,
+        address,
+        deadline: Instant::now()
+            + bound_of(
+                ctx,
+                args,
+                DEADLINE,
+                "deadline",
+                "http.client.deadline",
+                DEFAULT_DEADLINE,
+            )?,
+        connect_timeout: bound_of(
+            ctx,
+            args,
+            CONNECT_TIMEOUT,
+            "connectTimeout",
+            "http.client.connect_timeout",
+            DEFAULT_CONNECT_TIMEOUT,
+        )?,
+        headers: headers_of(args, &named)?,
+        redirects: redirects_of(ctx, args),
+        attempts: args[RETRY_ATTEMPTS]
+            .as_uint()
+            .unwrap_or(1)
+            .try_into()
+            .unwrap_or(u32::MAX),
+        backoff: bound_of(
+            ctx,
+            args,
+            RETRY_BACKOFF,
+            "retryBackoff",
+            "http.client.retry_backoff",
+            DEFAULT_BACKOFF,
+        )?,
+        idempotency_key: args[RETRY_KEY].as_text().map(str::to_owned),
+    };
+
+    let reply = transport::send(&call, &mut |hop| pin(ctx, hop, &named))?;
+    Ok(crate::instance::build(
+        &RESPONSE,
+        [
+            Value::int(reply.status),
+            Value::str(NvsStr::new(reply.body.as_bytes())),
+        ],
+    ))
+}
+
+/// How many redirect hops this call may follow: the option, then
+/// `[http.client] max_redirects`, then ADR 0058 § 4's zero.
+///
+/// No `Result`, unlike [`bound_of`]: a `uint` has no invalid value to judge and
+/// zero is the default rather than a mistake, so there is nothing here that can
+/// refuse.
+fn redirects_of(ctx: &Ctx, args: &[Value]) -> u32 {
+    args[FOLLOW_REDIRECTS]
+        .as_uint()
+        .or_else(|| {
+            ctx.config()
+                .and_then(|config| config.get("http.client.max_redirects"))
+                .and_then(|text| text.trim().parse::<u64>().ok())
+        })
+        .unwrap_or(0)
+        .try_into()
+        .unwrap_or(u32::MAX)
 }
 
 nvs_runtime::nvs_helper! {
@@ -804,7 +1040,17 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use super::{BODY_SLOT, RESPONSE, STATUS_SLOT};
+    use super::{BODY_SLOT, RESPONSE, STATUS_SLOT, TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT};
+
+    /// [`TARGET`]'s layout, asserted for [`RESPONSE`]'s reason and one more:
+    /// these two slots are written by the launderer and read back by the
+    /// client, so a swapped pair would connect to a URL and pin an address,
+    /// which is the one mistake here that still runs.
+    #[test]
+    fn a_targets_slot_constants_are_the_names_it_declares() {
+        assert_eq!(TARGET_URL_SLOT, TARGET.slot("url"));
+        assert_eq!(TARGET_ADDRESS_SLOT, TARGET.slot("address"));
+    }
 
     /// The two halves of the layout agree: the index a body reads by and the
     /// name the registry declares are one decision written twice, which is the

@@ -339,7 +339,26 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     for file in sources(&src) {
         let text = std::fs::read_to_string(&file).expect("a source file this crate compiled");
-        for (number, line) in text.lines().enumerate() {
+
+        // The rule is about what a `Core` member can do at run time, and a `#[cfg(test)]` module is
+        // not in a released binary for one to reach: `crate::http::transport`'s cases drive a whole
+        // exchange against a listener they open themselves, which is the only way to test a
+        // transport at all. So the scan stops at the test module — and asserts there is exactly one
+        // of them per file, since a second `#[cfg(test)]` higher up would hide everything under it
+        // rather than just the tests.
+        assert!(
+            text.lines()
+                .filter(|line| line.trim_start() == "#[cfg(test)]")
+                .count()
+                <= 1,
+            "{} has more than one `#[cfg(test)]`, so this scan can no longer stop at the first one",
+            file.display()
+        );
+        let shipped = text
+            .lines()
+            .take_while(|line| line.trim_start() != "#[cfg(test)]");
+
+        for (number, line) in shipped.enumerate() {
             // A comment may name one — telling an author what to use *instead* is this rule's own
             // documentation, and it is the line below that matters.
             if line.trim_start().starts_with("//") {

@@ -25,6 +25,14 @@ nvs-render.workspace = true
 # with it. That module's own docs own why the shared code sits in the syntax
 # crate; ADR 0019's `Core\Ast` owes this same edge regardless.
 nvs-syntax.workspace = true
+# ADR 0051 § 3 puts `Core\Http\Client` over "the runtime's own reactor rather
+# than a second event loop", and the parking stream that reaches it is
+# `nvs_host::net`. This edge is the whole of that sentence: an outbound socket
+# is the one thing a `Core` member cannot do without the host's scheduler, and
+# a copy of the stream here would be a second implementation of ADR 0115 § 3's
+# park-and-resume. `nvs-host` depends on `nvs-runtime` and on nothing this
+# crate exports, so the graph stays a tree.
+nvs-host.workspace = true
 unicode-segmentation.workspace = true
 caseless.workspace = true
 unicode-normalization.workspace = true

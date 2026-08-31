@@ -1,0 +1,754 @@
+//! The outbound transport: one HTTP/1.1 exchange over `nvs_host`'s parking
+//! stream, under one deadline that covers every hop, every attempt and every
+//! backoff between them.
+//!
+//! [`super`] owns the *policy* — which URLs are allowed and which address one
+//! was pinned to. What is here is the part that talks: compose a request, write
+//! it, read the reply back, and decide whether what came back is an answer or
+//! something to try again. The split is deliberate and it is why this module
+//! takes an [`IpAddr`] rather than a `Ctx`: nothing here can widen a decision
+//! the door already made, and a test can drive a whole exchange against a
+//! listener on loopback without a capability snapshot in front of it.
+//!
+//! # Re-pinning is asked of the caller, not done here
+//!
+//! [`send`] takes a `repin` closure and calls it for every redirect hop, which
+//! is [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 4's
+//! "every hop is re-checked and re-pinned" with the checking left where the
+//! checking lives. A retry never calls it: § 4's other half is that every
+//! attempt of one call reuses the address the launderer approved, so there is
+//! no second resolution for a rebinding attack to answer differently.
+//!
+//! # One connection per attempt, closed by the reply
+//!
+//! Every request carries `Connection: close` and the body ends at end of file,
+//! so there is no pool, no keep-alive and no second request sharing a socket.
+//! That costs a connection setup per attempt and buys the whole framing
+//! question: a reply that ends when the socket does needs no agreement about
+//! what comes after it. A pool is a later slice and a measurable one — it is
+//! [ADR 0004](../../../../docs/adr/0004-memory-for-simplicity.md) priority 3
+//! against priority 4, and nothing in this goal's acceptance is waiting on it.
+//!
+//! What a call spends is one buffer holding the whole reply, capped at
+//! [`REPLY_CEILING`], plus the request text. Per in-flight request and released
+//! with it; nothing here is retained across calls.
+//!
+//! # `https` is refused rather than half-served
+//!
+//! A TLS session over this stream is proven — `nvs-host`'s own
+//! `a_rustls_session_streams_over_it_unmodified` runs one — but a *client* also
+//! needs a trust anchor set, and which certificates a Novis binary trusts is a
+//! decision with an owner and no ADR paragraph yet. Until it has one, an
+//! `https` URL is refused here with a sentence saying so. Refusing is the safe
+//! direction: the alternative shapes are a plaintext fallback and a session
+//! that verifies nothing, and both of those are priority-1 failures wearing a
+//! feature's name.
+
+use std::io::{ErrorKind, Read, Write};
+use std::net::{IpAddr, SocketAddr};
+use std::time::{Duration, Instant};
+
+use fluent_uri::component::{Authority, Scheme};
+use fluent_uri::{Uri, UriRef};
+use nvs_host::net::NvsTcp;
+use nvs_runtime::{Fault, ThrownClass};
+use rand::RngExt;
+
+/// The most reply a single call will hold, headers and body together.
+///
+/// A cap and not a configuration: a reply is bytes another host chose, so
+/// "until memory runs out" is that host deciding this process's footprint. Two
+/// megabytes past the point where a caller should be streaming instead, which
+/// is the member this class does not have yet.
+const REPLY_CEILING: usize = 8 * 1024 * 1024;
+
+/// One call, whole: what to send, where it was pinned to, and every bound it
+/// runs under.
+///
+/// Built by [`super::request`] out of the row's options and the runtime's
+/// `[http.client]` defaults, so nothing here reads configuration and every
+/// field is already the answer rather than a place to look one up.
+pub(crate) struct Call<'a> {
+    /// `Core\Http\Client::get` — what a refusal names.
+    pub(crate) member: &'a str,
+    /// The method, upper-cased, which is the row's own name.
+    pub(crate) verb: &'a str,
+    /// The URL as approved, and the one a relative `Location` resolves against.
+    pub(crate) url: String,
+    /// The address [`super::pin`] approved for [`Call::url`]'s host.
+    pub(crate) address: IpAddr,
+    /// The whole call's budget — every attempt, every hop, every backoff.
+    pub(crate) deadline: Instant,
+    /// The handshake's own bound, which is separate from the total.
+    pub(crate) connect_timeout: Duration,
+    /// The caller's own headers, in the order the array wrote them.
+    pub(crate) headers: Vec<(String, String)>,
+    /// How many redirect hops may be followed. Zero is the default.
+    pub(crate) redirects: u32,
+    /// Attempts in total, counting the first. At least one.
+    pub(crate) attempts: u32,
+    /// The base delay full jitter is drawn under.
+    pub(crate) backoff: Duration,
+    /// `Idempotency-Key`, for the one verb that needs one.
+    pub(crate) idempotency_key: Option<String>,
+}
+
+/// What came back: the two things `Core\Http\Response` holds, plus the headers
+/// the redirect and retry rules read.
+///
+/// The header list is not handed to a program — the class has no member for it
+/// yet — but a `Location` and a `Retry-After` are decisions this module makes,
+/// so they are parsed once here rather than twice at two call sites.
+#[derive(Debug)]
+pub(crate) struct Reply {
+    /// The status line's code.
+    pub(crate) status: i64,
+    /// The body, decoded. See [`decode`].
+    pub(crate) body: String,
+    /// Every header, names lower-cased, values trimmed.
+    headers: Vec<(String, String)>,
+}
+
+/// What one attempt produced: an answer, or a failure worth trying again.
+///
+/// The distinction is [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md)
+/// § 6's "what is retried": a connection failure and a timeout are transport
+/// weather and come back as [`Attempt::Failed`], while a malformed reply is a
+/// statement about the other end that a second identical request will not
+/// change, so it leaves as a `Fault` and never sleeps first.
+enum Attempt {
+    /// The other end answered, whatever it said.
+    Answered(Reply),
+    /// The socket did not get there, with the sentence a refusal would carry.
+    Failed(String),
+}
+
+/// The URL, split into the four things composing a request needs.
+struct Parts {
+    /// The host, brackets and all for an IPv6 literal, as `Host:` writes it.
+    authority: String,
+    /// Where to connect, defaulted by scheme.
+    port: u16,
+    /// The request-target: path, and query if there was one.
+    target: String,
+    /// Whether the scheme was `https`, which this module refuses.
+    tls: bool,
+}
+
+/// Runs `call` to an answer, re-pinning through `repin` at every redirect hop.
+///
+/// The loop is the ADR's: attempts inside, hops outside, one deadline over both.
+/// A hop past [`Call::redirects`] is not an error — the redirect *is* the
+/// answer, and a program that asked to follow none gets the `301` back rather
+/// than a throw about a reply the origin was entitled to send.
+///
+/// # Errors
+///
+/// A `TimeoutError` when the deadline passes, an `IOError` when the last
+/// attempt could not reach the address, a `RuntimeError` for a reply that is
+/// not HTTP or a body that is not text, and whatever `repin` refuses a hop
+/// with.
+pub(crate) fn send(
+    call: &Call<'_>,
+    repin: &mut dyn FnMut(&str) -> Result<IpAddr, Fault>,
+) -> Result<Reply, Fault> {
+    let mut url = call.url.clone();
+    let mut address = call.address;
+    let mut hops = 0_u32;
+    loop {
+        let reply = attempts(call, &url, address)?;
+        let Some(location) = redirect_of(&reply) else {
+            return Ok(reply);
+        };
+        if hops >= call.redirects {
+            return Ok(reply);
+        }
+        hops += 1;
+        url = resolved(&url, &location, call.member)?;
+        // Before the connection and not after it: § 4 refuses a hop on its
+        // *address*, and an address that has not been asked about yet is one
+        // the first URL's approval is standing in for.
+        address = repin(&url)?;
+    }
+}
+
+/// One URL's worth of attempts, under the call's own deadline.
+fn attempts(call: &Call<'_>, url: &str, address: IpAddr) -> Result<Reply, Fault> {
+    let mut attempt = 0_u32;
+    loop {
+        if Instant::now() >= call.deadline {
+            return Err(expired(call.member));
+        }
+        let last = attempt + 1 >= call.attempts;
+        let wait = match one(call, url, address)? {
+            Attempt::Answered(reply) => {
+                if last || !retryable(reply.status) {
+                    return Ok(reply);
+                }
+                retry_after(&reply).unwrap_or_else(|| backoff(call.backoff, attempt))
+            }
+            Attempt::Failed(why) => {
+                // A failure that arrives with the budget already gone is the
+                // budget's, not the socket's: the wait this call was allowed
+                // is what ended it, and `TimeoutError` is the class § 5 names.
+                if Instant::now() >= call.deadline {
+                    return Err(expired(call.member));
+                }
+                if last {
+                    return Err(Fault::thrown_as(
+                        ThrownClass::Io,
+                        format!("{}: {why}", call.member),
+                    ));
+                }
+                backoff(call.backoff, attempt)
+            }
+        };
+
+        // § 6: the deadline is not extended. A backoff that would end past it
+        // throws now rather than sleeping through the budget and then failing.
+        if Instant::now() + wait >= call.deadline {
+            return Err(expired(call.member));
+        }
+        nvs_host::timer::sleep(wait);
+        attempt += 1;
+    }
+}
+
+/// One connection, one request, one reply.
+fn one(call: &Call<'_>, url: &str, address: IpAddr) -> Result<Attempt, Fault> {
+    let parts = parts(url, call.member)?;
+    if parts.tls {
+        return Err(Fault::thrown(format!(
+            "{}: `https` needs a TLS client and a trust anchor set, and this build has neither \
+             yet, so nothing was sent. An `http` URL to a host the deployment granted is what \
+             works today",
+            call.member
+        )));
+    }
+    let request = compose(call, &parts)?;
+    let socket = SocketAddr::new(address, parts.port);
+
+    // The handshake's own bound, clamped by what is left of the total: a
+    // `connectTimeout` longer than the remaining deadline would be the one
+    // spelling § 5 says does not exist, arrived at by arithmetic.
+    let budget = call
+        .connect_timeout
+        .min(call.deadline.saturating_duration_since(Instant::now()));
+    let mut stream = match NvsTcp::connect_timeout(socket, budget) {
+        Ok(stream) => stream,
+        Err(err) => {
+            return Ok(Attempt::Failed(format!(
+                "connecting to {socket} failed: {err}"
+            )));
+        }
+    };
+    stream.set_deadline(Some(call.deadline));
+
+    if let Err(err) = stream
+        .write_all(request.as_bytes())
+        .and_then(|()| stream.flush())
+    {
+        return Ok(Attempt::Failed(format!(
+            "sending to {socket} failed: {err}"
+        )));
+    }
+
+    let mut raw = Vec::new();
+    let mut buffer = [0_u8; 8192];
+    loop {
+        match stream.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(read) => {
+                raw.extend_from_slice(&buffer[..read]);
+                if raw.len() > REPLY_CEILING {
+                    return Err(Fault::thrown(format!(
+                        "{}: the reply passed {REPLY_CEILING} bytes, which is as much of one \
+                         another host is allowed to make this process hold",
+                        call.member
+                    )));
+                }
+            }
+            Err(err) if err.kind() == ErrorKind::Interrupted => {}
+            Err(err) => return Ok(Attempt::Failed(format!("reading {socket} failed: {err}"))),
+        }
+    }
+    parse(&raw, call.member).map(Attempt::Answered)
+}
+
+/// The request text — the line, the headers this module always sends, and the
+/// caller's own.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a header name or value carrying a control byte.
+/// That is header injection and it is a priority-1 refusal: a value holding
+/// `\r\n` is a second request the caller did not write, and there is no
+/// escaping that makes one safe, only a rejection that makes it visible.
+fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
+    let mut out = format!(
+        "{verb} {target} HTTP/1.1\r\nHost: {authority}\r\n",
+        verb = call.verb,
+        target = parts.target,
+        authority = parts.authority,
+    );
+    out.push_str(concat!(
+        "User-Agent: novis/",
+        env!("CARGO_PKG_VERSION"),
+        "\r\nAccept: */*\r\nConnection: close\r\n"
+    ));
+    if let Some(key) = &call.idempotency_key {
+        field(&mut out, "Idempotency-Key", key, call.member)?;
+    }
+    for (name, value) in &call.headers {
+        field(&mut out, name, value, call.member)?;
+    }
+    out.push_str("\r\n");
+    Ok(out)
+}
+
+/// One header line, refused if either half could end it early.
+fn field(out: &mut String, name: &str, value: &str, member: &str) -> Result<(), Fault> {
+    let unsafe_byte = |text: &str| text.bytes().any(|byte| byte < 0x20 || byte == 0x7f);
+    if name.is_empty() || unsafe_byte(name) || name.contains(':') || unsafe_byte(value) {
+        return Err(Fault::thrown(format!(
+            "{member}: `{name}` is not a header this request can carry — a name or value holding \
+             a control byte would end the line early, which is a second request the caller did \
+             not write"
+        )));
+    }
+    out.push_str(name);
+    out.push_str(": ");
+    out.push_str(value);
+    out.push_str("\r\n");
+    Ok(())
+}
+
+/// The URL, split for [`compose`] and for the connection.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for text that is not a URL or names no host. Both
+/// are unreachable for the first hop — [`super::pin`] asked the same two
+/// questions before this module was reached — and both are live for a
+/// `Location` an origin sent.
+fn parts(url: &str, member: &str) -> Result<Parts, Fault> {
+    let reference =
+        UriRef::parse(url).map_err(|_| Fault::thrown(format!("{member}: `{url}` is not a URL")))?;
+    let scheme = reference.scheme().map(Scheme::as_str).unwrap_or_default();
+    let tls = scheme.eq_ignore_ascii_case("https");
+    let authority = reference
+        .authority()
+        .ok_or_else(|| Fault::thrown(format!("{member}: `{url}` names no host to connect to")))?;
+
+    let port = authority
+        .port_to_u16()
+        .map_err(|_| Fault::thrown(format!("{member}: `{url}` names no TCP port number")))?
+        .unwrap_or(if tls { 443 } else { 80 });
+
+    // `Host:` carries what the URL wrote, port and all where there was one, and
+    // never the userinfo — an origin routes on the name it was asked for.
+    let host = Authority::host(&authority);
+    let authority = match authority.port().map(|port| port.as_str()) {
+        Some(written) if !written.is_empty() => format!("{host}:{written}"),
+        _ => host.to_owned(),
+    };
+
+    let path = reference.path().as_str();
+    let mut target = if path.is_empty() { "/" } else { path }.to_owned();
+    if let Some(query) = reference.query() {
+        target.push('?');
+        target.push_str(query.as_str());
+    }
+
+    Ok(Parts {
+        authority,
+        port,
+        target,
+        tls,
+    })
+}
+
+/// A `Location` resolved against the URL that sent it, since § 4's re-check is
+/// of an *address* and a relative reference has none of its own.
+fn resolved(base: &str, location: &str, member: &str) -> Result<String, Fault> {
+    let malformed = || {
+        Fault::thrown(format!(
+            "{member}: the redirect to `{location}` is not a URL this request can follow"
+        ))
+    };
+    let base = Uri::parse(base).map_err(|_| malformed())?;
+    let hop = UriRef::parse(location).map_err(|_| malformed())?;
+    hop.resolve_against(&base)
+        .map(|absolute| absolute.to_string())
+        .map_err(|_| malformed())
+}
+
+/// The `Location` of a reply that is a redirect, or `None` for one that is not.
+fn redirect_of(reply: &Reply) -> Option<String> {
+    matches!(reply.status, 301 | 302 | 303 | 307 | 308)
+        .then(|| header(reply, "location"))
+        .flatten()
+        .map(str::to_owned)
+}
+
+/// § 6's roster, and nothing else: a `400` is an answer and retrying it is a
+/// load generator.
+fn retryable(status: i64) -> bool {
+    matches!(status, 429 | 502 | 503 | 504)
+}
+
+/// A `Retry-After` in seconds, which replaces the computed backoff.
+///
+/// The HTTP-date form is not read: it needs a clock agreement this module does
+/// not have, and a header it cannot parse leaves the jittered backoff in place,
+/// which is the safe direction rather than the fast one.
+fn retry_after(reply: &Reply) -> Option<Duration> {
+    header(reply, "retry-after")
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .map(Duration::from_secs)
+}
+
+/// § 6's full jitter: uniform in `[0, base × 2^attempt]`.
+///
+/// Not optional and not configurable, for the reason the ADR gives — unjittered
+/// retries from many hosts synchronise into a burst against a service that is
+/// already failing, which is the failure retrying was supposed to relieve.
+fn backoff(base: Duration, attempt: u32) -> Duration {
+    let ceiling = base.saturating_mul(1_u32 << attempt.min(16));
+    let nanos = u64::try_from(ceiling.as_nanos()).unwrap_or(u64::MAX);
+    Duration::from_nanos(rand::rng().random_range(0..=nanos))
+}
+
+/// § 5's expiry, as the class that section names.
+fn expired(member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Timeout,
+        format!(
+            "{member}: the deadline covering this call passed before it had an answer. It covers \
+             the connection, every redirect hop, every retry attempt and every backoff between \
+             them"
+        ),
+    )
+}
+
+/// The first value under `name`, which is already lower-cased in [`Reply`].
+fn header<'a>(reply: &'a Reply, name: &str) -> Option<&'a str> {
+    reply
+        .headers
+        .iter()
+        .find(|(held, _)| held == name)
+        .map(|(_, value)| value.as_str())
+}
+
+/// The reply bytes, as a status, a header list and a decoded body.
+fn parse(raw: &[u8], member: &str) -> Result<Reply, Fault> {
+    let malformed = |why: &str| {
+        Fault::thrown(format!(
+            "{member}: the other end answered with something that is not an HTTP reply — {why}"
+        ))
+    };
+    let end = find(raw, b"\r\n\r\n").ok_or_else(|| malformed("no header section ended it"))?;
+    let head = std::str::from_utf8(&raw[..end])
+        .map_err(|_| malformed("its header section is not text"))?;
+
+    let mut lines = head.split("\r\n");
+    let status_line = lines.next().unwrap_or_default();
+    let mut fields = status_line.splitn(3, ' ');
+    if !fields.next().unwrap_or_default().starts_with("HTTP/") {
+        return Err(malformed("its first line is not a status line"));
+    }
+    let status: i64 = fields
+        .next()
+        .and_then(|code| code.parse().ok())
+        .ok_or_else(|| malformed("its status line carries no status code"))?;
+
+    let headers: Vec<(String, String)> = lines
+        .filter_map(|line| line.split_once(':'))
+        .map(|(name, value)| (name.trim().to_ascii_lowercase(), value.trim().to_owned()))
+        .collect();
+
+    let reply = Reply {
+        status,
+        body: String::new(),
+        headers,
+    };
+    let rest = &raw[end + 4..];
+    let body = if header(&reply, "transfer-encoding")
+        .is_some_and(|value| value.to_ascii_lowercase().contains("chunked"))
+    {
+        dechunk(rest, &malformed)?
+    } else if let Some(length) =
+        header(&reply, "content-length").and_then(|value| value.trim().parse::<usize>().ok())
+    {
+        rest.get(..length.min(rest.len()))
+            .unwrap_or_default()
+            .to_vec()
+    } else {
+        rest.to_vec()
+    };
+
+    Ok(Reply {
+        body: decode(body, member)?,
+        ..reply
+    })
+}
+
+/// A chunked body, joined.
+fn dechunk(mut rest: &[u8], malformed: &dyn Fn(&str) -> Fault) -> Result<Vec<u8>, Fault> {
+    let mut out = Vec::new();
+    loop {
+        let end = find(rest, b"\r\n").ok_or_else(|| malformed("a chunk header never ended"))?;
+        let header = std::str::from_utf8(&rest[..end])
+            .map_err(|_| malformed("a chunk header is not text"))?;
+        let size = usize::from_str_radix(header.split(';').next().unwrap_or_default().trim(), 16)
+            .map_err(|_| malformed("a chunk header is not a hexadecimal length"))?;
+        rest = &rest[end + 2..];
+        if size == 0 {
+            return Ok(out);
+        }
+        if rest.len() < size + 2 {
+            return Err(malformed("a chunk is shorter than its own header said"));
+        }
+        out.extend_from_slice(&rest[..size]);
+        rest = &rest[size + 2..];
+    }
+}
+
+/// The body as a `string`, which is UTF-8 by
+/// [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 1.
+///
+/// Bytes that are not text are **refused** rather than repaired: replacing them
+/// would hand a program a body that is not what the origin sent and give it no
+/// way to tell, which is
+/// [ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+/// whole rule. The member that answers `bytes` instead is the one this class
+/// does not have yet, and it is where a binary body belongs.
+fn decode(body: Vec<u8>, member: &str) -> Result<String, Fault> {
+    String::from_utf8(body).map_err(|err| {
+        Fault::thrown(format!(
+            "{member}: the reply's body is not valid UTF-8, so it is not a `string` — byte {} is \
+             where it stops being text",
+            err.utf8_error().valid_up_to()
+        ))
+    })
+}
+
+/// Where `needle` starts in `haystack`.
+fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Call, Reply, backoff, dechunk, parse, send};
+    use nvs_runtime::Fault;
+    use std::io::{Read, Write};
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
+    use std::time::{Duration, Instant};
+
+    /// A listener on loopback that answers each connection with the next of
+    /// `replies`, verbatim, and hands back what it was asked.
+    ///
+    /// Loopback and a `std` listener on purpose: what is under test is the
+    /// transport, and the address it is handed has already been through the
+    /// door. Nothing here needs a `Ctx`.
+    fn origin(replies: Vec<&'static str>) -> (SocketAddr, std::thread::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        let served = std::thread::spawn(move || {
+            let mut asked = Vec::new();
+            for reply in replies {
+                let (mut stream, _) = listener.accept().expect("a connection");
+                let mut request = [0_u8; 4096];
+                let read = stream.read(&mut request).expect("a request");
+                asked.push(String::from_utf8_lossy(&request[..read]).into_owned());
+                stream.write_all(reply.as_bytes()).expect("a reply");
+                stream.flush().expect("a flushed reply");
+            }
+            asked
+        });
+        (at, served)
+    }
+
+    /// A call to `at` with one attempt, no redirects and a generous deadline.
+    fn call<'a>(at: SocketAddr, member: &'a str) -> Call<'a> {
+        Call {
+            member,
+            verb: "GET",
+            url: format!("http://{at}/ok"),
+            address: at.ip(),
+            deadline: Instant::now() + Duration::from_secs(10),
+            connect_timeout: Duration::from_secs(5),
+            headers: Vec::new(),
+            redirects: 0,
+            attempts: 1,
+            backoff: Duration::from_millis(1),
+            idempotency_key: None,
+        }
+    }
+
+    /// What a redirect hop must never be asked for.
+    fn never(_url: &str) -> Result<IpAddr, Fault> {
+        panic!("a call with no redirect hop must not re-pin")
+    }
+
+    /// The two slots a `Core\Http\Response` holds are what a real exchange
+    /// fills: the status line's code, and the body the framing said was there.
+    #[test]
+    fn a_reply_becomes_the_status_and_the_body() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let reply = send(&call(at, "test"), &mut never).expect("an answer");
+        assert_eq!(reply.status, 200);
+        assert_eq!(reply.body, "ok");
+
+        let asked = served.join().expect("the origin thread");
+        assert!(asked[0].starts_with("GET /ok HTTP/1.1\r\n"), "{}", asked[0]);
+        assert!(
+            asked[0].contains(&format!("Host: {at}\r\n")),
+            "the authority the URL wrote is what `Host:` carries: {}",
+            asked[0]
+        );
+    }
+
+    /// ADR 0058 § 4: every hop is re-checked and re-pinned, and a hop refused
+    /// on its address fails the request rather than being dropped from the
+    /// chain. Both halves are one assertion because they are one rule.
+    #[test]
+    fn a_redirect_is_re_checked_against_the_same_policy() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 301 Moved\r\nLocation: /elsewhere\r\nContent-Length: 0\r\n\r\n",
+        ]);
+        let mut followed = call(at, "test");
+        followed.redirects = 1;
+
+        let mut hops: Vec<String> = Vec::new();
+        let refused = send(&followed, &mut |url| {
+            hops.push(url.to_owned());
+            Err(Fault::thrown("test refuses this address".to_owned()))
+        })
+        .expect_err("a hop the policy refused fails the request");
+
+        assert_eq!(hops, vec![format!("http://{at}/elsewhere")]);
+        assert!(
+            format!("{refused:?}").contains("test refuses this address"),
+            "the refusal the policy gave is the one that reaches the caller: {refused:?}"
+        );
+        served.join().expect("the origin thread");
+    }
+
+    /// A redirect nobody asked to follow is an answer, not a failure: the
+    /// default is zero hops and the `301` is what the origin said.
+    #[test]
+    fn a_redirect_is_the_answer_when_no_hop_was_asked_for() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 301 Moved\r\nLocation: /elsewhere\r\nContent-Length: 0\r\n\r\n",
+        ]);
+        let reply = send(&call(at, "test"), &mut never).expect("the redirect itself");
+        assert_eq!(reply.status, 301);
+        served.join().expect("the origin thread");
+    }
+
+    /// ADR 0074 § 6: a `503` is retried, the wait is jittered rather than
+    /// fixed, and every attempt is inside the one deadline the call started
+    /// with — which is what the elapsed time asserts, since a per-attempt
+    /// budget would have allowed twice it.
+    #[test]
+    fn a_retry_is_jittered_and_shares_the_covering_deadline() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 503 Busy\r\nContent-Length: 0\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        ]);
+        let mut retried = call(at, "test");
+        retried.attempts = 2;
+        retried.deadline = Instant::now() + Duration::from_secs(5);
+
+        let started = Instant::now();
+        let reply = send(&retried, &mut never).expect("the second attempt's answer");
+        assert_eq!(reply.status, 200);
+        assert!(started.elapsed() < Duration::from_secs(5));
+        assert_eq!(served.join().expect("the origin thread").len(), 2);
+
+        // Full jitter is a draw in `[0, base × 2^n]` and not the bound itself:
+        // over enough draws the same number every time is the failure this
+        // asserts against, and the bound holding is the other half.
+        let base = Duration::from_millis(100);
+        let mut drawn: Vec<Duration> = (0..32).map(|_| backoff(base, 3)).collect();
+        assert!(drawn.iter().all(|wait| *wait <= base * 8));
+        drawn.dedup();
+        assert!(drawn.len() > 1, "an unjittered backoff draws one value");
+    }
+
+    /// § 6: the deadline is not extended. A backoff that would end past it
+    /// throws immediately rather than sleeping through the budget first.
+    #[test]
+    fn a_backoff_past_the_deadline_throws_rather_than_sleeping() {
+        let (at, served) = origin(vec!["HTTP/1.1 503 Busy\r\nContent-Length: 0\r\n\r\n"]);
+        let mut retried = call(at, "test");
+        retried.attempts = 3;
+        retried.backoff = Duration::from_secs(30);
+        retried.deadline = Instant::now() + Duration::from_millis(500);
+
+        let started = Instant::now();
+        let expired = send(&retried, &mut never).expect_err("the deadline, not the backoff");
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(format!("{expired:?}").contains("deadline"), "{expired:?}");
+        served.join().expect("the origin thread");
+    }
+
+    /// A chunked body is joined before it is a `string`: the framing is the
+    /// transport's question and no reader asks it a second time.
+    #[test]
+    fn a_chunked_body_is_joined_before_it_is_a_string() {
+        let raw = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n\
+                    2\r\nok\r\n3\r\n ay\r\n0\r\n\r\n";
+        let reply = parse(raw, "test").expect("a chunked reply");
+        assert_eq!(reply.body, "ok ay");
+    }
+
+    /// A body that is not UTF-8 is refused rather than repaired — ADR 0095,
+    /// and the reason `text()` can promise a `string` at all.
+    #[test]
+    fn a_body_that_is_not_text_is_refused_rather_than_repaired() {
+        let mut raw = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n".to_vec();
+        raw.extend_from_slice(&[0xff, 0xfe]);
+        let refused = parse(&raw, "test").expect_err("bytes that are not text");
+        assert!(format!("{refused:?}").contains("UTF-8"), "{refused:?}");
+    }
+
+    /// A header a caller wrote cannot end its own line: a value carrying
+    /// `\r\n` would be a second request nobody asked for.
+    #[test]
+    fn a_header_value_carrying_a_line_ending_is_refused() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"]);
+        let mut injected = call(at, "test");
+        injected.headers = vec![("X-Trace".to_owned(), "a\r\nGET /admin HTTP/1.1".to_owned())];
+        let refused = send(&injected, &mut never).expect_err("an injected line");
+        assert!(
+            format!("{refused:?}").contains("control byte"),
+            "{refused:?}"
+        );
+
+        // Nothing was sent, so the origin is still waiting: connect to it
+        // ourselves to let the thread finish.
+        let _ = std::net::TcpStream::connect(at);
+        drop(served);
+    }
+
+    /// A chunk header that is not a length is a statement about the other end,
+    /// so it fails rather than being guessed at.
+    #[test]
+    fn a_chunk_header_that_is_not_a_length_fails() {
+        let malformed = |why: &str| Fault::thrown(format!("test: {why}"));
+        assert!(dechunk(b"zz\r\nok\r\n0\r\n\r\n", &malformed).is_err());
+    }
+
+    /// The header lookup is case-insensitive because HTTP field names are.
+    #[test]
+    fn a_header_is_found_whatever_case_the_origin_wrote_it_in() {
+        let raw = b"HTTP/1.1 301 Moved\r\nLOCATION: /next\r\nContent-Length: 0\r\n\r\n";
+        let reply: Reply = parse(raw, "test").expect("a redirect");
+        assert_eq!(super::redirect_of(&reply).as_deref(), Some("/next"));
+    }
+}
