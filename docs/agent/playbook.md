@@ -3470,12 +3470,12 @@ is why" — is this file.
   beside the registry tests in `src/`.** The handoff anchored
   `a_post_retried_without_an_idempotency_key_is_a_compile_error` at `core_lib.rs:896`, whose inline
   `mod tests` asks the *lowered registry* its questions — it holds no source-checking harness and
-  never sees a diagnostic, so the anchor was for the wrong host. `tests/common/mod.rs`'
-  `check_in_method`/`check_src` are the harness, and `tests/core_members.rs` is the file that owns
+  never sees a diagnostic, so the anchor was for the wrong host. `crates/nvs-types/tests/common/mod.rs`'
+  `check_in_method`/`check_src` are the harness, and `crates/nvs-types/tests/core_members.rs` is the file that owns
   every options-bag rule. A `loop-goal.toml` check spelled `args = ["test", "-p", "nvs-types"]` runs
   both targets, so nothing about *being found* decides this — only which fixture exists.
 - **A `#[cfg(test)]` module inside `crates/nvs-stdlib/src/` is scanned by
-  `tests/capability.rs`'s OS gate, so a case that opens its own socket or temp
+  `crates/nvs-stdlib/tests/capability.rs`'s OS gate, so a case that opens its own socket or temp
   file fails a test in another file.** The message is good — it names the file,
   the line and the forbidden spelling — but it arrives from
   `nvs_stdlib_reaches_the_os_only_through_the_gate`, which reads as a claim
