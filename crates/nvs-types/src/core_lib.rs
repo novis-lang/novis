@@ -893,6 +893,90 @@ mod tests {
         assert_eq!(target.slots, &["url", "address"]);
     }
 
+    /// ADR 0074 § 5, asked of the lowered signature rather than of the row:
+    /// **no member of `Core\Http\Client` can be told to wait forever.**
+    ///
+    /// The guarantee comes from the absence of a spelling, so what this asserts
+    /// is that nothing has grown one. Every time bound lowers to exactly
+    /// `Core\Time\Duration` — a `?Duration` would describe as
+    /// `null|Core\Time\Duration` and fail here, and it is the one edit that
+    /// would make `{deadline: null}` compile — and every bound is left out by
+    /// omitting it, which § 5 makes inherit `[http.client]`'s own figure rather
+    /// than remove the bound. A default of `0` or `-1` would be the unbounded
+    /// spelling arriving as a *default*, which no call site would show.
+    ///
+    /// Asked over every member and every option rather than of `deadline`
+    /// alone, because the rule is about the class: a sixth row added tomorrow
+    /// with a bound of its own is exactly what this exists to catch, and it is
+    /// invisible from any one row.
+    #[test]
+    fn no_client_member_accepts_an_unbounded_timeout() {
+        use nvs_stdlib::registry::Const;
+
+        const BOUNDS: &[&str] = &["deadline", "connectTimeout", "retryBackoff"];
+
+        let mut interner = TypeInterner::new();
+        let client = CLASSES
+            .iter()
+            .find(|class| class.name == r"Core\Http\Client")
+            .expect("the client is a registered class");
+        assert!(
+            client.members().next().is_some(),
+            "a class with no members would pass every assertion below vacuously"
+        );
+
+        let mut seen: Vec<&'static str> = Vec::new();
+        for method in client.members() {
+            let Some(CoreTy::Options(options)) = method.params.last() else {
+                panic!("{}::{} has no options bag", client.name, method.name);
+            };
+            for option in *options {
+                assert!(
+                    !matches!(option.ty, CoreTy::Nullable(_)),
+                    "{}::{}'s `{}` is nullable, and `null` at a bound is the spelling § 5 has \
+                     none of",
+                    client.name,
+                    method.name,
+                    option.name
+                );
+                if !BOUNDS.contains(&option.name) {
+                    continue;
+                }
+                seen.push(option.name);
+                let bound = lower(&option.ty, &mut interner);
+                assert_eq!(
+                    interner.describe(bound),
+                    r"Core\Time\Duration",
+                    "{}::{}'s `{}` is not a plain `Duration`",
+                    client.name,
+                    method.name,
+                    option.name
+                );
+                assert!(
+                    matches!(option.default, Const::Null),
+                    "{}::{}'s `{}` defaults to something other than *not given*, so a call \
+                     that omits it would carry a bound this test cannot see",
+                    client.name,
+                    method.name,
+                    option.name
+                );
+            }
+        }
+
+        seen.sort_unstable();
+        seen.dedup();
+        assert_eq!(
+            seen,
+            {
+                let mut want = BOUNDS.to_vec();
+                want.sort_unstable();
+                want
+            },
+            "every bound § 5 names is one this test read; a renamed one would empty the check \
+             rather than fail it"
+        );
+    }
+
     /// ADR 0044 § 1, asked of the resolved signature the way a call site asks
     /// it: **neither half** of what `Core\Process::run` is handed can carry a
     /// tainted value into the child, and the two halves are refused by
