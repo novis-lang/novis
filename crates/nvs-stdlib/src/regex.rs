@@ -939,8 +939,8 @@ fn build(pattern: &str, flags: u8) -> Result<Compiled, String> {
     }
 }
 
-/// Whether `pattern` is one either engine can compile, for a caller that wants
-/// the refusal and not the automaton —
+/// Which tier `pattern` compiles on, or the refusal — for a caller that wants
+/// ADR 0056 § 3's compile-time fact and not the automaton —
 /// [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)'s fold,
 /// which reads a **literal** pattern while checking and reports § 3's
 /// diagnostic instead of the throw [`compiled`] would have made.
@@ -954,11 +954,39 @@ fn build(pattern: &str, flags: u8) -> Result<Compiled, String> {
 /// wrapped around the pattern, which is balanced whatever the pattern is, so
 /// it can turn no accepted pattern into a refused one nor the other way round.
 /// Reading them would mean folding `Core\Regex::compile`'s options bag as
-/// well, for an answer that cannot differ — and the tier the pattern lands in,
-/// which *is* flag-sensitive, is gap 1's `[regex] backtracking = "deny"` and
-/// not this.
-pub fn validate(pattern: &str) -> Result<(), String> {
-    build(pattern, NO_FLAGS).map(|_| ())
+/// well, for an answer that cannot differ.
+///
+/// The [`Tier`] is sound for the same reason and not merely the refusal: a
+/// wrapper the linear engine can express cannot move a pattern the linear
+/// engine refused, nor the other way round, so the tier a flagged call lands
+/// in is the tier reported here. What *is* flag-sensitive is gap 1's `[regex]
+/// backtracking = "deny"`, which refuses the second tier outright rather than
+/// re-routing anything into it, and which this fold does not read.
+pub fn validate(pattern: &str) -> Result<Tier, String> {
+    build(pattern, NO_FLAGS).map(|compiled| match compiled {
+        Compiled::Linear(_) => Tier::Linear,
+        Compiled::Backtracking(_) => Tier::Backtracking,
+    })
+}
+
+/// Which of [`build`]'s two engines a pattern compiles on — its routing rule
+/// as a value, for the caller that wants the fact and not the automaton.
+///
+/// A tier is a property of the **pattern**, not of the call, which is the
+/// whole reason this can be answered while checking: `build` changes tier only
+/// when the linear engine's *parser* refuses a construct, so the same text
+/// routes the same way however many times it is offered and whatever budget
+/// the machine has that day. [`validate`]'s own doc says why the flags do not
+/// disturb it either.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tier {
+    /// § 1's linear-time default: no backtracking, no budget, no pattern-
+    /// dependent blow-up.
+    Linear,
+    /// § 2's budgeted backtracking tier, reached only because the linear
+    /// engine could not express this pattern — a lookaround or a
+    /// backreference — and never because a program was large.
+    Backtracking,
 }
 
 /// ADR 0056 § 2's throw: the backtracking tier ran out of steps.

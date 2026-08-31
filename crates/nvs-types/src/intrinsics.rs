@@ -197,15 +197,17 @@ pub(crate) fn check_call(
                 report_malformed(pattern.value.span, &message, env);
             }
         }
-        // ADR 0056 § 3's compile-time fact, as far as § 1's list carries it:
-        // the pattern is offered to the same two engines the first call would
-        // have offered it to. Which *tier* it landed in is not reported, which
-        // is that ADR's own gap 1 rather than this pass's.
-        Grammar::Regex => {
-            if let Err(message) = nvs_stdlib::regex::validate(&text) {
-                report_malformed(pattern.value.span, &message, env);
-            }
-        }
+        // ADR 0056 § 3's compile-time fact, both halves of it: the pattern is
+        // offered to the same two engines the first call would have offered it
+        // to, and the tier it landed in is written down where `nvs-ir` reads
+        // it back. The tier is settleable here for the reason
+        // `nvs_stdlib::regex::Tier` states — it is a property of the pattern
+        // text, decided by which engine's parser refused a construct, so a
+        // checking run and a request cannot disagree about it.
+        Grammar::Regex => match nvs_stdlib::regex::validate(&text) {
+            Ok(tier) => env.exprs.record_regex_tier(pattern.value.span, tier),
+            Err(message) => report_malformed(pattern.value.span, &message, env),
+        },
         // Both of `Core\Uri::parse`'s throwing steps, which is the rule its
         // own `tryParse` is written around: a validator that agrees with the
         // parser about only one of them is the divergence that member exists

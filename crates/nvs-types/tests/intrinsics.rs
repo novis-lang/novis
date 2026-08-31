@@ -11,8 +11,10 @@
 
 mod common;
 
-use common::check_src;
+use common::{check_src, check_src_table};
 use nvs_diagnostics::{Code, Diagnostics, code};
+use nvs_stdlib::regex::Tier;
+use nvs_types::expr_table::ExprTypeTable;
 
 /// Whether `want` was reported at all — `routes.rs`' own helper, because a
 /// fixture asserting *which* refusal was made is what keeps two codes from
@@ -25,6 +27,15 @@ fn reported(diags: &Diagnostics, want: Code) -> bool {
 /// program is written.
 fn check_call(body: &str) -> Diagnostics {
     check_src(&format!(
+        "<?nvs\nclass Main {{\n  public static function main(): void {{\n{body}\n  }}\n}}\n"
+    ))
+}
+
+/// [`check_call`] for the one assertion that is about what the fold *recorded*
+/// rather than about what it refused — the table is `nvs-ir`'s half of ADR
+/// 0056 § 3 and a `Diagnostics` cannot see it.
+fn check_call_table(body: &str) -> (Diagnostics, ExprTypeTable) {
+    check_src_table(&format!(
         "<?nvs\nclass Main {{\n  public static function main(): void {{\n{body}\n  }}\n}}\n"
     ))
 }
@@ -187,6 +198,60 @@ fn a_literal_regex_pattern_is_prepared_while_checking() {
     assert!(
         !fine.has_errors(),
         "a pattern one of the two engines compiles was refused: {fine:?}"
+    );
+}
+
+#[test]
+fn a_literal_patterns_tier_is_settled_while_checking() {
+    // ADR 0056 § 3's second effect, and the half the test above deliberately
+    // stops short of: *prepared* is not enough on its own, because a fold that
+    // throws the automaton away leaves the first call to re-decide which
+    // engine runs — and the tier is what decides whether § 2's step budget is
+    // in play at all. So the fold writes it down and `nvs-ir` reads it back.
+    //
+    // The three patterns are the previous test's, on purpose: the same source
+    // that must produce no diagnostic must produce exactly these tiers, so a
+    // fold that went quiet by not looking fails here while still looking right
+    // there.
+    let (diags, exprs) = check_call_table(
+        "    string $t = '[a-z]+';\n    \
+         Core\\Regex\\Pattern $linear = Core\\Regex::compile('[a-z]+\\d{2,3}');\n    \
+         Core\\Regex\\Pattern $fancy = Core\\Regex::compile('(?<=USD )\\d+');\n    \
+         Core\\Regex\\Pattern $built = Core\\Regex::compile($t);\n",
+    );
+    assert!(
+        !diags.has_errors(),
+        "a pattern one of the two engines compiles was refused: {diags:?}"
+    );
+
+    // One of each, and — the third pattern — nothing at all for the computed
+    // one. § 2's rule that nothing is refused for being dynamic is also a rule
+    // about what is *recorded*: a site whose pattern the fold never read has
+    // no tier to offer, rather than a guessed one.
+    let linear = exprs.regex_tiers().filter(|t| *t == Tier::Linear).count();
+    let backtracking = exprs
+        .regex_tiers()
+        .filter(|t| *t == Tier::Backtracking)
+        .count();
+    assert_eq!(
+        (linear, backtracking),
+        (1, 1),
+        "the two literal patterns did not settle one tier each"
+    );
+
+    // And the routing rule itself, at the boundary the tier turns on: a
+    // lookbehind is a construct finite automata cannot express, and a
+    // character class is one they can. Asserting them together is what makes
+    // this a rule rather than two independent observations.
+    assert_eq!(
+        nvs_stdlib::regex::validate("[a-z]+"),
+        Ok(Tier::Linear),
+        "a pattern the linear engine expresses did not stay on it"
+    );
+    assert_eq!(
+        nvs_stdlib::regex::validate("(?<=USD )[0-9]+"),
+        Ok(Tier::Backtracking),
+        "a lookbehind did not reach the second tier"
     );
 }
 

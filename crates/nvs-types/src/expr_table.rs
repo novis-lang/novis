@@ -834,6 +834,7 @@ pub struct ExprTypeTable {
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
+    regex_tiers: FxHashMap<Span, nvs_stdlib::regex::Tier>,
     delegations: Vec<Delegation>,
     routes: crate::routes::RouteTable,
     commands: crate::commands::CommandTable,
@@ -1165,6 +1166,36 @@ impl ExprTypeTable {
     /// fact that has a home beside the others here.
     pub fn record_require_target(&mut self, span: Span, target: nvs_diagnostics::SourceId) {
         self.require_targets.insert(span, target);
+    }
+
+    /// Records which of ADR 0056's two engines the literal pattern at `span`
+    /// compiles on — [`crate::intrinsics`]'s fold settling § 3's second
+    /// effect while checking, rather than leaving the first call to discover
+    /// it.
+    ///
+    /// [`Self::record_require_target`]'s reason for riding here, with one
+    /// addition of its own: a tier is a property of the pattern text and not
+    /// of the machine, so recording it once is not a cache that can go stale
+    /// between this run and the run that reads it. `nvs-ir` is the only
+    /// consumer, and a site with no entry is one whose pattern was not a
+    /// literal — § 2's rule that nothing is refused for being dynamic applies
+    /// to what is *recorded* just as it does to what is refused.
+    pub(crate) fn record_regex_tier(&mut self, span: Span, tier: nvs_stdlib::regex::Tier) {
+        self.regex_tiers.insert(span, tier);
+    }
+
+    /// The tier the literal pattern at `span` compiles on, or `None` for a
+    /// site the fold did not read — a dynamic argument, an argument moved out
+    /// of position by a `name:` or a `...`, or a pattern already refused.
+    #[must_use]
+    pub fn regex_tier(&self, span: Span) -> Option<nvs_stdlib::regex::Tier> {
+        self.regex_tiers.get(&span).copied()
+    }
+
+    /// Every pattern this run settled a tier for, in no particular order —
+    /// for a caller counting them rather than asking about one site.
+    pub fn regex_tiers(&self) -> impl Iterator<Item = nvs_stdlib::regex::Tier> + '_ {
+        self.regex_tiers.values().copied()
     }
 
     /// Records one synthesized `by $field` forward — see [`Delegation`], whose
