@@ -186,6 +186,44 @@ fn a_secret_value_reaching_the_boundary_inside_a_concatenation_is_refused() {
 }
 
 #[test]
+fn a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type() {
+    // ADR 0033 § 4's log bullet, and the one sink whose parameter type is
+    // deliberately not the thing that refuses: `fields` stays `array<mixed>`,
+    // which a `secret string` element satisfies, so nothing below the call
+    // site can tell. Both halves of the bullet are here — the bag that carries
+    // the qualifier on its own type, and § 4's named case of the value written
+    // inside the literal at the call.
+    let bag = check_in_method(
+        "secret string $token = \"literal\";\n\
+         array<secret string> $bag = [\"token\" => $token];\n\
+         Core\\Log::write(Core\\Log\\Level::Info, \"auth\", $bag);\n",
+    );
+    assert!(
+        bag.iter().any(|d| d.code == Some(code::E_SECRET_LOGGED)),
+        "{bag:?}"
+    );
+
+    let literal = check_in_method(
+        "secret string $token = \"literal\";\n\
+         Core\\Log::write(Core\\Log\\Level::Info, \"auth\", [\"token\" => $token]);\n",
+    );
+    assert!(
+        literal
+            .iter()
+            .any(|d| d.code == Some(code::E_SECRET_LOGGED)),
+        "{literal:?}"
+    );
+
+    // The open type is open, which is the other half of the claim: the same
+    // call carrying an ordinary field is a record the rule says nothing about.
+    let allowed = check_in_method(
+        "string $user = \"literal\";\n\
+         Core\\Log::write(Core\\Log\\Level::Info, \"auth\", [\"user\" => $user]);\n",
+    );
+    assert!(!allowed.has_errors(), "{allowed:?}");
+}
+
+#[test]
 fn a_plain_value_passed_to_a_throwable_is_fine() {
     let diags = check_in_method(r#"throw new LogicError("plain message");"#);
     assert!(!diags.has_errors(), "{diags:?}");

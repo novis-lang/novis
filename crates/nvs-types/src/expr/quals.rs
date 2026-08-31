@@ -20,7 +20,7 @@
 //! safe over-approximation of "may be tainted"/"may be secret," the same
 //! direction `mixed` never gets — but never narrows through assignment.
 //!
-//! The sinks reachable here are seven, and the three below are the ones a
+//! The sinks reachable here are nine, and the three below are the ones a
 //! conversion reaches. [`reject_non_literal_markup_conversion`]
 //! is ADR 0024 § 5's one M2-scoped rule: `as Core\Html\Markup` accepts only a
 //! literal string token, `tainted` or not — the rest of § 5 (auto-escaping,
@@ -34,14 +34,18 @@
 //! decided without a declared `Throwable`/`Exception`/`Error` stdlib to check
 //! against.
 //!
-//! The other three are read off a written argument rather than off a
-//! conversion, because the member they reach declares `mixed` and the call
-//! site is the last place the qualifier is visible:
-//! [`reject_secret_debug_argument`], [`reject_secret_attribute_constant`], and
+//! The next five are read off a written argument rather than off a
+//! conversion, because the member they reach declares an open type and the
+//! call site is the last place the qualifier is visible:
+//! [`reject_secret_debug_argument`], [`reject_secret_attribute_constant`],
 //! [`reject_secret_boundary_argument`] — ADR 0033 § 4's `serialize()`-and-
-//! `spawn` bullet, which is one check for both of ADR 0023 § 2's carriers.
+//! `spawn` bullet, which is one check for both of ADR 0023 § 2's carriers —
+//! [`reject_secret_encoded_argument`], and
+//! [`reject_secret_logged_argument`], whose open type is `array<mixed>` **by
+//! design** rather than pending, which is why it is the one of the five that
+//! also reads the elements of a written literal.
 //!
-//! The seventh has no member behind it at all: [`reject_secret_output`] is
+//! The last has no member behind it at all: [`reject_secret_output`] is
 //! § 4's terminal-output bullet, asked at `echo` and `print`, where the
 //! operand is a statement's rather than a call's — and where the qualifier
 //! has usually arrived by the spreading described above rather than being
@@ -627,6 +631,105 @@ pub(crate) fn reject_secret_encoded_argument(
             ),
         );
     }
+}
+
+/// ADR 0033 § 4's log sink: `Core\Log::write` refuses a `secret` in its
+/// `fields` bag — the opposite default from `tainted`, which ADR 0024 § 4
+/// explicitly wants recorded.
+///
+/// A call-site rule for [`reject_secret_encoded_argument`]'s reason and one
+/// more that only this sink has: `fields` is declared `array<mixed>` **by
+/// design**, and § 4 says so in the bullet itself, so the parameter type is
+/// not a thing to be fixed later — the written argument is where the qualifier
+/// is, and nowhere below is. [`is_fields_argument`] owns why the other two
+/// parameters are left to their own declared types.
+///
+/// **The element half is read off the written literal**, which is what § 4's
+/// "including inside a `fields` array literal" asks for and what no type could
+/// answer: a literal checked against an `array<mixed>` expectation *is* that
+/// expectation ([`check_array_literal`](super::literals::check_array_literal)
+/// hands the expected id straight back), so `["token" => $t]` arrives here as
+/// an `array<mixed>` with nothing left of `$t` on it. So each element that
+/// names a binding is asked about by name instead, against the same scope the
+/// read itself used. An element that *composes* one — `"Bearer " . $t` — is
+/// past this rule, and that is the container axis ADR 0033 already owns rather
+/// than a hole in this one: the fix there is an element type for a literal,
+/// and it would make this half fall out of [`contains_secret`] like the rest.
+pub(crate) fn reject_secret_logged_argument(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) {
+    if qname.to_string() != r"Core\Log" || member != "write" {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    for (index, (arg, &ty)) in list.iter().zip(arg_types).enumerate() {
+        if !is_fields_argument(index, arg, env) {
+            continue;
+        }
+        if contains_secret(ty, env.interner) {
+            report_secret_logged(arg.value.span, env);
+            continue;
+        }
+        let ExprKind::ArrayLiteral(items) = &arg.value.kind else {
+            continue;
+        };
+        for item in items {
+            let ExprKind::Variable(span) = &item.value.kind else {
+                continue;
+            };
+            let name = strip_sigil(span_text(env.src, *span));
+            let Some(bound) = scope.narrowed_ty(name).or_else(|| scope.declared_ty(name)) else {
+                continue;
+            };
+            if contains_secret(bound, env.interner) {
+                report_secret_logged(item.value.span, env);
+            }
+        }
+    }
+}
+
+/// Whether this written argument is `Core\Log::write`'s `fields` bag — its
+/// third parameter, or the one an ADR 0063 R2 named argument spells `fields:`.
+///
+/// The rule is scoped to it rather than to the whole call because the *other*
+/// two positions are already refused by their declared types: `message` is a
+/// plain `string`, which a `secret string` is not assignable to, and `level`
+/// is an enum. Reporting there as well would be two diagnostics for one
+/// mistake, and the second would not say anything the first did not. That
+/// split — an open type checked at the site, a closed one checked by the
+/// signature — is ADR 0033 § 4's own, stated in the bullet this rule is.
+fn is_fields_argument(index: usize, arg: &Arg, env: &Env<'_>) -> bool {
+    match arg.name {
+        Some(span) => span_text(env.src, span).trim_end_matches(':').trim() == "fields",
+        None => index == 2,
+    }
+}
+
+/// [`reject_secret_logged_argument`]'s one diagnostic, written once because
+/// the rule reaches it from two directions — a whole argument that carries the
+/// qualifier, and one element of a `fields` literal that does — and the author
+/// is owed the same sentence either way.
+fn report_secret_logged(span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SECRET_LOGGED,
+            "a `secret`-qualified value cannot be written to a log record; a log is read by a \
+             person and kept by a pipeline, so the value would be disclosed rather than used",
+        )
+        .with_primary(span, "secret value logged here")
+        .with_help(
+            "record something that identifies the credential instead — its key name, its \
+             fingerprint — or, where the value itself is genuinely the record, reveal it with \
+             `Core\\Secret::reveal(..., \"reason\")` at that field",
+        ),
+    );
 }
 
 /// ADR 0033 § 4's terminal-output sink: `echo` and `print` refuse a

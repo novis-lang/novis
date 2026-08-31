@@ -335,6 +335,12 @@ pub(crate) fn infer_static_call(
         // `Core\Json::encode` declares `mixed` too, and what it walks is the
         // whole value. See [`reject_secret_encoded_argument`].
         reject_secret_encoded_argument(owner, name, args, &arg_types, env);
+        // ADR 0033 § 4's log sink, the fourth — and the one whose open type is
+        // that ADR's own decision rather than a member's convenience, which is
+        // why it takes the `scope` the others do not: `fields` stays
+        // `array<mixed>`, so an element that names a binding is asked about by
+        // name. See [`reject_secret_logged_argument`].
+        reject_secret_logged_argument(owner, name, args, &arg_types, scope, env);
         // ADR 0074 § 7's non-idempotent retry, and this is the only call path
         // that can reach it: every member carrying the obligation is a static
         // one (`nvs_stdlib::http`'s `CLIENT` writes an empty `instance`), so

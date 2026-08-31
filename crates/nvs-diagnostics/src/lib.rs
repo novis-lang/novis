@@ -2618,6 +2618,23 @@ pub mod code {
     /// named is real and it is the *absent* one that is the defect.
     pub const E_RETRY_WITHOUT_IDEMPOTENCY_KEY: Code = Code::new("E0796");
 
+    /// A `secret`-qualified value reaching `Core\Log::write`.
+    ///
+    /// ADR 0033 § 4's log bullet, which is the *opposite* default from
+    /// `tainted`: ADR 0024 § 4 explicitly wants untrusted input logged, and a
+    /// credential is the one thing a record must not carry. Refused at the
+    /// call site for [`E_SECRET_ENCODED`]'s reason and one more of its own —
+    /// `fields` is declared `array<mixed>` **by design**, so the parameter
+    /// type is deliberately not the thing that refuses, and the written
+    /// argument is the last place the qualifier is visible.
+    ///
+    /// A separate code from [`E_SECRET_ENCODED`], which refuses a document on
+    /// its way *somewhere*: a log record has already arrived, and the way out
+    /// differs to match — the field a program genuinely means to record is
+    /// revealed by name, which is what makes a logged credential a written
+    /// decision rather than an accident of what was in the bag.
+    pub const E_SECRET_LOGGED: Code = Code::new("E0797");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
