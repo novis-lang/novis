@@ -1,0 +1,66 @@
+--TEST--
+Core\IO::lines and Core\Str::lines over Core\IO::read answer the same lines for the same file, counted over a sweep of the three terminators, a trailing one, an interior empty line, a file that ends without a terminator and an empty file — the two members are one definition of a line reached two ways rather than two definitions that happen to agree today — spec §§ 1 and 14
+--FILE--
+<?nvs
+// The claim is an agreement, and it is the reason `Core\IO::lines` has no
+// splitting of its own: it is `read` plus `Core\Str::lines`' rule, so a
+// member that grew a second idea of where a line ends fails here while still
+// looking right on its own line. Counting the walk as well as the verdict is
+// what makes a `lines` that answered nothing at all fail too.
+//
+// The bodies are chosen so that no two of them are wrong the same way: each
+// of the three terminators alone, an interior empty line that must survive, a
+// trailing terminator that must not open a final empty line, a file ending
+// without one, and the empty file that has no lines at all.
+array<string> $bodies = [
+    "one\ntwo\nthree\n",
+    "one\r\ntwo\r\nthree\r\n",
+    "one\rtwo\rthree\r",
+    "no terminator at all",
+    "a\n\nb\n",
+    "\n",
+    "",
+];
+int $total = Core\Arr::count($bodies) as int;
+
+int $agreed = 0;
+int $walked = 0;
+
+int $i = 0;
+for (; $i < $total; $i = $i + 1) {
+    Core\IO::write("subject.txt", $bodies[$i]);
+
+    // The same file, read whole and split by § 1's member.
+    array<string> $split = Core\Str::lines(Core\IO::read("subject.txt"));
+    int $expected = Core\Arr::count($split) as int;
+
+    int $at = 0;
+    int $same = 0;
+    foreach (Core\IO::lines("subject.txt") as string $line) {
+        if ($at < $expected) {
+            if ($line == $split[$at]) {
+                $same = $same + 1;
+            }
+        }
+        $at = $at + 1;
+        $walked = $walked + 1;
+    }
+
+    if ($at == $expected && $same == $expected) {
+        $agreed = $agreed + 1;
+    }
+}
+
+Core\IO::remove("subject.txt");
+
+echo "bodies: ", $total as string, "\n";
+echo "agreed: ", $agreed as string, "\n";
+echo "lines walked: ", $walked as string, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+bodies: 7
+agreed: 7
+lines walked: 14

@@ -1,0 +1,63 @@
+--TEST--
+Core\IO::lines names the boundaries of what a line is — an empty file has none, a lone terminator is one empty line, and a file that ends without a terminator still ends its last line — and the value it answers may be walked more than once, because `iterate()` opens a fresh walk rather than resuming the one before it — spec § 14, ADR 0053 § 1
+--FILE--
+<?nvs
+// The first half is the bound asserted on both sides: an empty file and the
+// smallest file that has a line in it are one byte apart, and a member that
+// counted terminators rather than pieces answers one too many for every body
+// here. The lines are printed bracketed rather than counted, so a member that
+// left a `\r` glued to a line fails as well.
+array<string> $bodies = [
+    "",
+    "\n",
+    "one",
+    "one\n",
+    "one\n\ntwo",
+];
+int $total = Core\Arr::count($bodies) as int;
+
+int $i = 0;
+for (; $i < $total; $i = $i + 1) {
+    Core\IO::write("subject.txt", $bodies[$i]);
+    string $shown = "";
+    foreach (Core\IO::lines("subject.txt") as string $line) {
+        $shown = $shown . "[" . $line . "]";
+    }
+    echo "body ", $i as string, ": ", $shown, "\n";
+}
+
+// The second half is the contract the type carries: `Iterable<string>` is a
+// value a `foreach` asks for a walk, not a walk that has already begun. Two
+// loops over one value have to see the same file — a value that were the walk
+// itself would answer nothing the second time, which is exactly the mistake
+// PHP's own generators make available.
+Core\IO::write("roster.txt", "one\ntwo\nthree\n");
+Core\IO\Lines $held = Core\IO::lines("roster.txt");
+
+int $first = 0;
+foreach ($held as string $line) {
+    $first = $first + 1;
+}
+
+int $second = 0;
+foreach ($held as string $line) {
+    $second = $second + 1;
+}
+
+echo "first walk: ", $first as string, "\n";
+echo "second walk: ", $second as string, "\n";
+
+Core\IO::remove("subject.txt");
+Core\IO::remove("roster.txt");
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+body 0:
+body 1: []
+body 2: [one]
+body 3: [one]
+body 4: [one][][two]
+first walk: 3
+second walk: 3

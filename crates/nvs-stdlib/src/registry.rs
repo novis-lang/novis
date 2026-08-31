@@ -1000,6 +1000,10 @@ pub const CLASSES: &[CoreClass] = &[
     // reaches the filesystem behind it. What it needs to do that is
     // [`CAPABILITIES`], and ADR 0118 § 2's doors are what make it need one.
     crate::io::CLASS,
+    // What `Core\IO::lines` answers with, and the whole of spec § 14's
+    // `Iterable<string>` — a name for the walk, with no member on it. Its own
+    // docs say why it holds the lines rather than streaming them.
+    crate::io::LINES,
     crate::time::TIME,
     crate::time::INSTANT,
     crate::time::DATETIME,
@@ -1124,6 +1128,7 @@ pub const CAPABILITIES: &[(&str, &str, nvs_config::Cap)] = &[
     (crate::io::NAME, "temporaryDir", nvs_config::Cap::FsWrite),
     (crate::io::NAME, "within", nvs_config::Cap::FsRead),
     (crate::io::NAME, "readText", nvs_config::Cap::FsRead),
+    (crate::io::NAME, "lines", nvs_config::Cap::FsRead),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
@@ -1404,6 +1409,10 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     (r"Core\ObjectSet", &CoreTy::Var("T")),
     (r"Core\Heap", &CoreTy::Var("T")),
     (r"Core\Task\Channel", &CoreTy::Var("T")),
+    // The first row whose element is a concrete type rather than one of the
+    // receiver's own type variables: `Core\IO::lines` answers a walk over the
+    // lines of a file, and a line is a `string` whatever the file was.
+    (crate::io::LINES_NAME, &CoreTy::Str),
 ];
 
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is
@@ -2823,13 +2832,17 @@ mod tests {
     /// when `echo` writes a captured carrier out ([`crate::cli`]). The third
     /// is `Core\Script\Handle`, whose one slot the lowering of `await` reads
     /// and whose emptiness of members is the whole point of it
-    /// ([`crate::script`]).
+    /// ([`crate::script`]). The fourth is `Core\IO\Lines`, whose one slot the
+    /// `iterate()` on [`crate::instance`]'s dispatch roster reads — spec § 14
+    /// writes `lines(string $path): Iterable<string>` and no member *on* the
+    /// thing it answers with, so a `foreach` is the whole of its surface.
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
         const HANDLES: &[&str] = &[
             r"Core\Regex\Pattern",
             nvs_runtime::CARRIER_CLI_TEXT,
             crate::script::HANDLE_NAME,
+            crate::io::LINES_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

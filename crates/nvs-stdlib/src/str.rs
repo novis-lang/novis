@@ -2082,8 +2082,8 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_str_lines(_ctx, args: [1]) {
         let subject = text(&args[0], "lines", "the subject")?;
         let mut out = NvsArray::new();
-        for line in line_pieces(subject) {
-            out.append(Value::str(NvsStr::new(line.as_bytes())));
+        for line in line_pieces(subject.as_bytes()) {
+            out.append(Value::str(NvsStr::new(line)));
         }
         Ok(Value::array(out))
     }
@@ -2107,12 +2107,18 @@ nvs_runtime::nvs_helper! {
 /// No grapheme cluster is split by any of this: `\r\n` is one cluster under
 /// UAX #29's GB3 and is consumed whole, and a lone `\r` is a cluster of its
 /// own.
-fn line_pieces(subject: &str) -> Vec<&str> {
-    let bytes = subject.as_bytes();
+///
+/// **It divides octets, not validated text**, because [`crate::io`]'s `lines`
+/// is the other caller and a file `Core\IO::read` hands back was never asked
+/// to be UTF-8 — the class's own module doc owns that. All three terminators
+/// are ASCII and no multi-byte sequence contains an ASCII byte, so the pieces
+/// of valid text are the same either way and this is the one place that
+/// decides what a line is.
+pub(crate) fn line_pieces(subject: &[u8]) -> Vec<&[u8]> {
     let mut out = Vec::new();
     let (mut start, mut at) = (0usize, 0usize);
-    while at < bytes.len() {
-        match bytes[at] {
+    while at < subject.len() {
+        match subject[at] {
             b'\n' => {
                 out.push(&subject[start..at]);
                 at += 1;
@@ -2120,13 +2126,13 @@ fn line_pieces(subject: &str) -> Vec<&str> {
             }
             b'\r' => {
                 out.push(&subject[start..at]);
-                at += usize::from(bytes.get(at + 1) == Some(&b'\n')) + 1;
+                at += usize::from(subject.get(at + 1) == Some(&b'\n')) + 1;
                 start = at;
             }
             _ => at += 1,
         }
     }
-    if start < bytes.len() {
+    if start < subject.len() {
         out.push(&subject[start..]);
     }
     out
@@ -3769,7 +3775,12 @@ mod tests {
     /// trailing one that does not — [`super::line_pieces`]'s own contract.
     #[test]
     fn lines_end_on_any_of_the_three_terminators() {
-        let lines = super::line_pieces;
+        fn lines(subject: &str) -> Vec<&str> {
+            super::line_pieces(subject.as_bytes())
+                .into_iter()
+                .map(|line| std::str::from_utf8(line).expect("a piece of valid text"))
+                .collect()
+        }
         assert_eq!(lines("a\nb"), ["a", "b"]);
         assert_eq!(lines("a\r\nb"), ["a", "b"]);
         assert_eq!(lines("a\rb"), ["a", "b"]);

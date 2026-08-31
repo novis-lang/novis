@@ -45,11 +45,18 @@
 //! gets a throw naming the first offset that is not, rather than a string with
 //! U+FFFD in it. PHP's pair is `file_get_contents` plus a hand-written
 //! `mb_convert_encoding`, and the failure is the half it leaves out.
+//!
+//! **`lines` is that same read split by `Core\Str::lines`' own rule**, and
+//! answers [`LINES`] — the class whose docs own the one decision this member
+//! rests on, that the lines are held and not streamed off the open file. Three
+//! members, one door, one buffer: what differs between them is what happens to
+//! the octets afterwards, which is the shape this class keeps rather than
+//! growing a reader per question.
 
 use std::io::Read;
 use std::path::Path;
 
-use nvs_runtime::{Fault, NvsStr, Tag, Value};
+use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -162,6 +169,20 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Text(Qual::Neutral),
             symbol: "nvs_core_io_read_text",
             doc: Some(&READ_TEXT_DOC),
+        },
+        CoreMethod {
+            name: "lines",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            // Spec § 14 writes `Iterable<string>`, and a *named class* is how
+            // the registry spells one: `CoreTy::Iterated` is parameter
+            // position only, by its own docs. [`LINES`] is that name, and
+            // `crate::registry::ITERABLES` is where its element type is
+            // declared.
+            return_ty: CoreTy::Instance(LINES_NAME),
+            symbol: "nvs_core_io_lines",
+            doc: Some(&LINES_DOC),
         },
     ],
     instance: &[],
@@ -450,6 +471,85 @@ const READ_TEXT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO::lines`'s reference card — ADR 0117.
+const LINES_DOC: MethodDoc = MethodDoc {
+    short: "Every line of a file, without its terminator — `file()` and the `fgets` loop that \
+            replaces it, over the one definition of a line `Core\\Str::lines` already uses. Needs \
+            the `fs.read` capability for the path, exactly as `read` does.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The file to read, absolute or relative to the working directory.",
+        shape: &[],
+    }],
+    ret: "An `Iterable<string>` a `foreach` walks in file order, and walks again as often as it \
+          is asked. `\\n`, `\\r\\n` and a lone `\\r` each end a line; a trailing terminator does \
+          not open an empty last one, and an empty file has no lines at all.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for this path.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and the operating system did not — the file does not \
+                   exist, is a directory, or could not be read.",
+        },
+    ],
+};
+
+/// `Core\IO::lines`'s answer, as [`CoreTy::Instance`] spells it.
+pub(crate) const LINES_NAME: &str = r"Core\IO\Lines";
+
+/// The symbol behind `Iterable<string>::iterate()`, reached by name through
+/// this class's method table rather than as a registered member — see
+/// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
+pub(crate) const LINES_ITERATE_SYMBOL: &str = "nvs_core_io_lines_iterate";
+
+/// [`LINES`]'s one slot: the lines themselves, as an `array<string>`.
+const LINES_SLOT: usize = 0;
+
+/// The class `lines` answers with — spec § 14's `Iterable<string>`, given the
+/// name the registry needs to write it.
+///
+/// # Decision: the lines are read and held, not streamed off the open file
+///
+/// `lines` is [`slurp`] plus [`crate::str::line_pieces`], exactly as `readText`
+/// is `slurp` plus a decode: the door, the buffer and the ceiling are `read`'s,
+/// and the split is `Core\Str::lines`' own so that the two members cannot come
+/// to disagree about what a line is. **What it spends:** the file's octets once
+/// more, as one `string` per line plus the list holding them, for as long as
+/// the program holds the value — charged to the request that asked, and bounded
+/// by the request's memory limit like `read`'s single buffer.
+///
+/// The alternative — a cursor over the open handle, reading a line at a time —
+/// is what `fgets` is, and it is not a member: it needs an operating-system
+/// handle to live in an object slot across arbitrary program time, closed
+/// whatever the loop does, which is machinery this class does not have. The
+/// module doc calls a bounded read "a later signature over the same door", and
+/// a streaming reader is that same later signature. `AGENTS.md`'s ordering is
+/// what makes the wait acceptable: footprint is last, and simplicity is bought
+/// with it.
+///
+/// **The type is still `Iterable<string>` and not `array<string>`**, because
+/// what the spec promises a caller is a forward walk and nothing more — no
+/// count, no index, no second meaning for a key. That is the surface a
+/// streaming implementation would land behind unchanged.
+///
+/// # Why it has no members
+///
+/// Everything it does is `iterate()`, which is dispatched by name through
+/// [`crate::instance`]'s roster rather than registered — so it is a *handle* in
+/// the sense `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
+/// names, beside `Core\Script\Handle`: its slot is read, just not through a
+/// member of its own.
+pub(crate) const LINES: CoreClass = CoreClass {
+    name: LINES_NAME,
+    methods: &[],
+    instance: &[],
+    slots: &["lines"],
+    constants: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -463,6 +563,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_remove_dir" => (nvs_core_io_remove_dir as *const ()).cast(),
         "nvs_core_io_temporary_dir" => (nvs_core_io_temporary_dir as *const ()).cast(),
         "nvs_core_io_within" => (nvs_core_io_within as *const ()).cast(),
+        "nvs_core_io_lines" => (nvs_core_io_lines as *const ()).cast(),
+        LINES_ITERATE_SYMBOL => (nvs_core_io_lines_iterate as *const ()).cast(),
         _ => return None,
     })
 }
@@ -509,6 +611,73 @@ nvs_runtime::nvs_helper! {
         let text = crate::encoding::decode_argument(args, "Core\\IO::readText", &raw)?;
         Ok(Value::str(NvsStr::new(text.as_bytes())))
     }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::lines(string $path): Iterable<string>` — replacing `file()`
+    /// and the `while (fgets(…))` loop.
+    ///
+    /// [`slurp`] and then [`crate::str::line_pieces`], which is the whole
+    /// member. [`LINES`]'s own docs own the decision it rests on — the lines
+    /// are held rather than streamed — and why the answer is still spelled
+    /// `Iterable<string>`.
+    ///
+    /// **No decode**, deliberately: this is `read`'s treatment of a file's
+    /// octets and not `readText`'s, so a caller who knows what charset the
+    /// file is in reads it with `readText` and splits it with
+    /// `Core\Str::lines`. The three terminators are ASCII, so the split itself
+    /// asks nothing of the bytes around them.
+    fn nvs_core_io_lines(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "lines", "path")?);
+        let raw = slurp(ctx, path, "Core\\IO::lines")?;
+        let mut out = NvsArray::new();
+        for line in crate::str::line_pieces(&raw) {
+            out.append(Value::str(NvsStr::new(line)));
+        }
+        Ok(crate::instance::build(&LINES, [Value::array(out)]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<string>::iterate(): Iterator<string>` — a cursor over the
+    /// lines this value is already holding.
+    ///
+    /// Not a registered member: it is reached by name through this class's
+    /// method table, so its receiver is **transferred** rather than borrowed —
+    /// [`crate::cursor`]'s module docs own both halves of that. The cursor
+    /// shares the list rather than copying it, because nothing can change it:
+    /// [`LINES`] has no member at all, let alone a mutating one, so the
+    /// snapshot every other `iterate()` has to take was taken once already
+    /// when `lines` built the value.
+    fn nvs_core_io_lines_iterate(_ctx, args: [1]) {
+        let cursor = held_lines(args[0], nvs_runtime::sequence::ITERATE).map(crate::cursor::over);
+        crate::cursor::consume(args[0]);
+        cursor
+    }
+}
+
+/// The `array<string>` a [`LINES`] receiver holds, **retained** — the caller
+/// takes over the reference this answers with.
+///
+/// # Errors
+///
+/// A `Fault::fatal` if the receiver is not one of this class's instances, on
+/// the same reading as [`text`]: the signature was checked at compile time and
+/// the slot is written by [`nvs_core_io_lines`] and by nothing else, so either
+/// mismatch is a bug in this crate rather than something a program can reach.
+fn held_lines(value: Value, member: &str) -> Result<NvsArray, Fault> {
+    let receiver = crate::instance::receiver(value, &LINES, member)?;
+    let held = crate::instance::slot(receiver, LINES_SLOT);
+    let ptr = held.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{LINES_NAME}::{member} expected {:?} in its `{}` slot, got tag {}",
+            Tag::Array,
+            LINES.slots[LINES_SLOT],
+            held.tag_byte()
+        ))
+    })?;
+    let borrowed = crate::arr::borrowed(ptr);
+    Ok((*borrowed).clone())
 }
 
 /// A whole file's octets, from behind [`nvs_runtime::capability::open_read`]'s

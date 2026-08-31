@@ -1,0 +1,65 @@
+--TEST--
+Core\IO::lines refuses an ungranted path exactly as ::read does, naming `fs.read` for the same path, counted over a sweep of a file that is on disk, a name nothing could be at and a directory — and the `foreach` never begins, so a file's line count is no more learnable without the grant than its contents are — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// `lines` performs the whole read behind one door and only then splits, so the
+// thing this case pins is an ordering: with nothing granted, the three paths
+// have to become indistinguishable, and a member that opened the file to count
+// its lines before asking would answer differently for the one that is really
+// there.
+//
+// The agreement with `read` is the other half. They share `slurp`, so a
+// refusal that differed between them could only mean one of the two had grown
+// a door of its own.
+array<string> $paths = [
+    "note.txt",
+    "no-such-dir/no-such-file.txt",
+    ".",
+];
+int $total = Core\Arr::count($paths) as int;
+
+int $refused = 0;
+int $namingFsRead = 0;
+int $linesSeen = 0;
+
+int $i = 0;
+for (; $i < $total; $i = $i + 1) {
+    string $path = $paths[$i];
+    string $needs = " needs the capability `fs.read` for " . $path . ", which is not granted";
+
+    try {
+        string $raw = Core\IO::read($path);
+        echo "read answered for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::read" . $needs) {
+            $namingFsRead = $namingFsRead + 1;
+        }
+    }
+
+    try {
+        foreach (Core\IO::lines($path) as string $line) {
+            $linesSeen = $linesSeen + 1;
+        }
+        echo "lines answered for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::lines" . $needs) {
+            $namingFsRead = $namingFsRead + 1;
+        }
+    }
+}
+
+echo "paths: ", $total as string, "\n";
+echo "refused: ", $refused as string, "\n";
+echo "naming fs.read: ", $namingFsRead as string, "\n";
+echo "lines seen: ", $linesSeen as string, "\n";
+--FILE note.txt--
+one
+two
+three
+--EXPECT--
+paths: 3
+refused: 6
+naming fs.read: 6
+lines seen: 0
