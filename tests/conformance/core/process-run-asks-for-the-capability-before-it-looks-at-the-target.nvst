@@ -1,0 +1,63 @@
+--TEST--
+`Core\Process::run` asks `process.exec` first and the target's kind second, so the same `.bat` file is a capability refusal outside the grant and a target-kind refusal inside it — ADR 0044 §§ 4 and 6, ADR 0118 § 3
+--FILE--
+<?nvs
+// Two identical files, one inside the granted root and one outside it. The
+// only difference between the two calls below is the path, so whichever
+// refusal each gets is the one the door reached first — and a member that
+// looked at the extension before the grant would answer "will not run" to
+// both, disclosing what kind of thing sits at a path this program was never
+// allowed to ask about.
+try {
+    var $outside = Core\Process::run("other/say.bat", []);
+    echo "outside: accepted, exit=", $outside->exitCode(),
+         " err=", Core\Bytes::length($outside->stderr()), "\n";
+} catch (RuntimeError $denied) {
+    if (Core\Str::contains($denied->message, "needs the capability `process.exec` for ")) {
+        echo "outside: the capability answered first\n";
+    } else {
+        echo "outside: refused by target kind\n";
+    }
+}
+
+// Inside the grant, and now the kind is what decides. The refusal names the
+// extension rather than the file, because it is about which program the
+// operating system would hand the command line to.
+try {
+    var $inside = Core\Process::run("allowed/say.bat", []);
+    echo "inside: accepted, exit=", $inside->exitCode(),
+         " out=", Core\Bytes::length($inside->stdout()), "\n";
+} catch (RuntimeError $refused) {
+    if (Core\Str::contains($refused->message, "a `.bat` target is started by handing a command line")) {
+        echo "inside: refused by target kind\n";
+    } else {
+        echo "inside: the capability answered first\n";
+    }
+}
+
+// The third answer, which is what makes the first two mean anything: a granted
+// target of a kind this API will start reaches the operating system, and the
+// operating system is what says no. `IOError` is caught before `RuntimeError`
+// so the case names which half of the door ran.
+try {
+    var $missing = Core\Process::run("allowed/absent", []);
+    echo "absent: accepted, exit=", $missing->exitCode(),
+         " err=", Core\Bytes::length($missing->stderr()), "\n";
+} catch (IOError $os) {
+    echo "absent: the os answered\n";
+} catch (RuntimeError $stopped) {
+    echo "absent: stopped before the os\n";
+}
+--FILE allowed/say.bat--
+@echo off
+echo hello
+--FILE other/say.bat--
+@echo off
+echo hello
+--FILE nvs.toml--
+[capabilities.process]
+exec = ["allowed"]
+--EXPECT--
+outside: the capability answered first
+inside: refused by target kind
+absent: the os answered

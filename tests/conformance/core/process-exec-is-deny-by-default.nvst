@@ -1,0 +1,43 @@
+--TEST--
+`Core\Process::run` is refused by a configuration that simply does not mention `process.exec`, and the message names the member and the capability an operator would have to grant — ADR 0044 § 6, ADR 0118 § 1
+--FILE--
+<?nvs
+// The configuration below is not empty and not silent about capabilities: it
+// grants `fs.read` generously. What it never says is anything at all about
+// `process.exec`, and that is the whole case — deny-by-default means an
+// unmentioned capability is denied, not that an unconfigured program is.
+//
+// The target is this case's own source file, which exists and is readable, so
+// nothing about the path can be what refuses. A member that asked the
+// filesystem first would answer something else here.
+try {
+    var $result = Core\Process::run("case.nvs", []);
+    echo "accepted: exit=", $result->exitCode(),
+         " out=", Core\Bytes::length($result->stdout()),
+         " err=", Core\Bytes::length($result->stderr()), "\n";
+} catch (IOError $os) {
+    echo "the os answered first\n";
+} catch (RuntimeError $refused) {
+    // The half an operator acts on: which member, and which capability to
+    // grant. The path is in the message too and is not asserted, because it is
+    // the working directory's own spelling.
+    if (Core\Str::contains($refused->message, "Core\\Process::run needs the capability `process.exec` for ")) {
+        echo "refused, naming process.exec\n";
+    } else {
+        echo "refused, saying something else\n";
+    }
+}
+
+// The grant that *is* present still works, so what the block above proves is a
+// denial and not an unreadable configuration.
+if (Core\IO::exists("case.nvs")) {
+    echo "fs.read: granted\n";
+} else {
+    echo "fs.read: not granted\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+refused, naming process.exec
+fs.read: granted

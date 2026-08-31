@@ -1,0 +1,52 @@
+--TEST--
+`Core\Process::run` refuses `.bat`, `.cmd` and `.ps1` in any letter case and on every platform, and refuses nothing else by kind — asserted by counting a sweep, so a member that let one through fails here while still answering plausibly to each row on its own — ADR 0044 § 4
+--FILE--
+<?nvs
+// Every target below is granted and none of them exists. That is the point:
+// the refusal is about what kind of thing the name says it is, not about what
+// is on disk, so the whole sweep asks one question with the filesystem held
+// still. The three that are not shell targets reach the operating system and
+// are refused by it instead, which is the other side of the same bound.
+array<string> $targets = [
+    "say.bat", "say.cmd", "say.ps1",
+    // The door lower-cases before it compares, and Windows resolves a name
+    // without regard to case, so an upper-case spelling is the same target.
+    "SAY.BAT", "Say.Ps1",
+    // Not shell targets: a native binary, a name with no extension at all, and
+    // an extension that merely looks executable.
+    "say.exe", "say", "say.sh",
+];
+
+int $accepted = 0;
+int $byKind = 0;
+int $byTheOs = 0;
+
+foreach ($targets as string $k => string $target) {
+    try {
+        var $result = Core\Process::run($target, []);
+        $accepted = $accepted + 1;
+        echo "accepted ", $target, ": exit=", $result->exitCode(),
+             " out=", Core\Bytes::length($result->stdout()),
+             " err=", Core\Bytes::length($result->stderr()), "\n";
+    } catch (IOError $os) {
+        $byTheOs = $byTheOs + 1;
+    } catch (RuntimeError $refused) {
+        if (Core\Str::contains($refused->message, "will not run")) {
+            $byKind = $byKind + 1;
+        }
+    }
+}
+
+// Five refused by kind, three handed to the operating system, none started.
+// Read off the counts rather than off eight lines, so a member that grew a
+// ninth answer is not quietly plausible.
+echo "accepted=", $accepted, "\n";
+echo "by kind=", $byKind, "\n";
+echo "by the os=", $byTheOs, "\n";
+--FILE nvs.toml--
+[capabilities.process]
+exec = ["."]
+--EXPECT--
+accepted=0
+by kind=5
+by the os=3
