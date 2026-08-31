@@ -59,15 +59,16 @@
 > `nvs_host::net`. **Stage 6 has opened**: `Core\Cache`'s two tiers are one `Store` over ADR 0023 §
 > 3's byte payload, `local()` needs no grant and `shared()` is the `net.connect` door onto RESP over
 > the parking stream; `Core\RateLimit::consume` is GCRA over that same store, one `EVAL` of our own
-> script, throwing where an unreachable store would decide *allowed*. The harness serves 8099
-> (`tools/origin.py`) and `examples/http.nvs` prints all five lines. Conformance 1168, differential
-> 210 of 210, migration 37% over its 36% floor.
+> script, throwing where an unreachable store would decide *allowed*. `examples/cache.nvs` prints
+> its five lines against `tests/db/compose.yaml`'s `redis`, up per run from the goal's `[docker]`
+> block. Conformance 1168, differential 210 of 210, migration 37% over its 36% floor.
 >
-> **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized in
-> the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
-> others. One external dependency: **goal 5 needs a reachable Docker daemon**, because ADR 0067's
-> driver matrix runs MySQL, MariaDB, PostgreSQL and SQL Server as real servers; the driver preflights
-> it and stops the run naming it rather than grinding against a check that cannot pass. Picking every
+> **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
+> in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
+> others. One external dependency, two goals wide now: **goals 4 and 5 need a reachable Docker
+> daemon** — stage 6's shared store is `tests/db/compose.yaml`'s `redis`, and ADR 0067's driver
+> matrix runs MySQL, MariaDB, PostgreSQL and SQL Server as real servers; the driver preflights it
+> and stops the run naming it rather than grinding against a check that cannot pass. Picking every
 > dependency but the two the user named is pre-authorized under ADR 0051 § 4.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

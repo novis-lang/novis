@@ -4707,6 +4707,17 @@ sibling in the same namespace unqualified.
   `Core\Http::allowUrl`, and `Core\Cache\Store` declares nothing behind `Core\Cache::shared`); and
   `docs/agent/loop-goal.md` has a byte-for-byte twin under `docs/agent/goals/` differing only in
   link depth, so the bullet goes in both.
+- **A new member on a capability-bearing class must declare a capability, and the allowlist for one
+  that reaches nothing is frozen.** `Core\RateLimit::shed` reaches nothing — ADR 0075 § 1 puts its
+  state in the core's own memory — but `Core\RateLimit` is capability-bearing because `consume`
+  declares `net.connect`, and `every_capability_bearing_member_declares_its_capability`
+  (`crates/nvs-stdlib/tests/capability.rs:282`) asserts over *every* member of such a class. So the
+  obvious move, a second entry in `NEEDS_NO_CAPABILITY` beside `Core\Cache::local`
+  (`crates/nvs-stdlib/tests/capability.rs:279`), is the one that test's own failure message calls
+  "the one move ADR 0118 § 7 forbids". The sibling readers dodge the question by being a *separate
+  class* — `Core\RateLimit\Decision` and `Core\Process\Result` are their own `CoreClass`es and so are
+  not capability-bearing at all. Settle it against ADR 0118 § 7 before writing the row, not after the
+  test goes red.
 
 ## Divergences and refusals already pinned
 
