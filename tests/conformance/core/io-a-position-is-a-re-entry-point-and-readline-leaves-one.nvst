@@ -1,0 +1,51 @@
+--TEST--
+`readLine` leaves the handle exactly where the line ended — terminator cluster and all — so a `tell` taken before one is an offset `seek` can hand back to read the same line again — spec § 14
+--FILE--
+<?nvs
+// `readLine` reads a chunk and gives the tail back by seeking, which is an
+// implementation detail right up until a program asks `tell` about it. This
+// pins the answer: the position after a line is the first byte of the next one,
+// whatever the terminator was, and never somewhere inside the chunk that was
+// actually read from the descriptor.
+Core\IO\File $out = Core\IO::open("reentry.txt", Core\IO\FileMode::Write);
+// Two terminators of different widths, so a position that counted the line
+// rather than its bytes lands wrong on the second.
+$out->write("alpha\nbeta\r\ngamma");
+$out->close();
+
+Core\IO\File $in = Core\IO::open("reentry.txt", Core\IO\FileMode::Read);
+echo "1: ", $in->readLine() ?? "<end>", " @", $in->tell() as string, "\n";
+// The whole `\r\n` cluster is consumed, so this is 12 and not 11: one line's
+// terminator is not one byte.
+uint $beta = $in->tell();
+echo "2: ", $in->readLine() ?? "<end>", " @", $in->tell() as string, "\n";
+
+// The point of the pair: an offset taken before a line is an offset that reads
+// the same line again. A `readLine` that had left the handle mid-chunk would
+// still print a plausible line above and a different one here.
+$in->seek($beta);
+echo "re: ", $in->readLine() ?? "<end>", " @", $in->tell() as string, "\n";
+
+// A last line with no terminator ends at the end of the file, and the end is
+// where the handle stays.
+echo "3: ", $in->readLine() ?? "<end>", " @", $in->tell() as string, "\n";
+echo "4: ", $in->readLine() ?? "<end>", " @", $in->tell() as string, "\n";
+
+// And back to the very start, which is the offset every `seek` is measured
+// from, so the whole walk repeats.
+$in->seek(0);
+echo "top: ", $in->readLine() ?? "<end>", " @", $in->tell() as string, "\n";
+$in->close();
+
+Core\IO::remove("reentry.txt");
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+1: alpha @6
+2: beta @12
+re: beta @12
+3: gamma @17
+4: <end> @17
+top: alpha @6

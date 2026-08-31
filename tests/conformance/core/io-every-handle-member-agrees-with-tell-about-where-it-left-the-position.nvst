@@ -1,0 +1,55 @@
+--TEST--
+Every member of `Core\IO\File` leaves the handle just past what it touched, and `tell` is the one question that proves they agree rather than each keeping its own count — spec § 14
+--FILE--
+<?nvs
+// One question asked of every member of the roster: where did you leave the
+// handle? A member that grew a counter of its own would still answer its own
+// line plausibly and fail here.
+Core\IO\File $out = Core\IO::open("walk.txt", Core\IO\FileMode::Write);
+// A handle nothing has written to is at the start.
+echo "opened: ", $out->tell() as string, "\n";
+$out->write("abcdefghij");
+echo "wrote: ", $out->tell() as string, "\n";
+// `seek` is the one member whose whole purpose is moving it, and it moves it to
+// exactly what it was given.
+$out->seek(3);
+echo "sought: ", $out->tell() as string, "\n";
+// A write lands where the handle is and moves it past what went out — the same
+// rule as the write at the start, which is the agreement being asserted.
+$out->write("XY");
+echo "patched: ", $out->tell() as string, "\n";
+// `flush` touches nothing, so it moves nothing.
+$out->flush();
+echo "flushed: ", $out->tell() as string, "\n";
+$out->close();
+
+Core\IO\File $in = Core\IO::open("walk.txt", Core\IO\FileMode::Read);
+echo "reopened: ", $in->tell() as string, "\n";
+// A read of nothing is still a read, and it moves the handle by nothing.
+echo "none: [", $in->read(0), "] ", $in->tell() as string, "\n";
+echo "some: ", $in->read(4), " ", $in->tell() as string, "\n";
+// `$max` is a ceiling and not a size, so a read that runs out of file stops at
+// the end — and leaves the handle there rather than past it.
+echo "rest: ", $in->read(100), " ", $in->tell() as string, "\n";
+// The end of the file is not a position that keeps advancing.
+echo "end: [", $in->read(1), "] ", $in->tell() as string, "\n";
+echo "again: [", $in->read(1), "] ", $in->tell() as string, "\n";
+$in->close();
+
+Core\IO::remove("walk.txt");
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+opened: 0
+wrote: 10
+sought: 3
+patched: 5
+flushed: 5
+reopened: 0
+none: [] 0
+some: abcX 4
+rest: Yfghij 10
+end: [] 10
+again: [] 10

@@ -745,12 +745,14 @@ const LINE_CHUNK: usize = 8 * 1024;
 /// open — which is one question, answered in [`open_file`], and is the one thing
 /// a static type genuinely cannot know.
 ///
-/// # Five members so far, and the rest of § 14's roster is owed
+/// # Seven members so far, and the rest of § 14's roster is owed
 ///
-/// `read`, `readLine`, `write`, `flush` and `close`. The spec also names `seek`,
-/// `tell`, `truncate` and `lock`, and each is a signature over the same slot
-/// with nothing new to decide — they are absent because nothing has needed one
-/// yet, which is the same test every row in [`crate::registry::ENUMS`] passes.
+/// `read`, `readLine`, `write`, `seek`, `tell`, `flush` and `close` — the last
+/// two of those added when the handle became random-access, since a position a
+/// caller can set is the whole difference between this and a stream. The spec
+/// also names `truncate` and `lock`, each a signature over the same slot with
+/// nothing new to decide; they are absent because nothing has needed one yet,
+/// which is the same test every row in [`crate::registry::ENUMS`] passes.
 /// `Core\IO::stdin`/`stdout`/`stderr` answer this class too and are owed with
 /// them.
 pub(crate) const FILE: CoreClass = CoreClass {
@@ -785,6 +787,27 @@ pub(crate) const FILE: CoreClass = CoreClass {
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_io_file_write",
             doc: Some(&FILE_WRITE_DOC),
+        },
+        CoreMethod {
+            name: "seek",
+            // No `whence`: R3 refuses a mode argument, and `$offset` is from the
+            // start because that is the only origin a caller can name without
+            // first asking where the handle already is.
+            names: &["offset"],
+            params: &[CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_io_file_seek",
+            doc: Some(&FILE_SEEK_DOC),
+        },
+        CoreMethod {
+            name: "tell",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_io_file_tell",
+            doc: Some(&FILE_TELL_DOC),
         },
         CoreMethod {
             name: "flush",
@@ -872,6 +895,52 @@ const FILE_WRITE_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "IOError",
             desc: "The write itself failed, or the handle was not opened for writing.",
+        },
+    ],
+};
+
+/// `Core\IO\File::seek`'s reference card — ADR 0117.
+const FILE_SEEK_DOC: MethodDoc = MethodDoc {
+    short: "Moves the handle to `$offset` bytes from the start of the file — `fseek`, with no \
+            `whence`. Seeking past the end is allowed and is how a sparse file is written: the \
+            gap becomes zeroes when something is written after it.",
+    params: &[ParamDoc {
+        name: "offset",
+        desc: "How many bytes from the start of the file the next read or write happens at.",
+        shape: &[],
+    }],
+    ret: "Nothing. `tell` is how a program reads the position back, so this member has no answer \
+          of its own to give.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The handle has already been closed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The seek itself failed — a pipe or a terminal, which has no position to move \
+                   to.",
+        },
+    ],
+};
+
+/// `Core\IO\File::tell`'s reference card — ADR 0117.
+const FILE_TELL_DOC: MethodDoc = MethodDoc {
+    short: "Answers where the handle is, in bytes from the start of the file — `ftell`. It is the \
+            position the next `read` or `write` acts at, which every member of this class leaves \
+            just past what it touched.",
+    params: &[],
+    ret: "The position, as a `uint`. Zero on a handle nothing has read or written yet, unless \
+          `FileMode::Append` put it at the end.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The handle has already been closed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The query itself failed — a pipe or a terminal, which has no position to \
+                   report.",
         },
     ],
 };
@@ -983,6 +1052,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_file_read" => (nvs_core_io_file_read as *const ()).cast(),
         "nvs_core_io_file_read_line" => (nvs_core_io_file_read_line as *const ()).cast(),
         "nvs_core_io_file_write" => (nvs_core_io_file_write as *const ()).cast(),
+        "nvs_core_io_file_seek" => (nvs_core_io_file_seek as *const ()).cast(),
+        "nvs_core_io_file_tell" => (nvs_core_io_file_tell as *const ()).cast(),
         "nvs_core_io_file_flush" => (nvs_core_io_file_flush as *const ()).cast(),
         "nvs_core_io_file_close" => (nvs_core_io_file_close as *const ()).cast(),
         LINES_ITERATE_SYMBOL => (nvs_core_io_lines_iterate as *const ()).cast(),
@@ -1333,6 +1404,77 @@ nvs_runtime::nvs_helper! {
             )
         })?;
         Ok(Value::uint(data.len() as u64))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO\File::seek(uint $offset): void` — replacing `fseek`, and half of
+    /// what makes a handle random-access rather than a stream.
+    ///
+    /// # Decision: one origin, and it is the start of the file
+    ///
+    /// PHP's `fseek` takes a `$whence` of `SEEK_SET`, `SEEK_CUR` or `SEEK_END`,
+    /// which is exactly the `int` mode argument ADR 0063 R3 refuses: three
+    /// unrelated operations reached through one member, chosen by a constant the
+    /// signature cannot check. `SEEK_SET` is the one a caller can name on its
+    /// own; the other two are `seek($file->tell() + $n)` and a size read, both
+    /// spelled out of members this class already has, and both of which say at
+    /// the call site which origin was meant. So the parameter is a `uint` and
+    /// there is no negative offset to validate — the type refuses the seek
+    /// before the file is asked.
+    ///
+    /// Seeking past the end is **not** an error, here or in the operating
+    /// system: it is how a sparse file is written, and the hole becomes zeroes
+    /// when a later write lands past it. `tell` will answer that position, and a
+    /// read there returns nothing, which is `read`'s ordinary end-of-file.
+    fn nvs_core_io_file_seek(ctx, args: [2]) {
+        let (key, path) = handle_of(args[0], "seek")?;
+        let offset = args[1].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{FILE_NAME}::seek expected {:?} for its offset, got tag {}",
+                Tag::Uint,
+                args[1].tag_byte()
+            ))
+        })?;
+        {
+            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("seek", &path))?;
+            file.seek(std::io::SeekFrom::Start(offset))
+        }
+        .map_err(|err| {
+            nvs_runtime::capability::io_failure(
+                "Core\\IO\\File::seek",
+                Path::new(path.as_text().unwrap_or("?")),
+                &err,
+            )
+        })?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO\File::tell(): uint` — replacing `ftell`, and the other half of a
+    /// random-access handle.
+    ///
+    /// `stream_position` rather than a zero-length `seek(Current(0))`: the two
+    /// are the same syscall and the first says what it is for. The answer is a
+    /// `uint` because a position is a distance from the start and cannot be
+    /// negative — the same reading that gives [`nvs_core_io_file_seek`] its
+    /// parameter type, so the two agree on what a position is and a round trip
+    /// through them cannot lose a value.
+    fn nvs_core_io_file_tell(ctx, args: [1]) {
+        let (key, path) = handle_of(args[0], "tell")?;
+        let at = {
+            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("tell", &path))?;
+            file.stream_position()
+        }
+        .map_err(|err| {
+            nvs_runtime::capability::io_failure(
+                "Core\\IO\\File::tell",
+                Path::new(path.as_text().unwrap_or("?")),
+                &err,
+            )
+        })?;
+        Ok(Value::uint(at))
     }
 }
 

@@ -54,14 +54,14 @@
 > `Core\Log::write` is a row over ADR 0020 § 6's tier-4 floor, and § 3's tier 3 runs above it as
 > `[app.log] handler`, an isolate on `Ctx::handler_isolate`'s reserve; `examples/logging.nvs` is
 > green. **Stage 8 has opened**: `Core\Reflect` is `forObject`, `forClass` and `typeOf`, and
-> `Core\Ast::parse` answers the compiler's own tree, and `ClassInfo::call` acts through the ordinary
-> erased-receiver check rather than restating it. **Stage 2's handle half has opened**:
+> `Core\Ast::parse` answers the compiler's own tree. **Stage 2's handle half has opened**:
 > `Core\IO::open` answers a `Core\IO\File` whose slot is a key into the request's own table of
-> descriptors, `Core\IO\FileMode` is R11's enum, and `read`, `readLine`, `write`, `flush` and
-> `close` are its members; `seek`, `tell`, `truncate` and `lock` are owed, and `writeStream` streams
-> a chunk at a time. **`[2 filesystem]` is green**: ADR 0052 § 2's closed door on scheme dispatch is
-> asserted over the roster and over the path modules' own sources. Conformance 1198, differential
-> 210 of 210, migration 37% over its 36% floor.
+> descriptors, `Core\IO\FileMode` is R11's enum, and `read`, `readLine`, `write`, `seek`, `tell`,
+> `flush` and `close` are its members; `truncate` and `lock` are owed, and `writeStream` streams a
+> chunk at a time. **`[2 filesystem]` is green**: ADR 0052 § 2's closed door on scheme dispatch is
+> asserted over the roster and over the path modules' own sources. **Stage 3's wait is off the
+> core**: `Core\Process::run` waits through `nvs_host::blocking`, so a child a request waits on
+> holds no worker. Conformance 1201, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

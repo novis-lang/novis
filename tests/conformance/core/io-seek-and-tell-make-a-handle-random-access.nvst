@@ -1,0 +1,90 @@
+--TEST--
+`Core\IO\File::seek` moves the handle to an offset from the start and `::tell` answers where it is, with no `whence` argument anywhere between them — spec § 14, ADR 0063 R3
+--FILE--
+<?nvs
+// A handle is random-access, and these two members are the whole of what makes
+// it so: one sets the position, the other reads it back. Every other member of
+// the class leaves the handle just past what it touched, which is what makes
+// the two agree with `read` and `write` rather than merely with each other.
+Core\IO\File $out = Core\IO::open("seekable.txt", Core\IO\FileMode::Write);
+$out->write("abcdefghij");
+$out->close();
+
+Core\IO\File $in = Core\IO::open("seekable.txt", Core\IO\FileMode::Read);
+// Nothing has been read yet, so the handle is at the start.
+echo "start: ", $in->tell() as string, "\n";
+echo "read: ", $in->read(3), "\n";
+// `read` moved it past what it returned. This is the agreement that matters:
+// the position is not a separate counter this class keeps.
+echo "after: ", $in->tell() as string, "\n";
+
+// The offset is from the start of the file and there is no `whence`: PHP's
+// `SEEK_CUR` is spelled out of the two members together, at the call site,
+// where a reader can see which origin was meant.
+$in->seek(6);
+echo "at: ", $in->tell() as string, "\n";
+echo "then: ", $in->read(2), "\n";
+
+// Backwards is the same call, because the origin never moves.
+$in->seek(0);
+echo "again: ", $in->read(4), "\n";
+
+// The bound on both sides of the file's own length. The last byte is at 9 and
+// reads; one past it is a position the handle will happily take, and reading
+// there is the ordinary end of the file rather than a failure.
+$in->seek(9);
+echo "last: [", $in->read(1), "]\n";
+$in->seek(10);
+echo "past: [", $in->read(1), "]\n";
+echo "held: ", $in->tell() as string, "\n";
+
+// Seeking beyond the end is not an error either — it is how a sparse file is
+// written, and `tell` answers the position that was asked for.
+$in->seek(100);
+echo "beyond: ", $in->tell() as string, "\n";
+echo "nothing: [", $in->read(1), "]\n";
+$in->close();
+
+// A closed handle answers neither, and it is a `RuntimeError` rather than an
+// `IOError`: the mistake is in the program, not in the file.
+try {
+    $in->tell();
+    echo "answered a closed handle", "\n";
+} catch (RuntimeError $closed) {
+    echo "closed: tell", "\n";
+}
+try {
+    $in->seek(0);
+    echo "moved a closed handle", "\n";
+} catch (RuntimeError $closed) {
+    echo "closed: seek", "\n";
+}
+
+// A write lands where the handle is, so `seek` plus `write` is an overwrite in
+// place — the whole point of a position a caller can set.
+Core\IO\File $patch = Core\IO::open("seekable.txt", Core\IO\FileMode::ReadWrite);
+$patch->seek(4);
+$patch->write("EF");
+$patch->close();
+echo "patched: ", Core\IO::readText("seekable.txt"), "\n";
+
+Core\IO::remove("seekable.txt");
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+start: 0
+read: abc
+after: 3
+at: 6
+then: gh
+again: abcd
+last: [j]
+past: []
+held: 10
+beyond: 100
+nothing: []
+closed: tell
+closed: seek
+patched: abcdEFghij
