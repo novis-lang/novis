@@ -4861,6 +4861,19 @@ sibling in the same namespace unqualified.
   `crates/nvs-syntax/src/walk.rs` for exactly this reason and hands out a rose tree of
   `&'static str` kinds; the general shape is that any per-variant table over another crate's AST
   belongs in that crate, where a new variant is a build error in the file its author is already in.
+- **An ADR's aside that "we already have that machinery" can be about a *shape* rather than a
+  row — read the struct before pricing the slice.** ADR 0086 § 2 ends with "A `Core` class
+  constant that is an instance is machinery `nvs-stdlib` already has", and
+  `nvs_stdlib::registry::CoreConst`'s `value` is a `Const` whose whole roster is scalar and
+  which the compiler inlines at every use site, so `Cli\Color::RED` has no row it could be
+  written as and `Cli\Style`/`Text::styled` sit behind it. What *does* exist is the
+  fold-to-an-allocation shape one crate over:
+  `nvs_types::expr_table::ExprInfo::ProgramInstances` documents itself as "the sibling of
+  `ExprInfo::CoreConst` for a fold whose answer is not a constant", with `nvs-ir` emitting the
+  `InstKind::New` at the use site. So the ADR is right about the mechanism and wrong about the
+  roster, and the slice is a `CoreConst` variant plus a lowering rather than a table entry. One
+  `peek.py 'crates/nvs-stdlib/src/registry.rs:@CoreConst'` settles it before any of that is
+  budgeted as free.
 
 ## Divergences and refusals already pinned
 
