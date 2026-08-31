@@ -3289,6 +3289,19 @@ is why" — is this file.
   the handler's own line spliced into the middle. Take the value into a variable first. Every
   dispatching or callback-taking member has this shape, and it looks like a matcher bug rather than
   an evaluation-order one.
+- **A `-p nvs-stdlib` test can hand a `Core` member a *compiled class* as well as a `callable`, and
+  the installation point is named for something else.** `Ctx::class_desc` — the one route from a
+  native member to a class the program wrote, and so the whole of how `nvs_runtime::call_static`
+  turns a `#[Command]` row's `Class::method` label into an address — reads the table through
+  `Ctx::set_runtime_error_class`'s handle and through nothing else, so a dispatch test installs an
+  `ErrorClass::new(Rc::new(table), id)` over a class that has no relation to spec § 10 at all. That
+  method's own doc says so ("it is also this context's *anchor into the compiled unit's class
+  table*"), which is not where anyone looks when the question is "how do I get a handler in front of
+  this member". The row is `MethodRow { arity }` **excluding** the receiver, slot 0 of the callee is
+  the called class as a `Value::class_desc`, and the callee owes the exit sweep for every slot
+  including that one. `crates/nvs-stdlib/src/command.rs`'s `dispatching` is the shape; unlike
+  `allocation_policy.rs`'s `closure_of` it does not leak, because an `ErrorClass` holds the `Rc` for
+  as long as the context lives.
 
 ## Splitting a file that got too big
 
