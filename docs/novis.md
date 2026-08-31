@@ -66,6 +66,7 @@ Conventions the whole file uses:
 | [`Core\Bytes`](#core-core-bytes) | octet buffers — read, search, compare, build and lay out as a wire format with `pack`/`unpack` |
 | [`Core\Path`](#core-core-path) | path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem |
 | [`Core\IO`](#core-core-io) | whole-file read and write on paths the configuration has granted |
+| [`Core\IO\Lines`](#core-core-io-lines) |  |
 | [`Core\Time`](#core-core-time) | the clock and the constructors — an absolute `Instant`, or a civil `DateTime` built in a named `Zone` |
 | [`Core\Time\Instant`](#core-core-time-instant) | an absolute point on the timeline, to the nanosecond, with no zone |
 | [`Core\Time\DateTime`](#core-core-time-datetime) | a civil date and time in a zone — calendar arithmetic and CLDR formatting |
@@ -9986,7 +9987,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, exists, size, remove, removeDir, temporaryDir, within, readText
+Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, exists, size, remove, removeDir, temporaryDir, within, readText, lines
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -10044,6 +10045,7 @@ outside: refused
 | [`Core\IO::temporaryDir`](#core-core-io-temporarydir) | `temporaryDir(): string` |
 | [`Core\IO::within`](#core-core-io-within) | `within(string $base, string $path): string` |
 | [`Core\IO::readText`](#core-core-io-readtext) | `readText(string $path, {charset?: Core\Charset}): string` |
+| [`Core\IO::lines`](#core-core-io-lines) | `lines(string $path): Core\IO\Lines` |
 
 <a id="core-core-io-read"></a>
 #### `Core\IO::read`
@@ -10196,6 +10198,31 @@ The whole content of a file, decoded from the charset it is written in — `file
 **Returns** `string` — The file's content as a `string`, converted from `$charset` — never with a replacement character in it, because a conversion that cannot be exact throws instead.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path, or the file's bytes are not `$charset` — the second message names the offset of the first sequence that is not.; `IOError` — The capability allowed it and the operating system did not — the file does not exist, is a directory, or could not be read.
+
+<a id="core-core-io-lines"></a>
+#### `Core\IO::lines`
+
+```nvs skip
+Core\IO::lines(string $path): Core\IO\Lines
+```
+
+Every line of a file, without its terminator — `file()` and the `fgets` loop that replaces it, over the one definition of a line `Core\Str::lines` already uses. Needs the `fs.read` capability for the path, exactly as `read` does.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file to read, absolute or relative to the working directory. |
+
+**Returns** `Core\IO\Lines` — An `Iterable<string>` a `foreach` walks in file order, and walks again as often as it is asked. `\n`, `\r\n` and a lone `\r` each end a line; a trailing terminator does not open an empty last one, and an empty file has no lines at all.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The capability allowed it and the operating system did not — the file does not exist, is a directory, or could not be read.
+
+<a id="core-core-io-lines"></a>
+### `Core\IO\Lines`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
 
 <a id="core-core-time"></a>
 ### `Core\Time`
