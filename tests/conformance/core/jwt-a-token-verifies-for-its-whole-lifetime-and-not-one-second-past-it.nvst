@@ -1,0 +1,90 @@
+--TEST--
+Core\Jwt::verify accepts a token at every moment of its one-second lifetime and refuses it in the very next second, and the expiry refusal is the one failure with its own sentence — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// A bound asserted on both sides. `exp` counts whole seconds (RFC 7519
+// § 4.1.4), which is why `Core\Jwt::sign` refuses a lifetime shorter than one
+// — and it is also what makes the bound reachable from a test at all: the last
+// second a token is accepted in is `iat`, the first it is refused in is `exp`,
+// and they are adjacent. A member comparing `>=` where it means `>` prints
+// plausibly against either half of this on its own.
+secret bytes $key = Core\Crypto::generateKey();
+
+// Start at a second boundary, so the one-second lifetime below is signed at
+// the beginning of its own second rather than at an unknown point inside it.
+// Nothing here reads a clock twice and assumes it did not move; the two loops
+// are written against the second they want to be in.
+int $before = Core\Time::now()->toEpochSeconds();
+while (Core\Time::now()->toEpochSeconds() == $before) {
+    Core\Time::sleep(5ms);
+}
+
+string $token = Core\Jwt::sign(["sub" => "ada"], 1s, $key);
+array<tainted string> $issued = Core\Jwt::verify($token, $key);
+int $iat = $issued["iat"] as int;
+int $exp = $issued["exp"] as int;
+if ($exp - $iat == 1) {
+    echo "the shortest lifetime this member accepts is one whole second", "\n";
+}
+
+// The accepted side, counted rather than sampled once: every reading taken
+// while the clock is still inside `iat` verifies. A member that expired the
+// token early fails here while still refusing it in the next second, which is
+// the half a single check after signing cannot see.
+int $checks = 0;
+int $verified = 0;
+int $refusedEarly = 0;
+string $earlySays = "";
+while (Core\Time::now()->toEpochSeconds() < $exp) {
+    $checks = $checks + 1;
+    try {
+        array<tainted string> $still = Core\Jwt::verify($token, $key);
+        $verified = $verified + 1;
+    } catch (RuntimeError $early) {
+        $refusedEarly = $refusedEarly + 1;
+        $earlySays = $early->message;
+    }
+    Core\Time::sleep(50ms);
+}
+if ($checks == $verified && $refusedEarly == 0 && $checks > 0) {
+    echo "it verifies at every moment of the second it was issued in", "\n";
+} else {
+    echo "it stopped verifying inside its own lifetime: ", $earlySays, "\n";
+}
+
+// The refused side, in `exp` itself and not one second later — the loop waits
+// for that exact second rather than sleeping a fixed amount and hoping.
+while (Core\Time::now()->toEpochSeconds() < $exp) {
+    Core\Time::sleep(5ms);
+}
+string $expiredSays = "";
+if (Core\Time::now()->toEpochSeconds() == $exp) {
+    try {
+        array<tainted string> $late = Core\Jwt::verify($token, $key);
+        echo "a token verified in the second it expired in", "\n";
+    } catch (RuntimeError $expired) {
+        $expiredSays = $expired->message;
+        echo "and in the very next second it is refused", "\n";
+    }
+}
+
+// And that refusal is the deliberate exception to the one-sentence rule: it is
+// reached only after the signature has been checked, so it may say what is
+// wrong. Compared against the sentence a forgery gets — the module doc's
+// *verification returns claims or throws* section owns why exactly one of
+// these two is allowed to be specific.
+string $forgedSays = "";
+try {
+    array<tainted string> $forged = Core\Jwt::verify($token . "Z", $key);
+    echo "an altered signature verified", "\n";
+} catch (RuntimeError $notOurs) {
+    $forgedSays = $notOurs->message;
+}
+if ($expiredSays != $forgedSays && Core\Str::contains($expiredSays, "expired at")) {
+    echo "an expired token is told so; every other failure is one sentence", "\n";
+}
+--EXPECT--
+the shortest lifetime this member accepts is one whole second
+it verifies at every moment of the second it was issued in
+and in the very next second it is refused
+an expired token is told so; every other failure is one sentence
