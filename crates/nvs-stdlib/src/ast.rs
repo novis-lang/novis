@@ -51,6 +51,11 @@
 //!    module doc owns which productions are nodes at all today.
 //! 2. A node carries no position and no text, so a walk can count and classify
 //!    but not quote. See the second decision above for what adding it costs.
+//!    Closing this is also what makes userland architecture rules real: a
+//!    `#[Test]` that walks the tree can fail today, but cannot name the
+//!    `file:line` it failed about, and a structural rule that cannot point is
+//!    a check rather than a report (docs/adr/tooling-parity.md, the Deptrac
+//!    row).
 //! 3. § 3's `Core\Ast::parseFile` is not here. It reads a path, so it is a
 //!    capability-bearing member ([ADR 0118](../../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 //!    § 3's `fs.read`) rather than a second spelling of this one, and the
