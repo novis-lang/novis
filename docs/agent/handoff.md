@@ -2,64 +2,59 @@
 
 ## State
 
-**ADR 0067 § 9's scalar rows are on disk for PostgreSQL.** `crates/nvs-db/src/pg.rs`'s
-`PgColumn::decode` reads the row description's OID and type modifier and answers with
-`nvs-runtime`'s value: int, uint, `decimal`, float, bool, string, bytes, and `null` for an absent
-body, which is what makes every column `?T`. `PgColumn` gained `type_modifier` because § 9's
-`BIT(1)` row is a `bool` and `BIT(8)` is a `tainted string` and one OID carries both. Everything
-without a Novis type of its own — `json`, `inet`, `interval`, and for now § 9's structured rows —
-arrives at the table's last row as the server's own rendering.
+**ADR 0067 § 9's whole type map is on disk for PostgreSQL**, and the seam the structured rows
+needed is the shape of it. `crates/nvs-db/src/pg.rs`'s `PgScalar` is now this crate's public answer
+beside `Value`: `PgColumn::scalar` decodes every row of the table, and `PgColumn::decode` is the
+scalar half — it answers `Ok(None)` for `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMPTZ` and `UUID`,
+which is a different absence from SQL `NULL`'s `Some(null)` and is pinned by a test that asserts
+both on one column. Those five arrive as parsed components (`PgDate`, `PgTime`, and seconds east of
+UTC), because a `Core\Time` or `Core\Uuid` instance needs `nvs-stdlib`'s class descriptors and
+`crates/nvs-db/Cargo.toml` states on both manifests why that edge does not exist. **`nvs-stdlib` is
+what finishes them**, by matching those five variants and calling `into_value` for the rest.
 
-**Three decisions recorded in that module rather than in an ADR**, because § 9 states the table and
-not how a text body is read. **A text body is checked to be UTF-8** before it becomes a `string`:
-`client_encoding` makes that true of a *correct* server, ADR 0009's promise is read unchecked in
-`nvs-runtime`, and a database is a network peer. **A decode error never quotes the body**, holding
-the line `PgRow`'s and `Wire`'s `Debug` implementations already hold. And **`money` is read
-positionally** — the last separator is the decimal point when one or two digits follow it — which is
-exact everywhere except the three-digit currencies, where the text carries no signal to break the
-tie and the column must be cast.
+**Two startup parameters are now part of the decode**, not decoration: `DateStyle = ISO` fixes the
+rendering the parsers read positionally, and `TimeZone` — `PgTarget::time_zone`, seconds east of
+UTC — fixes the offset a `TIMESTAMPTZ` carries and is § 9's declared zone for the zone-less
+`TIMESTAMP`. The sign is the trap and `posix_time_zone`'s doc owns it: PostgreSQL's numeric zone is
+a POSIX one, so two hours east is `<+02>-02`, and a bare `+02:00` is not a zone the server parses
+at all.
 
-**§ 9's structured rows cannot be done the way the last handoff scoped them.** `Core\Time\Date`,
-`TimeOfDay`, `Instant`, `DateTime` and `Core\Uuid` are `nvs-stdlib` classes: an instance needs that
-crate's `ClassDesc`, and `crates/nvs-db/Cargo.toml` states on both manifests that an edge to
-`nvs-stdlib` is a workspace cycle. So a driver cannot answer with one, and the next group's first
-item is the seam rather than the rows — the recommendation is in it.
+**§ 4's affected count is landed too**: `PgRows::affected` over the free `affected_rows`, which
+matches the command word rather than the tag's shape — `INSERT 0 3`'s first number is an OID, not a
+count and not a `lastId`. A tag with no count answers `None` rather than `0`.
 
 Unchanged: `statement_cache` still has no reader, nothing can handshake against
 `tests/db/compose.yaml` (self-signed, no anchor seam in `nvs_host::tls`), and the goal's three
 fixtures are red at `E0405` because `Core\Db\Connection` has no stdlib rows — this goal's ordinary
 state and what the driver's acceptance check reports.
 
-**Manifest gap, open four sessions now:** `[context] adrs` in `docs/agent/loop-goal.toml` names no
-section of ADR 0132, and none of ADR 0067 §§ 1 or 5. Add 0132 §§ 1-5 and 0067 §§ 1, 5.
+**Manifest gap, open five sessions now:** `[context] adrs` in `docs/agent/loop-goal.toml` names no
+section of ADR 0132, and none of ADR 0067 §§ 1, 4, 5. Add 0132 §§ 1-5 and 0067 §§ 1, 4, 5 — § 4 was
+sliced by hand this session for the affected-row count.
 
 ## Next group
 
-**The rest of the type map and what pays for it** — `crates/nvs-db/src/pg.rs` throughout, with one
-line of `crates/nvs-config/src/tree.rs` in the last item. All three read the two structs the first
-one changes.
+**The config block's two missing fields, and what reads them** — `crates/nvs-config/src/tree.rs`
+and `crates/nvs-db/src/sql.rs`, with one field of `crates/nvs-db/src/pg.rs` in the second. The
+first two share `Database`'s field list and its boot refusal.
 
-- [ ] **§ 9's structured rows, and the seam they need** — `crates/nvs-db/src/pg.rs:736`'s `PgScalar`
-      gains `Date`, `Time`, `Timestamp`, `Instant` and `Uuid` variants holding *parsed components*
-      (civil fields, seconds, nanos, a UTC offset), and becomes this driver's public answer beside
-      `Value`: `crates/nvs-db/src/pg.rs:800`'s `decode` keeps the scalar half and `scalar` is what
-      `nvs-stdlib` calls for the rest, since only that crate can `construct` a `Core\Time` instance.
-      OIDs go in `crates/nvs-db/src/pg.rs:698`'s table (`date` 1082, `time` 1083, `timestamp` 1114,
-      `timestamptz` 1184, `uuid` 2950). § 9's zone-less-`DATETIME` half belongs here too: the
-      `TimeZone` startup parameter at `crates/nvs-db/src/pg.rs:464`, sent as a numeric offset.
-      `crates/nvs-db/Cargo.toml:19`'s "a driver answers with `nvs-runtime`'s values" is the comment
-      this amends.
-- [ ] **§ 4's affected-row count** — `crates/nvs-db/src/pg.rs:1048`'s `command_tag` is the raw tag
-      and its own doc says parsing it is this slice's job: `INSERT 0 3`, `UPDATE 2`, `SELECT 0`, and
-      a tag with no count (`BEGIN`, `SET`) answering `None` rather than nought.
-- [ ] **`statement_cache` gets its reader** — § 1's config field, `crates/nvs-config/src/tree.rs:511`
-      as an `Option<u32>` beside its siblings, resolved into `crates/nvs-db/src/pg.rs:307`'s
-      `connect` where `StatementCache::DEFAULT_CAPACITY` currently stands alone.
+- [ ] **§ 1's `statement_cache` gets its config field and its reader** — `Database` gains it at
+      `crates/nvs-config/src/tree.rs:511`, and `crates/nvs-db/src/sql.rs:224`'s `StatementCache`
+      takes the size from there instead of whatever the constructor is defaulted with today. ADR
+      0067 § 1 is the sizing rule; the field list's doc comment above that struct says a field
+      the ADR meant and the list omits is a boot refusal, so this closes one.
+- [ ] **§ 9's `time_zone` gets its config field** — the same `Database` at
+      `crates/nvs-config/src/tree.rs:511`, feeding `crates/nvs-db/src/pg.rs:153`'s
+      `PgTarget::time_zone`, which is already read and already sent. Default UTC. § 9's own
+      sentence names `timeZone` in `Settings` as the other spelling.
+- [ ] **PostgreSQL arrays, § 9's last undecoded row** — `crates/nvs-db/src/pg.rs:1010`'s `scalar`
+      falls through to `PgScalar::Text` for them today. The element OID is in the row description
+      and `array<T>` is a `Value`, so this one stays inside this crate, unlike the five above.
 
 ## Backlog
 
-- The pool itself, ADR 0067 § 13 — plan Stages 3 to 7, and `reset` already takes `self` for it.
-- MySQL and MariaDB as their own drivers, ADR 0132 § 5's enum.
-- `Core\Db`'s stdlib rows, which is what turns the fixtures' `E0405` green — ADR 0067 §§ 2, 4.
-- An anchor seam in `nvs_host::tls` so `tests/db/compose.yaml`'s servers are reachable at all.
-- `executeMany`, ADR 0067 § 1's answer to the batch case.
+- The pool (§ 13) is Stages 3 to 7 — `docs/plan/m8.md`.
+- No anchor seam in `nvs_host::tls`, so no compose server can be handshaked against — ADR 0132 § 3.
+- MySQL, MariaDB, SQL Server and SQLite drivers are all still `conn.rs` variants with no wire.
+- `Core\Db\Connection`'s stdlib rows are what close the three red fixtures — ADR 0067 § 4.
+- `Db\Write::lastId` on PostgreSQL comes from `RETURNING`, not the tag — ADR 0067 § 4.

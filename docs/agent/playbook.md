@@ -1458,6 +1458,12 @@ is why" — is this file.
   with `no <<<<<<< OLD block`, which names the fix but not the shape, and `splice.py --help` prints
   three usage lines without it. The format is the first 30 lines of that file's own docstring:
   `python tools/peek.py tools/splice.py:1-40`.
+- **`peek.py --locate` does not compose with `path:target` windows in the same call, and the
+  failure reads as a missing symbol rather than as a misuse.** `python tools/peek.py a.rs:800-960
+  b.rs:@Sym --locate PgTarget time_zone` printed one anchor, `time_zone: NOT FOUND`, and exited 1 —
+  the two windows were never read, and the `--locate` names were merged with what the shell had
+  already parsed as targets. Nothing said which half was dropped. Give `--locate` a call of its
+  own; it is cheap, because it returns anchors and no bodies.
 
 ## Running things
 

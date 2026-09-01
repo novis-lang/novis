@@ -42,10 +42,8 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 5 of the parity program — `Core\Db`, M8 — is running.** **Stage 0 has
-> landed**: ADR 0071's derive pass runs over both of its formats from one walk,
-> `#[Db\Derive]`/`#[Db\Field]` are on `nvs_types::derive::ATTRIBUTES`, and ADR 0067 § 9's type map
-> refuses a field no column reads back as at the declaration that wrote it (`E0756`) — `bytes` is a
-> column and a nested class is not, which is where the two formats' maps first disagree.
+> landed**: ADR 0071's derive pass runs over both of its formats from one walk, and § 9's type map
+> refuses a field no column reads back as at the declaration that wrote it (`E0756`).
 > **`crates/nvs-db` exists**: § 5's `Connection` enum, § 4's four-state busy field and the
 > `NVS_DB_MATRIX_*` reader, over an `NvsTls` now generic in its transport. Its wire I/O opens with
 > PostgreSQL's own: § 3's `SSLRequest` upgrade and a SCRAM-SHA-256 exchange, asserted in-crate
@@ -54,13 +52,14 @@
 > commands, and `reset` takes `self` so a failed one cannot be pooled. § 5's `?`/`:name` rewriter
 > and § 1's statement cache are `sql.rs`, plain data with no wire in it and keyed by SQL text plus
 > expansion arity: a hit drops the `Parse`, and an eviction's `Close` rides in the batch that
-> replaced it. § 9's scalar rows decode over it: OID and modifier to a Novis value, with a text body
-> proven UTF-8 before it may become a `string`. The pool is Stages 3 to 7, and **ADR 0132 has
-> claimed the goal's one ADR slot**: a driver is a borrowed sans-IO codec plus a state machine
-> written here, over the parking stream with `nvs-host`'s one TLS client generalised over its
-> transport, and the five are an enum rather than a trait.  The goal's three fixtures are red at
-> `E0405`, which is what lets the acceptance sweep run at all. **Goals 1-4 and M4 are closed and are
-> this goal's Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring` the one C
+> replaced it. § 9's whole type map decodes over it: a `Value` for the scalar rows and parsed
+> components — `PgScalar` — for the five that are a `Core\Time` or `Core\Uuid` instance only
+> `nvs-stdlib` can build, with `DateStyle` and a numeric `TimeZone` pinned at startup; § 4's
+> affected count is the `CommandComplete` tag's last field. The pool is Stages 3 to 7, and **ADR
+> 0132 has claimed the goal's one ADR slot**: a driver is a borrowed sans-IO codec plus a state
+> machine written here, over the parking stream with `nvs-host`'s one TLS client generalised over
+> its transport, and the five are an enum rather than a trait.   **Goals 1-4 and M4 are closed and
+> are this goal's Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring` the one C
 > dependency ADR 0051 § 4 records. Conformance 1382, differential 250, its gate met, migration
 > 90%/74%.
 >
