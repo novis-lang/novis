@@ -27,8 +27,11 @@
 //! between the runtime's Rust `ColorDepth` and the ordinals
 //! [`crate::registry::ENUMS`] gives `Core\Cli\ColorDepth`. The mapping is the
 //! one thing this file can get wrong on its own, so
-//! [`tests::the_two_enums_agree_with_the_runtimes_own`] holds the two rosters
-//! together.
+//! `tests::the_two_enums_agree_with_the_runtimes_own` holds the two rosters
+//! together. Named rather than linked because this module is public — ADR 0086
+//! § 2's `Text + Text` is a row in `nvs_types`, which reaches `NAME` and
+//! [`TEXT_CONCAT_SYMBOL`] through it — and a `#[cfg(test)]` item is not there
+//! for a documentation build to resolve.
 //!
 //! # Why `Core\Cli\Shell` is here, taken by nothing in this file
 //!
@@ -75,8 +78,10 @@
 //! process. Its own doc comment owns why the two are the same bytes today and
 //! what the difference would be; § 2's body records the decision.
 //!
-//! `Text + Text` is § 2's and is still owed: `+` over two objects needs a row
-//! in `nvs_types`' operator table before this file can express it.
+//! [`nvs_core_cli_text_concat`] is § 2's `Text + Text`, the third and last way
+//! a `Text` is obtained. It has no member row: the operator is the spelling,
+//! and `nvs_types::expr::operators` admits the pair the way it admits
+//! `Markup + Markup` — one rule over both sink carriers rather than one each.
 //!
 //! [`nvs_core_cli_escape`] is the same table reached as a *value* rather than
 //! as an effect — ADR 0024 § 3's named launderer for this sink — and it calls
@@ -1054,6 +1059,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cli_display_width" => (nvs_core_cli_display_width as *const ()).cast(),
         "nvs_core_cli_text_plain" => (nvs_core_cli_text_plain as *const ()).cast(),
         "nvs_core_cli_text_styled" => (nvs_core_cli_text_styled as *const ()).cast(),
+        TEXT_CONCAT_SYMBOL => (nvs_core_cli_text_concat as *const ()).cast(),
         "nvs_core_cli_color_index" => (nvs_core_cli_color_index as *const ()).cast(),
         "nvs_core_cli_color_rgb" => (nvs_core_cli_color_rgb as *const ()).cast(),
         "nvs_core_cli_style_of" => (nvs_core_cli_style_of as *const ()).cast(),
@@ -1907,14 +1913,20 @@ fn label_of(ctx: &mut nvs_runtime::Ctx, labels: Value, option: Value) -> Result<
 // ------------------------------------------------------------------ the carrier
 
 /// The carrier class's fully-qualified name, as
-/// [`CoreTy::Instance`](crate::registry::CoreTy::Instance) spells it.
+/// [`CoreTy::Instance`] spells it.
 ///
 /// Taken from `nvs_runtime::CARRIER_CLI_TEXT` rather than written again here:
 /// the *sink* decides what its carrier is (ADR 0088 § 3), the sink lives in
 /// `nvs-runtime`, and `nvs_runtime::value_to_string` renders whatever that
 /// constant names. Two spellings could disagree and the render would silently
 /// stop happening.
-pub(crate) const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
+///
+/// `pub` for the one edge `crate::html::MARKUP_NAME` already has: ADR 0086
+/// § 2's `Text + Text` is a row in `nvs_types`' operator table, that crate has
+/// no `nvs-runtime` dependency to read the runtime constant through, and a
+/// third spelling of the name is the drift this comment is about. It reaches
+/// it as `nvs_types::CORE_CLI_TEXT_CLASS`.
+pub const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
 
 /// Spec § 13's `Core\Cli\Text` — ADR 0088 § 5's slot, and ADR 0086 § 2's first
 /// constructor over it. See the module docs for what is still owed.
@@ -2031,6 +2043,85 @@ nvs_runtime::nvs_helper! {
         Ok(built(Value::str(NvsStr::new(
             nvs_render::text::substitute(text).as_bytes(),
         ))))
+    }
+}
+
+/// The symbol `Text + Text` lowers to — ADR 0086 § 2's composition rule, and
+/// the third way a program obtains a [`TEXT`].
+///
+/// Row-less exactly as [`crate::html::MARKUP_CONCAT_SYMBOL`] is, and for the
+/// same reason: `+` is the spelling § 2 gives composition, so the operator's
+/// own lowering is the only thing allowed to reach this. A member row would be
+/// a way in that took its operands from anywhere, and both operands here are
+/// trusted **because they are already a `Text`** rather than because this body
+/// checked anything.
+///
+/// `nvs-ir` reaches it through `nvs_types`, as `CORE_CLI_TEXT_CONCAT`.
+pub const TEXT_CONCAT_SYMBOL: &str = "nvs_core_cli_text_concat";
+
+/// One `Core\Cli\Text` operand's substituted bytes — slot
+/// [`nvs_runtime::CARRIER_TEXT_SLOT`], **borrowed**, exactly as
+/// [`crate::instance::slot`] hands it over.
+///
+/// Returned as a [`Value`] rather than as a `&str` for
+/// `crate::html::markup_slot`'s reason: the slot's own `Value` owns the
+/// reference the text is read through, so the borrow has to outlive this call.
+fn text_slot(value: Value, position: &str) -> Result<Value, Fault> {
+    let object = crate::instance::receiver(value, &TEXT, position)?;
+    Ok(crate::instance::slot(
+        object,
+        nvs_runtime::CARRIER_TEXT_SLOT,
+    ))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$a + $b` over two `Core\Cli\Text` — ADR 0086 § 2's *"`Text + Text` is
+    /// `Text`, immutable (R20), composing the way `Markup` already does"*, and
+    /// the whole of what [`TEXT_CONCAT_SYMBOL`] does.
+    ///
+    /// **Nothing is substituted here**, which is the rule rather than an
+    /// omission: every control byte either operand holds was put there by
+    /// `Cli\Style`, since § 2's two constructors substitute on the way in and
+    /// nothing else builds a `Text` from source. Substituting again would
+    /// neutralize a style the program asked for, and the result would be the
+    /// escape sequence printed as a Control Picture.
+    ///
+    /// A styled operand closes its own sequence with a reset before this ever
+    /// sees it ([`nvs_core_cli_text_styled`]), so the sum carries no styling
+    /// across the seam and neither operand's appearance changes.
+    ///
+    /// The pair is the operator table's own — `nvs_types::expr::operators`'
+    /// `carrier_composition_result` admits a carrier beside its own kind and
+    /// refuses every other object beside `+` — so the only judgement left is
+    /// the tag check below.
+    ///
+    /// **What it spends:** one string allocation and one object allocation per
+    /// composition, both charged to the request. Neither operand is touched: a
+    /// `Text` is immutable, so `$a + $b` leaves both where they were, and a
+    /// chain of `n` fragments is `n - 1` of these.
+    fn nvs_core_cli_text_concat(_ctx, args: [2]) {
+        let left = text_slot(args[0], "the left operand")?;
+        let right = text_slot(args[1], "the right operand")?;
+        // Unreachable from source: a carrier's slot holds what this module put
+        // there, and this module only ever puts a `Tag::Str` in it. The check
+        // stays because the ABI is `*const Value`, which carries no promise.
+        let tag_fault = |side: &str, value: &Value| {
+            Fault::fatal(format!(
+                "{side} of `Text + Text` expected a `string`, got tag {}",
+                value.tag_byte()
+            ))
+        };
+        let left_text = left
+            .as_text()
+            .ok_or_else(|| tag_fault("the left operand", &left))?;
+        let right_text = right
+            .as_text()
+            .ok_or_else(|| tag_fault("the right operand", &right))?;
+
+        let mut out = String::with_capacity(left_text.len() + right_text.len());
+        out.push_str(left_text);
+        out.push_str(right_text);
+        Ok(built(Value::str(NvsStr::new(out.as_bytes()))))
     }
 }
 

@@ -238,6 +238,9 @@ pub use expr_table::{
     Delegation, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall, UrlPiece,
 };
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
+pub use nvs_stdlib::cli::{
+    NAME as CORE_CLI_TEXT_CLASS, TEXT_CONCAT_SYMBOL as CORE_CLI_TEXT_CONCAT,
+};
 pub use nvs_stdlib::html::{
     MARKUP_CONCAT_SYMBOL as CORE_HTML_MARKUP_CONCAT, MARKUP_NAME as CORE_HTML_MARKUP_CLASS,
     MARKUP_SYMBOL as CORE_HTML_MARKUP,

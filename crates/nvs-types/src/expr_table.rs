@@ -649,6 +649,24 @@ pub enum ExprInfo {
     /// reading: where exactly one is `secret`, § 2 has already poisoned the
     /// value that reached the other, so the pair is `secret`.
     SecretEquality,
+    /// `$a + $b` over two sink carriers of the same kind, keyed by the `+`
+    /// expression's own span —
+    /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// § 5's `Markup + Markup` and
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
+    /// `Text + Text`, which [`crate::expr::operators`] admits as one rule.
+    ///
+    /// Carries the symbol rather than the class for [`Self::SecretEquality`]'s
+    /// reason, one step further along: `nvs_ir::ty::Ty` erases a class to
+    /// `Ty::Object`, so both carriers arrive at the lowering as the same pair
+    /// of representations and the *presence* of an entry is no longer enough —
+    /// there are two answers now, and which one is the checker's to say.
+    CarrierComposition {
+        /// The `nvs_ir::ir::InstKind::CoreCall` symbol the composition lowers
+        /// to: [`crate::CORE_HTML_MARKUP_CONCAT`] or
+        /// [`crate::CORE_CLI_TEXT_CONCAT`].
+        symbol: &'static str,
+    },
     /// `$x instanceof Name`, keyed by the *`instanceof` expression's* own
     /// span, whose right-hand side named a class or interface this program
     /// declares (or a reserved global one). Never recorded for the dynamic

@@ -341,10 +341,10 @@ pub(crate) fn binary_result(
             let secret = is_secret(lhs, env.interner) || is_secret(rhs, env.interner);
             qualified_scalar(false, tainted, secret, env.interner)
         }
-        // ADR 0024 § 5's composition rule is ahead of the arithmetic table
-        // rather than a row of it: `Markup` is a class, and every class beside
-        // an arithmetic operator is refused two lines down.
-        BinaryOp::Add => markup_composition_result(lhs, rhs, env)
+        // ADR 0024 § 5's and ADR 0086 § 2's composition rules are ahead of the
+        // arithmetic table rather than rows of it: a carrier is a class, and
+        // every class beside an arithmetic operator is refused two lines down.
+        BinaryOp::Add => carrier_composition_result(lhs, rhs, span, env)
             .or_else(|| reject_array_combination(lhs, rhs, span, env))
             .or_else(|| reject_unrowed_arithmetic_operand(op, lhs, rhs, span, env))
             .unwrap_or_else(|| arithmetic_result(lhs, rhs, span, env)),
@@ -944,23 +944,28 @@ fn reject_unrowed_arithmetic_operand(
             "ADR 0007 § 4 tabulates no arithmetic for text; `.` is how two strings combine, and \
              `$s as int`/`$s as float` is how one becomes a number"
         }
-        // ADR 0024 § 5's carrier is the one class with an arithmetic row, so
+        // The two sink carriers are the only classes with an arithmetic row, so
         // the general help below would be false where it is most likely to be
-        // read: `$m + "raw"` is a half-composed `Markup`, and the fix is to
-        // make the other side one rather than to look for a member that
-        // deliberately does not exist ([`markup_composition_result`]).
-        EqDomain::Object
-            if matches!(env.interner.get(offender), Ty::Class(qname, _)
-                if qname.to_string() == crate::CORE_HTML_MARKUP_CLASS) =>
-        {
+        // read: `$m + "raw"` is a half-composed carrier, and the fix is to make
+        // the other side one rather than to look for a member that deliberately
+        // does not exist ([`carrier_composition_result`]). Each names its own
+        // section, because the way to lift the other operand differs — one
+        // escapes for HTML, the other substitutes control bytes for a terminal.
+        EqDomain::Object if carrier_of(offender, env) == Some(crate::CORE_HTML_MARKUP_CLASS) => {
             "ADR 0024 § 5 composes `Markup` with `Markup` and nothing else: lift the other \
              operand with `as Markup` if it is a source literal, or escape it with \
              `Core\\Html::escape(...)` — `+` is not a sink and will not escape it for you"
         }
+        EqDomain::Object if carrier_of(offender, env) == Some(crate::CORE_CLI_TEXT_CLASS) => {
+            "ADR 0086 § 2 composes `Cli\\Text` with `Cli\\Text` and nothing else: lift the other \
+             operand with `Core\\Cli\\Text::plain(...)`, which substitutes its control bytes on \
+             the way in — `+` is not a sink and will not substitute them for you"
+        }
         EqDomain::Object => {
-            "Novis has no operator overloading: ADR 0007 § 4 names one class in its arithmetic \
-             rows and it is ADR 0024 § 5's `Core\\Html\\Markup`, so for every other class the \
-             operation belongs in a method on it"
+            "Novis has no operator overloading: ADR 0007 § 4 names two classes in its arithmetic \
+             rows and both are sink carriers — ADR 0024 § 5's `Core\\Html\\Markup` and ADR 0086 \
+             § 2's `Core\\Cli\\Text` — so for every other class the operation belongs in a method \
+             on it"
         }
         _ => {
             "ADR 0007 § 4's arithmetic rows are `int`, `uint`, `float` and `decimal`; this \
@@ -1042,15 +1047,24 @@ pub(crate) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut 
 }
 
 /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
-/// § 5's `Markup + Markup` is `Markup` — the one row of any operator table
-/// whose operands are a class, and the only arithmetic-shaped pair that is not
-/// arithmetic at all.
+/// § 5's `Markup + Markup` is `Markup` and
+/// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
+/// `Text + Text` is `Text` — the only rows of any operator table whose operands
+/// are a class, and the only arithmetic-shaped pairs that are not arithmetic at
+/// all.
 ///
-/// It is `+` rather than `.` because § 5 words it that way, and the wording is
-/// load-bearing: `.` is [`BinaryOp::Concat`], whose result is a `string`, and
-/// composing two trusted fragments into an untrusted one would lose exactly
-/// what the carrier exists to carry. `+` has no `string` row to be confused
-/// with, so the class pair is unambiguous.
+/// **One rule stated twice, not two rules**, which is why the two share this
+/// function rather than getting one each: a sink carrier composes with its own
+/// kind and with nothing else, and `nvs_runtime::is_carrier` is the same pair
+/// of names answered for the render side. A cross-carrier `$m + $t` is refused
+/// with everything else, since the two sinks substitute different things and a
+/// value that passed one rule passed the wrong one for the other.
+///
+/// It is `+` rather than `.` because both sections word it that way, and the
+/// wording is load-bearing: `.` is [`BinaryOp::Concat`], whose result is a
+/// `string`, and composing two carriers into an untrusted one would lose
+/// exactly what a carrier exists to carry. `+` has no `string` row to be
+/// confused with, so the class pair is unambiguous.
 ///
 /// **Both operands, never one.** `$m + "x"` and `$m + 1` fall straight through
 /// to [`reject_unrowed_arithmetic_operand`], which refuses any class beside an
@@ -1059,12 +1073,51 @@ pub(crate) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut 
 ///
 /// Returns `Some` for the pair and `None` for everything else, so
 /// [`binary_result`]'s own table runs unchanged.
-fn markup_composition_result(lhs: TypeId, rhs: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
-    let is_markup = |ty: TypeId, env: &Env<'_>| {
-        matches!(env.interner.get(ty), Ty::Class(qname, _)
-            if qname.to_string() == crate::CORE_HTML_MARKUP_CLASS)
+fn carrier_composition_result(
+    lhs: TypeId,
+    rhs: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let left = carrier_of(lhs, env)?;
+    let right = carrier_of(rhs, env)?;
+    if left != right {
+        return None;
+    }
+    // Which carrier this is has to be recorded rather than re-derived:
+    // `nvs_ir::ty::Ty` erases both to `Ty::Object`, so the lowering sees one
+    // pair of representations and two possible symbols. See
+    // `ExprInfo::CarrierComposition`.
+    let symbol = if left == crate::CORE_HTML_MARKUP_CLASS {
+        crate::CORE_HTML_MARKUP_CONCAT
+    } else {
+        crate::CORE_CLI_TEXT_CONCAT
     };
-    (is_markup(lhs, env) && is_markup(rhs, env)).then_some(lhs)
+    env.exprs.record(
+        span,
+        crate::expr_table::ExprInfo::CarrierComposition { symbol },
+    );
+    Some(lhs)
+}
+
+/// Which sink carrier `ty` is, or `None` for every other type — the name in
+/// [`crate::CORE_HTML_MARKUP_CLASS`] or [`crate::CORE_CLI_TEXT_CLASS`], both of
+/// which are `nvs-stdlib`'s own re-export of the runtime constant the sink
+/// renders against.
+///
+/// A `&'static str` rather than a `bool` per carrier because two callers need
+/// to tell the two apart and not merely to recognise one:
+/// [`carrier_composition_result`] admits a pair only when it is the *same*
+/// carrier twice, and [`reject_unrowed_arithmetic_operand`]'s help names the
+/// section the reader is inside.
+fn carrier_of(ty: TypeId, env: &Env<'_>) -> Option<&'static str> {
+    let Ty::Class(qname, _) = env.interner.get(ty) else {
+        return None;
+    };
+    let name = qname.to_string();
+    [crate::CORE_HTML_MARKUP_CLASS, crate::CORE_CLI_TEXT_CLASS]
+        .into_iter()
+        .find(|carrier| *carrier == name)
 }
 
 /// ADR 0010 § 5: "No arithmetic or bitwise operator is defined on an enum

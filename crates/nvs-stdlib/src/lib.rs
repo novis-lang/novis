@@ -213,7 +213,7 @@ mod bytes;
 mod cache;
 mod channel;
 pub mod cldr;
-mod cli;
+pub mod cli;
 mod command;
 mod config;
 mod crypto;
@@ -317,10 +317,17 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // so have no row to be found through — `script`'s own module doc owns
         // why a `spawn script`/`await` symbol may not be callable by name.
         .chain([script::SPAWN_SYMBOL, script::AWAIT_SYMBOL])
-        // ADR 0024 § 5's lift, which is `as` on a source literal and so has no
-        // row for the same reason those two do not — `html`'s own module doc
-        // owns why a `Markup` may not be constructed by name.
-        .chain([html::MARKUP_SYMBOL, html::MARKUP_CONCAT_SYMBOL])
+        // The sink carriers' three row-less symbols, which are constructs
+        // rather than members for the same reason those two are: ADR 0024 § 5's
+        // lift is `as` on a source literal, and § 5's `Markup + Markup` and ADR
+        // 0086 § 2's `Text + Text` are an operator. Each is reachable only from
+        // the lowering of the construct that spells it, which is what a row
+        // would undo — `html`'s and `cli`'s own module docs own why.
+        .chain([
+            html::MARKUP_SYMBOL,
+            html::MARKUP_CONCAT_SYMBOL,
+            cli::TEXT_CONCAT_SYMBOL,
+        ])
         .map(|symbol| (symbol, address_of(symbol)))
         .collect()
 }
@@ -433,11 +440,12 @@ mod tests {
                 // to `Core\Router::url`/`::urlAbsolute` and to no row of their
                 // own — see `router::link`.
                 + router::link::SYMBOLS.len()
-                // ADR 0006's `spawn script` and `await`, and ADR 0024 § 5's
-                // `as Markup` and `Markup + Markup`: four constructs, each
-                // syntax rather than a call, so none of them has a row either
-                // — see `script`'s and `html`'s module docs.
-                + 4
+                // ADR 0006's `spawn script` and `await`, ADR 0024 § 5's
+                // `as Markup` and `Markup + Markup`, and ADR 0086 § 2's
+                // `Text + Text`: five constructs, each syntax rather than a
+                // call, so none of them has a row either — see `script`'s,
+                // `html`'s and `cli`'s module docs.
+                + 5
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }

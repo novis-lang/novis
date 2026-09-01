@@ -561,8 +561,17 @@ impl<'a> Lowering<'a> {
     }
 
     /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
-    /// § 5's `Markup + Markup` — two trusted fragments composed into one, and
-    /// the second of the two ways a `Core\Html\Markup` is obtained.
+    /// § 5's `Markup + Markup` and
+    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
+    /// `Text + Text` — two carrier fragments composed into one, and the last
+    /// way each of the two classes is obtained.
+    ///
+    /// **`symbol` comes from the checker, not from `lty`/`rty`**, for
+    /// [`nvs_types::expr_table::ExprInfo::SecretEquality`]'s reason: a class
+    /// does not survive [`Ty`], so both carriers reach here as a pair of
+    /// `Ty::Object`s and nothing on this side can tell a `Markup` from a
+    /// `Text`. The checker admitted the pair and names the composition it
+    /// admitted, at the `+` expression's own span.
     ///
     /// It is an [`InstKind::CoreCall`] for the reason
     /// [`Self::lower_markup_lift`] is: what it produces is a one-slot instance
@@ -573,17 +582,20 @@ impl<'a> Lowering<'a> {
     /// `Ty::Tagged` arithmetic arm below stages its own and for the same
     /// reason: the call carries ADR 0002's error edge, so an operand released
     /// after it would be abandoned on the edge a throw leaves by.
-    fn lower_markup_concat(
+    /// The two operands arrive paired rather than as four parameters because
+    /// this body only ever uses them paired — the expression answers whether
+    /// the read aliases and the value is what the call takes — and because
+    /// `symbol` is what pushed the flat spelling past
+    /// `clippy::too_many_arguments`.
+    fn lower_carrier_concat(
         &mut self,
-        lv: ValueId,
-        lhs: &Expr,
-        rv: ValueId,
-        rhs: &Expr,
+        symbol: &'static str,
+        operands: [(&Expr, ValueId); 2],
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let mark = self.temporaries_mark();
-        for (operand, value) in [(lhs, lv), (rhs, rv)] {
+        for (operand, value) in operands {
             let aliasing = self.aliasing_read(operand);
             self.account_for_arg(value, Ty::Object, ArgOwnership::Borrowed, aliasing, *cur);
         }
@@ -591,8 +603,8 @@ impl<'a> Lowering<'a> {
             *cur,
             Ty::Object,
             InstKind::CoreCall {
-                symbol: nvs_types::CORE_HTML_MARKUP_CONCAT,
-                args: vec![lv, rv],
+                symbol,
+                args: operands.map(|(_, value)| value).to_vec(),
             },
             env,
         );
@@ -644,14 +656,19 @@ impl<'a> Lowering<'a> {
         if lty == Ty::Decimal || rty == Ty::Decimal {
             return self.lower_decimal_binary(op, lv, rv, env, cur);
         }
-        // ADR 0024 § 5's `Markup + Markup`, and the whole of what an object
-        // operand may do under an arithmetic operator: `nvs_types::expr::
-        // operators`' `markup_composition_result` admits that one pair and
+        // ADR 0024 § 5's `Markup + Markup` and ADR 0086 § 2's `Text + Text`,
+        // which are the whole of what an object operand may do under an
+        // arithmetic operator: `nvs_types::expr::operators`'
+        // `carrier_composition_result` admits a carrier beside its own kind and
         // `reject_unrowed_arithmetic_operand` refuses every other class beside
-        // `+`, so a pair of `Ty::Object`s arriving here is the carrier pair
-        // and there is nothing left to tell apart.
-        if op == BinaryOp::Add && lty == Ty::Object && rty == Ty::Object {
-            return self.lower_markup_concat(lv, lhs, rv, rhs, env, cur);
+        // `+`. *Which* carrier is the entry's, not this side's — both erase to
+        // `Ty::Object`, so the representations no longer tell them apart.
+        if op == BinaryOp::Add
+            && lty == Ty::Object
+            && rty == Ty::Object
+            && let Some(ExprInfo::CarrierComposition { symbol }) = self.exprs.lookup(whole.span)
+        {
+            return self.lower_carrier_concat(symbol, [(&**lhs, lv), (&**rhs, rv)], env, cur);
         }
         // ADR 0090 § 5: a `mixed` or union operand is the one pairing whose
         // § 3 row is a runtime tag, so it dispatches through
