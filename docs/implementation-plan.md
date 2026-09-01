@@ -47,13 +47,13 @@
 > enum, § 4's four-state busy field and the `NVS_DB_MATRIX_*` reader, over an `NvsTls` now generic
 > in its transport. Its wire I/O opens with PostgreSQL's own: § 3's `SSLRequest` upgrade and a
 > SCRAM-SHA-256 exchange, asserted in-crate for want of a usable certificate. § 4's extended-query
-> state machine and § 13's reset are on disk over it: one flush per statement, one for the six reset
+> state machine and § 13's reset are over it: one flush per statement, one for the six reset
 > commands, and `reset` takes `self`. § 5's `?`/`:name` rewriter and § 1's statement cache are
-> `sql.rs`, with the `[db.*]` readers for `statement_cache` and § 9's `time_zone` beside them —
-> keyed by SQL text plus expansion arity: a hit drops the `Parse` and an eviction's `Close` rides in
-> the batch that replaced it. § 9's whole type map decodes over it: a `Value` for the scalar rows
-> and parsed components — `PgScalar` — for the five that are a `Core\Time` or `Core\Uuid` instance
-> only `nvs-stdlib` can build; § 4's count, `lastId` and `executeMany` too. § 7 is on it too —
+> `sql.rs`, and a `[db.*]` block resolves into a `PgTarget`, an unreadable § 9 zone refused — keyed
+> by SQL text plus expansion arity: a hit drops the `Parse` and an eviction's `Close` rides in the
+> batch that replaced it. § 9's whole type map decodes over it: a `Value` for the scalar rows and
+> parsed components — `PgScalar` — for the five that are a `Core\Time` or `Core\Uuid` instance only
+> `nvs-stdlib` can build; § 4's count, `lastId` and `executeMany` too. § 7 is on it too —
 > `BEGIN`/`COMMIT`/`ROLLBACK`, a nested one a `SAVEPOINT` the depth names, and § 8's kind inside
 > every refusal. **`Core\Db` has opened in `nvs-stdlib`**: § 18's two connectionless entry points,
 > `inList`'s carrier and `quoteIdentifier`, which validates rather than delimits for want of a
