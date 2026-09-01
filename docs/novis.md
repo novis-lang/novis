@@ -10411,7 +10411,7 @@ Keywords:
 <a id="core-core-io-file"></a>
 ### `Core\IO\File`
 
-Keywords: read, readLine, write, seek, tell, flush, close
+Keywords: read, readLine, write, seek, tell, truncate, flush, lock, close
 
 | Member | Signature |
 |---|---|
@@ -10420,7 +10420,9 @@ Keywords: read, readLine, write, seek, tell, flush, close
 | [`Core\IO\File->write`](#core-core-io-file-write) | `write(string $data): uint` |
 | [`Core\IO\File->seek`](#core-core-io-file-seek) | `seek(uint $offset): void` |
 | [`Core\IO\File->tell`](#core-core-io-file-tell) | `tell(): uint` |
+| [`Core\IO\File->truncate`](#core-core-io-file-truncate) | `truncate(uint $size): void` |
 | [`Core\IO\File->flush`](#core-core-io-file-flush) | `flush(): void` |
+| [`Core\IO\File->lock`](#core-core-io-file-lock) | `lock(): void` |
 | [`Core\IO\File->close`](#core-core-io-file-close) | `close(): void` |
 
 <a id="core-core-io-file-read"></a>
@@ -10500,6 +10502,23 @@ Answers where the handle is, in bytes from the start of the file — `ftell`. It
 
 **Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The query itself failed — a pipe or a terminal, which has no position to report.
 
+<a id="core-core-io-file-truncate"></a>
+#### `Core\IO\File->truncate`
+
+```nvs skip
+$file->truncate(uint $size): void
+```
+
+Sets the file's length to `$size` bytes — `ftruncate`. A smaller size drops everything past it; a larger one extends the file with zeroes, which is the same hole a write past the end leaves.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$size` | `uint` | How long the file is to be afterwards, in bytes from its start. |
+
+**Returns** `void` — Nothing. The handle's own position does not move, so shortening a file can leave the handle past its new end — `tell` still answers where it was, and a write there lands over a hole rather than at the end.
+
+**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The resize itself failed — most often a handle opened `FileMode::Read`, which the operating system will not resize.
+
 <a id="core-core-io-file-flush"></a>
 #### `Core\IO\File->flush`
 
@@ -10512,6 +10531,19 @@ Hands everything written on this handle to the operating system — `fflush`. No
 **Returns** `void` — Nothing. It is **not** `fsync`: reaching the operating system is not reaching the disk, and durability is not something this member promises.
 
 **Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The flush itself failed. Nothing this class does can provoke one today, and the row is here because the answer belongs to the operating system rather than to this member.
+
+<a id="core-core-io-file-lock"></a>
+#### `Core\IO\File->lock`
+
+```nvs skip
+$file->lock(): void
+```
+
+Takes an exclusive lock on the file and holds it until the handle closes — `flock` with `LOCK_EX`. It never waits: a lock another handle holds is refused rather than queued for, so there is no `LOCK_NB` to remember and no unbounded wait to forget.
+
+**Returns** `void` — Nothing, and there is no `unlock` — the lock's lifetime is the handle's, so `close` releases it and so does the end of the request.
+
+**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — Another handle already holds the lock, or the operating system refused it. Whether a lock stops a *non-holder's* own reads and writes is the platform's answer rather than this member's.
 
 <a id="core-core-io-file-close"></a>
 #### `Core\IO\File->close`
