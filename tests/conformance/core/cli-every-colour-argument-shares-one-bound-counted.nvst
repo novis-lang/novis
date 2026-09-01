@@ -1,0 +1,91 @@
+--TEST--
+`Core\Cli\Color`'s palette index and its three channels are one bound reached four times — 255 accepted and 256 refused on every one of them, counted, and each refusal names its own subject — ADR 0086 § 2
+--FILE--
+<?nvs
+// A bound asserted on both sides, over a *sweep* rather than over a line: § 2's
+// two constructors take four bounded arguments between them, all with the same
+// 0-to-255 range, and a member that checked one of them — or that checked all
+// three channels against the first argument's value — prints plausibly on every
+// individual line. Only the counts below fail for it.
+array<int> $slots = [0, 1, 2];
+array<string> $names = ["red", "green", "blue"];
+
+// The accepted side. `0` is the low end and it is the *type's* bound, not the
+// member's: the parameters are `uint`, so there is no first-refused value below
+// zero for a case to ask about. `255` is the high end and it is the member's.
+array<int> $edges = [0, 255];
+int $asked = 0;
+int $accepted = 0;
+foreach ($edges as int $edge) {
+    uint $value = $edge as uint;
+    foreach ($slots as int $slot) {
+        $asked = $asked + 1;
+        try {
+            if ($slot == 0) {
+                var $red = Core\Cli\Color::rgb($value, 0, 0);
+                $accepted = $accepted + 1;
+            }
+            if ($slot == 1) {
+                var $green = Core\Cli\Color::rgb(0, $value, 0);
+                $accepted = $accepted + 1;
+            }
+            if ($slot == 2) {
+                var $blue = Core\Cli\Color::rgb(0, 0, $value);
+                $accepted = $accepted + 1;
+            }
+        } catch (RuntimeError $refusedChannel) {
+            echo "broken: ", $edge, " refused on channel ", $slot, "\n";
+        }
+    }
+    $asked = $asked + 1;
+    try {
+        var $entry = Core\Cli\Color::index($value);
+        $accepted = $accepted + 1;
+    } catch (RuntimeError $refusedEntry) {
+        echo "broken: ", $edge, " refused by index", "\n";
+    }
+}
+echo "accepted ", $accepted, " of ", $asked, " at 0 and at 255", "\n";
+
+// The refused side, one past the last accepted value on each of the same four
+// arguments. The naming count is the load-bearing one: a `rgb` that read
+// `$red`'s value three times would still refuse all three of these, and would
+// still say `red` every time.
+int $over = 0;
+int $refused = 0;
+int $named = 0;
+foreach ($slots as int $slot) {
+    string $name = $names[$slot];
+    $over = $over + 1;
+    try {
+        if ($slot == 0) { var $tooRed = Core\Cli\Color::rgb(256, 0, 0); }
+        if ($slot == 1) { var $tooGreen = Core\Cli\Color::rgb(0, 256, 0); }
+        if ($slot == 2) { var $tooBlue = Core\Cli\Color::rgb(0, 0, 256); }
+        echo "broken: 256 accepted on ", $name, "\n";
+    } catch (RuntimeError $overChannel) {
+        $refused = $refused + 1;
+        if (Core\Str::contains($overChannel->message, "`" . $name . "`")) {
+            $named = $named + 1;
+        }
+    }
+}
+$over = $over + 1;
+try {
+    var $tooHigh = Core\Cli\Color::index(256);
+    echo "broken: 256 accepted by index", "\n";
+} catch (RuntimeError $overEntry) {
+    $refused = $refused + 1;
+    // The palette's refusal says what the argument *is* rather than which
+    // channel it was, which is the one place the two constructors' sentences
+    // are allowed to differ — and it must not borrow a channel's word for it.
+    if (Core\Str::contains($overEntry->message, "palette entry")
+        && !Core\Str::contains($overEntry->message, "channel")) {
+        $named = $named + 1;
+    }
+}
+echo "refused ", $refused, " of ", $over, " at 256", "\n";
+echo "named ", $named, " of ", $over, " by their own subject", "\n";
+--EXPECT--
+accepted 8 of 8 at 0 and at 255
+refused 4 of 4 at 256
+named 4 of 4 by their own subject
