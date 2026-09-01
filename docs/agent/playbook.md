@@ -2000,6 +2000,21 @@ is why" — is this file.
   `crates/nvs-config/src/tree.rs`, so an unrecognised `[db.main]` fails at *boot*, for every program
   in the repository, and turns one red fixture into fifty. The config block belongs to the slice that
   adds the struct that reads it.
+- **A `Core\Db` fixture's first failure is `nvs.toml` and its second is the trust anchors — neither is the
+  server, and neither is visible from the crate you just landed.** `examples/transaction.nvs` compiled and
+  ran, so the previous handoff recorded "a reachable Docker daemon is all that stands between it and the
+  five frozen lines". The daemon was up the whole time. What the acceptance check actually hit was
+  `db.connect ... is not granted`, because `nvs.toml` is written by hand and nothing derives it from the
+  fixture — an example's own header saying this file "owes the `[db.main]` block this reads" is a debt with
+  no collector, and `examples/db.nvs` had carried that sentence for as long as the fixture existed. Grant
+  the capability and the *second* wall is immediately behind it: `nvs_host::tls::anchors()` is a
+  compiled-in root store, `config_over` is the seam a configured bundle would plug into and **nothing
+  outside `tls.rs` calls it** (one `grep -rn config_over crates/` is the whole check), so every container
+  in `tests/db/compose.yaml` is unreachable over TLS by construction — `invalid peer certificate:
+  Other(OtherError(CaUsedAsEndEntity))`, because that file's `certs` service copies `server.crt` to
+  `ca.crt` and the leaf is therefore a CA certificate no trust store may accept as end-entity. The general
+  shape: a fixture that talks to a server has three preconditions in three files nobody edits together, and
+  running it once is cheaper than reasoning about any of them. `target/debug/nvs.exe` is already built.
 
 ## Writing a test case
 

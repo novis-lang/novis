@@ -2,60 +2,59 @@
 
 ## State
 
-**ADR 0067 § 7's transaction is landed, closure and all.** `transaction` is one
-`TRANSACTION_ROW` (`crates/nvs-stdlib/src/db.rs:392`) carried by both `CONNECTION` and the new
-`TRANSACTION` class, and `handle_of` is what makes one statement path serve either receiver —
-which is how ADR 0043's `implements Queryable by $connection` is spelled here: the same rows
-under the same symbols, no forwarding bodies. Returning commits, throwing rolls back, and the
-`rollBack` flag is read off the transaction's own slot so an intervening `catch (Throwable)`
-cannot leave the work committed. `TRANSACTION`'s own doc comment owns the slot layout and why
-the first two are `CONNECTION`'s.
+**`Core\Db\Isolation` is registered** — `crates/nvs-stdlib/src/db.rs:487`, § 7's five cases as a
+`CoreEnum` with its `EnumDoc`, in `registry::ENUMS`. Its values are declaration ordinals and
+carry no comparison meaning; the constant's own doc says why, and `nvs_db::Isolation`
+(`crates/nvs-db/src/conn.rs:203`) stays the authoritative half. No member takes it yet.
 
-**`examples/transaction.nvs` now compiles and runs to the capability check** — the goal's
-stated external precondition (a reachable Docker daemon behind `[db.main]`) is all that stands
-between it and the five frozen lines. Nothing in the tree blocks it.
+**`nvs.toml` now opens the database**: a `[db.main]` block for `tests/db/compose.yaml`'s
+PostgreSQL on 15432, and `[app.capabilities.db] connect = ["main"]` for `examples/db.nvs` and
+`examples/transaction.nvs` under their own entry blocks. That block's comment owns the reasoning.
 
-**§ 7's options bag is owed and its absence is a subset, not a divergence**: with no
-`{isolation?, readOnly?, retries?}` every call takes § 7's own defaults — driver isolation,
-read-write, zero retries. `TRANSACTION_ROW`'s doc comment is that fact's home, and the next
-group closes it.
+**The Docker precondition is met and is not what blocks stage 5.** The fixture reaches the server
+and fails at `invalid peer certificate: Other(OtherError(CaUsedAsEndEntity))`. Two separate things
+owe that, and the next group is both: `tests/db/compose.yaml`'s `certs` service copies
+`server.crt` to `ca.crt`, so the leaf *is* a CA certificate and no trust store can accept it as an
+end-entity; and `nvs_host::tls` verifies against anchors compiled into the binary, with
+`config_over` a seam nothing outside that module calls. Stages 6 and 9 are behind the same wall.
 
-**A `use` alias does not reach a `catch`** — the playbook bullet added this session has the
-anchor and the three classes it bites. The example works around it by writing
-`Core\Db\RolledBack` out; nothing else in the corpus does yet.
+**`orient.py` printed nothing about any of this.** The goal's `[context] modules` has no
+`nvs-config` or `nvs-host/src/tls.rs` pattern and nothing names `nvs.toml`, so a session whose
+check fails on configuration re-derives the whole shape. Adding `nvs-config` to `modules` is the
+cheap half.
 
 ## Next group
 
-**§ 7's options bag — the file set is `crates/nvs-stdlib/src/db.rs` and
-`crates/nvs-db/src/pg.rs`, which already carries the `Isolation` enum and renders both options
-into a `BEGIN`.**
+**The trust anchors, so a fixture can reach a compose server at all — the file set is
+`tests/db/compose.yaml`, `crates/nvs-host/src/tls.rs`, `crates/nvs-config/src/tree.rs` and
+`crates/nvs-db/src/pg.rs`.** Take them in this order; the first is what makes the second testable.
 
-- [ ] **`Core\Db\Isolation`, § 7's five cases as a registry enum** — ADR 0067 § 7, spec
-      § 18's own `Isolation { ReadUncommitted, ReadCommitted, RepeatableRead, Snapshot,
-      Serializable }` line. `nvs-db`'s half is landed at `crates/nvs-db/src/conn.rs:203` and
-      the five spellings PostgreSQL wants at `crates/nvs-db/src/pg.rs:3049`; the registry side
-      is a `CoreEnum` beside the classes at `crates/nvs-stdlib/src/db.rs:432`, reached from a
-      `CoreTy::Enum` — `registry.rs`'s `CoreTy::Enum` doc says how a name resolves.
-- [ ] **`transaction`'s `{isolation?, readOnly?}` bag, reaching `PgConn::begin`** — ADR 0067
-      § 7. The row is `crates/nvs-stdlib/src/db.rs:392` and gains a trailing
-      `CoreTy::Options`; the body is `crates/nvs-stdlib/src/db.rs:2385`, whose `begin(None,
-      false)` is where the two land. Note ADR 0063 R2: an options bag has no `names` entry, so
-      only `MethodDoc::params` grows — one `ParamDoc` per option, under the option's own name.
-- [ ] **`{retries: n}`, outermost transactions only** — ADR 0067 § 7's last paragraph, whose
-      default of 0 is deliberate and stays. The loop goes around the `begin`/`call_closure`
-      pair at `crates/nvs-stdlib/src/db.rs:2385`, and re-runs only on `Deadlock` and
-      `SerializationFailure`, which means reading § 8's kind off the refusal —
-      `crates/nvs-db/src/pg.rs:1018` is the code table that answers it. Backing off has to
-      suspend the coroutine rather than block the core.
+- [ ] **The compose `certs` service issues a CA and a leaf signed by it, not one self-signed
+      certificate serving as both** — `tests/db/compose.yaml:46` is the service and
+      `tests/db/compose.yaml:26` the comment that promises a CA. `openssl req -x509` makes a
+      certificate with `CA:TRUE`, which is exactly what rustls refuses as an end-entity, so this is
+      a second `openssl x509 -req` against the first and a `ca.crt` that is no longer a copy.
+      Nothing in `crates/` changes for it, and the check is `target/debug/nvs.exe run
+      examples/transaction.nvs` reporting a *trust* failure rather than `CaUsedAsEndEntity`.
+- [ ] **An anchor bundle is a configured path, and `nvs_host::tls` grows the reader** —
+      `crates/nvs-host/src/tls.rs:270` is `anchors()`, `crates/nvs-host/src/tls.rs:285` is
+      `config_over`, the seam its own § *The trust anchors are compiled in* names; the config field
+      goes beside the other endpoint keys on `crates/nvs-config/src/tree.rs:510`. **Prefer a
+      per-`[db.<name>]` key over a process-wide one**: a trust set is a property of one server, and
+      a global switch is the shape that later gets set for the wrong reason. That module's docs are
+      explicit that a *program* choosing anchors is not on the table — this is the operator's file
+      and nothing else.
+- [ ] **`PgConn::connect` carries the bundle to the handshake** — `crates/nvs-db/src/pg.rs:374`
+      (`PgTarget::resolve`, which already reads every other `Database` field) and the caller at
+      `crates/nvs-stdlib/src/db.rs:1614`. § 3 has no spelling for turning TLS off and this adds
+      none: what it adds is which anchors the verification runs against.
 
 ## Backlog
 
-- `Rows::columns()` and its `Core\Db\Column`/`ColumnType` pair — `crates/nvs-stdlib/src/db.rs`'s
-  `ROWS` doc lists the three things it needs.
-- `queryAs<T>`, `stream` and `streamAs` on both `Queryable` classes — ADR 0067 §§ 4 and 6.
-- `Core\Db::open` waits on a `CoreTy` for a shape *parameter* — that module's known gaps.
-- A `use` alias reaching a `catch` — `crates/nvs-ir/src/lower/exception.rs:597`, and the design
-  question is which crate resolves the label.
-- Stage 5's remaining `nvs-db` cases (`savepoints_nest`, `retries_recover_an_induced_deadlock`)
-  — `docs/agent/loop-goal.toml`'s stage 5 list.
-- Stages 6 and 7 — the four other drivers and § 13's pool — both need Docker.
+- § 7's `{isolation?, readOnly?}` bag reaching `PgConn::begin` — ADR 0067 § 7;
+  `crates/nvs-stdlib/src/db.rs:437`, `crates/nvs-db/src/pg.rs:3049`. `ISOLATION` exists for it now.
+- `{retries: n}`, outermost transactions only — ADR 0067 § 7's last paragraph.
+- `Rows::columns()` on a `Core\ColumnType` enum — this module's known gap 5, in `db.rs`'s own doc.
+- `Db::open` waits on a shape-parameter type — spec § 18, `Db\Settings`.
+- A `use` alias does not reach a `catch` — the playbook bullet has the anchor.
+- ADR 0132's driver shape for the other four drivers — the goal's stage 6.
