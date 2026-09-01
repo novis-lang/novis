@@ -96,8 +96,8 @@
 //! is [`transport::send`]'s `repin` closure: a redirect hop is re-checked by calling back into
 //! [`pin`], so ADR 0058 § 4's rule is enforced by the same four questions the first URL passed and
 //! there is no second copy of the policy under the socket. What that module's own doc owns is the
-//! rest — one connection per attempt, `https` refused until a trust anchor set has an owner, and
-//! what a reply is allowed to make this process hold.
+//! rest — one connection per attempt, how `https` reaches `nvs-host`'s TLS client and which host
+//! name its certificate is checked against, and what a reply is allowed to make this process hold.
 //!
 //! # What is not here yet, and why each is deliberate rather than forgotten
 //!
@@ -594,8 +594,8 @@ const REQUEST_PARAMS: &[ParamDoc] = &[
 /// What every request member answers, once — see [`REQUEST_PARAMS`].
 const REQUEST_RET: &str = "A `Core\\Http\\Response` carrying the status and the body of the reply. \
                            A `404` and a `500` are answers and arrive here; only a request that \
-                           got no reply at all throws. An `https` URL is refused for now: this \
-                           build has no TLS client behind the member yet.";
+                           got no reply at all throws. An `https` URL is fetched over TLS, with \
+                           the certificate verified against the authorities Novis carries.";
 
 /// What every request member throws, once — see [`REQUEST_PARAMS`].
 const REQUEST_ERRORS: &[ErrorDoc] = &[
@@ -607,8 +607,9 @@ const REQUEST_ERRORS: &[ErrorDoc] = &[
                name. An option is outside its \
                bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive \
                duration, or a `retryAttempts` of zero. A header name or value carries a control \
-               byte, which would end the line early. The scheme is `https`, which has no \
-               transport here yet. Or the reply is not HTTP, is larger than one request may hold, \
+               byte, which would end the line early. An `https` host presented a certificate that \
+               does not verify against the authorities Novis carries, or one that is not valid for \
+               that name. Or the reply is not HTTP, is larger than one request may hold, \
                or has a body that is not valid UTF-8.",
     },
     ErrorDoc {

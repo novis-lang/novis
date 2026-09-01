@@ -1777,6 +1777,15 @@ is why" — is this file.
   place; if that failure scrolled past, the `.nvst` run that follows looks like a code problem.
   Plain `cargo build` is the whole fix, and the driver's own build is why `orient.py` can promise
   the binary is current *at the session's starting commit* and not after your first edit.
+- **`cargo deny check` is not installed on this machine, and when it is, `advisories` fails on
+  something that is not yours.** `cargo install cargo-deny --locked` takes about five minutes and
+  neither Windows nor the WSL distro has it; the item that sends you there does not say so. When it
+  runs, the verdict line is four verdicts — `advisories FAILED, bans ok, licenses ok, sources ok` —
+  and the failing one is `detected yanked crate (try 'cargo update -p chacha20')`, which has been in
+  `Cargo.lock` since long before this goal and arrives through `rand`. A dependency slice owns
+  `licenses`, `bans` and `sources`; read those three and say in the handoff that the fourth was
+  already red, rather than either fixing an unrelated lockfile entry or reporting your own change as
+  the failure.
 
 ## Writing a test case
 

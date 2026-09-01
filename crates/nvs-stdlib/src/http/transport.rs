@@ -33,16 +33,25 @@
 //! [`REPLY_CEILING`], plus the request text. Per in-flight request and released
 //! with it; nothing here is retained across calls.
 //!
-//! # `https` is refused rather than half-served
+//! # `https` is three lines, because the stream is a plain `Read`/`Write`
 //!
-//! A TLS session over this stream is proven — `nvs-host`'s own
-//! `a_rustls_session_streams_over_it_unmodified` runs one — but a *client* also
-//! needs a trust anchor set, and which certificates a Novis binary trusts is a
-//! decision with an owner and no ADR paragraph yet. Until it has one, an
-//! `https` URL is refused here with a sentence saying so. Refusing is the safe
-//! direction: the alternative shapes are a plaintext fallback and a session
-//! that verifies nothing, and both of those are priority-1 failures wearing a
-//! feature's name.
+//! An `https` URL connects exactly as an `http` one does and then hands the
+//! socket to [`nvs_host::tls::NvsTls`], which completes a handshake and gives
+//! back a plaintext stream. Everything after that — [`exchange`] — is written
+//! once and is generic over what it writes to, so there is no second copy of
+//! the framing, the ceiling or the retry rules under TLS. That module owns the
+//! trust anchors and why they are compiled in.
+//!
+//! Two things are decided here rather than there. The certificate is checked
+//! against the **host the launderer approved**, never the address it was pinned
+//! to: [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 4
+//! pins where the bytes go, and pinning is not a claim about who is there. And
+//! a handshake failure splits the same way the rest of this module splits — a
+//! certificate that does not verify is a statement about the other end that a
+//! second attempt will not change, so it leaves as a `Fault` and never sleeps
+//! first, while a timeout or a reset mid-handshake is transport weather and is
+//! retried. There is no plaintext fallback and no spelling for a session that
+//! verifies nothing; both are priority-1 failures wearing a feature's name.
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::{IpAddr, SocketAddr};
@@ -51,6 +60,7 @@ use std::time::{Duration, Instant};
 use fluent_uri::component::{Authority, Scheme};
 use fluent_uri::{Uri, UriRef};
 use nvs_host::net::NvsTcp;
+use nvs_host::tls::NvsTls;
 use nvs_runtime::{Fault, ThrownClass};
 use rand::RngExt;
 
@@ -134,11 +144,17 @@ enum Attempt {
 struct Parts {
     /// The host, brackets and all for an IPv6 literal, as `Host:` writes it.
     authority: String,
+    /// The bare host, with no port — what a certificate is checked against.
+    ///
+    /// Separate from `authority` because that one carries the port where the
+    /// URL wrote one, and a server name with a port in it names nothing.
+    host: String,
     /// Where to connect, defaulted by scheme.
     port: u16,
     /// The request-target: path, and query if there was one.
     target: String,
-    /// Whether the scheme was `https`, which this module refuses.
+    /// Whether the scheme was `https`, and so whether a handshake runs before
+    /// the request goes out.
     tls: bool,
 }
 
@@ -224,14 +240,6 @@ fn attempts(call: &Call<'_>, url: &str, address: IpAddr) -> Result<Reply, Fault>
 /// One connection, one request, one reply.
 fn one(call: &Call<'_>, url: &str, address: IpAddr) -> Result<Attempt, Fault> {
     let parts = parts(url, call.member)?;
-    if parts.tls {
-        return Err(Fault::thrown(format!(
-            "{}: `https` needs a TLS client and a trust anchor set, and this build has neither \
-             yet, so nothing was sent. An `http` URL to a host the deployment granted is what \
-             works today",
-            call.member
-        )));
-    }
     let request = compose(call, &parts)?;
     let socket = SocketAddr::new(address, parts.port);
 
@@ -249,8 +257,42 @@ fn one(call: &Call<'_>, url: &str, address: IpAddr) -> Result<Attempt, Fault> {
             )));
         }
     };
+    // Before the handshake, not after it: the TLS flight waits on this socket
+    // and the deadline is what bounds every wait on it.
     stream.set_deadline(Some(call.deadline));
 
+    if !parts.tls {
+        return exchange(call, &mut stream, &request, socket);
+    }
+    match NvsTls::over(stream, &parts.host) {
+        Ok(mut tls) => exchange(call, &mut tls, &request, socket),
+        // A name or a certificate this build will not accept is settled: the
+        // module doc's second paragraph is why only one of these two shapes is
+        // handed back for another attempt.
+        Err(err) if matches!(err.kind(), ErrorKind::InvalidData | ErrorKind::InvalidInput) => {
+            Err(Fault::thrown(format!(
+                "{}: the TLS handshake with `{}` was refused and nothing was sent — {err}",
+                call.member, parts.host
+            )))
+        }
+        Err(err) => Ok(Attempt::Failed(format!(
+            "the TLS handshake with {socket} failed: {err}"
+        ))),
+    }
+}
+
+/// The request out and the reply back, over whatever is already connected.
+///
+/// Generic over the stream so `http` and `https` share one copy of the framing,
+/// the ceiling and the failure split — the plaintext side of a TLS session is
+/// the same `Read` and `Write` as a bare socket, which is the whole reason
+/// `nvs-host` exposes it that way.
+fn exchange(
+    call: &Call<'_>,
+    stream: &mut (impl Read + Write),
+    request: &str,
+    socket: SocketAddr,
+) -> Result<Attempt, Fault> {
     if let Err(err) = stream
         .write_all(request.as_bytes())
         .and_then(|()| stream.flush())
@@ -366,6 +408,12 @@ fn parts(url: &str, member: &str) -> Result<Parts, Fault> {
     // `Host:` carries what the URL wrote, port and all where there was one, and
     // never the userinfo — an origin routes on the name it was asked for.
     let host = Authority::host(&authority);
+    // Without the brackets: `Host:` writes an IPv6 literal inside them and a
+    // server name never does, so the two spellings part company here.
+    let name = host
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_owned();
     let authority = match authority.port().map(|port| port.as_str()) {
         Some(written) if !written.is_empty() => format!("{host}:{written}"),
         _ => host.to_owned(),
@@ -380,6 +428,7 @@ fn parts(url: &str, member: &str) -> Result<Parts, Fault> {
 
     Ok(Parts {
         authority,
+        host: name,
         port,
         target,
         tls,
