@@ -1,0 +1,41 @@
+--TEST--
+`[log] target` is one destination and both of ADR 0092 § 6's writers land in it, so a deployment that names a file collects the program's records and the engine floor's in the same place and neither keeps a channel of its own beside it — ADR 0020 § 4 and ADR 0092 § 6
+--FILE--
+<?nvs
+// ADR 0092 § 6's sameness, one step past the record's shape: the two writers
+// agree about the *destination* as well as about the envelope. With
+// `[log] target` naming a file, `Core\Log::write` no longer writes the
+// program's own output and the floor no longer writes the diagnostic channel —
+// both land in the operator's file, which is what makes a named target one
+// destination rather than two copies of the configuration.
+//
+// The floor is reached without ending the run: a `Core\Script::onExit` hook
+// that throws is reported through `nvs_runtime::floor::report` and abandoned,
+// and the drain continues to the next hook (ADR 0127 § 5). That is the one
+// place a floor record is written with user code still to run, so it is the
+// only place the file can be read back from inside the program that filled it.
+Core\Script::onExit(fn (): void => {
+    throw new RuntimeError("the floor said so");
+});
+
+// FIFO, so this runs after the hook above has already been reported.
+Core\Script::onExit(fn (): void => {
+    echo Core\IO::readText("app.log");
+});
+
+Core\Log::write(Core\Log\Level::Error, "the application said so");
+
+// Printed *before* either record, which is the displacement asserted from the
+// outside: with no target configured this line would come second, after
+// `Core\Log::write` had written the same stream.
+echo "the program's own output\n";
+--FILE nvs.toml--
+[log]
+target = "file:app.log"
+
+[capabilities.fs]
+read = ["."]
+--EXPECTF--
+the program's own output
+{"level":"error","msg":"the application said so"}
+{"level":"error","msg":"the floor said so","fields":{"class":"RuntimeError","backtrace":"%s","origin":"exit-hook"}}
