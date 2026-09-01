@@ -528,6 +528,16 @@ fluent-uri = "0.4"
 postgres-protocol = "0.6"
 postgres-types = "0.2"
 mysql_common = "0.38"
+# The two crates a sans-IO codec is *called through*, rather than codecs of their
+# own. `postgres-protocol` frames into a `BytesMut` and hands back its message
+# bodies as fallible iterators, so a caller that does not name these two cannot
+# read a server's error text or the mechanisms it offered -- which is the whole
+# of what `crates/nvs-db/src/pg.rs` reports when a connection is refused. Both
+# are pure Rust with no build script, `fallible-iterator` has no dependencies at
+# all, and the version here is `postgres-protocol`'s own: a second major would
+# be a second trait, and the iterator impls would silently not apply.
+bytes = "1"
+fallible-iterator = "0.2"
 # The one C dependency this goal adds, pre-answered under ADR 0051 § 4's second
 # question and recorded against it. The slice that first takes this as a
 # dependency of `nvs-db` also adds its row to `tools/gen-attribution.py`'s

@@ -19,6 +19,11 @@
 //! a type — it is `tools/db-matrix.py` running one assertion set against five
 //! real servers.
 //!
+//! This module holds the five shapes and the one rule they share. A driver's
+//! own wire code — its handshake, its sequencing, its error table — is in that
+//! driver's module beside this one ([`crate::pg`] is the first), so the enum
+//! stays readable as an enum while a protocol grows to the size a protocol is.
+//!
 //! What is *not* per driver is § 4's rule about when a connection may be
 //! written to and when it may be pooled: that is one rule over [`State`], and
 //! it lives on that type rather than being restated in five places. What each
@@ -27,6 +32,8 @@
 //! [`State::Idle`], or is [`State::Poisoned`].
 
 use std::cell::Cell;
+
+use crate::pg::{CancelKey, Wire};
 
 /// The five backends [ADR 0067 § 12](../../../docs/adr/0067-core-db.md) closes
 /// the set at.
@@ -156,11 +163,24 @@ impl State {
 /// prepared statements the statement cache exists to preserve.
 #[derive(Debug)]
 pub struct PgConn {
+    /// The stream and the bytes read off it that are not yet a whole message,
+    /// once [`crate::pg::PgConn::connect`] has upgraded it.
+    ///
+    /// ADR 0132 § 3's in-band upgrade means the `SSLRequest` and its one-byte
+    /// answer are the only plaintext this connection ever carries, so there is
+    /// no variant here for "not yet encrypted": a connection that did not
+    /// upgrade was never built.
+    pub(crate) wire: Wire,
     /// ADR 0132 § 4's busy state. A plain [`Cell`]: no atomic and no lock,
     /// because a task never migrates and a connection is owned by one request
     /// at a time, which `nvs-host`'s `!Send` scheduler makes true rather than
     /// hoped.
     pub(crate) state: Cell<State>,
+    /// What the backend handed over at startup so a *second* connection can
+    /// cancel this one's query — the only way PostgreSQL offers, and it is
+    /// unrepeatable: the key arrives once, during the handshake, and a
+    /// connection that dropped it cannot ask again.
+    pub(crate) cancel: CancelKey,
 }
 
 /// A MySQL connection: `mysql_common`'s codec plus the handshake, `COM_STMT_*`
@@ -218,7 +238,17 @@ pub struct SqliteConn {
 /// [ADR 0132 § 5](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md):
 /// each variant owns its own state machine, its own error-code table and its
 /// own reset, and `Core\Db`'s entry points `match` here exactly once.
+///
+/// `clippy::large_enum_variant` is allowed here and the reasoning is ADR 0132
+/// § 5's third argument, unchanged: a `Box` around a variant is an allocation
+/// and an indirection on every message this enum's own hot path reads, and the
+/// lint is measuring a transitional shape rather than a real disparity —
+/// [`PgConn`] carries a TLS session because its driver landed first, and the
+/// other four are one byte only until theirs do. Nothing holds these in an
+/// array either: a `Connection` is one live object per pooled connection, which
+/// at ADR 0067 § 13's ceiling of 16 a core is kilobytes.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum Connection {
     /// See [`PgConn`].
     Postgres(PgConn),

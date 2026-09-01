@@ -100,14 +100,27 @@
 //!
 //! The shared half, which ADR 0132 § 5 keeps as plain functions and data rather
 //! than behind the drivers at all: [`Driver`]'s closed roster, [`State`] and
-//! [`Connection`]'s `match`-once entry points, and [`matrix`]. The five wire
-//! implementations, the `?`/`:name` rewriter and `inList` expansion, the
-//! statement cache and its arity-aware key, the pool and its acquire path, and
-//! the Novis side of ADR 0067 § 9's type map arrive with the driver slices —
-//! PostgreSQL first, because its extended protocol pays nothing extra for a
-//! prepare and so exercises the design rather than the driver's own quirks.
+//! [`Connection`]'s `match`-once entry points, and [`matrix`]. Of the five wire
+//! implementations, [`pg`] has its opening: the socket, § 3's in-band upgrade,
+//! and the SASL exchange. The extended-query state machine, the `?`/`:name`
+//! rewriter and `inList` expansion, the statement cache and its arity-aware
+//! key, the pool and its acquire path, and the Novis side of ADR 0067 § 9's
+//! type map are still to come — PostgreSQL first throughout, because its
+//! extended protocol pays nothing extra for a prepare and so exercises the
+//! design rather than the driver's own quirks.
+//!
+//! **No driver can yet complete a handshake against `tests/db/compose.yaml`.**
+//! Those servers serve a self-signed certificate and `nvs_host::tls` verifies
+//! against the compiled-in anchors with no seam for a private one, so the
+//! matrix reaches the upgrade and stops there. That is why [`pg`]'s exchange is
+//! asserted against a SCRAM server in its own tests rather than only against a
+//! container: the anchor seam is ADR 0132 § 3's "future `nvs.toml` anchor
+//! bundle", and until it exists a matrix-only test would be a green report for
+//! a run that never happened.
 
 pub mod conn;
 pub mod matrix;
+pub mod pg;
 
 pub use conn::{Connection, Driver, MariaConn, MySqlConn, PgConn, SqliteConn, State, TdsConn};
+pub use pg::{CancelKey, PgTarget};

@@ -36,6 +36,28 @@ nvs-config.workspace = true
 # the slice that takes it to add its row to `tools/gen-attribution.py`'s
 # `C_DEPENDENCIES` ledger in the same commit -- that gate fails both ways, on an
 # unrecorded C crate in the graph and on a recorded one that is not in it.
+#
+# PostgreSQL's half of that rule: framing and the SASL mechanism are borrowed,
+# and the startup sequence, the `SSLRequest` upgrade and the extended-query
+# state machine in `pg.rs` are written here.
+postgres-protocol.workspace = true
+# What that codec is called through: it frames into a `BytesMut` and hands its
+# message bodies back as fallible iterators, so these are the spelling of
+# `postgres-protocol`'s own surface rather than two more dependencies of ours.
+bytes.workspace = true
+fallible-iterator.workspace = true
+
+# The SCRAM server `pg.rs`'s tests answer with. It exists because the compose
+# file's PostgreSQL serves a self-signed certificate and `NvsTls` verifies
+# against the compiled-in anchors, so no reachable server can complete the
+# handshake this crate needs before it can authenticate at all -- the exchange
+# would otherwise be code that has never run. These are the workspace's own
+# hashes, deliberately not the ones `postgres-protocol` vendors for its client
+# half: a test that shared them could pass on a bug they shared.
+[dev-dependencies]
+base64.workspace = true
+hmac.workspace = true
+sha2.workspace = true
 
 [lints]
 workspace = true
