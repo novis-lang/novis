@@ -1278,6 +1278,14 @@ is why" — is this file.
   cites, *before* writing the row, is the whole check — and it is the same bullet as the
   `loop-goal.toml` one three above, generalized: **anything in the pack that is status can be stale
   about a decision.**
+- **A `peek.py` `re:` target over a wide glob prints every matching file's hits, and
+  `tests/conformance/**/*.nvst` is 1,255 of them.** One probe for a Novis spelling —
+  `'tests/conformance/**/*.nvst:re:bytes \$'` — came back as 23 KB and roughly 9,000 tokens, about
+  a twentieth of the session's whole budget, because 80 files matched and each printed its hits
+  with context. The narrow forms cost nothing: name one file, or ask a question whose answer is a
+  handful of lines. When the question really is "what is the spelling for X across the corpus",
+  send a subagent — that is exactly the read whose *findings* are three lines and whose *reading*
+  is enormous.
 
 ## Running things
 
@@ -1720,6 +1728,16 @@ is why" — is this file.
   operand instead of a fresh value has to repeat that `aliasing_read`/`emit_retain` pair. Copying
   `lower_class_reference`, which owes none, is the way to get this wrong: a descriptor is immortal
   and a `string` is not.
+- **A stale `target/debug/nvs.exe` answers `E0405: Core\Foo has no member named bar` for a member
+  you just registered, which reads as a registration bug rather than as a stale binary.** The
+  class name still resolves — `QName::is_reserved_global_class` knows the `Core\` prefix without
+  the registry — so the diagnostic is about the *member*, and it is the same sentence a genuine
+  missing `address()` arm or a missing `CLASSES` row would produce. The binary's package is
+  **`nvs-cli`**, not `nvs`, so a `cargo build -p nvs` that was meant to refresh it fails with
+  "package ID specification `nvs` did not match any packages" and leaves the old executable in
+  place; if that failure scrolled past, the `.nvst` run that follows looks like a code problem.
+  Plain `cargo build` is the whole fix, and the driver's own build is why `orient.py` can promise
+  the binary is current *at the session's starting commit* and not after your first edit.
 
 ## Writing a test case
 

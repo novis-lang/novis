@@ -2,55 +2,60 @@
 
 ## State
 
-**`Core\Mail` is on disk and stage 9's check for it is green.** `crates/nvs-stdlib/src/mail.rs` is
-one row — `Core\Mail::send(string $endpoint, array<string> $to, string $subject, string $text,
-{cc?, bcc?, replyTo?, html?}): void` — plus a plaintext SMTP session over `nvs_host`'s parking
-stream. The roster was this slice's decision under ADR 0063; that module's own doc is the home of
-all four arguments for it, and none is restated here.
+**`Core\Storage` is on disk and stage 9's check for it is green.** `crates/nvs-stdlib/src/storage.rs`
+is three rows — `put(string $disk, string $key, bytes $contents, {overwrite?})`, `get(...): ?bytes`
+and `delete(...): void` — over `nvs_runtime::capability`'s existing `create`, `exists`, `open_read`
+and `remove_file`. That module's own doc is the home of every decision behind it and none is
+restated here.
 
-**The capability is new: `mail.send`.** ADR 0082 § 2 specifies it, not the `net.connect` the last
-handoff predicted — see the playbook bullet this session added. It is `nvs_config::Cap::MailSend`
-with `Scope::Name`, granted per `[mail.<name>]` block exactly as ADR 0067 § 3 grants `db.connect`,
-and the address inside a granted block is deliberately **not** put through ADR 0058 § 3's denied
-ranges.
+**It declares no capability, and that is the point of the row.** ADR 0082 § 2 says "over ADR 0051's
+existing `fs.*`", so `registry::CAPABILITIES` carries `FsWrite`/`FsRead`/`FsWrite` for the three
+members and there is no `storage.*` grant anywhere;
+`storage_over_local_disk_is_gated_on_the_same_fs_capability` asserts that over the registry, against
+`Core\IO`'s own rows rather than against a constant.
 
-**Two gaps are recorded rather than worked around**, both in `mail.rs`'s module doc: there is no TLS
-under `nvs-stdlib`'s sockets (`crate::http`'s transport is plaintext too), so a `[mail.<name>]`
-block that names `user` or `password` is **refused at the send** rather than authenticated in the
-clear; and attachments are composition, which ADR 0082 § 2 puts in `nvs/web`.
+**One file outside the item's named set was unavoidable:** `crates/nvs-config/src/tree.rs`, because
+`deny_unknown_fields` means a `[storage.<name>]` block does not parse until the tree has a type for
+it. `StorageDisk` is one `root` field, mirroring `MailEndpoint`.
 
-**The pack still did not print ADR 0024 § 5**, and it did not print ADR 0082 § 2 either until it was
-sliced by hand — that section is the specification for every remaining stage-9 item.
-`[context] adrs` in `docs/agent/loop-goal.toml` wants `0024 § 5` and `0082 § 2`.
+**Two gaps are recorded rather than worked around**, both in `storage.rs`'s module doc: there is no
+`list`, because `nvs_runtime::capability` has no read-directory door and adding one is a
+capability-surface decision of its own; and there is no `exists`, because `get` answering `null` is
+already that question and a second spelling would be ADR 0063 R20's operation reachable two ways.
+
+**The pack still did not print ADR 0024 § 5**, and `[context] file-set` did not name
+`crates/nvs-config/src/tree.rs` for a stage-9 item that adds an operator-named block — every
+remaining one of those will need it too.
 
 ## Next group
 
-**`Core\Storage` and `Core\Cldr` — stage 9's two remaining acceptance checks — over the same file
-set this session used: a new module under `crates/nvs-stdlib/src/`,
-`crates/nvs-stdlib/src/registry.rs` and `crates/nvs-stdlib/src/lib.rs`.**
+**`Core\Cldr::pluralCategory` — stage 9's last acceptance check — over
+`crates/nvs-stdlib/src/cldr.rs`, `crates/nvs-stdlib/src/registry.rs` and
+`crates/nvs-stdlib/src/lib.rs`, the same three this session used.**
 
-- [ ] **`Core\Storage`'s row and its `fs.*` gating** — ADR 0082 § 2's row says "local-filesystem
-      object storage over ADR 0051's existing `fs.*` capabilities", so it declares **no new `Cap`**:
-      the rows go beside this session's at `crates/nvs-stdlib/src/registry.rs:1231` and
-      `crates/nvs-stdlib/src/registry.rs:1515`, the module beside `mod mail;` at
-      `crates/nvs-stdlib/src/lib.rs:241`, and the address arm at
-      `crates/nvs-stdlib/src/lib.rs:360`. Every door is `nvs_runtime::capability`'s existing
-      `open_read`/`create`/`remove_file`, which is what makes the check's name true.
-- [ ] **`storage_over_local_disk_is_gated_on_the_same_fs_capability`** — the `#[test]` the driver
-      names, in the new module beside `mail_sends_against_an_operator_named_endpoint_and_no_other`
-      at `crates/nvs-stdlib/src/mail.rs:869`, which is the shape: assert over the rows and the
-      `CAPABILITIES` table, not over a fixture.
-- [ ] **`Core\Cldr::pluralCategory`** — ADR 0082 § 2's last row, one member over the data
-      `crates/nvs-stdlib/src/cldr.rs:1` already carries. That module has no `CLASS` and no
-      `address()` yet, so it owes all five edits plus three `.nvst` cases; the check is
-      `plural_category_answers_from_the_carried_cldr_data`.
+- [ ] **`Core\Cldr`'s class and its one row** — ADR 0082 § 2's last row, "one member exposing the
+      CLDR data `nvs_stdlib::cldr` already holds". **Check that claim first**: today
+      `crates/nvs-stdlib/src/cldr.rs:306` is a *date pattern* grammar and its only `pub` item is
+      `validate`, so the plural data may not be carried at all and the row's comment may be the
+      stale-about-the-tree kind the playbook warns about. The rows go beside this session's at
+      `crates/nvs-stdlib/src/registry.rs:1238`, the module beside `mod storage;` at
+      `crates/nvs-stdlib/src/lib.rs:261`, and the address arm at
+      `crates/nvs-stdlib/src/lib.rs:379`. It needs **no** `CAPABILITIES` row: nothing leaves the
+      process.
+- [ ] **`plural_category_answers_from_the_carried_cldr_data`** — the `#[test]` the driver's stage-9
+      check names, in a `#[cfg(test)]` module beside the member at
+      `crates/nvs-stdlib/src/cldr.rs:306`. Assert the categories
+      against a locale whose rules differ from English's in a way one table cannot fake.
+- [ ] **Three `.nvst` cases**, since `BELOW_THE_FLOOR` in
+      `crates/nvs-stdlib/tests/conformance_coverage.rs:268` is empty and the floor is three per
+      member. One case may satisfy several members at once, which is how this session's three
+      covered nine.
 
 ## Backlog
 
-- `validate_launders_only_what_it_actually_validated` — stage 9's third open check; `Core\Validate`
-  is six `Qual::Neutral` predicates today (`crates/nvs-stdlib/src/validate.rs:175`).
-- ADR 0024 § 5's third piece, the sink's own escape-and-lift, waits on an HTML response — goal 6's.
-- TLS for `nvs-stdlib`'s sockets: `Core\Http\Client`'s HTTPS and `Core\Mail`'s `STARTTLS`/`AUTH` are
-  one dependency, owned by ADR 0074.
-- `Core\IO::truncate` and `::lock`, per the plan's stage 2 line.
-- `Core\Cli::displayWidth`, per the plan's stage 3 line.
+- `Core\Mail` owes TLS and `AUTH PLAIN` — `crates/nvs-stdlib/src/mail.rs`'s module doc.
+- `Core\Storage` owes `list`, which owes a read-directory door in `nvs_runtime::capability`.
+- `Core\IO` owes `truncate` and `lock` — docs/implementation-plan.md, *Open now*.
+- `Core\Log` owes reading `[log] target` — ADR 0020 § 3.
+- `Core\Cli` owes `displayWidth` — ADR 0086 § 1.
+- Goals 4 and 5 still need a reachable Docker daemon for the shared store and the driver matrix.

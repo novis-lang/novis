@@ -111,6 +111,7 @@ Conventions the whole file uses:
 | [`Core\Log`](#core-core-log) |  |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
 | [`Core\Mail`](#core-core-mail) |  |
+| [`Core\Storage`](#core-core-storage) |  |
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
 | [`Core\Crypto`](#core-core-crypto) | authenticated encryption with no cipher, mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted |
 | [`Core\SignedCookie`](#core-core-signedcookie) |  |
@@ -15455,6 +15456,73 @@ Hands one message to the SMTP endpoint `[mail.$endpoint]` names, and returns onc
 **Returns** `void` — Nothing. The endpoint accepted the message; delivery past it is the endpoint's.
 
 **Throws** `RuntimeError` — The capability `mail.send` does not grant `$endpoint`; or no `[mail.<name>]` block of that name sets `host` or `from`; or that block sets `user` or `password`, which cannot be sent without TLS; or an address is not one. Each is a deployment or a call that was written wrong, not a send that failed.; `IOError` — The configured endpoint could not be reached, closed the connection, or refused a command — the last carrying the SMTP reply that said so.
+
+<a id="core-core-storage"></a>
+### `Core\Storage`
+
+Keywords: put, get, delete
+
+| Member | Signature |
+|---|---|
+| [`Core\Storage::put`](#core-core-storage-put) | `put(string $disk, string $key, bytes $contents, {overwrite?: bool}): void` |
+| [`Core\Storage::get`](#core-core-storage-get) | `get(string $disk, string $key): ?bytes` |
+| [`Core\Storage::delete`](#core-core-storage-delete) | `delete(string $disk, string $key): void` |
+
+<a id="core-core-storage-put"></a>
+#### `Core\Storage::put`
+
+```nvs skip
+Core\Storage::put(string $disk, string $key, bytes $contents, {overwrite?: bool}): void
+```
+
+Writes `$contents` as the object `$key` on `$disk`, replacing whatever was there unless `overwrite` says not to.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$disk` | `string` (sink) | Which `[storage.<name>]` block in `nvs.toml` the object lives on. Refuses a `tainted` argument: it selects a deployment, so it is written at the call site and never read from input. |
+| `$key` | `string` (neutral) | The object's name on that disk: one segment of ASCII letters, digits, `.`, `-` and `_`, at most 255 bytes, not beginning with a `.`. A separator is refused rather than resolved, so no key names anything but an object directly on the disk. |
+| `$contents` | `bytes` (neutral) | The object's octets, written whole. |
+| `{overwrite: …}` | `bool` (default `true`) | Whether an object already at `$key` may be replaced. `true` by default, which is the object-store contract; `false` claims the key instead, and fails if another writer already holds it. |
+
+**Returns** `void` — Nothing. The object is on the disk once this returns.
+
+**Throws** `RuntimeError` — No `[storage.<name>]` block of that name sets a `root`; or `$key` is not an object key; or the `fs.read`/`fs.write` capability does not cover the object's path. Each is a deployment or a call that was written wrong.; `IOError` — The object could not be written — including `overwrite: false` against a key that already exists, which is what a refused claim is.
+
+<a id="core-core-storage-get"></a>
+#### `Core\Storage::get`
+
+```nvs skip
+Core\Storage::get(string $disk, string $key): ?bytes
+```
+
+Reads the object `$key` on `$disk`, or answers `null` where the disk holds no object of that name.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$disk` | `string` (sink) | Which `[storage.<name>]` block in `nvs.toml` the object lives on. Refuses a `tainted` argument: it selects a deployment, so it is written at the call site and never read from input. |
+| `$key` | `string` (neutral) | The object's name on that disk: one segment of ASCII letters, digits, `.`, `-` and `_`, at most 255 bytes, not beginning with a `.`. A separator is refused rather than resolved, so no key names anything but an object directly on the disk. |
+
+**Returns** `?bytes` — The object's octets, or `null` for a key nothing was ever put at — absence is the return type's answer here, not an error.
+
+**Throws** `RuntimeError` — No `[storage.<name>]` block of that name sets a `root`; or `$key` is not an object key; or the `fs.read`/`fs.write` capability does not cover the object's path. Each is a deployment or a call that was written wrong.; `IOError` — The object is there and could not be read.
+
+<a id="core-core-storage-delete"></a>
+#### `Core\Storage::delete`
+
+```nvs skip
+Core\Storage::delete(string $disk, string $key): void
+```
+
+Removes the object `$key` from `$disk`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$disk` | `string` (sink) | Which `[storage.<name>]` block in `nvs.toml` the object lives on. Refuses a `tainted` argument: it selects a deployment, so it is written at the call site and never read from input. |
+| `$key` | `string` (neutral) | The object's name on that disk: one segment of ASCII letters, digits, `.`, `-` and `_`, at most 255 bytes, not beginning with a `.`. A separator is refused rather than resolved, so no key names anything but an object directly on the disk. |
+
+**Returns** `void` — Nothing. The object is gone once this returns.
+
+**Throws** `RuntimeError` — No `[storage.<name>]` block of that name sets a `root`; or `$key` is not an object key; or the `fs.read`/`fs.write` capability does not cover the object's path. Each is a deployment or a call that was written wrong.; `IOError` — There is no object at `$key`, or it could not be removed. Deleting what was never there is a failure rather than a silent success: the key was computed by the caller, and a typo that succeeds is one nothing reports.
 
 <a id="core-core-password"></a>
 ### `Core\Password`
