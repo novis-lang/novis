@@ -2,21 +2,22 @@
 
 ## State
 
-**`Core\Cache` is closed for depth work**, `python tools/gaps.py` having ranked it thinnest at
-`local` 4 and `Store` 4/4. Three `.nvst` cases landed, no Rust change and so no new refcount edge:
+**`Core\Cli`'s value types are closed for depth.** Two counted sweeps over ADR 0086 § 1's whole
+control range landed — every C0, `DEL` and every C1 — one through `Core\Cli\Live::set` and one
+through `Core\Cli\Text::styled`. Both read a carrier back with `as string` rather than echoing it,
+so the sink is out of the path and what is asserted is what the constructor stored (ADR 0088 § 5).
+No Rust change in `nvs-stdlib`, so no new refcount edge and no valgrind run.
 
-- **A key is the bytes it is** — a sweep of keys differing by one byte, by case, by a leading or
-  trailing space, by a combining mark NFC would fold, and by their last character after 288 shared
-  ones; each written with a value derived from itself and counted, so a store that normalised or
-  truncated hands one key another's value and the count drops rather than a line looking wrong. Two
-  spellings of equal bytes are one entry; a key one byte from a stored one is absent.
-- **A rewrite replaces the entry rather than adding one** — thirteen writes to one key, each read
-  back immediately and counted, alternating length in both directions and repeating a value; the
-  shape flips string→int with it; and under a `1K` cap the key written before all of them is still
-  there, which is `Local::order`'s slot-per-live-key. The playbook bullet above is how that cap was
-  sized, and the probe is what makes the third line an assertion.
-- **`local()` twice is one store** — a handle taken before any write reads all four entries, the
-  first handle reads the second's write, and an entry outlives every handle that wrote it.
+**Two of the previous group's three items were already on disk**, and the handoff had proposed them
+anyway: `cli-a-styles-seven-slots-are-independent.nvst` (33199eaa) is item 1 verbatim and
+`cli-every-colour-argument-shares-one-bound-counted.nvst` (74a1bb66) is item 2. The playbook bullet
+above is why that was not visible from `gaps.py`'s ranking. Item 3 — the region as a sink — was
+genuinely open and is what landed, with the `styled` sweep beside it as the same question asked of
+the constructor that emits control bytes on purpose.
+
+**`tools/try.py` decoded a subprocess with the console code page**, so any case echoing one of § 1's
+Control Pictures (`␛` is `E2 90 9B`) crashed it under Windows cp1252 instead of failing a
+comparison. It reads UTF-8 with `errors="replace"` now.
 
 **The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate
 over a complete Part II, which needs spec §§ 15-19 from goal 6. Not a regression and not closable
@@ -24,26 +25,30 @@ here. Nothing was missing from this session's pack.
 
 ## Next group
 
-**`Core\Cli`'s three value types are `gaps.py`'s thinnest cluster that needs no Docker and no
-network — `Cli\Style::of` 4, `Cli\Live::set` 4, `Cli\Color::index`/`::rgb` 5 — and they are one file
-set: `crates/nvs-stdlib/src/cli.rs` and `tests/conformance/core/`. ADR 0086 is the spec for all
-three, and the sink rule (§ 5's control-byte substitution) is what a depth case reaches for rather
-than another styling row.**
+**`Core\IO\File` is `gaps.py`'s thinnest cluster that needs no Docker and no network — `lock` 3,
+`truncate` 3, `flush` 4 — and the three are one file set: `crates/nvs-stdlib/src/io.rs` and
+`tests/conformance/core/`. `docs/spec/01-core-library.md` § 14's handle roster is the spec for all
+three, and ADR 0118 §§ 2-3's doors are what each of them sits behind.** Read the three bodies
+before fixing the claims below: this session did not open `io.rs`, so each item names the shape and
+the anchor and leaves the boundary to the session that reads it.
 
-- [ ] **A style is its seven axes, counted** — `of`'s seven arguments are independent, so a sweep
-      setting one axis at a time and counting the renderings that differ from the unstyled one fails
-      an axis silently dropped or folded into its neighbour, which no single-line case can see.
-      `crates/nvs-stdlib/src/cli.rs:2707`.
-- [ ] **`Cli\Color::index` names its last accepted value and its first refused one**, and `::rgb`
-      does the same on each of its three channels — the bound on both sides, not below it.
-      `crates/nvs-stdlib/src/cli.rs:2650`, `crates/nvs-stdlib/src/cli.rs:2680`.
-- [ ] **A live region substitutes control bytes like every other terminal write** — ADR 0086 § 5's
-      sink rule asked of `set`, where a caller most expects a cursor movement to pass through.
-      `crates/nvs-stdlib/src/cli.rs:2899`.
+- [ ] **`truncate`'s edges, and where the cursor lands** — a length past the end, a length of zero
+      and a length equal to the current one are three different answers, and a handle's position
+      after each is the part a single-line case does not ask about.
+      `crates/nvs-stdlib/src/io.rs:1681`.
+- [ ] **`flush` is an agreement, not an answer** — what a second reader sees before and after it,
+      asked of the same handle, so a `flush` that only satisfied its own buffer fails here.
+      `crates/nvs-stdlib/src/io.rs:1721`.
+- [ ] **`lock`'s bound on both sides** — the state it refuses and the state it grants, named
+      together, plus what a released lock leaves behind. `crates/nvs-stdlib/src/io.rs:1784`.
 
 ## Backlog
-- `Core\Env::all` 3 and the unasserted throw at `crates/nvs-stdlib/src/env.rs:200` (non-UTF-8 value).
-- `Core\Cldr::pluralCategory` is 4/4 over a closed roster — `crates/nvs-stdlib/src/cldr.rs`.
-- `Core\IO\File`'s `lock` 3, `truncate` 3, `flush` 4 — one file set, needs no Docker.
-- `Core\Task::afterResponse` is the last differential gap (`fastcgi_finish_request`), `task.rs:561`.
-- Stage 6's shared tier and stage 10's Part II gate both stay blocked — Docker, and goal 6's spec.
+
+- `Core\Cldr::pluralCategory` at 4 and one member — `crates/nvs-stdlib/src/cldr.rs`, spec § 4.
+- `Core\Cli` itself is thinner than its value types now: `arguments`, `displayWidth`, `height` at 3.
+- `Core\Cli\Progress::advance` at 5 — the bar is unobservable without a terminal, so only the
+  member's answers can be asserted; `crates/nvs-stdlib/src/cli.rs`'s `bar` is the arithmetic.
+- `Core\Test` at `advance`/`assertContains`/`scriptAnswers` 3 — ADR 0079 § 4.
+- Stage 10's `every_part_two_spec_member_is_registered` waits on spec §§ 15-19 (goal 6) —
+  `docs/agent/loop-goal.toml`.
+- `Core\Http\Response` and `Core\Mail::send` rank thinner still, and both need the outside world.

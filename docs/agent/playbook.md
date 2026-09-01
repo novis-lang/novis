@@ -4025,6 +4025,15 @@ is why" — is this file.
   case are therefore empirical: run it at the cap you chose, then run a copy that writes the same
   values under *distinct* keys, which is the accumulating store — if that copy does not forget the
   key written first, the cap is too high and the case is vacuous.
+- **`gaps.py` ranks a class by case *count*, not by question, so a handoff item derived from it can
+  name work that is already on disk.** Two of the three items in one group — a counted sweep over
+  `Core\Cli\Style::of`'s seven axes, and `Core\Cli\Color`'s bound named on both sides of all four of
+  its arguments — were already landed as `cli-a-styles-seven-slots-are-independent.nvst` and
+  `cli-every-colour-argument-shares-one-bound-counted.nvst`, and both cases are *inside* the counts
+  that ranked the members thin. The count cannot tell you which question a case asked; the case
+  titles can, and they are one `ls tests/conformance/core | grep -i <class>` away. Do that before
+  writing the first line, and when the item turns out to be landed, say so in the handoff rather
+  than writing a second case that asks the same thing.
 
 ## Splitting a file that got too big
 
