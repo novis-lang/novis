@@ -42,8 +42,7 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
-> running**.      **§ 6 is closed**: `Core\Command`'s three members are rows over the compiled
-> table. **`Core\Password` and `Core\Crypto` are closed.**  **Stage 5 is closed**:
+> running**.       **`Core\Password` and `Core\Crypto` are closed.**  **Stage 5 is closed**:
 > `Core\Http::allowUrl` answers a pinned `Core\Http\Target`(ADR 0058 §§ 3 and 5). **Stage 6 has
 > opened**: `Core\Cache`'s two tiers are one `Store`, `shared()` the `net.connect` door onto RESP
 > and `local()` the `None` row; § 1's limiters are rows over them. **Stage 7 has opened**: § 6's two
@@ -54,14 +53,15 @@
 > `ClassInfo`'s get, set and call — the set runs ADR 0014 § 3's observer — and `Core\Ast::parse`
 > answers the compiler's own tree, and `Core\Decimal` is § 3's two rounding members; ADR 0046 § 4's
 > `$member` is checked at the retrieval (`E0798`). ADR 0126's `property<T>` is closed. **Stage 9**:
-> `Core\Html::escape` launders and § 5's `as Markup` and `Markup + Markup` both lower; `Core\Mail`
-> is owed. **Stage 2's handle half has opened**: `Core\IO::open` answers a `Core\IO\File` whose slot
-> keys the request's own descriptor table, `Core\IO\FileMode` is R11's enum, and `read`, `readLine`,
-> `write`, `seek`, `tell`, `flush` and `close` are its members; `truncate` and `lock` are owed.
-> **Stage 3's terminal is a sink **: `write` performs § 1's table onto `Out` or `Err`, § 2 is
-> `Cli\Color`, `Cli\Style` and `Text::styled`, § 4's prompts read under a deadline, and
+> `Core\Html::escape` launders and § 5's `as Markup` and `Markup + Markup` both lower;
+> `Core\Mail::send` sends through an operator-named `[mail.<name>]` under `mail.send`; TLS and
+> `AUTH` are owed. **Stage 2's handle half has opened**: `Core\IO::open` answers a `Core\IO\File`
+> whose slot keys the request's own descriptor table, `Core\IO\FileMode` is R11's enum, and `read`,
+> `readLine`, `write`, `seek`, `tell`, `flush` and `close` are its members; `truncate` and `lock`
+> are owed. **Stage 3's terminal is a sink **: `write` performs § 1's table onto `Out` or `Err`, § 2
+> is `Cli\Color`, `Cli\Style` and `Text::styled`, § 4's prompts read under a deadline, and
 > `live<T>`/`progress<T>` open a region a `Drop` restores; `arguments` has landed and `displayWidth`
-> is owed. Conformance 1252, differential 210 of 210, migration 37% over its 36% floor.
+> is owed. Conformance 1255, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

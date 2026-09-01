@@ -1267,6 +1267,17 @@ is why" — is this file.
   `UNATTRIBUTED: 0`. Neither the allowlist nor the ceiling may be edited to pass, so a *claim* of a
   lowering gap belongs in the slice that removes the site; until then the crate docs' known-gaps
   section is where it goes, and the panic keeps whatever it already said.
+- **The handoff's own item text can contradict a settled ADR, exactly as a `loop-goal.toml` comment
+  can — and the ADR still wins.** The `Core\Mail` item said "its `net.connect` declaration beside it
+  at `registry.rs:1392`", and ADR 0082 § 2 says the endpoint is "named in root-owned `nvs.toml`
+  under a **`mail.send`** capability, the shape 0067 established for outbound endpoints". Those are
+  not two spellings of one thing: `net.connect` is a grant over *hosts* with `Scope::Host` and ADR
+  0058 § 3's denied ranges applied, and `Core\Mail` reaches no host a program can name, so the row
+  had to be a new `Cap` with `Scope::Name`. The handoff is state written by a session that had not
+  read the section yet; the ADR is a decision. One `peek.py <adr>:"### N"` on every ADR § the item
+  cites, *before* writing the row, is the whole check — and it is the same bullet as the
+  `loop-goal.toml` one three above, generalized: **anything in the pack that is status can be stale
+  about a decision.**
 
 ## Running things
 

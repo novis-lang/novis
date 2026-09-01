@@ -2,53 +2,55 @@
 
 ## State
 
-**ADR 0024 § 5's two language halves both lower.** `"<b>" as Core\Html\Markup` and
-`Markup + Markup` are `InstKind::CoreCall`s on two row-less `nvs-stdlib` symbols,
-`crates/nvs-stdlib/src/html.rs`'s `MARKUP_SYMBOL` and `MARKUP_CONCAT_SYMBOL`. The
-helper-versus-registry-symbol question the last handoff left open is decided and recorded on the
-first of those consts: a `Helper` is a symbol `nvs-runtime` exports and `nvs-runtime` cannot reach
-a `Core` class's layout, so both are `CoreCall`s named through `nvs_types` exactly as `spawn
-script` is. Neither has a `CoreMethod` row, for the reason `MARKUP` has no members at all.
+**`Core\Mail` is on disk and stage 9's check for it is green.** `crates/nvs-stdlib/src/mail.rs` is
+one row — `Core\Mail::send(string $endpoint, array<string> $to, string $subject, string $text,
+{cc?, bcc?, replyTo?, html?}): void` — plus a plaintext SMTP session over `nvs_host`'s parking
+stream. The roster was this slice's decision under ADR 0063; that module's own doc is the home of
+all four arguments for it, and none is restated here.
 
-**`nvs-ir` has no panicking conversion row left**, which its `lower::convert` `_ =>` arm and
-`crates/nvs-ir/src/lib.rs` now claim rather than naming the one that was missing.
+**The capability is new: `mail.send`.** ADR 0082 § 2 specifies it, not the `net.connect` the last
+handoff predicted — see the playbook bullet this session added. It is `nvs_config::Cap::MailSend`
+with `Scope::Name`, granted per `[mail.<name>]` block exactly as ADR 0067 § 3 grants `db.connect`,
+and the address inside a granted block is deliberately **not** put through ADR 0058 § 3's denied
+ranges.
 
-**§ 5's third piece is the sink's own escape-and-lift** — every non-`Markup` interpolation escaped
-and wrapped — and it waits on an HTML response existing, which is goal 6's. That leaves `Core\Mail`
-as stage 9's remaining acceptance check.
+**Two gaps are recorded rather than worked around**, both in `mail.rs`'s module doc: there is no TLS
+under `nvs-stdlib`'s sockets (`crate::http`'s transport is plaintext too), so a `[mail.<name>]`
+block that names `user` or `password` is **refused at the send** rather than authenticated in the
+clear; and attachments are composition, which ADR 0082 § 2 puts in `nvs/web`.
 
-**The driver's failing check is `mail_sends_against_an_operator_named_endpoint_and_no_other`**, and
-it is an item still open rather than a regression: there is no `crates/nvs-stdlib/src/mail.rs`, and
-the spec gives the class one table row and no member roster.
-
-**The pack still did not print ADR 0024 § 5**, sliced by hand for the third session running.
-`[context] adrs` in `docs/agent/loop-goal.toml` wants `0024 § 5`.
+**The pack still did not print ADR 0024 § 5**, and it did not print ADR 0082 § 2 either until it was
+sliced by hand — that section is the specification for every remaining stage-9 item.
+`[context] adrs` in `docs/agent/loop-goal.toml` wants `0024 § 5` and `0082 § 2`.
 
 ## Next group
 
-**`Core\Mail` — stage 9's one remaining check — over `crates/nvs-stdlib/src/mail.rs` (new),
-`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/lib.rs` and
-`crates/nvs-stdlib/src/http/transport.rs`.**
+**`Core\Storage` and `Core\Cldr` — stage 9's two remaining acceptance checks — over the same file
+set this session used: a new module under `crates/nvs-stdlib/src/`,
+`crates/nvs-stdlib/src/registry.rs` and `crates/nvs-stdlib/src/lib.rs`.**
 
-- [ ] **The class row and its member roster** — `Core\Mail`'s transport is Native by ADR 0051 § 3's
-      test 3 and its composition the framework's privileged half (ADR 0082 § 2). The spec has one
-      line for it (`docs/spec/01-core-library.md:1105`) and no members, so the roster is this
-      slice's decision under ADR 0063's twenty rules. The row goes in
-      `crates/nvs-stdlib/src/registry.rs:1079`, its `net.connect` declaration beside it at
-      `crates/nvs-stdlib/src/registry.rs:1392`, and the address chain is
-      `crates/nvs-stdlib/src/lib.rs:350` — which owes a line even for a row-less symbol, per the
-      playbook bullet this session added.
-- [ ] **`mail_sends_against_an_operator_named_endpoint_and_no_other`** — ADR 0058 § 5's rule one
-      protocol over: the endpoint is the operator's configuration and never the message's, so
-      nothing a caller passes chooses a host. The exchange rides `nvs_host::net`'s parking stream,
-      whose shape is `crates/nvs-stdlib/src/http/transport.rs:53`.
-- [ ] **Three `.nvst` cases** in `tests/conformance/core/`, over whatever roster the first slice
-      fixes, and `crates/nvs-stdlib/src/html.rs:250` is the nearest worked example of a class whose
-      cases are about a rule rather than about a value.
+- [ ] **`Core\Storage`'s row and its `fs.*` gating** — ADR 0082 § 2's row says "local-filesystem
+      object storage over ADR 0051's existing `fs.*` capabilities", so it declares **no new `Cap`**:
+      the rows go beside this session's at `crates/nvs-stdlib/src/registry.rs:1231` and
+      `crates/nvs-stdlib/src/registry.rs:1515`, the module beside `mod mail;` at
+      `crates/nvs-stdlib/src/lib.rs:241`, and the address arm at
+      `crates/nvs-stdlib/src/lib.rs:360`. Every door is `nvs_runtime::capability`'s existing
+      `open_read`/`create`/`remove_file`, which is what makes the check's name true.
+- [ ] **`storage_over_local_disk_is_gated_on_the_same_fs_capability`** — the `#[test]` the driver
+      names, in the new module beside `mail_sends_against_an_operator_named_endpoint_and_no_other`
+      at `crates/nvs-stdlib/src/mail.rs:869`, which is the shape: assert over the rows and the
+      `CAPABILITIES` table, not over a fixture.
+- [ ] **`Core\Cldr::pluralCategory`** — ADR 0082 § 2's last row, one member over the data
+      `crates/nvs-stdlib/src/cldr.rs:1` already carries. That module has no `CLASS` and no
+      `address()` yet, so it owes all five edits plus three `.nvst` cases; the check is
+      `plural_category_answers_from_the_carried_cldr_data`.
 
 ## Backlog
-- § 5's escape-and-lift into an HTML response — waits on goal 6 (`crates/nvs-stdlib/src/html.rs`, `# Known gaps`).
-- `Core\Storage` over the `fs` capability — stage 9's fourth check (`docs/agent/loop-goal.toml:2552`).
-- CLDR plural categories off the carried data — stage 9's fifth check (`docs/agent/loop-goal.toml:2553`).
-- `Core\Html::sanitize` and ADR 0122's WHATWG parser — wait on `Core\Xml`'s tree (`crates/nvs-stdlib/src/html.rs`, `# Known gaps`).
-- `[context] adrs` in `docs/agent/loop-goal.toml` still lacks `0024 § 5`.
+
+- `validate_launders_only_what_it_actually_validated` — stage 9's third open check; `Core\Validate`
+  is six `Qual::Neutral` predicates today (`crates/nvs-stdlib/src/validate.rs:175`).
+- ADR 0024 § 5's third piece, the sink's own escape-and-lift, waits on an HTML response — goal 6's.
+- TLS for `nvs-stdlib`'s sockets: `Core\Http\Client`'s HTTPS and `Core\Mail`'s `STARTTLS`/`AUTH` are
+  one dependency, owned by ADR 0074.
+- `Core\IO::truncate` and `::lock`, per the plan's stage 2 line.
+- `Core\Cli::displayWidth`, per the plan's stage 3 line.
