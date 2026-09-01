@@ -3934,6 +3934,19 @@ is why" — is this file.
   into one and select the rows to echo with an `if`. In the same shape: `Core\Bytes::fill` takes a
   `uint`, so a sweep of widths is `array<uint>` bound as `foreach (… as uint $width)`, and an
   `array<int>` of the same literals is an `E0401` at the call site rather than at the literal.
+- **A `.nvst` case cannot put non-UTF-8 octets on disk, so a binary probe file has no writer today.**
+  `Core\IO::write`'s `$content` and `Core\IO\File::write`'s `$data` are both
+  `CoreTy::Text(Qual::Neutral)` (`crates/nvs-stdlib/src/io.rs:104` and `:822`), and the checker reads
+  that as `string` and not `string|bytes` — `Core\IO::write("probe.bin", $probe)` over a `bytes` is
+  `E0401: expected 'string', found 'bytes'`, and `io.rs` holds no `CoreTy::Bytes` row at all. That
+  closes the obvious route for a case that needs a child to emit octets no argument vector can carry:
+  a NUL terminates a C string on one platform and `cmd`'s `echo` cannot spell one on the other, so the
+  probe has to arrive through a file. The copy half of that plan does work and is worth not
+  re-deriving — `cat FILE` under `sh` and `(type FILE)` under `cmd` both hand back
+  `41 00 ff ed a0 80 42` unchanged through a pipe, NUL, lone `0xFF` and unpaired surrogate included —
+  so what is missing is only the writer. `Core\Storage::put` (`crates/nvs-stdlib/src/storage.rs:173`)
+  is the unchecked candidate; a bytes row on `Core\IO` is the other answer and is a member change, not
+  a case.
 
 ## Splitting a file that got too big
 

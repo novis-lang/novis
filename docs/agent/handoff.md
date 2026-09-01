@@ -2,66 +2,64 @@
 
 ## State
 
-**`Core\Crypto` is off `gaps.py`'s thin list entirely** — `open` 3→6, `seal` 3→6, `generateKey` 12→15 —
-and `Core\Process\Result` (exitCode 3, stderr 3, stdout 4) is the floor now. All three of the group's
-slices landed, as three `.nvst` files and nothing else: `crates/nvs-stdlib/src/crypto.rs` is unchanged,
-so there is no new refcount edge and no valgrind run behind them.
+**Two of `Core\Process\Result`'s three slices landed**, as two `.nvst` files and nothing else:
+`crates/nvs-stdlib/src/process.rs` is unchanged, so there is no new refcount edge and no valgrind run
+behind them. `gaps.py` no longer lists the class at all — `exitCode` 3→4, `stdout` 4→6, `stderr` 3→5 —
+and the floor is now the six classes at depth 3.0, of which `Core\Totp` is the next group.
 
-- **The key-length bound is one verdict per width for both members, not a line each.** A width is a key
-  or it is not, answered by whether `keyed`'s `LogicError` arrives, and `seal` and `open` are counted as
-  agreeing at all eight widths — 31, 32 and 33 printed adjacent so neither half of the bound reads
-  plausibly alone. The all-`A` 32-octet key seals the probe every `open` is asked about, so the only
-  thing a width is ever refused for there is not being a key.
-- **`generateKey`'s length invariant is behavioural because a `secret` cannot be measured** — that is a
-  playbook bullet now. The case asserts it through the members that refuse every other width, and adds
-  the two a single draw cannot see: 28 pairs distinct, and 56 ordered cross-opens refused.
-- **What the nonce case adds over the landed pair-of-seals assertion is *where* two seals differ.** A
-  member that drew a fresh nonce, prefixed it and then sealed deterministically behind it passes every
-  round trip; the case slices the 24-octet prefix off each of eight seals and counts both the prefixes
-  and the bodies distinct across all 28 pairs.
+- **The capture case measures a sweep, not a size.** 1,000 / 65,500 / 65,600 / 262,100 octets on both
+  streams at once, with the 64 KiB boundary named on both sides and `stopped at the buffer=0` reading
+  the truncation failure directly, since a capture that ends where the pipe filled measures exactly
+  65,536 and no size in the sweep does. Each shell writes exactly one hundred octets per unit —
+  `printf` pads to a field width, `cmd` echoes a 98-octet line and its own CRLF — and the counts are
+  `>=` because a shell that pads a byte of its own is not that case's subject.
+- **The status case asserts the three answers belong to the same run.** The two landed cases either
+  ask what the status is over a silent child or what the streams carry over a successful one; a
+  member that captured only what a successful child wrote passes both. `0` is in the sweep as the
+  control, `255` bounds it.
+
+**The third slice — the captures are octets, not text — is blocked on a missing writer, not on the
+member.** There is no way to put non-UTF-8 octets on disk from a `.nvst` case today; that is a
+playbook bullet now, with the half of the design that does work (`cat`/`type` both round-trip the
+probe through a pipe unchanged) recorded so it is not re-derived.
 
 **The two `orient.py` warnings are still there**: `[context] modules` patterns
 `crates/nvs-stdlib/src/fatal.rs` and `crates/nvs-stdlib/src/script.rs` are reported as matching no
 module and are then printed in the scoped map anyway. The manifest is right; the matcher is what to
 check.
 
-**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate over a
-*complete* Part II, which needs spec §§ 15-19. Those are goal 6's, so it cannot pass inside this goal
-and is not a regression.
+**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate over
+a *complete* Part II, which needs spec §§ 15-19. Those are goal 6's, so it cannot pass inside this
+goal and is not a regression.
 
 ## Next group
 
-**`Core\Process\Result` is the floor — three members, one rule, ADR 0044 § 1's "a result is a value the
-run left behind, not a pipe still open". The file set is `crates/nvs-stdlib/src/process.rs` and
-`tests/conformance/core/`; the three member bodies are within twenty lines of each other. Five cases
-already ask about it — the empty capture, the status on both sides, the two streams kept apart, every
-member agreeing with itself twice, and two results held at once — so read
-`process-a-child-that-writes-nothing-answers-two-empty-captures.nvst` and
-`process-a-completed-runs-two-streams-stay-apart.nvst` first.**
+**`Core\Totp` is the floor now — two members, one rule, ADR 0060 § 1's "a window that has no widening
+argument and a replay refusal the caller can actually enforce". The file set is
+`crates/nvs-stdlib/src/totp.rs` and `tests/conformance/core/`; the two member bodies are sixteen lines
+apart. Three cases already ask about it — the window narrowed from both sides, a code accepted once
+inside a window, and six characters that never cross between secrets — so read
+`totp-accepts-a-code-once-inside-a-window-with-no-widening-argument.nvst` first.**
 
-- [ ] **A capture is whole, not a pipe's worth** — a child writing far more than an OS pipe buffer on
-      both streams at once is captured entire, asserted by length over a sweep of sizes that crosses
-      the 64 KiB boundary, so a `run` that stopped draining at a buffer's edge fails here while
-      answering plausibly for a short child. `crates/nvs-stdlib/src/process.rs:324` and
-      `crates/nvs-stdlib/src/process.rs:382`.
-- [ ] **The two captures are octets, not text** — `stdout` and `stderr` are `bytes`, so a child writing
-      a NUL, a lone `0xFF` and an unpaired surrogate's encoding hands them all back unchanged rather
-      than lossily converted, counted over the sweep. `crates/nvs-stdlib/src/process.rs:382` and
-      `crates/nvs-stdlib/src/process.rs:390`.
-- [ ] **A non-zero status keeps both captures** — over a sweep of statuses the child still wrote both
-      streams, and every one of them arrives beside its `exitCode`, so a `run` that kept output only on
-      success fails by count. `crates/nvs-stdlib/src/process.rs:324` and
-      `crates/nvs-stdlib/src/process.rs:373`.
+- [ ] **A code is a function of its step and nothing else** — the same secret at the same step answers
+      the same code every time and two adjacent steps never agree, counted over a sweep rather than
+      sampled at one pair, so a member that folded in the wall clock fails by count while answering
+      plausibly for a single draw. `crates/nvs-stdlib/src/totp.rs:302`.
+- [ ] **`check` and `code` agree at every offset the window accepts** — one question asked of both
+      members over the whole window, asserting that they agree rather than what each answered, so a
+      `check` that grew its own derivation fails here while still looking right on its own line.
+      `crates/nvs-stdlib/src/totp.rs:302` and `crates/nvs-stdlib/src/totp.rs:318`.
+- [ ] **Every code is six ASCII digits, leading zeros kept** — over a sweep of secrets and steps, so a
+      rendering that went through a number loses its leading zero and fails by count. This is the
+      *digits* reading of `totp-codes-are-six-characters-and-never-cross-between-secrets.nvst`'s
+      length, and the overlap is worth checking before writing.
+      `crates/nvs-stdlib/src/totp.rs:302`.
 
 ## Backlog
 
-- `Core\Csrf` (issue 3, verify 3) and `Core\Jwt` (sign 3, verify 3) are the next floor after this one —
-  ADR 0060 § 1.
-- `Core\Task::afterResponse` has a PHP twin (`fastcgi_finish_request`) and no oracle case, the last one
-  `gaps.py` reports — `tests/differential/`, `crates/nvs-stdlib/src/task.rs:561`.
-- A `spawn script` child never drains its `onExit` queue: `nvs_stdlib::script::run_exit_hooks` has one
-  caller, `crates/nvs-cli/src/main.rs:896`. Open decision — ADR 0127 § 2 says "at most once per script".
-- `orient.py`'s `[context] modules` matcher rejects two live paths — `docs/agent/loop-goal.toml`.
-- Unasserted thrown paths a case could catch: `crates/nvs-stdlib/src/env.rs:200` (a variable whose
-  bytes are not UTF-8) and `crates/nvs-stdlib/src/csv.rs:610` (a column that is not a string).
-- `Core\Cli\Color` (index 3, rgb 3) — ADR 0086.
+- The captures are octets, not text — blocked on a bytes-writing route; the playbook bullet under
+  *Writing a test case* holds the finding and the candidates.
+- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case — `gaps.py`.
+- `orient.py`'s `[context] modules` matcher misses `fatal.rs` and `script.rs` — `docs/agent/loop-goal.toml`.
+- `Core\Csrf`, `Core\Jwt`, `Core\Http\Response`, `Core\Cli\Color` and `Core\RateLimit` are the other
+  depth-3.0 floors — `gaps.py`.
