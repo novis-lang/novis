@@ -448,6 +448,36 @@ pub struct Ctx {
     /// closure for a request that registers one — O(in-flight requests), per
     /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
     uncaught_handler: Value,
+    /// [ADR 0127](../../../docs/adr/0127-the-end-of-a-script-is-observable.md)
+    /// § 1's end-of-script queue, in registration order — what
+    /// `Core\Script::onExit` appends to and [`Self::run_exit_hooks`] drains
+    /// once, as the last user code of the script.
+    ///
+    /// **A queue rather than a slot**, which is the one way it differs from the
+    /// two handlers above it: a hook does not replace the hook before it, so
+    /// registering twice registers twice and § 1's FIFO order is this vec's
+    /// order. A hook registered *by* a hook joins the tail of the same drain,
+    /// which is why [`Self::run_exit_hooks`] walks by index rather than
+    /// draining the vec it is iterating.
+    ///
+    /// Request-local for [`Self::limit_handler`]'s reason, and released in the
+    /// same place for it: a script stopped by a `FATAL` reaches [`Drop`] with
+    /// its queue unrun, exactly as its deferred work does, because § 3 says a
+    /// limit breach runs none of it.
+    ///
+    /// **What it spends:** one reference per registration, plus whatever each
+    /// hook captured, held from the registration to the end of the script —
+    /// per request, O(registrations), which is the spend ADR 0127 § 1 states
+    /// and [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) asks
+    /// for.
+    exit_hooks: Vec<Value>,
+    /// Whether [`Self::run_exit_hooks`] has already run — ADR 0127 § 2's "the
+    /// queue runs once, at most once per script".
+    ///
+    /// A flag rather than "the vec is empty": a hook that registers a hook
+    /// empties neither, and an ending that ran an empty queue has still had its
+    /// one drain.
+    exit_hooks_drained: bool,
     /// How deep a chain of `spawn script` may nest — `[limits] max_script_depth`,
     /// [`Self::DEFAULT_MAX_SCRIPT_DEPTH`] where nothing states one, and `0`
     /// (no ceiling) only where an operator wrote `false`.
@@ -1032,6 +1062,20 @@ impl Drop for Ctx {
         // ADR 0020 § 2's handler is request-local for the same reason and is
         // unregistered the same way — see `Ctx::set_uncaught_handler`.
         self.set_uncaught_handler(Value::null());
+        // ADR 0127 § 1's exit hooks are request-local for the same reason. A
+        // script that ended at a `FATAL` or a cancellation reaches here with the
+        // queue unrun — § 3 — so this is where those registrations are given
+        // back, exactly as an unrun deferred registration is below.
+        #[expect(
+            unsafe_code,
+            reason = "the queue holds exactly one reference per registration and \
+                      nothing else points at it"
+        )]
+        for hook in std::mem::take(&mut self.exit_hooks) {
+            // SAFETY: `Ctx::push_exit_hook` was handed that reference and this
+            // is the only other place it is given back.
+            unsafe { hook.release() };
+        }
         // ADR 0072 § 6's deferred work is request-local for the same reason,
         // and a request that never returned ordinarily reaches here with its
         // registrations unrun — `crate::deferred`'s module doc owns why they
@@ -1199,6 +1243,8 @@ impl Ctx {
             cpu_limit: 0,
             fatal_reserve_time: 0,
             uncaught_handler: Value::null(),
+            exit_hooks: Vec::new(),
+            exit_hooks_drained: false,
             max_script_depth: Self::DEFAULT_MAX_SCRIPT_DEPTH,
             script_depth: 0,
             deferred: Some(Vec::new()),
@@ -1615,6 +1661,138 @@ impl Ctx {
             }
             handler.release();
         }
+    }
+
+    /// Appends `hook` to
+    /// [ADR 0127](../../../docs/adr/0127-the-end-of-a-script-is-observable.md)
+    /// § 1's end-of-script queue — what `Core\Script::onExit` does, which is
+    /// register and run nothing.
+    ///
+    /// The caller passes an **owned** reference, exactly as
+    /// [`Self::set_limit_handler`] takes one and for the same reason: a `Core`
+    /// helper's arguments are borrowed from a call frame this registration
+    /// outlives. Nothing is replaced and nothing is refused — see
+    /// [`Self::exit_hooks`] for why a queue rather than a slot, and
+    /// [`Self::run_exit_hooks`] for what a registration made *during* the drain
+    /// joins.
+    pub fn push_exit_hook(&mut self, hook: Value) {
+        self.exit_hooks.push(hook);
+    }
+
+    /// How many hooks the end-of-script queue holds — what a test asserts a
+    /// registration against, and the reason [`Self::exit_hooks`] is private.
+    #[must_use]
+    pub fn exit_hook_count(&self) -> usize {
+        self.exit_hooks.len()
+    }
+
+    /// Whether the queue has already had its one drain — ADR 0127 § 2.
+    #[must_use]
+    pub fn exit_hooks_drained(&self) -> bool {
+        self.exit_hooks_drained
+    }
+
+    /// Runs the end-of-script queue FIFO, handing each hook `report` — ADR 0127
+    /// §§ 2 and 5.
+    ///
+    /// **Which endings reach here is not this method's question.** § 3's `FATAL`
+    /// and cancellation never fire the queue, and the one place that decides is
+    /// `nvs_stdlib::script::run_exit_hooks`, which is also where the report is
+    /// built — a `Core` instance is that crate's to lay out. This end owns the
+    /// queue and its ordering rules, and nothing else.
+    ///
+    /// **Once.** A second call runs nothing, however it is reached: § 2 says the
+    /// queue runs at most once per script, and a drain that reached an ending
+    /// twice would be a second ending the report was never fixed for.
+    ///
+    /// **A hook registered by a hook joins the tail of the same drain**, which
+    /// is why this walks by index instead of taking the vec: § 5 names that
+    /// case, and a queue drained into a local would silently drop it.
+    ///
+    /// `report` is **borrowed** — the caller keeps the only reference and every
+    /// hook is handed the same object, so all of them observe one report rather
+    /// than one each.
+    ///
+    /// Whatever a hook answers is dropped, and a hook that fails is abandoned
+    /// where it stands with the queue continuing — [`Self::abandon_exit_hook`]
+    /// is the home of § 5's three failure readings.
+    #[expect(
+        unsafe_code,
+        reason = "the queue owns one reference per registration and this is the \
+                  frame that gives every one of them back, plus whatever each \
+                  hook answered"
+    )]
+    pub fn run_exit_hooks(&mut self, report: Value) {
+        if self.exit_hooks_drained {
+            return;
+        }
+        self.exit_hooks_drained = true;
+        let mut index = 0;
+        while index < self.exit_hooks.len() {
+            let hook = self.exit_hooks[index];
+            index += 1;
+            match crate::call_closure(self, hook, &[report]) {
+                // SAFETY: an `Ok` answer is a fresh value this frame owns, and
+                // releasing the `null` a `void` closure answers is a no-op.
+                Ok(answer) => unsafe { answer.release() },
+                Err(fault) => {
+                    if !self.abandon_exit_hook(&fault) {
+                        break;
+                    }
+                }
+            }
+        }
+        // SAFETY: the queue holds exactly one reference per registration and
+        // nothing else points at it — the hooks are the caller's only through
+        // `Self::push_exit_hook`, which hands its reference over.
+        for hook in std::mem::take(&mut self.exit_hooks) {
+            unsafe { hook.release() };
+        }
+    }
+
+    /// Reports one failed exit hook and answers whether the drain continues —
+    /// ADR 0127 § 5.
+    ///
+    /// Three readings, and only the last stops the queue:
+    ///
+    /// - **A throw** is written to the same record `Core\Log` writes, through
+    ///   [`crate::floor`], and abandoned — § 5's "logged with the request's
+    ///   trace id rather than swallowed", which is
+    ///   [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    ///   § 4's rule for a second throw and [`crate::deferred`]'s reading of it
+    ///   for after-response work.
+    /// - **An `exit`** is § 5's refusal: a hook that could end the script would
+    ///   suppress every hook behind it, so the status it named is dropped and
+    ///   the `RuntimeError` that section names is reported in its place.
+    /// - **A `FATAL`** is the one that stops the drain. § 5's last sentence: a
+    ///   limit breach inside a hook is a `FATAL` like any other, the ladder
+    ///   takes over and the rest of the queue never runs — so the pending state
+    ///   is left exactly as the breach recorded it.
+    fn abandon_exit_hook(&mut self, fault: &crate::Fault) -> bool {
+        match fault {
+            crate::Fault::Pending(status) if *status == crate::FATAL => return false,
+            crate::Fault::Pending(status) if *status == crate::EXITED => self.set_pending(
+                "`exit` inside a `Core\\Script::onExit` hook: a hook observes the ending it was \
+                 given and cannot choose another",
+            ),
+            // The callee already recorded what failed; that is the whole of what
+            // this variant means.
+            crate::Fault::Pending(_) => {}
+            crate::Fault::Thrown(class, message) => self.set_pending_as(*class, message.clone()),
+            // `Fault` is `#[non_exhaustive]`, and the remaining variants reach
+            // a closure call only as `crate::call_closure`'s own two engine
+            // faults — a value that is not a closure, or one declaring more
+            // parameters than the one report there is to offer.
+            other => self.set_pending(format!("a `Core\\Script::onExit` hook failed: {other:?}")),
+        }
+        let thrown = self.take_thrown();
+        let mut record = crate::floor::uncaught(&thrown);
+        record
+            .envelope
+            .fields
+            .push(("origin".to_owned(), crate::floor::text("exit-hook")));
+        crate::floor::report(self, &record);
+        true
     }
 
     /// Registers `closure` to run once this request's own frame has returned —
