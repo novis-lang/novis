@@ -1668,6 +1668,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-db"
+version = "0.0.1"
+dependencies = [
+ "nvs-config",
+ "nvs-host",
+ "nvs-runtime",
+]
+
+[[package]]
 name = "nvs-diagnostics"
 version = "0.0.1"
 dependencies = [
@@ -1757,6 +1766,7 @@ dependencies = [
  "jiff",
  "md-5",
  "nvs-config",
+ "nvs-db",
  "nvs-host",
  "nvs-render",
  "nvs-runtime",
