@@ -110,6 +110,7 @@ Conventions the whole file uses:
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
+| [`Core\Mail`](#core-core-mail) |  |
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
 | [`Core\Crypto`](#core-core-crypto) | authenticated encryption with no cipher, mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted |
 | [`Core\SignedCookie`](#core-core-signedcookie) |  |
@@ -15421,6 +15422,39 @@ Core\Secret::revealBytes(bytes $value, string $reason): bytes
 | `$reason` | `string` (neutral) | Why this call site is allowed to see the value, written for the next reader. Nothing reads it at run time. |
 
 **Returns** `bytes` — The same bytes, unqualified — still `tainted` if `$value` was.
+
+<a id="core-core-mail"></a>
+### `Core\Mail`
+
+Keywords: send
+
+| Member | Signature |
+|---|---|
+| [`Core\Mail::send`](#core-core-mail-send) | `send(string $endpoint, array<string> $to, string $subject, string $text, {cc?: array<string>, bcc?: array<string>, replyTo?: string, html?: string}): void` |
+
+<a id="core-core-mail-send"></a>
+#### `Core\Mail::send`
+
+```nvs skip
+Core\Mail::send(string $endpoint, array<string> $to, string $subject, string $text, {cc?: array<string>, bcc?: array<string>, replyTo?: string, html?: string}): void
+```
+
+Hands one message to the SMTP endpoint `[mail.$endpoint]` names, and returns once that endpoint has accepted it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$endpoint` | `string` (sink) | Which `[mail.<name>]` block in `nvs.toml` to send through. Refuses a `tainted` argument: it selects a deployment, so it is written at the call site and never read from input. |
+| `$to` | `array<string>` | The recipients, one address per entry. A list rather than a comma-separated string, which has no unambiguous reading. |
+| `$subject` | `string` (neutral) | The subject. RFC 2047 encoded where it holds anything a header line cannot carry, so no value of it can add a header. |
+| `$text` | `string` (neutral) | The plain-text body, which every message has. |
+| `{cc: …}` | `array<string>` (default `[]`) | Further recipients, named in the message. |
+| `{bcc: …}` | `array<string>` (default `[]`) | Further recipients, not named in the message — they reach the envelope and no header. |
+| `{replyTo: …}` | `string` (default `null`, neutral) | Where a reply should go, when that is not the configured sender. |
+| `{html: …}` | `string` (default `null`, neutral) | An HTML alternative to `$text`. Given one, the message is `multipart/alternative` and both parts are sent. |
+
+**Returns** `void` — Nothing. The endpoint accepted the message; delivery past it is the endpoint's.
+
+**Throws** `RuntimeError` — The capability `mail.send` does not grant `$endpoint`; or no `[mail.<name>]` block of that name sets `host` or `from`; or that block sets `user` or `password`, which cannot be sent without TLS; or an address is not one. Each is a deployment or a call that was written wrong, not a send that failed.; `IOError` — The configured endpoint could not be reached, closed the connection, or refused a command — the last carrying the SMTP reply that said so.
 
 <a id="core-core-password"></a>
 ### `Core\Password`
