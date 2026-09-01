@@ -4052,6 +4052,16 @@ is why" — is this file.
   are a `..` whose parent *does* exist (every platform collapses it, and the existing
   `io-within-resolves-and-then-proves-containment.nvst` uses one) and a name that merely contains
   `..` without being one.
+- **`--ARGS--`'s first line is the *launcher's* if it is `--`, and an empty argument cannot be
+  written at all.** The section's own doc says a line is one argument whatever it holds, which reads
+  as total; two spellings are not. `nvs run`'s `arguments` field is `trailing_var_arg` over clap, so
+  a leading `--` is spent as the escape token exactly as `cargo run --` spends one — a case wanting
+  the program to read a literal `--` first writes the line twice, and one anywhere later arrives
+  untouched. And blank lines are dropped and every line is trimmed at its end, so `""` and a word
+  with a trailing space are not expressible: a case pinning "an empty word survives" cannot be
+  written in this format at all, and the run that discovers it looks like the member ate a word.
+  Both halves are now in the two doc comments that own them (`nvs-cli`'s `arguments` field,
+  `nvs_test::case::Case::args`).
 
 ## Splitting a file that got too big
 

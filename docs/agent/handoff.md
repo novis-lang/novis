@@ -2,54 +2,55 @@
 
 ## State
 
-**Spec § 14's three free members are closed for depth** — `Core\IO::within`, the `lines`/`readText`
-pair, and `writeStream`'s `overwrite`. Three new `.nvst` cases, no Rust change in `nvs-stdlib`, so no
-new refcount edge and no valgrind run. Conformance 1342.
+**ADR 0086's `Core\Cli` surface gained the two depth cases `gaps.py` named as its thinnest** —
+`displayWidth`'s composition and `arguments`' word-as-value. Two new `.nvst` cases and two doc
+comments; no behaviour changed anywhere, so no new refcount edge and no valgrind run. Conformance
+1344.
 
-**The `overwrite` item as handed over named the wrong member.** The option is `writeStream`'s
-(`WRITE_STREAM_OPTIONS`, `crates/nvs-stdlib/src/io.rs:279`); `Core\IO::write` has no options at all
-and replaces without asking. Both sides of the bound were already pinned by
-`io-write-stream-lands-its-chunks-in-order-and-refuses-to-replace.nvst`, so what landed instead is
-the gap that was open: the bound is about a name being *taken* rather than about what is in the file
-— an empty file refuses as an occupied one does — and with `overwrite: true` the member answers what
-`Core\IO::write` answers on every state of the path, which is the whole difference between the two
-whole-file writers.
+**`Core\Cli::displayWidth` is not a sum over classes of codepoint, which is what the item predicted.**
+It is a fold over ADR 0009 § 2's grapheme clusters that asks each *whole* cluster for its width
+(`nvs_runtime::terminal::advance`, over `unicode-width`), so a ZWJ emoji sequence is **2** columns
+where a per-codepoint sum says 4, and a ZWJ couple carrying a variation selector is 2 where the sum
+says 5. What landed is the law that is actually true and stronger: both measures are cluster-shaped,
+so `displayWidth` is `Core\Str::length` plus exactly the wide clusters — pinned over a five-sample
+sweep by counting, against the codepoint sum that gets three of five right.
 
-**`Core\IO::lines` is `read`'s reading and not `readText`'s**, which its own doc comment says and
-nothing asserted. The existing agreement case checks `lines` against `Core\Str::lines`, the *same*
-splitter, so a splitter wrong about a trailing terminator agrees with itself; `readText` answers the
-file undivided and is the independent oracle the new case rebuilds against.
+**A leading `--` never reaches the program**, and that is the launcher's rule rather than the
+member's: `nvs run`'s `arguments` is `trailing_var_arg`, so clap spends one `--` as its escape token
+in that position and nothing later. Both homes now say so — `crates/nvs-cli/src/main.rs`'s
+`arguments` field and `nvs_test::case::Case::args` — and the playbook carries the case author's half,
+including that `--ARGS--` cannot express an empty word at all (the item asked for one).
 
-**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate over
-a complete Part II, which needs spec §§ 15-19 from goal 6. Not a regression and not closable here.
-Nothing was missing from this session's pack.
+**The acceptance check still names `every_part_two_spec_member_is_registered`**, and no test by that
+name is on disk in any crate. It is stage 10's gate over a complete Part II and needs spec §§ 15-19
+from goal 6. Not a regression and not closable here. Nothing was missing from this session's pack.
 
 ## Next group
 
-**ADR 0086's terminal surface is one file — `crates/nvs-stdlib/src/cli.rs` and
-`tests/conformance/core/` — and `python tools/gaps.py` names these two members as `Core\Cli`'s
-thinnest.** Both are pure questions about a value or about the process, so neither needs a terminal,
-a capability or a fixture.
+**`Core\Env` is `gaps.py`'s thinnest class that needs neither a fixture nor a capability — one file,
+`crates/nvs-stdlib/src/env.rs`, plus `tests/conformance/core/`.** `--ENV--` is honoured, and its
+value is the whole of the line past the first `=`, which is what makes both of these writable. The
+three cases on disk pin the ordering, the taint and that an absent name is absent from both answers;
+neither question below is one of those.
 
-- [ ] **`Core\Cli::displayWidth` is a sum over classes of codepoint, not over characters** — the
-      three existing cases ask about a tab, a newline and a table's alignment; what none asks is the
-      width of a zero-width combining mark, of a wide CJK codepoint and of a ZWJ emoji sequence,
-      counted against `Core\Str::length`'s cluster count so that the two disagree by exactly the
-      wide columns. `crates/nvs-stdlib/src/cli.rs:1345`.
-- [ ] **`Core\Cli::arguments` answers words, and a word is a value** — a word that looks like an
-      option, an empty word and a word holding a separator all survive as themselves, which the
-      three existing cases (the words, the empty program, the taint) do not reach.
-      `crates/nvs-stdlib/src/cli.rs:1146`.
+- [ ] **`Core\Env::get` answers a value whole, and a value is not a syntax** — a value holding `=`,
+      one holding a `;`, one wrapped in quotes and one holding leading spaces all arrive as
+      themselves, since nothing between the process's environment and this member has an opinion
+      about what a value means. The shape is this session's `arguments` case: assert by counting a
+      pairwise match against the literals, so a member that split at the second `=` or stripped a
+      quote fails on a count rather than on a line. `crates/nvs-stdlib/src/env.rs:188`.
+- [ ] **An empty value is a value and not an absence** — `NVS_CASE_EMPTY=` makes `get` answer `""`
+      rather than `null`, the name appears in `all` beside the ones holding text, and the `??` an
+      absent name falls through does not fire. That is ADR 0063's "absence is `?T`" asserted on both
+      sides of its bound, and it is the one state of a variable no case on disk asks about.
+      `crates/nvs-stdlib/src/env.rs:215`, `crates/nvs-stdlib/src/env.rs:188`.
 
 ## Backlog
 
-- An empty environment value is a value and not an absence — the boundary PHP's `getenv` conflates,
-  unpinned by any of the four `env-*` cases. `crates/nvs-stdlib/src/env.rs:188`.
-- `Core\Env::get` refuses a value that is not UTF-8 (`crates/nvs-stdlib/src/env.rs:200`) — check
-  first whether `--ENV--` can carry a non-UTF-8 byte at all; `crates/nvs-test`'s module doc owns that.
-- `Core\Csv::format`'s throw for a column that is not a `string` is unasserted —
-  `crates/nvs-stdlib/src/csv.rs:610`, from `python tools/gaps.py --errors`.
-- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case —
-  `crates/nvs-stdlib/src/task.rs:561`, and it belongs in `tests/differential/`.
-- `Core\Http\Response` (`status`, `text`) and `Core\Mail::send` are `gaps.py`'s thinnest classes;
-  both need the transport's test hook rather than a network.
+- `Core\Cldr::pluralCategory` is four cases over one member — `crates/nvs-stdlib/src/cldr.rs`.
+- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case, and an oracle
+  case goes in `tests/differential/` — `crates/nvs-stdlib/src/task.rs:561`, `python tools/gaps.py`.
+- `Core\Http\Response`'s `status`/`text` are the thinnest pair on disk but need a response to hold.
+- `crates/nvs-stdlib/src/env.rs:200`'s thrown path (a value that is not UTF-8) is unreachable from
+  `--ENV--`, which writes text; it needs a launcher-side fixture or nothing.
+- Stage 10's `every_part_two_spec_member_is_registered` waits on goal 6's spec §§ 15-19.
