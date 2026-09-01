@@ -1,0 +1,32 @@
+--TEST--
+`Cli\Text + Cli\Text` is `Cli\Text`, so the sum is still the sink's one raw path — ADR 0086 §§ 1-2
+--FILE--
+<?nvs
+// § 2: "`Text + Text` is `Text`, immutable (R20), composing the way `Markup`
+// already does". Neither operand is substituted a second time on the way in —
+// each was neutralized by the constructor that built it, and the Control
+// Picture below is what a second pass would have nothing left to do to.
+var $esc = Core\Cli\Text::plain(Core\Str::fromCodePoint(27) . "[31m");
+var $word = Core\Cli\Text::plain("red");
+echo $esc + $word, "\n";
+
+// The sum is a `Cli\Text` and not merely bytes that print the same: the
+// declared type asserts it, and composing the result again is what would stop
+// compiling if `+` answered a `string`.
+Core\Cli\Text $whole = $esc + $word;
+echo $whole + $whole, "\n";
+
+// Still the carrier, which is the whole point: `Core\Cli::write` takes a
+// `string|Cli\Text` and writes a `Text` through unchanged (§ 1's one raw
+// path), so the sum reaches the sink as the class rather than as its bytes.
+Core\Cli::write($whole);
+echo "\n";
+
+// A `Text` is a value: `+` builds a third one rather than growing the left
+// operand, so both read back exactly as they were written.
+echo $esc, "|", $word, "\n";
+--EXPECT--
+␛[31mred
+␛[31mred␛[31mred
+␛[31mred
+␛[31m|red

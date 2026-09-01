@@ -1,0 +1,29 @@
+--TEST--
+`+` composes a carrier with its own kind only, so neither a `string` nor a `Markup` sums with a `Cli\Text` — ADR 0086 § 2, ADR 0024 § 5
+--FILE--
+<?nvs
+// § 2 reads `Text` **+** `Text`, and the emphasis is on both sides: `+` is not
+// a sink, so it has nowhere to substitute a plain string's control bytes on
+// the way in. `Core\Cli\Text::plain` is where that happens, and the help says
+// so rather than pointing at a member that does not exist.
+var $text = Core\Cli\Text::plain("red");
+echo $text + "raw", "\n";
+
+// The two sink carriers are one rule, not one type: a `Markup` passed ADR 0024
+// § 5's rule and a `Text` passed ADR 0086 § 1's substitution, and neither
+// verdict is the other's. So the cross pair is refused exactly as a `string`
+// operand is, rather than composing into whichever carrier was written first.
+var $markup = "<b>" as Core\Html\Markup;
+echo $text + $markup, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0716]: `+` has no meaning for `Core\Cli\Text`
+%A
+  = help: ADR 0086 § 2 composes `Cli\Text` with `Cli\Text` and nothing else: lift the other operand with `Core\Cli\Text::plain(...)`, which substitutes its control bytes on the way in — `+` is not a sink and will not substitute them for you
+
+error[E0716]: `+` has no meaning for `Core\Cli\Text`
+%A
+   = help: ADR 0086 § 2 composes `Cli\Text` with `Cli\Text` and nothing else: lift the other operand with `Core\Cli\Text::plain(...)`, which substitutes its control bytes on the way in — `+` is not a sink and will not substitute them for you
+
+error: aborting due to 2 errors
