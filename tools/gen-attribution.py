@@ -10,6 +10,13 @@ ADR 0065 owns the policy; this file only implements it.
     python tools/gen-attribution.py            # regenerate
     python tools/gen-attribution.py --check    # exit 1 if stale (CI)
 
+It carries a second, related gate over the same graph, because the graph is
+already resolved here and reading it twice in two scripts is the duplication
+this repository does not keep: `--check-c-deps` enumerates the default
+binary's C dependencies and fails on one ADR 0051 § 4 has no record for.
+M8's verification list asks for that check by name; `C_DEPENDENCIES` below is
+the ledger, and ADR 0051 § 4 owns the two questions it answers.
+
 Three properties are worth knowing before changing anything here:
 
 * **It fails closed.** An SPDX identifier this script has never seen, a
@@ -124,6 +131,96 @@ FINGERPRINTS = [
 LICENSE_FILE_PREFIXES = ("license", "licence", "copying", "unlicense")
 
 WIDTH = 78
+
+
+# ---------------------------------------------------------------------------
+# The C-dependency ledger — ADR 0051 § 4
+# ---------------------------------------------------------------------------
+
+# Build dependencies that mean "this crate compiles or links C". A crate that
+# pulls one of these into the shipped graph is building something that is not
+# Rust; a crate that declares `links` is claiming a native library outright.
+# Between them these two signals catch every way C enters the default binary
+# without asking anyone to maintain a list of `-sys` name suffixes.
+#
+# `cc` and `cmake` also compile assembly and C++, which is the same question
+# for this ledger's purposes: it is memory-unsafe code the Rust toolchain did
+# not check.
+C_BUILD_TOOLS = frozenset({"cc", "cmake", "pkg-config", "bindgen", "nasm-rs", "meson"})
+
+# The three verdicts an entry may carry, which are ADR 0051 § 4's two questions
+# plus the case where the question does not arise:
+#
+# * `no-native-code` — a signal above fired but this tree builds nothing
+#   native from the crate. Either `links` is Cargo's one-version token rather
+#   than a library, or the feature selection that turns the C off is named in
+#   `requires` below and checked.
+# * `unreachable` — § 4's question 1 is *no*: attacker-controlled data does not
+#   reach the code, so it is accepted under ordinary audit.
+# * `verified` — question 1 is *yes*, and the entry names the demonstrable,
+#   exceptional verification record question 2 asks for. § 4 credits SQLite
+#   with one and says almost nothing else clears the bar; a crate that cannot
+#   show one is confined to wasm, which means it never reaches this ledger.
+VERDICTS = ("no-native-code", "unreachable", "verified")
+
+# The ledger itself: every C dependency of the default binary, answered against
+# § 4 rather than argued case by case. The value is
+# ``(verdict, required features, the record)``.
+#
+# `requires` is what makes a `no-native-code` verdict hold over time: the named
+# features must still be active in the resolved graph, so a crate whose C half
+# is off by a feature flag cannot have it switched back on without this gate
+# failing. `cargo metadata` reports a build dependency whether or not the
+# feature that uses it is on, which is why the flag is checked here rather than
+# left to change the enumeration.
+#
+# Each record is one or two sentences and points at the home of the decision —
+# `Cargo.toml`'s own dependency comment, which is where the crate was chosen —
+# rather than restating it.
+#
+# `--check-c-deps` fails on a C dependency with no entry here **and** on an
+# entry naming a crate the tree no longer builds, so the ledger cannot drift in
+# either direction. Adding an entry is a decision someone makes, deliberately
+# in the same shape as PREFERENCE above: the gate is that a human wrote the
+# sentence, not that a tool could infer it.
+C_DEPENDENCIES: dict[str, tuple[str, tuple[str, ...], str]] = {
+    "ring": (
+        "verified",
+        (),
+        "The one genuine C dependency in the default binary: BoringSSL's "
+        "pregenerated assembly behind a Rust API, and rustls's crypto provider. "
+        "Question 1 is yes — a TLS record layer is exactly where attacker bytes "
+        "land — and question 2 is answered by OSS-Fuzz and BoringSSL's formally "
+        "verified field arithmetic. Cargo.toml's `rustls` comment is the home of "
+        "that decision, including why the wasm branch is not available to a "
+        "client that owns its socket.",
+    ),
+    "blake3": (
+        "no-native-code",
+        ("pure",),
+        "Ships hand-written assembly built through `cc` by default, and this tree "
+        "takes `default-features = false` with `pure` instead, so nothing native "
+        "is compiled. Cargo.toml's `blake3` comment is the home of why: the "
+        "portable implementation is already faster than SHA-256, so the pure-Rust "
+        "default costs nothing worth spending an exception on.",
+    ),
+    "defmt": (
+        "no-native-code",
+        (),
+        "`links = \"defmt\"` is Cargo's one-version token, not a native library — "
+        "the crate is a logging framework for embedded targets and compiles no C. "
+        "It is in the graph only because this enumeration is host-independent, "
+        "the same way `windows-sys` is listed on Linux.",
+    ),
+    "wasm-bindgen-shared": (
+        "no-native-code",
+        (),
+        "`links = \"wasm_bindgen\"` is the same one-version token as `defmt`'s, "
+        "used to keep the macro and the runtime at one version. It builds no C, "
+        "and it is reached only through a `cfg(target_arch = \"wasm32\")` "
+        "dependency that no shipped `nvs` binary compiles.",
+    ),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -531,6 +628,113 @@ def check_policies_agree(allowed: set[str]) -> None:
         )
 
 
+def c_dependencies(meta: dict, packages: list[dict]) -> list[tuple[str, str, str]]:
+    """Every shipped package that compiles or links C, and why it counts.
+
+    Returns ``(name, version, signal)``, sorted, over the same package set
+    the attribution notice is built from — so this reads the default
+    binary's own graph rather than a hand-kept list, and it is
+    host-independent for the same reason `shipped_packages` is.
+
+    The third element is the *signal*, not a finding: whether the crate
+    actually compiles C here is what its ledger entry answers, and both
+    signals fire on crates that turn out not to. A crate matching both is
+    reported by `links`, which is the stronger claim.
+    """
+    by_id = {pkg["id"]: pkg for pkg in meta["packages"]}
+    nodes = {node["id"]: node for node in meta["resolve"]["nodes"]}
+
+    found: list[tuple[str, str, str]] = []
+    for pkg in packages:
+        links = pkg.get("links")
+        if links:
+            found.append((pkg["name"], pkg["version"], f"declares `links = \"{links}\"`"))
+            continue
+        tools = sorted(
+            {
+                by_id[dep["pkg"]]["name"]
+                for dep in nodes[pkg["id"]]["deps"]
+                if any(kind["kind"] == "build" for kind in dep["dep_kinds"])
+                and by_id[dep["pkg"]]["name"] in C_BUILD_TOOLS
+            }
+        )
+        if tools:
+            joined = ", ".join(f"`{tool}`" for tool in tools)
+            found.append((pkg["name"], pkg["version"], f"build-depends on {joined}"))
+    return sorted(found)
+
+
+def check_c_deps() -> int:
+    """ADR 0051 § 4's standing test, as a gate over the resolved graph.
+
+    M8's verification list asks for a check "enumerating the default
+    binary's C dependencies, failing on any addition not recorded against
+    ADR 0051 § 4's two questions". That is this: the enumeration comes from
+    `cargo metadata`, the record comes from `C_DEPENDENCIES`, and the two
+    are compared in both directions.
+    """
+    meta = cargo_metadata()
+    packages = shipped_packages(meta)
+    found = c_dependencies(meta, packages)
+    active = {
+        pkg["name"]: set(node["features"])
+        for node in meta["resolve"]["nodes"]
+        for pkg in packages
+        if pkg["id"] == node["id"]
+    }
+    present = {name for name, _, _ in found}
+    problems: list[str] = []
+
+    print(
+        f"C dependencies of the `{BINARY}` binary: "
+        f"{len(found)} in the graph, {len(C_DEPENDENCIES)} recorded"
+    )
+    for name, version, reason in found:
+        recorded = C_DEPENDENCIES.get(name)
+        if recorded is None:
+            print(f"  {name} {version} — {reason} [NOT RECORDED]")
+            problems.append(
+                f"  - {name} {version} {reason}, and nothing in this file records it.\n"
+                f"    Answer ADR 0051 § 4's two questions — does attacker-controlled data\n"
+                f"    reach it, and if so what is its verification record — and add the\n"
+                f"    entry to C_DEPENDENCIES in tools/gen-attribution.py, or confine the\n"
+                f"    code to wasm as § 4's second question requires."
+            )
+            continue
+        verdict, requires, _record = recorded
+        print(f"  {name} {version} — {reason} [{verdict}]")
+        if verdict not in VERDICTS:
+            problems.append(
+                f"  - {name} is recorded with the verdict {verdict!r}, which is not one\n"
+                f"    of {', '.join(VERDICTS)}."
+            )
+        missing = [feature for feature in requires if feature not in active.get(name, set())]
+        if missing:
+            problems.append(
+                f"  - {name}'s record holds only while it is built with "
+                f"{', '.join(repr(f) for f in requires)},\n"
+                f"    and {', '.join(repr(f) for f in missing)} is no longer active. Either restore\n"
+                f"    the feature in Cargo.toml or answer ADR 0051 § 4 for the native code\n"
+                f"    it now compiles."
+            )
+
+    for name in sorted(C_DEPENDENCIES):
+        if name not in present:
+            problems.append(
+                f"  - {name} is recorded in C_DEPENDENCIES but nothing in the graph\n"
+                f"    signals it any more. Delete the entry: a ledger of dependencies\n"
+                f"    that left is a ledger nobody trusts."
+            )
+
+    if not problems:
+        return 0
+
+    sys.stdout.flush()
+    print("error: the C-dependency ledger is out of date:", file=sys.stderr)
+    print("\n".join(problems), file=sys.stderr)
+    return 1
+
+
 def build() -> str:
     meta = cargo_metadata()
     packages = shipped_packages(meta)
@@ -619,7 +823,15 @@ def main() -> int:
         action="store_true",
         help="exit non-zero if the committed file is out of date, writing nothing",
     )
+    parser.add_argument(
+        "--check-c-deps",
+        action="store_true",
+        help="list the default binary's C dependencies; exit non-zero on one ADR 0051 § 4 has no record for",
+    )
     args = parser.parse_args()
+
+    if args.check_c_deps:
+        return check_c_deps()
 
     generated = build()
 
