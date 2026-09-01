@@ -4062,6 +4062,13 @@ is why" — is this file.
   written in this format at all, and the run that discovers it looks like the member ate a word.
   Both halves are now in the two doc comments that own them (`nvs-cli`'s `arguments` field,
   `nvs_test::case::Case::args`).
+- **`python tools/try.py` ignores `--ENV--`, so an env-dependent case runs against the machine's own
+  environment and prints as though the member answered nothing.** The scratch runner honours
+  `--FILE--` and the expectations but never sets the section's variables — `grep -n env tools/try.py`
+  finds one hit and it is a jobs knob — so a `Core\Env` case comes back `whole: 0 of 4` and reads as a
+  broken member rather than as an unset variable. The runner that does honour it is the real one:
+  `target/debug/nvs.exe test <path/to/one-case.nvst>` takes a single file as well as a tree, runs in
+  about a second, and is what to check an `--ENV--` case with while authoring it.
 
 ## Splitting a file that got too big
 

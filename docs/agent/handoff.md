@@ -2,24 +2,21 @@
 
 ## State
 
-**ADR 0086's `Core\Cli` surface gained the two depth cases `gaps.py` named as its thinnest** —
-`displayWidth`'s composition and `arguments`' word-as-value. Two new `.nvst` cases and two doc
-comments; no behaviour changed anywhere, so no new refcount edge and no valgrind run. Conformance
-1344.
+**`Core\Env`'s two depth cases are closed** — spec § 15's `get` answers a value whole, and an empty
+value is a value rather than an absence. Two new `.nvst` cases and one doc paragraph on
+`nvs_core_env_get`; no behaviour changed anywhere, so no new refcount edge and no valgrind run.
+Conformance 1346, and `Core\Env` has left `gaps.py`'s thinnest twenty-five.
 
-**`Core\Cli::displayWidth` is not a sum over classes of codepoint, which is what the item predicted.**
-It is a fold over ADR 0009 § 2's grapheme clusters that asks each *whole* cluster for its width
-(`nvs_runtime::terminal::advance`, over `unicode-width`), so a ZWJ emoji sequence is **2** columns
-where a per-codepoint sum says 4, and a ZWJ couple carrying a variation selector is 2 where the sum
-says 5. What landed is the law that is actually true and stronger: both measures are cluster-shaped,
-so `displayWidth` is `Core\Str::length` plus exactly the wide clusters — pinned over a five-sample
-sweep by counting, against the codepoint sum that gets three of five right.
+**A value has no syntax, and the case asserts that by counting twice.** A second `=`, a `;`, a pair of
+quotes and leading padding all arrive as the bytes an operator set. The second count is over the four
+readings a member *with* an opinion would answer instead — split at the second `=`, cut at the `;`,
+unwrapped, trimmed — each of which is a prefix or an interior of the value beside it and so prints
+plausibly on its own line. `crates/nvs-stdlib/src/env.rs:188`'s doc comment is the home of both laws.
 
-**A leading `--` never reaches the program**, and that is the launcher's rule rather than the
-member's: `nvs run`'s `arguments` is `trailing_var_arg`, so clap spends one `--` as its escape token
-in that position and nothing later. Both homes now say so — `crates/nvs-cli/src/main.rs`'s
-`arguments` field and `nvs_test::case::Case::args` — and the playbook carries the case author's half,
-including that `--ARGS--` cannot express an empty word at all (the item asked for one).
+**An empty-valued `--ENV--` entry survives the runner on Windows**, which is what makes the
+empty/absent bound assertable on every leg: `NVS_CASE_EMPTY=` reads back as a length-0 `string` from
+`get` and as a present key in `all`, not as an unset name. `case.rs`'s `--ENV--` parse trims each line
+at its *end* only, so a leading-space value is expressible and a trailing-space one is not.
 
 **The acceptance check still names `every_part_two_spec_member_is_registered`**, and no test by that
 name is on disk in any crate. It is stage 10's gate over a complete Part II and needs spec §§ 15-19
@@ -27,30 +24,29 @@ from goal 6. Not a regression and not closable here. Nothing was missing from th
 
 ## Next group
 
-**`Core\Env` is `gaps.py`'s thinnest class that needs neither a fixture nor a capability — one file,
-`crates/nvs-stdlib/src/env.rs`, plus `tests/conformance/core/`.** `--ENV--` is honoured, and its
-value is the whole of the line past the first `=`, which is what makes both of these writable. The
-three cases on disk pin the ordering, the taint and that an absent name is absent from both answers;
-neither question below is one of those.
+**`Core\Uuid` is `gaps.py`'s thinnest class that needs neither a fixture nor a capability — one file,
+`crates/nvs-stdlib/src/uuid.rs`, plus `tests/conformance/core/`.** Its three thinnest members are
+`tryParse` (3 cases), `parse` (5) and `v7` (5), and the two below are one file set with the third.
+Spec § 11's second table is the section; `Core\Uuid` replaces `uniqid`, `com_create_guid` and every
+userland library with one type, so the questions are about the *type*, not about a formatter.
 
-- [ ] **`Core\Env::get` answers a value whole, and a value is not a syntax** — a value holding `=`,
-      one holding a `;`, one wrapped in quotes and one holding leading spaces all arrive as
-      themselves, since nothing between the process's environment and this member has an opinion
-      about what a value means. The shape is this session's `arguments` case: assert by counting a
-      pairwise match against the literals, so a member that split at the second `=` or stripped a
-      quote fails on a count rather than on a line. `crates/nvs-stdlib/src/env.rs:188`.
-- [ ] **An empty value is a value and not an absence** — `NVS_CASE_EMPTY=` makes `get` answer `""`
-      rather than `null`, the name appears in `all` beside the ones holding text, and the `??` an
-      absent name falls through does not fire. That is ADR 0063's "absence is `?T`" asserted on both
-      sides of its bound, and it is the one state of a variable no case on disk asks about.
-      `crates/nvs-stdlib/src/env.rs:215`, `crates/nvs-stdlib/src/env.rs:188`.
+- [ ] **`parse` and `tryParse` are one bound named on both sides** — every spelling `tryParse` answers
+      a value for is one `parse` accepts, and every spelling it answers `null` for is one `parse`
+      throws on, asserted by counting a sweep of near-miss spellings (a lost hyphen, an extra nibble, a
+      non-hex digit, surrounding braces, upper case) rather than read off a line. The two are one
+      reading of one grammar reached two ways, so a member that grew its own leniency fails here while
+      still looking right alone. `crates/nvs-stdlib/src/uuid.rs:415`, `crates/nvs-stdlib/src/uuid.rs:443`.
+- [ ] **A `v7` is time-ordered across a sweep, and that is the whole reason it is not `v4`** — a run of
+      them compares in the order they were made, asserted by counting adjacent pairs rather than by
+      printing any one of them, since none of the bytes is predictable. `crates/nvs-stdlib/src/uuid.rs:382`.
+- [ ] **A `v7`'s version and variant nibbles are fixed whatever the clock says** — the sweep above,
+      re-read as an invariant: every value carries version 7 and the RFC variant, so a generator that
+      spent those bits on the timestamp fails on a count. `crates/nvs-stdlib/src/uuid.rs:382`.
 
 ## Backlog
 
-- `Core\Cldr::pluralCategory` is four cases over one member — `crates/nvs-stdlib/src/cldr.rs`.
-- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case, and an oracle
-  case goes in `tests/differential/` — `crates/nvs-stdlib/src/task.rs:561`, `python tools/gaps.py`.
-- `Core\Http\Response`'s `status`/`text` are the thinnest pair on disk but need a response to hold.
-- `crates/nvs-stdlib/src/env.rs:200`'s thrown path (a value that is not UTF-8) is unreachable from
-  `--ENV--`, which writes text; it needs a launcher-side fixture or nothing.
-- Stage 10's `every_part_two_spec_member_is_registered` waits on goal 6's spec §§ 15-19.
+- `Core\Math`'s `atan2`, `hypot` and `lcm` are the next thinnest pure class — spec § 3.
+- `Core\Validate`'s `isAscii`, `isDomain` and `isEmail`, five cases each — spec § 12.
+- `Core\Task::afterResponse` is the last differential gap, twin `fastcgi_finish_request` — `crates/nvs-stdlib/src/task.rs:561`.
+- `Core\Env::get`'s non-UTF-8 throw is unasserted and unreachable from source — `crates/nvs-stdlib/src/env.rs:208`.
+- `every_part_two_spec_member_is_registered` needs spec §§ 15-19, which are goal 6's — `docs/agent/loop-goal.toml` stage 10.
