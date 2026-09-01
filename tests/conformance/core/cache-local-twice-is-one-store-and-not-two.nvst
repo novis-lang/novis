@@ -1,0 +1,54 @@
+--TEST--
+`Core\Cache::local()` names this core's one store rather than handing back a container — a handle taken before every write reads them all, either handle reads what the other wrote, and an entry outlives every handle that wrote it — ADR 0059 § 1
+--FILE--
+<?nvs
+// § 1's tier is *one store per core*, so the value `local()` answers is a name
+// for it and not the thing holding the entries. A store that were the object
+// would still pass every case written through a single handle: what it fails
+// is a second handle, which is the shape a real program has — one taken in a
+// request's entry point and another taken by whatever it calls.
+var $first = Core\Cache::local();
+
+// Taken before a single entry exists, so nothing it reads below can be a
+// snapshot it was handed at this line.
+var $second = Core\Cache::local();
+
+array<string> $keys = ["alpha", "beta", "gamma", "delta"];
+$first->put("alpha", "<alpha>");
+$first->put("beta", "<beta>");
+$second->put("gamma", "<gamma>");
+$second->put("delta", "<delta>");
+
+// A third handle, taken after all four writes, reads every one of them —
+// counted rather than read off a line, because a store that were per-handle
+// would answer for the two its own handle wrote and `null` for the others,
+// which is a plausible-looking half.
+var $third = Core\Cache::local();
+string $back = "";
+int $seen = 0;
+foreach ($keys as string $key) {
+    $back = $third->get($key) as string;
+    if ($back == "<" . $key . ">") {
+        $seen = $seen + 1;
+    }
+}
+echo "a handle taken last reads them all: ", $seen, " of ", Core\Arr::count($keys), "\n";
+
+// The same claim in the direction time runs against: the handle taken first
+// reads what the handle taken second wrote afterwards.
+string $crossed = $first->get("delta") as string;
+echo "the first handle reads the second's write: ", $crossed, "\n";
+
+// And the entries are the core's rather than any handle's: rebinding all three
+// variables drops every handle that wrote any of this, and what they wrote is
+// still there to be read through one taken after the fact.
+$first = Core\Cache::local();
+$second = Core\Cache::local();
+$third = Core\Cache::local();
+var $fourth = Core\Cache::local();
+string $survived = $fourth->get("alpha") as string;
+echo "an entry outlives every handle that wrote it: ", $survived, "\n";
+--EXPECT--
+a handle taken last reads them all: 4 of 4
+the first handle reads the second's write: <delta>
+an entry outlives every handle that wrote it: <alpha>
