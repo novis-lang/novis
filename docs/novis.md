@@ -19255,3 +19255,82 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `iptcparse` | dropped | IPTC metadata out of an APP13 marker the caller sliced out by hand. Image metadata is read by the component already holding the decoded file ([ADR 0120](adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 11) |
 | `iptcembed` | dropped | writes it back by splicing bytes into a JPEG, same owner and the same reason |
 | `hash_hmac_file` | member | `Core\Hash::hmac` over the bytes `Core\IO::read` returns, or over the digest stream where the file does not fit — the same R17 split `hash_file` takes above |
+| `mysqli_init` | dropped | half a connection: an object that exists only to be configured before `mysqli_real_connect` opens it. There is no unopened `Db\Connection`, so there is no gap between the two calls to configure anything in |
+| `mysqli_real_connect` | dropped | the other half of that two-step, and the only one of the pair that takes flags. `Core\Db::connect` is the whole of it |
+| `mysqli_options` | dropped | sets `MYSQLI_OPT_*` between those two calls. Every option that survives is a key an operator writes — the connection's own `[db.<name>]` block, or `[db.<name>.pool]` for the bounds ([ADR 0067](adr/0067-core-db.md) §§ 2, 13) — and the runtime reads it, not the program |
+| `mysqli_set_opt` | dropped | an alias of `mysqli_options` |
+| `mysqli_ssl_set` | dropped | certificate, key and CA paths for the handshake. TLS is the `tls` key of the connection's config block and `Tls::VerifyFull` over TCP with nothing configured ([ADR 0067](adr/0067-core-db.md) § 2); the paths are the operator's |
+| `mysqli_change_user` | dropped | re-authenticates an open connection as a different user. The pool key includes every credential ([ADR 0067](adr/0067-core-db.md) § 13), so two users are two connections and never one connection twice |
+| `mysqli_select_db` | dropped | switches the default database mid-session. The database is a field of the config block or of `Db\Settings`, and a program that needs two of them opens two connections |
+| `mysqli_set_charset` | dropped | a `string` is UTF-8 ([ADR 0009](adr/0009-string-and-bytes.md)) and the driver fixes the connection charset to match it. A charset the program can change at runtime is what made `SET NAMES` a documented way around an escaper |
+| `mysqli_character_set_name` | dropped | reads that setting back |
+| `mysqli_get_charset` | dropped | the same, as an object with the collation beside it |
+| `mysqli_real_escape_string` | dropped | binding is the mechanism ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 4), and an escaper is refused permanently as a second, weaker answer ([ADR 0067](adr/0067-core-db.md) § 12). The one case binding cannot carry — a dynamic table or column name — is `Core\Db::quoteIdentifier` |
+| `mysqli_escape_string` | dropped | an alias of it, and the same answer |
+| `mysqli_ping` | dropped | asks whether a connection is still alive so the caller can reconnect around it. The pool answers that itself: a connection is retired at `lifetime`, and one whose reset fails is destroyed rather than handed out ([ADR 0067](adr/0067-core-db.md) § 13) |
+| `mysqli_connect_errno` | dropped | the last connect failure as a driver code, read after a call that returned `false`. A failed connect throws `Db\DbError`, carrying `kind`, `sqlState` and `driverCode` ([ADR 0067](adr/0067-core-db.md) § 8) |
+| `mysqli_connect_error` | dropped | the same failure as a message |
+| `mysqli_errno` | dropped | the last statement's failure as a driver code; the same answer |
+| `mysqli_error` | dropped | the same as a message |
+| `mysqli_error_list` | dropped | the same as an array of them |
+| `mysqli_sqlstate` | dropped | the same as a SQLSTATE, which is `DbError`'s `sqlState` |
+| `mysqli_stat` | dropped | the server's own status line, as one string of counters |
+| `mysqli_get_host_info` | dropped | how this connection reached the server. The program did not choose it and cannot act on it |
+| `mysqli_get_proto_info` | dropped | the wire protocol version, the same |
+| `mysqli_get_client_info` | dropped | the client library's version, which in Novis is the driver's and not the program's business |
+| `mysqli_get_client_version` | dropped | the same as an integer |
+| `mysqli_get_client_stats` | dropped | mysqlnd's own counters. What the runtime measures, it exports ([ADR 0076](adr/0076-observability-export.md)) |
+| `mysqli_get_connection_stats` | dropped | the same counters for one connection |
+| `mysqli_get_links_stats` | dropped | the process's opened/reused link counts, which are the per-core pool's ([ADR 0067](adr/0067-core-db.md) § 13) and are exported with the rest |
+| `mysqli_thread_id` | dropped | the server's id for this connection, useful only to `KILL` it from another one |
+| `mysqli_thread_safe` | dropped | asks whether the client library was compiled thread-safe. The runtime is thread-per-core and the driver is Rust, so the question has one answer |
+| `mysqli_kill` | dropped | kills another connection by that id — an administrative statement, written as one by a user granted it |
+| `mysqli_refresh` | dropped | `FLUSH` by bitmask, the same |
+| `mysqli_debug` | dropped | switches on the client library's own trace file, by a format string. Tracing is the runtime's ([ADR 0041](adr/0041-timeline-export-and-gc-spawn-trace-events.md)) and a query is already a trace event ([ADR 0067](adr/0067-core-db.md) § 11) |
+| `mysqli_dump_debug_info` | dropped | asks the server to write debug information into its own log |
+| `mysqli_report` | dropped | picks process-wide between `false` returns, warnings and exceptions. Failure throws, always ([ADR 0063](adr/0063-core-api-conventions.md) R4), so there is no mode to select |
+| `mysqli_poll` | dropped | waits on several `MYSQLI_ASYNC` queries at once, the one place mysqli has concurrency. Concurrency is `Core\Task` over connections ([ADR 0072](adr/0072-core-task-structured-concurrency.md)), not a poll loop over one |
+| `mysqli_reap_async_query` | dropped | collects one of those results; the same answer |
+| `mysqli_prepare` | dropped | there is no `prepare` step ([ADR 0067](adr/0067-core-db.md) § 1): the SQL and the parameters arrive together and the connection's LRU cache holds the server-side statement. Every statement is prepared, so a second spelling buys nothing the cache does not already give |
+| `mysqli_stmt_init` | dropped | makes the object `mysqli_stmt_prepare` then fills in. There is no statement object to make |
+| `mysqli_stmt_prepare` | dropped | prepares into it, and the same answer |
+| `mysqli_stmt_bind_param` | dropped | binds parameters by reference, in one call whose type string has to match their count. Parameters are one `array<mixed>` passed at the call, and by-reference binding is refused permanently ([ADR 0067](adr/0067-core-db.md) § 12) |
+| `mysqli_stmt_bind_result` | dropped | binds columns to variables by reference, under the same refusal. A row is read by name |
+| `mysqli_execute` | dropped | an alias of `mysqli_stmt_execute` |
+| `mysqli_stmt_fetch` | dropped | fetches one row into the variables `bind_result` bound. `Db\Rows` is iterated, or read whole with `->all()` |
+| `mysqli_stmt_store_result` | dropped | buffers the result set after the fact. `query` buffers and `stream` does not, decided where the statement is written rather than a call later ([ADR 0067](adr/0067-core-db.md) § 4) |
+| `mysqli_stmt_free_result` | dropped | frees that buffer. A `Db\Rows` is released with the rest of the request's memory |
+| `mysqli_stmt_close` | dropped | closes the prepared statement. The statement cache owns that lifetime ([ADR 0067](adr/0067-core-db.md) § 1) |
+| `mysqli_stmt_reset` | dropped | resets one for re-execution, which is what the cache hands back |
+| `mysqli_stmt_attr_set` | dropped | `PDO::ATTR_*` under another name, refused permanently ([ADR 0067](adr/0067-core-db.md) § 12) |
+| `mysqli_stmt_attr_get` | dropped | reads one of those attributes back |
+| `mysqli_stmt_send_long_data` | dropped | sends one parameter to the server in chunks. LOB streaming is deferred, with its trigger in that ADR's *Revisiting* ([ADR 0067](adr/0067-core-db.md) § 12) |
+| `mysqli_stmt_data_seek` | dropped | seeks within a buffered result set. Scrollable cursors are deferred the same way, and `->all()` is an ordinary `array<Row>` to index |
+| `mysqli_stmt_param_count` | dropped | how many placeholders the prepared statement wants. The question exists only because binding is a separate step from writing the SQL |
+| `mysqli_stmt_errno` | dropped | the statement's last failure as a driver code. A failed statement throws `Db\DbError` ([ADR 0067](adr/0067-core-db.md) § 8) |
+| `mysqli_stmt_error` | dropped | the same as a message |
+| `mysqli_stmt_error_list` | dropped | the same as an array of them |
+| `mysqli_stmt_sqlstate` | dropped | the same as a SQLSTATE |
+| `mysqli_stmt_get_warnings` | dropped | the warnings one statement raised, as an object to walk. A condition worth acting on throws `Db\DbError`; one that is not is the server's to log |
+| `mysqli_stmt_more_results` | dropped | asks whether a stored procedure left another result set. Multiple result sets are deferred ([ADR 0067](adr/0067-core-db.md) § 12) |
+| `mysqli_stmt_next_result` | dropped | advances to it, and the same answer |
+| `mysqli_real_query` | dropped | fires a query and leaves the result on the server for `store_result` or `use_result` to claim. `query` buffers and `stream` streams, and neither needs a second call ([ADR 0067](adr/0067-core-db.md) § 4) |
+| `mysqli_store_result` | dropped | claims it buffered, which is what `query` already did |
+| `mysqli_multi_query` | dropped | runs several statements separated by `;` in one call — the amplifier that turns one injection into a compromise, refused permanently ([ADR 0067](adr/0067-core-db.md) § 12) |
+| `mysqli_more_results` | dropped | asks whether that chain has another result set; nothing produces one |
+| `mysqli_next_result` | dropped | advances to the next one, the same |
+| `mysqli_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `MYSQLI_*` constant. A member's return shape does not vary with an argument ([ADR 0063](adr/0063-core-api-conventions.md) R17), and rows are read by name |
+| `mysqli_fetch_row` | dropped | the positional half of it: a list per row, whose indices go wrong the moment the `SELECT` list is edited |
+| `mysqli_fetch_lengths` | dropped | the byte length of each column of the last row fetched, a question the text protocol made necessary. A value arrives at its natural Novis type ([ADR 0067](adr/0067-core-db.md) § 6), and its size is an ordinary question about that value |
+| `mysqli_field_count` | dropped | the column count of the connection's *last* result — connection-level state about a query that has already returned. `->columns()` belongs to the result itself |
+| `mysqli_field_seek` | dropped | moves a cursor over the field list, which `->columns()` returns as an array |
+| `mysqli_field_tell` | dropped | reads that cursor back |
+| `mysqli_data_seek` | dropped | seeks within a buffered result set. Scrollable cursors are deferred ([ADR 0067](adr/0067-core-db.md) § 12), and `->all()` is an ordinary array to index |
+| `mysqli_free_result` | dropped | frees the result set. A `Db\Rows` is released with the rest of the request's memory |
+| `mysqli_get_warnings` | dropped | the connection's warning list, as an object to walk after a call that succeeded. A condition worth acting on throws `Db\DbError` ([ADR 0067](adr/0067-core-db.md) § 8); one that is not is the server's to log |
+| `mysqli_warning_count` | dropped | how many of them there are |
+| `mysqli_commit` | dropped | the closure returning is the commit. A separate `commit` would be a second way to end the same transaction |
+| `mysqli_rollback` | dropped | a throw out of the closure is the rollback. `$tx->rollBack(string $reason)` sets a rollback-only flag *and* throws `Db\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed ([ADR 0067](adr/0067-core-db.md) § 7) |
+| `mysqli_autocommit` | dropped | switches the connection between implicit and explicit transactions, for statements written before the switch and after it alike. A statement outside `transaction()` is its own transaction and one inside is not, so there is no mode to hold |
+| `mysqli_savepoint` | dropped | a nested `transaction()` on the same connection issues `SAVEPOINT` itself, which is what lets a library wrap its own writes and stay callable from inside a caller's transaction ([ADR 0067](adr/0067-core-db.md) § 7) |
+| `mysqli_release_savepoint` | dropped | releases one by name; the nesting owns both ends of it |
