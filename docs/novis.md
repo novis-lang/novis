@@ -15518,7 +15518,7 @@ Hands one message to the SMTP endpoint `[mail.$endpoint]` names, and returns onc
 
 **Returns** `void` — Nothing. The endpoint accepted the message; delivery past it is the endpoint's.
 
-**Throws** `RuntimeError` — The capability `mail.send` does not grant `$endpoint`; or no `[mail.<name>]` block of that name sets `host` or `from`; or that block sets `user` or `password`, which cannot be sent without TLS; or an address is not one. Each is a deployment or a call that was written wrong, not a send that failed.; `IOError` — The configured endpoint could not be reached, closed the connection, or refused a command — the last carrying the SMTP reply that said so.
+**Throws** `RuntimeError` — The capability `mail.send` does not grant `$endpoint`; or no `[mail.<name>]` block of that name sets `host` or `from`; or that block sets one of `user` and `password` without the other; or an address is not one. Each is a deployment or a call that was written wrong, not a send that failed.; `IOError` — The configured endpoint could not be reached, closed the connection, or refused a command — the last carrying the SMTP reply that said so. Also where a block configures a credential and its endpoint cannot carry one: no `STARTTLS`, no `AUTH PLAIN` over it, or a certificate that does not verify. Nothing is sent in the clear on any of those paths.
 
 <a id="core-core-storage"></a>
 ### `Core\Storage`
