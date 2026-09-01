@@ -1,0 +1,50 @@
+--TEST--
+A name outside `T`'s public set throws where the key is made rather than where it is used, and `protected` is outside it exactly as an undeclared name is — ADR 0126 §§ 1-2
+--FILE--
+<?nvs
+class Account {
+    public string $owner = "ada";
+    public int $balance = 10;
+    protected string $note = "kept";
+}
+
+Account $a = new Account();
+
+// § 2's conversion is the only door into a `property<T>`, which is what lets
+// the access below make no check of its own: a computed name is tested against
+// the set when this statement runs, and nothing is accessed on this line.
+string $name = "bal" . "ance";
+property<Account> $ok = $name as property<Account>;
+echo $a->$ok as int, "\n";
+
+// The throw is at the conversion, not at a use — this key is never accessed
+// through and it still fails.
+try {
+    string $missing = "bal" . "ances";
+    property<Account> $bad = $missing as property<Account>;
+    echo "unreachable\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// § 1 ranges over the *public* declared roster, so a `protected` name and an
+// undeclared one are one failure and not two: the message lists what the set
+// holds rather than why this name is not in it.
+try {
+    string $note = "no" . "te";
+    property<Account> $peek = $note as property<Account>;
+    echo "unreachable\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// ADR 0066 § 3's sugar answers `null` in the same place and for the same
+// reason: it is § 2's row with the throw replaced, not a second check.
+string $again = "bal" . "ances";
+?property<Account> $maybe = $again as ?property<Account>;
+echo $maybe == null ? "null" : "some", "\n";
+--EXPECT--
+10
+`"balances"` is not one of `Account`'s public declared properties: `$balance`, `$owner`
+`"note"` is not one of `Account`'s public declared properties: `$balance`, `$owner`
+null

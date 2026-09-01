@@ -1,0 +1,20 @@
+--TEST--
+a `private` property is not one of `T`'s keys, and a written-out name says so where it is written — ADR 0126 §§ 1-2
+--FILE--
+<?nvs
+class Vault {
+    public string $label = "open";
+    private string $secret = "shut";
+}
+
+// § 1's set is the *public* declared roster, and § 2 decides a written-out
+// operand where it is written — so this never reaches a run, and the help
+// names the whole set rather than only refusing this name.
+property<Vault> $peek = "secret" as property<Vault>;
+echo $peek as string, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Vault` has no public property `$secret`
+%A
+error: aborting due to 1 error

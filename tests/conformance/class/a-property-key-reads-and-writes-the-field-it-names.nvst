@@ -1,0 +1,74 @@
+--TEST--
+`$obj->$key` reads the field the key names and writes it, over the erased access ADR 0036 § 4 already performs — ADR 0126 §§ 4-5
+--FILE--
+<?nvs
+class Profile {
+    public string $email = "ada@example.com";
+    public string $city = "London";
+}
+
+Profile $p = new Profile();
+
+// § 4: the one operand a computed member name admits. Every public property of
+// `Profile` is a `string`, so § 5's union of the set is `string` and the read
+// needs no narrowing to be echoed.
+property<Profile> $key = "email" as property<Profile>;
+echo $p->$key, "\n";
+
+// § 5's write: the checked erased store. It writes an existing property and
+// never creates one, so the field the key names is the field that changed —
+// read back both through the key and written out.
+$p->$key = "grace@example.com";
+echo $p->$key, "\n";
+echo $p->email, "\n";
+
+// The whole point of a key is that *which* name it holds is not known until it
+// arrives: this one is computed, so nothing before the conversion could have
+// folded it, and it selects the other field.
+string $which = "ci" . "ty";
+property<Profile> $second = $which as property<Profile>;
+echo $p->$second, "\n";
+$p->$second = "Paris";
+echo $p->city, "\n";
+
+// The two keys name two fields and neither write reached the other's.
+echo $p->email, " ", $p->city, "\n";
+
+// `->{expr}` is § 4's second spelling and the same access — the operand's type
+// is what admits it, not the brackets.
+echo $p->{"email" as property<Profile>}, "\n";
+
+// § 5's union where the set has more than one type: `Stock`'s roster is a
+// `string` and an `int`, so a read through the key is `string|int` and narrows
+// the way every union narrows.
+class Stock {
+    public string $sku = "NVS-1";
+    public int $count = 7;
+}
+
+Stock $s = new Stock();
+property<Stock> $tally = "count" as property<Stock>;
+int $n = $s->$tally as int;
+echo $n + 1, "\n";
+$s->$tally = 12;
+echo $s->count, "\n";
+
+// A key travels through a parameter like any other value, and the access
+// inside the callee is the same one — the receiver satisfies `T` there too.
+class Show {
+    public static function field(Profile $of, property<Profile> $key): string {
+        return $of->$key;
+    }
+}
+echo Show::field($p, $key), "\n";
+--EXPECT--
+ada@example.com
+grace@example.com
+grace@example.com
+London
+Paris
+grace@example.com Paris
+grace@example.com
+8
+12
+grace@example.com
