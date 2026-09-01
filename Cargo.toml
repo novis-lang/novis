@@ -367,6 +367,37 @@ argon2 = { version = "0.6", default-features = false, features = [
     "password-hash",
 ] }
 
+# --- reading a PHP-stored bcrypt hash (`Core\Password::verify`, ADR 0129 § 1) ---
+# bcrypt is the algorithm PHP's `PASSWORD_DEFAULT` has written since 5.5, so a
+# migrating application's user table is a column of `$2y$` strings and this is
+# the crate that reads one. ADR 0051 § 4's first question is "yes" for the same
+# reason it was for `argon2` — `verify` is handed a stored hash and a password,
+# both attacker-influenced — and the second question picks `bcrypt`: pure Rust
+# with no build script and no C, `subtle`'s constant-time comparison on the
+# digest, and the eksblowfish schedule is exactly the kind of loop where our own
+# off-by-one would be silent and permanent in a credential column we cannot
+# reproduce. It adds three crates — itself, `blowfish` (RustCrypto's, under its
+# `bcrypt` feature) and `byteorder`, all MIT/Apache-2.0 — plus a second copy of
+# `base64`, 0.23 beside the 0.22 the tree already pins for `Core\Encoding`.
+# `blowfish` rides the `cipher 0.5` that arrived with `chacha20poly1305`, so the
+# cipher traits are shared rather than duplicated; the base64 copy is the one
+# real duplicate, and it is compile-time surface rather than a divided
+# abstraction, since neither alphabet is the other's — bcrypt's is its own
+# non-standard one, which is why the encoder cannot simply be `Core\Encoding`'s.
+#
+# `getrandom` is **on** here, where it is deliberately off for `argon2` and
+# `chacha20poly1305` above, because this crate makes it non-optional behind
+# `alloc`: its salt generator lives there and `verify` cannot be reached
+# without it. Nothing draws through it — ADR 0129 § 2 is that Novis never
+# *writes* a bcrypt hash, so the generating half of this crate has no call site
+# — and the crate is already in this tree's lock file for `rand`'s own OS seed,
+# so the one CSPRNG rule `crate::random` owns is untouched.
+# `crates/nvs-stdlib/src/password.rs` owns the read roster and its ceiling.
+bcrypt = { version = "0.19", default-features = false, features = [
+    "alloc",
+    "zeroize",
+] }
+
 # --- authenticated encryption (`Core\Crypto`, ADR 0051 § 3's AEAD-only surface) ---
 # ADR 0051 § 4's first question is "yes" and then some: `open` is handed a
 # sealed message an attacker chose, and refusing a forgery is the member's whole

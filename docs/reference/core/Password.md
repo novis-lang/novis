@@ -24,9 +24,19 @@ who chose the same password are indistinguishable in the store. Compare with `::
 options to the current ones for equality, so a hash written under stronger settings asks to be rehashed —
 and a program doing as it was told silently downgrades it. Here a stronger stored hash is left alone.
 
-A stored value that is not a hash this class wrote **throws** rather than answering `false`. A storage
-layer handing back the wrong column otherwise looks exactly like every user typing the wrong password at
-once, and one of those is worth waking someone up for.
+**A PHP user table verifies on day one, and upgrades itself one login at a time.** `::verify` reads two
+shapes: the Argon2id string `::hash` writes, and a bcrypt hash under `$2y$`, `$2a$` or `$2b$` — the column
+PHP's `PASSWORD_DEFAULT` has been writing since 5.5. `::needsRehash` answers `true` for every one of them,
+because a different algorithm is weaker by its own rule, so the ordinary login-time loop below *is* the
+migration: verify the password, notice the row has fallen behind, rehash what was just proved. Nothing is
+converted offline, because a stored hash is not invertible — only a presented password can rewrite the
+row — and nothing writes bcrypt ever again, since `::hash` has no algorithm argument to ask it with. A
+stored cost above 17 is refused before any work, and `$2x$` — the tag that exists to be bug-compatible
+with `crypt_blowfish`'s sign-extension overflow — is not read at all.
+
+A stored value outside those two shapes **throws** rather than answering `false`. A storage layer handing
+back the wrong column otherwise looks exactly like every user typing the wrong password at once, and one
+of those is worth waking someone up for.
 
 ```nvs
 <?nvs

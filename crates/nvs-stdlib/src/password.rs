@@ -58,6 +58,40 @@
 //! along with every other draw the test made. Sixteen bytes, `password_hash`'s
 //! own `RECOMMENDED_SALT_LEN`.
 //!
+//! # The read roster has two entries, and only one of them is ever written
+//!
+//! [ADR 0129](../../../../docs/adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)
+//! is the whole contract, and its § 1 is the roster: [`nvs_core_password_verify`]
+//! reads the Argon2id PHC string [`nvs_core_password_hash`] writes, and a
+//! bcrypt hash under `$2y$`, `$2a$` or `$2b$` — one algorithm under three tags,
+//! verified identically. `$2x$` is not in it, because that tag exists to be
+//! bug-compatible with `crypt_blowfish`'s sign-extension overflow and reading
+//! it means reimplementing the bug. PHP's `PASSWORD_DEFAULT` has been bcrypt
+//! since 5.5 and still is, so the column a migrating application arrives with
+//! is the population rather than the exception; and a stored hash is not
+//! invertible, so no offline tool can convert it. Only a presented password can
+//! be rehashed, which is what makes the login-time loop *the* migration path:
+//! `verify` proves the password, [`nvs_core_password_needs_rehash`] answers
+//! `true` for every bcrypt row (§ 3), `hash` rewrites it under Argon2id, and the
+//! bcrypt column converges to empty with no flag, no tool and no second code
+//! path.
+//!
+//! **The write side is unchanged** (§ 2). `hash` writes Argon2id and nothing
+//! else, and no member gains an algorithm argument — Novis never *produces* a
+//! bcrypt hash, it only stopped refusing to read one.
+//!
+//! **What that spends is ~4 KiB, transiently, per `verify` of a legacy row**,
+//! on the calling task (again [AGENTS.md](../../../../AGENTS.md)'s ordering
+//! asking for the number) — the eksblowfish key schedule, against Argon2id's
+//! 19 MiB above. It is O(in-flight logins) for the same reason, and it shrinks
+//! as § 3's loop upgrades the table.
+//!
+//! bcrypt's truncation is reproduced rather than corrected (§ 5): at most 72
+//! bytes of the password are hashed and a NUL ends it. `verify` has to accept
+//! exactly the passwords PHP accepted against the same row, so that is the
+//! algorithm speaking and not a choice this module made — and it is one more
+//! reason every such row is marked for rehash under one that has no such edge.
+//!
 //! # A stored hash that will not parse throws, where PHP answers `false`
 //!
 //! `password_verify` answers `false` for a malformed hash and
@@ -75,6 +109,13 @@
 //! message names the member and what was wrong with the shape, and never the
 //! bytes.
 //!
+//! This section is the *mechanism*. Which stored values are inside the roster
+//! and which are outside it is
+//! [ADR 0129](../../../../docs/adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)
+//! § 6, and that is the one home of the boundary: the roster has two entries
+//! instead of one, and the property that a wrong column wakes an operator is
+//! unchanged by that.
+//!
 //! # `verify` bounds what the stored hash may ask for
 //!
 //! A PHC string carries its own `m` parameter and `verify` honours it, because
@@ -85,6 +126,13 @@
 //! allocated. It sits far above anything [`params`] will produce and far below
 //! anything a machine notices, so it costs nothing to a real deployment and
 //! closes a denial of service that would otherwise be one `UPDATE` away.
+//!
+//! A bcrypt row is the same lever with a different unit: its cost is the base-2
+//! log of the round count, so it buys CPU time where `m` bought memory, and it
+//! is the same `UPDATE` away. [`MAX_BCRYPT_COST`] is that ceiling, ADR 0129 § 4's
+//! seventeen — far above the 10 to 13 real PHP deployments write, far below
+//! 31's minutes of CPU — and it is read out of the stored string and refused
+//! before a single round runs.
 
 use argon2::password_hash::phc::PasswordHash;
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, PasswordVerifier, Version};
@@ -123,6 +171,22 @@ const MAX_M_COST: u32 = 1024 * 1024;
 
 /// The salt length in bytes, `password_hash`'s own `RECOMMENDED_SALT_LEN`.
 const SALT_LEN: usize = 16;
+
+/// ADR 0129 § 1's read roster, second entry: the three tags PHP writes a bcrypt
+/// hash under, all one algorithm. `$2x$` is deliberately absent — the module
+/// doc's *read roster* section is why — and the list grows by amending that
+/// ADR section, never by accepting what a parser happens to read.
+const BCRYPT_TAGS: [&str; 3] = ["$2y$", "$2a$", "$2b$"];
+
+/// The largest bcrypt cost [`nvs_core_password_verify`] will run — ADR 0129
+/// § 4's seventeen, and [`MAX_M_COST`]'s counterpart for the other entry in the
+/// roster.
+const MAX_BCRYPT_COST: u32 = 17;
+
+/// Every bcrypt hash is exactly this many ASCII bytes: a four-byte tag, two
+/// cost digits, a `$`, and 53 characters of bcrypt's own base64 carrying the
+/// 16-byte salt and the 23-byte digest.
+const BCRYPT_LEN: usize = 60;
 
 /// The parameters [`nvs_core_password_hash`] writes and
 /// [`nvs_core_password_needs_rehash`] measures a stored hash against.
@@ -195,7 +259,8 @@ const HASH_DOC: MethodDoc = MethodDoc {
 const VERIFY_DOC: MethodDoc = MethodDoc {
     short: "Reports whether `$password` is the one `$hash` was made from, recomputing under the \
             parameters `$hash` itself carries so that a hash written under older settings still \
-            verifies. The comparison is constant-time.",
+            verifies. Two shapes are read: the Argon2id string `hash` writes, and a PHP-stored \
+            bcrypt hash under `$2y$`, `$2a$` or `$2b$`. The comparison is constant-time.",
     params: &[
         ParamDoc {
             name: "password",
@@ -205,7 +270,8 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "hash",
-            desc: "The stored PHC string, as `hash` answered it.",
+            desc: "The stored hash: the PHC string `hash` answered, or a bcrypt hash a PHP \
+                   application stored.",
             shape: &[],
         },
     ],
@@ -213,14 +279,15 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$hash` is not a stored hash this class wrote — it does not parse, or it \
-                   names another algorithm, version or salt. A storage bug rather than a wrong \
-                   password, which is why it is not `false`.",
+            desc: "`$hash` is outside the read roster — it does not parse, or it names another \
+                   algorithm, version or salt, or it carries the `$2x$` tag. A storage bug \
+                   rather than a wrong password, which is why it is not `false`.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$hash` asks for more memory than any hash this class writes could need, or \
-                   this process cannot spare what it asks for.",
+            desc: "`$hash` asks for more work than any hash it could be — more memory than \
+                   this class writes, or a bcrypt cost above 17 — or this process cannot \
+                   spare what it asks for.",
         },
     ],
 };
@@ -232,17 +299,19 @@ const NEEDS_REHASH_DOC: MethodDoc = MethodDoc {
             rehash the password it has just verified.",
     params: &[ParamDoc {
         name: "hash",
-        desc: "The stored PHC string to measure.",
+        desc: "The stored hash to measure.",
         shape: &[],
     }],
     ret: "`true` when the stored hash has fallen behind, `false` when it is at or above the \
           current parameters. A hash *stronger* than the current ones answers `false`: \
-          rehashing it would lower its cost.",
+          rehashing it would lower its cost. Every bcrypt hash answers `true` — a different \
+          algorithm is weaker by this member's own rule — which is what makes the login-time \
+          upgrade loop the migration path for a PHP user table.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$hash` is not a PHC string at all. A hash that parses but names another \
-               algorithm answers `true` here rather than throwing — that is precisely the \
-               question this member is asked.",
+        desc: "`$hash` is neither a PHC string nor a bcrypt hash. One that parses but names \
+               another algorithm answers `true` here rather than throwing — that is precisely \
+               the question this member is asked.",
     }],
 };
 
@@ -273,19 +342,47 @@ fn text_of<'a>(args: &'a [Value], slot: usize, member: &str) -> Result<&'a str, 
     })
 }
 
-/// `stored` parsed, or the `LogicError` the module doc's *a stored hash that
-/// will not parse throws* section specifies — which never quotes the bytes.
+/// The `LogicError` the module doc's *a stored hash that will not parse throws*
+/// section specifies — which never quotes the bytes.
+///
+/// One sentence for both entries of ADR 0129 § 1's roster: a value outside it
+/// is the same storage bug whichever shape it failed to be, and two messages
+/// would ask the operator reading one to work out which parser rejected it.
+fn unreadable(member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "Core\\Password::{member}(): $hash is not a stored password hash — the PHC \
+             string Core\\Password::hash() writes was expected. The value is not quoted \
+             here, because a stored hash does not belong in a log."
+        ),
+    )
+}
+
+/// `stored` parsed as a PHC string, or [`unreadable`].
 fn parsed(stored: &str, member: &str) -> Result<PasswordHash, Fault> {
-    PasswordHash::new(stored).map_err(|_| {
-        Fault::thrown_as(
-            ThrownClass::Logic,
-            format!(
-                "Core\\Password::{member}(): $hash is not a stored password hash — the PHC \
-                 string Core\\Password::hash() writes was expected. The value is not quoted \
-                 here, because a stored hash does not belong in a log."
-            ),
-        )
-    })
+    PasswordHash::new(stored).map_err(|_| unreadable(member))
+}
+
+/// The cost `stored` carries, for a stored value inside ADR 0129 § 1's bcrypt
+/// half of the roster — and `None` for one that is not in it at all, which is
+/// the PHC path's to read or to refuse.
+///
+/// The shape is checked here rather than left to the crate because the cost has
+/// to be read *before* any work: it is the one number in a bcrypt string that is
+/// data, exactly as `m` is in a PHC one. A value carrying a roster tag and
+/// nothing else the shape needs answers `None` and reaches the PHC parser, which
+/// refuses it — one refusal site for a stored value that is not a hash, rather
+/// than a second sentence saying the same thing about a different parser.
+fn bcrypt_cost(stored: &str) -> Option<u32> {
+    if !BCRYPT_TAGS.iter().any(|tag| stored.starts_with(tag)) {
+        return None;
+    }
+    let bytes = stored.as_bytes();
+    if bytes.len() != BCRYPT_LEN || !stored.is_ascii() || bytes[6] != b'$' {
+        return None;
+    }
+    stored[4..6].parse::<u32>().ok()
 }
 
 /// The memory the parameters ask for, in bytes, as [`nvs_runtime::affordable`]
@@ -340,6 +437,30 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_password_verify(_ctx, args: [2]) {
         let password = text_of(args, 0, "verify")?;
         let stored = text_of(args, 1, "verify")?;
+
+        // ADR 0129 § 1's second entry, read before the PHC parser sees the
+        // string: a bcrypt hash is not a PHC one, and the tag is what says so.
+        if let Some(cost) = bcrypt_cost(stored) {
+            // § 4's ceiling, and the whole of "before any work" — the rounds
+            // are `2^cost`, so this is the same denial of service `m` was, one
+            // doubling at a time.
+            if cost > MAX_BCRYPT_COST {
+                return Err(Fault::thrown(format!(
+                    "Core\\Password::verify(): $hash asks for a bcrypt cost of {cost}, past \
+                     this class's {MAX_BCRYPT_COST} ceiling — no hash PHP writes needs that, \
+                     and each step past it doubles the work"
+                )));
+            }
+            return match bcrypt::verify(password.as_bytes(), stored) {
+                Ok(matched) => Ok(Value::bool(matched)),
+                // The shape passed `bcrypt_cost` and the crate still could not
+                // read it — a salt or a digest that is not this alphabet's, or
+                // a cost below the algorithm's own floor. Same class as any
+                // other stored value that is not a hash, and the same sentence.
+                Err(_) => Err(unreadable("verify")),
+            };
+        }
+
         let hash = parsed(stored, "verify")?;
 
         // Read before anything is allocated: `m` arrives inside the stored
@@ -395,6 +516,16 @@ nvs_runtime::nvs_helper! {
     /// is, so a hash differing only there is neither weaker nor stronger.
     fn nvs_core_password_needs_rehash(_ctx, args: [1]) {
         let stored = text_of(args, 0, "needsRehash")?;
+
+        // ADR 0129 § 3: a bcrypt row is read rather than thrown at, and every
+        // one of them has fallen behind — a different algorithm is weaker by
+        // this member's own rule, so the answer needs no comparison. No cost
+        // ceiling here: this member runs no rounds, and a row `verify` will
+        // refuse is still a row that wants rehashing.
+        if bcrypt_cost(stored).is_some() {
+            return Ok(Value::bool(true));
+        }
+
         let hash = parsed(stored, "needsRehash")?;
 
         if hash.algorithm != ALGORITHM.ident() || hash.version != Some(VERSION as u32) {
@@ -413,7 +544,139 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use nvs_runtime::{Ctx, call};
+
     use super::*;
+
+    /// A bcrypt hash PHP itself wrote, under its own `PASSWORD_BCRYPT` at the
+    /// cost it defaults to, for [`PASSWORD`] — frozen here because that is the
+    /// point: these tests read a column this tree cannot write, and a fixture
+    /// regenerated by our own code would only prove we agree with ourselves.
+    const PHP_STORED: &str = "$2y$10$PE6UB/yJ1bk1dIwtgHee0es/SxguHDHJgvcdKauDX66xu84voItOi";
+
+    /// The password [`PHP_STORED`] was made from.
+    const PASSWORD: &[u8] = b"correct horse battery staple";
+
+    /// The answer a member gave, or the sentence its throw carried — which is
+    /// what a `catch` in a program reads, so it is what these assertions
+    /// compare.
+    fn answer(function: nvs_runtime::NvsFn, args: &[&str]) -> Result<bool, String> {
+        let mut ctx = Ctx::buffered();
+        let values: Vec<Value> = args
+            .iter()
+            .map(|text| Value::str(NvsStr::new(text.as_bytes())))
+            .collect();
+        match call(function, &mut ctx, &values) {
+            Ok(value) => Ok(value.as_bool().expect("both members answer a `bool`")),
+            Err(_) => Err(ctx
+                .take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default()),
+        }
+    }
+
+    /// ADR 0129 § 1's second roster entry, end to end at the unit: the column a
+    /// migrating application arrives with verifies, and the wrong password
+    /// answers `false` rather than throwing — the whole point being that a
+    /// legacy row is a *readable* hash and not a storage bug.
+    #[test]
+    fn a_php_stored_bcrypt_hash_verifies_and_the_wrong_password_does_not() {
+        let offered = std::str::from_utf8(PASSWORD).expect("the fixture is text");
+        assert_eq!(
+            answer(nvs_core_password_verify, &[offered, PHP_STORED]),
+            Ok(true),
+            "a hash PHP wrote is one this class reads"
+        );
+        assert_eq!(
+            answer(nvs_core_password_verify, &["hunter2", PHP_STORED]),
+            Ok(false),
+            "the wrong password is a `false`, not a refusal"
+        );
+    }
+
+    /// ADR 0129 § 3: every tag in § 1's roster has fallen behind, because a
+    /// different algorithm is weaker by this member's own rule. Asserted over
+    /// the whole roster rather than one tag, so a member that grew a comparison
+    /// for one spelling fails here.
+    #[test]
+    fn needs_rehash_answers_true_for_every_bcrypt_tag() {
+        for tag in BCRYPT_TAGS {
+            let stored = format!("{tag}{}", &PHP_STORED[4..]);
+            assert_eq!(
+                answer(nvs_core_password_needs_rehash, &[&stored]),
+                Ok(true),
+                "{tag} is bcrypt, and bcrypt is not what `hash` writes"
+            );
+        }
+        assert!(
+            !BCRYPT_TAGS.contains(&"$2x$"),
+            "the roster is three tags, and the sign-extension one is not among them"
+        );
+    }
+
+    /// ADR 0129 § 4's ceiling, in [`MAX_M_COST`]'s shape: the cost is data out
+    /// of the store and `2^cost` rounds is the denial of service, so it is read
+    /// and refused before a single round runs. Both sides of the bound are
+    /// named — 17 is work this class does, 18 is work it will not.
+    #[test]
+    fn a_bcrypt_cost_past_the_ceiling_is_refused_before_any_work() {
+        let ruinous = format!("$2y$31${}", &PHP_STORED[7..]);
+        let refusal = answer(nvs_core_password_verify, &["hunter2", &ruinous])
+            .expect_err("a cost of 31 is minutes of CPU one `UPDATE` away");
+        assert!(
+            refusal.contains("bcrypt cost of 31") && refusal.contains("17 ceiling"),
+            "the sentence names what was asked and what is allowed: {refusal}"
+        );
+        assert!(
+            !refusal.contains(&ruinous[7..]),
+            "and never the stored bytes"
+        );
+
+        // The last accepted cost is answered rather than refused. It is real
+        // work — 2^17 rounds — which is exactly why the ceiling sits here and
+        // not higher.
+        assert_eq!(
+            bcrypt_cost(&format!("$2y$17${}", &PHP_STORED[7..])),
+            Some(MAX_BCRYPT_COST),
+            "17 is inside the bound this class reads"
+        );
+        assert!(
+            matches!(
+                answer(nvs_core_password_verify, &["hunter2", PHP_STORED]),
+                Ok(false)
+            ),
+            "and an ordinary cost is not refused at all"
+        );
+    }
+
+    /// ADR 0129 § 6: the roster has two entries and everything else still
+    /// throws. `$2x$` is a bcrypt tag this class will not read — it exists to
+    /// be bug-compatible with `crypt_blowfish`'s sign-extension overflow — and
+    /// a PHC string naming another algorithm is the same storage bug one layer
+    /// in. Both messages are checked for the one thing they must not carry.
+    #[test]
+    fn a_2x_hash_and_a_foreign_phc_string_still_throw() {
+        let sign_extended = format!("$2x${}", &PHP_STORED[4..]);
+        let foreign = "$pbkdf2$v=19$m=19456,t=2,p=1$jJ+hokoSJRsAzYsgfwhV6g\
+                       $BGyWXoH11l0/GF4ezLqvtQgPY0T/4fv4DukErq9R0cI";
+
+        for stored in [sign_extended.as_str(), foreign] {
+            let refusal = answer(nvs_core_password_verify, &["hunter2", stored])
+                .expect_err("outside the roster is a throw, not a `false`");
+            assert!(
+                refusal.starts_with("Core\\Password::verify(): $hash"),
+                "the sentence names the member and the parameter: {refusal}"
+            );
+            assert!(
+                !refusal.contains(&stored[4..]),
+                "and never quotes the stored value: {refusal}"
+            );
+        }
+        assert!(
+            answer(nvs_core_password_needs_rehash, &[&sign_extended]).is_err(),
+            "`$2x$` is outside the roster for the member that measures, too"
+        );
+    }
 
     /// A hash this module writes is one `verify` accepts and `needsRehash`
     /// leaves alone — the fixture's first two lines, asked of the bodies
