@@ -201,6 +201,12 @@ suite gains connections as its third parameterisation rather than a second suite
     memory**, asserted against a high-water mark — ADR 0105's load-bearing case.
 28. **Path traversal, header injection and request-smuggling suites pass**, and a request whose isolates
     are still running when the client disconnects leaves none of them behind.
+31. **Live bytes are O(in-flight) under a cycle-building load.** A soak of many thousands of requests,
+    each building object cycles, holds a flat live-byte measure across the run — the server-side proof of
+    [ADR 0116](../../adr/0116-an-isolates-arena-is-an-ownership-root.md) § 2's teardown sweep, which goal
+    4's stage 11 lands. Added 2026-09-01, when the drain-only teardown was found to retain cycles for the
+    life of the process; numbered out of sequence because item 30 was already written as the program's
+    last gate and stays it.
 29. **`wrk`/`oha` throughput against PHP 8.5 + FPM + opcache, recorded in `benches/`.** A number, committed.
 30. **`python tools/check-migration.py` reports 100% classified.** Every one of the oracle build's 1151
     functions and 253 types is a `member`, `language` or `dropped` row; every `member` row's member is

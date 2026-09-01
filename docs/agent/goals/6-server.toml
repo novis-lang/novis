@@ -444,6 +444,18 @@ tests = [
   "a_client_disconnect_leaves_no_isolate_behind",
 ]
 
+# ADR 0116 § 2's teardown sweep, under load -- item 31, added 2026-09-01. The whole memory story in one
+# assertion: a request's cycles die with the request, so live bytes track in-flight work, never traffic.
+[[check]]
+kind = "cargo-named"
+stage = "9 the claims"
+name = "nvs-server (the memory floor)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "live_bytes_are_flat_across_a_cycle_building_soak",
+  "a_request_that_builds_cycles_returns_its_bytes_at_teardown",
+]
+
 [[check]]
 kind = "command"
 stage = "9 the claims"

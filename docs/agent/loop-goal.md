@@ -202,6 +202,28 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     (SQLite) and a gate written by the goal that needs an exemption is a gate with an exemption in it.
 32. **No class outside Tier 0 registers a name beginning `Core\`.** Same paragraph, same reason.
 
+## Stage 11 — the teardown sweep
+
+Added 2026-09-01 by the user's decision, after review found that
+[ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md) § 2's drain frees only what the
+refcounts say is dead: a cyclic object graph survived request and isolate teardown for the life of the
+process — in the server, a leak growing with requests served. The § 2 sweep closes it. The in-flight
+collector for a long-running CLI script that builds cycles *between* teardowns stays a separate, open
+decision and is **not** this stage.
+
+36. **The per-context live-object list.** Every `ObjHeader` links into its `Ctx`'s intrusive doubly-linked
+    list at allocation and out at dismantle — objects only, since an object is the one shape that can
+    close a cycle (`graph.rs`'s identity decision). What it spends, said in the module doc as ADR 0004
+    requires: two pointers per live object, and a few non-atomic stores at each object's birth and death.
+    `crates/nvs-runtime/src/object.rs`, `ctx.rs`, `release.rs`.
+37. **The sweep at `Ctx::drop`.** After the root drain, whatever is still on the list is exactly the
+    cyclic garbage; dismantle it through `crate::release`'s one worklist so native teardown runs — order
+    inside a dead cycle is unobservable, because teardown runs no user code. The slice that lands this
+    also rewrites the two known-gap notes (`lib.rs` known gap 7, `object.rs` § *Decision: no cycle
+    collector*) and writes `examples/cycles.nvs`, which the WSL valgrind leg then proves clean. ADR
+    0041's `gc` trace event is **not** owed here — it attaches to the future collector's run routine,
+    not to teardown.
+
 ## The harness this goal owes
 
 **`python tools/gen-attribution.py --check-c-deps`** — item 31's enumeration. That tool already walks the

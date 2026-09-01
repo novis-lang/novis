@@ -16,6 +16,7 @@ files = [
   "examples/cache.nvs",
   "examples/logging.nvs",
   "examples/reflect.nvs",
+  "examples/cycles.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/config.nvs",
   "examples/limits.nvs",
@@ -84,11 +85,15 @@ modules = [
   "crates/nvs-types/src/expr/members.rs",
   "crates/nvs-ir/src/ir.rs",
   "crates/nvs-runtime/src/object.rs",
+  # Stage 11 -- the teardown sweep: the drain the sweep follows, and the `Ctx` that owns the live list.
+  "crates/nvs-runtime/src/release.rs",
+  "crates/nvs-runtime/src/ctx.rs",
 ]
 
 rules = [
   "0014", "0019", "0020", "0024", "0033", "0044", "0046", "0051", "0052", "0054",
   "0056", "0058", "0059", "0060", "0063", "0074", "0075", "0076", "0082", "0086", "0105",
+  "0116",
 ]
 
 # The sections EVERY session of this goal reads. 0063 is the shape rule for every member it writes;
@@ -2623,3 +2628,32 @@ stage = "10 gates"
 name = "check-migration at 74%"
 argv = ["python", "tools/check-migration.py", "--min", "74"]
 want = ["inventory:", "classified:"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 11 -- the teardown sweep, added 2026-09-01 by the user's decision. ADR 0116 § 2's drain frees
+# only what the refcounts say is dead, so a cyclic object graph survived request and isolate teardown
+# for the life of the process -- in the server, a leak growing with requests served. Items 36-37 in
+# loop-goal.md. Every test and fixture named below must EXIST and pass; writing one is how the loop
+# finishes its item. The in-flight CLI collector is a separate open decision and has no check here.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "11 teardown sweep"
+name = "nvs-runtime (the live list and the sweep)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  # Item 36 -- the list is maintained at both ends, so an ordinary refcount death leaves it.
+  "an_object_that_dies_by_refcount_leaves_the_live_list",
+  # Item 37 -- the claim itself, measured by the allocator the way the acyclic guard already is.
+  "a_cyclic_object_graph_is_reclaimed_when_its_context_drops",
+  # Item 37 -- the sweep dismantles rather than unmapping: a swept member's native drop runs.
+  "a_swept_cycles_native_teardown_runs",
+]
+
+# The end-to-end half: a program that builds object cycles in a loop and exits clean. The WSL valgrind
+# leg is what proves the reclamation -- a debug build is on the platform heap so the checker can see it.
+[[check]]
+kind = "exact"
+stage = "11 teardown sweep"
+file = "examples/cycles.nvs"
+want = ["built=1000", "done"]
