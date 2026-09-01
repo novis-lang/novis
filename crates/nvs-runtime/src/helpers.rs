@@ -2899,6 +2899,14 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::object::nvs_object_slot_set as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_object_key_get",
+            (crate::object::nvs_object_key_get as *const ()).cast::<u8>(),
+        ),
+        (
+            "nvs_object_key_set",
+            (crate::object::nvs_object_key_set as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_abstract_method",
             (crate::object::nvs_abstract_method as *const ()).cast::<u8>(),
         ),

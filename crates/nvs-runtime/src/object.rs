@@ -2281,49 +2281,7 @@ pub unsafe extern "C" fn nvs_object_slot_get(
             reason = "the caller guarantees this points at one initialized value"
         )]
         let receiver = unsafe { *receiver };
-        let Some(ptr) = receiver.obj_ptr() else {
-            return Err(Fault::thrown(format!(
-                "attempt to read property `{name}` on {}",
-                receiver.tag().map_or("a malformed value", Tag::describe)
-            )));
-        };
-        if ptr.is_null() {
-            return Err(Fault::fatal(format!(
-                "internal error: `->{name}` reached a null receiver"
-            )));
-        }
-        #[expect(
-            unsafe_code,
-            reason = "the caller guarantees the allocation is live, so its descriptor \
-                      is too"
-        )]
-        let desc = unsafe { &*NvsObj::class_of(ptr) };
-        let Some(slot) = desc.field_slot(name, hint) else {
-            return Err(Fault::thrown(format!(
-                "`{}` has no field `{name}`",
-                desc.name()
-            )));
-        };
-        #[expect(
-            unsafe_code,
-            reason = "the slot came out of this object's own descriptor, so it is \
-                      inside the allocation and was initialized by `new`"
-        )]
-        let held = unsafe { *field_ptr(ptr, slot) };
-        // ADR 0022 § 3: a slot that was never written reads as a throw, never
-        // as a value standing in for one. This is the reader that holds the
-        // whole slot rather than its payload, so the *tag* is what answers —
-        // which is why `Tag::Unset` is a tag at all. Only a `lateinit`
-        // property (ADR 0038) can be in the state; the compiled read makes
-        // the same refusal from the payload alone, `nvs_ir::lower`'s
-        // `emit_never_written_guard` owning that half.
-        if held.tag() == Some(Tag::Unset) {
-            return Err(Fault::thrown(format!(
-                "`{}`'s property `${name}` is read before it is written",
-                desc.name()
-            )));
-        }
-        Ok(held)
+        read_erased_property_hinted(receiver, name, hint)
     };
     #[expect(
         unsafe_code,
@@ -2410,6 +2368,189 @@ pub unsafe extern "C" fn nvs_object_slot_set(
     unsafe {
         crate::run_helper(ctx, std::ptr::null(), 0, out, body)
     }
+}
+
+/// `$obj->$key` —
+/// [ADR 0126](../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+/// § 4's keyed read, which is [`nvs_object_slot_get`] with the field name
+/// arriving as a **value** rather than as a static byte range.
+///
+/// § 5 decided that these are one lookup and not two: a key *is* a name, so
+/// what the access needs is exactly the by-name search on the receiver's own
+/// descriptor that ADR 0036 § 4 already performs, and every rule that read
+/// states holds here unchanged — the same catchable throw for a name the
+/// concrete class does not carry, the same ADR 0022 § 3 refusal for a slot
+/// never written, the same borrow. There is no `hint`: the caller has no static
+/// name to have taken a slot position from, which is the whole of what makes
+/// this access keyed.
+///
+/// **The one thing it inherits that is not free is the erased path's own known
+/// gap**: this reads the slot, so a property declaring a `get` hook
+/// ([ADR 0014](../../../docs/adr/0014-property-observer.md) § 1) is read past
+/// its hook, and [`write_erased_property`] does the same on the write side.
+/// That is owned there and closes for every caller at once — the reason § 5
+/// routes a key through this rather than answering it a fourth way.
+///
+/// # Errors
+///
+/// [`nvs_object_slot_get`]'s three, which are its own documentation's, plus a
+/// [`Fault::fatal`] where the key is not a string at all — unreachable from
+/// compiled code, since `property<T>` erases to `nvs_ir`'s `Ty::Str`.
+///
+/// # Safety
+///
+/// [`nvs_object_slot_get`]'s, with `key` in place of `name`/`len`: it must
+/// point at one initialized [`Value`] its caller still owns.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes three values by address, none of which the \
+              signature can bound"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_object_key_get(
+    ctx: *mut Ctx,
+    receiver: *const Value,
+    key: *const Value,
+    out: *mut Value,
+) -> i32 {
+    let body = move |_ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees each points at one initialized value"
+        )]
+        let (receiver, key) = unsafe { (*receiver, *key) };
+        let name = key_name(&key)?;
+        read_erased_property(receiver, name)
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller's contract is exactly `run_helper`'s"
+    )]
+    unsafe {
+        crate::run_helper(ctx, std::ptr::null(), 0, out, body)
+    }
+}
+
+/// `$obj->$key = v;` — [`nvs_object_key_get`]'s write half, and ADR 0126 § 5's
+/// checked erased store: [`nvs_object_slot_set`] with the field name arriving
+/// as a value, over the same [`write_erased_property`] a reflective write
+/// reaches.
+///
+/// # Errors
+///
+/// [`nvs_object_slot_set`]'s three, plus [`nvs_object_key_get`]'s fatal for a
+/// key that is not a string.
+///
+/// # Safety
+///
+/// [`nvs_object_slot_set`]'s, with `key` in place of `name`/`len`.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes four values by address, none of which the \
+              signature can bound"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_object_key_set(
+    ctx: *mut Ctx,
+    receiver: *const Value,
+    key: *const Value,
+    value: *const Value,
+    out: *mut Value,
+) -> i32 {
+    let body = move |ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees each points at one initialized value"
+        )]
+        let (receiver, key, value) = unsafe { (*receiver, *key, *value) };
+        let name = key_name(&key)?;
+        write_erased_property(ctx, receiver, name, 0, value)
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller's contract is exactly `run_helper`'s"
+    )]
+    unsafe {
+        crate::run_helper(ctx, std::ptr::null(), 0, out, body)
+    }
+}
+
+/// The member name an ADR 0126 § 4 key holds, as the `&str` both halves of the
+/// access are keyed on.
+///
+/// A key erases to a `string` and nothing else can be written where one is
+/// expected, so a non-string here is a miscompilation rather than a program
+/// error — [`Fault::fatal`], which no `catch` sees, and not the throw a missing
+/// field raises.
+fn key_name(key: &Value) -> Result<&str, Fault> {
+    key.as_text()
+        .ok_or_else(|| Fault::fatal("internal error: a property key that is not a string"))
+}
+
+/// ADR 0036 § 4's erased *read*, factored out of [`nvs_object_slot_get`] so
+/// that ADR 0126 § 4's keyed read is the same lookup and not a second copy of
+/// its rules — the shape [`write_erased_property`] already has on the write
+/// side, and for its reason.
+///
+/// `hint` is the caller's, and a keyed access passes `0` because it has none.
+///
+/// # Errors
+///
+/// [`nvs_object_slot_get`]'s three, which its own documentation owns.
+fn read_erased_property(receiver: Value, name: &str) -> crate::HelperResult {
+    read_erased_property_hinted(receiver, name, 0)
+}
+
+/// [`read_erased_property`] with the caller's slot hint — see
+/// [`ClassDesc::field_slot`] for what one buys.
+///
+/// # Errors
+///
+/// [`read_erased_property`]'s.
+fn read_erased_property_hinted(receiver: Value, name: &str, hint: usize) -> crate::HelperResult {
+    let Some(ptr) = receiver.obj_ptr() else {
+        return Err(Fault::thrown(format!(
+            "attempt to read property `{name}` on {}",
+            receiver.tag().map_or("a malformed value", Tag::describe)
+        )));
+    };
+    if ptr.is_null() {
+        return Err(Fault::fatal(format!(
+            "internal error: `->{name}` reached a null receiver"
+        )));
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the allocation is live, so its descriptor \
+                  is too"
+    )]
+    let desc = unsafe { &*NvsObj::class_of(ptr) };
+    let Some(slot) = desc.field_slot(name, hint) else {
+        return Err(Fault::thrown(format!(
+            "`{}` has no field `{name}`",
+            desc.name()
+        )));
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the slot came out of this object's own descriptor, so it is \
+                  inside the allocation and was initialized by `new`"
+    )]
+    let held = unsafe { *field_ptr(ptr, slot) };
+    // ADR 0022 § 3: a slot that was never written reads as a throw, never as a
+    // value standing in for one. This is the reader that holds the whole slot
+    // rather than its payload, so the *tag* is what answers — which is why
+    // `Tag::Unset` is a tag at all. Only a `lateinit` property (ADR 0038) can
+    // be in the state; the compiled read makes the same refusal from the
+    // payload alone, `nvs_ir::lower`'s `emit_never_written_guard` owning that
+    // half.
+    if held.tag() == Some(Tag::Unset) {
+        return Err(Fault::thrown(format!(
+            "`{}`'s property `${name}` is read before it is written",
+            desc.name()
+        )));
+    }
+    Ok(held)
 }
 
 /// ADR 0036 § 4's erased write and
