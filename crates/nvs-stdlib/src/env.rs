@@ -185,6 +185,14 @@ nvs_runtime::nvs_helper! {
     /// — is absence rather than an error, which is the door's own answer and the
     /// same one a lookup of a name nobody set gives. There is no third state to
     /// report: such a variable cannot have been set either.
+    ///
+    /// A *value* has no unrepresentable spelling and no syntax. An `=`, a `;`,
+    /// a pair of quotes or leading padding are bytes an operator put there, and
+    /// this member hands back the whole of what the platform holds rather than
+    /// the reading a shell would give it — nothing between the two has an
+    /// opinion about what a value means. The empty string is a value on those
+    /// same terms and not the absence above, so `null` reports exactly one
+    /// thing, and `?? ""` is what tells an unset name from one set to nothing.
     fn nvs_core_env_get(_ctx, args: [1]) {
         let name = text(&args[0], "get")?;
         match nvs_runtime::environment::var(name) {

@@ -1,0 +1,40 @@
+--TEST--
+`Core\Env::get` answers a value whole, and a value is not a syntax — spec § 15, ADR 0012 § 1
+--ENV--
+NVS_CASE_EQUALS=a=b=c
+NVS_CASE_SEMI=one;two
+NVS_CASE_QUOTED="quoted"
+NVS_CASE_SPACED=   padded
+--FILE--
+<?nvs
+// Four values that every shell in the world reads as *syntax*: a pair, a
+// statement separator, a quoted word, and padding. Nothing between the
+// process's environment and this member has an opinion about what a value
+// means — `get` hands back the bytes the operator put there, so each arrives
+// as itself.
+array<string> $names = ["NVS_CASE_EQUALS", "NVS_CASE_SEMI", "NVS_CASE_QUOTED", "NVS_CASE_SPACED"];
+array<string> $whole = ["a=b=c", "one;two", "\"quoted\"", "   padded"];
+
+// And the four readings a member with an opinion would answer instead: split
+// at the second `=`, cut at the `;`, unwrap the quotes, trim the padding. Each
+// is a *prefix or an interior* of the value beside it, so a member that grew
+// one of them still prints a plausible line — which is why both counts below
+// are asserted by counting the whole table rather than read off any line.
+array<string> $read = ["a", "one", "quoted", "padded"];
+
+int $matched = 0;
+int $reinterpreted = 0;
+foreach ($names as string $i => string $name) {
+    var $value = Core\Env::get($name);
+    if ($value == $whole[$i]) {
+        $matched = $matched + 1;
+    }
+    if ($value == $read[$i]) {
+        $reinterpreted = $reinterpreted + 1;
+    }
+}
+echo "whole: ", $matched as string, " of ", Core\Arr::count($names) as string, "\n";
+echo "reinterpreted: ", $reinterpreted as string, "\n";
+--EXPECT--
+whole: 4 of 4
+reinterpreted: 0
