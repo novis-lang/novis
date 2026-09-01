@@ -1,0 +1,30 @@
+<?nvs
+// The child of `examples/cycles.nvs` — ADR 0116 §§ 2 and 5.
+//
+// It does two things the parent cannot do for itself. It abandons a cycle
+// inside an isolate, so that the sweep runs at an isolate's teardown and not
+// only at the program's; and it holds an object that crossed the boundary as a
+// pointer handoff, then hands it back — so the parent reads, after this context
+// is gone, an allocation this context was holding.
+
+class Holder {
+    public mixed $held;
+
+    public function constructor() {
+        $this->held = null;
+    }
+}
+
+// Unreachable the moment this returns, and the refcounts free neither half.
+// Only this isolate's own teardown sweep reclaims it — the parent's cannot see
+// it, because a live list belongs to one context (ADR 0116 § 2).
+var $left = new Holder();
+var $right = new Holder();
+$left->held = $right;
+$right->held = $left;
+
+// The object the parent spawned this child with. It crossed at refcount one,
+// which makes it the same allocation rather than a rebuild — `graph.rs`'s third
+// decision — and handing it back is what makes the parent's read below a read
+// of memory this isolate's teardown ran over.
+return Core\Script::args();

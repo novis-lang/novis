@@ -13,6 +13,9 @@
 // The pair is the smallest cycle, and the third node makes it a cycle through a
 // chain rather than a mutual pair, which is the shape a sweep that only handles
 // self-reference would still get wrong.
+//
+// The isolate at the foot is the other half: a second context, torn down while
+// this one keeps running, with an object crossing between the two.
 
 class Node {
     public string $label = "";
@@ -45,4 +48,34 @@ var $loop = new Node("loop");
 $loop->peer = $loop;
 
 echo "built=", $built, "\n";
+
+// The crossing, which is the half a single context cannot exercise: a fresh
+// `Node` is the argument, so it crosses into the isolate at refcount one — a
+// pointer handoff rather than a copy — and the child returns it after
+// abandoning a cycle of its own. Reading it below is a read *after* that
+// child's context was torn apart around it, which is what the WSL valgrind leg
+// is here to watch: an object left on the wrong live list is one the child's
+// sweep is free to dismantle under this program.
+//
+// The move this exercises is the one going in. The way back is a copy, because
+// the child's own context holds the argument until it ends, so the value being
+// returned is never the only reference to it; the source-to-destination move
+// itself is pinned in Rust, by `nvs-runtime`'s
+// `an_adopted_object_moves_to_the_destinations_live_list`.
+var $child = spawn script 'examples/cycles/child.nvs' with(
+    args: new Node("crossed"),
+    output: 'capture',
+);
+var $crossed = await $child;
+if ($crossed->ok) {
+    var $back = $crossed->value as Node;
+    if ($back->label == "crossed") {
+        echo "crossed=ok", "\n";
+    } else {
+        echo "crossed=", $back->label, "\n";
+    }
+} else {
+    echo "crossed=", $crossed->error?->message, "\n";
+}
+
 echo "done", "\n";
