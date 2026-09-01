@@ -4042,6 +4042,16 @@ is why" — is this file.
   titles can, and they are one `ls tests/conformance/core | grep -i <class>` away. Do that before
   writing the first line, and when the item turns out to be landed, say so in the handoff rather
   than writing a second case that asks the same thing.
+- **A `..` below a component that does not exist is collapsed on Windows and refused everywhere else,
+  so no conformance case may assert either.** `Core\IO::within($base, "nothing/..")` answers `$base`
+  on Windows and throws `IOError` on Linux: `nvs_config::capability::resolved` asks the platform
+  canonicalizer first, and Win32 normalizes `nothing\..` out of the path *before* the syscall, while
+  `realpath` walks it and stops at the missing component. Neither is a hole — containment is still
+  proved against whatever came back, and the collapsed answer is inside the base — but a case that
+  pins the answer is green locally and red on two of the three hosted runners. The portable spellings
+  are a `..` whose parent *does* exist (every platform collapses it, and the existing
+  `io-within-resolves-and-then-proves-containment.nvst` uses one) and a name that merely contains
+  `..` without being one.
 
 ## Splitting a file that got too big
 
