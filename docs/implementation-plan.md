@@ -41,28 +41,16 @@
 > the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
-> running**.       **`Core\Password` and `Core\Crypto` are closed.**   **Stage 6 has opened**:
-> `Core\Cache`'s two tiers are one `Store`, `shared()` the `net.connect` door onto RESP and
-> `local()` the `None` row; § 1's limiters are rows over them. **Stage 7 has opened**: § 6's two
-> writers are one serialiser, § 3's tier 3 is `[app.log] handler` on `Ctx::handler_isolate`'s
-> reserve, § 2's `onUncaughtThrow` hands both roots the real `Throwable`, and ADR 0106 § 10's two
-> bounds are on the floor's sink; `[log] target` has one reader both writers reach, and an unspelled
-> one refuses the tree (`E0613`); `[log] level` is the minimum level written and `[log] format`
-> picks ADR 0092 § 3's rendering at that same call, over the `Record` itself, each refusing an
-> unspelled value at boot (`E0614`, `E0615`). **Stage 8 has opened**: `Core\Reflect`,
-> `Core\Ast::parse` and `Core\Decimal`'s rounding are on disk under ADR 0014 § 3's observer; ADR
-> 0046 § 4's `$member` is checked at the retrieval (`E0798`). ADR 0126's `property<T>` is closed.
-> **Stage 9**: `Core\Html::escape` launders and § 5's `as Markup` and `Markup + Markup` both lower;
-> `Core\Mail::send` sends through an operator-named `[mail.<name>]` under `mail.send`, and
-> `Core\Storage`'s four rows reach a `[storage.<name>]` disk over `fs.*` alone, and
-> `Core\Cldr::pluralCategory` reads a closed CLDR roster; `https` and mail's `AUTH` run over
-> verified TLS. **Stages 2, 3 and 5 are closed**: spec § 14's handle roster is on `Core\IO\File` and
-> ADR 0086's whole terminal surface is on `Core\Cli`. **Stages 10, 11 and 12 have closed**: §§ 14-19
-> over a 41-key ratchet, §§ 16-17's classes over a 9-key one, and `ring` the one C dependency ADR
-> 0051 § 4 records. **Stage 13 has closed**: ADR 0129's roster — `verify` reads a PHP-stored bcrypt
-> hash and `needsRehash` marks every one. Conformance 1380, differential 250, its gate met,
-> migration 90%/74%.
+> **Open now:** **Goal 5 of the parity program — `Core\Db`, M8 — is running.** **Stage 0 has
+> landed**: ADR 0071's derive pass runs over both of its formats from one walk,
+> `#[Db\Derive]`/`#[Db\Field]` are on `nvs_types::derive::ATTRIBUTES`, and ADR 0067 § 9's type map
+> refuses a field no column reads back as at the declaration that wrote it (`E0756`) — `bytes` is a
+> column and a nested class is not, which is where the two formats' maps first disagree.
+> `crates/nvs-db` does not exist yet: the driver crate, its wire I/O over goal 2's parking stream,
+> the statement cache and the pool are Stages 2 to 7, and this goal's one ADR slot for their shape
+> is unclaimed. **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** — `Core`'s
+> capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
+> Conformance 1382, differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

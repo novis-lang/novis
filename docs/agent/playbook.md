@@ -1435,6 +1435,14 @@ is why" — is this file.
   a `[valgrind] skip` entry is load-bearing for every fixture written to fail, and a text-edit union over
   TOML has to say which shapes it matches — this one now matches both and returns `None` for a missing
   field so the caller refuses instead of passing through.
+- **The `examples/*.nvs` line that `goal-switch.py` carries into a `cargo-named` check comes back with the
+  next goal, and the fix in the previous goal's file does not travel.** The playbook already records this
+  for goal 4's Stage 0 — a program leg cannot appear in `cargo test`'s output, so the check fails forever
+  and holds the whole acceptance list at four checks. Goal 5's own Stage 0 block had it again,
+  `examples/limits.nvs` sitting under `args = ["test", "-p", "nvs-types"]` beside the three real test
+  names, and the floor section twenty lines below carried the comment explaining why it had been removed
+  from *that* list. Read your own stage's `tests = [...]` for a path-looking entry on the first session of
+  a new goal, and fix `docs/agent/goals/<goal>.toml` alongside the live copy.
 
 ## Running things
 
