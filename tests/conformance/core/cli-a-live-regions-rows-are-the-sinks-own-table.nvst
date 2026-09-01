@@ -1,0 +1,107 @@
+--TEST--
+A live region's rows carry no command byte — every C0, `DEL` and C1 handed to `Core\Cli\Live::set` is substituted exactly as the sink substitutes it, counted over the whole control range — ADR 0086 §§ 1, 2 and 5
+--FILE--
+<?nvs
+// § 5's region is the one place a caller most expects a cursor movement to
+// pass through: it paints rows over each other, so a `\e[2K` in a row reads
+// like part of the drawing rather than like the injection § 1 exists to stop.
+// It is not an exception, and this case is what says so — `set` takes
+// `array<Cli\Text>` and nothing else, so every row it can be handed came out
+// of § 2's constructors with § 1's table already applied to it.
+//
+// Counted over the whole range rather than read off a line: a table that
+// substituted the bytes a test would think to try and passed the rest prints
+// plausibly against any single row. § 1 names three classes with different
+// answers, so the three counts below are the assertion and the individual
+// glyphs are not.
+class Sweep {
+    // The glyph § 1's table gives `$point`: the U+2400 block is one code point
+    // per C0 byte and laid out to match, `DEL` has its own at U+2421, and a C1
+    // has no glyph at all, so it becomes U+FFFD.
+    public static function glyph(uint $point): string {
+        if ($point < 32) {
+            return Core\Str::fromCodePoint((9216 as uint) + $point);
+        }
+        if ($point == 127) {
+            return Core\Str::fromCodePoint(9249 as uint);
+        }
+        return Core\Str::fromCodePoint(65533 as uint);
+    }
+
+    // A row is read back with `as string` rather than echoed, so the sink is
+    // not in the path at all: ADR 0088 § 5 renders a carrier as the bytes it
+    // already holds, and those bytes are what `set` was given. A case that
+    // echoed the row instead would pass for a `Text` that carried a raw `ESC`,
+    // because `echo` would substitute it on the way out.
+    public static function over(Core\Cli\Live $live): string {
+        int $painted = 0;
+        int $rows = 0;
+        int $shown = 0;
+        int $commands = 0;
+        int $layout = 0;
+        int $agrees = 0;
+        uint $point = 0;
+        while ($point < 160) {
+            // Everything below the printable range, plus `DEL` and the whole
+            // C1 range above it — several terminals still read a C1 as a CSI
+            // introducer, which is the row a program cannot have typed by
+            // accident and the one an escaper written for `ESC` alone misses.
+            if ($point < 32 || $point > 126) {
+                string $byte = Core\Str::fromCodePoint($point);
+                string $raw = "a" . $byte . "b";
+                var $row = Core\Cli\Text::plain($raw);
+                $rows = $rows + 1;
+                $live->set([$row]);
+                $painted = $painted + 1;
+
+                string $back = $row as string;
+                // Agreement, over every row: the region, the raw path and
+                // `Core\Cli::escape` are one table asked three ways, and a
+                // launderer that grew apart from its sink is the failure
+                // ADR 0024 § 3 exists to prevent.
+                if ($back == Core\Cli::escape($raw)) {
+                    $agrees = $agrees + 1;
+                }
+                if ($point == 9 || $point == 10) {
+                    // `TAB` and `LF` are layout, not commands: a region draws
+                    // rows, so a substitution here would take a program's
+                    // ability to lay one out.
+                    if (Core\Str::contains($back, $byte)) {
+                        $layout = $layout + 1;
+                    }
+                } else {
+                    $commands = $commands + 1;
+                    // Both halves: the byte is gone *and* its own glyph is
+                    // there. A table that deleted the byte would pass the
+                    // first half alone, and § 1 is a substitution.
+                    if (!Core\Str::contains($back, $byte)
+                        && Core\Str::contains($back, Sweep::glyph($point))) {
+                        $shown = $shown + 1;
+                    }
+                }
+            }
+            $point = $point + (1 as uint);
+        }
+        return "a region painted every row " . $painted as string . " of " . $rows as string . "\n"
+            . "every command byte shows its own glyph " . $shown as string . " of " . $commands as string . "\n"
+            . "layout keeps its own byte " . $layout as string . " of 2" . "\n"
+            . "every row is the escaper's own answer " . $agrees as string . " of " . $rows as string;
+    }
+}
+
+var $counted = Core\Cli::live(fn(Core\Cli\Live $live): string => Sweep::over($live));
+echo $counted, "\n";
+
+// The two spellings of the same erase-line command, as a row would carry them.
+// Neither is a movement by the time it reaches a region, and the second is the
+// one an escaper written against `ESC` would have caught on its own.
+var $csi = Core\Str::fromCodePoint(155 as uint);
+echo Core\Cli\Text::plain($csi . "2K"), "\n";
+echo Core\Cli\Text::plain(Core\Str::fromCodePoint(27 as uint) . "[2K"), "\n";
+--EXPECT--
+a region painted every row 65 of 65
+every command byte shows its own glyph 63 of 63
+layout keeps its own byte 2 of 2
+every row is the escaper's own answer 65 of 65
+�2K
+␛[2K
