@@ -14644,7 +14644,7 @@ Expands, at compile time, to an array literal of `new` expressions — one per n
 <a id="core-core-cli"></a>
 ### `Core\Cli`
 
-Keywords: arguments, write, escape, isTty, width, height, colorDepth, ask, confirm, select, multiSelect, secret, live, progress
+Keywords: arguments, write, escape, isTty, width, height, colorDepth, displayWidth, ask, confirm, select, multiSelect, secret, live, progress
 
 | Member | Signature |
 |---|---|
@@ -14655,6 +14655,7 @@ Keywords: arguments, write, escape, isTty, width, height, colorDepth, ask, confi
 | [`Core\Cli::width`](#core-core-cli-width) | `width(): uint` |
 | [`Core\Cli::height`](#core-core-cli-height) | `height(): uint` |
 | [`Core\Cli::colorDepth`](#core-core-cli-colordepth) | `colorDepth(): Core\Cli\ColorDepth` |
+| [`Core\Cli::displayWidth`](#core-core-cli-displaywidth) | `displayWidth(string $value): uint` |
 | [`Core\Cli::ask`](#core-core-cli-ask) | `ask(string $question, {default?: string, validate?: callable}): tainted string` |
 | [`Core\Cli::confirm`](#core-core-cli-confirm) | `confirm(string $question, {default?: bool}): bool` |
 | [`Core\Cli::select`](#core-core-cli-select) | `select(string $question, array<T> $choices, {labels?: callable, default?: T}): T` |
@@ -14755,6 +14756,21 @@ Core\Cli::colorDepth(): Core\Cli\ColorDepth
 How much colour standard output can show, honouring `NO_COLOR`, `CLICOLOR_FORCE`, `FORCE_COLOR`, `COLORTERM` and `TERM`. A program does not normally ask: it writes `Cli\Text` and the sink degrades to what the terminal has. Resolved once for the process.
 
 **Returns** `Core\Cli\ColorDepth` — The depth as a `Core\Cli\ColorDepth` case — `None` whenever standard output is not a terminal and nothing forced colour on, which is what makes `myprog | grep` and a CI log plain.
+
+<a id="core-core-cli-displaywidth"></a>
+#### `Core\Cli::displayWidth`
+
+```nvs skip
+Core\Cli::displayWidth(string $value): uint
+```
+
+How many terminal columns `$value` will occupy when it is written — UAX #11 widths over grapheme clusters, replacing `mb_strwidth`. A CJK ideograph and a fullwidth Latin letter are two columns, a combining mark is none, and a control byte is the one its Control Picture costs, because that is what the terminal sink shows.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `string` (neutral) | The text to measure. A `tainted` one is accepted: a column count carries nothing back out of it. |
+
+**Returns** `uint` — The column count. A tab advances to the next multiple of eight, and a newline ends the row — so a value spanning several rows answers the width of its widest one, which is what a box is padded to.
 
 <a id="core-core-cli-ask"></a>
 #### `Core\Cli::ask`
