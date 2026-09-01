@@ -151,8 +151,10 @@ tests = [
   "db_derive_and_db_field_are_on_the_attribute_roster",
   "a_db_derive_field_whose_type_has_no_column_mapping_is_refused_where_declared",
   "the_json_and_db_derives_share_one_pass",
-  # carried from the previous goal by tools/goal-switch.py
-  "examples/limits.nvs",
+  # `examples/limits.nvs` was carried in here too, exactly as it was into the
+  # floor check above. It is a program leg, not a `cargo test` name, so it could
+  # never run in this check and would have held the whole acceptance list behind
+  # it; the `contains` check naming the same file is where it is measured.
 ]
 
 
