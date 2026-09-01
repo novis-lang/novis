@@ -158,6 +158,164 @@ impl State {
     }
 }
 
+/// The isolation levels [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s
+/// `transaction()` takes, as a caller asks for them rather than as any one
+/// server spells them.
+///
+/// The set is the SQL standard's four plus [`Isolation::Snapshot`], which SQL
+/// Server has as a level of its own and the others reach under another name —
+/// so this is one enum with a per-driver rendering rather than five overlapping
+/// ones, for the same reason [`State`] is one rule rather than five.
+///
+/// § 7 requires a driver that **lacks** a level to throw rather than quietly
+/// run the closure at a weaker one. A driver that renders a level as a
+/// *stronger* guarantee than was asked for is not that case and does not
+/// throw: nothing a program can observe is weakened by it. Where each driver
+/// draws that line is in the driver — `pg.rs`'s `begin_command` is
+/// PostgreSQL's, and it is the only place that reasoning is spent for
+/// PostgreSQL.
+///
+/// The variants are in § 7's own order. Nothing derives `Ord` from it, because
+/// `Snapshot` and the two levels either side of it are not one chain on every
+/// backend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Isolation {
+    /// A statement may read rows another transaction has written and not
+    /// committed, on a backend that implements the level at all.
+    ReadUncommitted,
+    /// A statement sees the rows committed before that statement began.
+    ReadCommitted,
+    /// Every statement in the transaction sees one snapshot of committed rows.
+    RepeatableRead,
+    /// The transaction reads from one snapshot taken when it began, and writes
+    /// conflict rather than block — SQL Server's own level, and what the
+    /// row-versioning backends call `REPEATABLE READ`.
+    Snapshot,
+    /// Concurrent transactions produce a result some serial order of them would
+    /// have produced.
+    Serializable,
+}
+
+/// [ADR 0067 § 8](../../../docs/adr/0067-core-db.md)'s normalised `ErrorKind`,
+/// under a name that cannot be misread as [`std::io::ErrorKind`] in a driver
+/// that spells both in one function.
+///
+/// § 8's whole point is that an application branches on the *condition* rather
+/// than on a vendor string: PDO exposes only a `SQLSTATE` and a vendor integer,
+/// which is why real PHP matches on `"Duplicate entry"` or hard-codes `1062`.
+/// Each driver maps its own codes onto this set and MariaDB needs its own table
+/// rather than MySQL's; PostgreSQL's is `pg.rs`'s `kind_of`. The raw code stays
+/// on [`ServerError`] for the conditions normalising does not reach.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DbErrorKind {
+    /// A row with this key already exists.
+    UniqueViolation,
+    /// A referenced row does not exist, or a referencing one still does.
+    ForeignKeyViolation,
+    /// A column that may not be null was written null.
+    NotNullViolation,
+    /// A `CHECK` constraint refused the row.
+    CheckViolation,
+    /// Two transactions each hold what the other is waiting for, and the server
+    /// aborted this one to break it.
+    Deadlock,
+    /// The transaction could not be serialised against a concurrent one and was
+    /// aborted — the ordinary outcome under `REPEATABLE READ` or stronger.
+    SerializationFailure,
+    /// The connection is gone, or the server is going away.
+    ConnectionLost,
+    /// A statement or an idle transaction ran past a bound and was cancelled.
+    Timeout,
+    /// The statement is not something the server will run: a syntax error, an
+    /// undefined table, a type it cannot resolve.
+    Syntax,
+    /// The role may not do this.
+    Permission,
+    /// Anything the driver's own table does not name, including a condition one
+    /// backend has and the others do not.
+    Other,
+}
+
+impl DbErrorKind {
+    /// Whether [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s
+    /// `{retries: n}` re-runs the closure over this.
+    ///
+    /// **These two, and nothing else.** A retry is sound only where the server
+    /// aborted the transaction *because* of a conflict it expects to be gone on
+    /// the next attempt; re-running a closure over a lock timeout or a lost
+    /// connection would be running a side-effecting function again on a guess,
+    /// which is also why § 7's default is 0 retries. The backoff and the re-run
+    /// are `nvs-stdlib`'s — this is the part of the rule only a driver can
+    /// answer, because only a driver knows what its server's codes mean.
+    #[must_use]
+    pub fn is_retryable(self) -> bool {
+        matches!(
+            self,
+            DbErrorKind::Deadlock | DbErrorKind::SerializationFailure
+        )
+    }
+}
+
+/// A refusal the server worded, with § 8's normalised kind beside it.
+///
+/// Carried **inside** the `io::Error` every driver entry point already answers
+/// with, so a caller that only prints the sentence is unchanged and a caller
+/// that must branch — § 7's retry rule is the first of them — asks
+/// [`ServerError::of`] rather than matching on the text.
+///
+/// § 8's `driverCode` has no field here and PostgreSQL will always answer
+/// `None` for it: the `SQLSTATE` *is* this server's code, and a second integer
+/// invented to fill a shape would be a value with no meaning. MySQL has a real
+/// one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerError {
+    /// § 8's normalised kind, from the driver's own code table.
+    pub kind: DbErrorKind,
+    /// The five-character `SQLSTATE`, as the server sent it.
+    pub sql_state: String,
+    /// The server's non-localized severity — `ERROR`, `FATAL`, `PANIC`.
+    pub severity: String,
+    /// The server's own sentence.
+    pub message: String,
+    /// The constraint the condition names, where it names one.
+    pub constraint: Option<String>,
+    /// What the rendered sentence calls this backend.
+    ///
+    /// [`Driver::matrix_name`] is deliberately not this: those are harness keys
+    /// and nothing renders them to a reader, so tying an operator-facing
+    /// message to them would freeze one against the other.
+    pub backend: &'static str,
+}
+
+impl ServerError {
+    /// The server's refusal inside an `io::Error`, where that is what it is.
+    ///
+    /// A wire failure, a decode refusal and § 4's busy-connection error are all
+    /// the same `io::Error` type and none of them is one of these — which is
+    /// why this answers `None` rather than a kind of [`DbErrorKind::Other`].
+    #[must_use]
+    pub fn of(error: &std::io::Error) -> Option<&ServerError> {
+        error.get_ref()?.downcast_ref::<ServerError>()
+    }
+}
+
+impl std::fmt::Display for ServerError {
+    /// Severity, message and `SQLSTATE`: the three fields an operator acts on.
+    ///
+    /// Bound parameters are not among them and never will be — ADR 0067 § 8
+    /// makes a `Throwable` message a `secret` sink, and this sentence is what
+    /// reaches one.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} {}: {} (SQLSTATE {})",
+            self.backend, self.severity, self.message, self.sql_state
+        )
+    }
+}
+
+impl std::error::Error for ServerError {}
+
 /// A PostgreSQL connection: `postgres-protocol`'s codec plus the extended-query
 /// state machine, the SASL handshake and ADR 0067 § 13's reset, written here.
 ///
@@ -191,6 +349,17 @@ pub struct PgConn {
     /// other's server has never heard of. It survives this driver's reset,
     /// which is § 13's whole reason for not sending `DISCARD ALL`.
     pub(crate) cache: StatementCache,
+    /// How many of ADR 0067 § 7's transactions are open on this connection: 0
+    /// for none, 1 for the outermost `BEGIN`, and one more per nested
+    /// `transaction()` — each of which is a `SAVEPOINT` named by the depth it
+    /// opened at.
+    ///
+    /// It is the *connection's* and not the caller's because § 7 gives no
+    /// explicit savepoint API and no `inTransaction()`: a library that wraps
+    /// its own writes must stay callable from inside a caller's transaction
+    /// without being able to ask whether it is in one. `pg.rs`'s `begin` is
+    /// where the depth decides which command goes out.
+    pub(crate) depth: Cell<u32>,
 }
 
 /// A MySQL connection: `mysql_common`'s codec plus the handshake, `COM_STMT_*`

@@ -2,65 +2,64 @@
 
 ## State
 
-**ADR 0067 § 4 is complete on PostgreSQL's wire.** `executeMany` is one `Parse` and a
-`Bind`/`Execute`/`Sync` per set in a single flush, answering the summed affected count —
-`crates/nvs-db/src/pg.rs`'s `execute_many` doc comment is the rule for both halves a caller can be
-surprised by: **each execution carries its own `Sync`**, so a failure part way through does not roll
-back the sets before it (one `Sync` for the whole batch would be § 4's refused hidden `BEGIN`, and
-costs no fewer bytes), and an empty set list is § 4's no-op that never reaches the wire.
+**ADR 0067 § 7 is complete on PostgreSQL's wire, and § 8's kind rides with every refusal.**
+`BEGIN`/`COMMIT`/`ROLLBACK` are simple `Query` messages beside § 13's reset, each carrying its own
+implicit `Sync`; `crates/nvs-db/src/pg.rs`'s `begin`, `commit`, `roll_back` and `begin_command` doc
+comments are the rule for the three calls a caller can be surprised by — a **nested** transaction is
+a `SAVEPOINT` named by the connection's own depth (`PgConn::depth`, because § 7 gives no savepoint
+API and no `inTransaction()`), a nested one may **not** carry `{isolation, readOnly}` and is refused
+rather than silently run at the outer level, and `Snapshot` renders as `REPEATABLE READ` because
+that is the same guarantee under PostgreSQL's name for it. `READ WRITE` is never rendered: the
+absence of `readOnly` is the server's default and not an override of it.
 
-**A `Parse` is undone with the implicit transaction it ran in**, which is why the statement cache is
-written only after a batch that drew no error at all — a name cached over a rolled-back parse is a
-`26000` on the next hit, on a connection that is otherwise fine. `start_statement` commits earlier
-(at the row description) and has the same exposure if the `Execute` then fails; it is in the backlog
-rather than fixed here, because the fix threads the cache into `PgRows`.
+**§ 8's `DbErrorKind` and `ServerError` are `crates/nvs-db/src/conn.rs`**, carried *inside* the
+`io::Error` every entry point already answers with, so a caller that prints the sentence is
+unchanged and § 7's retry rule asks `ServerError::of` instead of matching text. PostgreSQL's code
+table is `pg.rs`'s `kind_of`; `is_retryable` is § 7's two codes and nothing else, and the backoff and
+the re-run stay `nvs-stdlib`'s.
 
-**§ 4's refusal now has one home and names both fixes.** `second_statement` builds it for every
-entry point that can refuse — `->all()` *or* a `{shared: false}` connection, which fix different
-programs — and `nvs-stdlib` re-words it as § 4's `LogicError`, per `conn.rs`'s
-`State::may_start_statement`.
+**Nothing of `Core\Db` exists in `nvs-stdlib`** — there is no `db.rs` and no `Core\Db` row in
+`crates/nvs-stdlib/src/registry.rs`, which is why the goal's three fixtures are red at `E0405` and
+the driver's acceptance check reports it every iteration. That is now the whole of what stands
+between this goal and its checks. Unchanged and pointed at rather than restated: nothing resolves a
+`[db.<name>]` block into a `PgTarget` yet, so `time_zone_for`'s `None` still has no boot refusal,
+and nothing can handshake against `tests/db/compose.yaml` (self-signed, no anchor seam in
+`nvs_host::tls`).
 
-Unchanged and pointed at rather than restated: the `[db.<name>]` readers are
-`crates/nvs-db/src/sql.rs` beside `StatementCache`, and nothing resolves a block into a `PgTarget`
-yet, so `time_zone_for`'s `None` still has no boot refusal. Nothing can handshake against
-`tests/db/compose.yaml` (self-signed, no anchor seam in `nvs_host::tls`), and the goal's three
-fixtures stay red at `E0405` because `Core\Db\Connection` has no stdlib rows — this goal's ordinary
-state and what the driver's acceptance check reports every iteration.
-
-**Manifest gaps, in `docs/agent/loop-goal.toml`:** `[context] adrs` still names no section of ADR
-0132 (add §§ 1-5) and none of ADR 0067 §§ 2, 4, 5 — § 4 is the goal's central section and has now
-been read by hand twice; § 7 was read by hand this session to name the next group and should join
-it. `[context]` still reaches nothing under `docs/spec/`, which is where `lastId`'s `?uint` and
-`Core\Db\Connection`'s class table live.
+**Manifest gaps, in `docs/agent/loop-goal.toml`:** `[context] adrs` names none of ADR 0067 §§ 2, 4,
+7, 8 — § 7 and § 8 were both read by hand this session and are the sections the next slices cite —
+and no section of ADR 0132. `[context]` still reaches nothing under `docs/spec/`, which is where
+§ 18's `Core\Db` class tables are; they were read by hand this session too, and the next group is
+written against them.
 
 ## Next group
 
-**§ 7's transaction, on the wire** — the file set is `crates/nvs-db/src/pg.rs` alone, in the same
-statement-sequencing half § 4 just finished, and `reset_session` at
-`crates/nvs-db/src/pg.rs:2396` is the model for all three: a fixed list of simple `Query` messages
-in one flush, each carrying its own implicit `Sync`.
+**`Core\Db`'s stdlib surface, which is what the acceptance check is failing on** — the file set is a
+new `crates/nvs-stdlib/src/db.rs` plus its two registrations, and `crates/nvs-stdlib/src/json.rs` is
+the five-edit worked example the conventions name. The one slice below that is not in that set is
+the resolver the third needs.
 
-- [ ] **`BEGIN`/`COMMIT`/`ROLLBACK` as the driver half of § 7's closure** — the closure itself is
-      `nvs-stdlib`'s; this is the three commands, with `{isolation, readOnly}` rendered into the
-      `BEGIN` and `Isolation`'s five levels mapped onto PostgreSQL's four (`Snapshot` is
-      `REPEATABLE READ`). Beside `crates/nvs-db/src/pg.rs:2396`, refusing on a busy connection
-      through `crates/nvs-db/src/pg.rs:2520`'s `second_statement`.
-- [ ] **Nesting is `SAVEPOINT`/`ROLLBACK TO SAVEPOINT`/`RELEASE`, named by depth** — § 7 gives no
-      explicit savepoint API, so the depth counter belongs to the connection beside its state at
-      `crates/nvs-db/src/pg.rs:2066`'s neighbours, not to the caller.
-- [ ] **The retry rule's driver half: classify a refusal's `SQLSTATE`** — § 7 re-runs on deadlock
-      and serialization failure only (`40P01`, `40001`), so `crates/nvs-db/src/pg.rs:677`'s
-      `server_error` has to hand the kind back rather than only the sentence. Backoff and the
-      re-run stay `nvs-stdlib`'s.
+- [ ] **`Core\Db::inList` and `quoteIdentifier`, the two members that need no connection** — the
+      spec's own table is `docs/spec/01-core-library.md:1140`, and the expansion `inList` produces
+      already exists on the wire side as `crates/nvs-db/src/sql.rs`'s. New
+      `crates/nvs-stdlib/src/db.rs`, registered in `crates/nvs-stdlib/src/registry.rs:1079` and
+      declared beside its neighbours at `crates/nvs-stdlib/src/lib.rs:213`.
+- [ ] **A `[db.<name>]` block resolved into a `PgTarget`** — the readers are already
+      `crates/nvs-db/src/sql.rs`'s, and what is missing is the one that builds
+      `crates/nvs-db/src/pg.rs:154`'s target from them, including the boot refusal `time_zone_for`'s
+      `None` is waiting for. ADR 0067 § 2 is the naming rule.
+- [ ] **`Core\Db::connect` and `open` over it** — `docs/spec/01-core-library.md:1140` for the two
+      signatures, ADR 0067 § 2 for the memoization and `{shared: false}`, and both are `db.connect`
+      /`db.open` capability sinks. Same `crates/nvs-stdlib/src/db.rs` and
+      `crates/nvs-stdlib/src/registry.rs:1079`.
 
 ## Backlog
 
-- `start_statement`'s cache commit is one `Execute` too early — see `## State`; the fix threads
-  `&mut StatementCache` into `PgRows`, whose fields are already disjoint borrows of `PgConn`.
-- § 13's per-core pool, the reset that is a security boundary, and `pool = false` — ADR 0067 § 13,
-  over `crates/nvs-db/src/conn.rs`; `reset_session` is already written and takes `self`.
-- `Core\Db\Connection`'s stdlib rows, which is what the goal's three fixtures need — the class
-  table in `docs/spec/01-core-library.md` § 6.
-- The other four drivers, each its own state machine over the shared wire shape — ADR 0132 § 2.
-- Resolving a `[db.<name>]` block into a `PgTarget`, with the boot refusal `time_zone_for`'s
-  `None` is waiting for — `nvs-config`'s resolver owns every other boot error.
+- `Core\Db\Connection`'s `Queryable` five as rows over `PgConn` — `docs/spec/01-core-library.md:1152`.
+- `start_statement` commits a cache name at the row description, so an `Execute` that then fails can
+  leave a name cached over a rolled-back `Parse` — `crates/nvs-db/src/pg.rs`'s `start_statement`.
+- The four remaining drivers, each its own module beside `pg.rs` — ADR 0132 § 5.
+- § 13's pool itself, per core, with `max`/`idle`/`lifetime`/`acquire` — ADR 0067 § 13.
+- No anchor seam in `nvs_host::tls`, so nothing handshakes against `tests/db/compose.yaml`.
+- `Db\Transaction implements Queryable by $connection` needs ADR 0043's `by` delegation on a `Core`
+  type, which no `Core` type uses yet — ADR 0067 § 7.

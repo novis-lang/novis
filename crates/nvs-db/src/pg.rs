@@ -126,7 +126,7 @@ use postgres_protocol::authentication::sasl::{ChannelBinding, ScramSha256};
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
 
-use crate::conn::{PgConn, State};
+use crate::conn::{DbErrorKind, Isolation, PgConn, ServerError, State};
 use crate::sql::{Prepared, StatementCache};
 
 /// The one mechanism this driver authenticates with.
@@ -356,6 +356,7 @@ impl PgConn {
             // this path takes a number and has no opinion about where an
             // unwritten field's default comes from.
             cache: StatementCache::new(target.statement_cache),
+            depth: Cell::new(0),
         })
     }
 
@@ -409,6 +410,50 @@ impl PgConn {
         execute_many(&mut self.wire, &self.state, &mut self.cache, sql, sets)
     }
 
+    /// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s `BEGIN`, or the
+    /// `SAVEPOINT` a nested `transaction()` is.
+    ///
+    /// This is the driver half of § 7 and nothing more: the closure, the
+    /// rollback-only flag and the retry rule are `nvs-stdlib`'s, and what a
+    /// driver owes them is the commands that leave the connection at a message
+    /// boundary. [`begin`] owns which command a given nesting depth gets and
+    /// [`begin_command`] the rendering of the two options, including which of
+    /// § 7's five isolation levels PostgreSQL spells with another name.
+    ///
+    /// # Errors
+    ///
+    /// As [`begin`].
+    pub fn begin(&mut self, isolation: Option<Isolation>, read_only: bool) -> io::Result<()> {
+        begin(
+            &mut self.wire,
+            &self.state,
+            &self.depth,
+            isolation,
+            read_only,
+        )
+    }
+
+    /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one — a
+    /// normal return out of the closure either way.
+    ///
+    /// # Errors
+    ///
+    /// As [`commit`]. A refused outermost commit is § 7's failed commit, which
+    /// `nvs-stdlib` throws as `DbError`.
+    pub fn commit(&mut self) -> io::Result<()> {
+        commit(&mut self.wire, &self.state, &self.depth)
+    }
+
+    /// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one —
+    /// a throw out of the closure, or `rollBack`'s own signal.
+    ///
+    /// # Errors
+    ///
+    /// As [`roll_back`].
+    pub fn roll_back(&mut self) -> io::Result<()> {
+        roll_back(&mut self.wire, &self.state, &self.depth)
+    }
+
     /// ADR 0067 § 13's reset, and the connection back only if it worked.
     ///
     /// **`self` by value is the enforcement**, not a convenience. § 13 makes the
@@ -431,6 +476,10 @@ impl PgConn {
     /// it.
     pub fn reset(mut self) -> io::Result<PgConn> {
         reset_session(&mut self.wire, &self.state)?;
+        // § 13's first command is `ROLLBACK`, so every level § 7 opened is
+        // closed by the time this returns — including the savepoints inside
+        // one, which do not outlive the transaction that held them.
+        self.depth.set(0);
         Ok(self)
     }
 }
@@ -669,16 +718,25 @@ fn authenticate<S: Read + Write>(
     }
 }
 
-/// An `ErrorResponse` in the words the server used.
+/// An `ErrorResponse` in the words the server used, carrying [ADR 0067
+/// § 8](../../../docs/adr/0067-core-db.md)'s normalised kind.
 ///
-/// Severity, `SQLSTATE` and message, which are the three fields an operator
-/// acts on; the rest (position, hint, the source line in the server's own C)
-/// are dropped rather than rendered into a sentence nobody reads. A field that
-/// does not decode ends the walk, so a malformed error is still an error.
+/// Severity, `SQLSTATE`, message and the constraint the condition names, which
+/// are the fields an operator or a `catch` acts on; the rest (position, hint,
+/// the source line in the server's own C) are dropped rather than rendered into
+/// a sentence nobody reads. A field that does not decode ends the walk, so a
+/// malformed error is still an error — and the only one of these that carries
+/// no [`ServerError`], because there is no code to classify.
+///
+/// The sentence is [`ServerError`]'s `Display` and is unchanged by the kind
+/// riding beside it: a caller that prints this reads what it always read, and
+/// one that branches — § 7's retry rule is the first — asks
+/// [`ServerError::of`].
 fn server_error(body: &backend::ErrorResponseBody) -> io::Error {
     let mut severity = String::from("ERROR");
     let mut code = String::from("XX000");
     let mut message = String::new();
+    let mut constraint = None;
 
     let mut fields = body.fields();
     loop {
@@ -692,6 +750,7 @@ fn server_error(body: &backend::ErrorResponseBody) -> io::Error {
                     b'S' if severity == "ERROR" => severity = value,
                     b'C' => code = value,
                     b'M' => message = value,
+                    b'n' => constraint = Some(value),
                     _ => {}
                 }
             }
@@ -700,7 +759,57 @@ fn server_error(body: &backend::ErrorResponseBody) -> io::Error {
         }
     }
 
-    io::Error::other(format!("postgres {severity}: {message} (SQLSTATE {code})"))
+    io::Error::other(ServerError {
+        kind: kind_of(&code),
+        sql_state: code,
+        severity,
+        message,
+        constraint,
+        backend: "postgres",
+    })
+}
+
+/// The § 8 kind a PostgreSQL `SQLSTATE` means.
+///
+/// The five characters are the whole input: PostgreSQL has no vendor integer
+/// beside them, and its *classes* — the first two characters — are specified
+/// rather than incidental, so a class that means one kind is matched as a class
+/// and only the codes that disagree with their own class are named one by one.
+/// Everything unnamed is [`DbErrorKind::Other`] rather than a guess: § 8
+/// normalises the conditions applications branch on, and a code outside that
+/// set is one they read the `SQLSTATE` for.
+fn kind_of(code: &str) -> DbErrorKind {
+    match code {
+        "23505" => DbErrorKind::UniqueViolation,
+        "23503" => DbErrorKind::ForeignKeyViolation,
+        "23502" => DbErrorKind::NotNullViolation,
+        "23514" => DbErrorKind::CheckViolation,
+        "40P01" => DbErrorKind::Deadlock,
+        "40001" => DbErrorKind::SerializationFailure,
+        // `query_canceled` is what `statement_timeout` raises, and `25P03` is
+        // `idle_in_transaction_session_timeout`. A cancellation asked for by
+        // the other end of § 3's cancellation key arrives as `57014` too, and
+        // is the same thing from the statement's point of view.
+        "57014" | "25P03" => DbErrorKind::Timeout,
+        // The rest of class 57 is the server going away or not yet accepting
+        // work: `admin_shutdown`, `crash_shutdown`, `cannot_connect_now`.
+        "57P01" | "57P02" | "57P03" => DbErrorKind::ConnectionLost,
+        // The one access rule inside the syntax class, which is where
+        // PostgreSQL puts `insufficient_privilege`.
+        "42501" => DbErrorKind::Permission,
+        _ => match code.get(..2) {
+            // Class 08 — connection exception, every member of it.
+            Some("08") => DbErrorKind::ConnectionLost,
+            // Class 28 — invalid authorization specification, which is a bad
+            // password as much as a refused role.
+            Some("28") => DbErrorKind::Permission,
+            // Class 42 — syntax error *or* access rule violation, and § 8's
+            // `Syntax` is the half an application branches on: an undefined
+            // table and a malformed statement are the same bug to a caller.
+            Some("42") => DbErrorKind::Syntax,
+            _ => DbErrorKind::Other,
+        },
+    }
 }
 
 /// The unnamed statement and the unnamed portal, which is what an uncached
@@ -2439,6 +2548,253 @@ fn reset_session<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io
     }
 }
 
+/// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s `BEGIN`, or the
+/// `SAVEPOINT` a nested `transaction()` is.
+///
+/// **The depth decides which**, and the depth is the connection's rather than
+/// the caller's: § 7 gives no explicit savepoint API and no `inTransaction()`,
+/// so a library that wraps its own writes stays callable from inside a caller's
+/// transaction precisely because it cannot tell and does not have to. `depth`
+/// counts the levels open — 0 means this is the outermost `BEGIN`.
+///
+/// A **nested** call may not carry `{isolation, readOnly}`, and asking is
+/// refused rather than ignored. PostgreSQL settles both for the whole
+/// transaction, at its first statement, so there is nothing a savepoint could
+/// do with them; running the closure at the *outer* transaction's level while
+/// its author wrote `Isolation::Serializable` is priority 2's exact failure —
+/// weaker semantics than the program asked for, silently. § 7's composition is
+/// not what this costs: a nested `transaction()` with no options is the case
+/// § 7 argues for and it still composes.
+///
+/// # Errors
+///
+/// `InvalidInput` for a nested call carrying either option, otherwise as
+/// [`simple_command`]. The depth moves only after the command was accepted, so
+/// a refused `BEGIN` leaves a connection that is still in no transaction.
+fn begin<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    depth: &Cell<u32>,
+    isolation: Option<Isolation>,
+    read_only: bool,
+) -> io::Result<()> {
+    let open = depth.get();
+    let command = if open == 0 {
+        begin_command(isolation, read_only)
+    } else if isolation.is_some() || read_only {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "a transaction nested {open} deep asked for its own isolation level or read-only \
+                 mode, and PostgreSQL settles both for the whole transaction: ask for them on the \
+                 outermost `transaction()`, or give this one a `{{shared: false}}` connection of \
+                 its own"
+            ),
+        ));
+    } else {
+        format!("SAVEPOINT {}", savepoint_name(open))
+    };
+
+    simple_command(wire, state, &command)?;
+    depth.set(open + 1);
+    Ok(())
+}
+
+/// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` that closes a nested level.
+///
+/// # Errors
+///
+/// `InvalidInput` for a connection in no transaction, otherwise as
+/// [`simple_command`]. PostgreSQL has already rolled the transaction back by
+/// the time it refuses an outermost `COMMIT`, so there is nothing left for the
+/// caller to undo — the connection is idle and poolable, and only the closure's
+/// own side effects outlive it.
+fn commit<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    depth: &Cell<u32>,
+) -> io::Result<()> {
+    let open = open_transaction(depth, "commit")?;
+    let command: Cow<'_, str> = if open == 1 {
+        Cow::Borrowed("COMMIT")
+    } else {
+        Cow::Owned(format!("RELEASE SAVEPOINT {}", savepoint_name(open - 1)))
+    };
+
+    simple_command(wire, state, &command)?;
+    depth.set(open - 1);
+    Ok(())
+}
+
+/// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` that undoes a nested level.
+///
+/// **A nested rollback releases the savepoint it returned to, in the same
+/// command.** `ROLLBACK TO SAVEPOINT` leaves the savepoint established — it can
+/// be returned to again — but § 7's nested transaction is over by then, and a
+/// loop that opens and abandons one per iteration would otherwise leave the
+/// server holding a savepoint per iteration for as long as the outer
+/// transaction runs. Two statements in one simple `Query` is one round trip and
+/// carries no caller's SQL.
+///
+/// # Errors
+///
+/// `InvalidInput` for a connection in no transaction, otherwise as
+/// [`simple_command`]. A refused rollback leaves the depth where it was: the
+/// level is still open as far as the server is concerned, and the level above
+/// it will roll back over this one anyway.
+fn roll_back<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    depth: &Cell<u32>,
+) -> io::Result<()> {
+    let open = open_transaction(depth, "roll back")?;
+    let command: Cow<'_, str> = if open == 1 {
+        Cow::Borrowed("ROLLBACK")
+    } else {
+        let name = savepoint_name(open - 1);
+        Cow::Owned(format!(
+            "ROLLBACK TO SAVEPOINT {name}; RELEASE SAVEPOINT {name}"
+        ))
+    };
+
+    simple_command(wire, state, &command)?;
+    depth.set(open - 1);
+    Ok(())
+}
+
+/// The number of levels open, or the refusal for a connection in none.
+///
+/// § 7 has no `commit()` and no `rollBack()` on the connection, so only the
+/// closure's own two exits reach these: a call with nothing open is this
+/// driver's bug rather than a program's, and saying so is worth more than
+/// sending a bare `ROLLBACK` that PostgreSQL answers with a warning nobody
+/// reads.
+///
+/// # Errors
+///
+/// `InvalidInput`, naming the depth it was asked to close.
+fn open_transaction(depth: &Cell<u32>, verb: &str) -> io::Result<u32> {
+    match depth.get() {
+        0 => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("a connection with no open transaction was asked to {verb} one"),
+        )),
+        open => Ok(open),
+    }
+}
+
+/// The savepoint name for the level opened at `depth`.
+///
+/// Named by the depth rather than by a counter that only climbs: a name is in
+/// use only while that one level is open, two open levels never share one, and
+/// a transaction that opens and closes a nested one a thousand times reuses
+/// `nvs_1` rather than leaving the server a thousand names. § 7 has no explicit
+/// savepoint API, so no program can name one of these and nothing outside this
+/// module may depend on the spelling.
+fn savepoint_name(depth: u32) -> String {
+    format!("nvs_{depth}")
+}
+
+/// The `BEGIN` a given `{isolation, readOnly}` renders to.
+///
+/// **§ 7's five levels become PostgreSQL's four, and only [`Isolation::Snapshot`]
+/// collapses**: `REPEATABLE READ` *is* PostgreSQL's snapshot isolation, so
+/// asking for either gets the same guarantee under the name this server uses
+/// and neither is the missing level § 7 says to throw over.
+/// [`Isolation::ReadUncommitted`] keeps its own spelling, which PostgreSQL
+/// accepts and then runs as `READ COMMITTED`: the level asked for is the
+/// weakest one there is and the level delivered is stronger, so no promise a
+/// program was given is broken. § 7's refusal is for the other direction, and
+/// PostgreSQL never has to make it.
+///
+/// **`read_only` renders `READ ONLY` or nothing, never `READ WRITE`.** The
+/// option's absence means the connection's default, and an operator may have
+/// set `default_transaction_read_only` on a standby; spelling `READ WRITE`
+/// would widen from inside a program what the operator narrowed outside it,
+/// which is the wrong direction for a priority-1 rule. A caller that wanted a
+/// write transaction on such a server gets the server's refusal, which names
+/// the real problem.
+///
+/// A `String` rather than a table of the ten spellings: this runs once per
+/// transaction, next to a round trip, and the two options are independent.
+fn begin_command(isolation: Option<Isolation>, read_only: bool) -> String {
+    let mut command = String::from("BEGIN");
+
+    if let Some(level) = isolation {
+        command.push_str(" ISOLATION LEVEL ");
+        command.push_str(match level {
+            Isolation::ReadUncommitted => "READ UNCOMMITTED",
+            Isolation::ReadCommitted => "READ COMMITTED",
+            Isolation::RepeatableRead | Isolation::Snapshot => "REPEATABLE READ",
+            Isolation::Serializable => "SERIALIZABLE",
+        });
+    }
+
+    if read_only {
+        command.push_str(" READ ONLY");
+    }
+
+    command
+}
+
+/// Writes one simple `Query` and reads to the `ReadyForQuery` it carries.
+///
+/// § 7's three commands take no parameters and are worth no cache entry, so
+/// they go out on the *simple* path exactly as § 13's reset does: a simple
+/// `Query` carries its own implicit `Sync`, so the boundary after it is the
+/// protocol's promise rather than an inference from the sequence, and a message
+/// that is neither an error nor that boundary is discarded rather than treated
+/// as poison.
+///
+/// A busy connection is refused with [`second_statement`]'s wording rather than
+/// one of its own, because § 4 is the rule being broken and both of its fixes
+/// are what this caller needs to hear. § 13's reset is the one caller that says
+/// something else, since "read the first statement's rows" is not advice a pool
+/// return can act on.
+///
+/// # Errors
+///
+/// `InvalidInput` for a connection that is not [`State::Idle`], the server's
+/// own error — which leaves the connection idle and poolable, the transaction
+/// being over either way — or the wire failure that poisons it.
+fn simple_command<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    sql: &str,
+) -> io::Result<()> {
+    if !state.get().may_start_statement() {
+        return Err(second_statement(state));
+    }
+
+    let mut out = BytesMut::new();
+    frontend::query(sql, &mut out)?;
+
+    state.set(State::Executing);
+    if let Err(e) = wire.send(&mut out) {
+        state.set(State::Poisoned);
+        return Err(e);
+    }
+
+    let mut refused: Option<io::Error> = None;
+    loop {
+        match read_or_poison(wire, state)? {
+            backend::Message::ReadyForQuery(_) => break,
+            // The first refusal is the one reported; a second error before the
+            // boundary can only be a consequence of it.
+            backend::Message::ErrorResponse(body) if refused.is_none() => {
+                refused = Some(server_error(&body));
+            }
+            _ => {}
+        }
+    }
+
+    state.set(State::Idle);
+    match refused {
+        None => Ok(()),
+        Some(error) => Err(error),
+    }
+}
+
 /// Reads one message, and poisons the connection if the wire itself failed.
 ///
 /// Every read in the extended-query path goes through this, because the rule is
@@ -2561,6 +2917,7 @@ mod tests {
         CancelKey, PgColumn, PgDate, PgScalar, PgTarget, PgTime, State, Wire, affected_rows,
         authenticate, execute_many, oid, posix_time_zone, request_tls, start_statement,
     };
+    use crate::conn::{DbErrorKind, Isolation, ServerError};
     use crate::sql::StatementCache;
 
     /// A cache that never caches, so a test about the wire asserts the unnamed
@@ -2965,6 +3322,24 @@ mod tests {
             }
         }
         message(b'D', &body)
+    }
+
+    /// An `ErrorResponse` that also names the constraint the condition broke,
+    /// which is field `n` and the one § 8 field a `SQLSTATE` cannot imply.
+    fn constrained_error_response(code: &str, said: &str, constraint: &str) -> Vec<u8> {
+        let mut body = vec![b'S'];
+        body.extend_from_slice(b"ERROR\0");
+        body.push(b'C');
+        body.extend_from_slice(code.as_bytes());
+        body.push(0);
+        body.push(b'M');
+        body.extend_from_slice(said.as_bytes());
+        body.push(0);
+        body.push(b'n');
+        body.extend_from_slice(constraint.as_bytes());
+        body.push(0);
+        body.push(0);
+        message(b'E', &body)
     }
 
     /// An `ErrorResponse` carrying the three fields [`super::server_error`]
@@ -3605,6 +3980,348 @@ mod tests {
                 .expect_err("a busy connection was reset in place");
 
             assert_eq!(refused.kind(), io::ErrorKind::InvalidInput, "{busy:?}");
+            assert!(wire.peer().sent.is_empty(), "{busy:?} reached the wire");
+            assert_eq!(state.get(), busy, "{busy:?} was changed by a refusal");
+        }
+    }
+
+    /// § 7's two options as PostgreSQL spells them, and the one place its five
+    /// isolation levels become four: `Snapshot` renders exactly as
+    /// `RepeatableRead` does, asserted against it rather than against a literal
+    /// so that a level that grows its own spelling fails here.
+    #[test]
+    fn a_begin_renders_section_7s_options_and_snapshot_is_repeatable_read() {
+        assert_eq!(super::begin_command(None, false), "BEGIN");
+        assert_eq!(super::begin_command(None, true), "BEGIN READ ONLY");
+        assert_eq!(
+            super::begin_command(Some(Isolation::ReadUncommitted), false),
+            "BEGIN ISOLATION LEVEL READ UNCOMMITTED"
+        );
+        assert_eq!(
+            super::begin_command(Some(Isolation::ReadCommitted), false),
+            "BEGIN ISOLATION LEVEL READ COMMITTED"
+        );
+        assert_eq!(
+            super::begin_command(Some(Isolation::Serializable), true),
+            "BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY"
+        );
+        assert_eq!(
+            super::begin_command(Some(Isolation::Snapshot), false),
+            super::begin_command(Some(Isolation::RepeatableRead), false),
+        );
+        assert_eq!(
+            super::begin_command(Some(Isolation::Snapshot), false),
+            "BEGIN ISOLATION LEVEL REPEATABLE READ"
+        );
+
+        // A caller that did not ask for a read-only transaction gets the
+        // server's default rather than an override of it, whatever else it
+        // asked for.
+        for level in [
+            None,
+            Some(Isolation::ReadUncommitted),
+            Some(Isolation::ReadCommitted),
+            Some(Isolation::RepeatableRead),
+            Some(Isolation::Snapshot),
+            Some(Isolation::Serializable),
+        ] {
+            for read_only in [false, true] {
+                let rendered = super::begin_command(level, read_only);
+                assert!(!rendered.contains("READ WRITE"), "{rendered}");
+                assert_eq!(
+                    rendered.contains("READ ONLY"),
+                    read_only,
+                    "{rendered} against {read_only}"
+                );
+            }
+        }
+    }
+
+    /// The SQL of every simple `Query` a peer was sent, flush by flush.
+    fn every_query<F: FnMut(&[u8]) -> Vec<u8>>(wire: &Wire<Peer<F>>) -> Vec<String> {
+        wire.peer()
+            .sent
+            .iter()
+            .flat_map(|group| queries(group))
+            .collect()
+    }
+
+    /// Each of § 7's commands is one simple `Query` in its own flush, and the
+    /// connection is back at a boundary after each — which is what makes the
+    /// closure's own statements ordinary ones rather than a mode.
+    #[test]
+    fn a_transaction_is_simple_queries_each_leaving_the_connection_idle() {
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready()));
+
+        for close in [true, false] {
+            super::begin(
+                &mut wire,
+                &state,
+                &depth,
+                Some(Isolation::Serializable),
+                close,
+            )
+            .expect("the transaction opened");
+            assert_eq!(state.get(), State::Idle);
+            assert_eq!(depth.get(), 1);
+
+            if close {
+                super::commit(&mut wire, &state, &depth).expect("the commit ran");
+            } else {
+                super::roll_back(&mut wire, &state, &depth).expect("the rollback ran");
+            }
+            assert_eq!(state.get(), State::Idle);
+            assert_eq!(depth.get(), 0);
+        }
+
+        assert_eq!(wire.peer().sent.len(), 4, "a command shared a flush");
+        assert_eq!(
+            every_query(&wire),
+            vec![
+                "BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY",
+                "COMMIT",
+                "BEGIN ISOLATION LEVEL SERIALIZABLE",
+                "ROLLBACK",
+            ]
+        );
+    }
+
+    /// § 7's nesting: the second `transaction()` on one connection is a
+    /// `SAVEPOINT` named by the depth it opened at, and the levels close
+    /// inwards-out under the same names.
+    #[test]
+    fn a_nested_transaction_is_a_savepoint_named_by_its_depth() {
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready()));
+
+        for open in 0..3 {
+            super::begin(&mut wire, &state, &depth, None, false).expect("a level opened");
+            assert_eq!(depth.get(), open + 1);
+        }
+        for open in (0..3).rev() {
+            super::commit(&mut wire, &state, &depth).expect("a level closed");
+            assert_eq!(depth.get(), open);
+        }
+
+        assert_eq!(
+            every_query(&wire),
+            vec![
+                "BEGIN",
+                "SAVEPOINT nvs_1",
+                "SAVEPOINT nvs_2",
+                "RELEASE SAVEPOINT nvs_2",
+                "RELEASE SAVEPOINT nvs_1",
+                "COMMIT",
+            ]
+        );
+    }
+
+    /// A nested rollback returns to its own savepoint and releases it in the
+    /// same round trip, so a loop that abandons one nested transaction per
+    /// iteration leaves the server holding nothing per iteration.
+    #[test]
+    fn a_nested_rollback_returns_to_its_savepoint_and_releases_it() {
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready()));
+
+        super::begin(&mut wire, &state, &depth, None, false).expect("the transaction opened");
+        for _ in 0..2 {
+            super::begin(&mut wire, &state, &depth, None, false).expect("a level opened");
+            super::roll_back(&mut wire, &state, &depth).expect("a level rolled back");
+            assert_eq!(depth.get(), 1, "the outer transaction did not survive");
+        }
+        super::roll_back(&mut wire, &state, &depth).expect("the transaction rolled back");
+        assert_eq!(depth.get(), 0);
+
+        assert_eq!(
+            every_query(&wire),
+            vec![
+                "BEGIN",
+                "SAVEPOINT nvs_1",
+                "ROLLBACK TO SAVEPOINT nvs_1; RELEASE SAVEPOINT nvs_1",
+                "SAVEPOINT nvs_1",
+                "ROLLBACK TO SAVEPOINT nvs_1; RELEASE SAVEPOINT nvs_1",
+                "ROLLBACK",
+            ]
+        );
+    }
+
+    /// A nested transaction cannot ask for its own isolation level or read-only
+    /// mode, because PostgreSQL settles both for the whole transaction — and
+    /// the refusal is unsent, rather than the option being dropped and the
+    /// closure running at a level its author did not write.
+    #[test]
+    fn a_nested_transaction_asking_for_its_own_isolation_is_refused_unsent() {
+        for asked in [(Some(Isolation::Serializable), false), (None, true)] {
+            let state = Cell::new(State::Idle);
+            let depth = Cell::new(0);
+            let mut wire = Wire::new(Peer::new(|_: &[u8]| ready()));
+
+            super::begin(&mut wire, &state, &depth, asked.0, asked.1)
+                .expect("the outermost transaction may ask for either");
+            let refused = super::begin(&mut wire, &state, &depth, asked.0, asked.1)
+                .expect_err("a nested transaction set its own mode");
+
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidInput, "{asked:?}");
+            assert_eq!(wire.peer().sent.len(), 1, "{asked:?} reached the wire");
+            assert_eq!(depth.get(), 1, "{asked:?} opened a level anyway");
+        }
+    }
+
+    /// Closing a transaction that was never opened is this driver's bug rather
+    /// than a program's — § 7 has no `commit()` on the connection — so it is
+    /// refused by name instead of sent as a `ROLLBACK` PostgreSQL answers with
+    /// a warning nobody reads.
+    #[test]
+    fn closing_a_transaction_that_was_never_opened_is_refused_unsent() {
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready()));
+
+        for refused in [
+            super::commit(&mut wire, &state, &depth).expect_err("a commit with nothing open ran"),
+            super::roll_back(&mut wire, &state, &depth)
+                .expect_err("a rollback with nothing open ran"),
+        ] {
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+            assert!(refused.to_string().contains("no open transaction"));
+        }
+        assert!(wire.peer().sent.is_empty());
+        assert_eq!(state.get(), State::Idle);
+    }
+
+    /// A refused `COMMIT` is § 7's failed commit and carries the server's own
+    /// error, and the connection is idle and poolable after it: the transaction
+    /// is over, and nothing about where the next message starts is unknown.
+    #[test]
+    fn a_refused_commit_is_the_servers_own_error_and_the_connection_still_pools() {
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(1);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out = error_response("40001", "could not serialize access");
+            out.extend_from_slice(&ready());
+            out
+        }));
+
+        let failed = super::commit(&mut wire, &state, &depth).expect_err("a refused commit passed");
+
+        let said = failed.to_string();
+        assert!(said.contains("40001"), "{said}");
+        assert!(said.contains("could not serialize access"), "{said}");
+        assert_eq!(state.get(), State::Idle);
+        assert!(state.get().is_poolable());
+
+        // § 7's retry rule reads this off the error rather than off the
+        // sentence, and a serialization failure is one of its two codes.
+        let server = ServerError::of(&failed).expect("a refusal carried no kind");
+        assert_eq!(server.kind, DbErrorKind::SerializationFailure);
+        assert!(server.kind.is_retryable());
+    }
+
+    /// § 8's kind, `SQLSTATE` and constraint ride inside the same `io::Error`
+    /// the sentence always was, and the errors this driver words itself carry
+    /// none — which is what makes asking cheaper than matching on text.
+    #[test]
+    fn a_refused_statement_carries_section_8s_kind_beside_the_sentence() {
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(1);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out =
+                constrained_error_response("23505", "duplicate key value", "users_email_key");
+            out.extend_from_slice(&ready());
+            out
+        }));
+
+        let failed = super::commit(&mut wire, &state, &depth).expect_err("a refused commit passed");
+
+        let said = failed.to_string();
+        assert!(
+            said.contains("postgres ERROR: duplicate key value"),
+            "{said}"
+        );
+        assert!(said.contains("SQLSTATE 23505"), "{said}");
+
+        let server = ServerError::of(&failed).expect("a refusal carried no kind");
+        assert_eq!(server.kind, DbErrorKind::UniqueViolation);
+        assert_eq!(server.sql_state, "23505");
+        assert_eq!(server.constraint.as_deref(), Some("users_email_key"));
+        assert!(!server.kind.is_retryable());
+
+        let ours = super::second_statement(&Cell::new(State::Streaming));
+        assert!(ServerError::of(&ours).is_none(), "{ours}");
+    }
+
+    /// Every `SQLSTATE` this driver classifies, and the agreement that matters:
+    /// exactly the two codes § 7 names re-run the closure, asserted over the
+    /// whole table rather than on the two rows that answer `true`.
+    #[test]
+    fn every_sqlstate_classifies_and_only_the_two_the_retry_rule_names_retry() {
+        let table = [
+            ("23505", DbErrorKind::UniqueViolation),
+            ("23503", DbErrorKind::ForeignKeyViolation),
+            ("23502", DbErrorKind::NotNullViolation),
+            ("23514", DbErrorKind::CheckViolation),
+            ("40P01", DbErrorKind::Deadlock),
+            ("40001", DbErrorKind::SerializationFailure),
+            ("08006", DbErrorKind::ConnectionLost),
+            ("08P01", DbErrorKind::ConnectionLost),
+            ("57P01", DbErrorKind::ConnectionLost),
+            ("57014", DbErrorKind::Timeout),
+            ("25P03", DbErrorKind::Timeout),
+            ("42601", DbErrorKind::Syntax),
+            ("42P01", DbErrorKind::Syntax),
+            ("42501", DbErrorKind::Permission),
+            ("28P01", DbErrorKind::Permission),
+            // Class 23 is not mapped wholesale: § 8 names four integrity
+            // conditions and `restrict_violation` is not one of them.
+            ("23001", DbErrorKind::Other),
+            ("XX000", DbErrorKind::Other),
+            ("", DbErrorKind::Other),
+        ];
+
+        for (code, kind) in table {
+            assert_eq!(super::kind_of(code), kind, "{code}");
+            assert_eq!(
+                kind.is_retryable(),
+                matches!(code, "40P01" | "40001"),
+                "{code}"
+            );
+        }
+    }
+
+    /// § 4 governs these three like any other statement, and all three answer
+    /// the refusal that names both of its fixes rather than a third wording.
+    #[test]
+    fn a_transaction_command_on_a_busy_connection_writes_nothing_and_is_refused() {
+        for busy in [State::Executing, State::Streaming, State::Poisoned] {
+            let state = Cell::new(busy);
+            // One level open, so `commit` and `roll_back` reach § 4's refusal
+            // rather than the one for a connection in no transaction at all.
+            let depth = Cell::new(1);
+            let mut wire = Wire::new(Peer::new(|_: &[u8]| Vec::new()));
+
+            let checked = |refused: &io::Error| {
+                assert_eq!(refused.kind(), io::ErrorKind::InvalidInput, "{busy:?}");
+                let said = refused.to_string();
+                assert!(said.contains("->all()"), "{said}");
+                assert!(said.contains("shared: false"), "{said}");
+            };
+            checked(
+                &super::begin(&mut wire, &state, &depth, None, false)
+                    .expect_err("a busy connection opened a transaction"),
+            );
+            checked(
+                &super::commit(&mut wire, &state, &depth).expect_err("a busy connection committed"),
+            );
+            checked(
+                &super::roll_back(&mut wire, &state, &depth)
+                    .expect_err("a busy connection rolled back"),
+            );
+
             assert!(wire.peer().sent.is_empty(), "{busy:?} reached the wire");
             assert_eq!(state.get(), busy, "{busy:?} was changed by a refusal");
         }

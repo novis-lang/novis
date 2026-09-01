@@ -5758,6 +5758,12 @@ sibling in the same namespace unqualified.
   always — reads `y,,` as a stripped-`PLUS` downgrade and fails the exchange with "channel binding
   check failed". `unsupported` (`n,,`) is the one that works without the peer certificate in hand.
   The reasoning, and what it gives up, is `crates/nvs-db/src/pg.rs`'s module doc.
+- Code written through `splice.py` is never rustfmt-shaped, and `verify.py` runs `fmt` and clippy
+  *after* the build — so a slice that compiles and tests green still costs two full gate runs if you
+  hand it straight to `verify.py`. Run `cargo fmt --all` first. The clippy half is the one that
+  surprises: a `match` arm whose body is only `if cond { … }` is `collapsible_match` under
+  `-D warnings` even when the arm you copied it from two functions up passes, because that one binds
+  a local before the `if`. The fix is a match guard on the arm.
 
 ## Divergences and refusals already pinned
 

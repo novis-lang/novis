@@ -132,6 +132,9 @@ pub mod matrix;
 pub mod pg;
 pub mod sql;
 
-pub use conn::{Connection, Driver, MariaConn, MySqlConn, PgConn, SqliteConn, State, TdsConn};
+pub use conn::{
+    Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn, PgConn, ServerError,
+    SqliteConn, State, TdsConn,
+};
 pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime};
 pub use sql::{Binding, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite};
