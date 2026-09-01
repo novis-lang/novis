@@ -4,12 +4,13 @@
  * small screens) followed by the default social icons and theme switcher.
  */
 import Default from '@astrojs/starlight/components/MobileMenuFooter.astro'
+import { withBase } from '~/lib/base'
 ---
 
 <nav class="nv-mobile-nav" aria-label="Site">
-  <a href="/">Novis</a>
-  <a href="/docs/">Docs</a>
-  <a href="/why-novis/">Why Novis?</a>
+  <a href={withBase('/')}>Novis</a>
+  <a href={withBase('/docs/')}>Docs</a>
+  <a href={withBase('/why-novis/')}>Why Novis?</a>
 </nav>
 <Default><slot /></Default>
 

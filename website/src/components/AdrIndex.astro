@@ -4,6 +4,7 @@
  * with a client-side filter box. Rendered from src/data/adrs.json.
  */
 import adrs from '../data/adrs.json'
+import { withBase } from '~/lib/base'
 ---
 
 <div class="adr-index not-content" data-nv-no-adr-tooltip>
@@ -17,7 +18,7 @@ import adrs from '../data/adrs.json'
     {
       adrs.map((adr) => (
         <li data-search={`${adr.number} ${adr.title} ${adr.inShort}`.toLowerCase()}>
-          <a href={adr.url} class="adr-index-row">
+          <a href={withBase(adr.url)} class="adr-index-row">
             <span class="adr-index-head">
               <span class="adr-index-number">{adr.number}</span>
               <span class="adr-index-title">{adr.title}</span>

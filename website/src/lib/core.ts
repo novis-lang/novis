@@ -1,5 +1,6 @@
 /** Typed access to the generated Core reference data (src/data/core.json). */
 import data from '../data/core.json'
+import { withBase } from './base'
 
 export interface CoreParam {
   kind: 'param'
@@ -90,6 +91,35 @@ export interface CoreClass {
 
 export const classes = (data as { classes: CoreClass[] }).classes
 
+// The generated data holds root-absolute URLs — as `url`/`slug` fields and
+// inside pre-rendered HTML (`summary`, `descHtml`, `notesHtml`, …). The
+// site's `base` path is prefixed once here so everything downstream
+// (indexes included) uses the deployed URL verbatim. Attribute values in the
+// HTML strings are unescaped, while code samples inside them are escaped
+// (`&quot;`), so the pattern cannot touch example code.
+const urlAttr = /(href|src)="(\/[^/"][^"]*|\/)"/g
+function prefixHtmlUrls(value: unknown): void {
+  if (Array.isArray(value)) {
+    value.forEach(prefixHtmlUrls)
+  } else if (value && typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      if (typeof entry === 'string') {
+        ;(value as Record<string, unknown>)[key] = entry.replace(
+          urlAttr,
+          (_, attr, url) => `${attr}="${withBase(url)}"`
+        )
+      } else {
+        prefixHtmlUrls(entry)
+      }
+    }
+  }
+}
+prefixHtmlUrls(classes)
+for (const cls of classes) {
+  cls.url = withBase(cls.url)
+  for (const member of cls.members) member.url = withBase(member.url)
+}
+
 const memberIndex = new Map<string, { cls: CoreClass; member: CoreMember }>()
 const classIndex = new Map<string, CoreClass>()
 for (const cls of classes) {
@@ -115,7 +145,7 @@ export function findMember(id: string): { cls: CoreClass; member: CoreMember } |
  * Change the two constants below when the real pages land — this is the one
  * home for the mapping.
  */
-export const TYPES_PAGE = '/docs/language/types/'
+export const TYPES_PAGE = withBase('/docs/language/types/')
 export const ENUMS_ANCHOR = '#enums'
 
 const BUILTIN_TYPES = new Set([

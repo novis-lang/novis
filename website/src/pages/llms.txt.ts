@@ -7,10 +7,12 @@
 import type { APIRoute } from 'astro'
 import { getCollection } from 'astro:content'
 import { SITE_URL, SITE_DESCRIPTION } from '../../config/site.mjs'
+import { withBase } from '~/lib/base'
 
 export const GET: APIRoute = async () => {
   const docs = await getCollection('docs')
-  const url = (id: string) => (id === 'index' || id === '' ? `${SITE_URL}/` : `${SITE_URL}/${id.replace(/\/index$/, '')}/`)
+  const url = (id: string) =>
+    id === 'index' || id === '' ? `${SITE_URL}${withBase('/')}` : `${SITE_URL}${withBase(`/${id.replace(/\/index$/, '')}/`)}`
 
   const line = (d: (typeof docs)[number]) =>
     `- [${d.data.title}](${url(d.id)})${d.data.description ? `: ${String(d.data.description).replace(/\s+/g, ' ')}` : ''}`

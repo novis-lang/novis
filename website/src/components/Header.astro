@@ -8,6 +8,8 @@
  */
 import config from 'virtual:starlight/user-config'
 
+import { withBase } from '~/lib/base'
+
 import LanguageSelect from 'virtual:starlight/components/LanguageSelect'
 import Search from 'virtual:starlight/components/Search'
 import SiteTitle from 'virtual:starlight/components/SiteTitle'
@@ -18,14 +20,15 @@ const shouldRenderSearch =
   config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro'
 
 const nav = [
-  { label: 'Novis', href: '/' },
-  { label: 'Docs', href: '/docs/' },
-  { label: 'Why Novis?', href: '/why-novis/' },
+  { label: 'Novis', href: withBase('/') },
+  { label: 'Docs', href: withBase('/docs/') },
+  { label: 'Why Novis?', href: withBase('/why-novis/') },
 ]
 
 const { pathname } = Astro.url
+const home = withBase('/')
 const isCurrent = (href: string) =>
-  href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href)
+  href === home ? pathname === home : pathname === href || pathname.startsWith(href)
 ---
 
 <div class="header">

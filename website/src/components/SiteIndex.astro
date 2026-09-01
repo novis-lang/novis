@@ -5,10 +5,12 @@
  * /llms.txt (agents), both generated from the same content at build time.
  */
 import { getCollection } from 'astro:content'
+import { withBase } from '~/lib/base'
 
 const docs = await getCollection('docs')
 
-const pageUrl = (id: string) => (id === 'index' || id === '' ? '/' : `/${id.replace(/\/index$/, '')}/`)
+const pageUrl = (id: string) =>
+  withBase(id === 'index' || id === '' ? '/' : `/${id.replace(/\/index$/, '')}/`)
 
 interface Group {
   title: string

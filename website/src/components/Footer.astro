@@ -7,6 +7,7 @@ import EditLink from 'virtual:starlight/components/EditLink'
 import LastUpdated from 'virtual:starlight/components/LastUpdated'
 import Pagination from 'virtual:starlight/components/Pagination'
 import { GITHUB_URL, DISCORD_URL } from '@config/site.mjs'
+import { withBase } from '~/lib/base'
 
 const year = new Date().getFullYear()
 
@@ -14,26 +15,26 @@ const columns = [
   {
     title: 'Documentation',
     links: [
-      { label: 'Getting started', href: '/docs/' },
-      { label: 'Core reference', href: '/docs/core/' },
-      { label: 'Architecture decisions', href: '/docs/adr/' },
-      { label: 'Release notes', href: '/docs/release-notes/' },
+      { label: 'Getting started', href: withBase('/docs/') },
+      { label: 'Core reference', href: withBase('/docs/core/') },
+      { label: 'Architecture decisions', href: withBase('/docs/adr/') },
+      { label: 'Release notes', href: withBase('/docs/release-notes/') },
     ],
   },
   {
     title: 'Project',
     links: [
-      { label: 'Why Novis?', href: '/why-novis/' },
+      { label: 'Why Novis?', href: withBase('/why-novis/') },
       { label: 'GitHub', href: GITHUB_URL },
       { label: 'Discord', href: DISCORD_URL },
-      { label: 'Site index', href: '/site-index/' },
+      { label: 'Site index', href: withBase('/site-index/') },
     ],
   },
   {
     title: 'Legal',
     links: [
-      { label: 'Impressum', href: '/impressum/' },
-      { label: 'Datenschutzerklärung', href: '/datenschutz/' },
+      { label: 'Impressum', href: withBase('/impressum/') },
+      { label: 'Datenschutzerklärung', href: withBase('/datenschutz/') },
       { label: 'License', href: `${GITHUB_URL}/blob/main/LICENSE` },
     ],
   },

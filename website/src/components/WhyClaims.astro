@@ -6,6 +6,7 @@
  * the site-wide hover tooltip.
  */
 import { getCollection, render } from 'astro:content'
+import { withBase } from '~/lib/base'
 
 const CATEGORIES: { id: string; title: string; blurb: string }[] = [
   { id: 'security', title: 'Security', blurb: 'The reason Novis exists. Nothing below is an option or a linter rule — it is how the language is built.' },
@@ -31,7 +32,7 @@ const byCategory = CATEGORIES.map((cat) => ({
 const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const linkAdrs = (s: string) =>
   escape(s)
-    .replace(/ADR (\d{4})/g, '<a href="/docs/adr/$1/">ADR $1</a>')
+    .replace(/ADR (\d{4})/g, `<a href="${withBase('/docs/adr/')}$1/">ADR $1</a>`)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
 ---
 
