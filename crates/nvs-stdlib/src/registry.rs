@@ -1265,6 +1265,13 @@ pub const CLASSES: &[CoreClass] = &[
     // expiry is a positional `Duration` rather than a claim, and why a claim
     // comes back as `tainted string` when the cookie above launders.
     crate::jwt::CLASS,
+    // ADR 0024 § 3's own worked example of a launderer, and here rather than in
+    // spec § order because the class beneath it is the one this crate defers to
+    // whenever a `tainted` value has to be written into a document: § 5 makes
+    // HTML the sink that escapes by default, and this is what it escapes with.
+    // No spec § of its own yet — § 20's roster row names the class, and
+    // [`crate::html`] owns why `sanitize` and the WHATWG parser are not here.
+    crate::html::CLASS,
     // ADR 0058 § 2's launderer, which is where every outbound URL in the
     // language has to pass through — and the first ADR 0024 launderer whose
     // answer is a value rather than a plain string. [`crate::http`]'s own
