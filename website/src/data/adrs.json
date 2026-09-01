@@ -116,7 +116,9 @@
       "0069",
       "0090",
       "0109",
-      "0114"
+      "0114",
+      "0125",
+      "0126"
     ],
     "url": "/docs/adr/0007/"
   },
@@ -210,7 +212,8 @@
       "0023",
       "0024",
       "0046",
-      "0091"
+      "0091",
+      "0124"
     ],
     "url": "/docs/adr/0012/"
   },
@@ -238,7 +241,8 @@
       "0011"
     ],
     "amendedBy": [
-      "0036"
+      "0036",
+      "0126"
     ],
     "url": "/docs/adr/0014/"
   },
@@ -326,7 +330,8 @@
       "0076",
       "0086",
       "0092",
-      "0106"
+      "0106",
+      "0127"
     ],
     "url": "/docs/adr/0020/"
   },
@@ -640,7 +645,7 @@
     "title": "The on-disk artifact cache is one immutable, self-describing file per compiled unit, verified before it is ever mapped executable",
     "status": "Accepted",
     "date": "2026-08-22",
-    "inShort": "the disk cache is a directory of immutable files, one per compiled unit, addressed by BLAKE3(source content ‖ envhash), where envhash covers the target triple, the CPU feature bitset, the compiler build and the loaded extension set — folding the execution environment into the address itself rather than the header, so an artifact built for the wrong machine, the wrong compiler build or a different set of extensions is a plain cache miss, never a file that gets opened and then rejected. Each file still carries a self-describing header (magic, format version, the same envhash, a BLAKE3 checksum of the payload) as defense in depth against a hash collision or a hand-placed file. A reader mmaps the file read-only, hashes the mapped bytes in place, and only calls mprotect to make it executable once the checksum matches — the existing W^X discipline, extended one step earlier. A writer compiles to a temp file, fsyncs it, and does one atomic rename onto the final, content-addressed path; if that path already exists, the writer's own copy is simply discarded, never overwritten. No lock file, anywhere, ever. Eviction rides the already-expensive cold-compile path at a small probability — the same shape as PHP's own session.gcprobability/gcdivisor — so a warm cache hit never pays for it. And the checksum is explicitly not claimed as a defense against a hostile co-resident writer, only against corruption: that threat is closed by refusing a world-writable cache directory and requiring it be owned by the runtime's own account, a permission check, not a hash.",
+    "inShort": "the disk cache is a directory of immutable files, one per compiled unit, addressed by BLAKE3(contenthash ‖ envhash) — the source's own digest, hashed once and shared with the in-memory key, then the environment — where envhash covers the target triple, the CPU feature bitset, the compiler build and the loaded extension set — folding the execution environment into the address itself rather than the header, so an artifact built for the wrong machine, the wrong compiler build or a different set of extensions is a plain cache miss, never a file that gets opened and then rejected. Each file still carries a self-describing header (magic, format version, the same envhash, a BLAKE3 checksum of the payload) as defense in depth against a hash collision or a hand-placed file. A reader mmaps the file read-only, hashes the mapped bytes in place, and only calls mprotect to make it executable once the checksum matches — the existing W^X discipline, extended one step earlier. A writer compiles to a temp file, fsyncs it, and does one atomic rename onto the final, content-addressed path; if that path already exists, the writer's own copy is simply discarded, never overwritten. No lock file, anywhere, ever. Eviction rides the already-expensive cold-compile path at a small probability — the same shape as PHP's own session.gcprobability/gcdivisor — so a warm cache hit never pays for it. And the checksum is explicitly not claimed as a defense against a hostile co-resident writer, only against corruption: that threat is closed by refusing a world-writable cache directory and requiring it be owned by the runtime's own account, a permission check, not a hash.",
     "amends": [],
     "amendedBy": [
       "0078"
@@ -779,7 +784,11 @@
       "0083",
       "0084",
       "0086",
-      "0097"
+      "0097",
+      "0120",
+      "0121",
+      "0122",
+      "0123"
     ],
     "url": "/docs/adr/0051/"
   },
@@ -954,7 +963,9 @@
       "0069",
       "0070",
       "0071",
-      "0098"
+      "0098",
+      "0122",
+      "0127"
     ],
     "url": "/docs/adr/0063/"
   },
@@ -983,7 +994,8 @@
       "0097",
       "0103",
       "0104",
-      "0105"
+      "0105",
+      "0120"
     ],
     "url": "/docs/adr/0064/"
   },
@@ -1128,7 +1140,7 @@
     "title": "HTTP defaults are safe inbound and finite outbound, by construction",
     "status": "Accepted",
     "date": "2026-08-24",
-    "inShort": "one decision with two subsystems — a default that is unsafe or unbounded is a defect, not a neutral starting point. Inbound: a deployment with no HTTP configuration written at all already sends nosniff, frame-ancestors 'none', a referrer policy and HSTS on https, and every cookie is Secure; HttpOnly; SameSite=Lax. CORS stays closed until origins are named, and origins = [\"\"] together with credentials = true is refused at boot and at runtime alike. Every directive is Runtime class, so a request may change or disable any of it for itself and the change dies with the request — because userland already controls response headers and pretending otherwise would only forbid the legitimate case. Outbound: Core\\Http\\Client has no spelling for \"wait forever\" — Duration has no infinite value, there is no deadline: null, and a call that names nothing inherits a finite default from [http.client]. Retry is opt-in, exponential with full jitter, and its deadline covers all attempts rather than each one. A POST or PATCH is not retried without an idempotencyKey, and because ADR 0063 R2 makes the options bag a compile-time-constant literal, that is a diagnostic rather than a runtime surprise.",
+    "inShort": "one decision with two subsystems — a default that is unsafe or unbounded is a defect, not a neutral starting point. Inbound: a deployment with no HTTP configuration written at all already sends nosniff, frame-ancestors 'none', a referrer policy and HSTS on https, and every cookie is Secure; HttpOnly; SameSite=Lax. CORS stays closed until origins are named, and origins = [\"\"] together with credentials = true is refused at boot and at runtime alike. Every directive is Runtime class, so a request may change or disable any of it for itself and the change dies with the request — because userland already controls response headers and pretending otherwise would only forbid the legitimate case. Outbound: Core\\Http\\Client has no spelling for \"wait forever\" — Duration has no infinite value, there is no deadline: null, and a call that names nothing inherits a finite default from [http.client]. Retry is opt-in, exponential with full jitter, and its deadline covers all attempts rather than each one. A POST or PATCH is not retried without an retryIdempotencyKey, and because ADR 0063 R2 makes the options bag a compile-time-constant literal, that is a diagnostic rather than a runtime surprise.",
     "amends": [
       "0064",
       "0005",
@@ -1262,7 +1274,8 @@
       "0068"
     ],
     "amendedBy": [
-      "0112"
+      "0112",
+      "0120"
     ],
     "url": "/docs/adr/0081/"
   },
@@ -1285,7 +1298,7 @@
     "title": "A persistent connection is an isolate, and it is opened the way a script is spawned",
     "status": "Accepted",
     "date": "2026-08-24",
-    "inShort": "an upgraded connection is its own root isolate — the same Isolate a request and a spawn script child already are, with its own memory, CPU and time budget, sharing nothing but compiled code. It is opened the way a script is spawned: Core\\Socket::upgrade('sockets/chat.nvs', with(args: …)) names a file, not a closure, so ADR 0006's existing rules for grants, limits, arguments and path checking are reused whole and nothing crosses the boundary except values copied by 0023's graph copy. Inside, code is an ordinary loop — while (var $msg = $conn->receive()) { … } — because suspension has no colour, so there is no callback shape and no second execution model to learn. Connections talk to each other through Core\\Topic, a runtime-owned publish/subscribe bus that reaches every core of the process, with a bounded per-subscriber queue that closes a slow subscriber rather than blocking the publisher — a fan-out must never become a denial of service. SSE is the same thing with no receive; a stream that ends with its request is just a streaming response and is not a connection at all.",
+    "inShort": "an upgraded connection is its own root isolate — the same Isolate a request and a spawn script child already are, with its own memory, CPU and time budget, sharing nothing but compiled code. It is opened the way a script is spawned: Core\\Socket::upgrade('sockets/chat.nvs', args: …) takes spawn script's operand — a file, or a static method — never a closure, so ADR 0006's existing rules for the entry, grants, limits, arguments and path checking are reused whole and nothing crosses the boundary except values copied by 0023's graph copy. Inside, code is an ordinary loop — while (var $msg = $conn->receive()) { … } — because suspension has no colour, so there is no callback shape and no second execution model to learn; and receive() is the one wait, answering the next thing to arrive from the peer or from a topic the connection subscribed to, so the loop never needs a second task to listen with. Connections talk to each other through Core\\Topic, a runtime-owned publish/subscribe bus that reaches every core of the process, with a bounded per-subscriber queue that closes a slow subscriber rather than blocking the publisher — a fan-out must never become a denial of service. SSE is the same thing with no receive; a stream that ends with its request is just a streaming response and is not a connection at all.",
     "amends": [
       "0006",
       "0072",
@@ -1452,7 +1465,9 @@
       "0088",
       "0079"
     ],
-    "amendedBy": [],
+    "amendedBy": [
+      "0106"
+    ],
     "url": "/docs/adr/0092/"
   },
   {
@@ -1672,6 +1687,7 @@
     "amends": [
       "0002",
       "0020",
+      "0092",
       "0078",
       "0097"
     ],
@@ -1802,7 +1818,7 @@
     "title": "An isolate's arena is an ownership root, not an address range",
     "status": "Accepted",
     "date": "2026-08-29",
-    "inShort": "an isolate's arena is an ownership root — one Ctx and the values reachable from it — not a region of address space. Allocation keeps going through the process allocator, so entering an isolate maps no memory and leaving one unmaps none; what an isolate owns is reachability, and the boundary is enforced at the single place a value can move, ADR 0023 § 2's graph copy. \"Released wholesale\" is therefore one drain of crate::release's worklist over that root, which runs the native teardown a region free would skip, and a move at refcount 1 across the boundary is a pointer handoff that costs nothing — sound only because both sides allocate from the same place.",
+    "inShort": "an isolate's arena is an ownership root — one Ctx and the values reachable from it — not a region of address space. Allocation keeps going through the process allocator, so entering an isolate maps no memory and leaving one unmaps none; what an isolate owns is reachability, and the boundary is enforced at the single place a value can move, ADR 0023 § 2's graph copy. \"Released wholesale\" is therefore one drain of crate::release's worklist over that root, followed by § 2's sweep of the objects the refcounts could not free — together they run the native teardown a region free would skip — and a move at refcount 1 across the boundary is a pointer handoff that costs nothing — sound only because both sides allocate from the same place.",
     "amends": [],
     "amendedBy": [],
     "url": "/docs/adr/0116/"
@@ -1816,5 +1832,155 @@
     "amends": [],
     "amendedBy": [],
     "url": "/docs/adr/0117/"
+  },
+  {
+    "number": "0118",
+    "title": "A capability is checked at the door to the effect, and declared in one table",
+    "status": "Accepted",
+    "date": "2026-08-30",
+    "inShort": "a capability question is a grant plus a scope, asked once of the request's own snapshot. The check runs at the door to the effect — the one function in nvsruntime through which a Core member reaches the operating system — so a member cannot route around it by omission, because the API it must call to do anything at all is the check. What a member needs is declared in one table, nvsstdlib::registry::CAPABILITIES, keyed by class and member name: never consulted at run time, read by nvs meta, by a security review that wants the whole answer on one screen, and by the closure test that proves the table and the doors agree. A member that needs no capability pays nothing — no lookup, no branch, no field.",
+    "amends": [],
+    "amendedBy": [],
+    "url": "/docs/adr/0118/"
+  },
+  {
+    "number": "0119",
+    "title": "An expression-level `catch` is a typed arm on one guarded expression, and it lowers to the block form",
+    "status": "Accepted",
+    "date": "2026-08-30",
+    "inShort": "var $cfg = Core\\Json::parse($raw) catch (ParseError) => []; guards one expression and supplies a value where it threw. An arm is catch (Class [$var]) => expression, the class is mandatory, and arms chain — f() catch (IOError) => 0 catch (ParseError $e) => throw new LogicError(\"bad\", {previous: $e}) — tried in order exactly like the block form's clauses. The arm's body is an expression, and that one word is the whole rule for what it may hold: throw is already an expression in Novis, so wrapping a failure and rethrowing it is one line, while return, break and continue are statements and are refused by name. The result type is the union of the guarded expression's type and every arm's, a throw arm contributing nothing — the rule match already has. There is no finally and no run-time mechanism of its own: the form lowers to the same landing pad, the same instanceof dispatch and the same re-raise try lowers to, with the value in a temporary.",
+    "amends": [],
+    "amendedBy": [],
+    "url": "/docs/adr/0119/"
+  },
+  {
+    "number": "0120",
+    "title": "The image component is a pipeline that crosses the boundary once, and gd is not inherited",
+    "status": "Accepted",
+    "date": "2026-08-30",
+    "inShort": "Novis\\Image::open($bytes)->resize({fit: Fit::Cover, width: 800, height: 600}) ->format(Format::Webp)->encode() is the whole shape. open reads the header and decodes nothing; every operation appends to a plan; a terminal — encode, variants, raw — hands the encoded input and the plan to the sandboxed component in one call and gets bytes back. The component exports a handful of coarse entry points and no per-pixel accessor, because 0003's cost model rewards few calls over whole buffers and a pixel buffer is the largest thing in a request. The package nvs/image carries both the .nvsx and the Novis builder, under one namespace, Novis\\Image. There is one pixel model (RGBA8), one member per job, and none of gd's palette mode, mode flags, drawing primitives or 1990s formats. Decoding is correct by default — EXIF orientation applied, an embedded ICC profile converted to sRGB — and encoding strips metadata unless asked not to, because GPS in a re-encoded upload is a privacy bug fixed by a default. A pixel cap ([image] maxpixels, default 24 MP) is read from the header and refuses a bomb before a buffer is allocated: the sandbox is the backstop, the cap is the policy. Formats: JPEG, PNG/APNG, WebP, GIF and AVIF both ways, JPEG XL decode only, lossy WebP via libwebp compiled to wasm — which is also M9's second-language proof. Comparison, perceptual hashing, placeholders, text and QR codes are in; SVG rasterising is the second wave, and a PDF page is a decode source (0128). gd's hundred-odd functions map onto this surface in § 11, one row per concept, and the per-name rows move to 02-php-migration.md when the inventory has the names.",
+    "amends": [
+      "0051",
+      "0081",
+      "0064"
+    ],
+    "amendedBy": [
+      "0128"
+    ],
+    "url": "/docs/adr/0120/"
+  },
+  {
+    "number": "0121",
+    "title": "PDF generation is sandboxed HTML rendering with no I/O",
+    "status": "Accepted",
+    "date": "2026-08-30",
+    "inShort": "Novis will own one spelling for HTML-to-PDF, as a first-party Tier 1 .nvsx — package nvs/pdf, namespace Novis\\Pdf — because in PHP this job is both fragmented across incompatible userland libraries and a standing CVE class whose every published exploit is \"the renderer fetched what the HTML named\". The component therefore has no I/O at all: every image, stylesheet and font is bytes the program passes in, an unresolved reference throws rather than rendering a gap, and SSRF and file disclosure are structurally impossible rather than audited away. There is one engine — HTML plus a documented CSS subset plus inline SVG — and the top-down programmatic path is a Novis-side builder that emits the same HTML, never a second imperative engine. Unsupported CSS is dropped by CSS's own error-recovery rules but reported in the render result, so a test can assert none was. The output is inert: no JavaScript, no launch or embedded-file actions, no timestamps, so equal input gives byte-equal output. No off-the-shelf engine exists to link — headless Chromium is a browser process, not a library; WeasyPrint is Python; Prince is closed; Blitz is experimental and unpaginated — so the engine is assembled from the production Rust pieces (html5ever, Servo's parser; taffy; rustybuzz; krilla/pdf-writer, Typst's PDF backend; resvg) plus the one layer nobody ships, pagination, which is the real cost and the reason this ADR decides placement and contract now but schedules nothing.",
+    "amends": [
+      "0051"
+    ],
+    "amendedBy": [
+      "0123",
+      "0128"
+    ],
+    "url": "/docs/adr/0121/"
+  },
+  {
+    "number": "0122",
+    "title": "HTML parsing is a WHATWG entry on `Core\\Html`, over `Core\\Xml`'s tree",
+    "status": "Accepted",
+    "date": "2026-08-30",
+    "inShort": "Novis parses HTML with the WHATWG algorithm — the one browsers run — as an entry on Core\\Html, and it produces the same tree Core\\Xml's tree API materialises: one node family, two front doors. It is never a mode of Core\\Xml, because the two contracts are opposites: XML parsing refuses malformed input under 0095, while HTML parsing never fails — error recovery is not repair-by-guess but the specified behaviour every browser agrees on, which is the entire value of implementing it. PHP spent two decades on the other design — DOMDocument::loadHTML over libxml2's HTML4 parser, which mangles HTML5, guesses encodings and parses differently from every browser, the divergence behind the mXSS sanitizer-bypass class — then conceded in 8.4 with Dom\\HTMLDocument. The engine is html5ever, Servo's parser, driven through a Novis-owned tree builder into our own request-attributed nodes — the same crate 0121's PDF engine names, so the language and Novis\\Pdf parse HTML identically — and Core\\Xml keeps a strict XML parser, not xml5ever. Unscheduled, with one constraint: whichever milestone builds Core\\Xml's tree builds this parser with it, because the tree is one implementation.",
+    "amends": [
+      "0051",
+      "0063"
+    ],
+    "amendedBy": [],
+    "url": "/docs/adr/0122/"
+  },
+  {
+    "number": "0123",
+    "title": "Spreadsheet reading and generation are one sandboxed component with no I/O",
+    "status": "Accepted",
+    "date": "2026-08-30",
+    "inShort": "Novis will own one spelling for spreadsheet files, as a first-party Tier 1 .nvsx — package nvs/spreadsheet, namespace Novis\\Spreadsheet — fourth on 0051's roster and, like the PDF renderer, unscheduled: this ADR fixes placement and contract so the eventual milestone designs an API, not a policy. The component has no I/O — a workbook crosses as bytes and comes back as bytes, and an external reference in a read file is data, never a fetch. Reading executes nothing: a formula returns as text plus the file's cached result, VBA is inert payload. Writing closes the genre's injection class by type: only an explicit Formula value becomes a formula cell, so a tainted string beginning = is a text cell by construction. Macros are never written — a filled .xlsm template emits .xlsx. CSV stays Core\\Csv, one spelling per job. The boundary is crossed the way 0120 crosses it — a Novis-side builder, whole sheets and whole documents per call, no per-cell accessor — and the output is byte-reproducible: no timestamps, no generator entropy. Unlike PDF, the engines exist, pure Rust and wasm-clean — calamine reads xlsx/xlsm/xlsb/xls/ods, rustxlsxwriter writes xlsx to PhpSpreadsheet's feature depth, umya-spreadsheet fills styled templates in place, IronCalc (MIT/Apache-2.0, pre-1.0) evaluates when its wave comes — so the cost is the unifying model and builder: a milestone's work, but a small one, which is why placement and contract are decided now and scheduling is not.",
+    "amends": [
+      "0051",
+      "0121"
+    ],
+    "amendedBy": [],
+    "url": "/docs/adr/0123/"
+  },
+  {
+    "number": "0124",
+    "title": "PHP 8.6 lands as four compile-time refusals and one session rule",
+    "status": "Accepted",
+    "date": "2026-08-31",
+    "inShort": "most of PHP 8.6 asks nothing of Novis — clamp and a Duration type already exist, the polling API is closed by the concurrency model, and nearly every deprecation names surface Novis never shipped. What is left lands now, as compile-time refusals rather than runtime warnings: a return never leaves a finally block, a constructor's return carries no value, let and is are reserved spellings, and a readonly property declares no default. Partial function application is not adopted — fn already spells it. And a session id the store did not issue is always rejected, with no toggle.",
+    "amends": [
+      "0012"
+    ],
+    "amendedBy": [],
+    "url": "/docs/adr/0124/"
+  },
+  {
+    "number": "0125",
+    "title": "A class reference is a type, and `as` is its only source",
+    "status": "Accepted",
+    "date": "2026-08-31",
+    "inShort": "class<T> is a type, and its value is the run-time class descriptor an object is allocated from. as is its only source — $name as class<Animal> throws unless the string names Animal or a class that is one, Dog::class as class<Animal> is decided at compile time, and Foo::class on its own stays a string. class<Dog> widens to class<Animal> wherever Dog widens to Animal, and never back. The three sites that refuse a bare string today — new $cls(...), $cls::f() and $x instanceof $cls — accept this value and nothing else, so E0496 stands with its help now naming as class<T>. A new over class<T> types its arguments against T's constructor and is refused, at the new site, when an implementor of T declares an incompatible one. Nothing reaches code from an unchecked string: the check is the conversion, and it is the only door.",
+    "amends": [
+      "0007"
+    ],
+    "amendedBy": [],
+    "url": "/docs/adr/0125/"
+  },
+  {
+    "number": "0126",
+    "title": "A property key is a checked name, and `as` is its only source",
+    "status": "Accepted",
+    "date": "2026-09-01",
+    "inShort": "property<T> is a type whose values are the names of T's public declared properties, and as is its only source — $name as property<User> throws for any other name, a written-out \"email\" as property<User> is decided where it is written, and a plain string never becomes one by accident. $obj->$key is then admitted where E0235 refuses a computed name today, and that refusal moves from the parser to the checker for everything else. A read through a key is typed as the union of the set's declared types; a write is ADR 0036 § 4's checked erased store — never a creation — and is refused outright where the set holds a readonly property, because a key may name any of them. The set is the same roster Core\\Reflect\\ClassInfo::properties walks, hooked properties and all, and nothing new is lowered: applying a key is the erased access.",
+    "amends": [
+      "0014",
+      "0007"
+    ],
+    "amendedBy": [],
+    "url": "/docs/adr/0126/"
+  },
+  {
+    "number": "0127",
+    "title": "The end of a script is observable: `Core\\Script::onExit` runs at every non-fatal ending",
+    "status": "Accepted",
+    "date": "2026-09-01",
+    "inShort": "Core\\Script::onExit(callable $hook) registers hooks that run FIFO, once, as the last user code of the script — at a normal end, at exit, and at an uncaught throw — each receiving a readonly Script\\ExitReport saying which ending it was. A FATAL and a cancellation run none of them: the first stays ADR 0020's reserved-budget ladder, the second stays ADR 0072 § 5's no-user-code rule. Hooks observe an ending and never steer one: reason and status are fixed before the first hook runs, and nothing a hook does changes them. This is PHP's registershutdownfunction for every ending that is not a fatal — the one PHP use it does not cover is exactly the one Core\\Fatal already does.",
+    "amends": [
+      "0020",
+      "0063"
+    ],
+    "amendedBy": [],
+    "url": "/docs/adr/0127/"
+  },
+  {
+    "number": "0128",
+    "title": "A PDF page is a decode source of the image component",
+    "status": "Accepted",
+    "date": "2026-09-01",
+    "inShort": "an uploaded PDF becomes an image the way an uploaded SVG does — Image::open($bytes, {page: 3, dpi: 150}) rasterises one page into the ordinary pipeline, and Image::info($bytes)->frames is the page count, read from the page tree without allocating a pixel. The job this replaces is PHP's ImageMagick-delegating-to-Ghostscript pair: an installed, unsandboxed interpreter with an RCE history long enough that ImageMagick's stock policy.xml ships with the PDF coder disabled. The engine is hayro, a pure-Rust PDF interpreter from the same ecosystem as 0121's writer, running inside the sandbox where a parser this large belongs. The selected page's box at the requested dpi is priced against [image] maxpixels before any buffer exists; an encrypted document, a page out of range and an embedded object the engine recognises but cannot decode all throw rather than rendering approximately, and equal input gives byte-equal output. Decode only: rasterising is how a PDF becomes a thumbnail, a preview or a validated upload — text extraction and page manipulation are different jobs and stay third-party, and generation stays 0121's.",
+    "amends": [
+      "0120",
+      "0121"
+    ],
+    "amendedBy": [],
+    "url": "/docs/adr/0128/"
+  },
+  {
+    "number": "0129",
+    "title": "`Core\\Password::verify` reads a PHP-stored bcrypt hash, and `hash` never writes one",
+    "status": "Accepted",
+    "date": "2026-09-01",
+    "inShort": "verify and needsRehash read exactly two stored shapes: the Argon2id PHC string hash writes, and PHP's stored bcrypt hash ($2y$, $2a$, $2b$) — because PASSWORDDEFAULT has been bcrypt since PHP 5.5 and never became Argon2, so the user table of almost every migrating PHP application is a bcrypt column. A bcrypt hash verifies; needsRehash answers true for every one of them; and hash still writes only Argon2id — so the login-time upgrade loop the reference doc already teaches (verify, then needsRehash, then hash) migrates the table one login at a time, and there is still no algorithm argument anywhere on the class. Everything outside the roster keeps throwing LogicError, and a stored bcrypt cost past 17 is refused before any work, for MAXMCOST's reason.",
+    "amends": [],
+    "amendedBy": [],
+    "url": "/docs/adr/0129/"
   }
 ]

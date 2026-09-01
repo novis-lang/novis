@@ -1,6 +1,6 @@
 ---
 title: "Core\\Regex::quote"
-description: "Escapes every character either engine gives a meaning to in $literal, as preg_quote does, so the result is a pattern matching that literal and nothing else — the launder for the pattern sink (ADR 0056 § 4)."
+description: "Escapes every character either engine gives a meaning to in $literal, as preg_quote does, so the result is a pattern matching that literal and nothing else — the launder for the pattern sink, so its result is accepted where a tainted string is not."
 sidebar:
   label: "quote"
 novis:

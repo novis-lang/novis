@@ -2164,7 +2164,7 @@
               },
               {
                 "name": "predicate",
-                "descHtml": "Called as <code>($value, $key)</code> per entry; a truthy answer, on ADR 0035's table, keeps the entry."
+                "descHtml": "Called as <code>($value, $key)</code> per entry; a truthy answer keeps the entry, on the same truthiness table <code>if</code> reads."
               }
             ],
             "returnHtml": "The kept entries under their own keys, never renumbered; an empty array when nothing passes."
@@ -2609,7 +2609,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The running total leaves its type's range or meets a <code>float</code> and a <code>decimal</code> in one array, as <code>sum</code> throws; or a <code>decimal</code> quotient falls outside ADR 0054 § 1's range."
+                "descHtml": "The running total leaves its type's range or meets a <code>float</code> and a <code>decimal</code> in one array, as <code>sum</code> throws; or a <code>decimal</code> quotient falls outside what a <code>decimal</code> can hold."
               }
             ]
           },
@@ -4716,22 +4716,22 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Parses the JSON object <code>$json</code> into an instance of <code>T</code>, a class carrying <code>#[Json\\Derive]</code>, reading every declared field and running the constructor only when all of them matched; it replaces hand-written hydration.",
+            "shortHtml": "Parses the JSON object <code>$json</code> into an instance of <code>T</code>, a class carrying <code>#[Json\\Derive]</code>, reading every declared field and running the constructor only when all of them matched; write <code>array&lt;T&gt;</code> to read a JSON array as one instance per element instead. It replaces hand-written hydration.",
             "params": [
               {
                 "name": "json",
-                "descHtml": "The JSON text to parse, whose top level must be an object."
+                "descHtml": "The JSON text to parse, whose top level must be an object — or an array, where <code>T</code> is written <code>array&lt;C&gt;</code>."
               },
               {
                 "name": "maxDepth",
                 "descHtml": "The deepest nesting accepted, counted as PHP's <code>$depth</code> is — a scalar document is depth 1, <code>[1]</code> is depth 2; <code>512</code> by default and at most <code>1024</code>."
               }
             ],
-            "returnHtml": "A new <code>T</code> built from the document's fields.",
+            "returnHtml": "A new <code>T</code> built from the document's fields, or — for an <code>array&lt;C&gt;</code> — one new <code>C</code> per element, in the document's own order.",
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, holds an integer literal too large for <code>int</code>, is not an object at the top level, or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them."
+                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, holds an integer literal too large for <code>int</code>, is not an object at the top level (an array, for an <code>array&lt;C&gt;</code>), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position."
               },
               {
                 "error": "LogicError",
@@ -4792,7 +4792,7 @@
       "id": "Math",
       "name": "Core\\Math",
       "section": "3. `Core\\Math`",
-      "summary": "`**` is exponentiation and `%` is integer modulo, so neither has a member (R17). Division by zero throws\n`ArithmeticError` (R4), which is why `fdiv`'s silent `INF` has no equivalent. Overflow throws rather than\nbecoming a `float` ([ADR 0007](../adr/0007-explicit-type-system.md)).",
+      "summary": "`**` is exponentiation and `%` is integer modulo, so neither has a member (R17). Division by zero throws\n`ArithmeticError` (R4) — in `intDiv`, in `mod`, and in the `/` operator whatever the operand types, which\nis exactly why `fdiv` *is* a member here: it is the one spelling left for IEEE's `INF`, and PHP has it for\nthe same reason. Overflow throws rather than becoming a `float`\n([ADR 0007](../adr/0007-explicit-type-system.md) § 4).",
       "surface": "",
       "adrs": [],
       "enums": [
@@ -5437,6 +5437,56 @@
           },
           "slug": "mod",
           "url": "/docs/core/math/mod/"
+        },
+        {
+          "id": "Math.fdiv",
+          "name": "fdiv",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fdiv(float $a, float $b): float",
+          "params": [
+            {
+              "kind": "param",
+              "name": "a",
+              "type": "float",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "b",
+              "type": "float",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "float",
+          "replaces": "`fdiv`",
+          "notes": "",
+          "qualifier": "neutral",
+          "section": "3. `Core\\Math`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "The IEEE quotient of <code>$a / $b</code>, as <code>fdiv</code> does — the one member here that answers a zero divisor instead of throwing, the <code>/</code> operator having no such spelling.",
+            "params": [
+              {
+                "name": "a",
+                "descHtml": "The dividend."
+              },
+              {
+                "name": "b",
+                "descHtml": "The divisor, which may be zero."
+              }
+            ],
+            "returnHtml": "<code>$a / $b</code> under IEEE 754: an infinity signed by both operands when <code>$b</code> is zero and <code>$a</code> is not, and <code>NaN</code> when both are."
+          },
+          "slug": "fdiv",
+          "url": "/docs/core/math/fdiv/"
         },
         {
           "id": "Math.gcd",
@@ -6625,7 +6675,7 @@
       "implemented": true,
       "slug": "math",
       "url": "/docs/core/math/",
-      "summaryHtml": "<p><code>**</code> is exponentiation and <code>%</code> is integer modulo, so neither has a member (R17). Division by zero throws <code>ArithmeticError</code> (R4), which is why <code>fdiv</code>'s silent <code>INF</code> has no equivalent. Overflow throws rather than becoming a <code>float</code> (<a href=\"/docs/adr/0007/\" data-adr=\"0007\">ADR 0007</a>).</p>",
+      "summaryHtml": "<p><code>*<em></code> is exponentiation and <code>%</code> is integer modulo, so neither has a member (R17). Division by zero throws <code>ArithmeticError</code> (R4) — in <code>intDiv</code>, in <code>mod</code>, and in the <code>/</code> operator whatever the operand types, which is exactly why <code>fdiv</code> </em>is* a member here: it is the one spelling left for IEEE's <code>INF</code>, and PHP has it for the same reason. Overflow throws rather than becoming a <code>float</code> (<a href=\"/docs/adr/0007/\" data-adr=\"0007\">ADR 0007</a> § 4).</p>",
       "surfaceHtml": ""
     },
     {
@@ -6680,7 +6730,7 @@
                 "descHtml": "A <code>callable(Core\\Cli\\Text): Core\\Cli\\Text</code> applied to the captured carrier before it is answered; the default answers it as captured."
               }
             ],
-            "returnHtml": "The captured output as a <code>Core\\Cli\\Text</code> — never a plain <code>string</code>, since those bytes have already been through the sink (ADR 0088 § 5) — and an empty carrier when <code>$fn</code> wrote nothing. Nothing <code>$fn</code> echoed reaches the sink below; re-emitting is a visible <code>echo Core\\Out::capture(…)</code>, and a <code>Core\\Debug::dump</code> inside <code>$fn</code> is not captured.",
+            "returnHtml": "The captured output as a <code>Core\\Cli\\Text</code> — never a plain <code>string</code>, since those bytes have already been through the sink — and an empty carrier when <code>$fn</code> wrote nothing. Nothing <code>$fn</code> echoed reaches the sink below; re-emitting is a visible <code>echo Core\\Out::capture(…)</code>, and a <code>Core\\Debug::dump</code> inside <code>$fn</code> is not captured.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -7498,7 +7548,7 @@
             "params": [
               {
                 "name": "pattern",
-                "descHtml": "The pattern text; a sink (ADR 0056), so a <code>tainted</code> string is refused at the call."
+                "descHtml": "The pattern text; a sink, so a <code>tainted</code> string is refused at the call."
               },
               {
                 "name": "caseInsensitive",
@@ -7521,7 +7571,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>$pattern</code> does not compile under either of ADR 0056's two engines."
+                "descHtml": "<code>$pattern</code> compiles under neither the linear engine nor the backtracking one."
               }
             ]
           },
@@ -7570,14 +7620,14 @@
               },
               {
                 "name": "pattern",
-                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink (ADR 0056)."
+                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink, so a <code>tainted</code> string is refused at the call."
               }
             ],
             "returnHtml": "<code>true</code> when the subject contains at least one match, <code>false</code> otherwise.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>$pattern</code> does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject."
+                "descHtml": "<code>$pattern</code> compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject."
               }
             ]
           },
@@ -7631,7 +7681,7 @@
               },
               {
                 "name": "pattern",
-                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink (ADR 0056)."
+                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink, so a <code>tainted</code> string is refused at the call."
               },
               {
                 "name": "from",
@@ -7642,7 +7692,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>$pattern</code> does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject."
+                "descHtml": "<code>$pattern</code> compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject."
               }
             ]
           },
@@ -7691,14 +7741,14 @@
               },
               {
                 "name": "pattern",
-                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink (ADR 0056)."
+                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink, so a <code>tainted</code> string is refused at the call."
               }
             ],
             "returnHtml": "The matches in subject order; an empty array when the pattern matches nowhere.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>$pattern</code> does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject."
+                "descHtml": "<code>$pattern</code> compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject."
               }
             ]
           },
@@ -7760,7 +7810,7 @@
               },
               {
                 "name": "pattern",
-                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink (ADR 0056)."
+                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink, so a <code>tainted</code> string is refused at the call."
               },
               {
                 "name": "replacement",
@@ -7775,7 +7825,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>$pattern</code> does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject."
+                "descHtml": "<code>$pattern</code> compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject."
               }
             ]
           },
@@ -7837,7 +7887,7 @@
               },
               {
                 "name": "pattern",
-                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink (ADR 0056)."
+                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink, so a <code>tainted</code> string is refused at the call."
               },
               {
                 "name": "fn",
@@ -7852,7 +7902,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>$pattern</code> does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject."
+                "descHtml": "<code>$pattern</code> compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject."
               }
             ]
           },
@@ -7910,7 +7960,7 @@
               },
               {
                 "name": "pattern",
-                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink (ADR 0056)."
+                "descHtml": "A <code>Pattern</code> from <code>Core\\Regex::compile</code>, or a pattern string compiled with no flags; the pattern is a sink, so a <code>tainted</code> string is refused at the call."
               },
               {
                 "name": "limit",
@@ -7925,7 +7975,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>$pattern</code> does not compile under either of ADR 0056's two engines, or the backtracking engine exhausted its step budget against this subject."
+                "descHtml": "<code>$pattern</code> compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject."
               }
             ]
           },
@@ -7958,7 +8008,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Escapes every character either engine gives a meaning to in <code>$literal</code>, as <code>preg_quote</code> does, so the result is a pattern matching that literal and nothing else — the launder for the pattern sink (ADR 0056 § 4).",
+            "shortHtml": "Escapes every character either engine gives a meaning to in <code>$literal</code>, as <code>preg_quote</code> does, so the result is a pattern matching that literal and nothing else — the launder for the pattern sink, so its result is accepted where a <code>tainted</code> string is not.",
             "params": [
               {
                 "name": "literal",
@@ -8177,7 +8227,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Counts the graphemes in <code>$s</code> — user-perceived characters, ADR 0009's default unit — so a combining sequence counts once and this is never a byte count.",
+            "shortHtml": "Counts the graphemes in <code>$s</code> — user-perceived characters, the unit every <code>Core\\Str</code> member counts in — so a combining sequence counts once and this is never a byte count.",
             "params": [
               {
                 "name": "s",
@@ -8261,7 +8311,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Answers the one character at <code>$index</code>, as <code>$s[$i]</code> and <code>mb_substr($s, $i, 1)</code> do — counted in graphemes, ADR 0009's default unit, and never a byte.",
+            "shortHtml": "Answers the one character at <code>$index</code>, as <code>$s[$i]</code> and <code>mb_substr($s, $i, 1)</code> do — counted in graphemes, the unit every <code>Core\\Str</code> member counts in, and never a byte.",
             "params": [
               {
                 "name": "s",
@@ -10250,7 +10300,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Runs every closure of the <code>$tasks</code> shape literal as a concurrent child task and answers a shape with the same field names, each carrying that closure's own declared return type — ADR 0072's fixed, heterogeneous set.",
+            "shortHtml": "Runs every closure of the <code>$tasks</code> shape literal as a concurrent child task and answers a shape with the same field names, each carrying that closure's own declared return type — a fixed, heterogeneous set decided where the call is written.",
             "params": [
               {
                 "name": "tasks",
@@ -10356,6 +10406,59 @@
           },
           "slug": "map",
           "url": "/docs/core/task/map/"
+        },
+        {
+          "id": "Task.afterResponse",
+          "name": "afterResponse",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "afterResponse(callable $fn, {deadline?: Duration}): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "fn",
+              "type": "callable",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "deadline",
+              "type": "Duration"
+            }
+          ],
+          "returnType": "void",
+          "replaces": "`fastcgi_finish_request`",
+          "notes": "",
+          "qualifier": "",
+          "section": "19. `Core\\Task`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Runs <code>$fn</code> once the request's own execution is over, still charged to the request tree — for receipts, webhooks, cache warming and audit shipping. <strong>This is not a queue</strong>: nothing is durable, nothing retries, and a process that dies loses the work with no record.",
+            "params": [
+              {
+                "name": "fn",
+                "descHtml": "What to run. It takes no arguments and its answer is discarded; a throw out of it is logged and reaches no <code>catch</code>, because the request that registered it is over."
+              },
+              {
+                "name": "deadline",
+                "descHtml": "A wall-clock bound on this closure; omitted, <code>[deferred] deadline</code> is the bound. <code>[limits] wall_time</code> is what the client waited for and no longer applies, while every other <code>[limits]</code> value still bounds the tree."
+              }
+            ],
+            "returnHtml": "Nothing. Registering is request-local, the registrations run in the order they were made, and a request that ended by a throw, an <code>exit</code> or a <code>FATAL</code> runs none of them.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "When the call is not the request's own task — a <code>Core\\Task</code> child, a spawned isolate, or deferred work itself, none of which has a queue anything would drain. Hand the work back to the request that started you and register it there."
+              }
+            ]
+          },
+          "slug": "afterresponse",
+          "url": "/docs/core/task/afterresponse/"
         }
       ],
       "unparsed": [],
@@ -10380,7 +10483,7 @@
           ],
           "raw": "Weekday { Monday … Sunday }",
           "doc": {
-            "shortHtml": "A day of the week, Monday first as ISO 8601 and <code>date(&quot;N&quot;)</code> order them — what <code>$d-&gt;weekday()</code> answers and <code>next</code>/<code>previous</code> take.",
+            "shortHtml": "A day of the week, Monday first as ISO 8601 and <code>date(&quot;N&quot;)</code> order them — what <code>$d-&gt;weekday()</code> answers and <code>next</code>/<code>previous</code> take. The order is theirs and the numbering is not: the cases are zero-based, <code>Monday as int</code> is <code>0</code> and <code>Sunday</code> is <code>6</code>, where <code>date(&quot;N&quot;)</code> numbers that same order <code>1</code> through <code>7</code>.",
             "cases": [
               {
                 "name": "Monday …",
@@ -10688,7 +10791,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads a civil date and time through a CLDR pattern and places it in <code>$zone</code>, replacing <code>DateTime::createFromFormat</code> and <code>strptime</code>; a literal pattern is validated and planned at compile time (ADR 0057). A field the pattern does not name is left at the start of its range.",
+            "shortHtml": "Reads a civil date and time through a CLDR pattern and places it in <code>$zone</code>, replacing <code>DateTime::createFromFormat</code> and <code>strptime</code>; a <code>$format</code> written as a literal is read while checking, so a malformed one is <code>E0769</code> rather than a throw. A field the pattern does not name is left at the start of its range.",
             "params": [
               {
                 "name": "text",
@@ -10707,7 +10810,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$format</code> does not compile — a field letter outside the implemented subset, an unterminated quote — or names a zone or offset field, which <code>$zone</code> already answers."
+                "descHtml": "<code>$format</code> does not compile — a field letter outside the implemented subset, an unterminated quote — or names a zone or offset field, which <code>$zone</code> already answers. Only the first half is <code>E0769</code> for a written literal: a zonal field is a pattern the grammar reads perfectly well and a rule of this member's own, so it throws however <code>$format</code> arrived."
               },
               {
                 "error": "ParseError",
@@ -10973,7 +11076,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$pattern</code> does not compile — a field letter outside the implemented subset, or an unterminated quote."
+                "descHtml": "<code>$pattern</code> does not compile — a field letter outside the implemented subset, or an unterminated quote. A <code>$pattern</code> written as a literal is read while checking and refused there as <code>E0769</code>, so only a computed one reaches this throw; <code>Date::format</code> and <code>TimeOfDay::format</code> read the same patterns and are not checked that way, so a bad literal throws there."
               }
             ]
           },
@@ -11663,7 +11766,7 @@
           "implemented": true,
           "notesHtml": "plus <code>nanoseconds</code>, <code>microseconds</code>, <code>milliseconds</code>, <code>minutes</code>, <code>hours</code>, <code>days</code>, <code>weeks</code> — for a <strong>computed</strong> count; a literal one is <a href=\"/docs/adr/0070/\" data-adr=\"0070\">ADR 0070</a>'s <code>30s</code>",
           "doc": {
-            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> seconds, for a count computed at run time; a constant one is ADR 0070's literal, <code>30s</code>.",
+            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> seconds, for a count computed at run time; a constant one is written as the literal <code>30s</code>.",
             "params": [
               {
                 "name": "n",
@@ -11707,7 +11810,7 @@
           "implemented": true,
           "notesHtml": "the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it <strong>launders</strong> a <code>tainted</code> config value",
           "doc": {
-            "shortHtml": "Reads ADR 0070's duration literal grammar — <code>30s</code>, <code>1h30m</code>, <code>7d</code> — at run time, through the one implementation the lexer uses for the source literal: the typed form of <code>strtotime</code> for an exact offset arriving in a config value or a flag. It accepts nothing else, so a <code>tainted</code> value comes out laundered.",
+            "shortHtml": "Reads the duration literal grammar — <code>30s</code>, <code>1h30m</code>, <code>7d</code> — at run time, through the one implementation the lexer uses for the source literal: the typed form of <code>strtotime</code> for an exact offset arriving in a config value or a flag. It accepts nothing else, so a <code>tainted</code> value comes out laundered.",
             "params": [
               {
                 "name": "text",
@@ -11718,7 +11821,7 @@
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$text</code> is not a duration literal — an unknown or repeated unit, a missing count, trailing text — or spells more than a <code>Duration</code> can hold."
+                "descHtml": "<code>$text</code> is not a duration literal — an unknown or repeated unit, a missing count, trailing text — or spells more than a <code>Duration</code> can hold. A <code>$text</code> written as a literal is read by this same grammar while checking and refused there as <code>E0769</code>, so only a computed one reaches this throw."
               }
             ]
           },
@@ -11936,7 +12039,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Builds a <code>Duration</code> of exactly <code>$n</code> nanoseconds — the computed-count form of ADR 0070's duration literal, and the member a literal such as <code>30s</code> itself reaches a value through.",
+            "shortHtml": "Builds a <code>Duration</code> of exactly <code>$n</code> nanoseconds — the computed-count form of the duration literal, and the member a literal such as <code>30s</code> itself reaches a value through.",
             "params": [
               {
                 "name": "n",
@@ -12556,7 +12659,7 @@
           "implemented": true,
           "notesHtml": "<code>Instant</code> implements <code>Comparable</code> (<a href=\"/docs/adr/0013/\" data-adr=\"0013\">ADR 0013</a>), so <code>&lt;</code>/<code>&gt;</code> work directly",
           "doc": {
-            "shortHtml": "Orders two instants on the timeline, as <code>Comparable</code> (ADR 0013) requires.",
+            "shortHtml": "Orders two instants on the timeline, as <code>Comparable</code> requires.",
             "params": [
               {
                 "name": "other",
