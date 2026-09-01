@@ -4167,6 +4167,19 @@ is why" — is this file.
   **`int`** index while `Core\Bytes::length` answers a `uint`, so the obvious
   `uint $i = 0; while ($i < Core\Bytes::length($b))` fails `E0401` at the `at` call — carry the index as
   `int` and cast the length instead (`… as int`).
+- **Write a differential sweep as one `--ORACLE--` case first and let the runner partition it, rather
+  than deciding subject by subject which rows will agree.** A `.nvst` oracle failure prints PHP's whole
+  output beside Novis's, aligned, so a twelve-subject sweep costs one run to learn which subjects agree
+  and which do not — and the ones that do not are a second, better case with an `--ORACLE-DIVERGES--`
+  line, so nothing written is thrown away. Guessing instead costs a run per guess and produces a case
+  that carefully dodges the interesting rows: `Core\Csv`'s `{escape:}` reading, its record *count*, and
+  `Core\Validate::isEmail`'s refusal of `user@[127.0.0.1]` were each found this way and each became its
+  own file. Two spellings to have ready before the first run, because they are what the compiler stops
+  on rather than the oracle: `var $x` is function-scoped, so two `foreach` bodies in one case cannot both
+  declare it (`E0406: $x is already declared`, pointing at the first loop); and a captured or parsed
+  field can hold a CR or an LF, which the terminal sink renders itself (ADR 0086) — put
+  `Core\Str::replaceAll($s, ["\r" => "<CR>", "\n" => "<LF>"])` against PHP's `strtr` with the same map on
+  both sides rather than comparing raw control bytes.
 
 ## Splitting a file that got too big
 
