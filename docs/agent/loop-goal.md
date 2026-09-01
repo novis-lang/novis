@@ -215,18 +215,26 @@ decision and is **not** this stage.
     list at allocation and out at dismantle — objects only, since an object is the one shape that can
     close a cycle (`graph.rs`'s identity decision). What it spends, said in the module doc as ADR 0004
     requires: two pointers per live object, and a few non-atomic stores at each object's birth and death.
-    **The crossing relinks:** `graph.rs`'s `Live` adopt at refcount 1 hands an allocation to the other
-    context, so an adopted object moves to the destination's list in the same step — an object left on
-    the source list is swept by the child's teardown while the parent still holds it, a use-after-free.
-    A guard test pins the relink. `crates/nvs-runtime/src/object.rs`, `ctx.rs`, `release.rs`,
-    `graph.rs`.
+    **The crossing relinks, and the relink is structural rather than remembered.** `Live::adopt` is the
+    one place in the runtime an allocation changes owners (`graph.rs`'s carrier decision: no second
+    traversal, no third place to forget), so the relink lives *inside* that one implementation — never
+    at a call site, because then there is no call site to get it wrong. An object left on the source
+    list would be swept by the child's teardown while the parent still holds it, a use-after-free.
+    **A debug build makes any future drift loud everywhere:** `ObjHeader` carries its owning `Ctx`
+    (one word, `debug_assertions` only), and dismantle and sweep assert it — so every `cargo test` run
+    and every WSL valgrind leg, which are debug builds, turns a mislinked object into a panic naming
+    the invariant instead of a silent corruption. A guard test pins the relink and a `#[should_panic]`
+    test pins the assertion. `crates/nvs-runtime/src/object.rs`, `ctx.rs`, `release.rs`, `graph.rs`.
 37. **The sweep at `Ctx::drop`.** After the root drain, whatever is still on the list is exactly the
     cyclic garbage; dismantle it through `crate::release`'s one worklist so native teardown runs — order
     inside a dead cycle is unobservable, because teardown runs no user code. The slice that lands this
     also rewrites the two known-gap notes (`lib.rs` known gap 7, `object.rs` § *Decision: no cycle
-    collector*) and writes `examples/cycles.nvs`, which the WSL valgrind leg then proves clean. ADR
-    0041's `gc` trace event is **not** owed here — it attaches to the future collector's run routine,
-    not to teardown.
+    collector*) and writes `examples/cycles.nvs`, **which springs item 36's trap on purpose**: it
+    builds cycles at the top level *and* spawns an isolate that builds a cycle of its own and returns
+    an object by the refcount-1 move, then reads that object after the child is gone — the one program
+    shape where a missed relink is a use-after-free, run under the WSL valgrind leg that exists to see
+    exactly that. ADR 0041's `gc` trace event is **not** owed here — it attaches to the future
+    collector's run routine, not to teardown.
 
 ## The harness this goal owes
 

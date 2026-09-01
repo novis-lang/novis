@@ -2645,18 +2645,25 @@ tests = [
   # Item 36 -- the list is maintained at both ends, so an ordinary refcount death leaves it.
   "an_object_that_dies_by_refcount_leaves_the_live_list",
   # Item 36 -- the crossing relinks: an adopt at refcount 1 moves the object to the destination's
-  # list, or the child's sweep dismantles what the parent still holds.
+  # list, or the child's sweep dismantles what the parent still holds. The relink lives INSIDE
+  # Live::adopt -- the one place ownership changes -- never at a call site.
   "an_adopted_object_moves_to_the_destinations_live_list",
+  # Item 36 -- the debug-build owner stamp: dismantle and sweep assert the object belongs to the
+  # context doing it, so a future drift panics in every test run instead of corrupting a parent.
+  "dismantling_through_a_foreign_context_panics_in_debug",
   # Item 37 -- the claim itself, measured by the allocator the way the acyclic guard already is.
   "a_cyclic_object_graph_is_reclaimed_when_its_context_drops",
   # Item 37 -- the sweep dismantles rather than unmapping: a swept member's native drop runs.
   "a_swept_cycles_native_teardown_runs",
 ]
 
-# The end-to-end half: a program that builds object cycles in a loop and exits clean. The WSL valgrind
-# leg is what proves the reclamation -- a debug build is on the platform heap so the checker can see it.
+# The end-to-end half, and it springs item 36's trap on purpose: top-level cycles, plus an isolate
+# that builds a cycle of its own AND returns an object by the refcount-1 move, which the parent reads
+# after the child is gone -- the one program shape where a missed relink is a use-after-free. The WSL
+# valgrind leg proves both halves: nothing leaked, nothing freed early -- a debug build is on the
+# platform heap so the checker can see it.
 [[check]]
 kind = "exact"
 stage = "11 teardown sweep"
 file = "examples/cycles.nvs"
-want = ["built=1000", "done"]
+want = ["built=1000", "crossed=ok", "done"]
