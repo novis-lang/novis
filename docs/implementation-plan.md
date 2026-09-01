@@ -53,15 +53,15 @@
 > keyed by SQL text plus expansion arity: a hit drops the `Parse` and an eviction's `Close` rides in
 > the batch that replaced it. § 9's whole type map decodes over it: a `Value` for the scalar rows
 > and parsed components — `PgScalar` — for the five that are a `Core\Time` or `Core\Uuid` instance
-> only `nvs-stdlib` can build, with `DateStyle` and a numeric `TimeZone` pinned at startup; § 4's
-> count is the tag's last field, `lastId` a `RETURNING` row's, and `executeMany` one `Parse` and a
-> `Sync` per set, so no hidden transaction. § 7 is on it too — `BEGIN`/`COMMIT`/`ROLLBACK`, a nested
-> one a `SAVEPOINT` the depth names, and § 8's kind inside every refusal. The pool is Stages 3 to 7,
-> and **ADR 0132 has claimed the goal's one ADR slot**: a driver is a borrowed sans-IO codec plus a
-> state machine over the parking stream, and the five are an enum rather than a trait.   **Goals 1-4
-> and M4 are closed and are this goal's Stage 1 floor** — `Core`'s capability-bearing half in full,
-> with `ring` the one C dependency ADR 0051 § 4 records. Conformance 1382, differential 250, its
-> gate met, migration 90%/74%.
+> only `nvs-stdlib` can build; § 4's count, `lastId` and `executeMany` too. § 7 is on it too —
+> `BEGIN`/`COMMIT`/`ROLLBACK`, a nested one a `SAVEPOINT` the depth names, and § 8's kind inside
+> every refusal. **`Core\Db` has opened in `nvs-stdlib`**: § 18's two connectionless entry points,
+> `inList`'s carrier and `quoteIdentifier`, which validates rather than delimits for want of a
+> dialect. The pool is Stages 3 to 7, and **ADR 0132 has claimed the goal's one ADR slot**: a driver
+> is a borrowed sans-IO codec plus a state machine over the parking stream, and the five are an enum
+> rather than a trait.   **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** —
+> `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
+> Conformance 1388, differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

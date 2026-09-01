@@ -5764,6 +5764,25 @@ sibling in the same namespace unqualified.
   surprises: a `match` arm whose body is only `if cond { … }` is `collapsible_match` under
   `-D warnings` even when the arm you copied it from two functions up passes, because that one binds
   a local before the `if`. The fix is a match guard on the arm.
+- **Registering a `Core` class the spec already names is seven edits, not five, and the two extra
+  ones are text files under `crates/nvs-stdlib/tests/`.** `conventions.md`'s *A `Core` member — the
+  five edits* is complete for a member on a class that is already registered; a class the spec
+  §§ 14-19 name has a line in `spec-classes-part-two-outstanding.txt` and one per member in
+  `spec-members-part-two-outstanding.txt`, both of which "only shrink" and fail
+  `spec_registry_coverage.rs` on a *stale* line as loudly as on a missing one. So landing
+  `Core\Db::inList` meant striking `§18 inList` there and, because it was the class's first member,
+  `§16 Core\Db` in the other file plus the sentence in its header that counted the rows. Nothing in
+  the orientation pack points at those files — `--locate CLASSES` is what surfaced them, because
+  they mention it in their own headers.
+
+- **A `Core` class with slots and no instance members needs a line in `registry.rs`'s `HANDLES`,
+  and the failure names your class rather than the roster.** `a_class_with_slots_has_instance
+  _members_and_the_reverse` asserts the two rosters are empty together, and every carrier — a
+  `Core\Cli\Text`, a `Core\Http\Target`, a `Core\Db\InList` — breaks that on purpose, so each is
+  listed in the test's own `HANDLES` const with a clause in its doc comment saying why nothing
+  reads its slot back. `Core\Db\InList declares 1 slot(s) and 0 instance member(s)` reads as "you
+  forgot the members", which for a class the spec calls *opaque* is exactly backwards. The
+  constant naming the class has to be `pub(crate)` for the test to name it.
 
 ## Divergences and refusals already pinned
 
