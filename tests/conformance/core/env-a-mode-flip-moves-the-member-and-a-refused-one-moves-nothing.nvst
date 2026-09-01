@@ -1,0 +1,38 @@
+--TEST--
+`Core\Env::mode` and the `mode.default` directive agree after an accepted flip, after a refused one and after a flip back — ADR 0091 §§ 4-5
+--FILE--
+<?nvs
+// § 4's flip is a `Core\Config::set` on `mode.default`, and this member reports
+// what the flip left in force. So the two are one fact reached two ways, and
+// this case asserts they **agree** at every step rather than asserting what
+// either one said: a `mode()` that had grown a reader of its own still looks
+// right on its own line and fails here.
+
+echo "start=", Core\Config::get("mode.default") ?? "unset", " member=", (Core\Env::mode() == Core\Env\Mode::Production) ? "Production" : "Development", "\n";
+
+// § 5: the ceiling is `development`, so this flip is within it.
+echo "flip=", Core\Config::set("mode.default", "development") ? "true" : "false", "\n";
+echo "now=", Core\Config::get("mode.default") ?? "unset", " member=", (Core\Env::mode() == Core\Env\Mode::Development) ? "Development" : "Production", "\n";
+
+// A mode nobody defined is outside every ceiling, so the set is refused. The
+// half a refusal could quietly leave behind is this member, which must still be
+// reading what is in force rather than what was last asked for.
+echo "bogus=", Core\Config::set("mode.default", "staging") ? "true" : "false", "\n";
+echo "now=", Core\Config::get("mode.default") ?? "unset", " member=", (Core\Env::mode() == Core\Env\Mode::Development) ? "Development" : "Production", "\n";
+
+// And back, because a flip is a set and not a one-way latch.
+echo "back=", Core\Config::set("mode.default", "production") ? "true" : "false", "\n";
+echo "now=", Core\Config::get("mode.default") ?? "unset", " member=", (Core\Env::mode() == Core\Env\Mode::Production) ? "Production" : "Development", "\n";
+--FILE nvs.toml--
+# § 5's third row: production by default, and a request may select development.
+[mode]
+default = "production"
+ceiling = "development"
+--EXPECT--
+start=production member=Production
+flip=true
+now=development member=Development
+bogus=false
+now=development member=Development
+back=true
+now=production member=Production

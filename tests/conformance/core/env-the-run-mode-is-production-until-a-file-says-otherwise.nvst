@@ -1,0 +1,27 @@
+--TEST--
+`Core\Env::mode` answers `Production` on a host that configured nothing, while the directive it reads is still unset — ADR 0091 §§ 3, 5 and spec § 15
+--FILE--
+<?nvs
+// § 5's row for a host that wrote no configuration at all is `production`, so a
+// deployment is the restrictive one before an operator has said anything. This
+// case ships no `nvs.toml`, which is exactly that host.
+if (Core\Env::mode() == Core\Env\Mode::Production) {
+    echo "mode=Production", "\n";
+} else {
+    echo "mode=Development", "\n";
+}
+
+// The boundary the two readers do not share. `mode.default` is a directive like
+// any other and nothing set it here, so `Core\Config::get` answers `null` —
+// while the *mode* is answered all the same. An absent directive is not an
+// absent mode, which is the whole reason this is a member rather than a
+// `?? "production"` every caller would have to remember to write.
+echo "directive=", Core\Config::get("mode.default") ?? "unset", "\n";
+
+// Two cases, and a program can name either: the comparison above is a choice
+// between them and not a test for the presence of one.
+echo "development=", (Core\Env::mode() == Core\Env\Mode::Development) ? "true" : "false", "\n";
+--EXPECT--
+mode=Production
+directive=unset
+development=false

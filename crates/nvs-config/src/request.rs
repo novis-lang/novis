@@ -189,24 +189,48 @@ impl Request {
         true
     }
 
-    /// ADR 0091 § 5's ceiling: `[mode] ceiling` where the tree states one, else the mode the host
-    /// started in.
+    /// ADR 0091 § 3's run mode in force for this request — where `Core\Env::mode`'s answer comes
+    /// from, and the whole of it.
     ///
-    /// Read off the snapshot and never off the overlay, which is the whole of what makes the ceiling
-    /// unraisable: a request that had flipped itself once would otherwise be measured against what it
-    /// had already asked for. The started mode is the `[[app]]` block's where one matched — an
-    /// application's mode is its own (ADR 0104 § 4) — then the global `mode.default`, then
-    /// `production`, which is § 5's row for a host that wrote nothing.
-    fn started_ceiling(&self) -> String {
-        if let Some(stated) = value_at(&self.base.table, "mode.ceiling").and_then(as_text) {
-            return stated;
+    /// Deliberately **not** `get(mode::KEY)`. That reader answers the overlay and then the global
+    /// key and knows nothing about the `[[app]]` block, so a request inside an application that
+    /// selected its own mode (ADR 0104 § 4) would be told the host's instead of its own. The order
+    /// is the flip this request made (§ 4), then [`started`](Self::started).
+    #[must_use]
+    pub fn mode(&self) -> String {
+        match self.overlay.get(mode::KEY) {
+            Some(flipped) => flipped.clone(),
+            None => self.started(),
         }
+    }
+
+    /// The mode the host started this request in — [`mode`](Self::mode) with the flip taken off.
+    ///
+    /// The `[[app]]` block's where one matched, since an application's mode is its own (ADR 0104
+    /// § 4), then the global `mode.default`, then `production`, which is § 5's row for a host that
+    /// wrote nothing at all.
+    fn started(&self) -> String {
         if let Some(app) = &self.base.mode {
             return app.clone();
         }
         value_at(&self.base.table, mode::KEY)
             .and_then(as_text)
             .unwrap_or_else(|| mode::PRODUCTION.to_string())
+    }
+
+    /// ADR 0091 § 5's ceiling: `[mode] ceiling` where the tree states one, else the mode the host
+    /// started in.
+    ///
+    /// Read off the snapshot and never off the overlay, which is the whole of what makes the ceiling
+    /// unraisable: a request that had flipped itself once would otherwise be measured against what it
+    /// had already asked for. That is the one difference between the fallback here and
+    /// [`mode`](Self::mode), and the reason both go through [`started`](Self::started) rather than
+    /// stating the chain twice.
+    fn started_ceiling(&self) -> String {
+        if let Some(stated) = value_at(&self.base.table, "mode.ceiling").and_then(as_text) {
+            return stated;
+        }
+        self.started()
     }
 
     /// ADR 0074 §§ 2-3, asked of what this request would be left holding.

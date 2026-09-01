@@ -1779,6 +1779,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::time::WEEKDAY,
     crate::hash::DIGEST,
     crate::log::LEVEL,
+    crate::env::MODE,
     crate::router::METHOD,
     crate::router::AUDIENCE,
     crate::cli::STREAM,

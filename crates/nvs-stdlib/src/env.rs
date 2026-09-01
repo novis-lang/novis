@@ -3,9 +3,9 @@
 //! [ADR 0012](../../../../docs/adr/0012-no-superglobals.md) § 1's replacement
 //! for `$_ENV` and `getenv()`.
 //!
-//! Two members so far, `get` and `all`, and all three of § 15's constants —
-//! `EOL`, `OS` and `VERSION`, whose one shared decision is on [`CONSTANTS`].
-//! `mode()` is gap 1 below and the last of the row.
+//! All three members — `get`, `all` and `mode` — and all three of § 15's
+//! constants, `EOL`, `OS` and `VERSION`, whose one shared decision is on
+//! [`CONSTANTS`]. The class is complete.
 //!
 //! # It is not a capability door, and that is decided rather than skipped
 //!
@@ -75,21 +75,34 @@
 //! printable in a `.nvst` case at all. It is the same rule `Core\Config::all`
 //! states, reached differently: that member's sources are ordered maps already.
 //!
-//! # Known gaps
+//! # `mode` is the one member here that reads no environment at all
 //!
-//! 1. **`mode()`.** It reads
-//!    [ADR 0091](../../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s
-//!    run mode through `Core\Config` and needs its `Env\Mode` enum first —
-//!    `Production` and `Development`, and no third value. Spec § 15 is explicit
-//!    that no environment variable is consulted for it, so it is this class's
-//!    one member that does not read the environment at all.
+//! [ADR 0091](../../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s
+//! run mode is set through `Core\Config` like every other directive, and spec
+//! § 15 says outright that no environment variable is consulted for it. So the
+//! member sits on this class for the reason a program asks the question —
+//! "which deployment am I" is the same question as "what is `OS`" — and not
+//! because of where the answer is kept. There is deliberately no `NVS_ENV` or
+//! `APP_ENV`: a mode that could be selected two ways would be [ADR 0063]'s R6
+//! twice over, and the one way is the file the ceiling in § 5 is also written
+//! in, which is what makes a flip checkable at all.
+//!
+//! Where the value comes from is `nvs_config::Request::mode`, whose own doc
+//! owns the order — this module reads it and turns it into an ordinal, and
+//! knows nothing else about run modes. What is settled *here* is the two edges
+//! that reader does not have an opinion about: a context nobody configured, and
+//! a name that is neither mode. Both are `Production`, on [`mode_ordinal`]'s
+//! reasoning.
+//!
+//! [ADR 0063]: ../../../../docs/adr/0063-core-api-conventions.md
 
 use std::collections::BTreeMap;
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreConst, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc,
+    MethodDoc, ParamDoc, Qual,
 };
 
 /// The registry row. See [`crate::registry::CLASSES`].
@@ -113,6 +126,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CoreTy::TaintedStr),
             symbol: "nvs_core_env_all",
             doc: Some(&ALL_DOC),
+        },
+        CoreMethod {
+            name: "mode",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Enum(MODE_NAME),
+            symbol: "nvs_core_env_mode",
+            doc: Some(&MODE_MEMBER_DOC),
         },
     ],
     instance: &[],
@@ -229,14 +251,88 @@ const ALL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Env::mode`'s reference card — ADR 0117.
+const MODE_MEMBER_DOC: MethodDoc = MethodDoc {
+    short: "Which deployment this program is running in. The mode is written in `nvs.toml` and \
+            read back through `Core\\Config` like every other directive: **no environment \
+            variable is consulted for it**, so there is no `APP_ENV` convention to get wrong and \
+            no way for a request to select one.",
+    params: &[],
+    ret: "The mode as a `Core\\Env\\Mode` case. `Production` for a host that configured nothing, \
+          so a deployment is the restrictive one until an operator has said otherwise.",
+    errors: &[],
+};
+
+/// `Core\Env\Mode`'s fully-qualified name, written once so the registry row and
+/// every message quoting it cannot drift apart.
+pub(crate) const MODE_NAME: &str = r"Core\Env\Mode";
+
+/// ADR 0091 § 3's two run modes, valued by § 5's permissiveness order — the
+/// same order `nvs_config::mode::rank` measures a flip against, so `Production`
+/// is 0 and there is nothing below it.
+///
+/// Two cases and no third. A `Staging` would have to select a row of § 3's
+/// closed table that neither of these does; what a real staging host wants is
+/// `Production` with the two or three directives it differs on written out,
+/// which is exactly what leaving them individually settable is for.
+pub(crate) const MODE: CoreEnum = CoreEnum {
+    name: MODE_NAME,
+    cases: &[("Production", 0), ("Development", 1)],
+    doc: Some(&MODE_DOC),
+};
+
+/// [`MODE`]'s reference card — ADR 0117.
+const MODE_DOC: EnumDoc = EnumDoc {
+    short: "Which deployment a program is running in — two modes, and there is no third. A mode \
+            is a shorthand for the defaults of five directives, each of which stays settable on \
+            its own.",
+    cases: &[
+        CaseDoc {
+            name: "Production",
+            desc: "The restrictive end of the two, and what a host that wrote no configuration is \
+                   in — a deployment is the safe one before anyone has said so. Which defaults it \
+                   selects is fixed by the mode, and is not a table a program should re-derive.",
+        },
+        CaseDoc {
+            name: "Development",
+            desc: "The permissive end, selected in `nvs.toml` and never inferred from a variable, \
+                   a hostname or a build. A request may flip into it with `Core\\Config::set` only \
+                   where `[mode] ceiling` reaches this far.",
+        },
+    ],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_env_get" => (nvs_core_env_get as *const ()).cast(),
         "nvs_core_env_all" => (nvs_core_env_all as *const ()).cast(),
+        "nvs_core_env_mode" => (nvs_core_env_mode as *const ()).cast(),
         _ => return None,
     })
+}
+
+/// The [`MODE`] ordinal for a mode spelled as `nvs_config::mode` spells one.
+///
+/// Written out rather than taken from `nvs_config::mode::rank`, on the rule
+/// [`crate::cli`]'s `depth_ordinal` states: the two rosters are declared in
+/// different crates for different readers, and a rank is § 5's *permissiveness
+/// order*, which is free to gain a value that is not a case here.
+///
+/// A name that is neither mode answers `Production`, the restrictive end. It is
+/// reachable only from a `mode.default` an operator misspelled in a root-owned
+/// file — `Core\Config::set` refuses one, because `nvs_config::mode::within`
+/// ranks no third name — and every flip is already refused in that state, so
+/// answering `Development` would be the one place a typo loosened something.
+/// This member reports rather than admitting anything, and a throw would turn
+/// one bad line into a failure on every request that asks a question.
+fn mode_ordinal(mode: &str) -> i64 {
+    match mode {
+        nvs_config::mode::DEVELOPMENT => 1,
+        // `PRODUCTION`, and every name that is neither — see above.
+        _ => 0,
+    }
 }
 
 /// One `string` argument, or the engine fault a wrongly-tagged one is: the
@@ -310,5 +406,28 @@ nvs_runtime::nvs_helper! {
             );
         }
         Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Env::mode(): Core\Env\Mode` — ADR 0091's run mode, and the one
+    /// member of this class that reads no environment variable.
+    ///
+    /// An enum answers as its ordinal, exactly as a user-declared enum does
+    /// (ADR 0010).
+    ///
+    /// The four-step order behind the answer — a flip this request made, the
+    /// application's own mode, the global `mode.default`, then `production` —
+    /// is `nvs_config::Request::mode`'s and is stated there. A context nobody
+    /// configured is that last row reached one step earlier: an embedder with
+    /// no snapshot is a host that wrote nothing, which ADR 0103 § 1 step 3
+    /// makes a valid host rather than an error, so this is `Production` and not
+    /// a throw.
+    fn nvs_core_env_mode(ctx, _args: [0]) {
+        let mode = match ctx.config() {
+            Some(config) => config.mode(),
+            None => nvs_config::mode::PRODUCTION.to_string(),
+        };
+        Ok(Value::int(mode_ordinal(&mode)))
     }
 }
