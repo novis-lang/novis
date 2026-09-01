@@ -3780,6 +3780,16 @@ is why" — is this file.
   one `grep -rn` over `tests/` is the whole check, and finding it at the full verify instead costs a
   build. The tell that the case is the bug rather than the rule: the ADR paragraph is prose nothing
   in the tree implemented, not a decision the case was written against.
+- **An ADR's own table row can be stale about the tree exactly the way a `loop-goal.toml` comment can,
+  and the fix is different: amend the ADR.** ADR 0082 § 2's `Core\Cldr` row read "one member exposing
+  the CLDR data `nvs_stdlib::cldr` already holds", and no plural data was ever in that module — it held
+  the § 4 date pattern grammar and nothing else, so the row was a member *and* the ~170-language table
+  behind it, which is a different size of slice than the row predicts. The existing playbook bullet for
+  this covers `loop-goal.toml` comments, where the fix is to correct the comment; here the same one-line
+  `grep` per claim applies, but AGENTS.md's "an ADR's body always states the current rule" makes the
+  stale row a *bug in the ADR* to fix in the same session, not a note in the handoff. Reading the row's
+  reason — why the member exists — separately from its claim about the tree is what tells the two apart:
+  the reason survived unchanged here and only the claim was wrong.
 
 ## Splitting a file that got too big
 
@@ -5127,6 +5137,15 @@ sibling in the same namespace unqualified.
   cranelift-jit — `can't resolve symbol nvs_core_html_markup`, from `backend.rs`, naming neither crate nor
   the one line in `lib.rs` that is missing. Anything a construct reaches rather than a member call owes
   that line.
+- **A second `#[cfg(test)]` in an `nvs-stdlib` source file fails a test in a *different* crate's
+  file, and the message is the only thing that says so.** `crates/nvs-stdlib/tests/capability.rs`'s
+  `nvs_stdlib_reaches_the_os_only_through_the_gate` is a source scan that stops at the first
+  `#[cfg(test)]` to exclude the tests module, so it refuses a file with two — *"`…/cldr.rs` has more
+  than one `#[cfg(test)]`, so this scan can no longer stop at the first one"*. The tempting shape
+  that trips it is a small helper used only by a test and gated so it is not dead code in the
+  binary; the fix is to not need one — move the table the helper held into the test's own `for`
+  loop, which is where the two spellings were being held together anyway. `#[allow(dead_code)]`
+  passes the scan and is the wrong trade: it ships the code.
 
 ## Divergences and refusals already pinned
 

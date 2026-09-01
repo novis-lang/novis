@@ -43,26 +43,25 @@
 >
 > **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
 > running**.       **`Core\Password` and `Core\Crypto` are closed.**  **Stage 5 is closed**:
-> `Core\Http::allowUrl` answers a pinned `Core\Http\Target`(ADR 0058 §§ 3 and 5). **Stage 6 has
-> opened**: `Core\Cache`'s two tiers are one `Store`, `shared()` the `net.connect` door onto RESP
-> and `local()` the `None` row; § 1's limiters are rows over them. **Stage 7 has opened**: § 6's two
+> `Core\Http::allowUrl` pins its `Target` (ADR 0058 §§ 3 and 5). **Stage 6 has opened**:
+> `Core\Cache`'s two tiers are one `Store`, `shared()` the `net.connect` door onto RESP and
+> `local()` the `None` row; § 1's limiters are rows over them. **Stage 7 has opened**: § 6's two
 > writers are one serialiser, § 3's tier 3 is `[app.log] handler` on `Ctx::handler_isolate`'s
 > reserve, § 2's `onUncaughtThrow` hands both roots the real `Throwable`, and ADR 0106 § 10's two
 > bounds are on the floor's sink; `write`'s `fields` refuses a `secret` and reading `[log] target`
-> is owed. **Stage 8 has opened**: `Core\Reflect`, `Core\Ast::parse` and `Core\Decimal`'s two
-> rounding members are on disk, and the reflective set runs ADR 0014 § 3's observer; ADR 0046 § 4's
-> `$member` is checked at the retrieval (`E0798`). ADR 0126's `property<T>` is closed. **Stage 9**:
-> `Core\Html::escape` launders and § 5's `as Markup` and `Markup + Markup` both lower;
-> `Core\Mail::send` sends through an operator-named `[mail.<name>]` under `mail.send`, and
-> `Core\Storage`'s put, get and delete reach a `[storage.<name>]` disk over `fs.*` alone; TLS,
-> `AUTH` and a `list` are owed. **Stage 2's handle half has opened**: `Core\IO::open` answers a
-> `Core\IO\File` whose slot keys the request's own descriptor table, `Core\IO\FileMode` is R11's
-> enum, and `read`, `readLine`, `write`, `seek`, `tell`, `flush` and `close` are its members;
+> is owed. **Stage 8 has opened**: `Core\Reflect`, `Core\Ast::parse` and `Core\Decimal`'s rounding
+> are on disk under ADR 0014 § 3's observer; ADR 0046 § 4's `$member` is checked at the retrieval
+> (`E0798`). ADR 0126's `property<T>` is closed. **Stage 9**: `Core\Html::escape` launders and § 5's
+> `as Markup` and `Markup + Markup` both lower; `Core\Mail::send` sends through an operator-named
+> `[mail.<name>]` under `mail.send`, and `Core\Storage`'s put, get and delete reach a
+> `[storage.<name>]` disk over `fs.*` alone, and `Core\Cldr::pluralCategory` reads a closed CLDR
+> roster; TLS, `AUTH` and a `list` are owed. **Stage 2's handle half has opened**: `Core\IO::open`
+> answers a `Core\IO\File` whose slot keys the request's own descriptor table, `Core\IO\FileMode` is
+> R11's enum, and `read`, `readLine`, `write`, `seek`, `tell`, `flush` and `close` are its members;
 > `truncate` and `lock` are owed. **Stage 3's terminal is a sink **: `write` performs § 1's table
 > onto `Out` or `Err`, § 2 is `Cli\Color`, `Cli\Style` and `Text::styled`, § 4's prompts read under
-> a deadline, and `live<T>`/`progress<T>` open a region a `Drop` restores; `arguments` has landed
-> and `displayWidth` is owed. Conformance 1258, differential 210 of 210, migration 37% over its 36%
-> floor.
+> a deadline, and `live<T>`/`progress<T>` open a region a `Drop` restores; `displayWidth` is owed.
+> Conformance 1262, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

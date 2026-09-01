@@ -112,6 +112,7 @@ Conventions the whole file uses:
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
 | [`Core\Mail`](#core-core-mail) |  |
 | [`Core\Storage`](#core-core-storage) |  |
+| [`Core\Cldr`](#core-core-cldr) |  |
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
 | [`Core\Crypto`](#core-core-crypto) | authenticated encryption with no cipher, mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted |
 | [`Core\SignedCookie`](#core-core-signedcookie) |  |
@@ -15524,6 +15525,33 @@ Removes the object `$key` from `$disk`.
 
 **Throws** `RuntimeError` — No `[storage.<name>]` block of that name sets a `root`; or `$key` is not an object key; or the `fs.read`/`fs.write` capability does not cover the object's path. Each is a deployment or a call that was written wrong.; `IOError` — There is no object at `$key`, or it could not be removed. Deleting what was never there is a failure rather than a silent success: the key was computed by the caller, and a typo that succeeds is one nothing reports.
 
+<a id="core-core-cldr"></a>
+### `Core\Cldr`
+
+Keywords: pluralCategory
+
+| Member | Signature |
+|---|---|
+| [`Core\Cldr::pluralCategory`](#core-core-cldr-pluralcategory) | `pluralCategory(int\|float\|decimal $count, string $locale): Core\Cldr\PluralCategory` |
+
+<a id="core-core-cldr-pluralcategory"></a>
+#### `Core\Cldr::pluralCategory`
+
+```nvs skip
+Core\Cldr::pluralCategory(int|float|decimal $count, string $locale): Core\Cldr\PluralCategory
+```
+
+Answers which of CLDR's plural forms `$count` selects in `$locale`, so a message catalog keys its variants on the locale's own rule rather than on `== 1`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$count` | `int\|float\|decimal` | The number the message is about. A `decimal` carries its scale, so `1.0` and `1` can select different forms where a locale reads the fraction; an `int` has none, and a `float` is read at the digits it prints. |
+| `$locale` | `string` (neutral) | A BCP 47 tag. Only the language subtag is read and case is ignored, so `en-GB`, `en_US` and `EN` all answer as `en`. |
+
+**Returns** `Core\Cldr\PluralCategory` — The category the language's rules put `$count` in — `Other` for every count in a language that makes no plural distinction.
+
+**Throws** `LogicError` — The tag carries no language subtag, or names a language whose rules are not among those compiled in — a locale is never given another language's rules.; `RuntimeError` — `$count` is a `float` that is not finite, or one that prints more digits than the rules can be evaluated over.
+
 <a id="core-core-password"></a>
 ### `Core\Password`
 
@@ -16825,6 +16853,20 @@ What an open handle may do, replacing `fopen`'s mode string. There is no binary 
 | `Core\IO\FileMode::Write` | Writing only, emptying the file first and creating it if it is not there — `fopen`'s `w`. |
 | `Core\IO\FileMode::Append` | Writing only, always at the end whatever else has written since, creating the file if it is not there — `fopen`'s `a`. |
 | `Core\IO\FileMode::ReadWrite` | Both, creating the file if it is not there and emptying nothing — `fopen`'s `c+`, which is the one of its four `+` forms that surprises nobody. |
+
+<a id="enum-core-cldr-pluralcategory"></a>
+#### `Core\Cldr\PluralCategory`
+
+Which of CLDR's six plural forms a count selects. The names are CLDR's own labels for a language's forms, not counts: only `Other` means the same thing everywhere, and a language uses as few of the six as its grammar needs.
+
+| Case | Meaning |
+|---|---|
+| `Core\Cldr\PluralCategory::Zero` | The form a language keeps for none of something — Arabic and Welsh have one; most languages do not. |
+| `Core\Cldr\PluralCategory::One` | The singular, as that language draws it: English's 1, Russian's 1, 21 and 31, French's 0 and 1. |
+| `Core\Cldr\PluralCategory::Two` | The dual — Arabic, Welsh, Slovenian and Irish among the languages carried. |
+| `Core\Cldr\PluralCategory::Few` | The paucal, for the small counts a language groups: Russian's 2 to 4, Arabic's 3 to 10, Welsh's 3 alone. |
+| `Core\Cldr\PluralCategory::Many` | The form above `Few` where a language has both — Russian's 5 to 20, and the whole millions in Romance languages that mark them. |
+| `Core\Cldr\PluralCategory::Other` | The form every language has, and in a language with no plural distinction the only one any count selects. |
 
 # Part C — The toolchain
 

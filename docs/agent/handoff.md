@@ -2,60 +2,63 @@
 
 ## State
 
-**`Core\Storage` is on disk and stage 9's check for it is green.** `crates/nvs-stdlib/src/storage.rs`
-is three rows — `put(string $disk, string $key, bytes $contents, {overwrite?})`, `get(...): ?bytes`
-and `delete(...): void` — over `nvs_runtime::capability`'s existing `create`, `exists`, `open_read`
-and `remove_file`. That module's own doc is the home of every decision behind it and none is
-restated here.
+**Stage 9's five acceptance checks are green.** `Core\Cldr::pluralCategory` is on disk, and
+`plural_category_answers_from_the_carried_cldr_data` — the test the driver names — runs in
+`crates/nvs-stdlib/src/cldr.rs`'s own `tests` module.
 
-**It declares no capability, and that is the point of the row.** ADR 0082 § 2 says "over ADR 0051's
-existing `fs.*`", so `registry::CAPABILITIES` carries `FsWrite`/`FsRead`/`FsWrite` for the three
-members and there is no `storage.*` grant anywhere;
-`storage_over_local_disk_is_gated_on_the_same_fs_capability` asserts that over the registry, against
-`Core\IO`'s own rows rather than against a constant.
+**The item's premise was false and the ADR carried it.** ADR 0082 § 2's row said the member
+would expose "the CLDR data `nvs_stdlib::cldr` already holds"; that module held the § 4 date
+pattern grammar and no plural data at all. So the slice was the member *and* the table: 19
+`RuleSet` arms over ~170 language subtags in `RULES`, cardinal rules only. The ADR row is
+amended to state what is now true; `cldr.rs`'s module doc is the home of every decision behind
+it and none is restated here.
 
-**One file outside the item's named set was unavoidable:** `crates/nvs-config/src/tree.rs`, because
-`deny_unknown_fields` means a `[storage.<name>]` block does not parse until the tree has a type for
-it. `StorageDisk` is one `root` field, mirroring `MailEndpoint`.
+**A language outside the roster throws rather than falling back to English.** That is the one
+call worth knowing without opening the module: it is ADR 0095's refusal, and the alternative is
+silently wrong for exactly the languages the member exists for. The named absences and the
+absent ordinal rules are gaps 3 and 4 in that module doc.
 
-**Two gaps are recorded rather than worked around**, both in `storage.rs`'s module doc: there is no
-`list`, because `nvs_runtime::capability` has no read-directory door and adding one is a
-capability-surface decision of its own; and there is no `exists`, because `get` answering `null` is
-already that question and a second spelling would be ADR 0063 R20's operation reachable two ways.
+**`Core\Cldr` declares no capability**, for `Core\Storage`'s reason and a stronger one — the
+answer is a function of two arguments and a table compiled into the binary, so ADR 0118 § 1 has
+no door to check at.
 
-**The pack still did not print ADR 0024 § 5**, and `[context] file-set` did not name
-`crates/nvs-config/src/tree.rs` for a stage-9 item that adds an operator-named block — every
-remaining one of those will need it too.
+**The pack printed everything this item needed.** No `[context]` gap found this session.
 
 ## Next group
 
-**`Core\Cldr::pluralCategory` — stage 9's last acceptance check — over
-`crates/nvs-stdlib/src/cldr.rs`, `crates/nvs-stdlib/src/registry.rs` and
-`crates/nvs-stdlib/src/lib.rs`, the same three this session used.**
+**`Core\IO`'s two owed members — the plan's stage 2 line — over
+`crates/nvs-stdlib/src/io.rs`, `crates/nvs-stdlib/src/registry.rs` and
+`crates/nvs-stdlib/src/lib.rs`, plus `tests/conformance/io/`.**
 
-- [ ] **`Core\Cldr`'s class and its one row** — ADR 0082 § 2's last row, "one member exposing the
-      CLDR data `nvs_stdlib::cldr` already holds". **Check that claim first**: today
-      `crates/nvs-stdlib/src/cldr.rs:306` is a *date pattern* grammar and its only `pub` item is
-      `validate`, so the plural data may not be carried at all and the row's comment may be the
-      stale-about-the-tree kind the playbook warns about. The rows go beside this session's at
-      `crates/nvs-stdlib/src/registry.rs:1238`, the module beside `mod storage;` at
-      `crates/nvs-stdlib/src/lib.rs:261`, and the address arm at
-      `crates/nvs-stdlib/src/lib.rs:379`. It needs **no** `CAPABILITIES` row: nothing leaves the
-      process.
-- [ ] **`plural_category_answers_from_the_carried_cldr_data`** — the `#[test]` the driver's stage-9
-      check names, in a `#[cfg(test)]` module beside the member at
-      `crates/nvs-stdlib/src/cldr.rs:306`. Assert the categories
-      against a locale whose rules differ from English's in a way one table cannot fake.
-- [ ] **Three `.nvst` cases**, since `BELOW_THE_FLOOR` in
-      `crates/nvs-stdlib/tests/conformance_coverage.rs:268` is empty and the floor is three per
-      member. One case may satisfy several members at once, which is how this session's three
-      covered nine.
+- [ ] **`Core\IO\File::truncate`** — spec § 8's handle half, the instance roster at
+      `crates/nvs-stdlib/src/io.rs:761` (the members run to `close` at
+      `crates/nvs-stdlib/src/io.rs:822`), the `address` arm at
+      `crates/nvs-stdlib/src/io.rs:1038`. It needs no new `CAPABILITIES` row: the handle was
+      already opened under `fs.write`, which is the same door `Core\Storage` reuses. Read
+      `nvs_runtime::capability` first for whether a truncate reaches it or the `File` directly.
+- [ ] **`Core\IO\File::lock`** — the same anchors, `crates/nvs-stdlib/src/io.rs:761` and
+      `crates/nvs-stdlib/src/io.rs:1038`, and the one decision in the pair: an advisory lock's
+      release has to be tied to the handle's own close at `crates/nvs-stdlib/src/io.rs:822`
+      rather than to a second member, or ADR 0063 R20 has one operation reachable two ways.
+      Decide it and record it in `io.rs`'s module doc.
+- [ ] **Three `.nvst` cases each**, under `tests/conformance/io/`, over the members added at
+      `crates/nvs-stdlib/src/io.rs:761`. `every_core_class_has_a_conformance_floor_of_three`
+      counts per class and `Core\IO\File` is already over the floor, so these are the *depth*
+      shapes (a bound asserted on both sides, agreement across the handle's members) and not
+      another row of the same shape. `python tools/gaps.py --errors` ranks them, and **budget a
+      case per new `Fault::thrown`**: the coverage gate wants the message text in a case's
+      expected output, so plan the refusal cases with the members rather than after them.
 
 ## Backlog
 
-- `Core\Mail` owes TLS and `AUTH PLAIN` — `crates/nvs-stdlib/src/mail.rs`'s module doc.
-- `Core\Storage` owes `list`, which owes a read-directory door in `nvs_runtime::capability`.
-- `Core\IO` owes `truncate` and `lock` — docs/implementation-plan.md, *Open now*.
-- `Core\Log` owes reading `[log] target` — ADR 0020 § 3.
-- `Core\Cli` owes `displayWidth` — ADR 0086 § 1.
-- Goals 4 and 5 still need a reachable Docker daemon for the shared store and the driver matrix.
+- `Core\Mail`'s TLS and `AUTH` — blocked on there being no TLS stack in `nvs-stdlib` at all;
+  `crates/nvs-stdlib/src/mail.rs:55` is the gap note, and it is `Core\Http\Client`'s blocker too,
+  so it is one `rustls` slice serving both (pre-authorized, ADR 0051 § 4).
+- `Core\Storage::list` — needs a read-directory door in `nvs_runtime::capability`, which is a
+  capability-surface decision of its own; `crates/nvs-stdlib/src/storage.rs`'s module doc owns it.
+- `Core\Cli::displayWidth` — the plan's stage 3 line, `crates/nvs-stdlib/src/cli.rs`.
+- Reading `[log] target` — the plan's stage 7 line.
+- Stage 10's `differential` gate wants 250 passing and the tree has 210 — 40 oracle cases under
+  `tests/differential/`, and the only check in this goal that is a volume of cases rather than a
+  member.
+- CLDR **ordinal** rules, if `Web\I18n` ever asks — `crates/nvs-stdlib/src/cldr.rs` gap 4.
