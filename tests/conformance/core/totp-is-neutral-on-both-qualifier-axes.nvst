@@ -1,0 +1,54 @@
+--TEST--
+Core\Totp is neutral on both qualifier axes: a `secret` goes into `code` and printable text comes out, and a `tainted` code goes into `check` and an ordinary `int` comes back — while the six characters the user typed are still tainted afterwards, because verifying a code is not laundering it — ADR 0060 §§ 4-5, ADR 0033 § 2, ADR 0024 § 3
+--FILE--
+<?nvs
+// Agreement across two qualifier axes, asserted by the *declarations* rather
+// than by what is printed: neither binding below can be spelled the other way
+// round and still compile, so this file compiling at all is the assertion and
+// the output is the evidence that the values are the ones being talked about.
+// Both rows are `Qual::Neutral` in `crates/nvs-stdlib/src/totp.rs`, and the
+// class is unusable without either one — which is exactly why no case had asked
+// for the qualifier the class's own registry comments promise.
+secret bytes $secret = Core\Random::bytes(20);
+
+// 1. ADR 0033's axis. Showing the six digits to somebody is the whole point of
+// the member, and a `secret` value is refused by output, logs and dumps alike —
+// so a contagious row here would refuse this declaration and put the member's
+// own purpose out of reach. The same shape as `Core\Password::hash`'s answer:
+// the second of exactly two operations that take a `secret` and answer
+// something that is not one.
+string $shown = Core\Totp::code($secret);
+echo "a secret goes in and ordinary text comes out: ",
+     Core\Str::length($shown) == 6 ? "yes" : "no", "\n";
+
+// 2. ADR 0024's axis, on the member's most common call site: a code arrives out
+// of a form, so it is tainted before anything has looked at it. `check`'s
+// `$code` is neutral rather than a sink — it accepts what the user typed — and
+// the step that comes back was decided by the clock rather than carried by the
+// argument, which is what neutral means on a row.
+tainted string $typed = $shown;
+int $step = Core\Totp::check($typed, $secret) ?? -1;
+echo "a tainted code verifies: ", $step > 0 ? "yes" : "no", "\n";
+
+// 3. And it is still tainted on the way out, which is ADR 0060 § 5 for the
+// third roster entry: knowing the secret proves the holder is who they say,
+// and says nothing about where the six characters have been. The pattern sink
+// refuses the very value `check` just accepted, so laundering it stays a
+// separate, written act — as `Core\Jwt::verify`'s claims are, and unlike
+// `Core\SignedCookie::open`'s payload, which this program had sealed itself.
+string $quoted = Core\Regex::quote($typed);
+Core\Regex\Pattern $laundered = Core\Regex::compile($quoted);
+echo Core\Regex::matches($shown, $laundered)
+     ? "and laundering it is a separate act" : "the pattern lost the code", "\n";
+
+// 4. The answer is an ordinary `int` and not a qualified one, which is the half
+// that makes the replay refusal storable at all: a caller writes this number
+// beside the account and hands it back, and a value carrying either qualifier
+// could not be written to a row or compared against one.
+echo Core\Totp::check($typed, $secret, $step) == null
+     ? "and the step it answered is a number a caller can keep" : "a replay was accepted", "\n";
+--EXPECT--
+a secret goes in and ordinary text comes out: yes
+a tainted code verifies: yes
+and laundering it is a separate act
+and the step it answered is a number a caller can keep
