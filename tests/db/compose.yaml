@@ -22,11 +22,12 @@
 #
 # * MySQL 8.4 and MariaDB 11.4 generate their own self-signed certificate at first boot.
 # * SQL Server generates one too and encrypts the login packet regardless.
-# * PostgreSQL, Redis and Mailpit do not, so the `certs` service below makes one for them in a shared
-#   volume.
+# * PostgreSQL, Redis and Mailpit do not, so the `certs` service below issues them one in a shared
+#   volume -- a private CA, and a leaf signed by it.
 #
-# All of them are self-signed, so a client verifies the chain or it does not connect. The CA is one
-# command away when a test wants to verify rather than merely encrypt:
+# No server here presents a certificate any public root vouches for, so a client verifies against a
+# private anchor or it does not connect. For the three the `certs` service serves, that anchor is one
+# command away:
 #
 #     docker compose -f tests/db/compose.yaml cp postgres:/certs/ca.crt tests/db/ca.crt
 #
@@ -37,25 +38,49 @@ name: novis-db
 
 services:
   # ---------------------------------------------------------------------------------------------------
-  # A self-signed certificate for the two servers that will not make their own. It runs to completion
-  # before either starts, and is a no-op on every run after the first: the volume already has the key.
+  # A two-certificate chain for the servers that will not make their own: a CA, and a leaf signed by it.
+  # It runs to completion before any of them starts, and is a no-op on every run after the first: the
+  # volume already has the CA key.
+  #
+  # **The leaf and the anchor may not be the same certificate.** `openssl req -x509` issues one with
+  # `CA:TRUE`, and a TLS client that verifies rather than merely encrypts refuses exactly that as an
+  # end-entity -- rustls reports `CaUsedAsEndEntity`, which reads as a trust-store problem and is not
+  # one. So `ca.crt` is its own certificate rather than a copy of `server.crt`, and the leaf is a
+  # second `openssl x509 -req` against it. `-copy_extensions copyall` is what carries the CSR's SAN,
+  # `CA:FALSE` and `serverAuth` onto the issued certificate; without it the leaf has no SAN at all and
+  # no client will match a hostname to it.
+  #
+  # The guard file is the CA key, not the server key. A volume left over from the single self-signed
+  # certificate has `server.key` and no `ca.key`, so it re-issues both rather than preserving the shape
+  # that could not be verified.
   #
   # `chown 999` is not cosmetic. PostgreSQL refuses to start on a key with group or world access, and
-  # both images run as uid 999, so the key is 0600 and owned by exactly that.
+  # both images run as uid 999, so the key is 0600 and owned by exactly that. The CA key stays root's:
+  # nothing but this service ever reads it.
   # ---------------------------------------------------------------------------------------------------
   certs:
     image: alpine/openssl:3.5.7
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >
-        test -f /certs/server.key ||
+        test -f /certs/ca.key ||
         (openssl req -x509 -newkey rsa:2048 -nodes -days 3650
+        -subj "/CN=Novis test CA"
+        -addext "basicConstraints=critical,CA:TRUE"
+        -addext "keyUsage=critical,keyCertSign,cRLSign"
+        -keyout /certs/ca.key -out /certs/ca.crt
+        && openssl req -new -newkey rsa:2048 -nodes
         -subj "/CN=localhost"
+        -addext "basicConstraints=critical,CA:FALSE"
+        -addext "keyUsage=critical,digitalSignature,keyEncipherment"
+        -addext "extendedKeyUsage=serverAuth"
         -addext "subjectAltName=DNS:localhost,DNS:postgres,DNS:redis,IP:127.0.0.1"
-        -keyout /certs/server.key -out /certs/server.crt
-        && cp /certs/server.crt /certs/ca.crt
+        -keyout /certs/server.key -out /certs/server.csr
+        && openssl x509 -req -in /certs/server.csr -days 3650
+        -CA /certs/ca.crt -CAkey /certs/ca.key -CAcreateserial
+        -copy_extensions copyall -out /certs/server.crt
         && chown 999:999 /certs/server.key /certs/server.crt /certs/ca.crt
-        && chmod 600 /certs/server.key
+        && chmod 600 /certs/server.key /certs/ca.key
         && chmod 644 /certs/server.crt /certs/ca.crt)
     volumes:
       - certs:/certs
