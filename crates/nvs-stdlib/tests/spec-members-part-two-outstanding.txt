@@ -1,0 +1,83 @@
+# Every member `docs/spec/01-core-library.md` §§ 14-19 names that
+# `nvs_stdlib::registry::CLASSES` does not declare yet. One key per line,
+# `§<section> <Class>::<member>` where the spec's bullet names a class, and
+# `§<section> <member>` where a table row does not.
+#
+# `tests/spec_registry_coverage.rs` owns this file, and its module doc says why it
+# exists rather than the test simply failing. The list **only shrinks**: adding a
+# member and striking its line here are one edit, and the test fails on a stale
+# line as loudly as on an unlisted one. When this file holds no keys, spec
+# §§ 14-19 is registered whole.
+#
+# Part II is finished by more than one goal — the request-facing half of § 15 is
+# goal 6's and § 18's driver surface is goal 5's — so a key here is a member that
+# is owed, never one that is refused. Grouped by section for reading; the test
+# compares sets, so order means nothing to it.
+
+# § 14 -- `Core\IO`'s path half. The handle roster and the whole-file members are
+# on disk; these are the directory, metadata and copying members beside them.
+§14 append
+§14 canonicalize
+§14 copy
+§14 isDir
+§14 isFile
+§14 isReadable
+§14 isWritable
+§14 list
+§14 makeDir
+§14 modifiedAt
+§14 move
+§14 stat
+§14 walk
+
+# § 15 -- the request-facing half, which needs a request: goal 6's. `Core\Env`'s
+# and `Core\Cli`'s members are registered already, so what is left of § 15 here is
+# `Core\Env`'s run mode and constants, and the three request classes whole.
+§15 Cap::has
+§15 Env::EOL
+§15 Env::OS
+§15 Env::VERSION
+§15 Env::mode
+§15 Request::body
+§15 Request::bodyStream
+§15 Request::clientIp
+§15 Request::cookie
+§15 Request::files
+§15 Request::header
+§15 Request::headers
+§15 Request::host
+§15 Request::isHead
+§15 Request::method
+§15 Request::mount
+§15 Request::path
+§15 Request::query
+§15 Request::route
+§15 Request::scheme
+§15 Response::addCookie
+§15 Response::bytes
+§15 Response::html
+§15 Response::json
+§15 Response::redirect
+§15 Response::sendFile
+§15 Response::setHeader
+§15 Response::setStatus
+§15 Response::text
+§15 Session::clear
+§15 Session::destroy
+§15 Session::get
+§15 Session::regenerate
+§15 Session::remove
+§15 Session::set
+
+# § 18 -- `Core\Db`, which needs a driver and a server to talk to: goal 5's.
+§18 connect
+§18 execute
+§18 executeMany
+§18 inList
+§18 open
+§18 query
+§18 queryAs
+§18 quoteIdentifier
+§18 stream
+§18 streamAs
+§18 transaction

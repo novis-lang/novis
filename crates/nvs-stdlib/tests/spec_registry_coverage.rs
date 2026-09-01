@@ -4,6 +4,10 @@
 //! writes as a **table row** is a member some class in [`registry::CLASSES`]
 //! declares.
 //!
+//! [`every_part_two_spec_member_is_registered`] asks the same question of
+//! §§ 14-19, which Part II writes as bullets rather than as tables — its own
+//! doc owns that difference, and the two sections' exclusions.
+//!
 //! This is the mirror of `conformance_coverage.rs`, which walks the registry
 //! and asks the repository for a case. This walks the *spec* and asks the
 //! registry for a row, so the two together close the loop: a member cannot be
@@ -258,10 +262,16 @@ fn registered(candidates: &[&'static registry::CoreClass], name: &str) -> bool {
         .any(|class| class.members().any(|m| m.name == name) || class.constant(name).is_some())
 }
 
-/// The keys `spec-members-outstanding.txt` lists, blank lines and `#` comments
-/// dropped.
-fn outstanding_file() -> (std::path::PathBuf, BTreeSet<String>) {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/spec-members-outstanding.txt");
+/// The keys the named ratchet file under `tests/` lists, blank lines and `#`
+/// comments dropped.
+///
+/// There are two, one per walk — §§ 1-12's and §§ 14-19's — because the two
+/// halves are finished by different loops and a single file would make a Part I
+/// regression indistinguishable from a Part II member nobody has reached yet.
+fn outstanding_file(name: &str) -> (std::path::PathBuf, BTreeSet<String>) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join(name);
     let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
     let keys = text
         .lines()
@@ -285,8 +295,10 @@ fn every_part_one_spec_member_is_registered() {
 
     for line in text.lines() {
         if let Some(number) = section_number(line) {
-            // §§ 13-19 are Part II and later — `loop-goal.md` § *Standing
-            // decisions* puts them out of scope, so the walk stops at 12.
+            // § 13 is Part I's compiler-facing tail, whose table has no Member
+            // column at all — it writes `| Class | Owns | ADR |` and names the
+            // members inside an English Owns cell — and §§ 14-19 are Part II,
+            // walked by [`every_part_two_spec_member_is_registered`] below.
             section = (1..=12).contains(&number).then_some(number);
             candidates = classes_in(line);
             in_members = false;
@@ -331,7 +343,7 @@ fn every_part_one_spec_member_is_registered() {
         spec.display()
     );
 
-    let (path, listed) = outstanding_file();
+    let (path, listed) = outstanding_file("spec-members-outstanding.txt");
     let unlisted: Vec<&String> = outstanding.difference(&listed).collect();
     assert!(
         unlisted.is_empty(),
@@ -467,5 +479,240 @@ fn every_registry_rows_names_are_the_specs_signature_column() {
          or change the spec and accept that renaming a parameter is a breaking change.",
         wrong.len(),
         wrong.join("\n  ")
+    );
+}
+
+/// The part of a Part II bullet that is a member list: everything before the
+/// first em dash.
+///
+/// Part II is written "at one line per member" rather than as tables, and the
+/// em dash is where every one of those lines turns from *what the class owns*
+/// to prose about it — `` `clientIp`, `scheme`, `host` — replacing `$_GET` ``.
+/// Cutting there is a typographic rule, not an English one, which is the same
+/// line this file's own docs draw for §§ 1-12: a bullet that states its members
+/// *after* its dash (§ 15's `Core\Server` and `Core\Cli`) is read only up to
+/// it, and undercounts. That direction is the safe one — a member missed here
+/// is a member the registry is not asked about, while a fragment of prose
+/// mistaken for one would be a ratchet key no session could ever strike.
+fn member_list(bullet: &str) -> &str {
+    bullet.split_once('—').map_or(bullet, |(list, _)| list)
+}
+
+/// `text` with every parenthesised aside that is outside a code span removed.
+///
+/// Part II writes a member's PHP twin in parentheses directly after the
+/// signature — `` `canonicalize(string $path): string` (`realpath`) `` — where
+/// §§ 1-12 had a *Replaces* column to put it in, so without this the twin reads
+/// as a second member of the same class and becomes a ratchet key nobody can
+/// ever strike. A signature's own parentheses are inside its backticks and are
+/// never touched, and a markdown link's target goes the same way as a twin,
+/// which costs nothing because it holds no code span. An aside carrying an
+/// unbalanced `(` *inside* a code span would swallow the rest of the bullet;
+/// none does, and the `seen` floor below is what would say so.
+fn without_asides(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut in_span = false;
+    let mut depth = 0usize;
+    for ch in text.chars() {
+        match ch {
+            '`' if depth == 0 => {
+                in_span = !in_span;
+                out.push(ch);
+            }
+            '(' if !in_span => depth += 1,
+            ')' if !in_span && depth > 0 => depth -= 1,
+            _ if depth > 0 => {}
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+/// Every registered class inside `name`, itself included — empty when nothing
+/// registers that name at all, which is what makes a bullet led by a class no
+/// one has written yet outstanding member by member rather than silently
+/// answered by a sibling.
+fn classes_named(name: &str) -> Vec<&'static registry::CoreClass> {
+    let inner = format!(r"{name}\");
+    registry::CLASSES
+        .iter()
+        .filter(|class| class.name == name || class.name.starts_with(&inner))
+        .collect()
+}
+
+/// [`every_part_one_spec_member_is_registered`]'s other half: every member
+/// [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+/// §§ 14-19 names is a member some class in [`registry::CLASSES`] declares.
+///
+/// Part II is the capability-bearing half, and it is written in two shapes
+/// rather than one. § 19 carries an ordinary `| Member | Signature | … |`
+/// table, read exactly as §§ 1-12's are. Everything else states a class and its
+/// members in a bullet — `` - `Core\Session`: `get`, `set`, … `` — because the
+/// semantics live in each subsystem's own ADR and this file fixes only the
+/// roster. So the walk reads both, and [`member_list`] owns where a bullet
+/// stops being a roster.
+///
+/// A bullet that opens with its own `` `Core\X` `` span resolves against that
+/// class and the classes inside its namespace **and no others**, which matters
+/// far more here than the section-wide looseness §§ 1-12 could afford: § 15
+/// puts `Core\Session`, `Core\Env` and `Core\Request` under one heading, and
+/// all three own a `get`. The loose reading would let `Core\Env::get` strike
+/// two members nobody has written.
+///
+/// **§§ 16 and 17 are out of scope, on the same line § 13 is.** Both write
+/// `| Class | Surface | ADR |` — one row per class, its members inside an
+/// English cell beside the prose about them — and a "Replaces `fsockopen`"
+/// clause sits in that cell with no dash or column separating it, so reading
+/// them means reading English rather than a shape. What that costs is worth
+/// naming rather than leaving implicit: nothing checks that `Core\Http\Client`,
+/// `Core\RateLimit`, `Core\Metrics`, `Core\Net`, `Core\Crypto`, `Core\Html`,
+/// `Core\Xml`, `Core\Compress`, `Core\Zip` or `Core\Mime` has a row for every
+/// member the spec gives it — `conformance_coverage.rs` walks the registry, so
+/// it can only ask about the members that *are* registered. The four this walk
+/// does read are § 14's and § 15's bullets and § 18's and § 19's Member tables.
+///
+/// The ratchet is `tests/spec-members-part-two-outstanding.txt`, and the
+/// module doc above owns why there is a file at all. Its keys carry the
+/// bullet's class where there is one — `§15 Session::get` — since a bare
+/// `§15 get` would name three different members.
+#[test]
+fn every_part_two_spec_member_is_registered() {
+    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
+    let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
+
+    let mut section = None;
+    let mut heading: Vec<&'static registry::CoreClass> = Vec::new();
+    let mut in_members = false;
+    let mut bullet = String::new();
+    let mut seen = 0usize;
+    let mut outstanding = BTreeSet::new();
+
+    let mut record =
+        |number: u32, candidates: &[&'static registry::CoreClass], prefix: &str, span: &str| {
+            let head = span[..span.find('(').unwrap_or(span.len())].trim();
+            let Some(name) = member_name(head) else {
+                return;
+            };
+            // A Part II bullet names its class's types beside its members —
+            // `FileMode` is an enum, `Env\Mode`'s cases are `Production` and
+            // `Development` — and ADR 0063's naming is what tells the two apart
+            // without reading the sentence they sit in: a member is lowerCamelCase
+            // and a constant is SCREAMING_CASE, so an initial capital followed by
+            // any lower-case letter is a type and never a member.
+            let mut rest = name.chars();
+            if rest.next().is_some_and(|first| first.is_ascii_uppercase())
+                && rest.any(|later| later.is_ascii_lowercase())
+            {
+                return;
+            }
+            seen += 1;
+            if !registered(&scoped(candidates, head), name) {
+                outstanding.insert(format!("§{number} {prefix}{head}"));
+            }
+        };
+
+    for line in text.lines() {
+        // A bullet runs until the next one, a blank line, a table or a heading,
+        // so every line that is not an indented continuation flushes it first —
+        // while `section` and `heading` still hold the ones it was written
+        // under.
+        let continues = !bullet.is_empty() && line.starts_with("  ") && !line.trim().is_empty();
+        if !continues && !bullet.is_empty() {
+            if let Some(number) = section {
+                let cleaned = without_asides(&bullet);
+                let list = member_list(&cleaned).to_owned();
+                let led = spans(&list)
+                    .first()
+                    .copied()
+                    .filter(|span| span.starts_with(r"Core\"))
+                    .map(str::to_owned);
+                let candidates = led
+                    .as_deref()
+                    .map_or_else(|| heading.clone(), classes_named);
+                let prefix = led.as_deref().map_or_else(String::new, |class| {
+                    format!("{}::", class.trim_start_matches(r"Core\"))
+                });
+                for span in spans(&list) {
+                    record(number, &candidates, &prefix, span);
+                }
+            }
+            bullet.clear();
+        }
+        if continues {
+            bullet.push(' ');
+            bullet.push_str(line.trim());
+            continue;
+        }
+        if let Some(number) = section_number(line) {
+            section = (14..=19).contains(&number).then_some(number);
+            heading = classes_in(line);
+            in_members = false;
+            continue;
+        }
+        let Some(number) = section else { continue };
+        if line.starts_with("- ") {
+            bullet.push_str(line);
+            in_members = false;
+            continue;
+        }
+        if !line.starts_with('|') {
+            in_members = false;
+            continue;
+        }
+        let cell = line
+            .trim_start_matches('|')
+            .split('|')
+            .next()
+            .unwrap_or("")
+            .trim();
+        if cell == "Member" {
+            in_members = true;
+            continue;
+        }
+        if cell.starts_with("---") || !in_members {
+            continue;
+        }
+        for span in spans(cell) {
+            record(number, &heading, "", span);
+        }
+    }
+
+    assert!(
+        seen > 60,
+        "{} yielded only {seen} Part II member(s), which is too few to be §§ 14-19 — \
+         the bullet and table parsers have stopped matching the spec's own shape",
+        spec.display()
+    );
+
+    let (path, listed) = outstanding_file("spec-members-part-two-outstanding.txt");
+    let unlisted: Vec<&String> = outstanding.difference(&listed).collect();
+    assert!(
+        unlisted.is_empty(),
+        "{} spec member(s) in §§ 14-19 have no `registry::CLASSES` row and are not listed in {}: {}\n\
+         Register the member (four things — see docs/agent/conventions.md), or add its key to \
+         that file if it is genuinely still owed.",
+        unlisted.len(),
+        path.display(),
+        unlisted
+            .iter()
+            .map(|key| key.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+
+    let stale: Vec<&String> = listed.difference(&outstanding).collect();
+    assert!(
+        stale.is_empty(),
+        "{} line(s) in {} name a member that is registered now, or a key no spec bullet or row \
+         produces: {}\n\
+         Delete those lines — the list only shrinks, and striking a line is part of the slice \
+         that registers the member.",
+        stale.len(),
+        path.display(),
+        stale
+            .iter()
+            .map(|key| key.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
     );
 }
