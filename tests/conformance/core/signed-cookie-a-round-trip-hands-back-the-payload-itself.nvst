@@ -1,0 +1,63 @@
+--TEST--
+Core\SignedCookie::seal then ::open is the identity over a sweep of payloads — the empty one, one carrying the cookie delimiters, one whose octets outnumber its characters and one long enough to cross a kilobyte — and two different cookies of one value both open to that value — ADR 0060 § 1
+--FILE--
+<?nvs
+// Invariance over a sweep. The round trip is asserted against *the payload
+// itself* on every line of this case and never against a frozen cookie: the
+// nonce is fresh per call and the ring is generated per run, so there is no
+// literal a cookie could be compared to. `crates/nvs-stdlib/src/signed_cookie.rs`
+// owns why that is the shape — the answer is the plaintext that went in, and
+// the ciphertext around it is deliberately unstable.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+// The axis here is the *shape* of the payload rather than which punctuation it
+// carries: nothing, then the delimiters a `Set-Cookie` header parses on, then a
+// payload whose octet count is nearly twice its character count, then one long
+// enough that its cookie crosses a kilobyte. A member that trimmed, padded or
+// re-encoded on the way through prints exactly the right thing for a short
+// ASCII session id and fails at one of the other three.
+array<string> $values = [
+    "",
+    "id=42; theme=dark; last.seen=2026-09-01",
+    "пароль=σ; 日本.語",
+    Core\Str::repeat("user=ada; role=admin; ", 64),
+];
+
+int $identical = 0;
+int $reopened = 0;
+foreach ($values as string $payload) {
+    string $cookie = Core\SignedCookie::seal($payload, $ring);
+    if (Core\SignedCookie::open($cookie, $ring) == $payload) {
+        $identical = $identical + 1;
+    }
+    // Sealed a second time, and opened against the payload again rather than
+    // against the first cookie. The two cookies differ — the case next door
+    // pins that — so this is the assertion that says which of the two the
+    // program is entitled to: the plaintext is the invariant and the cookie is
+    // not. A member that answered a cached plaintext keyed by the cookie text
+    // would pass the first count and fail here.
+    string $again = Core\SignedCookie::seal($payload, $ring);
+    if (Core\SignedCookie::open($again, $ring) == $payload) {
+        $reopened = $reopened + 1;
+    }
+}
+echo "intact ", $identical, " of ", Core\Arr::count($values), "\n";
+echo "a second cookie of the same value opens to it too: ", $reopened, " of ", Core\Arr::count($values), "\n";
+
+// And this is what keeps the two counts from being four ASCII round trips in a
+// row. The third payload's octets outnumber its characters by nearly two to
+// one, so a member that sealed `Core\Str::length` octets — or that measured the
+// buffer it decrypted in characters — truncates it, and the fourth is past
+// every 3-octet base64 group boundary and past the 40 octets of AEAD overhead
+// several times over. Printed rather than asserted, because the numbers are
+// the reason the sweep is not vacuous.
+echo "the multibyte payload is ", Core\Str::length($values[2]), " characters and ",
+     Core\Bytes::length(Core\Encoding::encodeText($values[2], Core\Charset::Utf8)), " octets\n";
+echo "the long payload is ", Core\Str::length($values[3]), " characters, its cookie ",
+     Core\Str::length(Core\SignedCookie::seal($values[3], $ring)), "\n";
+--EXPECT--
+intact 4 of 4
+a second cookie of the same value opens to it too: 4 of 4
+the multibyte payload is 14 characters and 27 octets
+the long payload is 1408 characters, its cookie 1931
