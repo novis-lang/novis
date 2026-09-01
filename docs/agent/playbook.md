@@ -1325,6 +1325,15 @@ is why" — is this file.
   `target/debug/nvs.exe test tests/conformance/core/<case>.nvst`, which reads the file itself, is
   what `verify.py` calls, and prints `1 passed` or the expected/actual diff. Keep `try.py` for
   scratch snippets whose output is ASCII.
+- **A session that died leaves its whole slice on disk, and the next pack hands you the item as if
+  nothing had been done.** Session 0001 of one run wrote 288 lines across eight crates plus two
+  `.nvst` cases, then exited without a commit and without `.loop/status.txt`; `orient.py` quoted the
+  same handoff to the next session, whose item was the work already sitting in the tree unverified.
+  The tell is in `.loop/log.md` — a session line reading `N commit(s)` with `(no status written)`
+  beside it, `0` in that run — and the check is `git status --short` **before the first edit**, which
+  is worth it for what it changes: the owed work becomes `verify.py`, the commit messages nobody
+  wrote, and the next slice, rather than a second implementation of what is already there. Do not
+  assume such a tree is wrong because it is uncommitted; verify it first and only then judge it.
 
 ## Running things
 
