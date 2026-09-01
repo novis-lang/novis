@@ -10132,7 +10132,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, writeStream, exists, size, remove, removeDir, temporaryDir, within, readText, lines, open, stdin
+Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, writeStream, exists, isFile, isDir, size, remove, removeDir, list, temporaryDir, canonicalize, within, readText, lines, open, stdin
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -10185,10 +10185,14 @@ outside: refused
 | [`Core\IO::write`](#core-core-io-write) | `write(string $path, string $content): void` |
 | [`Core\IO::writeStream`](#core-core-io-writestream) | `writeStream(string $path, array<bytes>\|Iterable<bytes>\|Iterator<bytes> $src, {max?: uint, overwrite?: bool}): void` |
 | [`Core\IO::exists`](#core-core-io-exists) | `exists(string $path): bool` |
+| [`Core\IO::isFile`](#core-core-io-isfile) | `isFile(string $path): bool` |
+| [`Core\IO::isDir`](#core-core-io-isdir) | `isDir(string $path): bool` |
 | [`Core\IO::size`](#core-core-io-size) | `size(string $path): uint` |
 | [`Core\IO::remove`](#core-core-io-remove) | `remove(string $path): void` |
 | [`Core\IO::removeDir`](#core-core-io-removedir) | `removeDir(string $path): void` |
+| [`Core\IO::list`](#core-core-io-list) | `list(string $path): array<string>` |
 | [`Core\IO::temporaryDir`](#core-core-io-temporarydir) | `temporaryDir(): string` |
+| [`Core\IO::canonicalize`](#core-core-io-canonicalize) | `canonicalize(string $path): string` |
 | [`Core\IO::within`](#core-core-io-within) | `within(string $base, string $path): string` |
 | [`Core\IO::readText`](#core-core-io-readtext) | `readText(string $path, {charset?: Core\Charset}): string` |
 | [`Core\IO::lines`](#core-core-io-lines) | `lines(string $path): Core\IO\Lines` |
@@ -10267,6 +10271,40 @@ Reports whether anything is at `$path` — `file_exists`, and true for a directo
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path. A refusal and a `false` are deliberately distinguishable: a program that was never granted the root cannot use this member to learn what is in it.; `IOError` — The operating system could answer neither yes nor no — a parent directory it will not traverse, which is not the same as the name being absent.
 
+<a id="core-core-io-isfile"></a>
+#### `Core\IO::isFile`
+
+```nvs skip
+Core\IO::isFile(string $path): bool
+```
+
+Reports whether `$path` names a regular file — `is_file`. Symbolic links are followed, so a link to a file answers `true`. Needs the `fs.read` capability, which is asked before the path is touched.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The name to ask about, absolute or relative to the working directory. |
+
+**Returns** `bool` — `true` for a regular file, `false` for a directory, for anything else the operating system holds at that name, and for a name that is not there at all. Absence answers `false` here rather than throwing, because the question is what kind of thing is at the name and *nothing* is a complete answer to it.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path. A refusal and a `false` stay distinguishable, exactly as they do for `exists`.; `IOError` — The operating system could answer neither yes nor no — a parent directory it will not traverse, which is not the same as the name naming no file.
+
+<a id="core-core-io-isdir"></a>
+#### `Core\IO::isDir`
+
+```nvs skip
+Core\IO::isDir(string $path): bool
+```
+
+Reports whether `$path` names a directory — `is_dir`. Symbolic links are followed, so a link to a directory answers `true`. Needs the `fs.read` capability.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The name to ask about, absolute or relative to the working directory. |
+
+**Returns** `bool` — `true` for a directory, `false` for a file, for anything else, and for a name that is not there. With `isFile` it partitions what `exists` answers `true` for into the two kinds this class has separate members for, and a name can satisfy neither.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The operating system could answer neither yes nor no — a parent directory it will not traverse.
+
 <a id="core-core-io-size"></a>
 #### `Core\IO::size`
 
@@ -10318,6 +10356,23 @@ Deletes the **empty** directory at `$path` — `rmdir`. Needs the `fs.write` cap
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is not a directory, or it still has entries in it.
 
+<a id="core-core-io-list"></a>
+#### `Core\IO::list`
+
+```nvs skip
+Core\IO::list(string $path): array<string>
+```
+
+The entries of the directory at `$path`, as an `array<string>` of bare names — replacing `scandir`, `glob` and the whole `opendir`/`readdir`/`closedir` sequence. `.` and `..` are not entries: they are the two names every `scandir` caller filters out, so they are never handed over. Needs the `fs.read` capability. The order is the operating system's own and nothing here sorts it — `Core\Arr::sort` is one call and a member that sorted by default would charge every caller for a guarantee most do not need.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The directory to read. A file throws rather than answering a one-element array. |
+
+**Returns** `array<string>` — One `string` per entry, each a name and not a path: joining it back onto `$path` is the caller's own step, and `within` is what makes that join safe when the name reached this program from outside. The whole directory is held at once, which is what makes this a member for a directory a program expects to fit in memory; `walk` is the streaming half.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is not a directory, or an entry could not be read partway through the walk.
+
 <a id="core-core-io-temporarydir"></a>
 #### `Core\IO::temporaryDir`
 
@@ -10330,6 +10385,23 @@ Creates a new, empty, private directory under the system temporary root and answ
 **Returns** `string` — The absolute path of a directory that exists, holds nothing, and belongs to this process. Removing it is the program's own job — `remove` each entry, then `removeDir` — because a runtime that swept it would be deciding the lifetime of data it knows nothing about.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.write` for the temporary root; the message names the path a grant would have to cover.; `IOError` — The capability allowed it and no directory could be created — the root is full, read-only, or absent.
+
+<a id="core-core-io-canonicalize"></a>
+#### `Core\IO::canonicalize`
+
+```nvs skip
+Core\IO::canonicalize(string $path): string
+```
+
+The absolute path `$path` resolves to, with every `.`, `..` and symbolic link followed by the operating system — `realpath`. Needs the `fs.read` capability: resolving a name reads the directories on the way to it. **This is not the traversal check.** It resolves and stops there; `within` is the member that resolves and then proves containment, and it is the one an untrusted path has to pass through.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The name to resolve, absolute or relative to the working directory. Every component must exist, including the last one. |
+
+**Returns** `string` — The resolved absolute path. Passing the answer back in resolves to itself, so the result is a fixed point and a program may compare two of them for equality — which is the one use this member has that `Core\Path::normalize` cannot serve, since two different spellings of one file normalize differently and canonicalize the same.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The capability allowed it and the operating system did not — a component of the path is not there, or is not a directory, or a symbolic link loops. A name that does not exist has no resolution, so it throws here where `exists` answers `false`.
 
 <a id="core-core-io-within"></a>
 #### `Core\IO::within`
