@@ -750,6 +750,34 @@ pub enum ExprInfo {
         /// `crate::expr::members::public_property_names`' own order.
         names: Vec<String>,
     },
+    /// `$obj->$key` / `$obj->{$expr}` —
+    /// [ADR 0126](../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+    /// § 4's keyed access, read or write, whose member name arrives as a
+    /// **value** when the statement runs.
+    ///
+    /// The dynamic-name counterpart of [`ExprInfo::Property`], recorded for
+    /// that variant's reason: `nvs_ir::lower` reads a `PropertyAccess` back out
+    /// of this table and has no fallback for a span with no entry. Keyed by the
+    /// access expression's own span, like every other property entry.
+    ///
+    /// **Both directions lower to ADR 0036 § 4's erased access** — § 5's own
+    /// decision, recorded in that section: the name is resolved against the
+    /// receiver's concrete descriptor at run time, so nothing here carries a
+    /// slot to hint with. A key names one of `T`'s public properties and the
+    /// receiver satisfies `T`, but *which* name it holds is exactly what is not
+    /// known until the access runs. That is why the alternative — a closed-set
+    /// chain over the roster, one comparison per name — buys nothing a
+    /// descriptor lookup does not already do in one call.
+    KeyedProperty {
+        /// The class the key is bounded by, rendered: `T` of the operand's
+        /// `property<T>`, which the receiver was checked to satisfy.
+        class: String,
+        /// § 5's union of `T`'s public declared property types — what a read
+        /// answers, and what a write must satisfy at least one member of.
+        /// [`crate::ty::TypeInterner::mixed`] where `T` declares no
+        /// public property at all, a class whose keys have no value.
+        ty: TypeId,
+    },
     /// `Core\Program::implementing<T>()`, keyed by the call's own span —
     /// [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
     /// § 3's enumeration, already answered.

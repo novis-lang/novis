@@ -591,6 +591,7 @@ fn collect_public_properties(
 /// can hold.
 fn check_keyed_property(
     object_ty: TypeId,
+    access_span: Span,
     name_span: Span,
     name_ty: Option<TypeId>,
     is_unset: bool,
@@ -637,14 +638,25 @@ fn check_keyed_property(
                 .map(|(_, ty)| ty)
         })
         .collect();
-    if members.is_empty() {
-        // A class with no public property at all, which ADR 0126 § 1 refuses at
-        // the written `property<T>` itself — an empty union is not a type this
-        // interner has, and there is no value of this key type to read through
-        // anyway.
-        return env.interner.mixed();
-    }
-    env.interner.make_union(members)
+    // A class with no public property at all, which ADR 0126 § 1 refuses at the
+    // written `property<T>` itself — an empty union is not a type this interner
+    // has, and § 2's every conversion into such a key throws, so no value of it
+    // can reach an access. The entry is recorded all the same: `nvs-ir` has no
+    // fallback for a `PropertyAccess` span with no entry, and "unreachable at
+    // run time" is not "never lowered".
+    let ty = if members.is_empty() {
+        env.interner.mixed()
+    } else {
+        env.interner.make_union(members)
+    };
+    env.exprs.record(
+        access_span,
+        ExprInfo::KeyedProperty {
+            class: key_class.to_string(),
+            ty,
+        },
+    );
+    ty
 }
 
 /// `E0235`, ADR 0126 § 4's refusal, reported where the operand is written.
@@ -863,6 +875,7 @@ pub(crate) fn check_class_name_const(
               nullsafe flag in place of the receiver type it computes"
 )]
 pub(crate) fn check_property_access(
+    access_span: Span,
     object: &Expr,
     property: &MemberName,
     nullsafe: bool,
@@ -878,6 +891,7 @@ pub(crate) fn check_property_access(
     // which the method-call arm of [`infer`] shares.
     let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, object.span, env);
     let member_ty = check_property_member(
+        access_span,
         object,
         receiver_ty,
         property,
@@ -1000,16 +1014,11 @@ fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
 ///   a *type* rather than by a spelling since ADR 0126 § 4, and it is
 ///   [`check_keyed_property`] that decides: an operand that is not a
 ///   `property<T>` the receiver satisfies is `E0235` here, and one that is
-///   answers § 5's union of the set with **no entry of its own**. That second
-///   arm is where this proof is currently owed rather than held. It used to be
-///   unreachable because no value of the type could exist in a compiled
-///   program; `nvs-ir` now lowers a `property<T>` parameter, return and local
-///   (a key is a name, so it erases to that crate's `Ty::Str`) and § 2's
-///   conversions produce one, so a program *can* reach the panic — which names
-///   the gap rather than miscompiling, and is that crate's known gap 21. The
-///   slice that gives § 5 its erased store is the one that records an entry
-///   here and restores the proof. ADR 0014 § 5 owns why every other operand is
-///   refused at all.
+///   records [`ExprInfo::KeyedProperty`] carrying § 5's union. That arm is
+///   recorded even where `T` declares no public property at all — no value of
+///   such a key can exist, since § 2's every conversion into one throws, but
+///   "unreachable at run time" is not "never lowered" and this proof is about
+///   the second. ADR 0014 § 5 owns why every other operand is refused at all.
 /// - **The receiver's type.** A [`Ty::Shape`] records [`ExprInfo::ShapeProperty`]
 ///   with the field's slot; [`Ty::Object`] and [`Ty::Mixed`] record the same
 ///   variant erased, ADR 0036 § 4's name-keyed half. A type naming a class
@@ -1031,6 +1040,7 @@ fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
               already-computed type, the member and `unset()`'s flag"
 )]
 pub(crate) fn check_property_member(
+    access_span: Span,
     object: &Expr,
     object_ty: TypeId,
     property: &MemberName,
@@ -1044,7 +1054,7 @@ pub(crate) fn check_property_member(
     let name_span = match property {
         MemberName::Ident(name_span) => name_span,
         MemberName::Variable(e) | MemberName::Expr(e) => {
-            return check_keyed_property(object_ty, e.span, name_ty, is_unset, env);
+            return check_keyed_property(object_ty, access_span, e.span, name_ty, is_unset, env);
         }
         _ => return env.interner.mixed(),
     };
@@ -1300,7 +1310,9 @@ pub(crate) fn check_unset_target(
             property,
             nullsafe,
         } => {
-            check_property_access(object, property, *nullsafe, true, live, scope, ctx, env);
+            check_property_access(
+                expr.span, object, property, *nullsafe, true, live, scope, ctx, env,
+            );
         }
         ExprKind::StaticPropertyAccess { .. } => {
             check_expr(expr, None, live, scope, ctx, env);

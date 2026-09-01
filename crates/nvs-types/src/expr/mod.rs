@@ -429,7 +429,9 @@ pub(crate) fn infer(
             object,
             property,
             nullsafe,
-        } => check_property_access(object, property, *nullsafe, false, live, scope, ctx, env),
+        } => check_property_access(
+            expr.span, object, property, *nullsafe, false, live, scope, ctx, env,
+        ),
         ExprKind::StaticPropertyAccess { class, name } => {
             check_expr(class, None, live, scope, ctx, env);
             // A static property's storage is resolved where the access is
