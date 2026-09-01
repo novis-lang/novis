@@ -3947,6 +3947,17 @@ is why" — is this file.
   so what is missing is only the writer. `Core\Storage::put` (`crates/nvs-stdlib/src/storage.rs:173`)
   is the unchecked candidate; a bytes row on `Core\IO` is the other answer and is a member change, not
   a case.
+- **A `.nvst` case has no clock to move, so any property over more than one time step is a Rust
+  test.** `Core\Test::advance` refuses where no `#[Test(at: ...)]` fixed a clock, and a case is
+  top-level statements that are never inside one — `test-advance-refuses-without-a-fixed-clock.nvst`
+  says exactly that in its own comment, and the accepted side of the bound lives in `crates/nvs-cli`.
+  So "the code for the next step differs" is unreachable from the language. What a case *can* see is
+  two things: `Core\Time::sleep` across a wall-clock second, where the step holds for twenty-nine
+  seconds in thirty — assert the biconditional *the answer moved exactly when the step did*, never
+  "the answer is unchanged", or the case is flaky one run in thirty — and, for `Core\Totp`,
+  `check($code, $secret, $step)` answering `null`, which is the successor step disagreeing in the one
+  direction `$after` exposes. The step axis itself belongs in the module's own `#[cfg(test)] mod
+  tests`, where the derivation takes the step as an argument.
 
 ## Splitting a file that got too big
 

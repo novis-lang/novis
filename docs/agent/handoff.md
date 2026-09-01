@@ -2,26 +2,22 @@
 
 ## State
 
-**Two of `Core\Process\Result`'s three slices landed**, as two `.nvst` files and nothing else:
-`crates/nvs-stdlib/src/process.rs` is unchanged, so there is no new refcount edge and no valgrind run
-behind them. `gaps.py` no longer lists the class at all — `exitCode` 3→4, `stdout` 4→6, `stderr` 3→5 —
-and the floor is now the six classes at depth 3.0, of which `Core\Totp` is the next group.
+**All three `Core\Totp` slices landed**, and the class has left the 3.0 floor: `python tools/gaps.py`
+now reads `4.0 4 4 2 Core\Totp check 4, code 4`, and the floor is eight classes at 3.0 of which
+`Core\Jwt` is the next group. One `.nvst` case, one small refactor and two Rust tests.
 
-- **The capture case measures a sweep, not a size.** 1,000 / 65,500 / 65,600 / 262,100 octets on both
-  streams at once, with the 64 KiB boundary named on both sides and `stopped at the buffer=0` reading
-  the truncation failure directly, since a capture that ends where the pipe filled measures exactly
-  65,536 and no size in the sweep does. Each shell writes exactly one hundred octets per unit —
-  `printf` pads to a field width, `cmd` echoes a 98-octet line and its own CRLF — and the counts are
-  `>=` because a shell that pads a byte of its own is not that case's subject.
-- **The status case asserts the three answers belong to the same run.** The two landed cases either
-  ask what the status is over a silent child or what the streams carry over a successful one; a
-  member that captured only what a successful child wrote passes both. `0` is in the sweep as the
-  control, `255` bounds it.
-
-**The third slice — the captures are octets, not text — is blocked on a missing writer, not on the
-member.** There is no way to put non-UTF-8 octets on disk from a `.nvst` case today; that is a
-playbook bullet now, with the half of the design that does work (`cat`/`type` both round-trip the
-probe through a pipe unchanged) recorded so it is not re-derived.
+- **`check`'s decision is now `match_step(secret, code, now, after)`** — the same loop, the same
+  candidate skip and so the same constant time, lifted out of the helper
+  (`crates/nvs-stdlib/src/totp.rs:293`) so a test can ask *it* the question `code_at` answers. The
+  reason is in its own doc comment: the existing Rust test asserted the window by rebuilding
+  `((now - DRIFT)..=(now + DRIFT))` beside it, and a reconstruction agrees with itself by
+  construction. No behaviour change, no new refcount edge, so no valgrind run behind it.
+- **Slices 2 and 3 are one commit with two clauses**, because both are `#[test]`s in one file and git
+  cannot stage them apart. `git log` still reads a slice a clause.
+- **The `.nvst` case measures the function, not a draw**: 48 redraws microseconds apart, then one
+  `Core\Time::sleep` across a real wall-clock second — which is what sees a member reading the second
+  rather than the step — counted as the biconditional, because a step boundary lands inside that
+  second one run in thirty. The playbook bullet is the home of why.
 
 **The two `orient.py` warnings are still there**: `[context] modules` patterns
 `crates/nvs-stdlib/src/fatal.rs` and `crates/nvs-stdlib/src/script.rs` are reported as matching no
@@ -34,32 +30,34 @@ goal and is not a regression.
 
 ## Next group
 
-**`Core\Totp` is the floor now — two members, one rule, ADR 0060 § 1's "a window that has no widening
-argument and a replay refusal the caller can actually enforce". The file set is
-`crates/nvs-stdlib/src/totp.rs` and `tests/conformance/core/`; the two member bodies are sixteen lines
-apart. Three cases already ask about it — the window narrowed from both sides, a code accepted once
-inside a window, and six characters that never cross between secrets — so read
-`totp-accepts-a-code-once-inside-a-window-with-no-widening-argument.nvst` first.**
+**`Core\Jwt` is the floor's richest entry — ADR 0060 § 1's fourth roster entry, "the one whose
+historical failures are all failures of *choice*". The file set is `crates/nvs-stdlib/src/jwt.rs` and
+`tests/conformance/core/`; the two member bodies are seventy lines apart. Three cases already ask
+about it — the two bounds on a key and a lifetime, one sentence for every unverifiable token, and
+`exp`/`iat` written by `sign` itself — so read
+`jwt-refuses-every-unverifiable-token-with-one-sentence.nvst` first.**
 
-- [ ] **A code is a function of its step and nothing else** — the same secret at the same step answers
-      the same code every time and two adjacent steps never agree, counted over a sweep rather than
-      sampled at one pair, so a member that folded in the wall clock fails by count while answering
-      plausibly for a single draw. `crates/nvs-stdlib/src/totp.rs:302`.
-- [ ] **`check` and `code` agree at every offset the window accepts** — one question asked of both
-      members over the whole window, asserting that they agree rather than what each answered, so a
-      `check` that grew its own derivation fails here while still looking right on its own line.
-      `crates/nvs-stdlib/src/totp.rs:302` and `crates/nvs-stdlib/src/totp.rs:318`.
-- [ ] **Every code is six ASCII digits, leading zeros kept** — over a sweep of secrets and steps, so a
-      rendering that went through a number loses its leading zero and fails by count. This is the
-      *digits* reading of `totp-codes-are-six-characters-and-never-cross-between-secrets.nvst`'s
-      length, and the overlap is worth checking before writing.
-      `crates/nvs-stdlib/src/totp.rs:302`.
+- [ ] **`sign` and `verify` agree over a sweep of claim shapes** — one question asked of both, counted:
+      every shape that signs verifies back to the same claims, over an empty bag, a nested one, one
+      carrying non-ASCII text, the integer bounds and a long string, so a serializer that reordered,
+      coerced or truncated fails by count while round-tripping one flat bag plausibly.
+      `crates/nvs-stdlib/src/jwt.rs:454` and `crates/nvs-stdlib/src/jwt.rs:524`.
+- [ ] **A token verifies for the whole of its lifetime and not one second past it** — the bound named
+      on both sides, which is reachable here because the minimum lifetime is one whole second: sign
+      with `1s`, verify, `Core\Time::sleep` past the expiry, verify again. A member that compared
+      `>=` where it means `>` prints plausibly against either half alone.
+      `crates/nvs-stdlib/src/jwt.rs:524`.
+- [ ] **Every token is three base64url segments with no padding and no `+` or `/`** — over a sweep of
+      keys and claim shapes, counted, because one encoding in four carries a character the URL
+      alphabet renames and a single token is silent about it. `crates/nvs-stdlib/src/jwt.rs:454`.
 
 ## Backlog
 
-- The captures are octets, not text — blocked on a bytes-writing route; the playbook bullet under
-  *Writing a test case* holds the finding and the candidates.
-- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case — `gaps.py`.
-- `orient.py`'s `[context] modules` matcher misses `fatal.rs` and `script.rs` — `docs/agent/loop-goal.toml`.
-- `Core\Csrf`, `Core\Jwt`, `Core\Http\Response`, `Core\Cli\Color` and `Core\RateLimit` are the other
-  depth-3.0 floors — `gaps.py`.
+- `Core\Csrf`, `Core\Cli\Color`, `Core\RateLimit` and `Core\Http\Response` are the rest of the 3.0
+  floor — `python tools/gaps.py`.
+- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case
+  (`fastcgi_finish_request`) — `crates/nvs-stdlib/src/task.rs:561`, and it belongs in
+  `tests/differential/`.
+- `[context] modules` patterns `fatal.rs`/`script.rs` warn while matching — `docs/agent/loop-goal.toml`.
+- Non-UTF-8 octets cannot be written to disk from a `.nvst` case, which blocks the third
+  `Core\Process\Result` slice — `docs/agent/playbook.md`.
