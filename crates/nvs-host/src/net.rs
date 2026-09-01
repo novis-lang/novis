@@ -882,14 +882,18 @@ mod tests {
         let mut sched = Scheduler::new();
         let _installed = install(Reactor::new().expect("the OS refused a poll"));
 
-        server.set_deadline(Some(Instant::now() + Duration::from_millis(20)));
+        let deadline = Instant::now() + Duration::from_millis(20);
+        server.set_deadline(Some(deadline));
         let outcome = Rc::new(Cell::new(None));
         let reported = Rc::clone(&outcome);
         sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
             let mut buf = [0_u8; 8];
-            let start = Instant::now();
             let kind = server.read(&mut buf).map(|_| ()).map_err(|err| err.kind());
-            reported.set(Some((kind, start.elapsed() >= Duration::from_millis(20))));
+            // Against the deadline itself, not against an instant taken inside
+            // the task: the wait is measured from where the clock was set, and
+            // charging it the scheduler's start latency makes a loaded machine
+            // report an on-time timeout as an early one.
+            reported.set(Some((kind, Instant::now() >= deadline)));
         });
 
         let report = run_until_idle(&mut sched).expect("the loop failed");
