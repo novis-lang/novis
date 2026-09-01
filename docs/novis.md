@@ -4485,6 +4485,7 @@ class, not an interface: a user class extends it directly. The tree is fixed and
 | `ArithmeticError` | `Throwable` | — |
 | `Core\Test\Failure` | `Throwable` | — |
 | `Core\Cli\NotInteractive` | `RuntimeError` | — |
+| `Core\Db\RolledBack` | `RuntimeError` | `$reason` |
 
 - PHP's `Exception` and `Error` do not exist. `class E extends Exception`, `catch (Exception $e)`
   and `new Exception("…")` are each refused as an undeclared name; write `Throwable`,
