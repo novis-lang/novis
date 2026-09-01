@@ -65,11 +65,15 @@
 //! heading names four classes, two of them write a `parse`, and the loose
 //! reading would let either one strike the other's line. See [`scoped`].
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
 use nvs_stdlib::registry;
+
+mod corpus;
+
+use corpus::{Attribution, mentions, sources};
 
 /// A table row's cells, split on the pipes that are *not* escaped.
 ///
@@ -540,9 +544,23 @@ fn classes_named(name: &str) -> Vec<&'static registry::CoreClass> {
         .collect()
 }
 
-/// [`every_part_one_spec_member_is_registered`]'s other half: every member
-/// [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
-/// §§ 14-19 names is a member some class in [`registry::CLASSES`] declares.
+/// One member docs/spec/01-core-library.md §§ 14-19 names, resolved as far as
+/// the spec's own shape allows.
+struct PartTwoMember {
+    /// The classes that may answer for it: the bullet's own `Core\X` and every
+    /// class registered inside that namespace, or the section heading's
+    /// classes for a bullet that leads with no class, narrowed by [`scoped`]
+    /// where the span writes its own qualifier.
+    candidates: Vec<&'static registry::CoreClass>,
+    /// The bare member name, receiver and qualifier dropped.
+    name: String,
+    /// `§15 Session::get` — the spelling both gates below report a member
+    /// under, and the one the ratchet file lists.
+    key: String,
+}
+
+/// Every member [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+/// §§ 14-19 names, in the order the file writes them.
 ///
 /// Part II is the capability-bearing half, and it is written in two shapes
 /// rather than one. § 19 carries an ordinary `| Member | Signature | … |`
@@ -567,16 +585,11 @@ fn classes_named(name: &str) -> Vec<&'static registry::CoreClass> {
 /// naming rather than leaving implicit: nothing checks that `Core\Http\Client`,
 /// `Core\RateLimit`, `Core\Metrics`, `Core\Net`, `Core\Crypto`, `Core\Html`,
 /// `Core\Xml`, `Core\Compress`, `Core\Zip` or `Core\Mime` has a row for every
-/// member the spec gives it — `conformance_coverage.rs` walks the registry, so
-/// it can only ask about the members that *are* registered. The four this walk
-/// does read are § 14's and § 15's bullets and § 18's and § 19's Member tables.
-///
-/// The ratchet is `tests/spec-members-part-two-outstanding.txt`, and the
-/// module doc above owns why there is a file at all. Its keys carry the
-/// bullet's class where there is one — `§15 Session::get` — since a bare
-/// `§15 get` would name three different members.
-#[test]
-fn every_part_two_spec_member_is_registered() {
+/// member the spec gives it — the registry-side gates walk the registry, so
+/// they can only ask about the members that *are* registered. The four this
+/// walk does read are § 14's and § 15's bullets and § 18's and § 19's Member
+/// tables.
+fn part_two_members() -> Vec<PartTwoMember> {
     let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
     let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
 
@@ -584,8 +597,7 @@ fn every_part_two_spec_member_is_registered() {
     let mut heading: Vec<&'static registry::CoreClass> = Vec::new();
     let mut in_members = false;
     let mut bullet = String::new();
-    let mut seen = 0usize;
-    let mut outstanding = BTreeSet::new();
+    let mut found: Vec<PartTwoMember> = Vec::new();
 
     let mut record =
         |number: u32, candidates: &[&'static registry::CoreClass], prefix: &str, span: &str| {
@@ -605,10 +617,11 @@ fn every_part_two_spec_member_is_registered() {
             {
                 return;
             }
-            seen += 1;
-            if !registered(&scoped(candidates, head), name) {
-                outstanding.insert(format!("§{number} {prefix}{head}"));
-            }
+            found.push(PartTwoMember {
+                candidates: scoped(candidates, head),
+                name: name.to_owned(),
+                key: format!("§{number} {prefix}{head}"),
+            });
         };
 
     for line in text.lines() {
@@ -678,11 +691,31 @@ fn every_part_two_spec_member_is_registered() {
     }
 
     assert!(
-        seen > 60,
-        "{} yielded only {seen} Part II member(s), which is too few to be §§ 14-19 — \
+        found.len() > 60,
+        "{} yielded only {} Part II member(s), which is too few to be §§ 14-19 — \
          the bullet and table parsers have stopped matching the spec's own shape",
-        spec.display()
+        spec.display(),
+        found.len()
     );
+    found
+}
+
+/// [`every_part_one_spec_member_is_registered`]'s other half: every member
+/// [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+/// §§ 14-19 names is a member some class in [`registry::CLASSES`] declares.
+///
+/// [`part_two_members`] owns the walk and what it can and cannot read. This
+/// owns the ratchet: `tests/spec-members-part-two-outstanding.txt`, whose keys
+/// carry the bullet's class where there is one — `§15 Session::get` — since a
+/// bare `§15 get` would name three different members. The module doc above
+/// owns why there is a file at all.
+#[test]
+fn every_part_two_spec_member_is_registered() {
+    let outstanding: BTreeSet<String> = part_two_members()
+        .into_iter()
+        .filter(|member| !registered(&member.candidates, &member.name))
+        .map(|member| member.key)
+        .collect();
 
     let (path, listed) = outstanding_file("spec-members-part-two-outstanding.txt");
     let unlisted: Vec<&String> = outstanding.difference(&listed).collect();
@@ -712,6 +745,87 @@ fn every_part_two_spec_member_is_registered() {
         stale
             .iter()
             .map(|key| key.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+}
+
+/// The same walk asked of the repository instead of the registry: every member
+/// §§ 14-19 names **and [`registry::CLASSES`] declares** is called by a case
+/// under `tests/conformance/`.
+///
+/// This is the third side of a triangle whose other two are already gates, and
+/// saying so is cheaper than letting a later session rediscover it:
+/// [`every_part_two_spec_member_is_registered`] takes the spec to the registry,
+/// `conformance_coverage.rs`'s own two take the registry to the corpus, and a
+/// member cannot fail here while passing both. What it holds that neither of
+/// them does is the *direction*: those two are anchored on
+/// [`registry::CLASSES`], a roster this goal is still adding to, while this one
+/// is anchored on the spec, which is the thing being implemented. A member
+/// struck off `spec-members-part-two-outstanding.txt` by a session that
+/// registered it and stopped fails here **named by its spec section**, which is
+/// the sentence that says what to do about it; the registry-side twins would
+/// name it by a class and leave the section to be looked up.
+///
+/// Unregistered members are skipped rather than failed, because the ratchet
+/// above is where a member the spec still owes is tracked, and a second list of
+/// the same keys would be a second thing to strike.
+///
+/// `corpus::Attribution::asked` is the rule for "a case calls this", shared
+/// with the floor gate so the two cannot drift apart — and it is what lets an
+/// instance member be asked for at all: a case reaches `Core\IO\File::read`
+/// through whatever `Core\IO::open` answered, naming neither the class nor a
+/// receiver type, and the attribution is what carries the class across that. A
+/// constant is *named*, not called, so it is checked the way
+/// `conformance_coverage.rs` checks one — the whole `Class::NAME`, with the
+/// boundary after it.
+#[test]
+fn every_part_two_member_has_a_conformance_case() {
+    let texts = sources();
+    let rules = Attribution::new();
+    let index: Vec<BTreeMap<&'static str, BTreeSet<&str>>> =
+        texts.iter().map(|text| rules.asked(text)).collect();
+
+    let mut uncovered = BTreeSet::new();
+    let mut checked = 0usize;
+    for member in part_two_members() {
+        if !registered(&member.candidates, &member.name) {
+            continue;
+        }
+        checked += 1;
+        let covered = member.candidates.iter().any(|class| {
+            if class.constant(&member.name).is_some() {
+                let write = format!("{}::{}", class.name, member.name);
+                texts.iter().any(|text| mentions(text, &write))
+            } else {
+                index.iter().any(|case| {
+                    case.get(class.name)
+                        .is_some_and(|named| named.contains(member.name.as_str()))
+                })
+            }
+        });
+        if !covered {
+            uncovered.insert(member.key);
+        }
+    }
+
+    assert!(
+        checked > 20,
+        "only {checked} of §§ 14-19's members are registered, and the ratchet lists {}, so          this gate has stopped reading most of what it should — `registered` or the walk has          regressed, since the ratchet only ever shrinks",
+        outstanding_file("spec-members-part-two-outstanding.txt")
+            .1
+            .len()
+    );
+    assert!(
+        uncovered.is_empty(),
+        "{} spec member(s) in §§ 14-19 are registered and no conformance case calls them: {}\n\
+         Write one under tests/conformance/ — never with an `--ORACLE--` section, which makes \
+         the Linux leg skip the case entirely. A case reaching the member through a value it \
+         was handed counts; one that only names the class does not.",
+        uncovered.len(),
+        uncovered
+            .iter()
+            .map(String::as_str)
             .collect::<Vec<_>>()
             .join(", ")
     );

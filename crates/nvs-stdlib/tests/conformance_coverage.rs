@@ -33,76 +33,24 @@
 //! its own site saying which diagnostic refuses the call before the runtime
 //! can ever answer it. [`OWED_A_CASE`] is the ratchet that landed over the
 //! fifty-seven that were neither.
+//!
+//! **How the corpus is read is not in this file.** `tests/corpus/mod.rs` holds
+//! it, because `spec_registry_coverage.rs` asks the same corpus the same
+//! question from the spec's end and Cargo compiles the two as separate crates.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use nvs_stdlib::registry::{self, CoreTy};
-use regex::Regex;
+use nvs_stdlib::registry;
 
-/// Every `.nvst` file under `dir`, recursively, in no particular order.
-fn cases(dir: &Path, into: &mut Vec<PathBuf>) {
-    let entries = fs::read_dir(dir).unwrap_or_else(|err| panic!("{}: {err}", dir.display()));
-    for entry in entries {
-        let path = entry.expect("a readable directory entry").path();
-        if path.is_dir() {
-            cases(&path, into);
-        } else if path.extension().is_some_and(|ext| ext == "nvst") {
-            into.push(path);
-        }
-    }
-}
+mod corpus;
 
-/// Whether `haystack` writes `needle` as a whole name — the same match
-/// `haystack.contains(needle)` performs, plus the one boundary an identifier
-/// needs on its right.
-///
-/// A `\` is part of that boundary, not past it: `Core\Time` names
-/// `Core\Time::now` and `Core\Time $t`, never `Core\Time\Duration`, which is a
-/// different class with its own registry row.
-fn mentions(haystack: &str, needle: &str) -> bool {
-    haystack.match_indices(needle).any(|(at, _)| {
-        haystack[at + needle.len()..]
-            .chars()
-            .next()
-            .is_none_or(|next| !next.is_alphanumeric() && next != '_' && next != '\\')
-    })
-}
-
-/// The `--FILE--` section of every case under `tests/conformance/`, one string
-/// each.
-///
-/// The section alone, so a member named in a title or in an expected
-/// diagnostic is not mistaken for one a case calls. Per case rather than
-/// concatenated because the floor below counts *cases*, not occurrences, and
-/// the two checks here read the same corpus.
-fn case_sources() -> Vec<String> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/conformance");
-    let mut paths = Vec::new();
-    cases(&root, &mut paths);
-    assert!(
-        paths.len() > 100,
-        "{} holds {} cases, which is too few to be the conformance suite — \
-         a check over it would pass vacuously",
-        root.display(),
-        paths.len()
-    );
-    paths
-        .iter()
-        .map(|path| {
-            let text =
-                fs::read_to_string(path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-            nvs_test::case::parse(path, &text)
-                .unwrap_or_else(|err| panic!("{}: {err}", path.display()))
-                .file
-        })
-        .collect()
-}
+use corpus::{Attribution, cases, mentions, sources};
 
 #[test]
 fn every_part_one_member_has_a_conformance_case() {
-    let source = case_sources().join("\n");
+    let source = sources().join("\n");
 
     let mut uncovered = BTreeSet::new();
     for class in registry::CLASSES {
@@ -158,95 +106,6 @@ fn every_part_one_member_has_a_conformance_case() {
     );
 }
 
-/// Which classes a case exercises, and which of their members it calls.
-///
-/// This is `python tools/gaps.py`'s `coverage` attribution, ported rather than
-/// re-invented: that tool's docstring owns *why* a case is attributed this way
-/// and is the only home for the reasoning. The floor below is the gate over
-/// the same figure, so the two must agree — a member the tool ranks at two
-/// cases has to fail here, or the worklist and the gate send a session in
-/// different directions. Anything about the rule that changes changes in both.
-struct Attribution {
-    /// class -> member -> the class an instance of which that member answers.
-    builds: BTreeMap<&'static str, BTreeMap<&'static str, &'static str>>,
-    /// `Core\X::member`, with the qualified name and the member apart.
-    qualified: Regex,
-    /// `->member(` — an instance call, whose receiver's type is not written.
-    arrow: Regex,
-}
-
-impl Attribution {
-    fn new() -> Self {
-        let mut builds: BTreeMap<&'static str, BTreeMap<&'static str, &'static str>> =
-            BTreeMap::new();
-        for class in registry::CLASSES {
-            for method in class.methods.iter().chain(class.instance) {
-                // The top-level type only. A `?Instance` is what `tryParse`
-                // answers, and a case holding one has said `if ($x !== null)`
-                // about it before calling anything — the tool draws the line
-                // in the same place.
-                if let CoreTy::Instance(made) = &method.return_ty {
-                    builds
-                        .entry(class.name)
-                        .or_default()
-                        .insert(method.name, made);
-                }
-            }
-        }
-        Self {
-            builds,
-            qualified: Regex::new(r"(Core(?:\\[A-Za-z][A-Za-z0-9]*)*)::([A-Za-z][A-Za-z0-9]*)")
-                .expect("the qualified-call pattern"),
-            arrow: Regex::new(r"->([a-z][A-Za-z0-9]*)\s*\(").expect("the instance-call pattern"),
-        }
-    }
-
-    /// Every class whose values one case handles, named or not.
-    ///
-    /// A case names a class outright, or it holds one because something it
-    /// called answers an instance of it — and then an instance call on *that*
-    /// answers a third, to a fixed point. Half the registry is reached that
-    /// way: `var $d = Core\Time::fromIso($text)->in($zone);` exercises three
-    /// classes and spells one.
-    fn holders(&self, text: &str) -> BTreeSet<&'static str> {
-        let mut held: BTreeSet<&'static str> = registry::CLASSES
-            .iter()
-            .map(|class| class.name)
-            .filter(|name| mentions(text, name))
-            .collect();
-        for found in self.qualified.captures_iter(text) {
-            if let Some(made) = self
-                .builds
-                .get(&found[1])
-                .and_then(|members| members.get(&found[2]))
-            {
-                held.insert(made);
-            }
-        }
-        let arrows = self.arrows(text);
-        let mut growing = true;
-        while growing {
-            growing = false;
-            for name in held.iter().copied().collect::<Vec<_>>() {
-                for (member, made) in self.builds.get(name).into_iter().flatten() {
-                    if arrows.contains(*member) && held.insert(made) {
-                        growing = true;
-                    }
-                }
-            }
-        }
-        held
-    }
-
-    /// The member name of every `->member(` in one case.
-    fn arrows<'a>(&self, text: &'a str) -> BTreeSet<&'a str> {
-        self.arrow
-            .captures_iter(text)
-            .map(|found| found.get(1).expect("the captured member name").as_str())
-            .collect()
-    }
-}
-
 /// The members that were below the floor when the gate was written, and are
 /// the whole of Stage 5 item 10's remaining worklist.
 ///
@@ -286,10 +145,10 @@ const BELOW_THE_FLOOR: &[&str] = &[];
 fn every_core_class_has_a_conformance_floor_of_three() {
     const FLOOR: usize = 3;
 
-    let sources = case_sources();
+    let texts = sources();
     let rules = Attribution::new();
-    let held: Vec<BTreeSet<&'static str>> =
-        sources.iter().map(|text| rules.holders(text)).collect();
+    let index: Vec<BTreeMap<&'static str, BTreeSet<&str>>> =
+        texts.iter().map(|text| rules.asked(text)).collect();
 
     let mut thin: Vec<String> = Vec::new();
     let mut closed: Vec<String> = Vec::new();
@@ -300,16 +159,10 @@ fn every_core_class_has_a_conformance_floor_of_three() {
             .chain(class.instance)
             .map(|method| (method.name, 0))
             .collect();
-        for (text, holds) in sources.iter().zip(&held) {
-            if !holds.contains(class.name) {
+        for case in &index {
+            let Some(named) = case.get(class.name) else {
                 continue;
-            }
-            let mut named = rules.arrows(text);
-            for found in rules.qualified.captures_iter(text) {
-                if &found[1] == class.name {
-                    named.insert(found.get(2).expect("the captured member name").as_str());
-                }
-            }
+            };
             for (member, count) in &mut asked {
                 if named.contains(*member) {
                     *count += 1;
