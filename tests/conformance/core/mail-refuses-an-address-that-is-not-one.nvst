@@ -1,0 +1,37 @@
+--TEST--
+Core\Mail::send refuses an address that is not one rather than repairing it — ADR 0095, ADR 0082 § 2
+--FILE--
+<?nvs
+// ADR 0095: ambiguous input is refused, never repaired. A CRLF inside an
+// address is the mail-header injection `mail()` shipped for twenty years, and
+// refusing it — rather than stripping it — is what closes it. The refusal
+// happens before any socket is opened, so this case needs no endpoint.
+try {
+    Core\Mail::send(
+        "transactional",
+        ["user@example.com\r\nRCPT TO:<victim@example.com>"],
+        "Your receipt",
+        "Thank you.",
+    );
+    echo "accepted", "\n";
+} catch (RuntimeError $e) {
+    echo "refused a recipient", "\n";
+}
+
+// The same rule on the other address parameter: `replyTo` reaches a header, so
+// a comma in it would be a second address the caller did not write.
+try {
+    Core\Mail::send(
+        "transactional",
+        ["user@example.com"],
+        "Your receipt",
+        "Thank you.",
+        {replyTo: "a@example.com, b@example.com"},
+    );
+    echo "accepted", "\n";
+} catch (RuntimeError $e) {
+    echo "refused a reply-to", "\n";
+}
+--EXPECT--
+refused a recipient
+refused a reply-to

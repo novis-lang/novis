@@ -1223,6 +1223,12 @@ pub const CLASSES: &[CoreClass] = &[
     // write [`Qual::Reveal`] — see that variant's own docs — and
     // [`crate::secret`] owns why the `bytes` half is a second name.
     crate::secret::CLASS,
+    // § 16's SMTP row, and ADR 0082 § 2's transport half. Registered on its own
+    // rather than beside `Core\Http` because it shares nothing with it: the
+    // endpoint is an operator-named block and not a program-supplied URL, so
+    // ADR 0058's launderer is not in the path at all. [`crate::mail`] owns why
+    // `mail()`'s fourth argument has no successor here.
+    crate::mail::CLASS,
     // § 16, and beside `Core\Secret` rather than in section order because the
     // two are one mechanism: ADR 0033 § 3 has exactly two operations that take
     // a `secret` and answer something that is not one, and these are the rows
@@ -1500,6 +1506,13 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // asked again, because a path the operator names is still a file the
     // engine opens rather than one the program picked.
     (crate::log::NAME, "write", None),
+    // ADR 0082 § 2's transport half, granted the way ADR 0067 § 3 grants a
+    // database: by the *name* of the block, never by the host inside it. That is
+    // what makes the row `mail.send` rather than `net.connect` — a `net.connect`
+    // grant is a claim about hosts a program may reach, and this member reaches
+    // no host a program can name. [`crate::mail`]'s module doc is the home of
+    // why the address is not additionally pinned.
+    (crate::mail::NAME, "send", Some(nvs_config::Cap::MailSend)),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)

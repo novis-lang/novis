@@ -1,0 +1,34 @@
+--TEST--
+Core\Mail::send reaches only an endpoint an operator named, so an unconfigured one is refused — ADR 0082 § 2
+--FILE--
+<?nvs
+// The whole of ADR 0082 § 2's transport rule, from the outside: `$endpoint`
+// selects a `[mail.<name>]` block in root-owned `nvs.toml` under the `mail.send`
+// capability, and there is no host, port or credential parameter anywhere on
+// the row. So a program running under a deployment that named no such block
+// cannot send at all — there is nothing for it to fall back to, and no
+// argument through which it could supply one.
+try {
+    Core\Mail::send(
+        "transactional",
+        ["user@example.com"],
+        "Your receipt",
+        "Thank you.",
+    );
+    echo "sent", "\n";
+} catch (RuntimeError $e) {
+    echo "refused", "\n";
+}
+
+// Naming a different block does not change the answer, which is the "and no
+// other" half: what a program writes here is a key into the operator's file,
+// never a destination of its own.
+try {
+    Core\Mail::send("bulk", ["user@example.com"], "Your receipt", "Thank you.");
+    echo "sent", "\n";
+} catch (RuntimeError $e) {
+    echo "refused", "\n";
+}
+--EXPECT--
+refused
+refused
