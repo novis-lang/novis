@@ -101,11 +101,15 @@
 //! The shared half, which ADR 0132 § 5 keeps as plain functions and data rather
 //! than behind the drivers at all: [`Driver`]'s closed roster, [`State`] and
 //! [`Connection`]'s `match`-once entry points, and [`matrix`]. Of the five wire
-//! implementations, [`pg`] has its opening: the socket, § 3's in-band upgrade,
-//! and the SASL exchange. The extended-query state machine, the `?`/`:name`
-//! rewriter and `inList` expansion, the statement cache and its arity-aware
-//! key, the pool and its acquire path, and the Novis side of ADR 0067 § 9's
-//! type map are still to come — PostgreSQL first throughout, because its
+//! implementations, [`pg`] has its opening and its statement path: the socket,
+//! § 3's in-band upgrade, the SASL exchange, and the extended-query state
+//! machine that walks [`State`]'s four values over one flushed round trip, and
+//! ADR 0067 § 13's reset — six commands pipelined into a second round trip, with
+//! `PgConn::reset` taking `self` by value so a reset that failed cannot hand a
+//! connection back. The
+//! `?`/`:name` rewriter and `inList` expansion, the statement cache and its
+//! arity-aware key, the pool and its acquire path, and the Novis side of ADR
+//! 0067 § 9's type map are still to come — PostgreSQL first throughout, because its
 //! extended protocol pays nothing extra for a prepare and so exercises the
 //! design rather than the driver's own quirks.
 //!
@@ -123,4 +127,4 @@ pub mod matrix;
 pub mod pg;
 
 pub use conn::{Connection, Driver, MariaConn, MySqlConn, PgConn, SqliteConn, State, TdsConn};
-pub use pg::{CancelKey, PgTarget};
+pub use pg::{CancelKey, PgColumn, PgRow, PgRows, PgTarget};

@@ -1,4 +1,5 @@
-//! PostgreSQL: opening a socket, upgrading it in band, and authenticating.
+//! PostgreSQL: opening a socket, upgrading it in band, authenticating, and
+//! running one statement at a time over the extended-query protocol.
 //!
 //! [ADR 0132 § 2](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)'s
 //! rule decides what is here and what is not. `postgres-protocol` frames every
@@ -63,6 +64,41 @@
 //! capacity, because this crate forbids `unsafe`: that costs one `memset` of
 //! the read window per syscall and buys the whole file having no unsafe block
 //! to review.
+//!
+//! # A statement is one round trip, and the wire's state is the whole of it
+//!
+//! [`PgConn::query`] writes `Parse`, `Bind`, `Describe`, `Execute` and `Sync`
+//! into one buffer and flushes them once. That is [ADR 0067
+//! § 1](../../../docs/adr/0067-core-db.md)'s "PostgreSQL's extended protocol
+//! pays nothing extra" made literal: there is no prepare round trip to save,
+//! because the prepare travels with the execution.
+//!
+//! The `Sync` at the end is what makes ADR 0132 § 4's per-driver call come out
+//! in PostgreSQL's favour. It is already on the wire before any answer is read,
+//! so the server *will* end this statement with a `ReadyForQuery` whatever
+//! happens in between — a syntax error at `Parse`, a constraint violation at
+//! `Execute`, or a caller that stops reading rows half way. Every one of those
+//! is drained to that message and the connection goes back to [`State::Idle`],
+//! poolable. **Poison is only ever a wire that failed**: a read that errored,
+//! a frame that did not decode, a peer that closed. Those leave no boundary to
+//! find, and § 4 closes such a connection rather than resetting it.
+//!
+//! [`PgRows`] is the statement's borrow of the connection, and dropping it
+//! early is the ordinary abandonment case rather than an error: its `Drop`
+//! drains to the same `ReadyForQuery`.
+//!
+//! # Parameters and results are in text format
+//!
+//! Both format lists in `Bind` are empty, which is the protocol's spelling for
+//! "everything in text". [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s
+//! type map is what forces it: `interval`, `hstore`, ranges, `inet`/`cidr` and
+//! geometry all map to `tainted string` **as the server renders them**, and
+//! there is no way to produce that rendering from a binary body short of
+//! reimplementing the server's output functions. The types where exactness is
+//! the point lose nothing — `numeric` and the integers are exact in text, and
+//! `extra_float_digits` has defaulted to 3 since PostgreSQL 12, so a `float`
+//! round-trips bit for bit. What it costs is parsing an integer out of ASCII
+//! per column, which is nanoseconds against the syscall that carried it.
 
 use std::cell::Cell;
 use std::io::{self, Read, Write};
@@ -75,6 +111,7 @@ use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 use postgres_protocol::authentication::sasl::{ChannelBinding, ScramSha256};
 use postgres_protocol::message::{backend, frontend};
+use postgres_protocol::{IsNull, Oid};
 
 use crate::conn::{PgConn, State};
 
@@ -282,6 +319,53 @@ impl PgConn {
     #[must_use]
     pub fn cancel_key(&self) -> CancelKey {
         self.cancel
+    }
+
+    /// Runs one statement, borrowing the connection until its rows are drained.
+    ///
+    /// `params` are ADR 0067 § 5's bound values, each already rendered in the
+    /// text format the module doc chose, and `None` is SQL `NULL`. Nothing is
+    /// interpolated into `sql` — this signature is the shape of the goal's
+    /// standing decision that emulated prepares do not exist in any form, and
+    /// there is no second entry point that takes a formatted string.
+    ///
+    /// The connection is [`State::Executing`] while the portal is in flight and
+    /// [`State::Streaming`] until the returned [`PgRows`] is drained or
+    /// dropped; both of those return it to [`State::Idle`].
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` when the connection is not [`State::Idle`] — ADR 0067
+    /// § 4's second concurrent statement, which `nvs-stdlib` words as a
+    /// `LogicError`. Otherwise the server's own error, which leaves the
+    /// connection idle and poolable, or a wire failure, which poisons it.
+    pub fn query(&mut self, sql: &str, params: &[Option<&[u8]>]) -> io::Result<PgRows<'_>> {
+        start_statement(&mut self.wire, &self.state, sql, params)
+    }
+
+    /// ADR 0067 § 13's reset, and the connection back only if it worked.
+    ///
+    /// **`self` by value is the enforcement**, not a convenience. § 13 makes the
+    /// reset a security boundary: a connection that cannot be proven clean is
+    /// closed, never returned to the pool, because one request's session state
+    /// read by the next is a cross-tenant leak. A `&mut self` signature would
+    /// leave the caller holding a connection it must remember not to reuse, and
+    /// this one hands it back only on the path where it is provably clean —
+    /// on the other, `self` is dropped here and [`Drop`] says `Terminate`.
+    ///
+    /// Deliberately not expressed as [`State::Poisoned`], which answers a
+    /// different question: a refused `RESET ALL` still leaves the wire at a
+    /// known message boundary, so poisoning it would weaken the one thing that
+    /// state means.
+    ///
+    /// # Errors
+    ///
+    /// The first command the server refused, or the wire failure that stopped
+    /// the batch. Either way the connection is gone by the time the caller sees
+    /// it.
+    pub fn reset(mut self) -> io::Result<PgConn> {
+        reset_session(&mut self.wire, &self.state)?;
+        Ok(self)
     }
 }
 
@@ -507,6 +591,449 @@ fn server_error(body: &backend::ErrorResponseBody) -> io::Error {
     io::Error::other(format!("postgres {severity}: {message} (SQLSTATE {code})"))
 }
 
+/// The unnamed statement and the unnamed portal, which is what an uncached
+/// execution uses.
+///
+/// PostgreSQL destroys the unnamed statement at the next `Parse` and the
+/// unnamed portal at the next `Sync`, so nothing accumulates on the server
+/// between calls and there is nothing to deallocate. ADR 0067 § 1's LRU
+/// statement cache is what puts a *name* here, keyed by SQL text plus expansion
+/// arity; that is its own slice and it does not change anything below.
+const UNNAMED: &str = "";
+
+/// One column of a portal's row description.
+///
+/// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s type map reads
+/// [`PgColumn::type_oid`] to decide which Novis type a column's bytes become,
+/// so this is deliberately the server's own OID and not a Novis type yet: the
+/// mapping is one table in one place, and it is not this module's.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PgColumn {
+    /// The column's label, as the server wrote it in the row description.
+    pub name: String,
+    /// The PostgreSQL type OID of the column's values.
+    pub type_oid: Oid,
+}
+
+/// One row, still in the bytes the wire framed it out of.
+///
+/// No column has been parsed and none is copied: [`PgRow::column`] hands back a
+/// slice of the message body, which the row owns. ADR 0067 § 9's decoders are
+/// what read them, one column at a time, in whatever order the caller's target
+/// type asks for.
+pub struct PgRow {
+    body: backend::DataRowBody,
+}
+
+impl std::fmt::Debug for PgRow {
+    /// How many columns, and none of their values: a row in flight is one
+    /// request's data — the same rule [`Wire`]'s own rendering follows.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PgRow")
+            .field("bytes", &self.body.buffer().len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl PgRow {
+    /// The bytes of column `index`, or `None` where the column is SQL `NULL`.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` when the row has no such column, and `InvalidData` when
+    /// its length prefixes do not add up.
+    pub fn column(&self, index: usize) -> io::Result<Option<&[u8]>> {
+        let mut ranges = self.body.ranges();
+        let mut at = 0;
+        while let Some(range) = ranges.next()? {
+            if at == index {
+                return Ok(range.map(|range| &self.body.buffer()[range]));
+            }
+            at += 1;
+        }
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("column {index} was asked for in a row that has {at}"),
+        ))
+    }
+}
+
+/// A statement's result stream, and the connection it is borrowed from.
+///
+/// Alive, this is [`State::Streaming`]: the wire holds messages belonging to
+/// this statement, and ADR 0067 § 4 refuses a second one. Drained by
+/// [`PgRows::next_row`] or dropped, it is [`State::Idle`] again — the module doc
+/// owns why abandonment is ordinary here rather than poison.
+///
+/// Generic in the stream for the same reason [`Wire`] is: the sequencing below
+/// is then assertable against a scripted server, with no socket and no
+/// certificate. A connection's own rows are always over the default.
+pub struct PgRows<'a, S: Read + Write = NvsTls<NvsTcp>> {
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    columns: Vec<PgColumn>,
+    tag: Option<String>,
+}
+
+impl<S: Read + Write> std::fmt::Debug for PgRows<'_, S> {
+    /// The shape of the result and where the wire is, and nothing that arrived.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PgRows")
+            .field("columns", &self.columns.len())
+            .field("state", &self.state.get())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<S: Read + Write> PgRows<'_, S> {
+    /// What the portal said its rows look like, empty for a statement that
+    /// returns none.
+    #[must_use]
+    pub fn columns(&self) -> &[PgColumn] {
+        &self.columns
+    }
+
+    /// The server's `CommandComplete` tag — `INSERT 0 3`, `SELECT 2` — once the
+    /// stream has ended, and `None` while rows may still arrive.
+    ///
+    /// This is where the affected-row count ADR 0067 § 4's `execute` answers
+    /// with comes from, and parsing it is that slice's job: the tag's shape is
+    /// per command and the driver hands back what the server said.
+    #[must_use]
+    pub fn command_tag(&self) -> Option<&str> {
+        self.tag.as_deref()
+    }
+
+    /// The next row, or `None` once the stream has ended.
+    ///
+    /// Ending it is what returns the connection to [`State::Idle`]: the
+    /// `CommandComplete` is followed by the `ReadyForQuery` the `Sync` in the
+    /// same flush guaranteed, and this reads through to it before answering.
+    /// Deliberately not `Iterator::next` — every call can fail, and a stream
+    /// that hides that behind `Option` would have to swallow a wire error.
+    ///
+    /// # Errors
+    ///
+    /// The server's own error, which still ends the stream cleanly and leaves
+    /// the connection idle, or a wire failure, which poisons it.
+    pub fn next_row(&mut self) -> io::Result<Option<PgRow>> {
+        // The state is the only bookkeeping: anything that ended this stream —
+        // a completion, a server error, a poisoning — has already left it.
+        if self.state.get() != State::Streaming {
+            return Ok(None);
+        }
+
+        loop {
+            match read_or_poison(self.wire, self.state)? {
+                backend::Message::DataRow(body) => return Ok(Some(PgRow { body })),
+                backend::Message::CommandComplete(body) => {
+                    let tag = body
+                        .tag()
+                        .inspect_err(|_| self.state.set(State::Poisoned))?
+                        .to_owned();
+                    self.tag = Some(tag);
+                    drain_to_ready(self.wire, self.state)?;
+                    return Ok(None);
+                }
+                // `Bind` on an empty query string. Not an error: it is what a
+                // caller that built its SQL from an empty template sent.
+                backend::Message::EmptyQueryResponse => {
+                    drain_to_ready(self.wire, self.state)?;
+                    return Ok(None);
+                }
+                backend::Message::ErrorResponse(body) => {
+                    let error = server_error(&body);
+                    drain_to_ready(self.wire, self.state)?;
+                    return Err(error);
+                }
+                backend::Message::NoticeResponse(_)
+                | backend::Message::ParameterStatus(_)
+                | backend::Message::NotificationResponse(_) => {}
+                _ => return Err(out_of_sequence(self.state)),
+            }
+        }
+    }
+}
+
+impl<S: Read + Write> Drop for PgRows<'_, S> {
+    /// Abandonment, and it is the ordinary case rather than an error.
+    ///
+    /// The `Sync` went out with the statement, so the `ReadyForQuery` that ends
+    /// it is coming whether or not anybody read the rows in between: draining
+    /// to it is deterministic, and ADR 0132 § 4 is explicit that a driver which
+    /// can do that returns the connection to the pool instead of closing it.
+    /// A read that fails on the way poisons it, through the same helper every
+    /// other read here uses.
+    fn drop(&mut self) {
+        if self.state.get() == State::Streaming {
+            drop(drain_to_ready(self.wire, self.state));
+        }
+    }
+}
+
+/// Writes ADR 0067 § 1's one round trip and reads up to the first row.
+///
+/// `Parse`, `Bind`, `Describe`, `Execute` and `Sync` go into one buffer and out
+/// in one flush, and this returns once the portal has described itself — which
+/// is the point rows may start arriving and [`State::Streaming`] is true.
+///
+/// # Errors
+///
+/// As [`PgConn::query`].
+fn start_statement<'a, S: Read + Write>(
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    sql: &str,
+    params: &[Option<&[u8]>],
+) -> io::Result<PgRows<'a, S>> {
+    if !state.get().may_start_statement() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "a statement was written to a connection that is {:?}, and ADR 0067 § 4 allows one \
+                 at a time: read the previous statement's rows or drop its handle first",
+                state.get()
+            ),
+        ));
+    }
+
+    let mut out = BytesMut::new();
+    frontend::parse(UNNAMED, sql, [], &mut out)?;
+    frontend::bind(
+        UNNAMED,
+        UNNAMED,
+        // Both format lists empty, which is the protocol's spelling for "all
+        // text". The module doc owns why text and not binary.
+        [],
+        params.iter().copied(),
+        |param, buf| match param {
+            Some(bytes) => {
+                buf.extend_from_slice(bytes);
+                Ok(IsNull::No)
+            }
+            None => Ok(IsNull::Yes),
+        },
+        [],
+        &mut out,
+    )
+    .map_err(|e| match e {
+        frontend::BindError::Conversion(e) => io::Error::new(io::ErrorKind::InvalidInput, e),
+        frontend::BindError::Serialization(e) => e,
+    })?;
+    // `b'P'` is the *portal*, not the statement: describing the portal answers
+    // with the row description alone, where describing the statement would also
+    // send a `ParameterDescription` nothing here reads.
+    frontend::describe(b'P', UNNAMED, &mut out)?;
+    // `0` is every row. This driver never suspends a portal, so
+    // `PortalSuspended` is a message it does not have to have an answer for.
+    frontend::execute(UNNAMED, 0, &mut out)?;
+    frontend::sync(&mut out);
+
+    state.set(State::Executing);
+    if let Err(e) = wire.send(&mut out) {
+        // A failed `write_all` may have left part of a message on the wire, and
+        // there is no boundary to find after one.
+        state.set(State::Poisoned);
+        return Err(e);
+    }
+
+    let columns = loop {
+        match read_or_poison(wire, state)? {
+            backend::Message::ParseComplete | backend::Message::BindComplete => {}
+            backend::Message::RowDescription(body) => {
+                break columns_of(&body).inspect_err(|_| state.set(State::Poisoned))?;
+            }
+            // A statement that returns no rows at all: `Streaming` is still the
+            // right state, because the `CommandComplete` and `ReadyForQuery`
+            // that end it are messages a second statement must not be written
+            // over.
+            backend::Message::NoData => break Vec::new(),
+            backend::Message::ErrorResponse(body) => {
+                let error = server_error(&body);
+                drain_to_ready(wire, state)?;
+                return Err(error);
+            }
+            backend::Message::NoticeResponse(_)
+            | backend::Message::ParameterStatus(_)
+            | backend::Message::NotificationResponse(_) => {}
+            _ => return Err(out_of_sequence(state)),
+        }
+    };
+
+    state.set(State::Streaming);
+    Ok(PgRows {
+        wire,
+        state,
+        columns,
+        tag: None,
+    })
+}
+
+/// ADR 0067 § 13's PostgreSQL reset, in the order that section lists it.
+///
+/// `DISCARD TEMP` is the server's own spelling of § 13's "drop the session's
+/// temporary schema", and the reason it is that rather than `DISCARD ALL` is the
+/// same reason § 13 gives: `DISCARD ALL` also runs `DEALLOCATE ALL`, which would
+/// throw away the statement cache pooling exists to preserve.
+///
+/// `RESET ALL` covers `SET ROLE` and `SET SESSION AUTHORIZATION` without a
+/// command of their own — `role` and `session_authorization` are settable
+/// run-time parameters, so they are two of the things "all" means.
+const RESET_COMMANDS: [&str; 6] = [
+    "ROLLBACK",
+    "RESET ALL",
+    "CLOSE ALL",
+    "UNLISTEN *",
+    "SELECT pg_advisory_unlock_all()",
+    "DISCARD TEMP",
+];
+
+/// Runs [`RESET_COMMANDS`] as one pipelined batch and reports the first refusal.
+///
+/// **One round trip for six commands**, which is what makes § 13's reset cheap
+/// enough to be unconditional. These go out as *simple* `Query` messages rather
+/// than through the extended path, and that is the whole reason the batch is
+/// safe to pipeline: a simple `Query` carries its own implicit `Sync`, so each
+/// of the six ends in a `ReadyForQuery` whether it succeeded or not and the
+/// answers cannot skew against the requests. `RESET ALL` is not a statement
+/// worth preparing anyway, and none of the six takes a parameter.
+///
+/// Every command runs even after one has failed — they are independent, and
+/// stopping early would leave the connection *less* clean than continuing.
+/// The **first** refusal is the one reported, because that is the one with a
+/// cause; the ones after it may only be consequences.
+///
+/// A message that is not an error or a boundary is discarded, and unlike the
+/// extended path that is not poison: this batch is a fixed list carrying no
+/// caller's SQL, so there is nothing a peer can answer with that changes what
+/// happens next, and the boundary after each command is the protocol's promise
+/// rather than an inference from the sequence.
+///
+/// # Errors
+///
+/// `InvalidInput` for a connection that is not [`State::Idle`], the first
+/// command's own error, or the wire failure that stopped the batch — which
+/// poisons the connection, as any failed read does.
+fn reset_session<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io::Result<()> {
+    if !state.get().may_start_statement() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "a connection that is {:?} was asked to reset, and § 13's reset is only meaningful \
+                 at a message boundary",
+                state.get()
+            ),
+        ));
+    }
+
+    let mut out = BytesMut::new();
+    for command in RESET_COMMANDS {
+        frontend::query(command, &mut out)?;
+    }
+
+    state.set(State::Executing);
+    if let Err(e) = wire.send(&mut out) {
+        state.set(State::Poisoned);
+        return Err(e);
+    }
+
+    let mut refused: Option<io::Error> = None;
+    for _ in RESET_COMMANDS {
+        loop {
+            match read_or_poison(wire, state)? {
+                backend::Message::ReadyForQuery(_) => break,
+                backend::Message::ErrorResponse(body) => {
+                    let error = server_error(&body);
+                    if refused.is_none() {
+                        refused = Some(error);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    state.set(State::Idle);
+    match refused {
+        None => Ok(()),
+        Some(error) => Err(error),
+    }
+}
+
+/// Reads one message, and poisons the connection if the wire itself failed.
+///
+/// Every read in the extended-query path goes through this, because the rule is
+/// one rule: a message that did not arrive leaves no boundary to resume from,
+/// and ADR 0132 § 4 closes such a connection rather than resetting it.
+///
+/// # Errors
+///
+/// As [`Wire::read_message`].
+fn read_or_poison<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+) -> io::Result<backend::Message> {
+    let message = wire.read_message();
+    if message.is_err() {
+        state.set(State::Poisoned);
+    }
+    message
+}
+
+/// Reads to the `ReadyForQuery` the statement's own `Sync` guarantees, and
+/// returns the connection to [`State::Idle`].
+///
+/// Everything on the way is discarded: rows nobody asked for, a second error
+/// after the first, the notices that come with either. That is what the server
+/// itself does after an error — skip to the next `Sync` — and it is only
+/// deterministic because the `Sync` was already on the wire before any of this
+/// was read.
+///
+/// # Errors
+///
+/// As [`read_or_poison`], which is also what leaves the connection poisoned.
+fn drain_to_ready<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io::Result<()> {
+    loop {
+        if let backend::Message::ReadyForQuery(_) = read_or_poison(wire, state)? {
+            state.set(State::Idle);
+            return Ok(());
+        }
+    }
+}
+
+/// The columns a row description names.
+///
+/// # Errors
+///
+/// `InvalidData` for a description whose field count and body disagree.
+fn columns_of(body: &backend::RowDescriptionBody) -> io::Result<Vec<PgColumn>> {
+    let mut columns = Vec::new();
+    let mut fields = body.fields();
+    while let Some(field) = fields.next()? {
+        columns.push(PgColumn {
+            name: field.name().to_owned(),
+            type_oid: field.type_oid(),
+        });
+    }
+    Ok(columns)
+}
+
+/// Poisons the connection over a message the extended-query sequence does not
+/// put where it arrived.
+///
+/// The frame decoded, so the wire is arguably at a boundary — but a peer that
+/// sent this is not tracking the same sequence the driver is, and draining would
+/// mean trusting exactly the sequencing that has just proven wrong. § 4's answer
+/// to a boundary that cannot be proven is poison, and a poisoned connection is
+/// closed rather than pooled.
+fn out_of_sequence(state: &Cell<State>) -> io::Error {
+    state.set(State::Poisoned);
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "the server sent a message the extended-query protocol does not put in a result stream",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use base64::Engine as _;
@@ -515,7 +1042,9 @@ mod tests {
     use sha2::{Digest, Sha256};
     use std::io::{self, Read, Write};
 
-    use super::{CancelKey, PgTarget, Wire, authenticate, request_tls};
+    use std::cell::Cell;
+
+    use super::{CancelKey, PgTarget, State, Wire, authenticate, request_tls, start_statement};
 
     /// A server that answers the client rather than a script: the SASL
     /// exchange's every message depends on the one before it, so a canned
@@ -844,5 +1373,410 @@ mod tests {
         let refused = authenticate(&mut wire, &target("Novis-Test-Pw1"))
             .expect_err("a connection with no cancellation key was opened");
         assert!(refused.to_string().contains("BackendKeyData"), "{refused}");
+    }
+
+    /// A one-column `RowDescription`, in text format because that is what the
+    /// driver's `Bind` asked for.
+    fn row_description(name: &[u8], type_oid: u32) -> Vec<u8> {
+        let mut body = 1i16.to_be_bytes().to_vec();
+        body.extend_from_slice(name);
+        body.push(0);
+        body.extend_from_slice(&0u32.to_be_bytes()); // table OID
+        body.extend_from_slice(&0i16.to_be_bytes()); // column ID
+        body.extend_from_slice(&type_oid.to_be_bytes());
+        body.extend_from_slice(&(-1i16).to_be_bytes()); // type size
+        body.extend_from_slice(&(-1i32).to_be_bytes()); // type modifier
+        body.extend_from_slice(&0i16.to_be_bytes()); // text format
+        message(b'T', &body)
+    }
+
+    /// A `DataRow`, `None` being a column the server sent as SQL `NULL`.
+    fn data_row(columns: &[Option<&[u8]>]) -> Vec<u8> {
+        let count = i16::try_from(columns.len()).expect("a test row has few columns");
+        let mut body = count.to_be_bytes().to_vec();
+        for column in columns {
+            match column {
+                Some(bytes) => {
+                    let len = i32::try_from(bytes.len()).expect("a test value is short");
+                    body.extend_from_slice(&len.to_be_bytes());
+                    body.extend_from_slice(bytes);
+                }
+                None => body.extend_from_slice(&(-1i32).to_be_bytes()),
+            }
+        }
+        message(b'D', &body)
+    }
+
+    /// An `ErrorResponse` carrying the three fields [`super::server_error`]
+    /// reads, and the trailing zero that ends the field list.
+    fn error_response(code: &str, said: &str) -> Vec<u8> {
+        let mut body = vec![b'S'];
+        body.extend_from_slice(b"ERROR\0");
+        body.push(b'C');
+        body.extend_from_slice(code.as_bytes());
+        body.push(0);
+        body.push(b'M');
+        body.extend_from_slice(said.as_bytes());
+        body.push(0);
+        body.push(0);
+        message(b'E', &body)
+    }
+
+    /// The tag of every message in one flushed group, in order.
+    ///
+    /// Walks the length prefixes rather than searching for bytes: a tag letter
+    /// also occurs inside the SQL and inside a parameter, so a `contains` here
+    /// would pass on a message that was never sent.
+    fn tags(flushed: &[u8]) -> Vec<u8> {
+        let mut tags = Vec::new();
+        let mut at = 0;
+        while at + 5 <= flushed.len() {
+            tags.push(flushed[at]);
+            let len = u32::from_be_bytes(
+                flushed[at + 1..at + 5]
+                    .try_into()
+                    .expect("four bytes are four bytes"),
+            );
+            at += usize::try_from(len).expect("a test message fits in a usize") + 1;
+        }
+        tags
+    }
+
+    /// A server that answers one statement with one `text` column, `rows`, a
+    /// completion and a `ReadyForQuery` — the whole of the ordinary path.
+    fn one_statement(rows: Vec<Vec<u8>>) -> Vec<u8> {
+        let mut out = message(b'1', b""); // ParseComplete
+        out.extend_from_slice(&message(b'2', b"")); // BindComplete
+        out.extend_from_slice(&row_description(b"greeting", 25));
+        for row in rows {
+            out.extend_from_slice(&row);
+        }
+        out.extend_from_slice(&message(b'C', b"SELECT 2\0"));
+        out.extend_from_slice(&message(b'Z', b"I"));
+        out
+    }
+
+    /// ADR 0067 § 1's "PostgreSQL's extended protocol pays nothing extra",
+    /// asserted as bytes: all five messages go out in **one** flush, so there is
+    /// no prepare round trip to save. Asserted by walking the length prefixes
+    /// because every tag letter also occurs inside the SQL.
+    #[test]
+    fn a_statement_is_parse_bind_describe_execute_and_sync_in_one_flush() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| one_statement(Vec::new())));
+
+        {
+            let mut rows = start_statement(&mut wire, &state, "select $1", &[Some(b"7")])
+                .expect("the portal described itself");
+            while rows.next_row().expect("the stream drained").is_some() {}
+        }
+
+        assert_eq!(wire.peer().sent.len(), 1, "the statement was not one flush");
+        assert_eq!(tags(&wire.peer().sent[0]), b"PBDES".to_vec());
+    }
+
+    /// The four values of ADR 0132 § 4, walked by one statement: `Idle` before,
+    /// `Streaming` while rows are unread, and `Idle` again once the
+    /// `ReadyForQuery` the `Sync` guaranteed has been read. A `NULL` column is
+    /// `None` and not an empty slice — the distinction ADR 0067 § 9 maps to
+    /// `?T`.
+    #[test]
+    fn rows_stream_until_command_complete_and_the_connection_returns_to_idle() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            one_statement(vec![
+                data_row(&[Some(b"hello")]),
+                data_row(&[None]),
+                data_row(&[Some(b"")]),
+            ])
+        }));
+
+        let mut rows =
+            start_statement(&mut wire, &state, "select greeting", &[]).expect("the portal opened");
+        assert_eq!(state.get(), State::Streaming);
+        assert_eq!(rows.columns().len(), 1);
+        assert_eq!(rows.columns()[0].name, "greeting");
+        assert_eq!(rows.columns()[0].type_oid, 25);
+        assert_eq!(rows.command_tag(), None);
+
+        let mut seen = Vec::new();
+        while let Some(row) = rows.next_row().expect("the stream drained") {
+            seen.push(row.column(0).expect("column 0 exists").map(<[u8]>::to_vec));
+            // Still streaming until the completion is read, whatever has
+            // arrived so far.
+            assert_eq!(state.get(), State::Streaming);
+        }
+
+        assert_eq!(
+            seen,
+            vec![Some(b"hello".to_vec()), None, Some(Vec::new())],
+            "a NULL column and an empty one are not the same answer"
+        );
+        assert_eq!(rows.command_tag(), Some("SELECT 2"));
+        assert_eq!(state.get(), State::Idle);
+        assert!(state.get().is_poolable());
+    }
+
+    /// ADR 0067 § 4's refusal, and the half of it that matters is that
+    /// **nothing reaches the wire**: writing a second statement over an
+    /// unfinished one is the shape § 4 exists to prevent, not merely one it
+    /// reports.
+    #[test]
+    fn a_second_statement_on_a_busy_connection_writes_nothing_and_is_refused() {
+        for busy in [State::Executing, State::Streaming, State::Poisoned] {
+            let state = Cell::new(busy);
+            let mut wire = Wire::new(Peer::new(|_: &[u8]| Vec::new()));
+
+            let refused = start_statement(&mut wire, &state, "select 1", &[])
+                .expect_err("a second statement was accepted");
+
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidInput, "{busy:?}");
+            assert!(wire.peer().sent.is_empty(), "{busy:?} reached the wire");
+            assert_eq!(state.get(), busy, "{busy:?} was changed by a refusal");
+        }
+    }
+
+    /// ADR 0132 § 4's per-driver call, in PostgreSQL's favour: a caller that
+    /// stops reading leaves the connection `Idle` and poolable, because the
+    /// `Sync` that ends the statement was already on the wire before the first
+    /// row arrived.
+    #[test]
+    fn an_abandoned_result_set_is_drained_back_to_idle_rather_than_poisoned() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            one_statement(vec![data_row(&[Some(b"one")]), data_row(&[Some(b"two")])])
+        }));
+
+        {
+            let mut rows = start_statement(&mut wire, &state, "select greeting", &[])
+                .expect("the portal opened");
+            assert!(rows.next_row().expect("the first row arrived").is_some());
+            assert_eq!(state.get(), State::Streaming);
+        }
+
+        assert_eq!(state.get(), State::Idle);
+        assert!(state.get().is_poolable());
+    }
+
+    /// A statement the server refuses at `Parse` is the server's own error, and
+    /// the connection is still poolable afterwards: the `Sync` means a
+    /// `ReadyForQuery` follows the refusal, so there is a boundary to resume
+    /// from and § 4's poison would be wrong here.
+    #[test]
+    fn a_statement_the_server_refuses_leaves_the_connection_idle_and_poolable() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out = error_response("42601", "syntax error at or near \"slect\"");
+            out.extend_from_slice(&message(b'Z', b"I"));
+            out
+        }));
+
+        let refused = start_statement(&mut wire, &state, "slect 1", &[])
+            .expect_err("a syntax error was accepted");
+
+        let said = refused.to_string();
+        assert!(said.contains("42601"), "{said}");
+        assert!(said.contains("syntax error"), "{said}");
+        assert_eq!(state.get(), State::Idle);
+        assert!(state.get().is_poolable());
+    }
+
+    /// The same rule after rows have already arrived — a constraint violation
+    /// part way through a stream. The error reaches the caller and the
+    /// connection is still clean.
+    #[test]
+    fn an_error_part_way_through_a_stream_ends_it_without_poisoning() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out = message(b'1', b"");
+            out.extend_from_slice(&message(b'2', b""));
+            out.extend_from_slice(&row_description(b"greeting", 25));
+            out.extend_from_slice(&data_row(&[Some(b"one")]));
+            out.extend_from_slice(&error_response("22012", "division by zero"));
+            out.extend_from_slice(&message(b'Z', b"I"));
+            out
+        }));
+
+        {
+            let mut rows =
+                start_statement(&mut wire, &state, "select 1/x", &[]).expect("the portal opened");
+            assert!(rows.next_row().expect("the first row arrived").is_some());
+            let failed = rows.next_row().expect_err("the error was swallowed");
+            assert!(failed.to_string().contains("22012"), "{failed}");
+            // And the stream is over: a second call answers `None` rather than
+            // reading into the next statement's messages.
+            assert!(rows.next_row().expect("the stream is over").is_none());
+        }
+
+        assert_eq!(state.get(), State::Idle);
+    }
+
+    /// The one case that *is* poison: a peer that stops mid-message leaves no
+    /// boundary to resume from, so § 4 closes the connection rather than
+    /// resetting it. Asserted on `is_poolable` and not only on the state,
+    /// because that is the security-relevant half.
+    #[test]
+    fn a_peer_that_closes_mid_statement_poisons_the_connection() {
+        let state = Cell::new(State::Idle);
+        // ParseComplete, then the head of a message that never finishes.
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out = message(b'1', b"");
+            out.extend_from_slice(&[b'T', 0, 0, 0, 40]);
+            out
+        }));
+
+        let failed = start_statement(&mut wire, &state, "select 1", &[])
+            .expect_err("a truncated message was accepted");
+
+        assert_eq!(failed.kind(), io::ErrorKind::UnexpectedEof);
+        assert_eq!(state.get(), State::Poisoned);
+        assert!(!state.get().is_poolable());
+    }
+
+    /// A well-framed message the extended-query sequence does not put in a
+    /// result stream is poison too, and for the reason [`super::out_of_sequence`]
+    /// gives: the frame decoded, but the peer is not tracking the sequence this
+    /// driver is, so draining would trust what has just proven wrong.
+    #[test]
+    fn a_message_out_of_sequence_poisons_rather_than_draining() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out = message(b'1', b"");
+            // `CopyInResponse` — legal PostgreSQL, and not something a `Bind`
+            // and `Execute` of a prepared statement can produce.
+            out.extend_from_slice(&message(b'G', &[0, 0, 0]));
+            out.extend_from_slice(&message(b'Z', b"I"));
+            out
+        }));
+
+        let failed = start_statement(&mut wire, &state, "copy t from stdin", &[])
+            .expect_err("an out-of-sequence message was accepted");
+
+        assert_eq!(failed.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(state.get(), State::Poisoned);
+        assert!(!state.get().is_poolable());
+    }
+
+    /// The SQL of every simple `Query` in one flushed group, in order.
+    fn queries(flushed: &[u8]) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut at = 0;
+        while at + 5 <= flushed.len() {
+            let len = usize::try_from(u32::from_be_bytes(
+                flushed[at + 1..at + 5]
+                    .try_into()
+                    .expect("four bytes are four bytes"),
+            ))
+            .expect("a test message fits in a usize");
+            if flushed[at] == b'Q' {
+                let body = &flushed[at + 5..at + 1 + len];
+                let sql = body.strip_suffix(b"\0").unwrap_or(body);
+                out.push(String::from_utf8_lossy(sql).into_owned());
+            }
+            at += len + 1;
+        }
+        out
+    }
+
+    /// `ReadyForQuery`, which every simple `Query` ends with whatever happened.
+    fn ready() -> Vec<u8> {
+        message(b'Z', b"I")
+    }
+
+    /// ADR 0067 § 13's list, in its order, in **one** flush — six commands for
+    /// one round trip, which is what makes an unconditional reset affordable.
+    /// The two exclusions are asserted by name because they are the section's
+    /// own: `DISCARD ALL` would run `DEALLOCATE ALL` and throw away the
+    /// statement cache the pool exists to preserve.
+    #[test]
+    fn a_reset_is_section_13s_six_commands_in_one_flush_and_not_discard_all() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready().repeat(6)));
+
+        super::reset_session(&mut wire, &state).expect("the reset ran");
+
+        assert_eq!(
+            wire.peer().sent.len(),
+            1,
+            "the reset was not one round trip"
+        );
+        let sent = queries(&wire.peer().sent[0]);
+        assert_eq!(
+            sent,
+            vec![
+                "ROLLBACK",
+                "RESET ALL",
+                "CLOSE ALL",
+                "UNLISTEN *",
+                "SELECT pg_advisory_unlock_all()",
+                "DISCARD TEMP",
+            ]
+        );
+        for command in &sent {
+            assert!(!command.contains("DISCARD ALL"), "{command}");
+            assert!(!command.contains("DEALLOCATE"), "{command}");
+        }
+        assert_eq!(state.get(), State::Idle);
+        assert!(state.get().is_poolable());
+    }
+
+    /// A refused command fails the whole reset, the **first** refusal is the one
+    /// reported, and every later command is still read to its boundary — which
+    /// the second error's code proves, since reaching it means the batch was not
+    /// abandoned at the first.
+    #[test]
+    fn a_refused_reset_reports_the_first_error_and_still_reads_every_boundary() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out = ready(); // ROLLBACK
+            out.extend_from_slice(&error_response("42501", "permission denied"));
+            out.extend_from_slice(&ready()); // RESET ALL, refused
+            out.extend_from_slice(&ready().repeat(3));
+            out.extend_from_slice(&error_response("55000", "object not in prerequisite state"));
+            out.extend_from_slice(&ready()); // DISCARD TEMP, refused
+            out
+        }));
+
+        let failed = super::reset_session(&mut wire, &state).expect_err("a refused reset passed");
+
+        let said = failed.to_string();
+        assert!(said.contains("42501"), "the later error won: {said}");
+        assert!(said.contains("permission denied"), "{said}");
+        // The wire is still at a boundary — that is what six `ReadyForQuery`
+        // means — so § 13 destroys this connection through `PgConn::reset`
+        // taking `self`, not by claiming the stream is unreadable.
+        assert_eq!(state.get(), State::Idle);
+    }
+
+    /// A wire that fails part way through the batch poisons the connection: six
+    /// boundaries were promised and fewer arrived, so where the next message
+    /// starts is not known.
+    #[test]
+    fn a_wire_that_fails_during_a_reset_poisons_the_connection() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready().repeat(2)));
+
+        let failed = super::reset_session(&mut wire, &state).expect_err("a short reset passed");
+
+        assert_eq!(failed.kind(), io::ErrorKind::UnexpectedEof);
+        assert_eq!(state.get(), State::Poisoned);
+        assert!(!state.get().is_poolable());
+    }
+
+    /// A reset is a statement like any other as far as § 4 goes: a connection
+    /// with rows still in flight is not at a boundary, and nothing is written.
+    #[test]
+    fn a_reset_of_a_busy_connection_writes_nothing_and_is_refused() {
+        for busy in [State::Executing, State::Streaming, State::Poisoned] {
+            let state = Cell::new(busy);
+            let mut wire = Wire::new(Peer::new(|_: &[u8]| Vec::new()));
+
+            let refused = super::reset_session(&mut wire, &state)
+                .expect_err("a busy connection was reset in place");
+
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidInput, "{busy:?}");
+            assert!(wire.peer().sent.is_empty(), "{busy:?} reached the wire");
+            assert_eq!(state.get(), busy, "{busy:?} was changed by a refusal");
+        }
     }
 }
