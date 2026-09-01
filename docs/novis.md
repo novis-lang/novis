@@ -5504,6 +5504,8 @@ and `use Core\Route; … #[Route]` are the same attribute.
 
 - `#[Core\Json\Derive]`
 - `#[Core\Json\Field]`
+- `#[Core\Db\Derive]`
+- `#[Core\Db\Field]`
 - `#[Core\Test]`
 - `#[Core\Test\Fixture]`
 - `#[Core\Test\TestWith]`
