@@ -86,9 +86,9 @@
 //!    a refusal here is a plain `RuntimeError` or an `IOError` and carries no
 //!    `kind`, `sqlState` or `constraint`. Nothing about the messages changes
 //!    when they land; what changes is what a `catch` can name.
-//! 5. **`query` and `execute` are the whole of `Core\Db\Queryable` so far.**
-//!    `queryAs`, `executeMany`, `stream`, `streamAs` and `transaction` are
-//!    owed, and so are `close` and § 18's three readonly properties on
+//! 5. **`query`, `execute` and `executeMany` are what has landed of
+//!    `Core\Db\Queryable`.** `queryAs`, `stream`, `streamAs` and `transaction`
+//!    are owed, and so are `close` and § 18's three readonly properties on
 //!    `Connection`. On the result side [`ROWS`] owes one member of six —
 //!    `columns(): array<Column>`, which needs three things at once: a
 //!    `Core\Db\Column` class, a `Core\ColumnType` enum for § 18's own fourteen
@@ -278,8 +278,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// it was opened by, which is what a refusal can name without reaching for the
 /// connection it is refusing about.
 ///
-/// **`query` and `execute` are `Core\Db\Queryable`'s two landed members and the
-/// rest are owed**: `queryAs`, `executeMany`, `stream`, `streamAs` and
+/// **`query`, `execute` and `executeMany` are `Core\Db\Queryable`'s landed
+/// members and the rest are owed**: `queryAs`, `stream`, `streamAs` and
 /// `transaction`, plus `close` and § 18's three readonly properties. ADR 0043 makes
 /// `Transaction` delegate the interface to its connection, so every one of them
 /// is declared once — here — and this class is where they land.
@@ -314,6 +314,29 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(WRITE_NAME),
             symbol: "nvs_core_db_connection_execute",
             doc: Some(&EXECUTE_DOC),
+        },
+        CoreMethod {
+            name: "executeMany",
+            names: &["sql", "sets"],
+            params: &[
+                // The same sink, and it is the member's whole point that there
+                // is only one of them: § 4's batch is one statement run many
+                // times, so the text is written once and cannot pick up a
+                // `tainted` fragment per set.
+                CoreTy::Text(Qual::Sink),
+                // § 18's `array<array<mixed>>`. The outer array is the sets and
+                // the inner one is `query`'s own `$params`, which is why each
+                // set is read by [`statement_of`] and gains no binding rule of
+                // its own.
+                CoreTy::Array(&CoreTy::Array(&CoreTy::Mixed)),
+            ],
+            defaults: &[],
+            // A bare `uint` and not a [`WRITE`]: § 4 gives the batch a sum and
+            // no second return to hand rows or a `lastId` back through, because
+            // there is no one execution for either to belong to.
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_db_connection_execute_many",
+            doc: Some(&EXECUTE_MANY_DOC),
         },
     ],
     slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT],
@@ -824,6 +847,52 @@ const EXECUTE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Db\Connection::executeMany`'s reference card — ADR 0117.
+const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
+    short: "Runs one statement once per set of values and answers how many rows the whole batch \
+            wrote — the loop around `PDOStatement::execute` that every driver writes by hand, with \
+            one prepare and one round trip instead of one of each per set.",
+    params: &[
+        ParamDoc {
+            name: "sql",
+            desc: "The statement, written once and bound once per set. It is a sink exactly as \
+                   `execute`'s is, and the batch gives it no second spelling: there is one text \
+                   for every set.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "sets",
+            desc: "One `$params` array per execution, each keyed the way `execute` requires and \
+                   all of them binding the same number of values — a set whose `inList` is a \
+                   different width is a different statement, not another row of this one.",
+            shape: &[],
+        },
+    ],
+    ret: "The sum of what each execution reported, with a command whose tag carries no count \
+          contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a \
+          `RETURNING` clause produced are discarded, and there is no `lastId`: neither has one \
+          execution to belong to.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The call is wrong rather than the database: a set is keyed both ways at once, \
+                   two sets do not agree on how many values the statement binds, an element has no \
+                   bound form, or a statement is already streaming on this connection.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The server refused an execution — a syntax error, a constraint, a permission. \
+                   Each execution is its own transaction, so the writes before the failing one \
+                   stand; `transaction` is how a caller asks for all or nothing.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the batch was in flight, which leaves it unusable \
+                   for the rest of the request.",
+        },
+    ],
+};
+
 /// `Core\Db\Rows::all`'s reference card — ADR 0117.
 const ROWS_ALL_DOC: MethodDoc = MethodDoc {
     short: "Every row of the result, in the server's order, each one a `Core\\Db\\Row` — \
@@ -1159,6 +1228,10 @@ const QUERY: &str = r"Core\Db\Connection::query";
 /// [`connection_of`], which builds `Class::member` itself, and this one for the
 /// messages that already hold a class.
 const EXECUTE: &str = r"Core\Db\Connection::execute";
+
+/// `Core\Db\Connection::executeMany`, as its own refusals spell it. See
+/// [`EXECUTE`] for why both spellings travel together.
+const EXECUTE_MANY: &str = r"Core\Db\Connection::executeMany";
 
 /// The ABI slot each of `connect`'s two options arrives in — the row's one
 /// positional parameter, then the bag flattened in declaration order.
@@ -1688,8 +1761,124 @@ fn statement_of(args: &[Value], member: &str, named: &str) -> Result<Statement, 
     })
 }
 
-/// The connection a [`Statement`] names, as the one driver that runs a
-/// statement so far.
+/// ADR 0067 § 4's batch: one statement the wire is ready for, and one encoded
+/// set of values per execution it is about to get.
+///
+/// It is deliberately not a `Vec<Statement>`. Every set rewrites to the *same*
+/// text or the batch is refused, so the text is held once here — which is also
+/// the invariant, written into the shape rather than left as a rule
+/// [`batch_of`] has to be trusted to have checked.
+struct Batch {
+    /// The key its connection is filed under in the request's own table.
+    key: u64,
+    /// The `[db.<name>]` block it was opened by, so a refusal can name the
+    /// connection without holding it.
+    block: Value,
+    /// § 5's rewritten text, which every set agreed on — or, for an empty
+    /// `$sets`, the caller's own text unrewritten, which never reaches the wire
+    /// because [`nvs_db::PgConn::execute_many`] answers `0` before it prepares
+    /// anything.
+    sql: String,
+    /// One encoded set per execution, each in the **statement's** order, as
+    /// [`Statement::binds`] is.
+    binds: Vec<Vec<Option<Vec<u8>>>>,
+}
+
+/// § 18's `$sets`, read as one [`statement_of`] per set with the expansions
+/// checked to agree.
+///
+/// **Each set is a whole `$params`**, so it gains § 18's keying rule, § 5's
+/// rewrite and § 9's encoding from the member that already owns them — a set
+/// cannot be bound by a weaker rule than the one `execute` would have applied
+/// to it on its own.
+///
+/// **The sets must rewrite to one text, and that is a stronger check than the
+/// arity one it looks like.** § 1's cache is keyed on the SQL *plus its
+/// expansion arity* and § 5 expands an `inList` into as many markers as it has
+/// elements, so two sets whose `inList`s differ in width are two prepared
+/// statements — the driver's own `execute_many` refuses them on the count, and
+/// this refuses them on the text, which is the thing the count stands for and
+/// can name in the message.
+///
+/// # Errors
+///
+/// A thrown `LogicError` for two sets that do not rewrite alike, plus whatever
+/// [`statement_of`] throws for any one of them. A [`Fault::fatal`] for an
+/// argument of the wrong tag, which the registry row refuses first.
+fn batch_of(args: &[Value], member: &str, named: &str) -> Result<Batch, Fault> {
+    let (key, block) = connection_of(args[0], member)?;
+    // Unreachable from source for both, as in `statement_of`: the row declares
+    // a `string` and an `array<array<mixed>>`, so `E0401` refuses either tag
+    // first.
+    let sql = args[1].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{named} expected a `string` statement, got tag {}",
+            args[1].tag_byte()
+        ))
+    })?;
+    let given = args[2].array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{named} expected {:?} for its parameter sets, got tag {}",
+            Tag::Array,
+            args[2].tag_byte()
+        ))
+    })?;
+
+    let held = crate::arr::borrowed(given);
+    let mut text: Option<String> = None;
+    let mut binds: Vec<Vec<Option<Vec<u8>>>> = Vec::with_capacity(held.count());
+    let mut from = 0usize;
+    while let Some(slot) = held.next_slot(from) {
+        from = slot + 1;
+        let set = held
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        let at = binds.len();
+        // The inner type's turn to be unreachable: the element is an
+        // `array<mixed>` by the row, and `statement_of` would call a non-array
+        // one a wrong parameter tag without saying which set it was.
+        if set.array_ptr().is_none() {
+            return Err(Fault::fatal(format!(
+                "{named} expected {:?} for the set at {at}, got tag {}",
+                Tag::Array,
+                set.tag_byte()
+            )));
+        }
+        let one = statement_of(&[args[0], args[1], set], member, named)?;
+        match &text {
+            None => text = Some(one.sql),
+            Some(first) if *first == one.sql => {}
+            Some(first) => {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!(
+                        "{named}: the set at {at} binds `{}` where the first set binds `{first}`, \
+                         and ADR 0067 § 1's cache is keyed on the statement's expansion — so two \
+                         sets whose `inList`s differ in width are two statements and not one \
+                         batch, and each of them wants its own call",
+                        one.sql
+                    ),
+                ));
+            }
+        }
+        binds.push(one.binds);
+    }
+
+    Ok(Batch {
+        key,
+        block,
+        sql: text.unwrap_or_else(|| sql.to_owned()),
+        binds,
+    })
+}
+
+/// The connection a [`Statement`] or a [`Batch`] names, as the one driver that
+/// runs a statement so far.
+///
+/// The key and the block are passed rather than either of those types, because
+/// they are the only two fields it reads and a batch is not a statement — the
+/// alternative is a `Statement` built with an empty `binds` purely to reach
+/// this, which would be a shape nothing else in this module means.
 ///
 /// # Errors
 ///
@@ -1698,10 +1887,10 @@ fn statement_of(args: &[Value], member: &str, named: &str) -> Result<Statement, 
 /// not hold, which is this crate's paste error rather than a program's.
 fn postgres_of<'a>(
     ctx: &'a mut nvs_runtime::Ctx,
-    statement: &Statement,
+    key: u64,
+    block: &Value,
     named: &str,
 ) -> Result<&'a mut nvs_db::PgConn, Fault> {
-    let key = statement.key;
     let filed = ctx.open_connection_mut(key).ok_or_else(|| {
         Fault::fatal(format!(
             "{named}: no connection is filed under the key {key}"
@@ -1720,7 +1909,7 @@ fn postgres_of<'a>(
         return Err(Fault::thrown(format!(
             "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL runs a \
              statement so far — this module's known gap 2 is the list",
-            statement.block.as_text().unwrap_or("?")
+            block.as_text().unwrap_or("?")
         )));
     };
     Ok(postgres)
@@ -1749,7 +1938,7 @@ nvs_runtime::nvs_helper! {
         let statement = statement_of(args, "query", QUERY)?;
         let sending: Vec<Option<&[u8]>> =
             statement.binds.iter().map(|one| one.as_deref()).collect();
-        let postgres = postgres_of(ctx, &statement, QUERY)?;
+        let postgres = postgres_of(ctx, statement.key, &statement.block, QUERY)?;
         let mut answered = postgres
             .query(&statement.sql, &sending)
             .map_err(|refused| statement_failure(QUERY, &statement.block, &refused))?;
@@ -1813,7 +2002,7 @@ nvs_runtime::nvs_helper! {
         let statement = statement_of(args, "execute", EXECUTE)?;
         let sending: Vec<Option<&[u8]>> =
             statement.binds.iter().map(|one| one.as_deref()).collect();
-        let postgres = postgres_of(ctx, &statement, EXECUTE)?;
+        let postgres = postgres_of(ctx, statement.key, &statement.block, EXECUTE)?;
         let mut answered = postgres
             .query(&statement.sql, &sending)
             .map_err(|refused| statement_failure(EXECUTE, &statement.block, &refused))?;
@@ -1833,6 +2022,48 @@ nvs_runtime::nvs_helper! {
                 last_id.map_or_else(Value::null, Value::uint),
             ],
         ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Db\Connection::executeMany(string $sql, array<array<mixed>> $sets):
+    /// uint` — ADR 0067 § 4's batch, and § 1's reason for having no `Statement`
+    /// object at all.
+    ///
+    /// **This is the member a `prepare` handle would have existed for.** § 1
+    /// removes the handle because the per-connection cache already buys what it
+    /// bought, and names the batch as the one case that would otherwise still
+    /// want one — so a loop of `execute` calls and this member differ in round
+    /// trips and in nothing else a caller can see.
+    ///
+    /// **Every set is bound by [`statement_of`], and they must agree**; that
+    /// rule and why it is checked on the rewritten text rather than on a count
+    /// are [`batch_of`]'s.
+    ///
+    /// **What it answers is a `uint` and not a [`WRITE`].** § 4 gives the batch
+    /// a sum, because `changed` and `lastId` would each have to pick one
+    /// execution to be about — and the sum is what a caller writing the loop by
+    /// hand would have accumulated anyway. The batch is also **not** a
+    /// transaction: each execution carries its own `Sync`
+    /// ([`nvs_db::PgConn::execute_many`] is where that is argued), so a failure
+    /// part way through leaves the writes before it standing, and `transaction`
+    /// is the member that asks for all or nothing.
+    fn nvs_core_db_connection_execute_many(ctx, args: [3]) {
+        let batch = batch_of(args, "executeMany", EXECUTE_MANY)?;
+        // Two hops rather than one: the driver borrows each set as a slice, so
+        // the per-set `Vec` has to outlive the slice taken of it.
+        let sending: Vec<Vec<Option<&[u8]>>> = batch
+            .binds
+            .iter()
+            .map(|set| set.iter().map(|one| one.as_deref()).collect())
+            .collect();
+        let sets: Vec<&[Option<&[u8]>]> = sending.iter().map(Vec::as_slice).collect();
+
+        let postgres = postgres_of(ctx, batch.key, &batch.block, EXECUTE_MANY)?;
+        let written = postgres
+            .execute_many(&batch.sql, &sets)
+            .map_err(|refused| statement_failure(EXECUTE_MANY, &batch.block, &refused))?;
+        Ok(Value::uint(written))
     }
 }
 
@@ -2416,6 +2647,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_quote_identifier" => (nvs_core_db_quote_identifier as *const ()).cast(),
         "nvs_core_db_connection_query" => (nvs_core_db_connection_query as *const ()).cast(),
         "nvs_core_db_connection_execute" => (nvs_core_db_connection_execute as *const ()).cast(),
+        "nvs_core_db_connection_execute_many" => {
+            (nvs_core_db_connection_execute_many as *const ()).cast()
+        }
         "nvs_core_db_rows_all" => (nvs_core_db_rows_all as *const ()).cast(),
         "nvs_core_db_rows_first" => (nvs_core_db_rows_first as *const ()).cast(),
         "nvs_core_db_rows_value" => (nvs_core_db_rows_value as *const ()).cast(),

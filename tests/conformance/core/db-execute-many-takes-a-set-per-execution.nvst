@@ -1,0 +1,28 @@
+--TEST--
+`executeMany` takes one `$params` array per execution and `execute`'s own flat array is not one of them, so nothing has to guess how a batch was meant to be split — ADR 0067 §§ 4 and 5, spec § 18
+--FILE--
+<?nvs
+var $db = Core\Db::connect("main");
+
+// One set, which is `execute`'s `$params` with an array around it. The
+// statement is written once and bound once per set, so the sets are the only
+// thing that varies and the SQL cannot pick up a fragment per execution.
+uint $one = $db->executeMany("insert into accounts (id, owner) values (?, ?)", [[1, "ada"]]);
+
+// The other end of the same shape: no sets at all is a batch with nothing to
+// do, which is § 4's no-op and not a missing argument.
+uint $none = $db->executeMany("insert into accounts (id, owner) values (?, ?)", []);
+
+// And the refusal. This is `execute`'s second argument passed unchanged, and a
+// member that accepted it would have to choose between reading it as one set
+// and as a list of one-value sets — both of which write something. The refusal
+// lands on each element rather than on the array, which is the diagnostic that
+// says what the outer array is *for*.
+uint $flat = $db->executeMany("insert into accounts (id, owner) values (?, ?)", [1, "ada"]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `array<mixed>`, found `int`
+   --> case.nvs:18:82
+%A
+error: aborting due to 2 errors

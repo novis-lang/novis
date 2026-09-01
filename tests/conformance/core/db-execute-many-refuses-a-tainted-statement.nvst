@@ -1,0 +1,27 @@
+--TEST--
+`executeMany`'s one statement is a sink and its sets are not, so an untrusted value reaches every execution of a batch only through a placeholder — ADR 0024 § 4, ADR 0067 §§ 1 and 4
+--FILE--
+<?nvs
+// The batch has one statement text and many sets, so ADR 0024 § 4's sink is
+// per *batch* rather than per execution: a text assembled from outside would
+// not be one bad query, it would be the same bad query run once per set.
+tainted string $outside = "ada";
+
+var $db = Core\Db::connect("main");
+
+// The way through, and it is the whole point of the member: the untrusted
+// value appears in every set and none of them can reach the text.
+uint $written = $db->executeMany("insert into accounts (owner) values (?)", [
+    [$outside],
+    [$outside],
+]);
+
+// The refusal, at the one place a batch has a statement to put.
+uint $refused = $db->executeMany($outside, [["ada"]]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:17:34
+%A
+error: aborting due to 1 error

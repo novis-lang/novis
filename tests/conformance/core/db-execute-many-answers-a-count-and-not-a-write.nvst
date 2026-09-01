@@ -1,0 +1,28 @@
+--TEST--
+`executeMany` answers a bare `uint` where `execute` answers a `Core\Db\Write`, because a sum has no one execution for `changed` or `lastId` to be about — ADR 0067 §§ 1 and 4, spec § 18
+--FILE--
+<?nvs
+// ADR 0067 § 1 removes the `prepare` step and names the batch as the one case
+// that would otherwise still want a `Statement` object: `executeMany` is one
+// prepare against many bind sets, so a thousand writes cost the round trips one
+// statement costs and the caller writes no loop.
+var $db = Core\Db::connect("main");
+
+// What it answers is the sum — the number the hand-written loop around
+// `PDOStatement::execute` would have accumulated, and nothing else.
+uint $written = $db->executeMany("insert into accounts (id, owner) values (?, ?)", [
+    [1, "ada"],
+    [2, "grace"],
+]);
+
+// And the boundary `execute` sits on the other side of. That member answers a
+// `Write` with three readings on it; this one cannot, because `changed` and
+// `lastId` would each have to pick one of the executions to be about.
+Core\Db\Write $write = $db->executeMany("delete from accounts where id = ?", [[1]]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Db\Write`, found `uint`
+   --> case.nvs:18:24
+%A
+error: aborting due to 1 error
