@@ -5088,6 +5088,16 @@ sibling in the same namespace unqualified.
   to its doc comment saying who reads the slot**, since seven classes were already there for
   exactly this. The general shape: a registry invariant with a named exemption list is a design
   question the test is asking, not a rule to satisfy by inventing a member.
+- **A `Core` symbol with no registry row must be chained into `nvs_stdlib::symbols()` by hand, and
+  forgetting it fails at *run* time rather than at build time.** That function derives the JIT's symbol
+  table from `registry::CLASSES`'s member rows plus a few hand-written chains — `registry::CONSTRUCTORS`,
+  `router::link::SYMBOLS`, and the symbols reached by a *construct* rather than by a call (`spawn script`,
+  `await`, and ADR 0024 § 5's two `Markup` ones). The domain module's own `address()` arm is **not**
+  enough: it is only ever consulted for a symbol the enumeration already named, so a lowering that emits
+  an `InstKind::CoreCall` on an unchained symbol compiles clean, type-checks clean, and then panics inside
+  cranelift-jit — `can't resolve symbol nvs_core_html_markup`, from `backend.rs`, naming neither crate nor
+  the one line in `lib.rs` that is missing. Anything a construct reaches rather than a member call owes
+  that line.
 
 ## Divergences and refusals already pinned
 
