@@ -1,0 +1,30 @@
+--TEST--
+`execute` answers a `Core\Db\Write` rather than the count `PDO::exec` returns, so what a write did is read off one object with three questions on it — ADR 0067 § 4, spec § 18
+--FILE--
+<?nvs
+// `PDO::exec` answers an `int` and `lastInsertId` reads a second number off the
+// connection afterwards, so "how many rows" and "what key" are two unrelated
+// readings a caller has to sequence correctly. ADR 0067 § 4 answers both from
+// the statement that produced them, which is why `execute` has a return type of
+// its own rather than a count.
+var $db = Core\Db::connect("main");
+var $write = $db->execute("insert into accounts (owner) values (?) returning id", ["ada"]);
+
+// The three readings § 18's Results table gives a `Write`, as their own types.
+// They are members and not properties: nothing a `Core` class owns has a
+// property a program can reach.
+uint $affected = $write->affected();
+?uint $changed = $write->changed();
+?uint $lastId = $write->lastId();
+
+// And the boundary: the count is *on* the answer and is not the answer, so the
+// spelling the PHP corpus trained is refused rather than quietly meaning
+// something narrower.
+uint $rows = $db->execute("delete from accounts", []);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `uint`, found `Core\Db\Write`
+   --> case.nvs:20:14
+%A
+error: aborting due to 1 error

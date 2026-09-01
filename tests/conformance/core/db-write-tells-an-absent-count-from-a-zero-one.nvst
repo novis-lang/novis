@@ -1,0 +1,30 @@
+--TEST--
+A `Core\Db\Write`'s three readings differ in what may be missing — `affected` is a `uint` and the other two are `?uint` — so a count that does not exist is not silently a zero, ADR 0067 § 4, spec § 18
+--FILE--
+<?nvs
+// The bound asserted on both sides. `affected` always answers a number, so it
+// needs no unwrapping and `$w->affected() == 0` is a real question. `changed`
+// is that same count *as the server reported it*, and its `null` is the one
+// thing `affected` cannot say: this statement's kind carries no row count at
+// all, which a `create table` is. `lastId` is `null` wherever the statement
+// handed no key back, which is every statement with no `RETURNING` clause.
+var $db = Core\Db::connect("main");
+var $made = $db->execute("create table accounts (id bigint, owner text)", []);
+
+// The accepted half: no unwrapping, because there is nothing absent to unwrap.
+uint $rows = $made->affected();
+
+// The refused half, on the same object and three lines apart, which is the
+// whole claim: PHP's `rowCount` answers `0` both for "affected nothing" and
+// for "has no count to give", and those are different facts.
+uint $reported = $made->changed();
+
+// The other `?uint`, spelled the way a caller has to spell it.
+?uint $lastId = $made->lastId();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `uint`, found `uint|null`
+   --> case.nvs:17:18
+%A
+error: aborting due to 1 error

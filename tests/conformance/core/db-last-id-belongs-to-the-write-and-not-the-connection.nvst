@@ -1,0 +1,32 @@
+--TEST--
+`lastId` is a reading of the write that produced it and the connection has no member for it at all, so an unrelated statement in between cannot make it stale — ADR 0067 §§ 4 and 12, spec § 18
+--FILE--
+<?nvs
+// `mysqli_insert_id` and `PDO::lastInsertId` read a *session* value: any
+// statement in between replaces it, and the bug that produces is silent. Spec
+// § 18 says outright that there is no `lastInsertId` here, and this is what
+// stands in its place — each write holds its own answer, and holding it is
+// what makes the question unambiguous.
+var $db = Core\Db::connect("main");
+
+var $ada = $db->execute("insert into accounts (owner) values (?) returning id", ["ada"]);
+var $grace = $db->execute("insert into accounts (owner) values (?) returning id", ["grace"]);
+
+// Each write answers about itself, and the second one arriving does nothing to
+// the first: there is no shared place for it to overwrite.
+?uint $first = $ada->lastId();
+?uint $second = $grace->lastId();
+uint $written = $grace->affected();
+?uint $reported = $grace->changed();
+
+// And the spelling that has no member behind it, which is § 18's "there is no
+// `lastInsertId`" asserted rather than described: the connection never held
+// one to go stale.
+var $stale = $db->lastId();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Db\Connection` has no method named `lastId`
+   --> case.nvs:22:14
+%A
+error: aborting due to 1 error
