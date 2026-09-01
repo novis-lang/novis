@@ -16,9 +16,12 @@ homepage.workspace = true
 # this crate turns the workspace into a cycle, which is why the rule is stated
 # on both manifests rather than only on the one that adds the edge.
 [dependencies]
-# Values, `Ctx` and faults. A driver answers with `nvs-runtime`'s values and a
-# protocol failure becomes a `Fault` there, so this crate defines no error type
-# that has to be translated at the `Core\Db` boundary.
+# Values, `Ctx` and faults. A driver answers with `nvs-runtime`'s values for ADR
+# 0067 § 9's scalar rows, and with parsed components of its own — `PgScalar` —
+# for the structured ones, since a `Core\Time` or `Core\Uuid` instance needs
+# `nvs-stdlib`'s class descriptors and that edge is the cycle above. A protocol
+# failure becomes a `Fault` there, so this crate defines no error type that has
+# to be translated at the `Core\Db` boundary.
 nvs-runtime.workspace = true
 # The parking stream, its TLS session, and the blocking pool ADR 0132 § 3 hands
 # SQLite to. This edge is why no driver here needs an async runtime: a socket

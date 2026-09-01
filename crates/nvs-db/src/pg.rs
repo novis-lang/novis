@@ -160,6 +160,15 @@ pub struct PgTarget<'a> {
     pub password: &'a str,
     /// The database to attach to.
     pub database: &'a str,
+    /// The zone a zone-less `TIMESTAMP` column is read in, as a whole number
+    /// of seconds east of UTC.
+    ///
+    /// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s declared zone:
+    /// `time_zone` in the connection's config block, `timeZone` in `Settings`,
+    /// and `0` — UTC — with neither set. It is sent to the server as well as
+    /// read here, so `CURRENT_TIMESTAMP` and a decoded column agree about
+    /// which zone they are in.
+    pub time_zone: i32,
 }
 
 impl std::fmt::Debug for PgTarget<'_> {
@@ -170,6 +179,7 @@ impl std::fmt::Debug for PgTarget<'_> {
             .field("host", &self.host)
             .field("user", &self.user)
             .field("database", &self.database)
+            .field("time_zone", &self.time_zone)
             .finish_non_exhaustive()
     }
 }
@@ -440,6 +450,38 @@ fn request_tls<S: Read + Write>(stream: &mut S) -> io::Result<()> {
     }
 }
 
+/// A fixed UTC offset, spelled as PostgreSQL's own numeric `TimeZone` value.
+///
+/// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md) requires a numeric offset
+/// and never a zone name, and PostgreSQL's numeric spelling is a POSIX one:
+/// `<+02>-02` is two hours *east* of UTC, because a POSIX `TZ` string counts
+/// its offset westwards while the abbreviation inside the brackets is free
+/// text and carries the sign a reader expects. This is byte for byte what the
+/// server builds for `SET TIME ZONE INTERVAL`, which is the reason for the
+/// shape: a bare `+02:00` is not a POSIX zone at all, and a startup parameter
+/// the server cannot parse fails the connection rather than an hour of it.
+///
+/// The minute and second fields are written only when the offset has them,
+/// which is again the server's own rule for the same string.
+fn posix_time_zone(offset: i32) -> String {
+    let magnitude = offset.unsigned_abs();
+    let (hours, minutes, seconds) = (magnitude / 3600, magnitude % 3600 / 60, magnitude % 60);
+
+    let mut spelled = format!("{hours:02}");
+    if minutes != 0 || seconds != 0 {
+        spelled.push_str(&format!(":{minutes:02}"));
+    }
+    if seconds != 0 {
+        spelled.push_str(&format!(":{seconds:02}"));
+    }
+
+    if offset < 0 {
+        format!("<-{spelled}>+{spelled}")
+    } else {
+        format!("<+{spelled}>-{spelled}")
+    }
+}
+
 /// Runs the startup exchange over an already-encrypted stream.
 ///
 /// Returns once the server has reported `ReadyForQuery`, which is the point the
@@ -453,15 +495,27 @@ fn authenticate<S: Read + Write>(
     target: &PgTarget<'_>,
 ) -> io::Result<CancelKey> {
     let mut out = BytesMut::new();
+    let time_zone = posix_time_zone(target.time_zone);
     frontend::startup_message(
         [
             ("user", target.user),
             ("database", target.database),
             // ADR 0067 § 3's third default: text columns arrive as valid UTF-8
             // by construction rather than by inspection, which is what ADR
-            // 0009's guarantee needs. The zone-less-`DATETIME` half of that
-            // section (`TimeZone`) is § 9's and arrives with the type map.
+            // 0009's guarantee needs.
             ("client_encoding", "UTF8"),
+            // § 9's structured rows are read positionally out of the text
+            // format, so the two parameters that decide what that text looks
+            // like are pinned here rather than discovered from whatever the
+            // server was configured with: `DateStyle` fixes the rendering as
+            // ISO 8601, and `TimeZone` fixes the offset a `TIMESTAMPTZ` is
+            // rendered at — an offset that is then always present, always
+            // numeric and never an abbreviation this driver would have to
+            // know the rules of.
+            ("DateStyle", "ISO"),
+            // § 9's zone-less half. It is sent as well as decoded so that
+            // `CURRENT_TIMESTAMP` and a `TIMESTAMP` column agree.
+            ("TimeZone", time_zone.as_str()),
             // Not decoration: this is what an operator reads in
             // `pg_stat_activity` when a query is holding a lock.
             ("application_name", "novis"),
@@ -546,8 +600,10 @@ fn authenticate<S: Read + Write>(
                     secret_key: body.secret_key(),
                 });
             }
-            // The server's own settings, echoed. Nothing is read off them yet;
-            // the type map (ADR 0067 § 9) is what will want `TimeZone`.
+            // The server's own settings, echoed, and nothing is read off them:
+            // the two the type map depends on, `DateStyle` and `TimeZone`, are
+            // startup parameters this driver set, so reading them back would
+            // only be asking whether the server agreed with itself.
             backend::Message::ParameterStatus(_) | backend::Message::NoticeResponse(_) => {}
             backend::Message::ErrorResponse(body) => return Err(server_error(&body)),
             backend::Message::ReadyForQuery(_) => {
@@ -716,12 +772,81 @@ mod oid {
     pub(super) const FLOAT8: Oid = 701;
     /// `money`.
     pub(super) const MONEY: Oid = 790;
+    /// `DATE`.
+    pub(super) const DATE: Oid = 1082;
+    /// `TIME`, which is `time without time zone`. `timetz` is a different OID
+    /// with no row of its own in § 9, so it stays text.
+    pub(super) const TIME: Oid = 1083;
+    /// `TIMESTAMP`, § 9's zone-less row.
+    pub(super) const TIMESTAMP: Oid = 1114;
+    /// `TIMESTAMPTZ`, the row that carries its own offset.
+    pub(super) const TIMESTAMPTZ: Oid = 1184;
     /// `BIT(n)`, whose `n` is the type modifier.
     pub(super) const BIT: Oid = 1560;
     /// `BIT VARYING(n)`, sharing `BIT`'s rendering and its modifier.
     pub(super) const VARBIT: Oid = 1562;
     /// `NUMERIC`/`DECIMAL`.
     pub(super) const NUMERIC: Oid = 1700;
+    /// `UUID`.
+    pub(super) const UUID: Oid = 2950;
+}
+
+/// A calendar date, in the fields the server rendered and no further.
+///
+/// This driver hands back components rather than a `Core\Time\Date` because it
+/// cannot build one: an instance needs `nvs-stdlib`'s class descriptors, and
+/// `Cargo.toml` states on both manifests why an edge to that crate does not
+/// exist. [`PgScalar`] is this crate's public answer beside a [`Value`], and
+/// § 9's structured rows are finished one layer up.
+///
+/// The fields are checked for *shape* — a month is 1 to 12, a day 1 to 31 —
+/// and never against the calendar: whether the 31st exists in this month is
+/// settled by the type that has a calendar in it, at the point the instance is
+/// built.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct PgDate {
+    /// The astronomical year, so `1 BC` is `0` and `44 BC` is `-43`. The
+    /// server writes an era suffix instead; this is the same number, counted
+    /// the way every `Core\Time` type counts it.
+    pub year: i32,
+    /// The month, 1 to 12.
+    pub month: u8,
+    /// The day of the month, 1 to 31.
+    pub day: u8,
+}
+
+impl std::fmt::Debug for PgDate {
+    /// The type and none of the fields, for the reason [`PgRow`]'s own
+    /// rendering gives: a decoded column is one request's data.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PgDate").finish_non_exhaustive()
+    }
+}
+
+/// A time of day, to the nanosecond, in the fields the server rendered.
+///
+/// The shape rule is [`PgDate`]'s, and so is the reason this is components.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct PgTime {
+    /// The hour, 0 to 24: PostgreSQL's `TIME` includes `24:00:00`, which is
+    /// the one value of the column type `Core\Time\TimeOfDay` has no
+    /// representation for and refuses one layer up.
+    pub hour: u8,
+    /// The minute, 0 to 59.
+    pub minute: u8,
+    /// The second, 0 to 59.
+    pub second: u8,
+    /// The nanosecond within the second. PostgreSQL stores microseconds, so
+    /// the last three digits are always zero; the field counts nanoseconds
+    /// because that is what every `Core\Time` type holds.
+    pub nanosecond: u32,
+}
+
+impl std::fmt::Debug for PgTime {
+    /// As [`PgDate`]'s: the type, and none of the data.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PgTime").finish_non_exhaustive()
+    }
 }
 
 /// One column's value, decoded but not yet allocated as a [`Value`].
@@ -733,7 +858,13 @@ mod oid {
 /// so a `Value` a test built here could never be freed by one — a reference is
 /// minted in [`PgScalar::into_value`] and nowhere else, and that function is
 /// one arm per variant with nothing left to get wrong.
-enum PgScalar<'a> {
+///
+/// It is also this driver's public answer beside a [`Value`], because five of
+/// § 9's rows are not values at all: a `DATE` is a `Core\Time\Date`, an
+/// *instance* of an `nvs-stdlib` class, and that crate is the only one that
+/// can allocate one. Those five arrive here as parsed components — see
+/// [`PgDate`] — and `into_value` answers `None` for them.
+pub enum PgScalar<'a> {
     /// SQL `NULL`: the row of § 9's table that makes every column `?T`.
     Null,
     /// `BOOLEAN`, and `BIT(1)`.
@@ -751,13 +882,66 @@ enum PgScalar<'a> {
     /// A `tainted bytes`'s octets, which had to be decoded out of a text
     /// rendering and so are the driver's own rather than a borrow of the row.
     Bytes(NvsStr),
+    /// `DATE`, which is a `Core\Time\Date`.
+    Date(PgDate),
+    /// `TIME`, which is a `Core\Time\TimeOfDay`.
+    Time(PgTime),
+    /// `TIMESTAMP`: § 9's zone-less row, a `Core\Time\DateTime` in the zone
+    /// [`PgTarget::time_zone`] declared and the server was told.
+    Timestamp {
+        /// The civil date, as rendered.
+        date: PgDate,
+        /// The civil time, as rendered.
+        time: PgTime,
+    },
+    /// `TIMESTAMPTZ`, which is a `Core\Time\Instant`: the civil fields the
+    /// server rendered, plus what turns them into a point in time.
+    Instant {
+        /// The civil date, at `offset`.
+        date: PgDate,
+        /// The civil time, at `offset`.
+        time: PgTime,
+        /// Seconds east of UTC — the sign every `Core\Time` type uses, and
+        /// the session's own `TimeZone` because this driver set it.
+        offset: i32,
+    },
+    /// `UUID`, as its sixteen octets in the order the text spells them.
+    Uuid([u8; 16]),
+}
+
+impl std::fmt::Debug for PgScalar<'_> {
+    /// Which row of § 9's table this landed on, and never the value: a column
+    /// in flight is one request's data, which is the rule [`PgRow`]'s own
+    /// rendering holds.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            PgScalar::Null => "null",
+            PgScalar::Bool(_) => "bool",
+            PgScalar::Int(_) => "int",
+            PgScalar::UInt(_) => "uint",
+            PgScalar::Float(_) => "float",
+            PgScalar::Decimal(_) => "decimal",
+            PgScalar::Text(_) => "string",
+            PgScalar::Bytes(_) => "bytes",
+            PgScalar::Date(_) => "date",
+            PgScalar::Time(_) => "time",
+            PgScalar::Timestamp { .. } => "timestamp",
+            PgScalar::Instant { .. } => "instant",
+            PgScalar::Uuid(_) => "uuid",
+        })
+    }
 }
 
 impl PgScalar<'_> {
     /// The Novis value, taking on the one reference a `string` or a `bytes`
     /// costs and nothing at all for the rest.
-    fn into_value(self) -> Value {
-        match self {
+    ///
+    /// `None` for § 9's five structured rows, whose Novis type is a class
+    /// instance this crate cannot allocate at all — [`PgDate`] owns why. A
+    /// caller that wants the whole table matches those five variants first and
+    /// reaches this for everything left.
+    pub fn into_value(self) -> Option<Value> {
+        Some(match self {
             PgScalar::Null => Value::null(),
             PgScalar::Bool(value) => Value::bool(value),
             PgScalar::Int(value) => Value::int(value),
@@ -766,7 +950,12 @@ impl PgScalar<'_> {
             PgScalar::Decimal(value) => Value::decimal(value),
             PgScalar::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
             PgScalar::Bytes(bytes) => Value::bytes(bytes),
-        }
+            PgScalar::Date(_)
+            | PgScalar::Time(_)
+            | PgScalar::Timestamp { .. }
+            | PgScalar::Instant { .. }
+            | PgScalar::Uuid(_) => return None,
+        })
     }
 }
 
@@ -776,10 +965,15 @@ impl PgColumn {
     /// `NULL` — as `null`, which is why every column reads back as `?T`.
     ///
     /// `body` is what [`PgRow::column`] handed back, still in the text format
-    /// the module doc chose. § 9's *structured* rows are not arms yet: `DATE`,
-    /// `TIME`, `TIMESTAMP`, `TIMESTAMPTZ`, `UUID` and the array types fall to
-    /// the table's last row and arrive as the server's own rendering, which is
-    /// a shallower answer rather than a wrong one.
+    /// the module doc chose.
+    ///
+    /// `Ok(None)` is the *other* absence, and the two never collide: it says
+    /// the column is one of § 9's structured rows — `DATE`, `TIME`,
+    /// `TIMESTAMP`, `TIMESTAMPTZ`, `UUID` — whose Novis type is a class
+    /// instance no driver can allocate. [`Self::scalar`] is what reads those,
+    /// and this is the scalar half in full. PostgreSQL's array types are not
+    /// decoded at all yet and still fall to the table's last row, arriving as
+    /// the server's own rendering.
     ///
     /// The `tainted` half of `tainted string` is nowhere in this signature and
     /// is not missing.
@@ -797,12 +991,23 @@ impl PgColumn {
     /// text body that is not UTF-8; a malformed `bytea`. Every such message
     /// names the column and its OID and **never the body**, for the reason
     /// [`Self::malformed`] gives.
-    pub fn decode(&self, body: Option<&[u8]>) -> io::Result<Value> {
+    pub fn decode(&self, body: Option<&[u8]>) -> io::Result<Option<Value>> {
         Ok(self.scalar(body)?.into_value())
     }
 
-    /// [`PgColumn::decode`]'s whole decision, before anything is allocated.
-    fn scalar<'a>(&self, body: Option<&'a [u8]>) -> io::Result<PgScalar<'a>> {
+    /// [`PgColumn::decode`]'s whole decision, before anything is allocated,
+    /// and every row of § 9's table rather than the scalar half.
+    ///
+    /// `nvs-stdlib` calls this one: it is the only crate that can turn a
+    /// [`PgScalar::Date`] and its four siblings into the `Core\Time` and
+    /// `Core\Uuid` instances the table names.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], plus a structured row in a shape this driver does
+    /// not read: a rendering no `DateStyle = ISO` session produces, or an
+    /// `infinity`, which no `Core\Time` type has a value for.
+    pub fn scalar<'a>(&self, body: Option<&'a [u8]>) -> io::Result<PgScalar<'a>> {
         let Some(body) = body else {
             return Ok(PgScalar::Null);
         };
@@ -844,6 +1049,17 @@ impl PgColumn {
             ),
             oid::MONEY => PgScalar::Decimal(self.money(self.text(body)?)?),
             oid::BYTEA => PgScalar::Bytes(NvsStr::new(&self.bytea(body)?)),
+            oid::DATE => PgScalar::Date(self.date(self.text(body)?)?),
+            oid::TIME => PgScalar::Time(self.time_of_day(self.text(body)?)?),
+            oid::TIMESTAMP => {
+                let (date, time, _) = self.timestamp(self.text(body)?, false)?;
+                PgScalar::Timestamp { date, time }
+            }
+            oid::TIMESTAMPTZ => {
+                let (date, time, offset) = self.timestamp(self.text(body)?, true)?;
+                PgScalar::Instant { date, time, offset }
+            }
+            oid::UUID => PgScalar::Uuid(self.uuid(self.text(body)?)?),
             _ => PgScalar::Text(self.text(body)?),
         })
     }
@@ -854,6 +1070,210 @@ impl PgColumn {
     /// the check is here rather than trusted from `client_encoding`.
     fn text<'a>(&self, body: &'a [u8]) -> io::Result<&'a str> {
         std::str::from_utf8(body).map_err(|_| self.malformed("well-formed UTF-8"))
+    }
+
+    /// One numeric field of a date, a time or a zone offset: ASCII digits
+    /// only, within the bounds that field has in the rendering.
+    ///
+    /// The bounds are the rendering's and not the calendar's — `1..=31` for a
+    /// day, whatever the month is — because the calendar belongs to the type
+    /// being built, one layer up. What they buy here is that every field is a
+    /// plausible number before it is narrowed, so no caller casts anything.
+    fn number<T: TryFrom<u32>>(
+        &self,
+        text: &str,
+        low: u32,
+        high: u32,
+        wanted: &str,
+    ) -> io::Result<T> {
+        // `str::parse` accepts a leading `+` and Unicode digits; a field the
+        // server wrote is ASCII and has neither.
+        if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(self.malformed(wanted));
+        }
+        let value: u32 = text.parse().map_err(|_| self.malformed(wanted))?;
+        if !(low..=high).contains(&value) {
+            return Err(self.malformed(wanted));
+        }
+
+        T::try_from(value).map_err(|_| self.malformed(wanted))
+    }
+
+    /// A `DATE`, in the ISO rendering `DateStyle` is pinned to at startup.
+    ///
+    /// `2024-01-02`, and `0044-03-15 BC` for the half of the calendar the year
+    /// field does not have: an era suffix becomes an astronomical year here,
+    /// since that is the only counting `Core\Time` knows. The year is a digit
+    /// run rather than four digits, because PostgreSQL's range reaches
+    /// 294276 AD.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` for anything else, `infinity` included: a date with no
+    /// end has no `Core\Time\Date` to become, and a column holding one is cast
+    /// or filtered rather than read.
+    fn date(&self, text: &str) -> io::Result<PgDate> {
+        let (text, bc) = era(text);
+        let mut fields = text.split('-');
+        let (Some(year), Some(month), Some(day), None) =
+            (fields.next(), fields.next(), fields.next(), fields.next())
+        else {
+            return Err(self.malformed("a date"));
+        };
+
+        let year: i32 = self.number(year, 0, 294_276, "a date")?;
+        Ok(PgDate {
+            // 1 BC is astronomical year 0, so an era year counts down from one.
+            year: if bc { 1 - year } else { year },
+            month: self.number(month, 1, 12, "a date")?,
+            day: self.number(day, 1, 31, "a date")?,
+        })
+    }
+
+    /// A `TIME`, or the time half of a timestamp: `HH:MM:SS` and a fraction of
+    /// up to nine digits.
+    ///
+    /// PostgreSQL stores microseconds, writes at most six of them and writes
+    /// none at all on a whole second. Nine are read because the field they
+    /// land in counts nanoseconds, so a server that grew precision is a value
+    /// this driver still reads rather than a truncation nothing reported.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` for a body with the wrong field count, a field out of the
+    /// range the rendering has for it, or more than nine fractional digits.
+    fn time_of_day(&self, text: &str) -> io::Result<PgTime> {
+        let (clock, fraction) = match text.split_once('.') {
+            Some((clock, fraction)) => (clock, fraction),
+            None => (text, ""),
+        };
+        let mut fields = clock.split(':');
+        let (Some(hour), Some(minute), Some(second), None) =
+            (fields.next(), fields.next(), fields.next(), fields.next())
+        else {
+            return Err(self.malformed("a time"));
+        };
+
+        let mut nanosecond = 0;
+        if !fraction.is_empty() {
+            let width = u32::try_from(fraction.len()).unwrap_or(u32::MAX);
+            if width > 9 {
+                return Err(self.malformed("a time"));
+            }
+            let digits: u32 = self.number(fraction, 0, 999_999_999, "a time")?;
+            nanosecond = digits * 10u32.pow(9 - width);
+        }
+
+        Ok(PgTime {
+            hour: self.number(hour, 0, 24, "a time")?,
+            minute: self.number(minute, 0, 59, "a time")?,
+            second: self.number(second, 0, 59, "a time")?,
+            nanosecond,
+        })
+    }
+
+    /// A `TIMESTAMP` or a `TIMESTAMPTZ`: a date, a space, a time, and for the
+    /// zoned one the offset the session is rendering at.
+    ///
+    /// That offset is the whole difference between the two rows, and it is why
+    /// `TimeZone` is a startup parameter rather than whatever the server was
+    /// configured with: a numeric zone makes the suffix `+02`, `-05:30` or
+    /// `+00`, always present and never a name. A zone-less column has no
+    /// suffix and is read in [`PgTarget::time_zone`] instead, which is § 9's
+    /// rule and the reason that field is sent as well as held.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` as [`Self::date`] and [`Self::time_of_day`], and for a
+    /// zoned body carrying no offset at all.
+    fn timestamp(&self, text: &str, zoned: bool) -> io::Result<(PgDate, PgTime, i32)> {
+        // The era suffix trails the offset, so it comes off the whole body
+        // before anything is split; the date half is then an AD one, and the
+        // year is turned around here rather than in two places.
+        let (body, bc) = era(text);
+        let Some((day, clock)) = body.split_once(' ') else {
+            return Err(self.malformed("a timestamp"));
+        };
+
+        let mut date = self.date(day)?;
+        if bc {
+            date.year = 1 - date.year;
+        }
+
+        let (clock, offset) = if zoned {
+            // A time has no sign in it, so the last one is the offset's.
+            let Some(at) = clock.rfind(['+', '-']) else {
+                return Err(self.malformed("a timestamp with a zone"));
+            };
+            (&clock[..at], self.offset(&clock[at..])?)
+        } else {
+            (clock, 0)
+        };
+
+        Ok((date, self.time_of_day(clock)?, offset))
+    }
+
+    /// A `TIMESTAMPTZ`'s trailing offset — `±HH`, `±HH:MM` or `±HH:MM:SS` — as
+    /// seconds east of UTC, which is the sign every `Core\Time` type uses.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` for a missing sign, a field that is not digits, or an
+    /// hour past 18, which is the widest offset a zone has ever had.
+    fn offset(&self, text: &str) -> io::Result<i32> {
+        let sign = match text.as_bytes().first() {
+            Some(b'+') => 1,
+            Some(b'-') => -1,
+            _ => return Err(self.malformed("a zone offset")),
+        };
+
+        let mut fields = text[1..].split(':');
+        let hours: i32 = self.number(fields.next().unwrap_or_default(), 0, 18, "a zone offset")?;
+        let minutes: i32 = match fields.next() {
+            Some(field) => self.number(field, 0, 59, "a zone offset")?,
+            None => 0,
+        };
+        let seconds: i32 = match fields.next() {
+            Some(field) => self.number(field, 0, 59, "a zone offset")?,
+            None => 0,
+        };
+        if fields.next().is_some() {
+            return Err(self.malformed("a zone offset"));
+        }
+
+        Ok(sign * (hours * 3600 + minutes * 60 + seconds))
+    }
+
+    /// A `UUID`'s sixteen octets, out of the only rendering PostgreSQL writes:
+    /// lower-case hex in the 8-4-4-4-12 grouping.
+    ///
+    /// The braced, bare and `{...}` forms the server *accepts* on input are
+    /// never what it hands back, so they are not read here — a body in one of
+    /// them did not come from a `uuid` column.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` for any other length, a hyphen out of place, or a
+    /// non-hexadecimal digit.
+    fn uuid(&self, text: &str) -> io::Result<[u8; 16]> {
+        let bytes = text.as_bytes();
+        if bytes.len() != 36 || [8, 13, 18, 23].iter().any(|&at| bytes[at] != b'-') {
+            return Err(self.malformed("a uuid"));
+        }
+
+        let mut octets = [0u8; 16];
+        let mut digits = bytes.iter().filter(|&&byte| byte != b'-');
+        for octet in &mut octets {
+            let (Some(&high), Some(&low)) = (digits.next(), digits.next()) else {
+                return Err(self.malformed("a uuid"));
+            };
+            let (Some(high), Some(low)) = (hex_digit(high), hex_digit(low)) else {
+                return Err(self.malformed("a uuid"));
+            };
+            *octet = high * 16 + low;
+        }
+
+        Ok(octets)
     }
 
     /// PostgreSQL's `money`, out of whatever rendering `lc_monetary` chose.
@@ -993,6 +1413,16 @@ impl PgColumn {
     }
 }
 
+/// An ISO-rendered date's era suffix, split off: `true` is the `BC` half of the
+/// calendar, which PostgreSQL writes as a suffix and `Core\Time` counts as a
+/// year at or below zero.
+fn era(text: &str) -> (&str, bool) {
+    match text.strip_suffix(" BC") {
+        Some(head) => (head, true),
+        None => (text, false),
+    }
+}
+
 /// One hexadecimal digit's value, in either case, or `None` for anything else.
 fn hex_digit(byte: u8) -> Option<u8> {
     match byte {
@@ -1030,6 +1460,37 @@ impl<S: Read + Write> std::fmt::Debug for PgRows<'_, S> {
     }
 }
 
+/// The affected-row count inside a `CommandComplete` tag, or `None` where the
+/// command has none.
+///
+/// PostgreSQL writes the count as the tag's last field, and which commands
+/// carry one at all is fixed by the protocol rather than derivable from the
+/// shape: `UPDATE 3`, `SELECT 2`, `MERGE 7`, and `INSERT 0 3`, whose *first*
+/// number is an OID and neither a row count nor a last insert id — a driver
+/// reading that one would answer `0` for every insert on every server since
+/// PostgreSQL 12, and `lastId` comes from `RETURNING` here for the same
+/// reason.
+///
+/// `BEGIN`, `SET` and every DDL tag carry no count, which is answered as
+/// `None` rather than `0`: those are two different facts, and the `Core\Db`
+/// layer renders the second as zero rows knowing which one it has.
+///
+/// The command word is matched rather than the last field alone, because a
+/// tag that happens to end in a number is not the same as a tag reporting a
+/// count, and a command word this driver has never heard of is better read as
+/// "no count" than as whatever its last field parses to.
+fn affected_rows(tag: &str) -> Option<u64> {
+    let (command, rest) = tag.split_once(' ')?;
+    if !matches!(
+        command,
+        "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "SELECT" | "MOVE" | "FETCH" | "COPY"
+    ) {
+        return None;
+    }
+
+    rest.rsplit(' ').next()?.parse().ok()
+}
+
 impl<S: Read + Write> PgRows<'_, S> {
     /// What the portal said its rows look like, empty for a statement that
     /// returns none.
@@ -1041,12 +1502,31 @@ impl<S: Read + Write> PgRows<'_, S> {
     /// The server's `CommandComplete` tag — `INSERT 0 3`, `SELECT 2` — once the
     /// stream has ended, and `None` while rows may still arrive.
     ///
-    /// This is where the affected-row count ADR 0067 § 4's `execute` answers
-    /// with comes from, and parsing it is that slice's job: the tag's shape is
-    /// per command and the driver hands back what the server said.
+    /// The raw tag, because it says more than a count does: [`Self::affected`]
+    /// is the number [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s
+    /// `execute` answers with, and this is what an error message quotes when a
+    /// statement did something other than what its caller expected.
     #[must_use]
     pub fn command_tag(&self) -> Option<&str> {
         self.tag.as_deref()
+    }
+
+    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s affected-row count,
+    /// once the stream has ended.
+    ///
+    /// `None` twice over, and the caller can tell which from
+    /// [`Self::command_tag`]: while rows may still arrive, and for a command
+    /// whose tag carries no count at all. [`affected_rows`] owns which
+    /// commands those are.
+    ///
+    /// § 4's `changed` is this same number on PostgreSQL. The distinction
+    /// MySQL draws between rows matched and rows actually altered has nothing
+    /// in this protocol to read it out of, and inventing a second count that
+    /// always equalled the first would be a difference callers wrote code
+    /// against.
+    #[must_use]
+    pub fn affected(&self) -> Option<u64> {
+        affected_rows(self.tag.as_deref()?)
     }
 
     /// The next row, or `None` once the stream has ended.
@@ -1434,8 +1914,8 @@ mod tests {
     use postgres_protocol::Oid;
 
     use super::{
-        CancelKey, PgColumn, PgScalar, PgTarget, State, Wire, authenticate, oid, request_tls,
-        start_statement,
+        CancelKey, PgColumn, PgDate, PgScalar, PgTarget, PgTime, State, Wire, affected_rows,
+        authenticate, oid, posix_time_zone, request_tls, start_statement,
     };
     use crate::sql::StatementCache;
 
@@ -1635,7 +2115,32 @@ mod tests {
             user: "novis",
             password,
             database: "novis_test",
+            // Deliberately not UTC: a zone this driver sends is visible in the
+            // startup message only when it is not the default of every field
+            // around it.
+            time_zone: 2 * 3600,
         }
+    }
+
+    /// § 9's declared zone reaches the server as PostgreSQL's own numeric
+    /// spelling, and the sign is the whole trap.
+    ///
+    /// A POSIX zone counts westwards, so two hours *east* of UTC is `-02`
+    /// after the abbreviation — while the abbreviation itself carries the sign
+    /// a reader expects, which is why the two halves of every one of these
+    /// disagree. A driver that sent `+02:00` instead would not be sending a
+    /// zone the server can parse at all, and the connection would fail at
+    /// startup rather than read an hour wrong.
+    #[test]
+    fn the_declared_zone_is_sent_as_postgresqls_own_numeric_spelling() {
+        assert_eq!(posix_time_zone(0), "<+00>-00");
+        assert_eq!(posix_time_zone(2 * 3600), "<+02>-02");
+        assert_eq!(posix_time_zone(-5 * 3600), "<-05>+05");
+        assert_eq!(posix_time_zone(5 * 3600 + 45 * 60), "<+05:45>-05:45");
+        assert_eq!(
+            posix_time_zone(-(3 * 3600 + 30 * 60 + 15)),
+            "<-03:30:15>+03:30:15"
+        );
     }
 
     /// The upgrade request is exactly ADR 0132 § 3's eight bytes, and `S` is
@@ -1697,11 +2202,22 @@ mod tests {
             }
         );
         // ADR 0067 § 3's forced charset is a startup parameter, so it is on the
-        // wire before anything can arrive in another encoding.
+        // wire before anything can arrive in another encoding. § 9's two are
+        // there for the same reason: a text rendering this driver parses
+        // positionally has to be the rendering it asked for, not the one the
+        // server was configured with.
         let startup = &wire.peer().sent[0];
         assert!(
             startup.windows(20).any(|w| w == b"client_encoding\0UTF8"),
             "the startup message did not force UTF-8"
+        );
+        assert!(
+            startup.windows(14).any(|w| w == b"DateStyle\0ISO\0"),
+            "the startup message did not pin the date rendering"
+        );
+        assert!(
+            startup.windows(18).any(|w| w == b"TimeZone\0<+02>-02\0"),
+            "the startup message did not declare the connection's zone"
         );
     }
 
@@ -2292,10 +2808,10 @@ mod tests {
     /// What a decoded column is, rendered so a whole table of § 9's rows fits
     /// in a line each.
     ///
-    /// Deliberately not a `Debug` derive on `PgScalar`: a row's data is not
-    /// something this module renders — `PgRow`'s own `Debug` is that rule — so
-    /// a test that wants to read one says so here, where it is a test's own
-    /// decision over data it wrote itself.
+    /// `PgScalar`'s own `Debug` names the row and never the value — a row's
+    /// data is not something this module renders, which is the rule `PgRow`'s
+    /// `Debug` holds — so a test that wants to read one says so here, where it
+    /// is a test's own decision over data it wrote itself.
     fn rendered(scalar: &PgScalar<'_>) -> String {
         match scalar {
             PgScalar::Null => "null".to_owned(),
@@ -2306,7 +2822,31 @@ mod tests {
             PgScalar::Decimal(value) => format!("decimal {value}"),
             PgScalar::Text(value) => format!("text {value}"),
             PgScalar::Bytes(value) => format!("bytes {:?}", value.as_bytes()),
+            PgScalar::Date(date) => format!("date {}", civil(date)),
+            PgScalar::Time(time) => format!("time {}", clock(time)),
+            PgScalar::Timestamp { date, time } => {
+                format!("timestamp {} {}", civil(date), clock(time))
+            }
+            PgScalar::Instant { date, time, offset } => {
+                format!("instant {} {} {offset:+}", civil(date), clock(time))
+            }
+            PgScalar::Uuid(octets) => format!("uuid {octets:02x?}"),
         }
+    }
+
+    /// A decoded date, with the year unpadded and signed so that the BC half
+    /// of the calendar is visible rather than plausible.
+    fn civil(date: &PgDate) -> String {
+        format!("{}-{:02}-{:02}", date.year, date.month, date.day)
+    }
+
+    /// A decoded time, always to the nanosecond, so a row whose fraction was
+    /// scaled by the wrong power of ten cannot print like one that was not.
+    fn clock(time: &PgTime) -> String {
+        format!(
+            "{:02}:{:02}:{:02}.{:09}",
+            time.hour, time.minute, time.second, time.nanosecond
+        )
     }
 
     /// ADR 0067 § 9's scalar rows, PostgreSQL's half of them: the whole table
@@ -2367,6 +2907,115 @@ mod tests {
         }
     }
 
+    /// § 4's affected-row count, over every tag shape PostgreSQL writes.
+    ///
+    /// The `INSERT` row is the one that matters: its tag carries two numbers
+    /// and the first is an OID, so a driver reading the tag's *first* field
+    /// would report zero rows inserted on every modern server — plausibly, and
+    /// on the one statement whose count is checked most often.
+    #[test]
+    fn the_affected_row_count_is_the_tags_last_field_and_a_ddl_tag_has_none() {
+        assert_eq!(affected_rows("INSERT 0 3"), Some(3));
+        assert_eq!(affected_rows("INSERT 0 1"), Some(1));
+        assert_eq!(affected_rows("UPDATE 7"), Some(7));
+        assert_eq!(affected_rows("DELETE 0"), Some(0));
+        assert_eq!(affected_rows("SELECT 2"), Some(2));
+        assert_eq!(affected_rows("MERGE 5"), Some(5));
+        assert_eq!(affected_rows("MOVE 4"), Some(4));
+        assert_eq!(affected_rows("FETCH 1"), Some(1));
+        assert_eq!(affected_rows("COPY 9"), Some(9));
+
+        // A tag with no count is not a tag reporting zero, and neither is a
+        // command word this driver has never seen.
+        assert_eq!(affected_rows("CREATE TABLE"), None);
+        assert_eq!(affected_rows("BEGIN"), None);
+        assert_eq!(affected_rows("SET"), None);
+        assert_eq!(affected_rows("VACUUM"), None);
+        assert_eq!(affected_rows("REINDEX 3"), None);
+    }
+
+    /// § 9's structured rows: the five whose Novis type is a class instance,
+    /// and so are components here rather than a value.
+    ///
+    /// Asserted through `scalar`, which is the seam itself — `decode` answers
+    /// `None` for every one of these, and the test below pins that. The last
+    /// case is `timetz`, which has an OID of its own and no row in § 9: it
+    /// stays at the table's `tainted string`, and a driver that read it as a
+    /// `TIME` would be dropping an offset silently.
+    #[test]
+    fn every_structured_row_of_the_type_map_decodes_to_its_components() {
+        let cases: &[(Oid, &[u8], &str)] = &[
+            (oid::DATE, b"2024-01-02", "date 2024-01-02"),
+            (oid::DATE, b"0044-03-15 BC", "date -43-03-15"),
+            (oid::TIME, b"03:04:05", "time 03:04:05.000000000"),
+            (oid::TIME, b"03:04:05.123456", "time 03:04:05.123456000"),
+            (oid::TIME, b"24:00:00", "time 24:00:00.000000000"),
+            (
+                oid::TIMESTAMP,
+                b"2024-01-02 03:04:05.5",
+                "timestamp 2024-01-02 03:04:05.500000000",
+            ),
+            (
+                oid::TIMESTAMPTZ,
+                b"2024-01-02 03:04:05+02",
+                "instant 2024-01-02 03:04:05.000000000 +7200",
+            ),
+            (
+                oid::TIMESTAMPTZ,
+                b"2024-01-02 03:04:05.123456-05:30",
+                "instant 2024-01-02 03:04:05.123456000 -19800",
+            ),
+            (
+                oid::TIMESTAMPTZ,
+                b"0001-01-01 00:00:00+00 BC",
+                "instant 0-01-01 00:00:00.000000000 +0",
+            ),
+            (
+                oid::UUID,
+                b"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+                "uuid [a0, ee, bc, 99, 9c, 0b, 4e, f8, bb, 6d, 6b, b9, bd, 38, 0a, 11]",
+            ),
+            (1266, b"03:04:05+02", "text 03:04:05+02"),
+        ];
+
+        for &(type_oid, body, expected) in cases {
+            let subject = column(type_oid, -1);
+            let decoded = subject
+                .scalar(Some(body))
+                .unwrap_or_else(|error| panic!("OID {type_oid} did not decode: {error}"));
+
+            assert_eq!(rendered(&decoded), expected, "OID {type_oid}");
+        }
+    }
+
+    /// A structured row has no `Value` a driver can build, and `decode` says
+    /// so rather than approximating one.
+    ///
+    /// The two absences are the point: `Ok(None)` is "this row is `scalar`'s
+    /// to answer and `nvs-stdlib`'s to finish", and SQL `NULL` on the same
+    /// column is still `Some(null)`. A `decode` that collapsed them would make
+    /// every timestamp column read as empty.
+    #[test]
+    fn a_structured_row_has_no_value_and_a_null_one_still_does() {
+        let subject = column(oid::TIMESTAMPTZ, -1);
+
+        assert!(
+            subject
+                .decode(Some(b"2024-01-02 03:04:05+00"))
+                .expect("a timestamptz the server could render")
+                .is_none(),
+            "a structured row was allocated by the driver"
+        );
+        assert!(
+            subject
+                .decode(None)
+                .expect("a null body was refused")
+                .expect("SQL NULL is a value every column has")
+                .as_int()
+                .is_none()
+        );
+    }
+
     /// § 9's `NULL` row does not depend on the column, which is what makes
     /// every column `?T`. A `0` for an integer column is the one wrong answer
     /// that would still look right on the line that printed it.
@@ -2378,6 +3027,8 @@ mod tests {
             (oid::NUMERIC, -1),
             (oid::BYTEA, -1),
             (oid::BIT, 1),
+            (oid::TIMESTAMPTZ, -1),
+            (oid::UUID, -1),
             (25, -1),
         ] {
             let subject = column(type_oid, type_modifier);
@@ -2388,6 +3039,7 @@ mod tests {
                 subject
                     .decode(None)
                     .expect("a null body was refused")
+                    .expect("SQL NULL is a value every column has")
                     .as_int(),
                 None,
                 "OID {type_oid}"
@@ -2423,6 +3075,16 @@ mod tests {
             (oid::BYTEA, -1, br"\xzz"),
             (oid::BYTEA, -1, br"\x0"),
             (oid::BYTEA, -1, br"\9"),
+            (oid::DATE, -1, b"infinity"),
+            (oid::DATE, -1, b"2024-13-02"),
+            (oid::DATE, -1, b"01/02/2024"),
+            (oid::TIME, -1, b"03:04"),
+            (oid::TIME, -1, b"25:00:00"),
+            (oid::TIME, -1, b"03:04:05.1234567890"),
+            (oid::TIMESTAMP, -1, b"2024-01-02T03:04:05"),
+            (oid::TIMESTAMPTZ, -1, b"2024-01-02 03:04:05"),
+            (oid::UUID, -1, b"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a1"),
+            (oid::UUID, -1, b"a0eebc999c0b4ef8bb6d6bb9bd380a11xxxx"),
             (25, -1, b"\xff\xfe"),
         ];
 
@@ -2453,14 +3115,22 @@ mod tests {
     /// be asserting past what `scalar` already says is `NvsStr::new`.
     #[test]
     fn a_decoded_value_carries_the_scalar_the_table_names() {
-        let int = column(oid::INT4, -1).decode(Some(b"7")).expect("int");
-        let uint = column(oid::OID, -1).decode(Some(b"7")).expect("uint");
-        let boolean = column(oid::BOOL, -1).decode(Some(b"t")).expect("bool");
-        let float = column(oid::FLOAT8, -1).decode(Some(b"0.5")).expect("float");
-        let decimal = column(oid::NUMERIC, -1)
-            .decode(Some(b"1.25"))
-            .expect("decimal");
-        let absent = column(oid::INT4, -1).decode(None).expect("null");
+        // Every column here is a scalar row, so the second `expect` is the
+        // seam rather than the value: a `None` would mean § 9 had put this
+        // type in the structured half.
+        let value = |type_oid: Oid, body: Option<&[u8]>| {
+            column(type_oid, -1)
+                .decode(body)
+                .expect("a body the column could hold")
+                .expect("a scalar row is a value this crate builds")
+        };
+
+        let int = value(oid::INT4, Some(b"7"));
+        let uint = value(oid::OID, Some(b"7"));
+        let boolean = value(oid::BOOL, Some(b"t"));
+        let float = value(oid::FLOAT8, Some(b"0.5"));
+        let decimal = value(oid::NUMERIC, Some(b"1.25"));
+        let absent = value(oid::INT4, None);
 
         assert_eq!(int.as_int(), Some(7));
         assert_eq!(uint.as_uint(), Some(7));
