@@ -141,6 +141,7 @@ Conventions the whole file uses:
 | [`Core\Db\Connection`](#core-core-db-connection) |  |
 | [`Core\Db\Rows`](#core-core-db-rows) |  |
 | [`Core\Db\Row`](#core-core-db-row) |  |
+| [`Core\Db\Write`](#core-core-db-write) |  |
 | [`Core\Db\InList`](#core-core-db-inlist) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
@@ -17203,11 +17204,12 @@ Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, 
 <a id="core-core-db-connection"></a>
 ### `Core\Db\Connection`
 
-Keywords: query
+Keywords: query, execute
 
 | Member | Signature |
 |---|---|
 | [`Core\Db\Connection->query`](#core-core-db-connection-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows` |
+| [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 
 <a id="core-core-db-connection-query"></a>
 #### `Core\Db\Connection->query`
@@ -17226,6 +17228,24 @@ Runs one statement with its values bound, and reads every row it answers into me
 **Returns** `Core\Db\Rows` — A `Core\Db\Rows` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
 
 **Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-connection-execute"></a>
+#### `Core\Db\Connection->execute`
+
+```nvs skip
+$connection->execute(string $sql, array<mixed> $params): Core\Db\Write
+```
+
+Runs one statement that answers counts rather than rows — an `insert`, an `update`, a `delete`, a `create table` — and answers what it did: `PDO::exec`, `PDOStatement::execute` and `lastInsertId` in one call, with the values bound the same way `query` binds them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, with a `?` for each value or a `:name` for each — never a value written into the text. It is a sink, so a `tainted` string is refused while compiling and there is no escaper to launder one with. |
+| `$params` | `array<mixed>` | The values to bind: list-keyed for `?` and string-keyed for `:name`, one array and never both spellings — `query`'s rule exactly, since both members bind through the same rewriter. |
+
+**Returns** `Core\Db\Write` — A `Core\Db\Write` carrying how many rows were affected, that count as the server reported it, and the id a `RETURNING` clause handed back. Rows the statement did answer are read to the end and discarded, so the connection is free when this returns; `query` is the member that keeps them.
+
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-rows"></a>
 ### `Core\Db\Rows`
@@ -17552,6 +17572,50 @@ One column as a `Core\Uuid` — PostgreSQL's `UUID`, SQL Server's `uniqueidentif
 **Returns** `?Core\Uuid` — The identifier, or `null` for a NULL column.
 
 **Throws** `LogicError` — The row has no column with that name, or the column is not a native UUID one — a `BINARY(16)` is `bytes` and a text rendering is a `string`.
+
+<a id="core-core-db-write"></a>
+### `Core\Db\Write`
+
+Keywords: affected, changed, lastId
+
+| Member | Signature |
+|---|---|
+| [`Core\Db\Write->affected`](#core-core-db-write-affected) | `affected(): uint` |
+| [`Core\Db\Write->changed`](#core-core-db-write-changed) | `changed(): ?uint` |
+| [`Core\Db\Write->lastId`](#core-core-db-write-lastid) | `lastId(): ?uint` |
+
+<a id="core-core-db-write-affected"></a>
+#### `Core\Db\Write->affected`
+
+```nvs skip
+$write->affected(): uint
+```
+
+How many rows the statement affected — `PDOStatement::rowCount` on a write, without its documented unreliability on a select, because a select does not answer with one of these at all.
+
+**Returns** `uint` — A `uint`, and `0` for a statement that affected none as well as for one whose kind has no count to report — a `create table`. `changed` is where those two are told apart.
+
+<a id="core-core-db-write-changed"></a>
+#### `Core\Db\Write->changed`
+
+```nvs skip
+$write->changed(): ?uint
+```
+
+The same count as the server itself reported it, whose `null` is the one thing `affected` cannot say: this statement's kind carries no row count at all.
+
+**Returns** `?uint` — A `?uint`, equal to `affected` wherever it is not `null`. On PostgreSQL the distinction MySQL draws between rows matched and rows altered has nothing in the protocol to read it out of, so inventing a second count that always equalled the first would be a difference callers wrote code against.
+
+<a id="core-core-db-write-lastid"></a>
+#### `Core\Db\Write->lastId`
+
+```nvs skip
+$write->lastId(): ?uint
+```
+
+The key the statement handed back, read off the write that produced it rather than off the connection — `lastInsertId` and `mysqli_insert_id` without their stale-after-an-unrelated-statement hazard.
+
+**Returns** `?uint` — A `?uint`: the first column of the last row the statement returned, where that column was declared an integer, and `null` otherwise. On PostgreSQL that means a `RETURNING` clause — the protocol has no last-insert-id of its own, and an `insert`'s tag carries an OID that is `0` on every supported server.
 
 <a id="core-core-db-inlist"></a>
 ### `Core\Db\InList`
