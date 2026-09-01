@@ -1,0 +1,127 @@
+--TEST--
+Core\IO::within answers for a name nothing on disk answers for, keeps a name that only looks like an escape, and takes a base that is a prefix in the path sense without being one in the string sense — spec § 14 *Resolution*, ADR 0024 § 3
+--FILE--
+<?nvs
+// The member resolves and then proves, so both halves have a boundary the
+// existing cases do not reach. Resolution does not require the name to be
+// there -- the deepest ancestor that *is* there is pinned and the rest
+// re-appended, which is what lets a program launder the path of a file it is
+// about to create. And the proof compares *components*, so a `..` inside a
+// name is an ordinary letter pair while a `..` that is a whole component is
+// the escape.
+string $base = Core\IO::temporaryDir();
+string $sep = Core\Path::SEPARATOR;
+string $note = Core\Path::join($base, "note.txt");
+Core\IO::write($note, "x\n");
+
+// The one name here that exists, and the only use made of it: `$dir` is what
+// `within` itself calls the base, and every comparison below is against that
+// rather than against `$base`. A host whose temporary root is reached through
+// a symlink spells the two differently, and this case is about containment,
+// not about that.
+string $inside = Core\IO::within($base, "note.txt");
+string $dir = Core\Path::dirname($inside);
+
+// A name nothing on disk answers for is answered in the same directory as one
+// that is there -- and answering it creates nothing, which is the difference
+// between a question about a path and a question about a disk.
+string $absent = Core\IO::within($base, "absent.txt");
+echo "absent: same directory=", Core\Path::dirname($absent) == $dir ? "y" : "n",
+     ", created=", Core\IO::exists($absent) ? "y" : "n", "\n";
+
+// Two absent levels, because one is the case a canonicalizer that gave up on
+// the first miss would still pass: the walk pins the base and re-appends the
+// whole tail.
+string $tail = "no" . $sep . "such" . $sep . "leaf.txt";
+string $deeper = Core\IO::within($base, $tail);
+echo "two absent levels: under the base=", Core\Str::startsWith($deeper, $dir) ? "y" : "n",
+     ", named as given=", Core\Str::endsWith($deeper, $tail) ? "y" : "n",
+     ", created=", Core\IO::exists(Core\Path::dirname($deeper)) ? "y" : "n", "\n";
+
+// The discrimination, in one table so that it is asserted as a *contrast*
+// rather than as two lists. Rows 1 and 2 differ by one separator, and so do
+// rows 3 and 4: a member scanning for the text `..` refuses the odd rows, and
+// one that never resolved accepts the even ones. Neither survives the count.
+// None of these six names is on disk, so the escapes are proved against a name
+// that was never created either.
+array<string> $names = [
+    "..hidden",
+    ".." . $sep . "hidden",
+    "a..b.txt",
+    ".." . $sep . "a..b.txt",
+    ".hidden..txt",
+    "weird..dir" . $sep . "leaf.txt",
+];
+array<bool> $stays = [true, false, true, false, true, true];
+int $rows = Core\Arr::count($names) as int;
+int $agreed = 0;
+int $kept = 0;
+int $naming = 0;
+
+int $i = 0;
+for (; $i < $rows; $i = $i + 1) {
+    try {
+        string $answer = Core\IO::within($base, $names[$i]);
+        if ($stays[$i]) {
+            $agreed = $agreed + 1;
+        }
+        // Kept means kept whole: the name came back as the caller wrote it,
+        // under the base, with nothing collapsed out of the middle of it.
+        if (Core\Str::startsWith($answer, $dir)) {
+            if (Core\Str::endsWith($answer, $names[$i])) {
+                $kept = $kept + 1;
+            }
+        }
+    } catch (RuntimeError $denied) {
+        if ($stays[$i]) {
+            echo "unexpectedly refused: ", $names[$i], "\n";
+        } else {
+            $agreed = $agreed + 1;
+        }
+        if (Core\Str::contains($denied->message, "a path must stay inside the base it is resolved against:")) {
+            $naming = $naming + 1;
+        }
+    }
+}
+
+echo "rows: ", $rows as string,
+     ", verdict agrees: ", $agreed as string,
+     ", accepted names kept whole: ", $kept as string,
+     ", refusals naming the rule: ", $naming as string, "\n";
+
+// The base is resolved too, so containment is a question about the directory
+// the base names and not about the string it was spelled with. The last two
+// spellings are not prefixes of the answer in the string sense at all, and the
+// answer is the same one the plain base gave.
+array<string> $spellings = [
+    $base,
+    $base . $sep,
+    $base . $sep . ".",
+    $base . $sep . ".." . $sep . Core\Path::basename($base),
+];
+int $total = Core\Arr::count($spellings) as int;
+int $same = 0;
+
+$i = 0;
+for (; $i < $total; $i = $i + 1) {
+    string $spelled = Core\IO::within($spellings[$i], "note.txt");
+    if ($spelled == $inside) {
+        $same = $same + 1;
+    }
+}
+
+echo "base spellings: ", $total as string, ", agreeing with the plain base: ", $same as string, "\n";
+
+Core\IO::remove($note);
+Core\IO::removeDir($base);
+echo "cleaned: ", Core\IO::exists($base) ? "y" : "n", "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = true
+write = true
+--EXPECT--
+absent: same directory=y, created=n
+two absent levels: under the base=y, named as given=y, created=n
+rows: 6, verdict agrees: 6, accepted names kept whole: 4, refusals naming the rule: 2
+base spellings: 4, agreeing with the plain base: 4
+cleaned: n
