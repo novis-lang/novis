@@ -1,0 +1,13 @@
+<?nvs
+// The job `examples/queue.nvs` enqueues and expects to fail every time.
+//
+// [ADR 0084](../../docs/adr/0084-durable-background-jobs.md) § 6: attempts are
+// finite with nothing configured, backoff is exponential with jitter and a
+// cap, and a job that exhausts its attempts moves to the dead-letter table
+// with its payload, every attempt's error and its timing. It is never
+// deleted by the runtime — an unwatched dead-letter table is the classic way
+// a queue silently loses work, so losing it is not one of the options.
+//
+// It prints nothing, for the reason `receipt.nvs` says.
+
+throw new RuntimeError("this job never succeeds");

@@ -1,0 +1,101 @@
+<?nvs
+// One connection, one prepared statement, one row — and then a typed one.
+//
+// [ADR 0067](../docs/adr/0067-core-db.md) is the design. § 1 is why there is
+// no `prepare` step: `query`/`execute` take SQL and parameters together and
+// each connection holds an LRU cache of server-side prepared statements, so
+// the two spellings PDO has collapse into one that is always prepared.
+// Binding is the whole injection story (§ 1 again, and
+// [ADR 0024](../docs/adr/0024-taint-tracking-for-injection-sinks.md) § 4):
+// there is no `quote`, no escaper, and the query-text parameter refuses
+// `tainted` while the bound parameters accept it freely.
+//
+// § 6 is the last three lines. A column arrives with the type § 9's map gives
+// it, text arrives `tainted`, and a class reads a row through
+// [ADR 0071](../docs/adr/0071-derived-codecs.md)'s `#[Core\Db\Derive]` rather
+// than through hand-written hydration — read-only by design, because writing
+// rows from objects is an ORM concern and not `Core`'s.
+//
+// The six lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 9); the source is not. The connection it opens is named in
+// root-owned config, so `nvs.toml` owes the `[db.main]` block this reads.
+
+use Core\Db;
+use Core\Db\Row;
+
+// ADR 0071 § 1: the attribute is matched nominally, and it is written out in
+// full because a `use Core\Db;` binds the *class* `Db` and never lets
+// `Db\Derive` name the attribute (ADR 0113 § 1 — a qualified name is
+// absolute).
+#[Core\Db\Derive]
+class Person {
+    public int $id;
+    // ADR 0067 § 6: a text column is always `tainted`, so a `T` whose
+    // text-carrying fields are unqualified is a diagnostic at the `queryAs<T>`
+    // call site naming the field. Declaring it here is the answer, not a cast
+    // at the other end.
+    public tainted string $name;
+
+    public function constructor(int $id, tainted string $name) {
+        $this->id = $id;
+        $this->name = $name;
+    }
+}
+
+// § 2: a connection is named, and the credentials behind the name live in a
+// root-owned `[db.main]` block. There is no DSN to build and nothing here
+// carries a password.
+var $db = Db::connect("main");
+
+// DDL is a statement like any other — one statement per call, because § 10
+// makes a two-statement literal a compile-time diagnostic.
+$db->execute("drop table if exists people", []);
+$db->execute("create table people (id integer primary key, name text not null)", []);
+
+// § 1: the batch case is `executeMany`, which is why no `Statement` object has
+// to exist for it. One prepare, three executions.
+$db->executeMany("insert into people (id, name) values (?, ?)", [
+    [1, "ada"],
+    [2, "grace"],
+    [3, "alan"],
+]);
+
+// `Rows` is the buffered result — `stream` is the cursor form — so counting it
+// and then walking it are two questions about one answer rather than two
+// round trips.
+var $rows = $db->query("select id, name from people order by id", []);
+echo "rows=", $rows->count(), "\n";
+
+foreach ($rows as Row $row) {
+    // § 6: a typed reader converts losslessly or throws, and a `null` is a
+    // NULL column rather than a failure. `name` is `not null`, so the branch
+    // below is the one that never fires — it is here because `?T` is how
+    // absence is spelled and the program has to say what it would do.
+    var $name = $row->string("name");
+    if ($name == null) {
+        echo "null name", "\n";
+    } else {
+        echo $name, "\n";
+    }
+}
+
+// A write answers with `affected`, `changed` and `lastId` on one value, so
+// `rowCount`, `lastInsertId` and `mysqli_info` are one member. `affected` is
+// the rows the `where` matched; `changed` is the narrower question and is
+// `?uint` because three of the five backends cannot answer it.
+var $write = $db->execute("update people set name = ? where id = ?", ["ada", 1]);
+echo "affected=", $write->affected, "\n";
+
+// The typed read. `queryAs<Person>` hydrates through the derived codec's
+// `fromRow`, and a column the class cannot accept throws naming the column
+// rather than handing back a half-built object.
+var $person = $db->queryAs<Person>("select id, name from people where id = ?", [1])->first();
+if ($person == null) {
+    echo "typed row missing", "\n";
+} else {
+    if ($person->name == "ada") {
+        echo "typed row ok", "\n";
+    } else {
+        echo "typed row wrong", "\n";
+    }
+}
