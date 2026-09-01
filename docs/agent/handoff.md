@@ -2,31 +2,25 @@
 
 ## State
 
-**All three `Core\RateLimit` local-tier slices landed**, as three `.nvst` cases over `shed` and the
-`Decision` readers. No Rust change and no member change, so no new refcount edge and no valgrind run
-behind them. `python tools/gaps.py` now reads `Core\RateLimit` at depth 4.5 with `consume 3, shed 6`:
-the class's remaining thinness is entirely `consume`, which is the Redis half and waits on the Docker
-daemon the plan's `Blocking` field names.
+**All three `Core\Decimal` slices landed**, as three `.nvst` cases over `divExact` and `divRound`. No
+Rust change and no member change, so no new refcount edge and no valgrind run behind them.
+`python tools/gaps.py` no longer lists `Core\Decimal` among the twenty-five thinnest classes; its two
+members now carry eight cases between them.
 
-- **The window is bounded on both sides and the two arrivals are named together** — twelve arrivals
-  under one limit of eight, with `admitted 8 and shed 4 of 12` beside `last admitted 8, first shed 9`.
-  A limiter that spent its budget one arrival early prints the same word on the seventh line and the
-  ninth as a correct one does; only the pair of counts fails for it. Those two numbers also say the
-  window does not reopen, since an admission at the eleventh would move one without the other.
-- **The three readers are asked after every arrival of two windows of different widths** — three an
-  hour and five — and made to *agree* rather than read right: `limit` answers its own argument 14 of
-  14, `remaining` falls by exactly one per admitted unit and then holds at zero, and `retryAfter` is
-  absent exactly when allowed and otherwise the window's own drain interval (1200s and 720s), never
-  the rest of the period. A refusal charges nothing, so the wait does not push itself further out.
-- **`shed` keys its own memory** — two keys taken alternately under one limit of four admit 8 of 8 and
-  agree on what is left at every arrival, where a single shared arrival time would answer 3 and 2 at
-  the first pair; the fifth on each is shed, and a third key opens on a full budget.
-
-**One unrelated fix rode along**: `nvs-host`'s `a_read_past_its_deadline_reports_a_timeout` failed the
-full gate and passed alone, because it measured the wait from an `Instant::now()` taken inside the
-spawned task rather than from the deadline the socket was given — the scheduler's start latency was
-being subtracted from the interval under test. It now compares against the deadline itself. The
-playbook bullet is the general shape.
+- **Exactness is a bound on the quotient's *scale*, and the case names both sides of it** — `1 / 2^k`
+  needs exactly `k` fractional digits, so one sweep of doubling divisors answers 28 times and refuses
+  4 of 32, with `0.0000000037252902984619140625` beside the sentence refusing `1 / 536870912`. A
+  second sweep by fives stops at the same `k` with a divisor eleven digits wider, which is what says
+  the bound is the quotient's scale and not the magnitude of either operand.
+- **The six modes partition by what the truncation discarded, counted** — all four discards (nothing,
+  below half, above half, half) asked of all six modes, on both signs: `0 0 / 1 1 / 5 5 / 3 3`, 18 of
+  48 rounding away. "Rounded away" is measured against `Down`'s own answer rather than recomputed,
+  since `Down` is the truncation itself; the repeated column is `rounds_away`'s claim that away is
+  from *zero*, one rule per mode rather than one per direction.
+- **The two members agree wherever the division is exact, over a sweep** — `divRound` under every mode
+  equals `divExact` 72 of 72 at the scale the quotient needs, and **0** of 72 one place short, which
+  is what makes the first count non-vacuous. Where the quotient repeats the domains part outright: one
+  refusal against six answers.
 
 **The two `orient.py` warnings are still there**: `[context] modules` patterns
 `crates/nvs-stdlib/src/fatal.rs` and `crates/nvs-stdlib/src/script.rs` are reported as matching no
@@ -39,32 +33,33 @@ goal and is not a regression.
 
 ## Next group
 
-**`Core\Decimal` is the thinnest class left whose whole surface is arithmetic — no store, no socket,
-no terminal — and it is one file set: `crates/nvs-stdlib/src/decimal.rs` and
-`tests/conformance/core/`. It is also a two-member class, so the three slices below are the same two
-bodies asked three ways. ADR 0054 § 3 is the home of why the named-rounding members exist at all: a
-`decimal` division is the one place rounding is business logic rather than an artifact of the
-operator, so the mode is an argument and never a default. `divExact`'s refusal and `divRound`'s mode
-are inside 40 lines of each other.**
+**`Core\Secret` is the next two-member class whose whole surface is one rule and no dependency — no
+store, no socket, no clock — and it is one file set: `crates/nvs-stdlib/src/secret.rs` and
+`tests/conformance/core/`. Both members are the identity plus a `retain`, so every question below is
+about what the *checker* admitted and what the run time did not touch; the module doc's own three
+headings (why two names, the reason nobody reads, the reason need not be a literal) are the
+specification, and ADR 0033 § 3 is the home. The existing cases are
+`a-reveal-drops-the-secret-qualifier`, `reveal-is-the-identity-on-the-value`,
+`a-revealed-value-is-accepted-by-every-secret-sink` and `reject/reveal-removes-secret-and-not-tainted`,
+so none of the three below repeats a question already asked.**
 
-- [ ] **`Core\Decimal::divExact` is bounded on both sides of exactness** — the last quotient it
-      returns and the first it refuses over one sweep of divisors, named together and counted, so a
-      member that tested the wrong remainder prints plausibly against either half alone.
-      `crates/nvs-stdlib/src/decimal.rs:204`.
-- [ ] **Every rounding mode answers the same tie and the same non-tie, counted** — one quotient asked
-      of the whole mode roster, asserting the modes are pairwise distinct where they must differ and
-      identical where they must agree, so a mode that grew its own arithmetic fails here while its own
-      line still reads right. `crates/nvs-stdlib/src/decimal.rs:235`.
-- [ ] **The two members agree wherever the division is exact** — `divRound` under every mode equals
-      `divExact` for a divisor that divides, and only `divExact` refuses when it does not, which is
-      the agreement neither member's own case can state. `crates/nvs-stdlib/src/decimal.rs:204`,
-      `crates/nvs-stdlib/src/decimal.rs:235`.
+- [ ] **`revealBytes` is the identity over octets no `string` can carry** — a sweep over the byte
+      values, counted, with the revealed `bytes` equal to the original at every length including the
+      empty one, so a member that answered through a `string` round-trip fails where a `string`
+      cannot go. `crates/nvs-stdlib/src/secret.rs:152`.
+- [ ] **The reason reaches no byte of the answer** — one secret revealed under a sweep of reasons of
+      different lengths and contents, asserting all the answers **agree** rather than reading each,
+      which is the module doc's "checked as a `string` and read by nobody" made a test.
+      `crates/nvs-stdlib/src/secret.rs:133`, `crates/nvs-stdlib/src/secret.rs:152`.
+- [ ] **The two members agree across the `string`/`bytes` boundary** — the same content revealed both
+      ways, counted over a table, so the second name stays a name rather than a second rule.
+      `crates/nvs-stdlib/src/secret.rs:133`, `crates/nvs-stdlib/src/secret.rs:152`.
 
 ## Backlog
 
-- `Core\RateLimit::consume` stays at 3 cases until a Docker daemon is reachable — plan, `Blocking`.
-- `Core\Secret` at 3.5 (`revealBytes` 3, `reveal` 4) needs no service either — ADR 0033 § 3.
-- `Core\Cache::local` at 4 cases is reachable with no store; `shared` is not — ADR 0059 § 1.
-- `Core\Task::afterResponse` is the only differential gap left, against `fastcgi_finish_request`.
-- `Core\Cldr::pluralCategory` at 4 over a closed roster — ADR 0082 § 2.
-- The `[context] modules` matcher drops two patterns it then prints — `docs/agent/loop-goal.toml`.
+- `Core\Http\Response` is the thinnest class `gaps.py` reports (status 3, text 3) — `docs/spec/01-core-library.md`.
+- `Core\Totp` at depth 4.0 (check 4, code 4), and its window has no widening argument — ADR 0060 § 1.
+- `Core\Cldr::pluralCategory` at depth 4.0 over a closed roster — ADR 0082 § 2.
+- `Core\Task::afterResponse` is the one member with a PHP twin and no oracle case — `crates/nvs-stdlib/src/task.rs:561`, `tests/differential/`.
+- A `reveal` in a loop is a refcount edge no conformance case can weigh; `crates/nvs-stdlib/tests/allocation_policy.rs` is where a leak would show.
+- `Core\Cache::shared` and `Core\RateLimit::consume` stay blocked on the Docker daemon the plan's `Blocking` field names.
