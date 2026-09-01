@@ -1815,6 +1815,18 @@ is why" — is this file.
   `C:\Windows\System32\cmd.exe` on the third, and a Windows-only run proves nothing about the branch
   two thirds of CI takes. Check the binary's date first — it is as old as the last valgrind sweep,
   so it does not carry Rust you changed this session.
+- **A `verify.py` failure in `nvs-host`'s deadline tests can be a measurement flake, and the tell is
+  that the test passes when run alone.** `net::tests::a_read_past_its_deadline_reports_a_timeout`
+  failed the full gate with `left: Some((Err(TimedOut), false))` — the timeout *was* reported, and
+  only the "not early" half was false — then passed on its own. The bug was in the measurement: the
+  deadline was set on the socket before `sched.spawn`, and the elapsed time was measured from an
+  `Instant::now()` taken *inside* the task, so every microsecond the scheduler spent starting the
+  task was subtracted from the wait it was checking. Under a loaded machine — a loop driver and an
+  interactive session sharing it — that gap reaches milliseconds and an on-time timeout reads as an
+  early one. It is fixed now (`Instant::now() >= deadline`, against the deadline the socket was
+  given), but the shape recurs: a timing assertion must measure from the instant the clock was set,
+  never from one taken after a scheduler hop. Before diagnosing a timing failure as a regression,
+  re-run that one test alone — it costs one call and tells the two apart.
 
 ## Writing a test case
 

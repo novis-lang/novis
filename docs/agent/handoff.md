@@ -2,68 +2,69 @@
 
 ## State
 
-**All three `Core\Cli` value-type slices landed**, as four `.nvst` cases over `Color`, `Style` and
-`Progress`. No Rust change, no member change, so no new refcount edge and no valgrind run behind
-them. `python tools/gaps.py` no longer lists `Core\Cli\Color` or `Core\Cli\Progress` among the
-thinnest classes at all, and `Core\Cli\Style` has left the 3.0 floor.
+**All three `Core\RateLimit` local-tier slices landed**, as three `.nvst` cases over `shed` and the
+`Decision` readers. No Rust change and no member change, so no new refcount edge and no valgrind run
+behind them. `python tools/gaps.py` now reads `Core\RateLimit` at depth 4.5 with `consume 3, shed 6`:
+the class's remaining thinness is entirely `consume`, which is the Redis half and waits on the Docker
+daemon the plan's `Blocking` field names.
 
-- **`Color`'s four bounded arguments are one bound reached four times** — the palette index and the
-  three channels, swept rather than asked a line at a time: 0 and 255 accepted 8 of 8, 256 refused
-  4 of 4, and each refusal naming its own subject 4 of 4. That last count is the one an `rgb` that
-  read `$red`'s value three times fails while still saying `red` correctly on every line. The low
-  end is the *type's* — a `uint` has no first refused value below zero — and the case says so.
-- **A `Style`'s seven options land in seven slots**, compared as whole `Core\Debug::render`
-  outputs: five attributes pairwise distinct 10 of 10, each one missed from the whole 5 of 5, and
-  the two colour slots asked as a swap. Dropping and aliasing are the two failures, and each of
-  them still reads correctly on a line of its own. Why the dump rather than the rendered row is a
-  playbook bullet now.
-- **`Progress::advance` is bounded at neither end of its total, and only the row clamps** — the
-  completing step, the one past it and one far past it are all ordinary (`bar()` draws a finished
-  bar for a loop that miscounted), a step of zero is a repaint that still takes the label, and a
-  negative step is `E0401` a phase before any arithmetic runs, which is a second file because the
-  program has to fail to compile.
+- **The window is bounded on both sides and the two arrivals are named together** — twelve arrivals
+  under one limit of eight, with `admitted 8 and shed 4 of 12` beside `last admitted 8, first shed 9`.
+  A limiter that spent its budget one arrival early prints the same word on the seventh line and the
+  ninth as a correct one does; only the pair of counts fails for it. Those two numbers also say the
+  window does not reopen, since an admission at the eleventh would move one without the other.
+- **The three readers are asked after every arrival of two windows of different widths** — three an
+  hour and five — and made to *agree* rather than read right: `limit` answers its own argument 14 of
+  14, `remaining` falls by exactly one per admitted unit and then holds at zero, and `retryAfter` is
+  absent exactly when allowed and otherwise the window's own drain interval (1200s and 720s), never
+  the rest of the period. A refusal charges nothing, so the wait does not push itself further out.
+- **`shed` keys its own memory** — two keys taken alternately under one limit of four admit 8 of 8 and
+  agree on what is left at every arrival, where a single shared arrival time would answer 3 and 2 at
+  the first pair; the fifth on each is shed, and a third key opens on a full budget.
+
+**One unrelated fix rode along**: `nvs-host`'s `a_read_past_its_deadline_reports_a_timeout` failed the
+full gate and passed alone, because it measured the wait from an `Instant::now()` taken inside the
+spawned task rather than from the deadline the socket was given — the scheduler's start latency was
+being subtracted from the interval under test. It now compares against the deadline itself. The
+playbook bullet is the general shape.
 
 **The two `orient.py` warnings are still there**: `[context] modules` patterns
 `crates/nvs-stdlib/src/fatal.rs` and `crates/nvs-stdlib/src/script.rs` are reported as matching no
 module and are then printed in the scoped map anyway. The manifest is right; the matcher is what to
 check.
 
-**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate
-over a *complete* Part II, which needs spec §§ 15-19. Those are goal 6's, so it cannot pass inside
-this goal and is not a regression.
+**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate over
+a *complete* Part II, which needs spec §§ 15-19. Those are goal 6's, so it cannot pass inside this
+goal and is not a regression.
 
 ## Next group
 
-**`Core\RateLimit` is the thinnest class left that needs no external service for the half a case can
-reach, and it is one file set: `crates/nvs-stdlib/src/ratelimit.rs` and `tests/conformance/core/`.
-ADR 0075 is the home of why the limiter bounds what only the application knows, and § 5 of why an
-unreachable store throws rather than deciding *allowed*. Keep `consume` out of these three: it is
-the `net.connect` half over Redis, and the Docker daemon the plan's `Blocking` field names is what
-it waits on. `shed` and the `Decision` readers are this core's own memory, and their bodies are
-inside 70 lines of each other.**
+**`Core\Decimal` is the thinnest class left whose whole surface is arithmetic — no store, no socket,
+no terminal — and it is one file set: `crates/nvs-stdlib/src/decimal.rs` and
+`tests/conformance/core/`. It is also a two-member class, so the three slices below are the same two
+bodies asked three ways. ADR 0054 § 3 is the home of why the named-rounding members exist at all: a
+`decimal` division is the one place rounding is business logic rather than an artifact of the
+operator, so the mode is an argument and never a default. `divExact`'s refusal and `divRound`'s mode
+are inside 40 lines of each other.**
 
-- [ ] **`Core\RateLimit::shed`'s window is bounded on both sides** — the last request admitted and
-      the first one shed under one limit, named together and counted, so a limiter that spent its
-      budget one request early prints plausibly against either half alone.
-      `crates/nvs-stdlib/src/ratelimit.rs:758`.
-- [ ] **A `Decision`'s three readers agree with the sweep that produced them** — `limit`,
-      `remaining` and `retryAfter` asked after every request of a whole window and asserted to
-      *agree* (remaining counts down to zero exactly once, `limit` never moves, `retryAfter` is
-      answered only once shed), so a reader that grew its own arithmetic fails here while each of
-      its own lines still reads right. `crates/nvs-stdlib/src/ratelimit.rs:806`,
-      `crates/nvs-stdlib/src/ratelimit.rs:813`, `crates/nvs-stdlib/src/ratelimit.rs:821`.
-- [ ] **`shed` keys its own memory** — two keys under one limit do not share a budget and a third
-      key is untouched by either, counted over the sweep, which is ADR 0059 § 1's "a map in the
-      calling core's own thread" asked as behaviour. `crates/nvs-stdlib/src/ratelimit.rs:758`.
+- [ ] **`Core\Decimal::divExact` is bounded on both sides of exactness** — the last quotient it
+      returns and the first it refuses over one sweep of divisors, named together and counted, so a
+      member that tested the wrong remainder prints plausibly against either half alone.
+      `crates/nvs-stdlib/src/decimal.rs:204`.
+- [ ] **Every rounding mode answers the same tie and the same non-tie, counted** — one quotient asked
+      of the whole mode roster, asserting the modes are pairwise distinct where they must differ and
+      identical where they must agree, so a mode that grew its own arithmetic fails here while its own
+      line still reads right. `crates/nvs-stdlib/src/decimal.rs:235`.
+- [ ] **The two members agree wherever the division is exact** — `divRound` under every mode equals
+      `divExact` for a divisor that divides, and only `divExact` refuses when it does not, which is
+      the agreement neither member's own case can state. `crates/nvs-stdlib/src/decimal.rs:204`,
+      `crates/nvs-stdlib/src/decimal.rs:235`.
 
 ## Backlog
 
-- `Core\Http\Response::status` and `::text` sit at 3 cases each — `gaps.py`, ADR 0074.
-- `Core\Cache\Store::get`/`::put` and `Core\RateLimit::consume` need the Docker Redis — plan
-  § *Blocking*.
-- `Core\Mail::send` is at 3 cases and needs an operator-named endpoint — ADR 0082 § 2.
-- `Core\Decimal::divRound`/`::divExact` and `Core\Secret::reveal`/`::revealBytes` are the two
-  service-free classes left under 4.0 — `gaps.py`.
-- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case —
-  `gaps.py`, `crates/nvs-stdlib/src/task.rs:561`.
-- `orient.py`'s module-pattern matcher misses two live files — see `## State`.
+- `Core\RateLimit::consume` stays at 3 cases until a Docker daemon is reachable — plan, `Blocking`.
+- `Core\Secret` at 3.5 (`revealBytes` 3, `reveal` 4) needs no service either — ADR 0033 § 3.
+- `Core\Cache::local` at 4 cases is reachable with no store; `shared` is not — ADR 0059 § 1.
+- `Core\Task::afterResponse` is the only differential gap left, against `fastcgi_finish_request`.
+- `Core\Cldr::pluralCategory` at 4 over a closed roster — ADR 0082 § 2.
+- The `[context] modules` matcher drops two patterns it then prints — `docs/agent/loop-goal.toml`.
