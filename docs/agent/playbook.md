@@ -1300,6 +1300,14 @@ is why" — is this file.
   Name what PHP's spelling *did* ("the standard-input wrapper") rather than writing it. Its sibling
   `no_registry_card_cites_an_adr` is the same shape one file over, and both fail a run that the
   member's own conformance cases pass.
+- **`cargo deny check` cannot be run on this machine, and the goal's standing decisions ask a new
+  dependency for it.** `cargo-deny` is not installed — `error: no such command: deny` — and installing
+  it to add one crate costs more than the check answers. What answers the same question in one call is
+  `git diff Cargo.lock`: a dependency already in the graph as somebody else's transitive one adds an
+  *edge* and no package, so the license set, the advisory set and the ban list are all exactly what
+  they were, and CI's own leg is what actually runs the tool. `unicode-width` arrived that way, as
+  `wasm-encoder`'s. A crate whose diff adds a `[[package]]` block is the case where this shortcut does
+  not apply, and it still owes `python tools/gen-attribution.py`, which does run here.
 
 ## Running things
 
@@ -5181,6 +5189,15 @@ sibling in the same namespace unqualified.
   it does not do, and `use std::fs::TryLockError;` fails the same way. There is no allowlist. The
   fix is to convert through `std::io::Error`, whose `ErrorKind::WouldBlock` is the same answer, and
   to keep `std::fs` to comments — a `//` or `///` line is skipped and every other line is not.
+- **A `Fault::fatal` in a new `Core` member fails `conformance_coverage`'s error-path gate unless the
+  comment above it contains the literal words *unreachable from source*.** The gate greps the eight
+  lines above the site for that phrase, not for a reason — so a comment that argues the case
+  perfectly in its own words ("the row's parameter is `CoreTy::Text`, so `E0401` refuses a
+  non-`string` before this runs") fails anyway, and it fails with a message that reads as though the
+  member owed a `.nvst` case for a path no program can reach. Both arms of one new member cost a full
+  `verify.py` cycle here. `Core\Str::length`'s body carries the wording for the second kind — the
+  `u64::try_from` arm that no diagnostic refuses at all, because its totality is a property of the
+  target rather than of the call.
 
 ## Divergences and refusals already pinned
 
