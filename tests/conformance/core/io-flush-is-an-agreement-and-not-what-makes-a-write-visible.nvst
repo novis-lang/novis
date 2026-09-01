@@ -1,0 +1,78 @@
+--TEST--
+`Core\IO\File::flush` is an agreement between two handles rather than the thing that makes a write visible — every write has already reached the operating system by the time it returns, so a second reader has each one before any flush and the flush after it changes nothing, at sizes on both sides of any buffer a layer might plausibly keep — spec § 14
+--FILE--
+<?nvs
+// The member is written around a claim its existing cases cannot tell apart
+// from its opposite: Novis holds no buffer of its own in front of the
+// descriptor, so `flush` is `Write::flush` and nothing more. A case that
+// writes, flushes and then reads passes whether that is true or not — the
+// flush would be doing the work in one reading and nothing at all in the
+// other, and both print the same line.
+//
+// What separates them is asking *before* the flush, from the only place the
+// question can be asked from: a second handle on the same file. And asking it
+// at more than one size, because a buffer keeps a small write and passes a
+// large one straight through, so a single short payload would fail to
+// distinguish them just as thoroughly.
+array<int> $lengths = [1, 10, 8193];
+
+int $rows = 0;
+int $seen = 0;      // the second handle already has every byte
+int $unchanged = 0; // and the flush that follows changes nothing
+int $stable = 0;    // nor does a second one, which is the same statement twice
+int $placed = 0;    // and none of it moves the writer's own position
+
+foreach ($lengths as int $n) {
+    string $payload = Core\Str::repeat("x", $n as uint);
+    Core\IO\File $w = Core\IO::open("agree.txt", Core\IO\FileMode::Write);
+    $w->write($payload);
+    int $at = $w->tell() as int;
+
+    // Two independent readings, because `Core\IO::size` asks the directory
+    // entry and a second handle asks for the bytes: an implementation that
+    // had extended the file without the content following it would agree with
+    // one of them and not the other.
+    int $before = Core\IO::size("agree.txt") as int;
+    Core\IO\File $r = Core\IO::open("agree.txt", Core\IO\FileMode::Read);
+    int $got = Core\Str::length($r->read(20000)) as int;
+    $r->close();
+
+    $w->flush();
+    int $after = Core\IO::size("agree.txt") as int;
+    $w->flush();
+    int $twice = Core\IO::size("agree.txt") as int;
+
+    $rows = $rows + 1;
+    if ($before == $n && $got == $n) { $seen = $seen + 1; }
+    if ($after == $before) { $unchanged = $unchanged + 1; }
+    if ($twice == $after) { $stable = $stable + 1; }
+    if (($w->tell() as int) == $at && $at == $n) { $placed = $placed + 1; }
+    $w->close();
+}
+echo "rows: ", $rows, "\n";
+echo "already visible: ", $seen, "/", $rows, "\n";
+echo "unchanged by the flush: ", $unchanged, "/", $rows, "\n";
+echo "stable across a second: ", $stable, "/", $rows, "\n";
+echo "position untouched: ", $placed, "/", $rows, "\n";
+
+// The empty end of the same statement: a flush with nothing behind it is not
+// an error and not a no-op the member is free to refuse — it is the same
+// agreement about no bytes, and it says so twice running.
+Core\IO\File $idle = Core\IO::open("idle.txt", Core\IO\FileMode::Write);
+$idle->flush();
+echo "idle: ", Core\IO::size("idle.txt") as string, " at ", $idle->tell() as string, "\n";
+$idle->flush();
+echo "again: ", Core\IO::size("idle.txt") as string, "\n";
+$idle->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+rows: 3
+already visible: 3/3
+unchanged by the flush: 3/3
+stable across a second: 3/3
+position untouched: 3/3
+idle: 0 at 0
+again: 0
