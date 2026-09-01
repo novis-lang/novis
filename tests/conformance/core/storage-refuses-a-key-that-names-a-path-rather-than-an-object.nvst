@@ -1,0 +1,57 @@
+--TEST--
+Core\Storage refuses a key that is not one segment rather than resolving it, so no key reaches past the disk's root — ADR 0082 § 2, ADR 0095
+--FILE--
+<?nvs
+// The rule `crates/nvs-stdlib/src/storage.rs`'s module doc argues: a key names
+// an object and never a path through the disk. Every spelling that could have
+// made it something else — a `..`, a separator either way round, an absolute
+// path, a leading dot, an empty name — is refused rather than stripped, which
+// is ADR 0095's direction and is what keeps the `fs.*` grant over `root`
+// exactly the set of objects.
+//
+// The refusal happens before any door is asked, so this case needs neither a
+// grant nor a disk that exists.
+try {
+    Core\Storage::put("uploads", "../escape", "x" as bytes);
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+try {
+    Core\Storage::get("uploads", "nested/key");
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+try {
+    Core\Storage::delete("uploads", "");
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// The same refusal for the shapes that look least like a path: a Windows
+// separator, and a name the operating system would read as the directory
+// itself. One sentence covers all of them because they are one question.
+array<string> $spellings = ["a\\b", ".", "..", ".hidden", "/absolute"];
+int $refused = 0;
+foreach ($spellings as string $spelling) {
+    try {
+        Core\Storage::get("uploads", $spelling);
+        echo "accepted: ", $spelling, "\n";
+    } catch (RuntimeError $error) {
+        $refused = $refused + 1;
+    }
+}
+echo "refused ", $refused, " of ", Core\Arr::count($spellings), "\n";
+--FILE nvs.toml--
+[storage.uploads]
+root = "./objects"
+
+[capabilities.fs]
+read = ["./objects"]
+write = ["./objects"]
+--EXPECT--
+Core\Storage::put: `../escape` is not an object key — one to 255 bytes of ASCII letters, digits, `.`, `-` and `_`, not beginning with a `.`. A key names an object on the disk and never a path through it, so a separator is refused rather than resolved
+Core\Storage::get: `nested/key` is not an object key — one to 255 bytes of ASCII letters, digits, `.`, `-` and `_`, not beginning with a `.`. A key names an object on the disk and never a path through it, so a separator is refused rather than resolved
+Core\Storage::delete: `` is not an object key — one to 255 bytes of ASCII letters, digits, `.`, `-` and `_`, not beginning with a `.`. A key names an object on the disk and never a path through it, so a separator is refused rather than resolved
+refused 5 of 5

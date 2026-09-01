@@ -1229,6 +1229,13 @@ pub const CLASSES: &[CoreClass] = &[
     // ADR 0058's launderer is not in the path at all. [`crate::mail`] owns why
     // `mail()`'s fourth argument has no successor here.
     crate::mail::CLASS,
+    // ADR 0082 § 2's other half of the same row pair, and registered beside
+    // `Core\Mail` because the two are what that section adds to `Core`: an
+    // operator names the endpoint in one and the disk in the other, and neither
+    // takes a host or a path. It is the one class here that declares **no**
+    // capability of its own — [`crate::storage`] owns why `fs.*` answering
+    // twice would be the bug.
+    crate::storage::CLASS,
     // § 16, and beside `Core\Secret` rather than in section order because the
     // two are one mechanism: ADR 0033 § 3 has exactly two operations that take
     // a `secret` and answer something that is not one, and these are the rows
@@ -1513,6 +1520,20 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // no host a program can name. [`crate::mail`]'s module doc is the home of
     // why the address is not additionally pinned.
     (crate::mail::NAME, "send", Some(nvs_config::Cap::MailSend)),
+    // ADR 0082 § 2's storage half, and the rows that make its "over ADR 0051's
+    // existing `fs.*` capabilities" true: the same two grants `Core\IO` above
+    // declares, asked about the path the disk's root and the object's key
+    // resolve to. There is deliberately no `storage.*` capability — a second
+    // grant over one door is the shape where a deployment is tightened in one
+    // of them and stays open through the other, which [`crate::storage`]'s
+    // module doc is the home of.
+    (crate::storage::NAME, "put", Some(nvs_config::Cap::FsWrite)),
+    (crate::storage::NAME, "get", Some(nvs_config::Cap::FsRead)),
+    (
+        crate::storage::NAME,
+        "delete",
+        Some(nvs_config::Cap::FsWrite),
+    ),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)

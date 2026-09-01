@@ -258,6 +258,7 @@ pub mod script;
 mod secret;
 mod serialize;
 mod signed_cookie;
+mod storage;
 pub mod str;
 mod task;
 mod test;
@@ -375,6 +376,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| secret::address(symbol))
         .or_else(|| serialize::address(symbol))
         .or_else(|| signed_cookie::address(symbol))
+        .or_else(|| storage::address(symbol))
         .or_else(|| task::address(symbol))
         .or_else(|| test::address(symbol))
         .or_else(|| time::address(symbol))

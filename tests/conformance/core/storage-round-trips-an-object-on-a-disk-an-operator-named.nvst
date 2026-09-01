@@ -1,0 +1,60 @@
+--TEST--
+Core\Storage puts, gets and deletes one object on a disk an operator named, and a key nothing was put at answers null rather than throwing — ADR 0082 § 2, ADR 0063 R7
+--FILE--
+<?nvs
+// ADR 0082 § 2's storage row from the outside. `$disk` selects a
+// `[storage.<name>]` block in root-owned configuration and `$key` names an
+// object on it; there is no path parameter anywhere on the three rows, and
+// what gates every one of them is the `fs.read`/`fs.write` the same operator
+// wrote about that block's `root`. This case runs inside the grant, so what it
+// pins is the round trip itself — the two cases beside it own the refusals.
+final class Show {
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "yes";
+        }
+        return "no";
+    }
+}
+
+// Absence is the return type's answer and not an error's: there is no `exists`
+// member precisely because this line already is one.
+echo "before put: ", Show::yn(Core\Storage::get("uploads", "note.txt") == null), "\n";
+
+Core\Storage::put("uploads", "note.txt", "hello\n" as bytes);
+echo "after put: ", Show::yn(Core\Storage::get("uploads", "note.txt") == ("hello\n" as bytes)), "\n";
+
+// `overwrite` defaults to true, which is the object-store contract: a key names
+// one object, and putting it again replaces it.
+Core\Storage::put("uploads", "note.txt", "second\n" as bytes);
+echo "after replace: ", Show::yn(Core\Storage::get("uploads", "note.txt") == ("second\n" as bytes)), "\n";
+
+// And `overwrite: false` is the other half — a caller claiming a key rather
+// than updating one. The door does it in the one syscall that cannot race, so
+// a second claim fails rather than quietly winning.
+try {
+    Core\Storage::put("uploads", "note.txt", "third\n" as bytes, {overwrite: false});
+    echo "a held key was claimed twice", "\n";
+} catch (Throwable $error) {
+    echo "claim refused", "\n";
+}
+echo "after refused claim: ", Show::yn(Core\Storage::get("uploads", "note.txt") == ("second\n" as bytes)), "\n";
+
+Core\Storage::delete("uploads", "note.txt");
+echo "after delete: ", Show::yn(Core\Storage::get("uploads", "note.txt") == null), "\n";
+--FILE nvs.toml--
+[storage.uploads]
+root = "./objects"
+
+[capabilities.fs]
+read = ["./objects"]
+write = ["./objects"]
+--FILE objects/keep.txt--
+the disk's root has to exist; this is what makes it
+--EXPECT--
+before put: yes
+after put: yes
+after replace: yes
+claim refused
+after refused claim: yes
+after delete: yes

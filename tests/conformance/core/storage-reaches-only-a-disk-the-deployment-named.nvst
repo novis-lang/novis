@@ -1,0 +1,51 @@
+--TEST--
+Core\Storage reaches only a disk an operator configured, so a name no `[storage.<name>]` block carries is refused with nothing to fall back to — ADR 0082 § 2
+--FILE--
+<?nvs
+// The whole of ADR 0082 § 2's storage rule, from the outside: `$disk` selects a
+// block in root-owned `nvs.toml`, and there is no root, path or directory
+// parameter anywhere on the three rows. So a program running under a
+// deployment that named no such disk cannot store at all — there is nothing to
+// fall back to, and no argument through which it could supply one.
+//
+// The deployment below configures `uploads` and not `archive`, which is what
+// makes this a refusal about the *name* rather than about a tree with no
+// storage configured at all.
+try {
+    Core\Storage::put("archive", "note.txt", "x" as bytes);
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+try {
+    Core\Storage::get("archive", "note.txt");
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+try {
+    Core\Storage::delete("archive", "note.txt");
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// The disk is answered before the key, so a program that named neither
+// correctly learns about the disk first: there is no key that could be right
+// on a disk that does not exist.
+try {
+    Core\Storage::get("archive", "../escape");
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+--FILE nvs.toml--
+[storage.uploads]
+root = "./objects"
+
+[capabilities.fs]
+read = ["./objects"]
+write = ["./objects"]
+--EXPECT--
+Core\Storage::put: no `[storage.archive]` block sets `root`, so there is no disk of that name to store on
+Core\Storage::get: no `[storage.archive]` block sets `root`, so there is no disk of that name to store on
+Core\Storage::delete: no `[storage.archive]` block sets `root`, so there is no disk of that name to store on
+Core\Storage::get: no `[storage.archive]` block sets `root`, so there is no disk of that name to store on
