@@ -1472,6 +1472,15 @@ is why" — is this file.
   other: `deny_unknown_fields` refuses a key the struct lacks, and no test refuses a struct field
   the table lacks. Edit the chapter row in the same slice as the field, and let `verify.py` write
   `docs/novis.md` rather than editing that file by hand.
+- **`session.py --wrap` cannot commit `docs/novis.md`, because it did not write it — `verify.py`'s
+  reference step did.** Adding a `Core` member regenerates ADR 0117's reference page as a *side
+  effect of verifying*, which happens before the wrap and outside it, so the wrap's "anything it
+  wrote that no `## commit:` names joins the last one" does not reach it: the tail ends with
+  `uncommitted after the wrap (1 path(s)): M docs/novis.md` and a session that reads that line as
+  someone else's edit leaves the slice half-committed. Two consecutive sessions each paid three
+  calls rediscovering it. Name `docs/novis.md` in the member's own `## commit:` line up front —
+  the page is part of the slice that registers the member, exactly as
+  `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`'s struck line is.
 
 ## Running things
 
