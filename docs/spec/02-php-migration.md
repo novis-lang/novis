@@ -1084,8 +1084,296 @@ ceiling; PHP's `$max_length` argument, optional and defaulted to unlimited, is t
 
 ---
 
+## XML
+
+PHP ships XML six times: DOM, SimpleXML, XMLReader, XMLWriter, the SAX bindings `xml_parser_*`, and
+XSLTProcessor, with libxml's process-global error bucket and entity loader underneath all of them.
+`Core\Xml` ([01 § 17](01-core-library.md)) is one API with two halves — a **tree** that materialises and a
+**streaming** reader/writer that does not — and, unusually for this file, both halves are kept: they are
+different jobs, not twins, and no operation is available through both. The tree is the same node family
+`Core\Html`'s parser produces ([ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)).
+
+Three rules collapse the table. A parse **throws** on a malformed document
+([ADR 0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md), and
+[ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md) § 1 for why
+HTML's parser is the opposite), so there is no error bucket to enable and read back. Anything with a
+lifetime is an object rather than a `resource` ([ADR 0063](../adr/0063-core-api-conventions.md) R14), which
+removes the create/free/set-option roster around the parser. And the SAX handler table is an *iteration*
+([ADR 0053](../adr/0053-iteration-and-generators.md)): the streaming reader yields events a `foreach` reads,
+so eleven registered callbacks become arms in a loop body that can also just stop.
+
+The rule that is this section's own is that **the parser reaches nothing**. An external entity, the DTD a
+document names, a schema location — none is fetched, and there is no capability, argument or configuration
+that turns resolution on. The reference survives as data, the way
+[ADR 0123](../adr/0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md) § 2
+keeps one. This is not a safe default that was chosen carefully; it is a spelling that does not exist, and
+it is where XXE and [ADR 0052](../adr/0052-closed-doors.md)'s closed doors meet — a parser that resolved
+would be making a request nobody wrote, through the stream wrappers that door closes and around
+[ADR 0058](../adr/0058-outbound-request-policy.md)'s rule that an outbound URL is named at a call site.
+Eight of libxml's rows below exist only to position that switch, and one of them PHP itself deprecated for
+being a switch.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `xml_parser_create` | member | `Core\Xml`'s streaming reader, constructed over the bytes it will read rather than created empty and then fed |
+| `xml_parser_create_ns` | member | the same reader. Namespaces are not a mode: a qualified name is a name, so there is no second constructor for documents that use them |
+| `xml_parser_free` | dropped | a reader's lifetime is its object's (R14). There is no handle to free, and nothing observes the difference |
+| `xml_parser_set_option` | dropped | its options are settled rather than configurable — case folding is `Core\Str`'s job on a name the caller chose to fold, the namespace separator does not exist because a qualified name is a pair rather than a joined string, and the target encoding is `Core\Encoding` at the `bytes`↔`string` boundary ([ADR 0009](../adr/0009-string-and-bytes.md)) |
+| `xml_parser_get_option` | dropped | reads back what nothing sets |
+| `xml_parse` | member | the reader's step, as an iteration over events rather than a call returning `0` with the reason left in a second function |
+| `xml_parse_into_struct` | member | the tree half of `Core\Xml`. PHP's flat array of tags carrying a `level` field is a tree pretending to be an array, and materialising the real one is what the tree API is for |
+| `xml_set_element_handler` | dropped | start and end tags are two arms of the `foreach` over events, not two registered callbacks — and an arm can `break`, which a handler cannot |
+| `xml_set_character_data_handler` | dropped | the text event, in the same loop |
+| `xml_set_processing_instruction_handler` | dropped | the processing-instruction event, in the same loop |
+| `xml_set_default_handler` | dropped | it catches every event no other handler claimed, which is a fallthrough that only exists because the roster is registrations. A `match` has a default arm already |
+| `xml_set_start_namespace_decl_handler` | dropped | a namespace declaration's scope is a property of the name the event carries, reported with it |
+| `xml_set_end_namespace_decl_handler` | dropped | the same, at the other end of that scope |
+| `xml_set_notation_decl_handler` | dropped | a DTD notation declaration, which is only interesting to a parser that acts on the DTD. This one does not |
+| `xml_set_unparsed_entity_decl_handler` | dropped | it announces an entity naming an external file, so that the program can go and read it. Nothing here resolves one |
+| `xml_set_external_entity_ref_handler` | dropped | the XXE hook itself: PHP hands the program a system id and asks it to fetch and parse what it names. There is no such door (section lead) |
+| `xml_set_object` | dropped | it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have ([ADR 0031](../adr/0031-callable-is-the-only-closure-type.md)) |
+| `xml_get_error_code` | dropped | a failed parse throws ([ADR 0063](../adr/0063-core-api-conventions.md)), so there is no code left on a parser to read afterwards |
+| `xml_error_string` | dropped | the message arrives on the throw. A code-to-string table is what one diagnostic record with three renderings replaces ([ADR 0092](../adr/0092-one-diagnostic-record-three-renderings.md)) |
+| `xml_get_current_line_number` | member | position belongs to the event and to the failure, not to an implicit *current* state: the reader reports where the event it just yielded came from, and a parse failure carries the same on the throw |
+| `xml_get_current_column_number` | member | the same position, other axis |
+| `xml_get_current_byte_index` | member | the same position, in bytes — one member answering all three rather than three functions over a parser's cursor |
+| `simplexml_load_string` | member | `Core\Xml`'s tree over a string. SimpleXML and DOM are one node family here, so this is *the* tree entry and not a friendlier second one |
+| `simplexml_load_file` | member | `Core\IO::read` for the bytes and that same tree entry for the parse. Reading a file and parsing XML are two jobs (R17), and only the first needs `fs.read` |
+| `simplexml_import_dom` | dropped | there is one node family, so there is nothing to convert between |
+| `dom_import_simplexml` | dropped | the same conversion in the other direction, and the same answer |
+| `dom\import_simplexml` | dropped | PHP 8.4's namespaced spelling of that function. One name in the inventory, one row, the same answer |
+| `libxml_use_internal_errors` | dropped | it turns parse errors into a process-global bucket instead of warnings. A malformed document throws, and there is no second mode in which it does not |
+| `libxml_get_errors` | dropped | reads that bucket |
+| `libxml_get_last_error` | dropped | reads the last entry in it |
+| `libxml_clear_errors` | dropped | empties it. Process-global state a request can leave behind is the shape [ADR 0052](../adr/0052-closed-doors.md) § 3 closes generally |
+| `libxml_disable_entity_loader` | dropped | the switch that makes libxml safe, deprecated by PHP 8 for being one. There is no resolver to disable, so there is no switch to leave in the wrong position |
+| `libxml_set_external_entity_loader` | dropped | it installs the resolver the section lead says does not exist |
+| `libxml_get_external_entity_loader` | dropped | reads back what nothing installs |
+| `libxml_set_streams_context` | dropped | a stream context for fetches that do not happen, over the stream wrappers [ADR 0052](../adr/0052-closed-doors.md) closes |
+
+The writer is the same API from the other side, and PHP spells every construct twice — a `start_`/`end_`
+pair and a `write_` shortcut. R17 keeps exactly one of each, chosen by the construct rather than by taste:
+**the pair where it can contain other nodes** (the document, an element), **the single call where it
+cannot** (an attribute, a comment, a CDATA section, a processing instruction). The `_ns` variants go for the
+reason `xml_parser_create_ns` does — a qualified name is a name. Text is escaped by construction, which is
+what makes `xmlwriter_write_raw` the one row here that is a sink question rather than a shape one.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `xmlwriter_open_memory` | member | `Core\Xml`'s streaming writer, which produces a value rather than filling a hidden buffer a second call reads back |
+| `xmlwriter_open_uri` | dropped | writing to a URI is `Core\IO` under `fs.write` for a path, and nothing at all for a wrapper scheme ([ADR 0052](../adr/0052-closed-doors.md)). The writer produces bytes; where they go is the program's call |
+| `xmlwriter_output_memory` | member | that value. PHP's `$flush` argument — whether reading the buffer also empties it — is the question a value does not raise |
+| `xmlwriter_flush` | dropped | the same read, spelled for the URI case as well |
+| `xmlwriter_set_indent` | member | the writer's formatting option, in the trailing options shape every `Core` member takes (R3) rather than a call that mutates the writer |
+| `xmlwriter_set_indent_string` | member | that same option's value. One option, not two calls, and no state in which indenting is on with nothing to indent with |
+| `xmlwriter_start_document` | member | the pair rule above: a document contains everything else |
+| `xmlwriter_end_document` | member | its close, which is also where the writer refuses an unbalanced tree rather than emitting one |
+| `xmlwriter_start_element` | member | the pair rule: an element contains other nodes |
+| `xmlwriter_end_element` | member | its close |
+| `xmlwriter_full_end_element` | dropped | it forces `<a></a>` where `<a/>` would do. Which of the two an empty element is written as is the serialiser's decision, not a second closing call |
+| `xmlwriter_start_element_ns` | dropped | the qualified name goes in the name argument of the row above |
+| `xmlwriter_write_element` | dropped | the shortcut for an element whose whole content is text, which the pair plus the text member already spells (R17) |
+| `xmlwriter_write_element_ns` | dropped | both reasons at once |
+| `xmlwriter_text` | member | the content member, and the writer's escape point: text written through it is escaped by construction, so an injection is not reachable by forgetting a call ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)) |
+| `xmlwriter_write_raw` | dropped | it puts bytes into the document unescaped, which is the only way to make this API emit a malformed or injected document. There is no `Markup`-shaped launderer for XML, and [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 3 is why a generic one would not be added |
+| `xmlwriter_write_attribute` | member | the single-call rule: an attribute holds a value and cannot contain nodes |
+| `xmlwriter_start_attribute` | dropped | the pair for something that never nests, whose only purpose is to let `text` be called between the halves |
+| `xmlwriter_end_attribute` | dropped | the other half of it |
+| `xmlwriter_start_attribute_ns` | dropped | the pair, and the `_ns` split |
+| `xmlwriter_write_attribute_ns` | dropped | the qualified name goes in the name argument of `write_attribute` |
+| `xmlwriter_write_comment` | member | the single-call rule: a comment's content is text |
+| `xmlwriter_start_comment` | dropped | its pair |
+| `xmlwriter_end_comment` | dropped | the other half |
+| `xmlwriter_write_cdata` | member | the single-call rule again. A CDATA section is an escaping choice about text, so it is written with its text |
+| `xmlwriter_start_cdata` | dropped | its pair |
+| `xmlwriter_end_cdata` | dropped | the other half |
+| `xmlwriter_write_pi` | member | a processing instruction is a target and its data, both text |
+| `xmlwriter_start_pi` | dropped | its pair |
+| `xmlwriter_end_pi` | dropped | the other half |
+| `xmlwriter_write_dtd` | member | the doctype declaration — naming a document type is not resolving one, on either side of a parse. It takes no internal subset, because the nine declaration rows below are not written, which is also why this is the single call rather than a pair |
+| `xmlwriter_start_dtd` | dropped | the pair exists to hold an internal subset |
+| `xmlwriter_end_dtd` | dropped | the other half of it |
+| `xmlwriter_write_dtd_entity` | dropped | an entity declaration's only consumer is a parser that expands it. This one does not, and emitting one hands the next reader the payload the section lead refuses to resolve |
+| `xmlwriter_start_dtd_entity` | dropped | its pair |
+| `xmlwriter_end_dtd_entity` | dropped | the other half |
+| `xmlwriter_write_dtd_element` | dropped | a content-model declaration, which is validation by DTD — a schema language nothing here reads |
+| `xmlwriter_start_dtd_element` | dropped | its pair |
+| `xmlwriter_end_dtd_element` | dropped | the other half |
+| `xmlwriter_write_dtd_attlist` | dropped | an attribute-list declaration, the same schema language, and the one that can carry a default value a resolving parser would inject |
+| `xmlwriter_start_dtd_attlist` | dropped | its pair |
+| `xmlwriter_end_dtd_attlist` | dropped | the other half |
+
+---
+
+## Networking, hosts and mail
+
+DNS, the host and service databases, address arithmetic, and the two conveniences that fetch a URL inside
+a string function. One rule from [ADR 0058](../adr/0058-outbound-request-policy.md) decides most of the
+table: **an outbound URL is a sink and the connection is made to a pinned address**, so name resolution is
+a step *inside* `Core\Http`'s door rather than a free function that hands a program an address it connects
+to a moment later. That gap between resolving and connecting is what DNS rebinding is, and PHP's roster is
+eleven ways to open it. `Core\Net` is the socket half ([01 § 16](01-core-library.md)); `Core\Mail` is the
+one row here that grows a member rather than losing one.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `gethostbyname` | dropped | it resolves a name to an address the program then connects to by hand, which is the half of DNS rebinding an application can least afford to own. Resolution happens inside the outbound door, which connects to the address it resolved ([ADR 0058](../adr/0058-outbound-request-policy.md)) |
+| `gethostbynamel` | dropped | the same, as a list, and the same gap |
+| `gethostbyaddr` | dropped | a reverse lookup, whose answer is controlled by whoever owns the address and is used almost exclusively as a name to trust |
+| `gethostname` | member | `Core\Os::hostname` — the host's own name is a process fact, not a lookup ([01 § 15](01-core-library.md)) |
+| `checkdnsrr` | dropped | "does a record exist" as a boolean, reached for as email validation. `Core\Validate::isDomain` answers the question about the *text*, and no probe makes an address deliverable |
+| `dns_check_record` | dropped | `checkdnsrr`'s alias. No operation is reachable two ways ([ADR 0063](../adr/0063-core-api-conventions.md) R17) |
+| `dns_get_record` | dropped | a general DNS query is a client for a protocol nothing in Tier 0 speaks: resolution here is a step inside the outbound door, not a value handed to the program. A program that genuinely needs records builds one over `Core\Net` ([ADR 0051](../adr/0051-standard-library-tiers.md) § 1) |
+| `dns_get_mx` | dropped | the same, narrowed to MX. `Core\Mail` sends through an endpoint an operator named, so the one first-party use of an MX lookup is already configuration |
+| `getmxrr` | dropped | `dns_get_mx`'s alias, with the answer returned through two by-reference parameters (R3) |
+| `getprotobyname` | dropped | an `/etc/protocols` lookup, a convenience for building a raw socket. `Core\Net`'s protocol is the constructor it was reached through |
+| `getprotobynumber` | dropped | the same table, other direction |
+| `getservbyname` | dropped | an `/etc/services` lookup. `Core\Net` takes a port, and a well-known port is a constant in the program that needs it |
+| `getservbyport` | dropped | the same table, other direction, and the answer is whatever the host's file says rather than what is listening |
+| `inet_pton` | dropped | packed binary addresses exist to be handed to a C socket call or stored in a fixed-width column. `Core\Validate::isIp` answers what a program asks of the text, and `Core\Net` takes the text |
+| `inet_ntop` | dropped | the inverse, over bytes only a C API produces |
+| `ip2long` | dropped | IPv4-only address arithmetic, reached for as subnet containment — a question that has no answer here for half the addresses a server sees, which is precisely the shape a member takes and an `int` does not |
+| `long2ip` | dropped | the inverse, including for the negative `int` a 32-bit `ip2long` produced |
+| `net_get_interfaces` | dropped | enumerating the host's interfaces is an operator's question rather than a request's, and it is a window onto the network's shape with no capability in front of it ([ADR 0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)) |
+| `get_headers` | dropped | a request spelled as a string function, with no timeout, no redirect policy and no pinned address. `Core\Http\Client`, under [ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)'s finite outbound |
+| `get_meta_tags` | dropped | it fetches a URL and scrapes `<meta>` out of it with a regex — two jobs, and the second is a parse: `Core\Http\Client` for the bytes, `Core\Html`'s parser for the tags ([ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)) |
+| `get_browser` | dropped | it matches a `User-Agent` against a `browscap.ini` the operator is asked to keep current. The header is `Core\Request::header`; behaviour keyed on a parsed browser identity belongs to a package, not to a `Core` member over a data file that ages |
+| `mail` | member | `Core\Mail::send` — an SMTP client with structured headers over an operator-named endpoint, rather than a `sendmail` binary and a header string a caller can inject a second recipient into ([01 § 16](01-core-library.md)) |
+
+## Errors, assertions and the log
+
+PHP's error model is four mechanisms that do not compose: a global error handler, a severity **bitmask**, a
+second and separate exception handler, and `assert()`, whose calls a configuration directive can remove
+from the program. Novis has one ladder instead — [ADR 0020](../adr/0020-error-escalation-ladder.md): a
+failure throws ([ADR 0063](../adr/0063-core-api-conventions.md)), an uncaught throw reaches `Core\Fatal`'s
+tier-2 hook on the engine's own reserved budget, and a fatal never reaches an ordinary `catch`. There are no
+warnings and no notices to convert into exceptions, which is what most `set_error_handler` calls in the wild
+are for, so the whole handler roster goes.
+
+Reporting is the other half. `Core\Log::write` is one writer with one record shape
+([ADR 0092](../adr/0092-one-diagnostic-record-three-renderings.md)), reached by application code and by the
+engine floor alike; where it goes, at what minimum level and in which rendering are `[log]` keys an operator
+sets ([ADR 0064](../adr/0064-configuration-file-format.md)), never arguments a request chooses.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `set_error_handler` | dropped | it installs a callback for warnings and notices, overwhelmingly in order to turn them into exceptions. Here a failure already throws, so there is nothing to convert and no severity to inspect |
+| `restore_error_handler` | dropped | it pops a stack of handlers that is never pushed |
+| `get_error_handler` | dropped | PHP 8.5's reader for the top of that stack |
+| `set_exception_handler` | member | `Core\Fatal`'s uncaught-throw hook — tier 2 of [ADR 0020](../adr/0020-error-escalation-ladder.md), which receives the real `Throwable` and runs on a reserved budget, rather than a callback that runs in the exhausted request that failed |
+| `restore_exception_handler` | dropped | the same stack, for something that is registered once rather than pushed and popped |
+| `get_exception_handler` | dropped | reads it back |
+| `error_reporting` | dropped | a severity bitmask over a warning system there is none of. What is *written* is `[log] level`, a minimum an operator sets ([ADR 0064](../adr/0064-configuration-file-format.md)), and what is *raised* is not a level at all |
+| `error_get_last` | dropped | reads the last warning out of a process-global slot |
+| `error_clear_last` | dropped | empties that slot. Global state a request can leave behind for the next one is the shape [ADR 0052](../adr/0052-closed-doors.md) § 3 closes |
+| `trigger_error` | member | `Core\Log::write` to say something happened, `throw` to stop. PHP folds both into one call selected by a severity argument, and they are different instructions |
+| `user_error` | dropped | `trigger_error`'s alias |
+| `error_log` | member | `Core\Log::write`. PHP's third argument turns the same call into an email or an arbitrary file path; the destination is `[log] target` and the operator's ([ADR 0064](../adr/0064-configuration-file-format.md)) |
+| `openlog` | dropped | a second logging API, opened with a process-global facility and prefix that every later call reads. Syslog is a `[log] target`, not an API |
+| `syslog` | dropped | that API's write. One serialiser, reached twice, is the rule `Core\Log` and the engine floor already share |
+| `closelog` | dropped | closes what nothing opened |
+| `assert` | member | `Core\Test`'s assertions ([ADR 0079](../adr/0079-testing-is-a-language-feature.md)) where the check belongs to a test. A check the build can delete is worse than no check, so what remains inside a running program is an ordinary `throw` |
+| `assert_options` | dropped | the knobs for that deletion — a global callback, a bail flag, and the severity of the warning it raises instead of stopping |
+
+## Validation: what survives of `filter`
+
+[ADR 0051](../adr/0051-standard-library-tiers.md) § 3 splits this extension in two and keeps one half.
+`Core\Validate` ([01 § 12](01-core-library.md)) is the genuine validators, each named for the format it
+checks; the *sanitizing* filters are dropped outright, because half-escaping produces exactly the false
+confidence [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) exists to prevent — **no
+`Validate` member launders anything.** The `filter_input` half dies with the superglobals it reads
+([ADR 0012](../adr/0012-no-superglobals.md)).
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `filter_var` | member | `Core\Validate`'s predicates — `isEmail`, `isIp`, `isMac`, `isDomain`, `isAscii`, `isPrintable`, each `(subject, …): bool` — replacing the validate half and its 20 `FILTER_*` constants ([01 § 12](01-core-library.md)) |
+| `filter_var_array` | dropped | applying a validator to every element is `Core\Arr` plus the member. A *schema* over untrusted input is a decode into a declared shape, which reports every problem as a `Core\Issue` ([ADR 0071](../adr/0071-derived-codecs.md)) rather than mixing the value, `null` and `false` in one array |
+| `filter_input` | dropped | it reads a superglobal and validates in one call. The read is `Core\Request::query` and its siblings ([ADR 0012](../adr/0012-no-superglobals.md)), the check is a `Core\Validate` member, and the value stays `tainted` either way because no validator launders |
+| `filter_input_array` | dropped | both of those at once, over a spec array |
+| `filter_has_var` | dropped | "did this input exist", against a superglobal. Absence is `?T` ([ADR 0063](../adr/0063-core-api-conventions.md)) |
+| `filter_list` | dropped | it enumerates the filters by name, because they are strings. Here they are members |
+| `filter_id` | dropped | maps one of those names to its integer constant |
+
+## The terminal, and the ambient locale
+
+[ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) owns the first half: `Core\Cli` is the terminal
+surface, its output is a `tainted` sink that substitutes control bytes visibly, and its prompts are members
+rather than a line editor a program configures with global callbacks.
+
+The second half is a decision [ADR 0051](../adr/0051-standard-library-tiers.md) § 3 already recorded and
+this table is where it becomes rows: `setlocale` mutates **process-global C state**, which is unsound in a
+thread-per-core runtime and would leak from one request into the next. **Novis has no ambient locale at
+all.** Locale is an explicit argument — to `Core\Time`'s CLDR patterns ([01 § 4](01-core-library.md)) and to
+the internationalization component's collation — so there is no global to set, read back, or forget to
+restore.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `readline` | member | `Core\Cli::ask`, one of the prompts [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) puts on the class that already owns the terminal |
+| `readline_add_history` | dropped | a persistent history file is a REPL's feature, and a Novis program is not one. Nothing in `Core\Cli` writes to the user's home directory on a program's behalf |
+| `readline_read_history` | dropped | the same file, being read. A program that wants one owns it, through `Core\IO` under `fs.read` |
+| `readline_write_history` | dropped | the same, under `fs.write` — which is the point: this is a file operation wearing a prompt's name |
+| `readline_list_history` | dropped | reads libreadline's in-memory copy of it |
+| `readline_clear_history` | dropped | empties that copy |
+| `readline_completion_function` | dropped | it installs a global callback the line editor calls back into. A closed set of answers is `Core\Cli`'s selection prompts; free-text completion over a dynamic set is not a `Core` member |
+| `readline_info` | dropped | reads and writes libreadline's internal state by string key — the widest of the terminal's back doors, and the one [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md)'s sink rule could not survive |
+| `setlocale` | dropped | process-global C state, unsound per-core and leaky across requests. Locale is an explicit argument, and there is no ambient one to set ([ADR 0051](../adr/0051-standard-library-tiers.md) § 3) |
+| `localeconv` | dropped | reads that global's number and currency table. Formatting takes the locale it formats for |
+| `hebrev` | dropped | it reorders logical-order Hebrew into visual order for terminals that could not do bidi. Text is UTF-8 in logical order ([ADR 0009](../adr/0009-string-and-bytes.md)) and ordering is the renderer's |
+
+## The program describing itself
+
+What is left of PHP's own introspection: the runtime constant table, the lists of what is defined, loaded
+and included, the pages that print a build's configuration, and the source-rendering trio. Two rules empty
+most of it. **A constant is a class member declared at compile time**
+([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)), so there is no runtime table to
+define into, read by string, or enumerate. And **the program's shape is decided while compiling** — the
+include graph by [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)'s discovery,
+reflection by [ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md)'s read-only surface
+over a class it is *given* — so a runtime list that could disagree with it does not exist.
+
+`phpinfo` is the row worth naming twice. It prints the configuration, the extension list and the build
+detail as one HTML page, and it is historically the most reliable information disclosure in a PHP
+deployment: a program reads the one key it needs through `Core\Config::get`, and no member prints the rest.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `define` | dropped | a runtime constant table. A constant is a class member ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)), known where it is used and foldable there ([ADR 0057](../adr/0057-intrinsic-literal-folding.md)) |
+| `defined` | dropped | asks whether that table has a key |
+| `constant` | dropped | reads it by a string name — the dynamic lookup that makes the other three necessary |
+| `get_defined_constants` | dropped | enumerates it |
+| `get_defined_functions` | dropped | there are no free functions ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)). `Core\Reflect` describes a class it is handed |
+| `get_defined_vars` | dropped | the current scope as an array. `Core\Debug::dump` shows the values a program named; a scope is not a value |
+| `get_included_files` | dropped | the include graph is resolved while compiling ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)), so there is no runtime list that could differ from it |
+| `get_required_files` | dropped | `get_included_files`' alias, from when the two keywords meant different things |
+| `get_loaded_extensions` | dropped | which extensions a build carries. What a program may reach is what its own manifest pins ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)) plus the `Core` roster, both known before it runs |
+| `get_extension_funcs` | dropped | an extension's function list, in a language with no free functions |
+| `phpinfo` | dropped | the configuration, extension list and build detail as one HTML page, and the disclosure named above. One key at a time is `Core\Config::get` ([01 § 15](01-core-library.md)) |
+| `phpcredits` | dropped | the same page, for names. Attribution ships with the distribution rather than from a call inside a request |
+| `phpversion` | dropped | the engine's version as a fact a request branches on. What a program compiles against is settled before it runs, and the deployed version is the operator's to report |
+| `pdo_drivers` | dropped | the drivers a binary was built with. What is reachable is the `[db.<name>]` blocks an operator configured ([ADR 0067](../adr/0067-core-db.md), [ADR 0064](../adr/0064-configuration-file-format.md)), which is a different question and the one that was being asked |
+| `php_strip_whitespace` | dropped | source with its comments removed, a deployment-size trick over a language that ships source. Novis ships a compiled artifact ([ADR 0048](../adr/0048-portable-single-file-executables.md)) |
+| `highlight_file` | dropped | it reads a source file and prints it as coloured HTML — an information disclosure with a rendering attached |
+| `highlight_string` | dropped | the same over a string. Highlighting is the editor's ([ADR 0016](../adr/0016-ide-integration.md)); a program that renders code renders text, through `Core\Html::escape` |
+| `show_source` | dropped | `highlight_file`'s alias |
+| `version_compare` | dropped | its ordering is PHP's own — `pl` above everything, `RC` below release, `beta` folded in by a string scan — and it is a resolver's rule rather than a string operation. Versions are resolved while building ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)), where a pin is a digest and a range is a maximum |
+| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy ([ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md)). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure ([ADR 0031](../adr/0031-callable-is-the-only-closure-type.md)) |
+| `pack` | member | `Core\Bytes::pack` ([01 § 7](01-core-library.md)), whose format string is a template rather than a mode string, so R11 does not reach it |
+| `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |
+| `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program ([ADR 0064](../adr/0064-configuration-file-format.md)); `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |
+| `parse_ini_string` | dropped | the same over a string, with the same answer |
+| `getimagesize` | dropped | it opens a path — or a URL, over the wrappers [ADR 0052](../adr/0052-closed-doors.md) closes — and returns dimensions, a type constant and a ready-made HTML attribute string in one array. Dimensions come from the image component ([ADR 0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 11), the type from `Core\Mime` by magic bytes, and the attribute string from whoever is writing the markup |
+| `getimagesizefromstring` | dropped | the same over bytes, and the same split |
+| `image_type_to_mime_type` | dropped | maps PHP's `IMAGETYPE_*` integers to a MIME string. `Core\Mime` answers from the bytes, rather than from a constant the caller was already holding |
+| `image_type_to_extension` | dropped | the same table in the other direction. An extension is a naming convention, and names are built with `Core\Path` |
+| `iptcparse` | dropped | IPTC metadata out of an APP13 marker the caller sliced out by hand. Image metadata is read by the component already holding the decoded file ([ADR 0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 11) |
+| `iptcembed` | dropped | writes it back by splicing bytes into a JPEG, same owner and the same reason |
+| `hash_hmac_file` | member | `Core\Hash::hmac` over the bytes `Core\IO::read` returns, or over the digest stream where the file does not fit — the same R17 split `hash_file` takes above |
+
+---
+
 ## Not yet classified
 
 Everything else the inventory lists. `python tools/check-migration.py --report` prints the current list;
-it is not duplicated here, because a copy would go stale the moment a row lands. The domains still to do,
-each roughly one pass: XML, the four database extensions, networking, and PHP's own introspection.
+it is not duplicated here, because a copy would go stale the moment a row lands. One domain is still to do: the four
+database extensions, which [ADR 0067](../adr/0067-core-db.md) owes an audited row each.
