@@ -1,0 +1,72 @@
+--TEST--
+A Core\Ast\Node with no children answers an empty list rather than an absence, named beside the interior node it hangs off — ADR 0019 § 3
+--FILE--
+<?nvs
+// The *bound* shape, over the edge every walk of this tree ends at. `children`
+// and `nodes` both return `array<Core\Ast\Node>`, so the leaf case is the one
+// where a member could plausibly answer something else — an absence, a missing
+// slot, or a node it declines to describe at all — and be read as "there is
+// nothing here" rather than as the defect it is.
+//
+// Both sides are named together, and adjacently: the descent below prints the
+// last node that has children immediately above the first that has none, so a
+// member that stopped one level early prints a plausible-looking chain against
+// either half alone.
+var $tree = Core\Ast::parse('<?nvs if (1) { echo 2 + 3; }');
+
+// Down by the last child, which is the path that passes through every interior
+// production this source has: the file, the `if`, its block, the `echo` and the
+// sum, ending on the operand.
+Core\Ast\Node $node = $tree;
+var $kids = $tree->children();
+while (Core\Arr::count($node->children()) > 0) {
+    echo $node->kind(), " has ", Core\Arr::count($node->children()), "\n";
+    $kids = $node->children();
+    $node = $kids[Core\Arr::count($kids) - 1];
+}
+echo $node->kind(), " has ", Core\Arr::count($node->children()), " and walks ",
+    Core\Arr::count($node->nodes()), "\n";
+
+// Empty is a *list*: the loop the caller would write over it runs zero times
+// and stops, rather than the member handing back something a `foreach` has to
+// refuse.
+int $rounds = 0;
+foreach ($node->children() as Core\Ast\Node $child) {
+    $rounds = $rounds + 1;
+}
+echo "walked=", $rounds, "\n";
+
+// The other side of the same bound, on one line: the leaf's own parent, whose
+// two collections are both larger than zero and agree with each other because
+// its children are all leaves.
+var $parent = $tree->nodes()[4];
+echo $parent->kind(), " ", Core\Arr::count($parent->children()), " ",
+    Core\Arr::count($parent->nodes()), "\n";
+
+// And "no children" is not "not a node": the leaf still names its production,
+// is one of its parent's children by identity, and is in the file's own walk.
+// A member that answered emptily by dropping the node instead of describing it
+// fails here while the counts above it stay plausible.
+Core\ObjectSet<Core\Ast\Node> $mine = new Core\ObjectSet<Core\Ast\Node>();
+foreach ($parent->children() as Core\Ast\Node $child) {
+    $mine->add($child);
+}
+Core\ObjectSet<Core\Ast\Node> $walked = new Core\ObjectSet<Core\Ast\Node>();
+foreach ($tree->nodes() as Core\Ast\Node $each) {
+    $walked->add($each);
+}
+echo $mine->has($node) ? "the leaf is its parent's child" : "the leaf is elsewhere", "\n";
+echo $walked->has($node) ? "the leaf is in the file's walk" : "the leaf is missing from the walk", "\n";
+echo Core\Str::length($node->kind()), "\n";
+--EXPECT--
+File has 1
+If has 2
+Block has 1
+Echo has 1
+Binary has 2
+Int has 0 and walks 0
+walked=0
+Binary 2 2
+the leaf is its parent's child
+the leaf is in the file's walk
+3
