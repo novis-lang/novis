@@ -97,7 +97,7 @@ modules = [
 rules = [
   "0014", "0019", "0020", "0024", "0033", "0044", "0046", "0051", "0052", "0054",
   "0056", "0058", "0059", "0060", "0063", "0074", "0075", "0076", "0082", "0086", "0105",
-  "0116", "0127",
+  "0116", "0127", "0129",
 ]
 
 # The sections EVERY session of this goal reads. 0063 is the shape rule for every member it writes;
@@ -2706,3 +2706,39 @@ kind = "exact"
 stage = "12 exit hook"
 file = "examples/onexit.nvs"
 want = ["work done", "onExit: Normal 0", "second hook"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 13 -- the bcrypt read-path, added 2026-09-01 by the user's decision. ADR 0129: verify and
+# needsRehash read a PHP-stored bcrypt hash ($2y$/$2a$/$2b$, never $2x$) -- verify verifies it,
+# needsRehash answers true for every one -- while hash still writes only Argon2id; a stored cost past
+# 17 is refused before any work, and everything outside the roster keeps throwing. Item 40 in
+# loop-goal.md. Every test and case named below must EXIST and pass; writing one is how the loop
+# finishes its item.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "13 bcrypt read-path"
+name = "nvs-stdlib (the bcrypt read roster)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # ADR 0129 § 1 -- a hash PHP wrote verifies, and the wrong password answers false rather than throwing.
+  "a_php_stored_bcrypt_hash_verifies_and_the_wrong_password_does_not",
+  # ADR 0129 § 3 -- every tag in the roster is marked for rehash; the upgrade loop is the migration path.
+  "needs_rehash_answers_true_for_every_bcrypt_tag",
+  # ADR 0129 § 4 -- the cost ceiling, refused before any work, in MAX_M_COST's shape.
+  "a_bcrypt_cost_past_the_ceiling_is_refused_before_any_work",
+  # ADR 0129 § 6 -- $2x$ and a foreign PHC algorithm still throw, and the message quotes no bytes.
+  "a_2x_hash_and_a_foreign_phc_string_still_throw",
+]
+
+# The end-to-end half: ADR 0129 § 3's upgrade loop over a bcrypt row -- verify, needsRehash, hash,
+# verify again -- beside the landed refusal case, which must pass unchanged.
+[[check]]
+kind = "nvs-suite"
+stage = "13 bcrypt read-path"
+name = "conformance (the bcrypt upgrade loop)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/password-verify-reads-a-php-stored-bcrypt-hash-and-upgrades-it.nvst",
+  "tests/conformance/core/password-refuses-a-stored-value-that-is-not-a-hash-it-wrote.nvst",
+]

@@ -258,6 +258,27 @@ observe-only. Nothing here reopens ADR 0028 — a flat per-request queue is not 
     register a hook, and the report is fixed before the first hook runs. `examples/onexit.nvs` proves
     the clean path end-to-end.
 
+## Stage 13 — the bcrypt read-path
+
+Added 2026-09-01 by the user's decision:
+[ADR 0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md) — PHP's `PASSWORD_DEFAULT` was
+never Argon2, so a migrating application's user table is a bcrypt column, and until now
+`Core\Password::verify` threw at it. The ADR is the whole contract: § 1's two-shape read roster, § 2's
+unchanged write side, § 3's always-`true` `needsRehash`, § 4's cost ceiling of 17, § 6's surviving
+refusals.
+
+40. **The read roster grows its second entry, in `crates/nvs-stdlib/src/password.rs`.** `verify` reads
+    `$2y$`/`$2a$`/`$2b$` (never `$2x$`) through a pure-Rust bcrypt crate — picking it is pre-authorized
+    under ADR 0051 § 4 and owes the `[workspace.dependencies]` comment, `cargo deny check` and `python
+    tools/gen-attribution.py`. A stored cost past 17 is refused before any work, in `MAX_M_COST`'s
+    shape; `needsRehash` reads a bcrypt hash rather than throwing at it and answers `true` for every
+    tag. The module doc's refusal section is rewritten to defer to ADR 0129 § 6 as the roster's home,
+    [docs/reference/core/Password.md](../reference/core/Password.md) gains the migration paragraph, and
+    the landed refusal case
+    `tests/conformance/core/password-refuses-a-stored-value-that-is-not-a-hash-it-wrote.nvst` passes
+    unchanged. What it spends, said in the module doc as ADR 0004 requires: ~4 KiB transiently per
+    legacy `verify`, on the calling task, shrinking as the table upgrades itself.
+
 ## The harness this goal owes
 
 **`python tools/gen-attribution.py --check-c-deps`** — item 31's enumeration. That tool already walks the
