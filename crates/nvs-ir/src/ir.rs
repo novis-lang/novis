@@ -787,6 +787,64 @@ pub enum InstKind {
         /// representation. Borrowed; see this variant's own docs.
         value: ValueId,
     },
+    /// `$obj->$key` —
+    /// [ADR 0126](../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+    /// § 4's keyed read, and [`InstKind::SlotGet`] with the name arriving as a
+    /// **value** instead of as a `String` this instruction carries.
+    ///
+    /// That is the whole difference, and it is § 5's recorded choice: a key is
+    /// a name, so what the access needs is exactly the by-name lookup on the
+    /// receiver's concrete descriptor that ADR 0036 § 4's erased read already
+    /// performs — one call, no allocation, and the same catchable throw for a
+    /// name the concrete class does not carry. The alternative § 5 weighed was
+    /// a closed-set chain over the key's roster, one `BinOp::Eq` per name and
+    /// an ordinary [`InstKind::FieldGet`] per arm joined by a
+    /// [`InstKind::Phi`]; it needs no new instruction, and it spends a
+    /// comparison per property and a block per property *at every access* to
+    /// arrive at the lookup this one does in a call. It would also have to tag
+    /// each arm's read into the union's representation before the join, so the
+    /// static-read advantage it looks like it buys is not there.
+    ///
+    /// **Per-property hooks and a declared `PropertyObserver` therefore behave
+    /// exactly as they do on ADR 0036 § 4's erased path**, which is what § 5
+    /// says and not a second answer: the erased access's own known gap — it
+    /// reaches storage past a per-property `get`/`set` hook — is recorded on
+    /// `nvs_runtime::nvs_object_key_get` and closes for every caller at once.
+    ///
+    /// Borrows its receiver and its key exactly as [`InstKind::SlotGet`]
+    /// borrows its receiver: the slot keeps owning what it holds, so a consumer
+    /// that outlives the receiver owes the read value a retain.
+    KeyGet {
+        /// The receiver, already lowered — a [`Ty::Object`], or a
+        /// [`Ty::Tagged`] whose tag the runtime checks, exactly as
+        /// [`InstKind::SlotGet`]'s does.
+        object: ValueId,
+        /// The member name, as a [`Ty::Str`] value: a `property<T>` erases to
+        /// one (`crate::lower::lower_checked_ty`), so the key *is* this string
+        /// and no conversion stands between them.
+        key: ValueId,
+    },
+    /// `$obj->$key = v;` — [`InstKind::KeyGet`]'s write half, which is
+    /// [`InstKind::SlotSet`] with the same one substitution, and ADR 0126 § 5's
+    /// "a write is ADR 0036 § 4's checked erased store".
+    ///
+    /// Every rule [`InstKind::SlotSet`] states holds here for its reasons: the
+    /// name is resolved on the receiver's own descriptor, **no field is ever
+    /// created**, the incoming value is checked at run time against what the
+    /// concrete class declares that property to hold, what the slot held is
+    /// released by the runtime, and the stored value is **borrowed** rather
+    /// than transferred because the write can throw with both operands in hand.
+    /// Defines nothing: a [`Ty::Void`] result, like a statement call.
+    KeySet {
+        /// The receiver — see [`InstKind::KeyGet::object`].
+        object: ValueId,
+        /// The member name, as a [`Ty::Str`] value — see
+        /// [`InstKind::KeyGet::key`].
+        key: ValueId,
+        /// The value to store, already coerced to the union's static
+        /// representation. Borrowed; see this variant's own docs.
+        value: ValueId,
+    },
     /// `$obj instanceof Class` — one linear scan of the receiver's flattened
     /// supertype set, defining a [`Ty::Bool`].
     ///

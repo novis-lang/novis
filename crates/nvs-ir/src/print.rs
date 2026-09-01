@@ -231,6 +231,15 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             object.index(),
             value.index()
         ),
+        InstKind::KeyGet { object, key } => {
+            format!("key.get v{}, v{}", object.index(), key.index())
+        }
+        InstKind::KeySet { object, key, value } => format!(
+            "key.set v{}, v{}, v{}",
+            object.index(),
+            key.index(),
+            value.index()
+        ),
         InstKind::InstanceOf { value, class } => match class {
             TestedClass::Named(class) => format!("instanceof v{}, {class}", value.index()),
             TestedClass::Descriptor(desc) => {

@@ -253,8 +253,10 @@ impl<'a> Lowering<'a> {
                 self.lower_static_call(class, args, expr, env, cur)
             }
             ExprKind::PropertyAccess {
-                object, nullsafe, ..
-            } => self.lower_property_access(object, *nullsafe, expr, env, cur),
+                object,
+                nullsafe,
+                property,
+            } => self.lower_property_access(object, property, *nullsafe, expr, env, cur),
             ExprKind::ArrayLiteral(items) => self.lower_array_literal(items, env, cur),
             ExprKind::ObjectLiteral(fields) => self.lower_object_literal(fields, env, cur),
             ExprKind::Index { base, index } => {
@@ -3617,6 +3619,7 @@ impl<'a> Lowering<'a> {
     fn lower_property_access(
         &mut self,
         object: &Expr,
+        property: &MemberName,
         nullsafe: bool,
         expr: &Expr,
         env: &mut Env,
@@ -3643,6 +3646,16 @@ impl<'a> Lowering<'a> {
             };
             return self.lower_shape_property_access(object, &field, nullsafe, env, cur);
         }
+        // ADR 0126 § 4's `$obj->$key`, the one access whose member name is not
+        // in this table at all: it arrives as a value when the statement runs,
+        // so none of the three facts below — the declaring class, the hook, the
+        // label — is a question this site can ask. § 5 lowers it to ADR 0036
+        // § 4's erased access with the name taken from the key, which is
+        // `InstKind::KeyGet`.
+        if let Some(ExprInfo::KeyedProperty { ty, .. }) = self.exprs.lookup(expr.span) {
+            let ty = *ty;
+            return self.lower_keyed_property_access(object, property, ty, nullsafe, env, cur);
+        }
         let (class, name, ty, get, observer) = match self.exprs.lookup(expr.span) {
             Some(ExprInfo::Property {
                 class,
@@ -3658,20 +3671,13 @@ impl<'a> Lowering<'a> {
                 observer,
                 ..
             }) => (class, name, *ty, get.clone(), observer.clone()),
-            // ADR 0126 § 4's `$obj->$key` reaches this arm, and it is the one
-            // shape here that is a *missing lowering* rather than a checker
-            // that did not run: the name arrives when the statement runs and
-            // every entry above carries a compile-time one. It is the crate
-            // docs' known gap 21, and the wording is deliberately left as the
-            // consistency claim below rather than restating that gap, because
-            // `tests/refusals.rs`'s ceiling is a one-way ratchet: a message
-            // claiming a lowering gap *is* a refusal site, and the site may not
-            // be declared until the slice that closes it does so in the same
-            // breath. See that gap for what closing it needs.
+            // Every shape a `PropertyAccess` takes is handled above now,
+            // ADR 0126 § 4's keyed one included, so this arm is once again the
+            // consistency claim it reads as and not a lowering still owed.
             _ => panic!(
                 "nvs-ir: a property access at {:?} has neither a resolved declaring class \
-                  nor an ADR 0036 § 4 erased entry recorded in the typed-expression table, \
-                  so it was not checked with the same table — \
+                  nor an ADR 0036 § 4 erased entry nor an ADR 0126 § 4 keyed entry recorded \
+                  in the typed-expression table, so it was not checked with the same table — \
                   `nvs_types::expr::members::check_property_member` records one for every \
                   access it returns from and refuses the rest, and its own doc comment \
                   carries that proof",
@@ -4017,6 +4023,142 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
         }
         self.close_nullsafe(guard, v, ty, env, cur)
+    }
+
+    /// `$obj->$key` — ADR 0126 § 4's keyed read, which is
+    /// [`Self::lower_shape_property_access`] with the name lowered rather than
+    /// carried. [`InstKind::KeyGet`] owns why § 5 chose the erased access over
+    /// a closed-set chain.
+    ///
+    /// Two temporaries can be staged here where the erased read stages one: the
+    /// receiver, on the same fresh-producer rule, and the **key**, because
+    /// `$obj->{$prefix . $field}` builds a string this frame then owns and
+    /// [`InstKind::KeyGet`] only borrows. Both are released on whichever edge
+    /// the read takes, and the result is retained first for the receiver's
+    /// reason — the slot that owns it may be inside the value about to go.
+    fn lower_keyed_property_access(
+        &mut self,
+        object: &Expr,
+        property: &MemberName,
+        ty: TypeId,
+        nullsafe: bool,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let field_ty = lower_checked_ty(ty, self.checked_types);
+        let mark = self.temporaries_mark();
+        let (object_v, receiver_ty, guard) =
+            self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
+        let mut staged = receiver_ty.is_refcounted() && !self.aliasing_read(object);
+        if staged {
+            self.own_temporary(object_v);
+        }
+        let key_v = self.lower_key_name(property, env, cur, &mut staged);
+        let (v, ty) = self.emit_fallible(
+            *cur,
+            field_ty,
+            InstKind::KeyGet {
+                object: object_v,
+                key: key_v,
+            },
+            env,
+        );
+        if staged {
+            if ty.is_refcounted() {
+                self.emit_retain(*cur, v);
+            }
+            self.release_temporaries_since(mark, *cur);
+        }
+        self.close_nullsafe(guard, v, ty, env, cur)
+    }
+
+    /// The member name of an ADR 0126 § 4 keyed access, lowered as the ordinary
+    /// expression it is: a `property<T>` erases to [`Ty::Str`], so the operand's
+    /// own value *is* the name and there is nothing to convert.
+    ///
+    /// Sets `staged` when the key is a fresh producer this frame now owns, so
+    /// the caller knows a `release_temporaries_since` is owed — it is left as an
+    /// out-parameter rather than returned because the receiver contributes to
+    /// the same one answer.
+    fn lower_key_name(
+        &mut self,
+        property: &MemberName,
+        env: &mut Env,
+        cur: &mut BlockId,
+        staged: &mut bool,
+    ) -> ValueId {
+        let name = match property {
+            MemberName::Variable(e) | MemberName::Expr(e) => e.as_ref(),
+            // `nvs_types::expr::members::check_property_member` sends only the
+            // two computed forms to `check_keyed_property`, and it is the only
+            // thing that records the entry this is reached through. The arm is
+            // a catch-all rather than `MemberName::Ident` alone because that
+            // enum is `#[non_exhaustive]`.
+            other => panic!(
+                "nvs-ir: an ADR 0126 § 4 keyed property entry over the member name {other:?}, \
+                 which `nvs_types::expr::members::check_keyed_property` never records one for — \
+                 it is reached from the two computed forms and nothing else"
+            ),
+        };
+        let (key_v, key_ty) = self.lower_expr(name, Some(Ty::Str), env, cur);
+        if key_ty.is_refcounted() && !self.aliasing_read(name) {
+            self.own_temporary(key_v);
+            *staged = true;
+        }
+        key_v
+    }
+
+    /// `$obj->$key = v;` — ADR 0126 § 5's checked erased store, which is
+    /// [`Self::lower_shape_property_assign`] with the name lowered rather than
+    /// carried, and every ownership rule that function states for the reasons
+    /// [`InstKind::KeySet`] restates.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "`Self::lower_shape_property_assign`'s list, plus the member \
+                  name the key arrives as — which is the whole difference \
+                  between the two"
+    )]
+    pub(crate) fn lower_keyed_property_assign(
+        &mut self,
+        object: &Expr,
+        property: &MemberName,
+        ty: TypeId,
+        value: &Stored<'_>,
+        extra_owner: bool,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let field_ty = lower_checked_ty(ty, self.checked_types);
+        let mark = self.temporaries_mark();
+        // The receiver is taken as it is found and never untagged, exactly as
+        // `Self::lower_shape_property_assign` takes its own: `InstKind::KeySet`
+        // checks the tag where it checks the name.
+        let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+        if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+            self.own_temporary(object_v);
+        }
+        let mut staged = false;
+        let key_v = self.lower_key_name(property, env, cur, &mut staged);
+        let (v, vty, aliasing) = self.lower_stored(value, Some(field_ty), env, cur);
+        let v = self.coerce(*cur, v, vty, field_ty, env);
+        if field_ty.is_refcounted() && !aliasing {
+            self.own_temporary(v);
+        }
+        self.emit_fallible(
+            *cur,
+            Ty::Void,
+            InstKind::KeySet {
+                object: object_v,
+                key: key_v,
+                value: v,
+            },
+            env,
+        );
+        if field_ty.is_refcounted() && extra_owner {
+            self.emit_retain(*cur, v);
+        }
+        self.release_temporaries_since(mark, *cur);
+        (v, field_ty)
     }
 
     /// `$issue->path = "x";` — [`Self::lower_shape_property_access`]'s write

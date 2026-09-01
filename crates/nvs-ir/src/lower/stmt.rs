@@ -963,7 +963,9 @@ impl<'a> Lowering<'a> {
             // self-assignment (`$obj->prop = $obj->prop;`) never observes a
             // transient zero refcount.
             ExprKind::PropertyAccess {
-                object, nullsafe, ..
+                object,
+                nullsafe,
+                property,
             } => {
                 // A *nullsafe* target never arrives here, and never will:
                 // `?->` yields `null` where the receiver is `null` and `null`
@@ -1009,6 +1011,23 @@ impl<'a> Lowering<'a> {
                     return self.lower_shape_property_assign(
                         object,
                         &field,
+                        stored,
+                        extra_owner,
+                        env,
+                        cur,
+                    );
+                }
+                // ADR 0126 § 4's `$obj->$key = v`, whose name arrives as a
+                // value: § 5 makes it ADR 0036 § 4's checked erased store with
+                // the name taken from the key, so it leaves before the class
+                // machinery below for the shape target's reason and one more —
+                // there is no name here to ask about a hook with.
+                if let Some(ExprInfo::KeyedProperty { ty, .. }) = self.exprs.lookup(target.span) {
+                    let ty = *ty;
+                    return self.lower_keyed_property_assign(
+                        object,
+                        property,
+                        ty,
                         stored,
                         extra_owner,
                         env,
