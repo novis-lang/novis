@@ -1,0 +1,42 @@
+--TEST--
+Core\IO::copy makes a second file rather than a second name for one — writing to either side afterwards leaves the other where it was, in both directions — spec § 14
+--FILE--
+<?nvs
+// A member that linked, or that left a handle shared between the two paths,
+// answers every content question at the moment of the copy exactly as this one
+// does. What tells them apart is what happens *next*, so the assertions are all
+// after a later write, and in both directions because only one of them fails
+// for a hard link.
+Core\IO::write("original.txt", "first");
+Core\IO::copy("original.txt", "duplicate.txt");
+
+echo "at the copy: '", Core\IO::read("original.txt"), "' / '",
+     Core\IO::read("duplicate.txt"), "'\n";
+
+// Forward: the source moves on and the copy does not follow.
+Core\IO::append("original.txt", " and more");
+echo "after the source grew: '", Core\IO::read("original.txt"), "' / '",
+     Core\IO::read("duplicate.txt"), "'\n";
+
+// Backward: the copy is replaced outright and the source is untouched.
+Core\IO::write("duplicate.txt", "something else");
+echo "after the copy was replaced: '", Core\IO::read("original.txt"), "' / '",
+     Core\IO::read("duplicate.txt"), "'\n";
+
+// Removing one leaves the other, which is the last thing a shared name would
+// survive.
+Core\IO::remove("duplicate.txt");
+if (Core\IO::exists("original.txt")) {
+    echo "after removing the copy: the original is still there\n";
+} else {
+    echo "after removing the copy: the original went with it\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+at the copy: 'first' / 'first'
+after the source grew: 'first and more' / 'first'
+after the copy was replaced: 'first and more' / 'something else'
+after removing the copy: the original is still there

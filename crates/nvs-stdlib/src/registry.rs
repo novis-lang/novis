@@ -1413,6 +1413,10 @@ pub const CLASSES: &[CoreClass] = &[
 pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::io::NAME, "read", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "write", Some(nvs_config::Cap::FsWrite)),
+    // Adding to a file is writing it, and the split above has nothing finer to
+    // offer: a grant that let a program extend a file but not replace it would
+    // be a promise about the bytes already there that no filesystem keeps.
+    (crate::io::NAME, "append", Some(nvs_config::Cap::FsWrite)),
     (
         crate::io::NAME,
         "writeStream",
@@ -1435,6 +1439,15 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "canonicalize",
         Some(nvs_config::Cap::FsRead),
     ),
+    // `copy` reads one path and writes another, and this table names one
+    // capability per member, so it names the stronger — exactly as `open`'s row
+    // does for its `ReadWrite` mode and for that row's reason. The door checks
+    // both, and it is the door a refusal comes from.
+    (crate::io::NAME, "copy", Some(nvs_config::Cap::FsWrite)),
+    // `move` is `fs.write` on both ends and not `copy`'s pair: taking the
+    // source away is destroying it.
+    (crate::io::NAME, "move", Some(nvs_config::Cap::FsWrite)),
+    (crate::io::NAME, "makeDir", Some(nvs_config::Cap::FsWrite)),
     (crate::io::NAME, "remove", Some(nvs_config::Cap::FsWrite)),
     (crate::io::NAME, "removeDir", Some(nvs_config::Cap::FsWrite)),
     (

@@ -1,0 +1,62 @@
+--TEST--
+Core\IO::move asks `fs.write` for the path it takes away, so the exact pair of paths Core\IO::copy is granted for is refused for a move — the difference between the two doors, asserted as one comparison rather than two separate refusals — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// One source, one destination, two members. `source` is readable and not
+// writable, `scratch` is both; a copy is allowed and a move is not, because a
+// move destroys the source and destruction is `fs.write` whatever the grant on
+// the destination says. A door that reused `copy`'s pair of checks for `move`
+// passes everything else written about either member and fails here.
+string $from = "source/note.txt";
+string $to = "scratch/note.txt";
+
+Core\IO::copy($from, $to);
+echo "copy, with the source readable: it ran\n";
+
+// Same two paths, and now the source is being taken away rather than read.
+try {
+    Core\IO::move($from, $to);
+    echo "not reached\n";
+} catch (RuntimeError $denied) {
+    if ($denied->message == "Core\\IO::move needs the capability `fs.write` for " . $from . ", which is not granted") {
+        echo "move, with the same two paths: refused, naming fs.write for the source\n";
+    } else {
+        echo "move, with the same two paths: refused, saying ", $denied->message, "\n";
+    }
+}
+
+// The refusal is at the door, so the source is still where it was and the
+// destination still holds what the copy put there.
+if (Core\IO::exists($from)) {
+    echo "the source survived the refusal\n";
+} else {
+    echo "the source was taken anyway\n";
+}
+if (Core\IO::read($to) == Core\IO::read($from)) {
+    echo "the destination still holds the copy\n";
+} else {
+    echo "the destination changed\n";
+}
+
+// And inside the write grant on both ends, the same member runs: what refused
+// above is the grant and not the member.
+Core\IO::move($to, "scratch/moved.txt");
+if (Core\IO::exists($to)) {
+    echo "granted both ends: the old name is still there\n";
+} else {
+    echo "granted both ends: the old name is gone\n";
+}
+--FILE source/note.txt--
+granted for reading
+--FILE scratch/keep.txt--
+the writable directory exists before the program runs
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["source", "scratch"]
+write = ["scratch"]
+--EXPECT--
+copy, with the source readable: it ran
+move, with the same two paths: refused, naming fs.write for the source
+the source survived the refusal
+the destination still holds the copy
+granted both ends: the old name is gone

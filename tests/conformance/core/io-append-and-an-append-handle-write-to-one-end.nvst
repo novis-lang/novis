@@ -1,0 +1,54 @@
+--TEST--
+Core\IO::append and a Core\IO\FileMode::Append handle write to the same end, found at each write rather than remembered — two writers interleaved over one file, and a seek in the middle, land their bytes in call order — spec § 14, ADR 0118 § 2
+--FILE--
+<?nvs
+// One file, two writers, alternating. If either of them had found the end once
+// and written at it afterwards, the other's bytes would sit under its own and
+// the order below would have a hole in it. That is the invariant the append
+// access buys, and the reason `Core\IO::append` opens a handle rather than
+// measuring a length and writing at the number it read.
+Core\IO::append("log.txt", "a");
+
+Core\IO\File $handle = Core\IO::open("log.txt", Core\IO\FileMode::Append);
+uint $wrote = $handle->write("b");
+
+// The whole-file member writes while the handle is open and holding a position
+// of its own, which is the case a length read beforehand cannot survive.
+Core\IO::append("log.txt", "c");
+$handle->write("d");
+
+// And a position the program set itself is not where the next write goes: an
+// append handle has one destination, and it is wherever the end is by then.
+$handle->seek(0);
+$handle->write("e");
+$handle->close();
+
+string $content = Core\IO::read("log.txt");
+uint $length = Core\Str::length($content);
+
+echo "content: ", $content, "\n";
+echo "one handle write reported: ", $wrote as string, " byte\n";
+
+// Counted, so that an ordering which still lands the right length fails here:
+// every chunk is at the offset its call had, and nothing was written twice.
+array<string> $chunks = ["a", "b", "c", "d", "e"];
+int $n = Core\Arr::count($chunks) as int;
+int $inOrder = 0;
+int $i = 0;
+for (; $i < $n; $i = $i + 1) {
+    if (Core\Str::slice($content, $i, 1) == $chunks[$i]) {
+        $inOrder = $inOrder + 1;
+    }
+}
+
+echo "chunks: ", $n as string,
+     ", at the offset their call had: ", $inOrder as string,
+     ", bytes on disk: ", $length as string, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+content: abcde
+one handle write reported: 1 byte
+chunks: 5, at the offset their call had: 5, bytes on disk: 5

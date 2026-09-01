@@ -1,0 +1,60 @@
+--TEST--
+A Core\IO::move the operating system refuses throws an IOError naming both ends of the attempt and leaves the source exactly where it was — over a destination directory that is not there and a source that is not there — spec § 14, ADR 0118 § 2
+--FILE--
+<?nvs
+// The two ways a granted move fails, and one claim about each: nothing is lost,
+// and the message says which pair of paths it was about. A two-path member that
+// named one end would send half of the readers of this message to the wrong
+// file, which is why the door builds the `from -> to` spelling.
+Core\IO::write("present.txt", "kept");
+
+int $refusals = 0;
+int $namingBothEnds = 0;
+
+// A destination whose directory does not exist. The capability covers it --
+// the grant is this whole tree -- so what refuses is the filesystem.
+try {
+    Core\IO::move("present.txt", "no-such-dir/present.txt");
+    echo "not reached\n";
+} catch (IOError $failed) {
+    $refusals = $refusals + 1;
+    if (Core\Str::contains($failed->message, "present.txt -> no-such-dir/present.txt")) {
+        $namingBothEnds = $namingBothEnds + 1;
+    }
+}
+
+// A source that is not there. The same member, the same capability, a different
+// end at fault -- and the message has to be able to say so.
+try {
+    Core\IO::move("absent.txt", "wherever.txt");
+    echo "not reached\n";
+} catch (IOError $failed) {
+    $refusals = $refusals + 1;
+    if (Core\Str::contains($failed->message, "absent.txt -> wherever.txt")) {
+        $namingBothEnds = $namingBothEnds + 1;
+    }
+}
+
+echo "attempts: 2, refused: ", $refusals as string,
+     ", naming both ends: ", $namingBothEnds as string, "\n";
+
+// Nothing was lost and nothing was created: a failed move is not a move that
+// got half way.
+if (Core\IO::read("present.txt") == "kept") {
+    echo "the source is where it was, holding what it held\n";
+} else {
+    echo "the source did not survive\n";
+}
+if (Core\IO::exists("wherever.txt")) {
+    echo "a destination was created anyway\n";
+} else {
+    echo "no destination was created\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+attempts: 2, refused: 2, naming both ends: 2
+the source is where it was, holding what it held
+no destination was created

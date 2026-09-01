@@ -1,0 +1,40 @@
+--TEST--
+Core\IO::makeDir creates every missing component of the path it is given, not only the last one — the whole chain is a directory afterwards, and a file written into the deepest one lands there — spec § 14
+--FILE--
+<?nvs
+// `mkdir`'s `$recursive` is a parameter with a default that surprises everyone
+// who meets it; here it is the only behaviour, so this case asserts the chain
+// rather than the leaf. A member that created only the last component throws on
+// the very first call below.
+array<string> $chain = ["one", "one/two", "one/two/three"];
+int $n = Core\Arr::count($chain) as int;
+
+Core\IO::makeDir("one/two/three");
+
+int $made = 0;
+int $i = 0;
+for (; $i < $n; $i = $i + 1) {
+    if (Core\IO::isDir($chain[$i])) {
+        $made = $made + 1;
+    }
+}
+echo "components: ", $n as string, ", directories afterwards: ", $made as string, "\n";
+
+// The deepest one is a real directory and not a name that merely answers
+// `isDir`: something can be written into it and read back out.
+Core\IO::write("one/two/three/note.txt", "at the bottom");
+echo "written into the deepest: '", Core\IO::read("one/two/three/note.txt"), "'\n";
+
+// And each level holds exactly what it should: the chain, and nothing beside
+// it.
+echo "one: ", Core\Str::join(Core\IO::list("one"), ", "),
+     " / one/two: ", Core\Str::join(Core\IO::list("one/two"), ", "),
+     " / one/two/three: ", Core\Str::join(Core\IO::list("one/two/three"), ", "), "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+components: 3, directories afterwards: 3
+written into the deepest: 'at the bottom'
+one: two / one/two: three / one/two/three: note.txt

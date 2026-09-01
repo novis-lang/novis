@@ -1,0 +1,81 @@
+--TEST--
+Core\IO::append adds to the end of a file and creates one where there was nothing, which is the whole of how it parts from Core\IO::write — asserted over every state a path can be in and counted, so a member that truncated on one of them still fails — spec § 14
+--FILE--
+<?nvs
+// The two whole-file writers, over the three states the door can tell apart.
+// `write`'s own reference card says what it does to what is already there;
+// nothing asserted that `append` does the other thing, and a member that
+// opened without the append access reads as correct against the absent and the
+// empty state alike -- which is two thirds of this table.
+array<string> $states = ["absent", "empty", "occupied"];
+array<string> $prior = ["", "", "before"];
+int $n = Core\Arr::count($states) as int;
+
+array<string> $byAppend = [];
+array<string> $byWrite = [];
+
+int $s = 0;
+for (; $s < $n; $s = $s + 1) {
+    // Each writer meets each state fresh, rather than inheriting whatever the
+    // previous call left behind.
+    int $w = 0;
+    for (; $w < 2; $w = $w + 1) {
+        if (Core\IO::exists("subject.txt")) {
+            Core\IO::remove("subject.txt");
+        }
+        if ($states[$s] == "empty") {
+            Core\IO::write("subject.txt", "");
+        }
+        if ($states[$s] == "occupied") {
+            Core\IO::write("subject.txt", "before");
+        }
+
+        if ($w == 0) {
+            Core\IO::append("subject.txt", "after");
+            $byAppend[] = Core\IO::read("subject.txt");
+        }
+        if ($w == 1) {
+            Core\IO::write("subject.txt", "after");
+            $byWrite[] = Core\IO::read("subject.txt");
+        }
+    }
+}
+
+Core\IO::remove("subject.txt");
+
+echo "append: ", Core\Str::join($byAppend, " / "), "\n";
+echo "write:  ", Core\Str::join($byWrite, " / "), "\n";
+
+// The claim, counted rather than read off the two rows above: on every state
+// `append` answers exactly what was there followed by what it was handed,
+// `write` answers only what it was handed, and the state they part company on
+// is the one that had anything in it.
+int $kept = 0;
+int $replaced = 0;
+int $differ = 0;
+int $i = 0;
+for (; $i < $n; $i = $i + 1) {
+    if ($byAppend[$i] == $prior[$i] . "after") {
+        $kept = $kept + 1;
+    }
+    if ($byWrite[$i] == "after") {
+        $replaced = $replaced + 1;
+    }
+    if ($byAppend[$i] != $byWrite[$i]) {
+        $differ = $differ + 1;
+    }
+}
+int $writeKept = $n - $replaced;
+
+echo "states: ", $n as string,
+     ", append kept what it found on: ", $kept as string,
+     ", write kept it on: ", $writeKept as string,
+     ", states they part company on: ", $differ as string, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+append: after / after / beforeafter
+write:  after / after / after
+states: 3, append kept what it found on: 3, write kept it on: 0, states they part company on: 1

@@ -16,13 +16,9 @@
 
 # § 14 -- `Core\IO`'s path half. The handle roster and the whole-file members are
 # on disk; these are the directory, metadata and copying members beside them.
-§14 append
-§14 copy
 §14 isReadable
 §14 isWritable
-§14 makeDir
 §14 modifiedAt
-§14 move
 §14 stat
 §14 walk
 

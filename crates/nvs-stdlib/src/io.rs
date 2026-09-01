@@ -108,6 +108,18 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&WRITE_DOC),
         },
         CoreMethod {
+            name: "append",
+            names: &["path", "content"],
+            // `write`'s pair exactly, and for its reason: the path directs a
+            // resolver and the content does not, so ADR 0088 § 1's table marks
+            // the first and leaves the second alone.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_io_append",
+            doc: Some(&APPEND_DOC),
+        },
+        CoreMethod {
             name: "writeStream",
             names: &["path", "src"],
             // The path is a sink and the chunks are not, exactly as `write`'s
@@ -166,6 +178,27 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&SIZE_DOC),
         },
         CoreMethod {
+            name: "copy",
+            names: &["from", "to"],
+            // Both paths are sinks: this class marks every path parameter it
+            // has, and the module doc above owns why it is the whole class
+            // together rather than the ones that happen to resolve.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_io_copy",
+            doc: Some(&COPY_DOC),
+        },
+        CoreMethod {
+            name: "move",
+            names: &["from", "to"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_io_move",
+            doc: Some(&MOVE_DOC),
+        },
+        CoreMethod {
             name: "remove",
             names: &["path"],
             params: &[CoreTy::Text(Qual::Sink)],
@@ -173,6 +206,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_remove",
             doc: Some(&REMOVE_DOC),
+        },
+        CoreMethod {
+            name: "makeDir",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_io_make_dir",
+            doc: Some(&MAKE_DIR_DOC),
         },
         CoreMethod {
             name: "removeDir",
@@ -377,8 +419,8 @@ const WRITE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "content",
-            desc: "The bytes to write. They become the file's entire content; there is no \
-                   append in this signature.",
+            desc: "The bytes to write. They become the file's entire content; `append` is the \
+                   member that adds to what is already there.",
             shape: &[],
         },
     ],
@@ -394,6 +436,41 @@ const WRITE_DOC: MethodDoc = MethodDoc {
             error: "IOError",
             desc: "The capability allowed it and the operating system did not — a missing \
                    directory, a read-only filesystem, a permission the process lacks.",
+        },
+    ],
+};
+
+/// `Core\IO::append`'s reference card — ADR 0117.
+const APPEND_DOC: MethodDoc = MethodDoc {
+    short: "Adds to the end of a file, creating it if it is not there — `file_put_contents` with \
+            `FILE_APPEND`, which is a member here rather than a flag on the member that \
+            replaces. Needs the `fs.write` capability for the path.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "The file to add to, absolute or relative to the working directory.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "content",
+            desc: "The bytes to add. Whatever the file already holds is kept and these follow \
+                   it; the end is found by the operating system at the write, not read \
+                   beforehand.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. A refusal throws rather than answering `false`, so a caller that ignores the \
+          result has not ignored a failure.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.write` for this path; checked before \
+                   anything is created, so a refused append leaves no file behind.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and the operating system did not — a missing \
+                   directory, a read-only filesystem, a path that is a directory.",
         },
     ],
 };
@@ -546,6 +623,108 @@ const SIZE_DOC: MethodDoc = MethodDoc {
             desc: "The capability allowed it and the operating system did not — there is nothing \
                    at the path, or its metadata could not be read. A missing file has no size, so \
                    it throws here where `exists` answers `false`.",
+        },
+    ],
+};
+
+/// `Core\IO::copy`'s reference card — ADR 0117.
+const COPY_DOC: MethodDoc = MethodDoc {
+    short: "Duplicates a file — `copy`. Needs `fs.read` for the source and `fs.write` for the \
+            destination, which are two grants and not one: reading a directory is never permission \
+            to fill it.",
+    params: &[
+        ParamDoc {
+            name: "from",
+            desc: "The file to read. It is left exactly as it was.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "to",
+            desc: "The file to create. Anything already at this path is replaced, as `write` \
+                   replaces — this destination is one the program named beside a source it already \
+                   holds.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. A refusal throws rather than answering `false`, so a caller that ignores the \
+          result has not ignored a failure.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for the source or `fs.write` for the \
+                   destination; both are checked before either is used, so a refusal copies \
+                   nothing.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and the operating system did not — nothing at the \
+                   source, a destination directory that is not there, or a permission the process \
+                   lacks. The message names both ends.",
+        },
+    ],
+};
+
+/// `Core\IO::move`'s reference card — ADR 0117.
+const MOVE_DOC: MethodDoc = MethodDoc {
+    short: "Renames a file, which is how it is moved — `rename`. Needs `fs.write` for **both** \
+            paths, and not `copy`'s read for the source: a move takes the source away, and taking a \
+            file away is destroying it.",
+    params: &[
+        ParamDoc {
+            name: "from",
+            desc: "The path that stops existing.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "to",
+            desc: "The path that ends up holding the file. Anything already there is replaced.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. The rename is the operating system's own, so it is atomic: the destination is \
+          the whole file or the file it was before. A move between filesystems fails rather than \
+          becoming a copy and a delete, which would be neither atomic nor the two capability checks \
+          the program would have chosen — `copy` then `remove` is that spelling.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.write` for one of the two paths; both are \
+                   checked before either is used.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and the operating system did not — nothing at the \
+                   source, a destination directory that is not there, or the two paths on \
+                   different filesystems. The message names both ends.",
+        },
+    ],
+};
+
+/// `Core\IO::makeDir`'s reference card — ADR 0117.
+const MAKE_DIR_DOC: MethodDoc = MethodDoc {
+    short: "Makes sure a directory exists at `$path`, creating any missing parent along the way — \
+            `mkdir` with `$recursive` true, which is a parameter there and the only behaviour \
+            here. Needs the `fs.write` capability.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The directory that is to exist. Every missing component above it is created too; \
+               all of them are under the path the capability was asked about.",
+        shape: &[],
+    }],
+    ret: "Nothing. A directory that is already there is success rather than a refusal — the \
+          contract is that it exists afterwards, and refusing would leave every caller writing an \
+          `exists` check in front of this one. `removeDir` is deliberately not the mirror of this: \
+          it refuses to recurse, because what it would recurse over is destruction.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.write` for this path; checked before \
+                   anything is created, so a refused call leaves no directory behind.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and the operating system did not — a component of the \
+                   path exists and is a file, or the process may not create there.",
         },
     ],
 };
@@ -1315,6 +1494,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_read" => (nvs_core_io_read as *const ()).cast(),
         "nvs_core_io_read_text" => (nvs_core_io_read_text as *const ()).cast(),
         "nvs_core_io_write" => (nvs_core_io_write as *const ()).cast(),
+        "nvs_core_io_append" => (nvs_core_io_append as *const ()).cast(),
         "nvs_core_io_write_stream" => (nvs_core_io_write_stream as *const ()).cast(),
         "nvs_core_io_exists" => (nvs_core_io_exists as *const ()).cast(),
         "nvs_core_io_is_file" => (nvs_core_io_is_file as *const ()).cast(),
@@ -1322,6 +1502,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_list" => (nvs_core_io_list as *const ()).cast(),
         "nvs_core_io_canonicalize" => (nvs_core_io_canonicalize as *const ()).cast(),
         "nvs_core_io_size" => (nvs_core_io_size as *const ()).cast(),
+        "nvs_core_io_copy" => (nvs_core_io_copy as *const ()).cast(),
+        "nvs_core_io_move" => (nvs_core_io_move as *const ()).cast(),
+        "nvs_core_io_make_dir" => (nvs_core_io_make_dir as *const ()).cast(),
         "nvs_core_io_remove" => (nvs_core_io_remove as *const ()).cast(),
         "nvs_core_io_remove_dir" => (nvs_core_io_remove_dir as *const ()).cast(),
         "nvs_core_io_temporary_dir" => (nvs_core_io_temporary_dir as *const ()).cast(),
@@ -2030,6 +2213,78 @@ nvs_runtime::nvs_helper! {
         let path = Path::new(text(&args[0], "write", "path")?);
         let content = text(&args[1], "write", "content")?;
         nvs_runtime::capability::write(ctx, path, content.as_bytes(), "Core\\IO::write")?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::append(string $path, string $content): void` — replacing
+    /// `file_put_contents`'s `FILE_APPEND` flag, which is a member here for
+    /// ADR 0063 R6's reason: an option that changes *what a member does* is a
+    /// second member.
+    ///
+    /// The handle door rather than [`nvs_runtime::capability::write`]'s
+    /// finished effect, because this is the one whole-file write with no
+    /// finished effect to hand across: [`Access::Append`] is `O_APPEND`, so
+    /// the operating system places every write at the end **as it happens**,
+    /// and a member that read the length first and wrote at it would race
+    /// anything else appending to the same file for the bytes in between. The
+    /// handle is dropped at the end of this call rather than filed against the
+    /// request the way [`nvs_core_io_open`]'s is, so a program that appends
+    /// twice has appended twice and holds nothing open between them.
+    ///
+    /// **What it spends:** one descriptor for the duration of the call, and no
+    /// copy of the content — it is written straight out of the caller's
+    /// argument.
+    fn nvs_core_io_append(ctx, args: [2]) {
+        let path = Path::new(text(&args[0], "append", "path")?);
+        let content = text(&args[1], "append", "content")?;
+        let mut file = nvs_runtime::capability::open(ctx, path, Access::Append, "Core\\IO::append")?;
+        file.write_all(content.as_bytes())
+            .map_err(|err| nvs_runtime::capability::io_failure("Core\\IO::append", path, &err))?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::copy(string $from, string $to): void` — replacing `copy`.
+    ///
+    /// Two paths and two capabilities, both decided by
+    /// [`nvs_runtime::capability::copy`] and neither by this: what is here is
+    /// the argument reading, which is the whole of every body in this module.
+    fn nvs_core_io_copy(ctx, args: [2]) {
+        let from = Path::new(text(&args[0], "copy", "from")?);
+        let to = Path::new(text(&args[1], "copy", "to")?);
+        nvs_runtime::capability::copy(ctx, from, to, "Core\\IO::copy")?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::move(string $from, string $to): void` — replacing `rename`.
+    ///
+    /// `move` and not `rename`, because moving is what the caller is doing and
+    /// renaming is how the operating system spells it: spec § 14 names the
+    /// member for the effect, and the same call moves a file across a directory
+    /// and gives it another name in place.
+    fn nvs_core_io_move(ctx, args: [2]) {
+        let from = Path::new(text(&args[0], "move", "from")?);
+        let to = Path::new(text(&args[1], "move", "to")?);
+        nvs_runtime::capability::rename(ctx, from, to, "Core\\IO::move")?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::makeDir(string $path): void` — replacing `mkdir`, whose
+    /// `$recursive` parameter is this member's only behaviour.
+    ///
+    /// [`nvs_runtime::capability::create_dir`]'s doc owns both decisions —
+    /// why the parents come with it where `removeDir` refuses to recurse, and
+    /// why a directory that is already there is success.
+    fn nvs_core_io_make_dir(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "makeDir", "path")?);
+        nvs_runtime::capability::create_dir(ctx, path, "Core\\IO::makeDir")?;
         Ok(Value::null())
     }
 }

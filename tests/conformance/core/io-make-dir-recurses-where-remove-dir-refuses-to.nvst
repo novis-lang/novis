@@ -1,0 +1,59 @@
+--TEST--
+Core\IO::makeDir creates a whole chain in one call while Core\IO::removeDir takes one empty level at a time — the asymmetry is deliberate, and it is counted here rather than asserted of either member alone — spec § 14, ADR 0118 § 2
+--FILE--
+<?nvs
+// The pair reads like an inconsistency until the reason is named, so it is
+// pinned as one claim: a recursive *creation* makes empty directories under the
+// path the grant was just checked for, and a recursive *removal* would be one
+// grant check standing in for a tree of destructions. `capability::create_dir`
+// and `capability::remove_dir` each own their half of that in their own doc.
+array<string> $levels = ["tree/a/b", "tree/a", "tree"];
+int $n = Core\Arr::count($levels) as int;
+
+// One call, three levels.
+Core\IO::makeDir("tree/a/b");
+int $made = 0;
+int $i = 0;
+for (; $i < $n; $i = $i + 1) {
+    if (Core\IO::isDir($levels[$i])) {
+        $made = $made + 1;
+    }
+}
+echo "levels named: ", $n as string, ", made by one makeDir call: ", $made as string, "\n";
+
+// Removing from the top refuses while anything is still under it, on every
+// attempt: a member that recursed would take the whole tree on the first one.
+int $refused = 0;
+$i = 0;
+for (; $i < $n; $i = $i + 1) {
+    try {
+        Core\IO::removeDir("tree");
+        echo "removeDir took tree while ", $levels[$i], " was under it\n";
+    } catch (IOError $notEmpty) {
+        $refused = $refused + 1;
+    }
+}
+echo "removeDir calls at the top: ", $n as string, ", refused: ", $refused as string, "\n";
+
+// Taken one at a time, deepest first, it works -- and that is the walk a
+// program that means to delete a tree has to write, with a capability check for
+// every path in it.
+int $removed = 0;
+$i = 0;
+for (; $i < $n; $i = $i + 1) {
+    Core\IO::removeDir($levels[$i]);
+    if (Core\IO::exists($levels[$i])) {
+        echo $levels[$i], " survived its own removal\n";
+    } else {
+        $removed = $removed + 1;
+    }
+}
+echo "levels: ", $n as string, ", removed one at a time: ", $removed as string, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+levels named: 3, made by one makeDir call: 3
+removeDir calls at the top: 3, refused: 3
+levels: 3, removed one at a time: 3

@@ -1,0 +1,72 @@
+--TEST--
+Core\IO::copy asks `fs.read` for its source and `fs.write` for its destination, and refuses naming whichever of the two is missing — a source it may not read and a destination it may not write are two different refusals over the same member — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// The grant reads `source` and `scratch` and writes only `scratch`, so all
+// three answers are reachable in one program: a copy inside the grant, a source
+// outside the read half, and a destination outside the write half. A door that
+// asked one capability for this member would have to pick, and either choice
+// makes one of the two refusals below disappear.
+Core\IO::copy("source/note.txt", "scratch/ok.txt");
+if (Core\IO::read("scratch/ok.txt") == Core\IO::read("source/note.txt")) {
+    echo "granted both ends: the copy holds what the source holds\n";
+} else {
+    echo "granted both ends: the copy holds something else\n";
+}
+
+// The source is not under the read grant. Reading is what a copy does to it,
+// so this is the capability that refuses.
+try {
+    Core\IO::copy("outside.txt", "scratch/from-outside.txt");
+    echo "not reached\n";
+} catch (RuntimeError $denied) {
+    if ($denied->message == "Core\\IO::copy needs the capability `fs.read` for outside.txt, which is not granted") {
+        echo "source outside the read grant: refused, naming fs.read\n";
+    } else {
+        echo "source outside the read grant: refused, saying ", $denied->message, "\n";
+    }
+}
+
+// The destination is readable and not writable, which is the pair a grant on a
+// directory usually has: being allowed to look in it is not permission to fill
+// it.
+try {
+    Core\IO::copy("source/note.txt", "source/second.txt");
+    echo "not reached\n";
+} catch (RuntimeError $denied) {
+    if ($denied->message == "Core\\IO::copy needs the capability `fs.write` for source/second.txt, which is not granted") {
+        echo "destination outside the write grant: refused, naming fs.write\n";
+    } else {
+        echo "destination outside the write grant: refused, saying ", $denied->message, "\n";
+    }
+}
+
+// Both checks happen before either path is used, so a refusal copies nothing —
+// asserted where reading is granted, which is the destination of the first
+// refusal and the source directory of the second.
+if (Core\IO::exists("scratch/from-outside.txt")) {
+    echo "the refused copy created its destination anyway\n";
+} else {
+    echo "the refused copy created nothing\n";
+}
+if (Core\IO::exists("source/second.txt")) {
+    echo "the refused copy wrote into the read-only tree anyway\n";
+} else {
+    echo "the read-only tree is untouched\n";
+}
+--FILE source/note.txt--
+granted
+--FILE outside.txt--
+ungranted
+--FILE scratch/keep.txt--
+the writable directory exists before the program runs
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["source", "scratch"]
+write = ["scratch"]
+--EXPECT--
+granted both ends: the copy holds what the source holds
+source outside the read grant: refused, naming fs.read
+destination outside the write grant: refused, naming fs.write
+the refused copy created nothing
+the read-only tree is untouched

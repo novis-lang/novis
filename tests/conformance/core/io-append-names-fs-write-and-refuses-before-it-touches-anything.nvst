@@ -1,0 +1,63 @@
+--TEST--
+Core\IO::append names `fs.write` for an ungranted path and refuses at the door — the name it was pointed at is still absent afterwards and the file that was already there still holds what it held — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// `fs.read` covers this directory and `fs.write` covers nothing, so the two
+// halves of the door can be told apart here. A member that asked for `fs.read`
+// -- which is what an implementation that read a file to find its end would
+// need -- answers every question about content correctly and fails on this
+// line.
+array<string> $paths = ["fresh.txt", "seed.txt"];
+int $n = Core\Arr::count($paths) as int;
+string $needed = " needs the capability `fs.write` for ";
+
+// Read first, so that "unchanged" below is a comparison against what was
+// really there rather than against a spelling in this file.
+string $before = Core\IO::read("seed.txt");
+
+int $refused = 0;
+int $namingFsWrite = 0;
+
+int $i = 0;
+for (; $i < $n; $i = $i + 1) {
+    string $path = $paths[$i];
+    try {
+        Core\IO::append($path, "added");
+        echo "append ran for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::append" . $needed . $path . ", which is not granted") {
+            $namingFsWrite = $namingFsWrite + 1;
+        }
+    }
+}
+
+// Counted over both paths, because the interesting half of the claim is that
+// the answer does not depend on whether the file exists: a member that refused
+// the missing one and extended the present one has the check on the wrong side
+// of the effect.
+echo "paths: ", $n as string,
+     ", refused: ", $refused as string,
+     ", naming fs.write: ", $namingFsWrite as string, "\n";
+
+// Reading is granted, so what the refusal left behind is observable: a name
+// that was never created, and a file that grew by nothing.
+if (Core\IO::exists("fresh.txt")) {
+    echo "fresh.txt: created anyway\n";
+} else {
+    echo "fresh.txt: still absent\n";
+}
+if (Core\IO::read("seed.txt") == $before) {
+    echo "seed.txt: unchanged\n";
+} else {
+    echo "seed.txt: extended anyway\n";
+}
+--FILE seed.txt--
+kept
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+paths: 2, refused: 2, naming fs.write: 2
+fresh.txt: still absent
+seed.txt: unchanged

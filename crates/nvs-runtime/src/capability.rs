@@ -296,6 +296,96 @@ pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), F
     std::fs::write(path, bytes).map_err(|err| io_failure(member, path, &err))
 }
 
+/// § 2's copy door: `to` becomes a duplicate of `from`, once [`Cap::FsRead`] has been shown to cover
+/// the source and [`Cap::FsWrite`] the destination.
+///
+/// **Two paths, two capabilities, and both are checked before either is used**, for [`open`]'s
+/// reason: a source a program may read and a destination it may not write refuses as a capability
+/// rather than half-way through an effect. The split is the honest one — a copy reads one name and
+/// writes another — so a grant that opens a directory for reading never becomes a way to fill it.
+///
+/// **The destination is replaced if it is there**, exactly as [`write()`] replaces, and unlike
+/// [`create`]'s `overwrite: false`: the difference is who names the path. A stream's destination is
+/// usually a name a client supplied, and this one is a name the program wrote beside a source it
+/// already holds.
+///
+/// The byte count `std::fs::copy` answers with is dropped here rather than returned, because
+/// `Core\IO::copy` has nothing to say about it and a door that answered one would be inviting a
+/// second member to report it.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
+/// `from` or `fs.write` for `to`, or [`io_failure`]'s `IOError` when the copy itself fails. The
+/// message names [`pair`]'s both-ends spelling, because either end can be the one at fault.
+pub fn copy(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fault> {
+    require(ctx, Cap::FsRead, Scope::Path(from), member)?;
+    require(ctx, Cap::FsWrite, Scope::Path(to), member)?;
+    std::fs::copy(from, to)
+        .map(|_| ())
+        .map_err(|err| io_failure(member, &pair(from, to), &err))
+}
+
+/// § 2's rename door: the name `from` becomes the name `to`, once [`Cap::FsWrite`] has been shown to
+/// cover **both**.
+///
+/// `fs.write` on the source and not [`copy`]'s `fs.read`, which is the whole difference between the
+/// two doors: a move takes the source away, and taking a file away is destroying it. A grant that
+/// let a program read a directory would otherwise let it empty one.
+///
+/// **A rename across filesystems fails rather than falling back to a copy and a removal.** The
+/// operating system's rename is atomic — the destination is the whole file or the old one — and a
+/// copy followed by a delete is neither atomic nor the same failure surface. A program that wants
+/// the fallback spells it with [`copy`] and [`remove_file`], which is two capability checks in the
+/// order it chose.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
+/// either path, or [`io_failure`]'s `IOError` when the rename itself fails — nothing at the source,
+/// a destination directory that is not there, or the two paths on different filesystems.
+pub fn rename(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fault> {
+    require(ctx, Cap::FsWrite, Scope::Path(from), member)?;
+    require(ctx, Cap::FsWrite, Scope::Path(to), member)?;
+    std::fs::rename(from, to).map_err(|err| io_failure(member, &pair(from, to), &err))
+}
+
+/// § 2's mkdir door: a directory exists at `path` when this returns, once [`Cap::FsWrite`] has been
+/// shown to cover it.
+///
+/// **Missing parents are created, where [`remove_dir`] refuses to recurse**, and the asymmetry is
+/// the point rather than an inconsistency. A recursive removal is one grant check standing in for a
+/// whole tree of *destructions*, any one of which is unrecoverable; a recursive creation makes empty
+/// directories that are all, necessarily, under the path the check just covered — a grant is a root,
+/// so an ancestor of a granted path that this creates is one the grant already reaches through.
+/// Nothing is destroyed and nothing outside the grant is touched.
+///
+/// **A directory that is already there is success, not a refusal.** The member's contract is that
+/// the directory exists afterwards, and a refusal would leave every caller writing an [`exists`]
+/// check in front of it — which is the window between a question and an act that [`create`]'s own
+/// doc refuses to open. A *file* at the path is still a failure: that is not the directory the
+/// caller asked for.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
+/// `path`, checked before anything is created for [`write()`]'s reason, or [`io_failure`]'s
+/// `IOError` when the creation itself fails — a component that exists and is not a directory, or a
+/// permission the process lacks.
+pub fn create_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
+    require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+    std::fs::create_dir_all(path).map_err(|err| io_failure(member, path, &err))
+}
+
+/// The two ends of a [`copy`] or a [`rename`], as the one path [`io_failure`] names.
+///
+/// A two-path member has two candidate culprits and the operating system's error says which kind of
+/// failure it was without saying which end it was about, so the message carries both, in the
+/// direction the member reads. This is a spelling for a message and never a path anything opens.
+fn pair(from: &Path, to: &Path) -> PathBuf {
+    PathBuf::from(format!("{} -> {}", from.display(), to.display()))
+}
+
 /// § 2's metadata door: what the operating system knows about `path`, once [`Cap::FsRead`] has been
 /// shown to cover it.
 ///
