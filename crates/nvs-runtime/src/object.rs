@@ -20,7 +20,10 @@
 //! Only the first two words are compiled code's: [`OBJ_REFCOUNT_OFFSET`] and
 //! [`OBJ_CLASS_OFFSET`] are unchanged by the two behind them, and the field
 //! slots move because [`FIELDS_OFFSET`] is the header's size rather than a
-//! literal.
+//! literal. A **debug** build adds a fifth word behind `prev`
+//! ([`ObjHeader::owner`]) for the same reason, and it costs nothing anywhere
+//! else: compiled code asks `nvs-codegen`, which asks this constant, so the two
+//! profiles agree with themselves rather than with each other.
 //!
 //! ## Decision: a field slot is a whole 16-byte [`Value`]
 //!
@@ -206,6 +209,33 @@
 //! birth, and two more at its death. Nothing on the read path pays, and no
 //! decrement pays: [`unlink`] reaches its neighbours through the object's own
 //! links and never through the context.
+//!
+//! **The crossing relinks, and the relink is structural.**
+//! [`crate::graph`]'s `Live` carrier is the one place in the runtime an
+//! allocation changes owners — its adopt-at-refcount-1 move is what makes a
+//! crossing a pointer handoff rather than a rebuild (ADR 0116 § 5) — so
+//! [`relink_to_current`] is called from inside that one implementation and from
+//! no call site, because then there is no call site to get it wrong. An object
+//! left on the source list is one the source's teardown sweep may take apart
+//! while the destination still holds it, which is a use-after-free at
+//! [AGENTS.md](../../../AGENTS.md)'s priority 1. The destination is the context
+//! *running* at the crossing, which is the receiving one on the way out of an
+//! isolate — `nvs_host`'s `finish` copies on the child's stack while the parent
+//! is current. On the way **in** there is no destination context yet, so an
+//! adopted argument stays on the parent's list; that is safe for the one reason
+//! the direction is asymmetric at all, that a parent outlives the child it
+//! spawned.
+//!
+//! **A debug build makes any future drift loud.** Every header carries the list
+//! it was last linked into ([`ObjHeader::owner`], `debug_assertions` only, one
+//! word), and both [`dismantle`] and [`sweep`] assert that an object is linked
+//! on the list it names. A second place that moves an object between lists —
+//! which is the only way the relink can be got wrong, since
+//! [`LiveList::link`] writes the stamp and the links together — therefore
+//! panics naming the invariant in every `cargo test` run and every WSL valgrind
+//! leg, both of which are debug builds, rather than corrupting a parent's heap
+//! wherever the block was reused. [`assert_linked_where_it_says`] is the home
+//! of what that does and does not cover.
 //!
 //! **A collector is still owed for the shape this does not reach**: a
 //! long-running CLI script that builds cycles *between* teardowns holds them
@@ -1240,6 +1270,20 @@ pub struct ObjHeader {
     /// context — a decrement carries none, which is
     /// [`crate::ctx::CurrentCtx`]'s own decision.
     prev: Cell<*const Cell<*mut ObjHeader>>,
+    /// Debug builds only: the list this object was last linked into, which is
+    /// the context that owns it — see this module's *Decision* section.
+    ///
+    /// Written by [`LiveList::link`] alone, so that the stamp and the links are
+    /// made in one place and a relink cannot move one without the other, and
+    /// **not cleared by [`unlink`]**: an object that outlives its context still
+    /// says which one it came from, which is what makes a foreign dismantle
+    /// detectable at all. Null for an object allocated with no context current,
+    /// which is every object a Rust test builds by hand.
+    ///
+    /// The pointer is compared and never dereferenced — the list it names may
+    /// be gone, which is exactly the case the assertion exists to catch.
+    #[cfg(debug_assertions)]
+    owner: Cell<*const LiveList>,
 }
 
 /// Every object one [`Ctx`] has allocated and not yet dismantled, as the
@@ -1285,6 +1329,11 @@ impl LiveList {
             if !head.is_null() {
                 (*head).prev.set(&(*object).next);
             }
+            // The stamp is written here and nowhere else, so an object's idea
+            // of its owner and the list it is actually on are made by one
+            // statement — see [`ObjHeader::owner`].
+            #[cfg(debug_assertions)]
+            (*object).owner.set(std::ptr::from_ref(self));
         }
         self.head.set(object);
     }
@@ -1352,6 +1401,110 @@ unsafe fn unlink(object: *mut ObjHeader) {
     }
 }
 
+/// Moves `object` onto the live list of the context running now, because a
+/// crossing just handed that context the allocation itself — see this module's
+/// *Decision* section, which owns why this lives inside
+/// [`crate::graph`]'s adopt and is called from nowhere else.
+///
+/// A no-op when no context is running: the destination has no list to join, and
+/// taking the object off the one it is on would hide it from the only sweep
+/// that can reclaim it.
+///
+/// # Safety
+///
+/// `object` must refer to a live allocation whose one reference the caller
+/// holds, as must the neighbours its own links name.
+#[expect(
+    unsafe_code,
+    reason = "the allocation's liveness and unique ownership are the caller's \
+              obligations to state"
+)]
+pub(crate) unsafe fn relink_to_current(object: *mut ObjHeader) {
+    let list = crate::ctx::current_live_list();
+    if list.is_null() {
+        return;
+    }
+    #[expect(
+        unsafe_code,
+        reason = "`object` is live by the caller's contract, and `list` names \
+                  the `LiveList` allocation the current context holds an `Rc` \
+                  to, which outlives this call"
+    )]
+    unsafe {
+        unlink(object);
+        (*list).link(object);
+    }
+}
+
+/// Debug builds only: `object` is linked on the list it says owns it.
+///
+/// # What this catches, and what it deliberately does not
+///
+/// The stamp and the links are written by one statement in [`LiveList::link`],
+/// so they can only disagree if some *other* code moves an object between
+/// lists — a second relink site, or a splice. That is the drift
+/// [`relink_to_current`] exists to stop anyone writing, and it is a
+/// use-after-free waiting to happen: a context's sweep takes apart what its own
+/// list holds, so an object linked on a list that is not its owner's is one a
+/// foreign teardown may dismantle under its holder.
+///
+/// It is **not** a check that the context releasing an object is the one that
+/// allocated it. That is routinely false and legitimately so: `nvs_host`'s
+/// `finish` drops a child's exception object and copies its answer out while
+/// the *parent* is the installed context, and a value that outlives its whole
+/// context — [`sweep`]'s own docs name two ways one does — is released later
+/// still.
+///
+/// # Safety
+///
+/// `object` must refer to a live allocation, as must the neighbour its `prev`
+/// link names.
+#[cfg(debug_assertions)]
+#[expect(
+    unsafe_code,
+    reason = "the allocation's liveness is the caller's obligation to state"
+)]
+unsafe fn assert_linked_where_it_says(object: *mut ObjHeader) {
+    #[expect(
+        unsafe_code,
+        reason = "`object` is live by the caller's contract, and the link it \
+                  names is either a live list's head cell or a live \
+                  neighbour's `next`"
+    )]
+    unsafe {
+        let prev = (*object).prev.get();
+        if prev.is_null() {
+            // On no list: never linked, or detached by [`Detach`] when the
+            // context that held it went down.
+            return;
+        }
+        let owner = (*object).owner.get();
+        assert!(
+            !owner.is_null(),
+            "an object is on a live list with no owner stamped — \
+             `LiveList::link` writes both, so this is a second linking site"
+        );
+        // Its neighbour, which is a live member of whatever list this object is
+        // really on. The stamp is not dereferenced anywhere here: a wrong one
+        // is the thing being asserted about, so it may name a list that is
+        // already gone.
+        let next = (*object).next.get();
+        if !next.is_null() {
+            assert!(
+                std::ptr::eq((*next).owner.get(), owner),
+                "an object is linked on one context's live list and stamped \
+                 with another's: `crate::graph`'s adopt is the one place \
+                 ownership changes, and it relinks — see this module's docs"
+            );
+        }
+        // The last member of a list has no neighbour to agree with, and
+        // reaching its predecessor would mean trusting the stamp to say
+        // whether `prev` is a head cell or a `next` — which is the thing in
+        // doubt. It is left unchecked here and checked by [`sweep`] instead,
+        // where the list itself is in hand.
+    }
+}
+
 /// Dismantles what the root drain left on `list` and could not free —
 /// [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
 /// § 2's cyclic garbage.
@@ -1413,6 +1566,20 @@ pub(crate) fn sweep(list: &LiveList) {
     let _detach = Detach(list);
     let mut seat = std::collections::HashMap::with_capacity(members.len());
     for (at, &member) in members.iter().enumerate() {
+        // The other half of the stamp, and the exact one: every member of this
+        // list says this list is where it belongs. A member that says
+        // otherwise was moved between lists by something other than
+        // `relink_to_current`, and this sweep is about to decide the fate of an
+        // object another context believes is its own.
+        #[cfg(debug_assertions)]
+        #[expect(unsafe_code, reason = "every member of the list is a live allocation")]
+        unsafe {
+            assert!(
+                std::ptr::eq((*member).owner.get(), std::ptr::from_ref(list)),
+                "an object on one context's live list is stamped with another's \
+                 — see `crates/nvs-runtime/src/object.rs`'s module docs"
+            );
+        }
         seat.insert(member, at);
     }
 
@@ -1703,6 +1870,8 @@ impl NvsObj {
                 class,
                 next: Cell::new(std::ptr::null_mut()),
                 prev: Cell::new(std::ptr::null()),
+                #[cfg(debug_assertions)]
+                owner: Cell::new(std::ptr::null()),
             });
             let slots = raw.add(FIELDS_OFFSET).cast::<Value>();
             for index in 0..field_count {
@@ -2140,7 +2309,10 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
     unsafe {
         // The other end of the pair `NvsObj::alloc` opened: an object leaves
         // its context's live list exactly when it stops existing, so what the
-        // list still holds at teardown is what nothing freed.
+        // list still holds at teardown is what nothing freed. Asserted before
+        // the links go, because the stamp is what says whose list this was.
+        #[cfg(debug_assertions)]
+        assert_linked_where_it_says(ptr);
         unlink(ptr);
         let class = NvsObj::class_of(ptr);
         if let Some(target) = (*class).unwind_entry() {
@@ -3113,8 +3285,11 @@ mod tests {
         assert_eq!(OBJ_REFCOUNT_OFFSET, 0);
         assert_eq!(OBJ_CLASS_OFFSET, std::mem::size_of::<usize>());
         // Four words: the two compiled code reads, and the two the live list
-        // threads through — see this module's *Layout*.
-        assert_eq!(FIELDS_OFFSET, 4 * std::mem::size_of::<usize>());
+        // threads through — plus the debug build's owner stamp, which is the
+        // one thing about this layout the two profiles disagree on. See this
+        // module's *Layout*.
+        let words = if cfg!(debug_assertions) { 5 } else { 4 };
+        assert_eq!(FIELDS_OFFSET, words * std::mem::size_of::<usize>());
         assert_eq!(FIELD_STRIDE, 16);
         assert_eq!(field_offset(0), FIELDS_OFFSET);
         assert_eq!(field_offset(3), FIELDS_OFFSET + 48);
@@ -3521,6 +3696,90 @@ mod tests {
         }
         assert_eq!(ctx.live_objects(), 0);
         drop(current);
+    }
+
+    #[test]
+    fn an_adopted_object_moves_to_the_destinations_live_list() {
+        // Item 36's crossing: the walk adopts at refcount 1, and adopting is
+        // the allocation changing owners — so the object leaves the source's
+        // list and joins the destination's. Left behind, the source's teardown
+        // sweep would meet an object the destination is holding.
+        let (table, animal, _dog, _greets) = hierarchy();
+        let mut source = Ctx::new(crate::ctx::OutputSink::Sink);
+        let mut destination = Ctx::new(crate::ctx::OutputSink::Sink);
+
+        let inside = crate::ctx::CurrentCtx::install(&mut source);
+        #[expect(unsafe_code, reason = "the table outlives the object")]
+        let object = unsafe { NvsObj::new(table.desc(animal)) };
+        let value = Value::object(object);
+        assert_eq!(source.live_objects(), 1);
+        drop(inside);
+
+        // The shape `nvs_host`'s `finish` is in: the copy runs while the
+        // *receiving* context is the one installed.
+        let across = crate::ctx::CurrentCtx::install(&mut destination);
+        let crossed = crate::graph::copy_graph(value).expect("an `Animal` crosses");
+        assert_eq!(
+            source.live_objects(),
+            0,
+            "the adopted object stayed on the source's list"
+        );
+        assert_eq!(destination.live_objects(), 1);
+        // The same allocation, which is what makes this a move rather than a
+        // copy that happens to be on the right list.
+        assert_eq!(crossed.obj_ptr(), value.obj_ptr());
+        #[expect(
+            unsafe_code,
+            reason = "the crossing answered the one reference to this \
+                      allocation, and this is it being given up"
+        )]
+        unsafe {
+            crate::release::release_value(crossed);
+        }
+        drop(across);
+    }
+
+    #[test]
+    #[should_panic(expected = "stamped with")]
+    #[cfg(debug_assertions)]
+    fn dismantling_through_a_foreign_context_panics_in_debug() {
+        // The stamp from the other side: an object linked on one context's
+        // list while claiming to belong to another is one that a second relink
+        // site moved half-way, and the foreign context's sweep is then free to
+        // dismantle it under its holder. The drift is written by hand here
+        // because no code in the crate can produce it — `LiveList::link`
+        // writes the stamp and the links in one statement, which is the whole
+        // design — and a release build would take the corruption silently, so
+        // the guard is debug-only, as every `cargo test` run and the WSL
+        // valgrind leg are.
+        // Two lists and no context, so that the unwind out of the panic below
+        // meets nothing that would assert a second time — a panic during a
+        // panic aborts, and the abort would say none of this.
+        let (table, animal, _dog, _greets) = hierarchy();
+        let owner = LiveList::default();
+        let elsewhere = LiveList::default();
+        #[expect(unsafe_code, reason = "the table outlives the objects")]
+        let (behind, object) = unsafe {
+            (
+                NvsObj::new(table.desc(animal)),
+                NvsObj::new(table.desc(animal)),
+            )
+        };
+        #[expect(
+            unsafe_code,
+            reason = "both objects are fresh and on no list, and the stamp \
+                      written last is the drift this guard exists for: moved \
+                      while the links stay where they are"
+        )]
+        unsafe {
+            owner.link(behind.ptr.as_ptr());
+            owner.link(object.ptr.as_ptr());
+            (*object.ptr.as_ptr())
+                .owner
+                .set(std::ptr::from_ref(&elsewhere));
+        }
+        drop(object);
+        drop(behind);
     }
 
     #[test]

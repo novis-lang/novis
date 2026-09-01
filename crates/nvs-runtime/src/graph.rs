@@ -412,6 +412,16 @@ impl Carrier for Live<'_> {
         }
     }
 
+    /// § 2's move, and **the one place in the runtime an allocation changes
+    /// owners** — so an object's live-list membership changes here too, inside
+    /// this implementation rather than at any call site.
+    ///
+    /// `crate::object`'s *Decision: every object is on its context's live list*
+    /// owns the reasoning; the short of it is that an adopted object left on
+    /// the source context's list is one that context's teardown sweep may
+    /// dismantle while the destination is still holding it. Only an object
+    /// needs this: a string and an array are on no list, because neither can
+    /// close a cycle (this module's second decision).
     fn adopt(&mut self, value: Value) -> bool {
         // The walk holds one reference; if it is the only one, nothing else
         // can observe that this allocation was reused.
@@ -420,7 +430,23 @@ impl Carrier for Live<'_> {
                 borrow_str(value).is_some_and(|held| held.refcount() == 1)
             }
             Some(Tag::Array) => borrow_array(value).refcount() == 1,
-            Some(Tag::Object) => borrow_object(value).refcount() == 1,
+            Some(Tag::Object) => {
+                if borrow_object(value).refcount() != 1 {
+                    return false;
+                }
+                let ptr = value
+                    .obj_ptr()
+                    .expect("an `Object` value carries an object header");
+                #[expect(
+                    unsafe_code,
+                    reason = "the walk holds the allocation's only reference, \
+                              which is what this arm just established"
+                )]
+                unsafe {
+                    crate::object::relink_to_current(ptr);
+                }
+                true
+            }
             _ => false,
         }
     }
