@@ -9,12 +9,12 @@ Core\Uuid $id = Core\Uuid::v4();
 echo $id->version(), "\n";
 // The static half of the same question, for a class the registry does state.
 echo Core\Uuid::variant($id), "\n";
-// And a class it does not: `Core\Env` is a name `nvs_hir` resolves because
-// nothing under `Core\` needs a declaration, which used to make every member of
-// it trusted. The registry is the roster, so `EOL` is knowably wrong here —
-// `docs/spec/02-php-migration.md` maps `PHP_EOL`, and mapping it is not shipping
-// it.
-echo Core\Env::EOL, "\n";
+// And a constant it does not state: `Core\Env` is a name `nvs_hir` resolves
+// because nothing under `Core\` needs a declaration, which used to make every
+// member of it trusted. The registry is the roster, and that class holds exactly
+// the three constants spec § 15 names — so `SAPI`, which PHP has and Novis has
+// no equivalent for, is knowably wrong here.
+echo Core\Env::SAPI, "\n";
 echo Core\Log::info("started"), "\n";
 --EXPECT--
 
@@ -23,7 +23,7 @@ error[E0405]: `Core\Uuid` has no method named `version`
 %A
 error[E0405]: `Core\Uuid` has no member named `variant`
 %A
-error[E0405]: `Core\Env` has no constant named `EOL`
+error[E0405]: `Core\Env` has no constant named `SAPI`
 %A
 error[E0405]: `Core\Log` has no member named `info`
 %A

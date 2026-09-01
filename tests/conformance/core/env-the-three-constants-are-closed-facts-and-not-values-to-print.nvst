@@ -1,0 +1,56 @@
+--TEST--
+`Core\Env::EOL`, `::OS` and `::VERSION` each answer one fact about the machine, so a case asserts the shape every platform's answer has to have rather than the answer one platform gives — `EOL` ends in a line feed and is one or two characters, `OS` is a member of `PHP_OS_FAMILY`'s closed set, and `VERSION` is three dot-separated pieces — spec § 15, ADR 0063 R6
+--FILE--
+<?nvs
+// A constant is folded at the site that names it, so this case cannot print any
+// of the three: two of them differ between the Windows leg and the WSL one, and
+// the third changes on every release. What is the same everywhere is their
+// *shape*, and each assertion below is written so that a wrong value on either
+// platform fails rather than passing on one of them.
+
+// `EOL` is `\r\n` or `\n` and nothing else -- asserted from both ends, because a
+// constant that answered `\r` alone would still be one character and a constant
+// that answered a whole sentence would still end in a line feed.
+int $eol = Core\Str::length(Core\Env::EOL) as int;
+if (Core\Str::endsWith(Core\Env::EOL, "\n") && $eol >= 1 && $eol <= 2) {
+    echo "EOL: a line feed, at most one character before it\n";
+} else {
+    echo "EOL: something else\n";
+}
+
+// Nothing reads it: spec § 1 says the platform's line ending is never consulted
+// when text is split, so a file written with `\r\n` and one written with `\n`
+// have the same lines whatever this constant says. That is the claim, and it is
+// asserted by agreement between the two members that split.
+array<string> $split = Core\Str::lines("one\r\ntwo\nthree");
+echo "lines across both terminators: ", Core\Arr::count($split) as string, "\n";
+
+// `OS` is a family from a closed roster, not `uname`'s free text. Counted over
+// the whole roster rather than compared against one name, so the assertion says
+// the same thing on every platform this suite runs on.
+array<string> $families = ["Windows", "Darwin", "Linux", "BSD", "Solaris", "Unknown"];
+int $named = 0;
+foreach ($families as string $family) {
+    if ($family == Core\Env::OS) {
+        $named = $named + 1;
+    }
+}
+echo "OS is one of the families: ", $named as string, "\n";
+
+// `VERSION` is three dot-separated pieces and every one of them is there: a
+// constant that answered an empty string would split to one piece, and one that
+// ended in a dot would split to three with an empty last.
+array<string> $pieces = Core\Str::split(Core\Env::VERSION, ".");
+int $filled = 0;
+foreach ($pieces as string $piece) {
+    if (!Core\Str::isEmpty($piece)) {
+        $filled = $filled + 1;
+    }
+}
+echo "VERSION pieces: ", Core\Arr::count($pieces) as string,
+     ", none of them empty: ", $filled as string, "\n";
+--EXPECT--
+EOL: a line feed, at most one character before it
+lines across both terminators: 3
+OS is one of the families: 1
+VERSION pieces: 3, none of them empty: 3

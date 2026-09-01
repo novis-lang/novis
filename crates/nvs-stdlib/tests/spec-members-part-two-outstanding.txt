@@ -14,17 +14,15 @@
 # is owed, never one that is refused. Grouped by section for reading; the test
 # compares sets, so order means nothing to it.
 
-# § 14 -- `Core\IO`'s path half. The handle roster and the whole-file members are
-# on disk; these are the directory, metadata and copying members beside them.
-§14 walk
+# § 14 is registered whole -- the handle roster, the whole-file members, the
+# directory, metadata and copying members, and both of its `Iterable<string>`s.
+# It keeps no keys here.
 
 # § 15 -- the request-facing half, which needs a request: goal 6's. `Core\Env`'s
-# and `Core\Cli`'s members are registered already, so what is left of § 15 here is
-# `Core\Env`'s run mode and constants, and the three request classes whole.
+# members, its three constants and `Core\Cli`'s roster are registered already, so
+# what is left of § 15 here is `Core\Env`'s run mode and the three request
+# classes whole.
 §15 Cap::has
-§15 Env::EOL
-§15 Env::OS
-§15 Env::VERSION
 §15 Env::mode
 §15 Request::body
 §15 Request::bodyStream

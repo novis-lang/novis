@@ -3,8 +3,9 @@
 //! [ADR 0012](../../../../docs/adr/0012-no-superglobals.md) § 1's replacement
 //! for `$_ENV` and `getenv()`.
 //!
-//! Two members so far, `get` and `all`. The rest of § 15's row — `mode()` and
-//! the `EOL`, `OS` and `VERSION` constants — is gap 1 below.
+//! Two members so far, `get` and `all`, and all three of § 15's constants —
+//! `EOL`, `OS` and `VERSION`, whose one shared decision is on [`CONSTANTS`].
+//! `mode()` is gap 1 below and the last of the row.
 //!
 //! # It is not a capability door, and that is decided rather than skipped
 //!
@@ -76,21 +77,20 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`mode()`, and the `EOL`, `OS` and `VERSION` constants.** `mode` reads
+//! 1. **`mode()`.** It reads
 //!    [ADR 0091](../../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s
-//!    run mode through `Core\Config` and needs its `Env\Mode` enum first.
-//!    `EOL` is the one that carries a decision rather than work: a
-//!    [`crate::registry::CoreConst`] is inlined at the use site, so its value
-//!    is fixed by the machine that *compiled* the program, and PHP's `PHP_EOL`
-//!    is fixed by the machine that runs it. Those are the same machine today
-//!    and stop being one when an artifact is copied, so what `EOL` is worth is
-//!    a question for whoever writes it, not a spelling to pick in passing.
+//!    run mode through `Core\Config` and needs its `Env\Mode` enum first —
+//!    `Production` and `Development`, and no third value. Spec § 15 is explicit
+//!    that no environment variable is consulted for it, so it is this class's
+//!    one member that does not read the environment at all.
 
 use std::collections::BTreeMap;
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreConst, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -117,8 +117,83 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     ],
     instance: &[],
     slots: &[],
-    constants: &[],
+    constants: CONSTANTS,
 };
+
+/// § 15's three constants — `PHP_EOL`, `PHP_OS_FAMILY` and `PHP_VERSION`, each
+/// with the one thing about it that is decided rather than transcribed.
+///
+/// A `CoreConst` is folded into the program at the site that names it, so all
+/// three are fixed when the program is **compiled**, where PHP's are fixed when
+/// it runs. That is the same machine here: Novis compiles the program it is
+/// about to run, and `Core\Path::SEPARATOR` — the platform-dependent constant
+/// that landed first — already rests on exactly this reading. Whether a cached
+/// artifact may ever be replayed on another machine is
+/// [ADR 0042](../../../../docs/adr/0042-on-disk-artifact-cache-format.md)'s
+/// question about that cache's identity and not this module's, and the day it
+/// is answered these constants and `SEPARATOR` are answered together.
+const CONSTANTS: &[CoreConst] = &[
+    CoreConst {
+        name: "EOL",
+        ty: CoreTy::Str,
+        value: Const::Str(EOL),
+        desc: "The line ending this platform writes — `\\r\\n` on Windows and `\\n` everywhere \
+               else, as `PHP_EOL` is. It is for *emitting* platform-native text and nothing \
+               reads it: `Core\\Str::lines` and `Core\\IO::lines` split on all three terminators \
+               and never consult it, which is spec § 1's own note.",
+    },
+    CoreConst {
+        name: "OS",
+        ty: CoreTy::Str,
+        value: Const::Str(OS),
+        desc: "The operating system **family**, spelled as `PHP_OS_FAMILY` spells it — \
+               `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. \
+               A closed set a program can compare against, and never `uname`'s free text, \
+               which is what PHP's other spelling `PHP_OS` hands over.",
+    },
+    CoreConst {
+        name: "VERSION",
+        ty: CoreTy::Str,
+        value: Const::Str(VERSION),
+        desc: "This runtime's version, replacing `PHP_VERSION` — three dot-separated numbers, \
+               and the same string `nvs info` reports. There is no `PHP_VERSION_ID` beside it: \
+               a second spelling of one fact is what R6 closes, and comparing versions is \
+               `Core\\Str::split` plus arithmetic on what this already says.",
+    },
+];
+
+/// [`CONSTANTS`]' `EOL` — `PHP_EOL`'s own value.
+const EOL: &str = if cfg!(windows) { "\r\n" } else { "\n" };
+
+/// [`CONSTANTS`]' `OS`, as `PHP_OS_FAMILY` spells a family.
+///
+/// The mapping from Rust's own `target_os`, which is finer: `macos` and `ios`
+/// are one Darwin, the four BSDs are one `BSD`, and `android` is a Linux
+/// because its kernel is the thing a program branching on this is asking
+/// about. Anything not named is `Unknown` rather than its `target_os`, so the
+/// set a program compares against stays closed.
+const OS: &str = if cfg!(windows) {
+    "Windows"
+} else if cfg!(any(target_os = "macos", target_os = "ios")) {
+    "Darwin"
+} else if cfg!(any(target_os = "linux", target_os = "android")) {
+    "Linux"
+} else if cfg!(any(
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd",
+    target_os = "dragonfly"
+)) {
+    "BSD"
+} else if cfg!(any(target_os = "solaris", target_os = "illumos")) {
+    "Solaris"
+} else {
+    "Unknown"
+};
+
+/// [`CONSTANTS`]' `VERSION` — this workspace's own, which is what `nvs info`
+/// prints and what `nvs_config`'s artifact cache is keyed on.
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// `Core\Env::get`'s reference card — ADR 0117.
 const GET_DOC: MethodDoc = MethodDoc {
