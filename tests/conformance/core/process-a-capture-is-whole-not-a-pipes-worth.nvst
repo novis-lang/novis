@@ -1,0 +1,120 @@
+--TEST--
+`Core\Process\Result::stdout` and `::stderr` hand back the whole of what the child wrote and not a pipe buffer's worth — a sweep of sizes named on both sides of 64 KiB, measured on both streams at once — ADR 0044 § 1
+--FILE--
+<?nvs
+// Every case already here asks about a capture no larger than a marker word.
+// `process-a-completed-runs-two-streams-stay-apart.nvst` writes ten octets to
+// each stream and
+// `process-a-child-that-writes-nothing-answers-two-empty-captures.nvst` writes
+// none, and both answer plausibly for a capture that stops where the operating
+// system's pipe filled. That is the defect this file exists to fail against:
+// `Core\Process::run` builds its two slots out of one `wait_with_output`, and
+// what that buys over reading each pipe in turn is the only thing measured
+// below — a child writing more than a pipe holds blocks until someone drains
+// it, so a member that read `stdout` to its end before touching `stderr` would
+// hand back a short capture on a program whose output is merely ordinary.
+//
+// The boundary is named on both sides: 65,500 octets is the last size under a
+// 64 KiB pipe buffer and 65,600 the first one over it, with 1,000 well below
+// and 262,100 four times past. Nothing is read off a single line — every count
+// is over the whole sweep, so a member that captures the small sizes whole and
+// the large ones short still prints `stdout whole=2` here rather than looking
+// right on the row it happens to be asked about.
+//
+// `stopped at the buffer` names the failure directly rather than inferring it:
+// a capture that ends where the pipe filled measures exactly 65,536, which is
+// not a length any size in this sweep produces on either platform when nothing
+// truncates. It is a second reading of the same defect and costs one line.
+//
+// The child writes its **stderr** half first, on both platforms. That is the
+// order a drain of one stream at a time cannot survive at all, rather than the
+// one where it merely truncates. There is no size at which a capture is
+// supposed to stop instead: this module's known gap 1 records that
+// `[limits] max_output` bounds nothing today, so 262,100 octets is a capture
+// and not a refusal, and this case pins that reading rather than assuming it.
+//
+// The two candidates are the platform shells named absolutely, for the reason
+// `process-a-completed-run-answers-the-status-the-child-chose.nvst` states:
+// § 1 makes a `PATH` lookup the caller's own, so the one that is not this
+// platform's has nothing at its path and the operating system answers
+// `IOError`. Each writes exactly one hundred octets per unit of the sweep —
+// `printf` pads to a field width, `cmd` echoes a 98-octet line and its own
+// CRLF — so the two legs measure the same sizes rather than comparable ones.
+// The counts are `>=` for that reason and not `==`: what is being pinned is
+// that nothing was lost, and a shell that pads a byte of its own is not this
+// case's subject.
+
+string $line = Core\Str::repeat("x", 98);
+array<int> $sweep = [10, 655, 656, 2621];
+
+int $started = 0;
+int $wholeOut = 0;
+int $wholeErr = 0;
+int $under = 0;
+int $past = 0;
+int $stopped = 0;
+
+foreach ($sweep as int $hundreds) {
+    int $size = $hundreds * 100;
+    bytes $out = "" as bytes;
+    bytes $err = "" as bytes;
+
+    try {
+        var $unix = Core\Process::run("/bin/sh", [
+            "-c",
+            Core\Str::format("printf '%%%ds' '' 1>&2; printf '%%%ds' ''", $size, $size)
+        ]);
+        $started = $started + 1;
+        $out = $unix->stdout();
+        $err = $unix->stderr();
+    } catch (IOError $notAUnix) {
+    }
+
+    try {
+        var $windows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", [
+            "/c",
+            Core\Str::format(
+                "(for /l %%i in (1,1,%d) do @echo %s) 1>&2 & for /l %%i in (1,1,%d) do @echo %s",
+                $hundreds,
+                $line,
+                $hundreds,
+                $line
+            )
+        ]);
+        $started = $started + 1;
+        $out = $windows->stdout();
+        $err = $windows->stderr();
+    } catch (IOError $notWindows) {
+    }
+
+    bool $whole = Core\Bytes::length($out) >= $size && Core\Bytes::length($err) >= $size;
+    if (Core\Bytes::length($out) >= $size) { $wholeOut = $wholeOut + 1; }
+    if (Core\Bytes::length($err) >= $size) { $wholeErr = $wholeErr + 1; }
+    if ($whole && $size < 65536) { $under = $under + 1; }
+    if ($whole && $size >= 65536) { $past = $past + 1; }
+    if (Core\Bytes::length($out) == 65536) { $stopped = $stopped + 1; }
+    if (Core\Bytes::length($err) == 65536) { $stopped = $stopped + 1; }
+}
+
+echo "sizes=", Core\Arr::count($sweep), "\n";
+echo "started=", $started, "\n";
+echo "stdout whole=", $wholeOut, "\n";
+echo "stderr whole=", $wholeErr, "\n";
+echo "under the buffer=", $under, "\n";
+echo "past the buffer=", $past, "\n";
+echo "stopped at the buffer=", $stopped, "\n";
+--FILE nvs.toml--
+# `true` for the reason the exit-code case gives: the door's own scoping is
+# pinned by
+# `process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst`, and
+# this case is about how much of a completed run was captured.
+[capabilities.process]
+exec = true
+--EXPECT--
+sizes=4
+started=4
+stdout whole=4
+stderr whole=4
+under the buffer=2
+past the buffer=2
+stopped at the buffer=0
