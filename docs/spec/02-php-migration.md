@@ -780,12 +780,57 @@ inclusion bug into a remote one. There is no opt-in and no reduced form.
 | `fsockopen` | member | `Core\Net`, which replaces `socket_*`, `stream_socket_*` and `fsockopen`: three PHP APIs for one job |
 | `pfsockopen` | member | `Core\Net`; the **persistent** half is dropped, because a connection outliving its request is cross-request state ([ADR 0052](../adr/0052-closed-doors.md) § 3) |
 
+## Hashing, passwords and identifiers
+
+Every one of these rows turns a **string naming an algorithm** into an enum case. `Core\Hash` ([01 §
+11](01-core-library.md)) takes a `Digest`, `Core\Hash::hmac` takes the closed `StrongDigest` subset so
+`Digest::Md5` there is a compile error, and `Core\Password` takes no algorithm argument at all. That is the
+whole difference: PHP spells the algorithm at the call site and finds out at run time whether the build has
+it, and Novis spells it in the type and finds out while compiling.
+
+`openssl_*` and `sodium_*` are not here — the oracle build does not load either extension, so they are part
+of the known hole named above rather than rows this section is missing. What is decided about them is
+`Core\Crypto`'s entry in [01 § 16](01-core-library.md): AEAD only, and no cipher chosen by a string.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `hash` | member | `Core\Hash::of`, whose second argument is a `Digest` case rather than an algorithm name (R11) — a misspelling is a compile error and not a runtime `false` |
+| `hash_algos` | dropped | the roster *is* the `Digest` enum, which the compiler already holds. A list built at run time exists to be searched for a name, which is the failure this removes |
+| `hash_hmac_algos` | dropped | `StrongDigest` is that list, and `Core\Hash::hmac` declares it ([ADR 0047](../adr/0047-literal-and-enum-case-types.md)) |
+| `hash_hmac` | member | `Core\Hash::hmac`, whose key is `secret bytes` ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)) and whose digest cannot be a broken one |
+| `hash_equals` | member | `Core\Hash::equals`, constant-time |
+| `hash_init` | member | `Core\Hash::stream` |
+| `hash_update` | member | `$stream->update` |
+| `hash_final` | member | `$stream->finish`, which consumes the stream: a second `finish`, or an `update` after one, throws |
+| `hash_copy` | dropped | a `Hash\Stream` does not fork. Two digests of one input are two streams — PHP's copy exists only because `hash_final` invalidates the context, which is the same rule stated as a workaround |
+| `hash_file` | member | `Core\Hash::of` over `Core\IO::read` where the file fits, `Core\Hash::stream` fed from `Core\IO::open`'s handle where it does not. Reading and digesting are two jobs (R17) |
+| `hash_update_file` | member | the same pair |
+| `hash_update_stream` | member | `$stream->update`, given the bytes. There is no stream type to hand it, because anything that yields `bytes` already qualifies ([ADR 0053](../adr/0053-iteration-and-generators.md)) |
+| `hash_hkdf` | member | `Core\Crypto` ([01 § 16](01-core-library.md)), where deriving a key sits beside the primitives that consume one |
+| `hash_pbkdf2` | dropped | storing a password is `Core\Password::hash`, which writes Argon2id and takes no cost parameters from the call site ([ADR 0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)). Where PBKDF2 derived a key rather than stored a password, that is `Core\Crypto` |
+| `md5` | member | `Core\Hash::of` with `Digest::Md5`, which the roster keeps for interop and labels collision-broken |
+| `md5_file` | member | the same, over `Core\IO::read` |
+| `sha1` | member | `Core\Hash::of` with `Digest::Sha1` |
+| `sha1_file` | member | the same, over `Core\IO::read` |
+| `crc32` | member | `Core\Hash::of` with `Digest::Crc32`. PHP's `crc32()` is CRC-32/ISO-HDLC — the `crc32b` of `hash()`, not its `crc32` — and `Digest::Crc32c` is beside it for the checksum object stores stamp |
+| `crypt` | member | `Core\Password::hash` to write and `Core\Password::verify` to read. There is no salt argument and no algorithm prefix inside a string, which is what made `crypt` silently fall back to DES for two decades |
+| `password_hash` | member | `Core\Password::hash` — Argon2id, always |
+| `password_verify` | member | `Core\Password::verify`, which also verifies a PHP-stored bcrypt hash ([ADR 0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)) |
+| `password_needs_rehash` | member | `Core\Password::needsRehash`, which answers `true` for every bcrypt hash, so a migrated user table upgrades itself one login at a time |
+| `password_algos` | dropped | there is one algorithm and no argument that could choose another, so there is no list to enumerate |
+| `password_get_info` | dropped | the one fact a program acts on is whether the stored hash needs replacing, and that is `Core\Password::needsRehash` |
+| `uniqid` | member | `Core\Uuid::v4` where the identifier must be unpredictable, `Core\Uuid::v7` where it must sort by creation time. `uniqid` is neither — it is the clock in hex, and its `$more_entropy` argument appends `lcg_value` |
+| `mhash` | dropped | `ext/hash`'s compatibility layer for a library retired long ago. `Core\Hash::of` is the one door |
+| `mhash_count` | dropped | same |
+| `mhash_get_block_size` | dropped | same; each case's width is in `Digest`'s roster, which [01 § 11](01-core-library.md) states is its only home |
+| `mhash_get_hash_name` | dropped | same; a case has a name because it is an enum |
+| `mhash_keygen_s2k` | dropped | S2K is OpenPGP's key derivation. Deriving a key is `Core\Crypto` |
+
 ---
 
 ## Not yet classified
 
 Everything else the inventory lists. `python tools/check-migration.py --report` prints the current list;
 it is not duplicated here, because a copy would go stale the moment a row lands. The domains still to do,
-each roughly one pass: output and buffering, sessions and requests, reflection and the class API, hashing
-and passwords, XML, compression, the four database extensions, processes, networking, and PHP's own
-introspection.
+each roughly one pass: output and buffering, sessions and requests, reflection and the class API, XML,
+compression, the four database extensions, processes, networking, and PHP's own introspection.
