@@ -1,0 +1,68 @@
+--TEST--
+Every Core\Crypto::generateKey draw is a key seal and open both take, no two draws are equal, and no message sealed under one draw opens under another — counted over the whole matrix rather than read off a line — ADR 0051 § 3
+--FILE--
+<?nvs
+// Invariance over a sweep, counted. A `generateKey` that had become a
+// constant, one that drew from a 256-entry table, or one that returned the
+// same key for the rest of a request all seal and open a message perfectly
+// well; what they cannot do is survive being asked about every *pair* of
+// draws. Asking one draw at a time prints a line that looks right for all of
+// them.
+bytes $message = "attack at dawn" as bytes;
+
+array<secret bytes> $keys = [];
+array<bytes> $sealed = [];
+foreach (Core\Arr::range(1, 8) as int $draw) {
+    secret bytes $key = Core\Crypto::generateKey();
+    $keys = Core\Arr::append($keys, $key);
+    $sealed = Core\Arr::append($sealed, Core\Crypto::seal($message, $key));
+}
+
+// A drawn key is the length `seal` accepts, asserted the only way a `secret`
+// admits: `Core\Bytes::length` refuses one (ADR 0033), so the width is read
+// back through the members that have a bound on it —
+// `crypto-names-the-key-length-bound-on-both-sides.nvst` is where that bound
+// is named, and a draw of any other width would be a `LogicError` here.
+int $round = 0;
+foreach (Core\Arr::range(0, 7) as int $i) {
+    if (Core\Crypto::open($sealed[$i], $keys[$i]) == $message) {
+        $round += 1;
+    }
+}
+echo "round trips ", $round, " of 8", "\n";
+
+// Every unordered pair, and then every ordered one: two draws are never equal,
+// and a message sealed under either never opens under the other. The second is
+// the stronger half — two keys can differ in one octet and still both be the
+// key a construction that ignored most of them was using.
+int $pairs = 0;
+int $distinct = 0;
+int $crossed = 0;
+int $refused = 0;
+foreach (Core\Arr::range(0, 7) as int $i) {
+    foreach (Core\Arr::range(0, 7) as int $j) {
+        if ($i < $j) {
+            $pairs += 1;
+            if ($keys[$i] == $keys[$j]) {
+                echo "two draws were the same key", "\n";
+            } else {
+                $distinct += 1;
+            }
+        }
+        if ($i != $j) {
+            $crossed += 1;
+            try {
+                bytes $opened = Core\Crypto::open($sealed[$i], $keys[$j]);
+                echo "one draw opened another's message", "\n";
+            } catch (RuntimeError $notThisKey) {
+                $refused += 1;
+            }
+        }
+    }
+}
+echo "distinct ", $distinct, " of ", $pairs, " pairs", "\n";
+echo "cross-opens refused ", $refused, " of ", $crossed, "\n";
+--EXPECT--
+round trips 8 of 8
+distinct 28 of 28 pairs
+cross-opens refused 56 of 56
