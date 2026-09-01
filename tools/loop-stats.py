@@ -619,7 +619,16 @@ def main():
         render_attribution(sessions)
         return
 
-    print(f"== PER SESSION  ({len(sessions)} transcript(s) in .loop/logs)")
+    # `N transcript(s)` reads as all-time and is not: the driver prunes `.loop/logs` to its newest
+    # `--keep-runs` runs at every run start, so the set moves under a reader comparing this count --
+    # or any "k of N session(s)" derived from it -- against an earlier report's. An optimization
+    # pass recorded nearly filing a five-point regression that was only the window sliding.
+    # Naming the runs makes two reports comparable, or visibly not; it is also the only place the
+    # retained window is stated as a fact rather than as whatever `--keep-runs` was set to.
+    runs = sorted({s["log"].rsplit("-", 1)[0] for s in sessions})
+    window = runs[0] if len(runs) == 1 else f"{runs[0]} .. {runs[-1]}"
+    print(f"== PER SESSION  ({len(sessions)} transcript(s) in .loop/logs, "
+          f"{len(runs)} run(s): {window} -- older runs are pruned)")
     print(
         f"{'log':<28}{'calls':>6}{'/msg':>6}{'cmd/c':>7}{'head':>6}{'work':>6}{'tail':>6}"
         f"{'vfy':>5}{'cmt':>5}{'ctx end':>10}{'min':>7}{'$':>8}"
