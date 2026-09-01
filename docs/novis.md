@@ -15523,13 +15523,14 @@ Hands one message to the SMTP endpoint `[mail.$endpoint]` names, and returns onc
 <a id="core-core-storage"></a>
 ### `Core\Storage`
 
-Keywords: put, get, delete
+Keywords: put, get, delete, list
 
 | Member | Signature |
 |---|---|
 | [`Core\Storage::put`](#core-core-storage-put) | `put(string $disk, string $key, bytes $contents, {overwrite?: bool}): void` |
 | [`Core\Storage::get`](#core-core-storage-get) | `get(string $disk, string $key): ?bytes` |
 | [`Core\Storage::delete`](#core-core-storage-delete) | `delete(string $disk, string $key): void` |
+| [`Core\Storage::list`](#core-core-storage-list) | `list(string $disk, {prefix?: string}): array<string>` |
 
 <a id="core-core-storage-put"></a>
 #### `Core\Storage::put`
@@ -15586,6 +15587,24 @@ Removes the object `$key` from `$disk`.
 **Returns** `void` — Nothing. The object is gone once this returns.
 
 **Throws** `RuntimeError` — No `[storage.<name>]` block of that name sets a `root`; or `$key` is not an object key; or the `fs.read`/`fs.write` capability does not cover the object's path. Each is a deployment or a call that was written wrong.; `IOError` — There is no object at `$key`, or it could not be removed. Deleting what was never there is a failure rather than a silent success: the key was computed by the caller, and a typo that succeeds is one nothing reports.
+
+<a id="core-core-storage-list"></a>
+#### `Core\Storage::list`
+
+```nvs skip
+Core\Storage::list(string $disk, {prefix?: string}): array<string>
+```
+
+Answers the keys of the objects on `$disk`, sorted byte-ascending — every entry one that `get` hands octets back for.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$disk` | `string` (sink) | Which `[storage.<name>]` block in `nvs.toml` the object lives on. Refuses a `tainted` argument: it selects a deployment, so it is written at the call site and never read from input. |
+| `{prefix: …}` | `string` (default `""`, neutral) | Which of the disk's keys to answer about: the ones beginning with this text. Empty by default, which is all of them. A prefix that is neither empty nor itself an object key is refused rather than answered with nothing, since no key the disk can hold could have begun with it. |
+
+**Returns** `array<string>` — The matching keys, sorted byte-ascending; an empty array where the disk holds no object that matches. Only a regular file whose name is an object key is listed, so a subdirectory, a symlink and a name this class has no key for are all absent.
+
+**Throws** `RuntimeError` — No `[storage.<name>]` block of that name sets a `root`; or `prefix` is neither empty nor an object key; or the `fs.read` capability does not cover the disk's own root.; `IOError` — The disk's root could not be read — it is not there, or it is not a directory.
 
 <a id="core-core-cldr"></a>
 ### `Core\Cldr`

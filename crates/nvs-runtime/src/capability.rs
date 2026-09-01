@@ -3,9 +3,9 @@
 //!
 //! [`require`] is deliberately the only *decision* here. The decision procedure is
 //! [`nvs_config::capability`] and is pure; this is the half that knows about a request — where the
-//! snapshot comes from, and what a denial looks like to the program that hit it. Nine below are
-//! § 2's filesystem doors — [`open_read`], [`metadata`], [`exists`] and [`canonicalize`] behind
-//! `fs.read`, [`write()`],
+//! snapshot comes from, and what a denial looks like to the program that hit it. Ten below are
+//! § 2's filesystem doors — [`open_read`], [`metadata`], [`exists`], [`canonicalize`] and
+//! [`read_dir`] behind `fs.read`, [`write()`],
 //! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write`, and [`open`] behind whichever
 //! of the two its [`Access`] names — [`exec`] is the process
 //! door behind `process.exec`, and [`pin_host`] is the outbound one behind `net.connect`, which
@@ -20,7 +20,7 @@
 //!
 //! [ADR 0118]: ../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md
 
-use std::fs::{File, Metadata};
+use std::fs::{File, Metadata, ReadDir};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
@@ -366,6 +366,35 @@ pub fn canonicalize(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fau
             ),
         )
     })
+}
+
+/// § 2's enumeration door: what the directory at `path` holds, once [`Cap::FsRead`] has been shown
+/// to cover the directory itself.
+///
+/// The grant is asked about the directory and about nothing under it, because reading a directory
+/// is one read of one path — its entries are its content, exactly as a file's octets are its
+/// content. A name the listing hands back is a *second* path, and every other door still asks about
+/// that one, so `fs.read` over a root lets a program learn what is in the root and buys it nothing
+/// else.
+///
+/// This is the enumeration [`exists`] is careful about, arriving as a door of its own rather than
+/// as a widening of one: `exists` answers about a path the caller already named, and this answers
+/// about paths it could not name yet. Which is why the check is over the directory and never over
+/// an ancestor of it — a program granted one disk's root cannot list the one beside it.
+///
+/// The [`ReadDir`] is handed back lazily, as [`open_read`] hands back a [`File`]: one check, at the
+/// door, over the one path the whole walk stays inside.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
+/// `path`, or [`io_failure`]'s `IOError` when the directory could not be opened at all — it is not
+/// there, or it is not a directory. A failure on one *entry* during the walk arrives later and is
+/// the caller's, since only the caller knows whether an entry it cannot read is fatal to what it
+/// was asking.
+pub fn read_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<ReadDir, Fault> {
+    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    std::fs::read_dir(path).map_err(|err| io_failure(member, path, &err))
 }
 
 /// § 2's unlink door: `path` stops existing, once [`Cap::FsWrite`] has been shown to cover it.

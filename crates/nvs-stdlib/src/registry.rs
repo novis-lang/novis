@@ -1559,6 +1559,11 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "delete",
         Some(nvs_config::Cap::FsWrite),
     ),
+    // Reading the disk's root as a directory, which is a read of it and not a
+    // fifth grant: enumerating is the question `fs.read` already answers about
+    // a path, and `nvs_runtime::capability::exists`' own doc is where that
+    // reading is argued.
+    (crate::storage::NAME, "list", Some(nvs_config::Cap::FsRead)),
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)

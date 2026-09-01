@@ -1,11 +1,11 @@
 //! `Core\Storage` — [ADR 0082](../../../../docs/adr/0082-the-first-party-framework.md) § 2's
-//! object storage: three members that put, get and delete a **named object on a disk an operator
-//! configured**, over the `fs.*` capabilities [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md)
+//! object storage: four members that put, get, delete and enumerate **named objects on a disk an
+//! operator configured**, over the `fs.*` capabilities [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md)
 //! § 3 already grants and no capability of its own.
 //!
 //! ADR 0082 § 2's row is one sentence — "local-filesystem object storage over ADR 0051's existing
 //! `fs.*` capabilities. Remote backends (S3 and friends) are a package or an extension, never
-//! Core" — and the three decisions it does not write are below.
+//! Core" — and the decisions it does not write are below.
 //!
 //! # It declares no capability, and that is the design rather than an omission
 //!
@@ -48,25 +48,52 @@
 //! objects a caller may reach among those the grant covers is authorization, which is the
 //! application's and not this class's.
 //!
-//! # Known gaps, recorded rather than worked around
+//! # What `list` answers over, in one order, with the prefix as an option
 //!
-//! **There is no `list`.** Enumerating a disk needs a read-directory door, and
-//! [`nvs_runtime::capability`] has none — every existing `fs.read` door answers about a path the
-//! caller already named. Adding one is a capability-surface decision (a directory read is the
-//! enumeration [`nvs_runtime::capability::exists`]'s own doc is careful about), so it is its own
-//! slice rather than a helper smuggled in beside these three.
+//! Three decisions, none of them written in ADR 0082 § 2, which says only that the storage is
+//! local.
+//!
+//! **Every key it answers is one [`get`](CLASS) hands octets back for.** The root is an operator's
+//! directory and may hold whatever an operator put there — a `README`, a stray `.DS_Store`, a
+//! subdirectory no key of this class could have made, a symlink to somewhere else entirely. None
+//! of those is an object, so none of them is listed: an entry is a key here only when it is a
+//! **regular file** whose name [`is_key`] accepts. That is an *omission* rather than a refusal,
+//! and the difference is who wrote the bytes — ADR 0095 refuses ambiguous **input**, and a disk's
+//! own contents are not the caller's input. The alternative is a disk that one stray file makes
+//! permanently unlistable.
+//!
+//! The one direction this does not run is the symlink: `get` follows one and the listing does not,
+//! so a linked object is readable by a caller that already knows its key and is not enumerable.
+//! That is the safe half of the asymmetry — what a link names is not on this disk, and listing it
+//! would make the answer depend on a path the operator's grant was never written about.
+//!
+//! **The answer is sorted, byte-ascending.** `readdir` order is the filesystem's own and is stable
+//! across neither hosts nor runs, so an unsorted answer is a result no program may depend on and
+//! no test can freeze. The sort is over names already in hand, and it buys every caller a total
+//! order each of them would otherwise have to impose.
+//!
+//! **`prefix` is an option, and it is empty or itself an object key.** Being optional, ADR 0063 R3
+//! puts it in the one trailing shape rather than in a second positional slot. Every non-empty
+//! prefix of a key *is* a key — the grammar bounds length from above only, and no byte it admits
+//! is one a longer name may not carry — so any other spelling names nothing this disk can hold,
+//! and it is refused with the key grammar's own sentence rather than answered with an empty array
+//! (ADR 0095 again). Filtering here rather than at the call site is what keeps a large disk's
+//! answer proportional to what was asked about.
+//!
+//! # Known gaps, recorded rather than worked around
 //!
 //! **There is no `exists`, and that one is deliberate.** [`get`](CLASS) answers absence as `null`
 //! under [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R7, so a second member
 //! asking the same question would be the one operation reachable two ways that R20 forbids. The
 //! cost is real and named: `get` on a large object reads it to answer a question about its
-//! existence, and the day that matters is the day `list` lands and brings the cheap answer with
-//! it.
+//! existence. [`list`](CLASS) under a `prefix` is the cheap half of that — it reads the directory
+//! and never the object — but it is a listing rather than a test, so a caller with one key in mind
+//! compares the element it got back.
 
 use std::io::{Read as _, Write as _};
 use std::path::PathBuf;
 
-use nvs_runtime::{Ctx, Fault, NvsStr, Tag, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -81,10 +108,15 @@ const PUT: &str = r"Core\Storage::put";
 const GET: &str = r"Core\Storage::get";
 /// See [`PUT`].
 const DELETE: &str = r"Core\Storage::delete";
+/// See [`PUT`].
+const LIST: &str = r"Core\Storage::list";
 
 /// The ABI slot each parameter and each flattened option lands in — the bag
 /// expands to one argument per option, in declaration order, after the
 /// positionals.
+///
+/// The slots are per row, so two names can share an index: [`LIST`] takes no
+/// key, and its one option lands where the other three rows carry [`KEY`].
 const DISK: usize = 0;
 /// See [`DISK`].
 const KEY: usize = 1;
@@ -92,6 +124,8 @@ const KEY: usize = 1;
 const CONTENTS: usize = 2;
 /// See [`DISK`].
 const OVERWRITE: usize = 3;
+/// See [`DISK`].
+const PREFIX: usize = 1;
 
 /// The longest key this class will resolve to a file name.
 ///
@@ -118,7 +152,20 @@ const PUT_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Bool(true),
 }];
 
-/// `Core\Storage`'s three rows — ADR 0082 § 2's object storage.
+/// [`list`](CLASS)'s trailing shape — which of the disk's objects are being
+/// asked about.
+///
+/// Empty means all of them, which is why the default is a value rather than
+/// [`Const::Null`]: "no prefix" and "the prefix every key starts with" are the
+/// same question, and a not-given path in the body would have been a second
+/// spelling of one answer.
+const LIST_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "prefix",
+    ty: CoreTy::Text(Qual::Neutral),
+    default: Const::Str(""),
+}];
+
+/// `Core\Storage`'s four rows — ADR 0082 § 2's object storage.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -153,6 +200,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_storage_delete",
             doc: Some(&DELETE_DOC),
+        },
+        CoreMethod {
+            name: "list",
+            names: &["disk"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(LIST_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "nvs_core_storage_list",
+            doc: Some(&LIST_DOC),
         },
     ],
     instance: &[],
@@ -249,12 +305,45 @@ const DELETE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Storage::list`'s reference card — ADR 0117.
+const LIST_DOC: MethodDoc = MethodDoc {
+    short: "Answers the keys of the objects on `$disk`, sorted byte-ascending — every entry one \
+            that `get` hands octets back for.",
+    params: &[
+        DISK_DOC,
+        ParamDoc {
+            name: "prefix",
+            desc: "Which of the disk's keys to answer about: the ones beginning with this text. \
+                   Empty by default, which is all of them. A prefix that is neither empty nor \
+                   itself an object key is refused rather than answered with nothing, since no \
+                   key the disk can hold could have begun with it.",
+            shape: &[],
+        },
+    ],
+    ret: "The matching keys, sorted byte-ascending; an empty array where the disk holds no object \
+          that matches. Only a regular file whose name is an object key is listed, so a \
+          subdirectory, a symlink and a name this class has no key for are all absent.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "No `[storage.<name>]` block of that name sets a `root`; or `prefix` is neither \
+                   empty nor an object key; or the `fs.read` capability does not cover the disk's \
+                   own root.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The disk's root could not be read — it is not there, or it is not a directory.",
+        },
+    ],
+};
+
 /// The `Core` symbol table's arm for this module — see [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_storage_put" => (nvs_core_storage_put as *const ()).cast(),
         "nvs_core_storage_get" => (nvs_core_storage_get as *const ()).cast(),
         "nvs_core_storage_delete" => (nvs_core_storage_delete as *const ()).cast(),
+        "nvs_core_storage_list" => (nvs_core_storage_list as *const ()).cast(),
         _ => return None,
     })
 }
@@ -288,6 +377,22 @@ fn root_of(ctx: &Ctx, disk: &str, member: &str) -> Result<PathBuf, Fault> {
         })
 }
 
+/// Whether `key` is an object key — the grammar the module doc's second
+/// section states, in the one place both readers of it agree from.
+///
+/// A predicate beside [`key_of`] rather than inside it because
+/// [`list`](CLASS) asks the question about names it is *filtering* and not
+/// about an argument: a refusal there would be a `Fault` built, formatted and
+/// dropped once per file the operator's directory happens to hold.
+fn is_key(key: &str) -> bool {
+    !key.is_empty()
+        && key.len() <= MAX_KEY
+        && !key.starts_with('.')
+        && key
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+}
+
 /// `key` as an object key, or the one refusal that says why it is not one.
 ///
 /// One refusal rather than five, and the sentence carries the whole grammar
@@ -301,13 +406,7 @@ fn root_of(ctx: &Ctx, disk: &str, member: &str) -> Result<PathBuf, Fault> {
 /// of it is stripped instead: a key a program did not mean is an object stored
 /// where it did not mean, and only the caller can say which was intended.
 fn key_of<'a>(key: &'a str, member: &str) -> Result<&'a str, Fault> {
-    let shaped = !key.is_empty()
-        && key.len() <= MAX_KEY
-        && !key.starts_with('.')
-        && key
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'));
-    if shaped {
+    if is_key(key) {
         return Ok(key);
     }
     Err(Fault::thrown(format!(
@@ -315,6 +414,25 @@ fn key_of<'a>(key: &'a str, member: &str) -> Result<&'a str, Fault> {
          digits, `.`, `-` and `_`, not beginning with a `.`. A key names an object on the disk \
          and never a path through it, so a separator is refused rather than resolved"
     )))
+}
+
+/// `prefix` as a key prefix — empty, or an object key.
+///
+/// The refusal is [`key_of`]'s own sentence and that is exact rather than
+/// approximate: every non-empty prefix of a key is itself a key, so a prefix
+/// the grammar refuses is one no key on the disk can begin with, and "this is
+/// not an object key" is precisely what is wrong with it. The module doc's
+/// third section is why it is refused rather than answered with nothing.
+///
+/// # Errors
+///
+/// [`key_of`]'s catchable `RuntimeError`, for a non-empty prefix that is not a
+/// key.
+fn prefix_of<'a>(prefix: &'a str, member: &str) -> Result<&'a str, Fault> {
+    if prefix.is_empty() {
+        return Ok(prefix);
+    }
+    key_of(prefix, member)
 }
 
 /// Where the object named by this call's `$disk` and `$key` lives.
@@ -420,6 +538,52 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Storage::list(string $disk, {prefix?: string}): array<string>` —
+    /// ADR 0082 § 2's fourth row, and the only one that reads the disk itself
+    /// rather than one object on it.
+    ///
+    /// The door is [`nvs_runtime::capability::read_dir`] over the root, and it
+    /// is `fs.read` about the directory the other three rows' objects already
+    /// sit in — so a deployment that granted the disk at all has granted this,
+    /// which is what keeps the class's "no capability of its own" true for a
+    /// member that asks a new question. Everything after the door is filtering,
+    /// and the module doc's third section is the whole of what it filters on.
+    fn nvs_core_storage_list(ctx, args: [2]) {
+        let disk = text_of(args, DISK, "disk", LIST)?;
+        let prefix = prefix_of(text_of(args, PREFIX, "prefix", LIST)?, LIST)?;
+        let root = root_of(ctx, disk, LIST)?;
+
+        let mut keys: Vec<String> = Vec::new();
+        for entry in nvs_runtime::capability::read_dir(ctx, &root, LIST)? {
+            // An entry that cannot be read or typed is not an object this call
+            // can promise anything about, so it joins the names the module doc
+            // omits rather than failing the whole listing. A name that is not
+            // UTF-8 is not a key by the same reading: the grammar is ASCII.
+            let Ok(entry) = entry else { continue };
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else { continue };
+            if !name.starts_with(prefix) || !is_key(name) {
+                continue;
+            }
+            // A regular file and nothing else. `file_type` does not follow a
+            // symlink, which is the answer this member wants: what a link names
+            // is not on this disk, and following one would make a listing
+            // depend on a path the operator's grant was not written about.
+            if entry.file_type().is_ok_and(|kind| kind.is_file()) {
+                keys.push(name.to_owned());
+            }
+        }
+        keys.sort_unstable();
+
+        let mut out = NvsArray::new();
+        for key in &keys {
+            out.append(Value::str(NvsStr::new(key.as_bytes())));
+        }
+        Ok(Value::array(out))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,6 +609,7 @@ mod tests {
                 ("put", Some(nvs_config::Cap::FsWrite)),
                 ("get", Some(nvs_config::Cap::FsRead)),
                 ("delete", Some(nvs_config::Cap::FsWrite)),
+                ("list", Some(nvs_config::Cap::FsRead)),
             ],
             "every Core\\Storage member is gated on the fs capability its door already asks for"
         );
