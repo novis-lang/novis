@@ -1,0 +1,93 @@
+--TEST--
+Core\Storage's four rows agree about whether a key names an object, each in its own vocabulary — absence is null, a failed delete, an omission from the listing and a claim that succeeds — ADR 0082 § 2, ADR 0063 R7
+--FILE--
+<?nvs
+// One question — "does this key name an object on this disk?" — asked of all
+// four rows, and what is asserted is that they **agree**. Each answers in a
+// different vocabulary, so a row that grew its own idea of absence still reads
+// plausibly on its own line: `get` would answer `null` for a key `list` shows,
+// or `delete` would quietly succeed over nothing. Counting the four together is
+// what catches that; the numbers between 0 and 4 are the whole failure surface.
+//
+// The vocabularies, from `crates/nvs-stdlib/src/storage.rs`'s reference cards:
+// `get` answers absence as `null` (ADR 0063 R7), `delete` fails over a key that
+// was never there, `list` omits it, and `put` under `overwrite: false` is a
+// claim, so it succeeds exactly where there is nothing to replace.
+final class Ask {
+    public static function byGet(string $key): bool {
+        if (Core\Storage::get("uploads", $key) == null) {
+            return false;
+        }
+        return true;
+    }
+
+    public static function byList(string $key): bool {
+        foreach (Core\Storage::list("uploads") as string $entry) {
+            if ($entry == $key) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // The two mutating rows put back what they took, so the four questions are
+    // asked of one disk state rather than of four successive ones.
+    public static function byPut(string $key): bool {
+        try {
+            Core\Storage::put("uploads", $key, "hello\n" as bytes, {overwrite: false});
+        } catch (Throwable $error) {
+            return true;
+        }
+        Core\Storage::delete("uploads", $key);
+        return false;
+    }
+
+    public static function byDelete(string $key): bool {
+        try {
+            Core\Storage::delete("uploads", $key);
+        } catch (Throwable $error) {
+            return false;
+        }
+        Core\Storage::put("uploads", $key, "hello\n" as bytes);
+        return true;
+    }
+
+    public static function agreeing(string $key): int {
+        int $present = 0;
+        if (Ask::byGet($key)) {
+            $present = $present + 1;
+        }
+        if (Ask::byList($key)) {
+            $present = $present + 1;
+        }
+        if (Ask::byPut($key)) {
+            $present = $present + 1;
+        }
+        if (Ask::byDelete($key)) {
+            $present = $present + 1;
+        }
+        return $present;
+    }
+}
+
+Core\Storage::put("uploads", "note.txt", "hello\n" as bytes);
+
+echo "nothing was put at ghost.txt: ", Ask::agreeing("ghost.txt"), " of 4 rows say it is there", "\n";
+echo "an object is at note.txt: ", Ask::agreeing("note.txt"), " of 4 rows say it is there", "\n";
+
+// And the disk is what it was, which is what makes the eight questions above
+// eight readings of two states rather than a sequence of edits.
+echo "still on the disk: ", Core\Str::join(Core\Storage::list("uploads"), ","), "\n";
+--FILE nvs.toml--
+[storage.uploads]
+root = "./objects"
+
+[capabilities.fs]
+read = ["./objects"]
+write = ["./objects"]
+--FILE objects/keep.txt--
+the disk's root has to exist; this is what makes it
+--EXPECT--
+nothing was put at ghost.txt: 0 of 4 rows say it is there
+an object is at note.txt: 4 of 4 rows say it is there
+still on the disk: keep.txt,note.txt
