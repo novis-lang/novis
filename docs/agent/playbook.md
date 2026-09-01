@@ -1426,6 +1426,15 @@ is why" — is this file.
   suspecting the dependency in your diff; `cargo update -p <crate>` to the next patch is the whole
   fix when it is a yank rather than an advisory, and it belongs in the same commit as the
   `Cargo.lock` you were already writing.
+- **`goal-switch.py` carries a list across only if the list is written on more than one line, and a
+  union that kept nothing looks exactly like a union with nothing to add.** Its `union_list` matched
+  `^field = [ ... ^]` — the `]` anchored at the start of its own line — so `files`, which this repo writes
+  multi-line, was carried at the goal-3→goal-4 switch and the single-line `[valgrind] skip` was not.
+  `examples/limits.nvs` lost its skip, the sweep graded a fixture that exits nonzero **by design** as a
+  leak, and an acceptance run failed on a fixture no session had touched, four days later. Two readings:
+  a `[valgrind] skip` entry is load-bearing for every fixture written to fail, and a text-edit union over
+  TOML has to say which shapes it matches — this one now matches both and returns `None` for a missing
+  field so the caller refuses instead of passing through.
 
 ## Running things
 
