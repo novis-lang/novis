@@ -870,6 +870,17 @@ struct Signatures {
     /// ABI still writes an (ignored) result of its own; see
     /// `nvs_ir::ir::InstKind::SlotSet`.
     slot_set: Signature,
+    /// `nvs_object_key_get(ctx, receiver, key, out) -> status` — ADR 0126 § 4's
+    /// keyed read, which is [`Self::slot_get`]'s helper with the name arriving
+    /// as a value. Narrower rather than wider: the `(ptr, len)` pair and the
+    /// slot hint both go, because a key carries its bytes behind a header only
+    /// the runtime knows and has no static name to have taken a position from.
+    /// See `nvs_ir::ir::InstKind::KeyGet`.
+    key_get: Signature,
+    /// `nvs_object_key_set(ctx, receiver, key, value, out) -> status` —
+    /// [`Self::key_get`]'s write half, one 16-byte value slot wider for the
+    /// reason [`Self::slot_set`] is one wider than [`Self::slot_get`].
+    key_set: Signature,
     /// `nvs_array_new() -> *mut ArrayHeader`.
     array_new: Signature,
     /// `nvs_array_set(array, key, value) -> *mut ArrayHeader`. There is no
@@ -1289,6 +1300,21 @@ impl Signatures {
         slot_set.params.push(AbiParam::new(ptr)); // out
         slot_set.returns.push(AbiParam::new(types::I32));
 
+        let mut key_get = module.make_signature();
+        key_get.params.push(AbiParam::new(ptr)); // ctx
+        key_get.params.push(AbiParam::new(ptr)); // receiver, by address
+        key_get.params.push(AbiParam::new(ptr)); // key, by address
+        key_get.params.push(AbiParam::new(ptr)); // out
+        key_get.returns.push(AbiParam::new(types::I32));
+
+        let mut key_set = module.make_signature();
+        key_set.params.push(AbiParam::new(ptr)); // ctx
+        key_set.params.push(AbiParam::new(ptr)); // receiver, by address
+        key_set.params.push(AbiParam::new(ptr)); // key, by address
+        key_set.params.push(AbiParam::new(ptr)); // value, by address
+        key_set.params.push(AbiParam::new(ptr)); // out
+        key_set.returns.push(AbiParam::new(types::I32));
+
         let mut array_new = module.make_signature();
         array_new.returns.push(AbiParam::new(ptr));
 
@@ -1361,6 +1387,8 @@ impl Signatures {
             class_method,
             slot_get,
             slot_set,
+            key_get,
+            key_set,
             array_new,
             array_set,
             array_set_index,

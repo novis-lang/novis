@@ -626,6 +626,12 @@ impl Emitter<'_, '_> {
             } => {
                 return self.emit_slot_set(inst, *object, field, *slot, *value);
             }
+            InstKind::KeyGet { object, key } => {
+                return self.emit_key_get(inst, *object, *key);
+            }
+            InstKind::KeySet { object, key, value } => {
+                return self.emit_key_set(inst, *object, *key, *value);
+            }
             InstKind::FieldSet {
                 object,
                 class,
@@ -2505,6 +2511,84 @@ impl Emitter<'_, '_> {
         self.emit_status_check(status, inst.on_error)
     }
 
+    /// `$obj->$key`: one call to `nvs_runtime::nvs_object_key_get`, which is
+    /// [`Self::emit_slot_get`]'s runtime helper with the name read out of a
+    /// value instead of out of this unit's data section.
+    ///
+    /// The key travels the way the receiver does — a caller-owned 16-byte
+    /// [`nvs_runtime::Value`] passed by address — rather than as the `(ptr,
+    /// len)` pair a constant name is. That costs two stores and buys the whole
+    /// difference: compiled code here holds a `Ty::Str` in whatever
+    /// representation the site's own type gave it, and the string's bytes are
+    /// behind a header only the runtime knows the layout of.
+    ///
+    /// There is no slot hint: `nvs_ir::ir::InstKind::KeyGet` has no static name
+    /// to have taken a position from, which is exactly what makes it a keyed
+    /// access. The borrow is [`Self::emit_slot_get`]'s unchanged.
+    fn emit_key_get(
+        &mut self,
+        inst: &Inst,
+        object: ValueId,
+        key: ValueId,
+    ) -> Result<Block, CodegenError> {
+        let recv_p = self.materialize_receiver(object)?;
+        let key_p = self.materialize_receiver(key)?;
+
+        let out_slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            VALUE_SIZE.cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
+
+        let callee = self.runtime_ref("nvs_object_key_get", RuntimeSig::KeyGet)?;
+        let call = self
+            .b
+            .ins()
+            .call(callee, &[self.ctx_p, recv_p, key_p, out_p]);
+        let status = self.b.inst_results(call)[0];
+        let cont = self.emit_status_check(status, inst.on_error)?;
+
+        let ty = inst
+            .ty
+            .ok_or_else(|| internal("a keyed property read with no representation"))?;
+        let value = self.load_value(out_p, 0, ty)?;
+        self.define(inst, value)?;
+        Ok(cont)
+    }
+
+    /// `$obj->$key = v;`: one call to `nvs_runtime::nvs_object_key_set`,
+    /// [`Self::emit_key_get`]'s write half and [`Self::emit_slot_set`] with the
+    /// same one substitution. Three values travel by address here — the
+    /// receiver, the key and the stored value — for the three reasons those two
+    /// functions already state.
+    fn emit_key_set(
+        &mut self,
+        inst: &Inst,
+        object: ValueId,
+        key: ValueId,
+        value: ValueId,
+    ) -> Result<Block, CodegenError> {
+        let recv_p = self.materialize_receiver(object)?;
+        let key_p = self.materialize_receiver(key)?;
+        let in_p = self.materialize_receiver(value)?;
+
+        let out_slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            VALUE_SIZE.cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
+
+        let callee = self.runtime_ref("nvs_object_key_set", RuntimeSig::KeySet)?;
+        let call = self
+            .b
+            .ins()
+            .call(callee, &[self.ctx_p, recv_p, key_p, in_p, out_p]);
+        let status = self.b.inst_results(call)[0];
+        self.emit_status_check(status, inst.on_error)
+    }
+
     /// The receiver of an ADR 0036 § 4 name-keyed access, in the one shape
     /// both halves of it take: a caller-owned 16-byte
     /// [`nvs_runtime::Value`] passed by address.
@@ -3393,6 +3477,8 @@ impl Emitter<'_, '_> {
             RuntimeSig::InstanceOf => &self.sigs.instanceof,
             RuntimeSig::ClassMethod => &self.sigs.class_method,
             RuntimeSig::SlotGet => &self.sigs.slot_get,
+            RuntimeSig::KeyGet => &self.sigs.key_get,
+            RuntimeSig::KeySet => &self.sigs.key_set,
             RuntimeSig::SlotSet => &self.sigs.slot_set,
             RuntimeSig::ArrayNew => &self.sigs.array_new,
             RuntimeSig::ArraySet => &self.sigs.array_set,
@@ -3452,6 +3538,8 @@ enum RuntimeSig {
     ClassMethod,
     SlotGet,
     SlotSet,
+    KeyGet,
+    KeySet,
     ArrayNew,
     ArraySet,
     ArraySetIndex,
