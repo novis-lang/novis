@@ -68,6 +68,7 @@ Conventions the whole file uses:
 | [`Core\Path`](#core-core-path) | path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem |
 | [`Core\IO`](#core-core-io) | whole-file read and write on paths the configuration has granted |
 | [`Core\IO\Lines`](#core-core-io-lines) |  |
+| [`Core\IO\Walk`](#core-core-io-walk) |  |
 | [`Core\IO\File`](#core-core-io-file) |  |
 | [`Core\IO\Metadata`](#core-core-io-metadata) |  |
 | [`Core\Process`](#core-core-process) |  |
@@ -10133,7 +10134,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, append, writeStream, exists, isFile, isDir, isReadable, isWritable, size, modifiedAt, stat, copy, move, remove, makeDir, removeDir, list, temporaryDir, canonicalize, within, readText, lines, open, stdin
+Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, append, writeStream, exists, isFile, isDir, isReadable, isWritable, size, modifiedAt, stat, copy, move, remove, makeDir, removeDir, list, walk, temporaryDir, canonicalize, within, readText, lines, open, stdin
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -10200,6 +10201,7 @@ outside: refused
 | [`Core\IO::makeDir`](#core-core-io-makedir) | `makeDir(string $path): void` |
 | [`Core\IO::removeDir`](#core-core-io-removedir) | `removeDir(string $path): void` |
 | [`Core\IO::list`](#core-core-io-list) | `list(string $path): array<string>` |
+| [`Core\IO::walk`](#core-core-io-walk) | `walk(string $path): Core\IO\Walk` |
 | [`Core\IO::temporaryDir`](#core-core-io-temporarydir) | `temporaryDir(): string` |
 | [`Core\IO::canonicalize`](#core-core-io-canonicalize) | `canonicalize(string $path): string` |
 | [`Core\IO::within`](#core-core-io-within) | `within(string $base, string $path): string` |
@@ -10517,9 +10519,26 @@ The entries of the directory at `$path`, as an `array<string>` of bare names —
 |---|---|---|
 | `$path` | `string` (sink) | The directory to read. A file throws rather than answering a one-element array. |
 
-**Returns** `array<string>` — One `string` per entry, each a name and not a path: joining it back onto `$path` is the caller's own step, and `within` is what makes that join safe when the name reached this program from outside. The whole directory is held at once, which is what makes this a member for a directory a program expects to fit in memory; `walk` is the streaming half.
+**Returns** `array<string>` — One `string` per entry, each a name and not a path: joining it back onto `$path` is the caller's own step, and `within` is what makes that join safe when the name reached this program from outside. The whole directory is held at once, which is what makes this a member for a directory a program expects to fit in memory; `walk` is the member for the tree underneath it.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is not a directory, or an entry could not be read partway through the walk.
+
+<a id="core-core-io-walk"></a>
+#### `Core\IO::walk`
+
+```nvs skip
+Core\IO::walk(string $path): Core\IO\Walk
+```
+
+Every entry of the tree under `$path`, as an `Iterable<string>` of paths relative to it — replacing `RecursiveDirectoryIterator`, `RecursiveIteratorIterator` and a recursive `glob`. `list` is the one-directory member and this is the whole-tree one; needs the `fs.read` capability, which is asked for **every** directory the walk enters and not only for the root. A symbolic link is an entry and is never descended into, so the walk is finite whatever the links say.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The directory the walk starts at. A file throws, exactly as `list` does. |
+
+**Returns** `Core\IO\Walk` — One `string` per entry found anywhere beneath `$path`, each a path *relative to* `$path` and spelled with `Core\Path::SEPARATOR` — joining it back on is the caller's own step, and `within` is what makes that join safe. Every entry of a directory is answered before any entry beneath it, and within one directory the order is the operating system's own.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for a directory the walk asked to read; the message names the one it stopped at, which is the root unless a grant covers less than a whole subtree.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is not a directory, or a directory the walk had entered could not be read to the end.
 
 <a id="core-core-io-temporarydir"></a>
 #### `Core\IO::temporaryDir`
@@ -10637,6 +10656,14 @@ Reads everything the program's standard input will produce, in one call — the 
 
 <a id="core-core-io-lines"></a>
 ### `Core\IO\Lines`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
+
+<a id="core-core-io-walk"></a>
+### `Core\IO\Walk`
 
 Keywords: 
 
@@ -15617,6 +15644,9 @@ Keywords: get, all
 |---|---|
 | [`Core\Env::get`](#core-core-env-get) | `get(string $name): ?tainted string` |
 | [`Core\Env::all`](#core-core-env-all) | `all(): array<tainted string>` |
+| `Core\Env::EOL` | `string` = `"\r\n"` — The line ending this platform writes — `\r\n` on Windows and `\n` everywhere else, as `PHP_EOL` is. It is for *emitting* platform-native text and nothing reads it: `Core\Str::lines` and `Core\IO::lines` split on all three terminators and never consult it, which is spec § 1's own note. |
+| `Core\Env::OS` | `string` = `"Windows"` — The operating system **family**, spelled as `PHP_OS_FAMILY` spells it — `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. A closed set a program can compare against, and never `uname`'s free text, which is what PHP's other spelling `PHP_OS` hands over. |
+| `Core\Env::VERSION` | `string` = `"0.0.1"` — This runtime's version, replacing `PHP_VERSION` — three dot-separated numbers, and the same string `nvs info` reports. There is no `PHP_VERSION_ID` beside it: a second spelling of one fact is what R6 closes, and comparing versions is `Core\Str::split` plus arithmetic on what this already says. |
 
 <a id="core-core-env-get"></a>
 #### `Core\Env::get`

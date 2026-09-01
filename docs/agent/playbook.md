@@ -5578,6 +5578,15 @@ sibling in the same namespace unqualified.
   `nvs_runtime::capability` re-exports `Metadata`, so the spelling is
   `&nvs_runtime::capability::Metadata`. Reach for that rather than re-deriving each field at the two
   call sites.
+- **A landed member's reference card can describe an *unlanded* sibling, and that sentence is a
+  claim rather than a note.** `Core\IO::list`'s card said "`walk` is the streaming half" — which is
+  the one reading of the `list`/`walk` pair ADR 0063 R6 forbids, since the same entries in a second
+  container is one operation reachable two ways. Writing `walk` to match the card would have
+  shipped exactly that. The sentence was written while `walk` was still only a name in the spec and
+  nobody had decided what it was. So before registering a member, grep the *other* members' cards
+  and module docs for its name: what turns up is a prediction made by someone who did not have to
+  implement it, and the spec row plus the ADR outrank it. Fix the stale sentence in the same slice
+  — a card is reference documentation and ships.
 
 ## Divergences and refusals already pinned
 
