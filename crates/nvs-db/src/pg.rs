@@ -2552,8 +2552,13 @@ fn start_statement<'a, S: Read + Write>(
         Prepared::Unnamed => frontend::parse(UNNAMED, sql, [], &mut out)?,
     }
     frontend::bind(
-        prepared.name(),
+        // The **portal** is `bind`'s first name and the statement its second,
+        // which is the order the `Bind` message itself carries them in. Passing
+        // the statement first binds against the unnamed statement instead, and
+        // that one was only ever parsed when the cache is disabled — with a
+        // capacity of any size it is a `26000` on the very first statement.
         UNNAMED,
+        prepared.name(),
         // Both format lists empty, which is the protocol's spelling for "all
         // text". The module doc owns why text and not binary.
         [],
@@ -2716,11 +2721,14 @@ fn execute_many<S: Read + Write>(
     }
     for set in sets {
         frontend::bind(
-            prepared.name(),
             // The same unnamed portal every time, which the protocol destroys
             // at the next `Bind` — and by then this one's `Execute` has run.
-            // A name per set would be N `Close` messages for no gain.
+            // A name per set would be N `Close` messages for no gain. It is the
+            // *first* name because that is the order `Bind` carries them in;
+            // [`start_statement`] owns what naming them the other way round
+            // costs.
             UNNAMED,
+            prepared.name(),
             [],
             set.iter().copied(),
             |param, buf| match param {
@@ -3954,6 +3962,95 @@ mod tests {
             "the second execution parsed a statement the server was already holding"
         );
         assert_eq!(cache.len(), 1);
+    }
+
+    /// Every `Bind` in one flush, as the pair of names it carries: the portal
+    /// first, then the prepared statement.
+    ///
+    /// The tag-only assertions above cannot see this, and neither can any test
+    /// running on [`no_cache`]: a disabled cache makes both names the same
+    /// empty string, so a `Bind` naming them the other way round is a `PBDES`
+    /// that looks exactly right.
+    fn binds(flushed: &[u8]) -> Vec<(String, String)> {
+        let mut found = Vec::new();
+        let mut at = 0;
+        while at + 5 <= flushed.len() {
+            let len = usize::try_from(u32::from_be_bytes(
+                flushed[at + 1..at + 5]
+                    .try_into()
+                    .expect("four bytes are four bytes"),
+            ))
+            .expect("a test message fits in a usize");
+            if flushed[at] == b'B' {
+                let mut names = flushed[at + 5..at + 1 + len].splitn(3, |byte| *byte == 0);
+                let portal = names.next().expect("a Bind carries a portal name");
+                let statement = names.next().expect("a Bind carries a statement name");
+                found.push((
+                    String::from_utf8(portal.to_vec()).expect("a name is text"),
+                    String::from_utf8(statement.to_vec()).expect("a name is text"),
+                ));
+            }
+            at += len + 1;
+        }
+        found
+    }
+
+    /// The `Bind` names the **statement** the `Parse` created and leaves the
+    /// portal unnamed, which is the order the message carries the two in.
+    ///
+    /// Naming them the other way round binds the unnamed statement, which is
+    /// parsed only when the cache is disabled — so with ADR 0067 § 1's default
+    /// capacity every connection's first statement draws SQLSTATE 26000, while
+    /// every test on [`no_cache`] passes.
+    #[test]
+    fn a_statement_is_bound_by_name_in_the_unnamed_portal() {
+        let state = Cell::new(State::Idle);
+        let mut cache = StatementCache::new(2);
+        let mut answered = 0usize;
+        let mut wire = Wire::new(Peer::new(move |_: &[u8]| {
+            answered += 1;
+            statement_answer(false, answered == 1)
+        }));
+
+        for _ in 0..2 {
+            let mut rows = start_statement(&mut wire, &state, &mut cache, "select greeting", &[])
+                .expect("the portal described itself");
+            while rows.next_row().expect("the stream drained").is_some() {}
+        }
+
+        for flush in &wire.peer().sent {
+            assert_eq!(
+                binds(flush),
+                vec![(String::new(), "s0".to_string())],
+                "a bind did not name the statement the parse created"
+            );
+        }
+    }
+
+    /// § 4's batch binds the same way, and asserted over every execution: one
+    /// `Parse` shared by N `Bind`s is a saving only if all N name it.
+    #[test]
+    fn an_execute_many_binds_the_named_statement_in_the_unnamed_portal() {
+        let state = Cell::new(State::Idle);
+        let mut cache = StatementCache::new(2);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            many_answer(&[Some("INSERT 0 1"), Some("INSERT 0 1"), Some("INSERT 0 1")])
+        }));
+
+        execute_many(
+            &mut wire,
+            &state,
+            &mut cache,
+            "insert into t values ($1)",
+            &[&[Some(b"a")], &[Some(b"b")], &[Some(b"c")]],
+        )
+        .expect("the batch ran");
+
+        assert_eq!(
+            binds(&wire.peer().sent[0]),
+            vec![(String::new(), "s0".to_string()); 3],
+            "the batch's binds did not all name the one parsed statement"
+        );
     }
 
     /// The eviction's `Close` rides in the batch that replaced it, so making
