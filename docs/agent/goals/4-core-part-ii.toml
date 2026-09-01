@@ -17,6 +17,7 @@ files = [
   "examples/logging.nvs",
   "examples/reflect.nvs",
   "examples/cycles.nvs",
+  "examples/onexit.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/config.nvs",
   "examples/limits.nvs",
@@ -88,12 +89,15 @@ modules = [
   # Stage 11 -- the teardown sweep: the drain the sweep follows, and the `Ctx` that owns the live list.
   "crates/nvs-runtime/src/release.rs",
   "crates/nvs-runtime/src/ctx.rs",
+  # Stage 12 -- the exit hook: the class that registers it, and the ladder neighbour it orders against.
+  "crates/nvs-stdlib/src/script.rs",
+  "crates/nvs-stdlib/src/fatal.rs",
 ]
 
 rules = [
   "0014", "0019", "0020", "0024", "0033", "0044", "0046", "0051", "0052", "0054",
   "0056", "0058", "0059", "0060", "0063", "0074", "0075", "0076", "0082", "0086", "0105",
-  "0116",
+  "0116", "0127",
 ]
 
 # The sections EVERY session of this goal reads. 0063 is the shape rule for every member it writes;
@@ -2667,3 +2671,35 @@ kind = "exact"
 stage = "11 teardown sweep"
 file = "examples/cycles.nvs"
 want = ["built=1000", "crossed=ok", "done"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 12 -- the exit hook, added 2026-09-01 by the user's decision. ADR 0127: Core\Script::onExit
+# runs a FIFO queue as the last user code at every non-fatal ending -- normal, exit, uncaught throw --
+# never on a FATAL or a cancellation, after tier 2's onUncaughtThrow and before native teardown,
+# observing the ending rather than changing it. Items 38-39 in loop-goal.md. Every test and fixture
+# named below must EXIST and pass; writing one is how the loop finishes its item.
+# ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "cargo-named"
+stage = "12 exit hook"
+name = "nvs-stdlib (the onExit queue)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # Item 39 -- FIFO at a clean end, and the report says Normal with status 0.
+  "on_exit_hooks_run_in_registration_order_at_a_clean_end",
+  # Item 39 -- the ending nothing could observe before: exit still drains the queue, reason ExitCall.
+  "an_exit_call_still_drains_the_on_exit_queue",
+  # Item 39 -- the throw path hands the real Throwable, after tier 2's handler has run.
+  "an_uncaught_throw_reaches_the_queue_with_the_error",
+  # Item 39 -- ADR 0127 § 3: a limit FATAL runs no hook; Core\Fatal::onLimit is the only observer.
+  "a_limit_fatal_runs_no_on_exit_hook",
+  # Item 39 -- ADR 0127 § 5: a hook's throw is logged and abandoned, and the rest of the queue runs.
+  "a_hook_that_throws_is_abandoned_and_the_queue_continues",
+]
+
+# The end-to-end half: hooks registered early, work done, a clean end runs them in order.
+[[check]]
+kind = "exact"
+stage = "12 exit hook"
+file = "examples/onexit.nvs"
+want = ["work done", "onExit: Normal 0", "second hook"]

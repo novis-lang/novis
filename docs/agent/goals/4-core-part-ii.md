@@ -236,6 +236,28 @@ decision and is **not** this stage.
     exactly that. ADR 0041's `gc` trace event is **not** owed here — it attaches to the future
     collector's run routine, not to teardown.
 
+## Stage 12 — the exit hook
+
+Added 2026-09-01 by the user's decision: [ADR 0127](../../adr/0127-the-end-of-a-script-is-observable.md)
+— `Core\Script::onExit`, the end-of-script queue that closes the one ending no user code could observe
+(`exit` runs no `finally`). The ADR is the whole contract: § 2's three endings fire the queue, § 3's
+`FATAL` and cancellation never do, § 4 orders it after tier 2 and before native teardown, § 5 makes it
+observe-only. Nothing here reopens ADR 0028 — a flat per-request queue is not a destructor walk.
+
+38. **The member and its report.** `Core\Script` joins the registry with the five edits of conventions §
+    *A `Core` member*: `onExit(callable $hook): void`, the `Script\ExitReason` enum (`Normal`,
+    `ExitCall`, `UncaughtThrow`) and the readonly `Script\ExitReport` each hook receives (a hook may
+    declare no parameter, as `Core\Fatal`'s handlers may). The queue lives on `Ctx` — what it spends,
+    said in the module doc as ADR 0004 requires: one vec of closures per request, hooks and captures
+    held to the end of the script, O(registrations). `crates/nvs-stdlib/src/script.rs`,
+    `crates/nvs-runtime/src/ctx.rs`.
+39. **The three endings drain it; the two terminations do not.** FIFO, once, as the last user code:
+    after the last statement, after `exit`, and on the throw path after `onUncaughtThrow` — never on a
+    `FATAL` (only `Core\Fatal::onLimit` sees one) and never on a cancellation. A hook's own throw is
+    logged with the trace id and abandoned, `exit` inside a hook throws `RuntimeError`, a hook may
+    register a hook, and the report is fixed before the first hook runs. `examples/onexit.nvs` proves
+    the clean path end-to-end.
+
 ## The harness this goal owes
 
 **`python tools/gen-attribution.py --check-c-deps`** — item 31's enumeration. That tool already walks the
