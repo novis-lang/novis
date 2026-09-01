@@ -1,0 +1,98 @@
+--TEST--
+`Core\Process\Result` hands back both captures whatever the child exited with — over a sweep of statuses each run's `stdout`, `stderr` and `exitCode` arrive together, so a result that kept output only on success fails by count — ADR 0044 § 1
+--FILE--
+<?nvs
+// `process-a-completed-run-answers-the-status-the-child-chose.nvst` asks what
+// the status is, over a child that writes nothing;
+// `process-a-completed-runs-two-streams-stay-apart.nvst` asks what the two
+// streams carry, over a child that exits `0`. Neither can see the third
+// question, which is whether the three answers belong to the *same* run: a
+// member that captured only what a successful child wrote, or that answered
+// the status of one run beside the output of another, passes both of them.
+//
+// So each row below asserts all three at once and the counts are over the whole
+// sweep. `0` is in it as the control — a result that keeps output on success
+// alone still prints `kept beside its code=1` here — and `255` is the last
+// status a shell can carry, so the sweep is bounded at the end a `run` that
+// widened a status or read one byte of it would fail at.
+//
+// The markers are compared as `bytes` and by containment, for the reasons
+// `process-a-completed-runs-two-streams-stay-apart.nvst` gives: the octets a
+// child writes are not this program's to assume anything about, and each shell
+// ends a line its own way and one of them pads before a redirect.
+//
+// The two candidates are the platform shells named absolutely, for the reason
+// the status case states: § 1 makes a `PATH` lookup the caller's own, so the
+// one that is not this platform's has nothing at its path and the operating
+// system answers `IOError`.
+
+array<int> $statuses = [0, 1, 2, 42, 255];
+
+int $started = 0;
+int $agreed = 0;
+int $keptOut = 0;
+int $keptErr = 0;
+int $together = 0;
+
+foreach ($statuses as int $status) {
+    // `-2` and not `-1` for the reason the status case gives: a signalled child
+    // answers `-1`, so a sentinel spelled that way could not be told apart from
+    // a real status.
+    int $code = -2;
+    bytes $out = "" as bytes;
+    bytes $err = "" as bytes;
+
+    try {
+        var $unix = Core\Process::run("/bin/sh", [
+            "-c",
+            Core\Str::format("printf OUT; printf ERR 1>&2; exit %d", $status)
+        ]);
+        $started = $started + 1;
+        $code = $unix->exitCode();
+        $out = $unix->stdout();
+        $err = $unix->stderr();
+    } catch (IOError $notAUnix) {
+    }
+
+    try {
+        var $windows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", [
+            "/c",
+            Core\Str::format("echo OUT& echo ERR 1>&2& exit %d", $status)
+        ]);
+        $started = $started + 1;
+        $code = $windows->exitCode();
+        $out = $windows->stdout();
+        $err = $windows->stderr();
+    } catch (IOError $notWindows) {
+    }
+
+    bool $sameCode = $code == $status;
+    bool $hasOut = Core\Bytes::contains($out, "OUT" as bytes);
+    bool $hasErr = Core\Bytes::contains($err, "ERR" as bytes);
+
+    if ($sameCode) { $agreed = $agreed + 1; }
+    if ($hasOut) { $keptOut = $keptOut + 1; }
+    if ($hasErr) { $keptErr = $keptErr + 1; }
+    if ($sameCode && $hasOut && $hasErr) { $together = $together + 1; }
+}
+
+echo "statuses=", Core\Arr::count($statuses), "\n";
+echo "started=", $started, "\n";
+echo "codes agreed=", $agreed, "\n";
+echo "stdout kept=", $keptOut, "\n";
+echo "stderr kept=", $keptErr, "\n";
+echo "kept beside its code=", $together, "\n";
+--FILE nvs.toml--
+# `true` for the reason the exit-code case gives: the door's own scoping is
+# pinned by
+# `process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst`, and
+# this case is about what a completed run answers.
+[capabilities.process]
+exec = true
+--EXPECT--
+statuses=5
+started=5
+codes agreed=5
+stdout kept=5
+stderr kept=5
+kept beside its code=5
