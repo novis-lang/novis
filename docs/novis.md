@@ -110,6 +110,7 @@ Conventions the whole file uses:
 | [`Core\Command`](#core-core-command) |  |
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
 | [`Core\Env`](#core-core-env) |  |
+| [`Core\Cap`](#core-core-cap) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
@@ -15687,6 +15688,30 @@ Core\Env::mode(): Core\Env\Mode
 Which deployment this program is running in. The mode is written in `nvs.toml` and read back through `Core\Config` like every other directive: **no environment variable is consulted for it**, so there is no `APP_ENV` convention to get wrong and no way for a request to select one.
 
 **Returns** `Core\Env\Mode` — The mode as a `Core\Env\Mode` case. `Production` for a host that configured nothing, so a deployment is the restrictive one until an operator has said otherwise.
+
+<a id="core-core-cap"></a>
+### `Core\Cap`
+
+Keywords: has
+
+| Member | Signature |
+|---|---|
+| [`Core\Cap::has`](#core-core-cap-has) | `has(string $capability): bool` |
+
+<a id="core-core-cap-has"></a>
+#### `Core\Cap::has`
+
+```nvs skip
+Core\Cap::has(string $capability): bool
+```
+
+Reports whether the code running here holds `$capability` at this point in the request — the deployment's grant table, narrowed by anything the request or an enclosing isolate already dropped. It grants nothing: the door the guarded branch reaches asks again for itself.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$capability` | `string` (neutral) | A capability name as `nvs.toml` grants it under — `fs.read`, `net.connect`. A written name outside that roster is a compile error, and a computed one that is not a capability answers `false`. |
+
+**Returns** `bool` — `true` where the capability is granted for something, `false` otherwise. A `true` is not a promise about a particular path or host: a scoped grant still refuses an argument outside it, at the door.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
