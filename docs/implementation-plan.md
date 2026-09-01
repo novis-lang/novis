@@ -57,11 +57,11 @@
 > `[storage.<name>]` disk over `fs.*` alone, and `Core\Cldr::pluralCategory` reads a closed CLDR
 > roster; TLS, `AUTH` and a `list` are owed. **Stage 2's handle half has opened**: `Core\IO::open`
 > answers a `Core\IO\File` whose slot keys the request's own descriptor table, `Core\IO\FileMode` is
-> R11's enum, and `read`, `readLine`, `write`, `seek`, `tell`, `flush` and `close` are its members;
-> `truncate` and `lock` are owed. **Stage 3's terminal is a sink **: `write` performs § 1's table
-> onto `Out` or `Err`, § 2 is `Cli\Color`, `Cli\Style` and `Text::styled`, § 4's prompts read under
-> a deadline, and `live<T>`/`progress<T>` open a region a `Drop` restores; `displayWidth` is owed.
-> Conformance 1262, differential 210 of 210, migration 37% over its 36% floor.
+> R11's enum, and § 14's nine handle members are on it, `lock` exclusive and never waiting; the
+> standard streams are owed. **Stage 3's terminal is a sink **: `write` performs § 1's table onto
+> `Out` or `Err`, § 2 is `Cli\Color`, `Cli\Style` and `Text::styled`, § 4's prompts read under a
+> deadline, and `live<T>`/`progress<T>` open a region a `Drop` restores; `displayWidth` is owed.
+> Conformance 1268, differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

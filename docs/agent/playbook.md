@@ -5146,6 +5146,16 @@ sibling in the same namespace unqualified.
   binary; the fix is to not need one — move the table the helper held into the test's own `for`
   loop, which is where the two spellings were being held together anyway. `#[allow(dead_code)]`
   passes the scan and is the wrong trade: it ships the code.
+- **`nvs-stdlib`'s OS gate is a *spelling* scan, so a `std::fs` type name fails it while the
+  effect on the line above passes.** `tests/capability.rs`'s
+  `nvs_stdlib_reaches_the_os_only_through_the_gate` greps every shipped line for `std::fs`, and
+  `Core\IO\File`'s members reach the operating system through method calls on a handle the door
+  already opened — `file.read()`, `file.write_all()`, `file.try_lock()` — which the scan cannot
+  see and should not. So what fails is naming a *type*: matching `std::fs::TryLockError::WouldBlock`
+  in `lock`'s body is reported as "reaches the operating system directly", which is exactly what
+  it does not do, and `use std::fs::TryLockError;` fails the same way. There is no allowlist. The
+  fix is to convert through `std::io::Error`, whose `ErrorKind::WouldBlock` is the same answer, and
+  to keep `std::fs` to comments — a `//` or `///` line is skipped and every other line is not.
 
 ## Divergences and refusals already pinned
 
