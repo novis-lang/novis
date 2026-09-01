@@ -2,53 +2,58 @@
 
 ## State
 
-**Stage 2's harness half is done, and the goal's one ADR slot is spent.**
-[ADR 0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) decides the four things
-the first driver would otherwise decide in a commit message: a **borrowed sans-IO codec plus a state
-machine we write** (`postgres-protocol`, `mysql_common`, `rusqlite`, hand-written TDS — every crate that
-would have supplied a client needs a runtime that spawns); `NvsTls` **generalised over its transport**, so
-SQL Server's TLS-inside-TDS handshake reaches the same session type and the same trust anchors; busy state
-as a field on the **connection** and not on `NvsStream`, with a `Poisoned` wire **closed rather than
-reset**; and five drivers as an **enum with one `match` per entry point**, no `Driver` trait. Read § 4 and
-§ 5 before writing the first connection — they are the two that a driver silently violates.
+**Stage 2's crate half is on disk.** `crates/nvs-db` exists and is green:
+[ADR 0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) § 5's `Connection`
+enum with all five variants, § 4's four-state busy field as a `Cell` on each driver's own
+connection, and the `NVS_DB_MATRIX_*` reader. Its module doc is the home of both the state machine
+and the skip rule (a case that finds `NVS_DB_MATRIX_DRIVER` unset asserts nothing, so `verify.py`
+stays green with no containers); `tools/db-matrix.py` states the harness half and defers to it.
+§ 1's edges are wired both ways — `nvs-stdlib` depends on `nvs-db` and each manifest carries the
+no-cycle rule beside the edge.
 
-**`python tools/db-matrix.py` exists**, next to the `tests/db/compose.yaml` that was already there. It
-reads ports and credentials back out of the compose file (`docker compose config --format json`), so it
-holds no copy of either, and hands one driver at a time to `cargo test -p nvs-db` through discrete
-`NVS_DB_MATRIX_*` environment fields — never a DSN, because Novis has none. Its own module doc is the
-contract's home. With no `crates/nvs-db` it prints `<driver>: n/a` and exits 2, deliberately not `ok`.
+**`NvsTls` is generic over its transport** — `NvsTls<T: Read + Write = NvsTcp>`, ADR 0132 § 3. The
+default is what keeps the bare spelling working unchanged in `Core\Http\Client` and `Core\Mail`; the
+deadline and the peer address stayed behind on `NvsTls<NvsTcp>`, because they belong to the socket
+rather than to the session. § 3's body was folded to say "default type parameter" where it had said
+"alias", which is the mechanism that landed and the cheaper one — no second name to keep in step.
 
-**`crates/nvs-db` still does not exist**, so the goal's three fixtures stay red at `E0405` and stage 6's
-matrix check stays red — the ordinary state of this goal, not a regression.
+**No wire code exists yet**, so the goal's three fixtures stay red at `E0405` and stage 6's matrix
+check stays red. That is the ordinary state of this goal and not a regression. `rusqlite` has a
+version in the workspace table but is deliberately a dependency of nothing: ADR 0132 § 2 requires
+the slice that first takes it to add its `tools/gen-attribution.py` `C_DEPENDENCIES` row in the same
+commit, and that gate fails on a recorded crate absent from the graph as well as on the reverse.
+
+**Manifest gap:** `[context] adrs` in `docs/agent/loop-goal.toml` names no section of ADR 0132, so
+the pack printed 0067 §§ 1/9/13 for an item specified entirely by 0132 §§ 1/3/4/5. That cost two
+peeks. Add 0132 §§ 1-5 to that field; `[context] modules` also still globs
+`crates/nvs-db/src/*.rs`, which now matches and needs no change.
 
 ## Next group
 
-**The first driver, end to end** — Stage 2 items 3 and its two prerequisites in `docs/agent/loop-goal.md`,
-all four specified by ADR 0132's §§ 1, 3 and 5. One file set: the new `crates/nvs-db`, the workspace
-manifest, and the two `nvs-host` files the ADR changes.
+**The first PostgreSQL connection** — loop-goal Stage 2 item 3, specified by ADR 0132 §§ 2 and 3 and
+ADR 0067 §§ 1 and 5. One file set: `crates/nvs-db/src/` and that crate's own `Cargo.toml`. Nothing
+outside the new crate is touched, which is what makes these three one group.
 
-- [ ] **`crates/nvs-db` exists** — the crate, its module doc carrying § 4's state machine and the
-      `NVS_DB_MATRIX_*` contract, the `Connection` enum skeleton of § 5, and the workspace edges of § 1
-      (`nvs-stdlib` depends on it, never the reverse; the workspace manifest's dependency table gains
-      the path entry and the three wire crates). Anchors: `crates/nvs-stdlib/Cargo.toml:37`,
-      `crates/nvs-host/Cargo.toml:12`.
-- [ ] **`NvsTls` becomes generic over its transport** — ADR 0132 § 3, `NvsTls<T: Read + Write>` with
-      `NvsTls<NvsTcp>` kept as the alias `Core\Http\Client` and `Core\Mail` already use, so the TDS
-      framer can be an ordinary adapter later. Anchors: `crates/nvs-host/src/tls.rs:112`,
-      `crates/nvs-host/src/tls.rs:145`.
-- [ ] **A PostgreSQL connection is opened, TLS-wrapped and authenticated** — loop-goal Stage 2 item 3
-      over `NvsTcp`: `SSLRequest`, the `NvsTls` upgrade, then SCRAM through `postgres-protocol`, with the
-      wire state at `Idle` when the handshake returns. Anchors: `crates/nvs-host/src/net.rs:130`,
-      `crates/nvs-host/src/tls.rs:145`.
+- [ ] **`PgConn` opens, upgrades and authenticates** — ADR 0132 §§ 2 and 3: `SSLRequest` over the
+      plaintext socket, the one-byte answer, `NvsTls::over` on the same `NvsTcp`, then SASL.
+      `postgres-protocol` frames it and the sequencing is written here; it is already a version in
+      the workspace table and needs only `postgres-protocol.workspace = true`. Anchors:
+      `crates/nvs-db/src/conn.rs:158`, `crates/nvs-db/Cargo.toml:30`,
+      `crates/nvs-host/src/tls.rs:174`.
+- [ ] **The extended-query state machine moves `State` through its four values** — ADR 0132 § 4:
+      `Parse`/`Bind`/`Execute` leave the connection `Streaming`, a `Sync` after closing the portal
+      returns it to `Idle`, and a decode failure poisons it rather than draining a length prefix that
+      has already proven untrustworthy. Anchors: `crates/nvs-db/src/conn.rs:118`,
+      `crates/nvs-db/src/conn.rs:235`.
+- [ ] **The `?`/`:name` rewriter and `inList` expansion** — ADR 0067 § 5, and the shared half ADR
+      0132 § 5 keeps as plain functions with no driver in them, so it lands beside the drivers rather
+      than inside one. Anchors: `crates/nvs-db/src/lib.rs:110`.
 
 ## Backlog
 
-- Stage 2 items 4–7: named/settings connections, `db.connect`/`db.open`, the `LOCAL INFILE` refusal and
-  the forced UTF-8 charset — `docs/agent/loop-goal.md`.
-- `libsqlite3-sys` gains its `C_DEPENDENCIES` entry when the SQLite driver lands — `tools/gen-attribution.py`,
-  under ADR 0132 § 2.
-- The `[context] modules` manifest named `crates/nvs-host/src/stream.rs`, which never existed; it now names
-  `net.rs`, `tls.rs` and `blocking.rs`. `crates/nvs-db/src/*.rs` still warns until the crate exists —
-  `docs/agent/loop-goal.toml`.
-- `orient.py` printed no `Cargo.toml` or crate-manifest window; the next session adds a `[context]` selector
-  for it rather than grepping — `docs/agent/loop-goal.toml`.
+- `rusqlite` plus its `C_DEPENDENCIES` row, one commit — ADR 0132 § 2.
+- The statement cache keyed by SQL text plus expansion arity — ADR 0067 § 1.
+- The per-core pool and its reset-as-a-boundary — ADR 0067 § 13.
+- MySQL, MariaDB and the hand-written TDS 7.4 driver — ADR 0132 § 2's table.
+- `Core\Db`'s registry rows, cards and helper bodies in `nvs-stdlib` — ADR 0063's five edits.
+- The `[context] adrs` gap above, in `docs/agent/loop-goal.toml`.
