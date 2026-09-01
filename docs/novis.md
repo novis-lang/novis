@@ -139,6 +139,7 @@ Conventions the whole file uses:
 | [`Core\Ast\Node`](#core-core-ast-node) |  |
 | [`Core\Db`](#core-core-db) |  |
 | [`Core\Db\Connection`](#core-core-db-connection) |  |
+| [`Core\Db\Rows`](#core-core-db-rows) |  |
 | [`Core\Db\InList`](#core-core-db-inlist) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
@@ -17200,6 +17201,33 @@ Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, 
 
 <a id="core-core-db-connection"></a>
 ### `Core\Db\Connection`
+
+Keywords: query
+
+| Member | Signature |
+|---|---|
+| [`Core\Db\Connection->query`](#core-core-db-connection-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows` |
+
+<a id="core-core-db-connection-query"></a>
+#### `Core\Db\Connection->query`
+
+```nvs skip
+$connection->query(string $sql, array<mixed> $params): Core\Db\Rows
+```
+
+Runs one statement with its values bound, and reads every row it answers into memory before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no `prepare` step because every statement is prepared. The connection is free again the moment this returns; `stream` is the one that holds it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, with a `?` for each value or a `:name` for each — never a value written into the text. It is a sink, so a `tainted` string is refused while compiling and there is no escaper to launder one with. |
+| `$params` | `array<mixed>` | The values to bind: list-keyed for `?` and string-keyed for `:name`, one array and never both spellings. A `Core\Db::inList` element expands into a run of placeholders at its own position, and nothing else expands. |
+
+**Returns** `Core\Db\Rows` — A `Core\Db\Rows` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
+
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-rows"></a>
+### `Core\Db\Rows`
 
 Keywords: 
 

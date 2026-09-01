@@ -4273,6 +4273,16 @@ is why" — is this file.
   paths and prints the same expected/actual diff, so nothing is lost by going straight to it. The
   playbook already says `try.py` does not reproduce a multi-file case's *working directory*; this is
   the louder half of the same fact.
+- **The coverage gates read a case's `--FILE--` section alone, so a class named only in the
+  `--TEST--` title attributes nothing.** `crates/nvs-stdlib/tests/corpus/mod.rs`'s `sources()`
+  returns that section by itself — deliberately, so a member named in a title or in an expected
+  diagnostic is not read as one the case calls — and both gates over it work per class:
+  `Attribution::holders` decides which classes a case *holds* by mentioning their name or by
+  building one through a registered return type, and only then is a `->member(` attributed to
+  them. So a case for an **instance** member must write the receiver's class name inside the
+  body, in a comment if nowhere else. A three-case set whose titles named the class and whose
+  bodies did not would pass `try.py` and fail `every_part_one_member_has_a_conformance_case` with
+  a message naming the member rather than the omission.
 
 ## Splitting a file that got too big
 
