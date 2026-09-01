@@ -136,5 +136,7 @@ pub use conn::{
     Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn, PgConn, ServerError,
     SqliteConn, State, TdsConn,
 };
-pub use pg::{BlockError, CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime};
+pub use pg::{
+    BlockError, CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode,
+};
 pub use sql::{Binding, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite};

@@ -59,7 +59,6 @@
 §18 execute
 §18 executeMany
 §18 open
-§18 query
 §18 queryAs
 §18 stream
 §18 streamAs

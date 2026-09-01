@@ -122,7 +122,7 @@ use fallible_iterator::FallibleIterator;
 use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
-use nvs_runtime::{Decimal, NvsArray, NvsStr, Value};
+use nvs_runtime::{Decimal, NvsArray, NvsStr, Tag, Value};
 use postgres_protocol::authentication::sasl::{ChannelBinding, ScramSha256};
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
@@ -1494,6 +1494,98 @@ impl PgScalar<'_> {
             }
         }
     }
+}
+
+/// One bound value in the text format [`PgConn::query`] sends, with `None` for
+/// SQL `NULL` — [`PgColumn::decode`]'s direction, reversed.
+///
+/// **The rendering is here and the refusal is not.** Which Novis values may be
+/// bound at all is [ADR 0067](../../../docs/adr/0067-core-db.md) § 5's
+/// question and `nvs-stdlib`'s to word, because that is where the call's own
+/// spelling is known; what a driver owns is the octets each accepted one
+/// becomes, and those differ per backend even where the Novis type does not.
+/// So an unbindable value is an `InvalidInput` naming its tag, which the
+/// `Core\Db` boundary turns into a `LogicError` naming the parameter — the
+/// same route [`crate::sql::rewrite`]'s refusals take.
+///
+/// A `Core\Db\InList` never reaches here: § 5's marker has already expanded
+/// into one bound value per element by the time a statement has its bind list.
+///
+/// # What the server makes of it
+///
+/// Nothing is sent with a parameter type OID, so the server infers each
+/// parameter's type from where it appears in the statement and reads these
+/// octets as that type's own text input. That is why a `bytes` renders as
+/// `bytea`'s hex form and not as raw octets: a `Bind` carrying a length is
+/// still text on this path, and the only reading of it the server has is the
+/// column's.
+///
+/// # Errors
+///
+/// `InvalidInput` for a value with no text form to send — an array, an object,
+/// a closure — where the whole answer is the tag, and never the value, for the
+/// reason [`PgColumn::decode`]'s own refusals give: a bound parameter is the
+/// one thing in a statement most likely to be a credential.
+pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
+    let rendered = match value.tag() {
+        Some(Tag::Null) => return Ok(None),
+        // PostgreSQL's `boolean` input accepts a dozen spellings and outputs
+        // exactly these two, so this is also what a round trip through a
+        // column answers with.
+        Some(Tag::Bool) => String::from(if value.as_bool() == Some(true) {
+            "t"
+        } else {
+            "f"
+        }),
+        Some(Tag::Int) => value.as_int().unwrap_or_default().to_string(),
+        Some(Tag::Uint) => value.as_uint().unwrap_or_default().to_string(),
+        Some(Tag::Float) => {
+            let float = value.as_float().unwrap_or_default();
+            // Rust spells the three non-finite values `inf`, `-inf` and `NaN`,
+            // and PostgreSQL's `float8` input reads none of them. Every finite
+            // one goes out in Rust's shortest round-tripping form, which
+            // `float8` reads back to the same bits.
+            if float.is_nan() {
+                String::from("NaN")
+            } else if float.is_infinite() {
+                String::from(if float > 0.0 { "Infinity" } else { "-Infinity" })
+            } else {
+                float.to_string()
+            }
+        }
+        // Exact on both sides: ADR 0054's `decimal` renders as digits and a
+        // point, which is `numeric`'s own input form, so nothing rounds here
+        // the way binding it as a `float8` would.
+        Some(Tag::Decimal) => value
+            .as_decimal()
+            .map(|exact| exact.to_string())
+            .unwrap_or_default(),
+        // A `string` is UTF-8 by ADR 0009 and the session is UTF-8 by the
+        // connect path, so the octets go out as they are.
+        Some(Tag::Str) => {
+            return Ok(Some(value.as_str_bytes().unwrap_or_default().to_vec()));
+        }
+        Some(Tag::Bytes) => {
+            let octets = value.as_bytes().unwrap_or_default();
+            let mut hex = String::with_capacity(octets.len() * 2 + 2);
+            hex.push_str("\\x");
+            for byte in octets {
+                use std::fmt::Write as _;
+                let _ = write!(hex, "{byte:02x}");
+            }
+            hex
+        }
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "a value of tag {} has no form this driver can bind",
+                    value.tag_byte()
+                ),
+            ));
+        }
+    };
+    Ok(Some(rendered.into_bytes()))
 }
 
 impl PgColumn {

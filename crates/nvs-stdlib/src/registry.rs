@@ -1377,9 +1377,14 @@ pub const CLASSES: &[CoreClass] = &[
     // point still missing, and [`crate::db`]'s known gaps own why: what it
     // needs is a `CoreTy` for a shape parameter, not a body.
     crate::db::CLASS,
-    // What `connect` answers with. Two slots and no members until
-    // `Core\Db\Queryable`'s land, so it is on the handle roster below.
+    // What `connect` answers with, and `Core\Db\Queryable`'s own home: ADR 0043
+    // has `Transaction` delegate the interface to its connection, so the seven
+    // members are declared here once. `query` is the one that has landed.
     crate::db::CONNECTION,
+    // What `query` answers with — ADR 0067 § 4's buffered result set. One slot
+    // and no members until § 18's readers land, so it is on the handle roster
+    // below and `Core\Db\Row` arrives with them.
+    crate::db::ROWS,
     // What `inList` answers with: ADR 0067 § 5's explicit expansion marker,
     // memberless because § 18's own table accepts it nowhere but a bound
     // parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.
@@ -3461,7 +3466,11 @@ mod tests {
     /// bind reads: ADR 0067 § 5's expansion marker is accepted at exactly one
     /// position and nowhere else, so a member answering the values back would
     /// be a surface on a thing whose whole content is where it may appear
-    /// ([`crate::db`]).
+    /// ([`crate::db`]). The tenth is `Core\Db\Rows`, and it is the one entry
+    /// here that is **temporary**: spec § 18 writes six members on it, and it
+    /// is listed only for as long as the result set it holds has arrived and
+    /// the readers over it have not. `Core\Db\Connection` left this list the
+    /// same way, when `query` landed on it.
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
         const HANDLES: &[&str] = &[
@@ -3475,7 +3484,7 @@ mod tests {
             crate::cli::COLOR_NAME,
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,
-            crate::db::CONNECTION_NAME,
+            crate::db::ROWS_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

@@ -3009,6 +3009,31 @@ impl Ctx {
         self.open_connections.len() as u64
     }
 
+    /// The connection `key` names, borrowed for one statement, or `None` for a
+    /// key this request never filed.
+    ///
+    /// [`Ctx::open_file_mut`]'s shape, and one difference that is
+    /// [`HeldConnection`]'s whole reason: what comes back is the trait object
+    /// rather than a driver's own type, because
+    /// [ADR 0132](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+    /// § 1 has `nvs-db` depending on this crate and naming `nvs_db::Connection`
+    /// here would close a cycle. The caller that knows which crate opened it
+    /// gets its own type back through
+    /// [`HeldConnection::as_any_mut`](crate::HeldConnection::as_any_mut) — one
+    /// downcast, at the one place a statement is written.
+    ///
+    /// There is no `take_open_connection` beside it and there is not meant to
+    /// be one yet: spec § 18's `Core\Db\Connection::close` is what would take a
+    /// connection back out, and until ADR 0067 § 13's pool exists a closed
+    /// connection has nowhere to go that dropping it with the request does not
+    /// already reach.
+    pub fn open_connection_mut(&mut self, key: u64) -> Option<&mut dyn HeldConnection> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.open_connections
+            .get_mut(index)
+            .map(|(_, held)| &mut **held)
+    }
+
     /// The key of the connection this request already opened under `memo`, or
     /// `None` for a name it has not reached yet — § 2's memoization, asked.
     #[must_use]

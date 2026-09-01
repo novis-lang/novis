@@ -86,10 +86,22 @@
 //!    a refusal here is a plain `RuntimeError` or an `IOError` and carries no
 //!    `kind`, `sqlState` or `constraint`. Nothing about the messages changes
 //!    when they land; what changes is what a `catch` can name.
-//! 5. **Nothing consumes an [`IN_LIST`] yet.** The carrier is built and held;
-//!    the bind that reads its slot back arrives with `Core\Db\Queryable`, and
-//!    the arity it produces is `nvs_db::sql`'s `Binding::List`.
-//! 6. **A delimiting quoter, if one is ever wanted, belongs on `Connection`**
+//! 5. **`query` is the whole of `Core\Db\Queryable` so far.** `queryAs`,
+//!    `execute`, `executeMany`, `stream`, `streamAs` and `transaction` are
+//!    owed, and so are `close` and § 18's three readonly properties on
+//!    `Connection`. What [`ROWS`] answers with has no members yet either.
+//! 6. **§ 9's five structured rows do not read back.** A `DATE`, `TIME`,
+//!    `TIMESTAMP`, `TIMESTAMPTZ` or `UUID` column is a `Core\Time` or
+//!    `Core\Uuid` *instance*, which only this crate can allocate;
+//!    [`structured_column`] refuses one by name until `Core\Db\Row`'s typed
+//!    readers build them. Every other row of that table decodes now.
+//! 7. **`query` declares no `{timeout?: Duration}`.** § 4's option is in the
+//!    spec's signature and is deliberately not in the registry row: a deadline
+//!    on a statement has to reach the socket the way
+//!    [`nvs_db::PgConn::connect`]'s does, and there is no seam for one on the
+//!    statement path yet. An option that parsed and did nothing would be worse
+//!    than its absence, which the compiler can at least report.
+//! 8. **A delimiting quoter, if one is ever wanted, belongs on `Connection`**
 //!    and not here — that is the only place a dialect exists. § 18 does not ask
 //!    for one, and this module's second decision above is why adding it to
 //!    `Core\Db` cannot be the answer.
@@ -131,6 +143,26 @@ const HANDLE_SLOT: &str = "handle";
 /// Its second: the `[db.<name>]` block it was opened by, so a refusal can name
 /// the connection without holding it.
 const CONNECTION_NAME_SLOT: &str = "name";
+
+/// Where [`HANDLE_SLOT`] sits, for the members that read it back.
+const HANDLE_AT: usize = 0;
+
+/// Where [`CONNECTION_NAME_SLOT`] sits. See [`HANDLE_AT`].
+const BLOCK_AT: usize = 1;
+
+/// `Core\Db\Rows`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
+///
+/// `pub(crate)` for `registry`'s handle roster, for [`IN_LIST_NAME`]'s reason —
+/// and only until § 18's `Rows` members land, which is what takes it off.
+pub(crate) const ROWS_NAME: &str = r"Core\Db\Rows";
+
+/// The one slot a [`ROWS`] holds: every row the statement answered, in the
+/// server's order, each one a string-keyed array of its own columns.
+const ROWS_SLOT: &str = "rows";
+
+/// Where [`VALUES_SLOT`] sits inside an [`IN_LIST`], for the bind that expands
+/// it.
+const VALUES_AT: usize = 0;
 
 /// Spec § 18's `Core\Db` — `connect` and the two connectionless entry points,
 /// in the spec's own order. `open` joins them once a shape *parameter* is
@@ -192,18 +224,61 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// Spec § 18's `Core\Db\Connection` — the object `connect` answers with.
 ///
-/// Two slots and no members **yet**: `Queryable`'s seven and `close` are the
-/// next slice, and until one of them lands this is a handle in
-/// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
-/// sense. The slots are the pair every handle in this crate carries — the key
-/// into the request's own table ([`nvs_runtime::Ctx::hold_open_connection`])
-/// and the name it was opened by, which is what a refusal can name without
-/// reaching for the connection it is refusing about.
+/// The slots are the pair every handle in this crate carries — the key into the
+/// request's own table ([`nvs_runtime::Ctx::hold_open_connection`]) and the name
+/// it was opened by, which is what a refusal can name without reaching for the
+/// connection it is refusing about.
+///
+/// **`query` is `Core\Db\Queryable`'s first member and the rest are owed**:
+/// `queryAs`, `execute`, `executeMany`, `stream`, `streamAs` and `transaction`,
+/// plus `close` and § 18's three readonly properties. ADR 0043 makes
+/// `Transaction` delegate the interface to its connection, so every one of them
+/// is declared once — here — and this class is where they land.
 pub(crate) const CONNECTION: CoreClass = CoreClass {
     name: CONNECTION_NAME,
     methods: &[],
-    instance: &[],
+    instance: &[CoreMethod {
+        name: "query",
+        names: &["sql", "params"],
+        params: &[
+            // § 4's Q column, and ADR 0024 § 4's whole injection story: the
+            // statement text is the sink, so a `tainted` value cannot reach
+            // it at all and the bound parameters below accept one freely.
+            CoreTy::Text(Qual::Sink),
+            CoreTy::Array(&CoreTy::Mixed),
+        ],
+        defaults: &[],
+        return_ty: CoreTy::Instance(ROWS_NAME),
+        symbol: "nvs_core_db_connection_query",
+        doc: Some(&QUERY_DOC),
+    }],
     slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT],
+    constants: &[],
+};
+
+/// Spec § 18's `Core\Db\Rows` — what a buffered statement answers with.
+///
+/// One slot and no members **yet**, so it is a handle in `registry`'s
+/// `a_class_with_slots_has_instance_members_and_the_reverse` sense and is on
+/// that test's roster until § 18's `all`, `first`, `value`, `column`, `count`
+/// and `columns` land beside `Core\Db\Row`. What the slot holds is the whole of
+/// what those members read, decided here rather than left to them: **every row,
+/// already decoded, each as a string-keyed array of its columns** — which is
+/// `Row::toArray`'s own shape, so the members are readers over it and never a
+/// second decoder.
+///
+/// **Buffered is ADR 0067 § 4's default and this is what it spends**: a result
+/// set is held whole, per request, and the connection is free the moment
+/// `query` returns. § 4 chose that over the alternative because
+/// [ADR 0004](../../../../docs/adr/0004-memory-for-simplicity.md) ranks memory
+/// last and because a cursor breaks the commonest loop in web programming on a
+/// connection-busy rule; `stream` is the member for a result set that does not
+/// fit, and it is the one that holds the connection.
+pub(crate) const ROWS: CoreClass = CoreClass {
+    name: ROWS_NAME,
+    methods: &[],
+    instance: &[],
+    slots: &[ROWS_SLOT],
     constants: &[],
 };
 
@@ -309,8 +384,58 @@ const QUOTE_IDENTIFIER_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Db\Connection::query`'s reference card — ADR 0117.
+const QUERY_DOC: MethodDoc = MethodDoc {
+    short: "Runs one statement with its values bound, and reads every row it answers into memory \
+            before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no \
+            `prepare` step because every statement is prepared. The connection is free again the \
+            moment this returns; `stream` is the one that holds it.",
+    params: &[
+        ParamDoc {
+            name: "sql",
+            desc: "The statement, with a `?` for each value or a `:name` for each — never a value \
+                   written into the text. It is a sink, so a `tainted` string is refused while \
+                   compiling and there is no escaper to launder one with.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "params",
+            desc: "The values to bind: list-keyed for `?` and string-keyed for `:name`, one array \
+                   and never both spellings. A `Core\\Db::inList` element expands into a run of \
+                   placeholders at its own position, and nothing else expands.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Db\\Rows` holding every row the statement answered, in the server's order. A \
+          statement that answers none — an `update`, a `create table` — is an empty one rather \
+          than a refusal.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The call is wrong rather than the database: the placeholders and the array \
+                   disagree in spelling or in number, a `:name` names no element, an element is a \
+                   value with no bound form — an array, an object that is not an `inList` — or a \
+                   statement is already streaming on this connection.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The server refused the statement — a syntax error, a constraint, a permission \
+                   — carrying its own `SQLSTATE` and message, or a column came back in a type \
+                   this driver does not read back yet.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the statement was in flight, which leaves it \
+                   unusable for the rest of the request.",
+        },
+    ],
+};
+
 /// `Core\Db::connect`, as its own refusals spell it.
 const CONNECT: &str = r"Core\Db::connect";
+
+/// `Core\Db\Connection::query`, as its own refusals spell it.
+const QUERY: &str = r"Core\Db\Connection::query";
 
 /// The ABI slot each of `connect`'s two options arrives in — the row's one
 /// positional parameter, then the bag flattened in declaration order.
@@ -588,6 +713,287 @@ fn is_bare_identifier(name: &str) -> bool {
     bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
+/// The request-table key and the `[db.<name>]` block behind a
+/// `Core\Db\Connection` receiver.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is not an object or whose handle slot
+/// holds the wrong tag, on `Core\IO\File`'s reading of the identical pair: both
+/// slots are written by [`nvs_core_db_connect`] and by nothing else, so either
+/// is a paste error in this crate rather than anything a program can cause.
+fn connection_of(value: Value, member: &str) -> Result<(u64, Value), Fault> {
+    let receiver = crate::instance::receiver(value, &CONNECTION, member)?;
+    let key = crate::instance::slot(receiver, HANDLE_AT)
+        .as_uint()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{CONNECTION_NAME}::{member} expected {:?} in its `{}` slot",
+                Tag::Uint,
+                CONNECTION.slots[HANDLE_AT]
+            ))
+        })?;
+    Ok((key, crate::instance::slot(receiver, BLOCK_AT)))
+}
+
+/// One element of `$params`, as both halves of the statement path need it: what
+/// it does to the SQL text, and the values the bind reads out of it.
+///
+/// The two are one walk's answers and are carried together because the rewriter
+/// is told the arity **before** anything is encoded — ADR 0067 § 5's expansion
+/// changes the text, and § 1's statement cache keys on the text it changed it
+/// to, so an `inList`'s width has to be known a round trip early.
+struct Bound {
+    /// The rewriter's view of this element: one marker, or § 5's run of them.
+    binding: nvs_db::Binding,
+    /// What binds at those markers — one value, or the whole run in the array's
+    /// own order. **Keys are not read**, which is `inList`'s own rule: a marker
+    /// binds positions inside one placeholder and not names.
+    ///
+    /// Borrowed rather than retained, as every value read out of an argument in
+    /// this crate is: the caller's `$params` array owns them and outlives the
+    /// call.
+    values: Vec<Value>,
+}
+
+/// One element of `$params`, read as either an ordinary value or ADR 0067
+/// § 5's expansion marker.
+fn bound_of(value: Value) -> Bound {
+    if !crate::instance::is_instance(value, &IN_LIST) {
+        return Bound {
+            binding: nvs_db::Binding::One,
+            values: vec![value],
+        };
+    }
+    // Its one slot is written by `nvs_core_db_in_list` and by nothing else, and
+    // that member refuses an empty list — so this is an array, and the arity
+    // below is at least one.
+    let held = crate::instance::slot(
+        value.obj_ptr().expect("an `InList` is an object"),
+        VALUES_AT,
+    );
+    let values = held
+        .array_ptr()
+        .map(|array| {
+            let list = crate::arr::borrowed(array);
+            let mut held = Vec::with_capacity(list.count());
+            let mut from = 0usize;
+            while let Some(slot) = list.next_slot(from) {
+                from = slot + 1;
+                held.push(
+                    list.value_at(slot)
+                        .expect("next_slot only names live entries"),
+                );
+            }
+            held
+        })
+        .unwrap_or_default();
+    Bound {
+        binding: nvs_db::Binding::List(values.len()),
+        values,
+    }
+}
+
+/// A statement path failure, worded by which half of it went wrong.
+///
+/// The three-way split is this crate's to make, because `nvs-db` builds no
+/// fault at all (its `Cargo.toml` § 1 is the rule) and answers in
+/// [`std::io::ErrorKind`]s instead. `InvalidInput` is every mistake **in the
+/// call** — the rewriter's refusals, a value with no bound form, a second
+/// statement on a streaming connection — so it is a `LogicError` the caller
+/// fixes by writing the call differently. `Other` is the server's own refusal,
+/// carrying its `SQLSTATE` and message. Everything left is the wire.
+///
+/// This module's known gap 4 owns the ceiling on the middle one: `Db\DbError`
+/// is not in spec § 10's tree yet, so a server refusal arrives as a plain
+/// `RuntimeError` and a program cannot yet catch it by kind or read its
+/// `sqlState` off the object. Nothing about the message changes when it lands.
+fn statement_failure(block: &Value, refused: &std::io::Error) -> Fault {
+    let name = block.as_text().unwrap_or("?");
+    match refused.kind() {
+        std::io::ErrorKind::InvalidInput => {
+            Fault::thrown_as(ThrownClass::Logic, format!("{QUERY}: {refused}"))
+        }
+        std::io::ErrorKind::Other => Fault::thrown(format!(
+            "{QUERY}: `[db.{name}]` refused the statement: {refused}"
+        )),
+        _ => Fault::thrown_as(
+            ThrownClass::Io,
+            format!("{QUERY}: `[db.{name}]` failed while the statement was running: {refused}"),
+        ),
+    }
+}
+
+/// The refusal for a column whose Novis type is one of ADR 0067 § 9's five
+/// class instances — the gap `Core\Db\Row`'s typed readers close.
+fn structured_column(column: &str) -> Fault {
+    Fault::thrown(format!(
+        "{QUERY}: the column `{column}` is a `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMPTZ` or \
+         `UUID`, and ADR 0067 § 9 reads those back as `Core\\Time` and `Core\\Uuid` instances \
+         rather than as text — which is `Core\\Db\\Row`'s typed readers and is the slice after \
+         this one. Every other row of § 9's table reads back now, and a `::text` cast in the \
+         statement is the way to have one of these until then"
+    ))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Db\Connection::query(string $sql, array<mixed> $params): Db\Rows`
+    /// — ADR 0067 § 4's buffered statement, and the first member of
+    /// `Core\Db\Queryable` to land.
+    ///
+    /// **Every row is read before this returns**, which is § 4's default and
+    /// the whole difference between this and `stream`: the connection is at a
+    /// message boundary again by the time the caller has its answer, so the
+    /// loop that reads rows and writes per row — the commonest one in web
+    /// programming — needs no second connection and cannot meet § 4's
+    /// connection-busy rule at runtime. [`ROWS`] is where what that spends is
+    /// written down.
+    ///
+    /// **The bind order is the rewriter's and not the array's.** § 5's
+    /// `rewrite` answers one `Source` per marker, and a repeated `:name` on a
+    /// numbered dialect is one marker read twice — so the values go out in the
+    /// order the *statement* asks for them, which is why nothing here counts
+    /// placeholders itself and why an `inList`'s expansion needs no second
+    /// pass.
+    fn nvs_core_db_connection_query(ctx, args: [3]) {
+        let (key, block) = connection_of(args[0], "query")?;
+        // Unreachable from source: parameter 0 is a `string` in `CONNECTION`
+        // above, so a non-text argument is refused at `E0401` first — the same
+        // judgement `Core\Db::quoteIdentifier`'s guard states.
+        let sql = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{QUERY} expected a `string` statement, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        // Unreachable for that reason too: the row declares `array<mixed>`.
+        let params = args[2].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{QUERY} expected {:?} for its parameters, got tag {}",
+                Tag::Array,
+                args[2].tag_byte()
+            ))
+        })?;
+
+        // § 18: "list-keyed for `?`, string-keyed for `:name`, mixing throws".
+        // The refusal is here rather than in the rewriter because an array is
+        // the only thing that can be both, and the rewriter is handed one form.
+        let held = crate::arr::borrowed(params);
+        let mut positional: Vec<Bound> = Vec::new();
+        let mut named: Vec<(String, Bound)> = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = held.next_slot(from) {
+            from = slot + 1;
+            let value = held
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            let bound = bound_of(value);
+            match held
+                .slot_key(slot)
+                .expect("next_slot only names live entries")
+            {
+                nvs_runtime::SlotKey::Index(_) if named.is_empty() => positional.push(bound),
+                nvs_runtime::SlotKey::Str(name) if positional.is_empty() => {
+                    // A key is a Novis `string` and so is UTF-8 by ADR 0009;
+                    // the lossy read is the spelling that needs no unreachable
+                    // arm to say so.
+                    named.push((String::from_utf8_lossy(name.as_bytes()).into_owned(), bound));
+                }
+                _ => {
+                    return Err(Fault::thrown_as(
+                        ThrownClass::Logic,
+                        format!(
+                            "{QUERY}: `$params` is keyed both ways at once, and a statement is \
+                             written one way or the other — a list-keyed array binds `?` in \
+                             order, a string-keyed one binds `:name`"
+                        ),
+                    ));
+                }
+            }
+        }
+
+        let arities: Vec<nvs_db::Binding> = positional.iter().map(|bound| bound.binding).collect();
+        let keyed: Vec<(&str, nvs_db::Binding)> = named
+            .iter()
+            .map(|(name, bound)| (name.as_str(), bound.binding))
+            .collect();
+        let spelling = if named.is_empty() {
+            nvs_db::Params::Positional(&arities)
+        } else {
+            nvs_db::Params::Named(&keyed)
+        };
+        let statement = nvs_db::rewrite(sql, spelling, nvs_db::Dialect::PostgreSql)
+            .map_err(|refused| statement_failure(&block, &refused))?;
+
+        let bounds: Vec<&Bound> = if named.is_empty() {
+            positional.iter().collect()
+        } else {
+            named.iter().map(|(_, bound)| bound).collect()
+        };
+        let mut rendered: Vec<Option<Vec<u8>>> = Vec::with_capacity(statement.binds.len());
+        for source in &statement.binds {
+            rendered.push(
+                nvs_db::encode(bounds[source.arg].values[source.element])
+                    .map_err(|refused| statement_failure(&block, &refused))?,
+            );
+        }
+        let sending: Vec<Option<&[u8]>> = rendered.iter().map(|one| one.as_deref()).collect();
+
+        let filed = ctx.open_connection_mut(key).ok_or_else(|| {
+            Fault::fatal(format!("{QUERY}: no connection is filed under the key {key}"))
+        })?;
+        let connection = filed
+            .as_any_mut()
+            .downcast_mut::<nvs_db::Connection>()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{QUERY}: the connection filed under the key {key} is not `nvs-db`'s"
+                ))
+            })?;
+        let driver = connection.driver();
+        let nvs_db::Connection::Postgres(postgres) = connection else {
+            return Err(Fault::thrown(format!(
+                "{QUERY}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL runs a \
+                 statement so far — this module's known gap 2 is the list",
+                block.as_text().unwrap_or("?")
+            )));
+        };
+        let mut answered = postgres
+            .query(&statement.sql, &sending)
+            .map_err(|refused| statement_failure(&block, &refused))?;
+        // Taken before the first row: a `PgRows` lends its columns and its rows
+        // out of one borrow, and the rows are read with it held mutably.
+        let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
+
+        let mut rows = nvs_runtime::NvsArray::new();
+        loop {
+            let Some(row) = answered
+                .next_row()
+                .map_err(|refused| statement_failure(&block, &refused))?
+            else {
+                break;
+            };
+            // Built whole before it joins the result, so that a column this
+            // driver cannot read back releases the row it was half way through
+            // rather than leaving it in one — `NvsArray`'s own `Drop`.
+            let mut one = nvs_runtime::NvsArray::new();
+            for (index, column) in columns.iter().enumerate() {
+                let body = row
+                    .column(index)
+                    .map_err(|refused| statement_failure(&block, &refused))?;
+                let value = column
+                    .decode(body)
+                    .map_err(|refused| statement_failure(&block, &refused))?
+                    .ok_or_else(|| structured_column(&column.name))?;
+                one.set(NvsStr::new(column.name.as_bytes()), value);
+            }
+            rows.append(Value::array(one));
+        }
+
+        Ok(crate::instance::build(&ROWS, [Value::array(rows)]))
+    }
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -595,6 +1001,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_connect" => (nvs_core_db_connect as *const ()).cast(),
         "nvs_core_db_in_list" => (nvs_core_db_in_list as *const ()).cast(),
         "nvs_core_db_quote_identifier" => (nvs_core_db_quote_identifier as *const ()).cast(),
+        "nvs_core_db_connection_query" => (nvs_core_db_connection_query as *const ()).cast(),
         _ => return None,
     })
 }

@@ -231,6 +231,32 @@ fn descriptor(class: &CoreClass) -> *const ClassDesc {
     table.desc(id)
 }
 
+/// Whether `value` is an instance of `class`, asked by descriptor address.
+///
+/// A descriptor's address **is** its identity — [`descriptors`] leaks one table
+/// per core and hands the same pointer back for the same class every time — so
+/// this is a pointer comparison and never a name comparison, which would be
+/// both slower and true of a program's own class that spelled its name the
+/// same way.
+///
+/// The one caller is a `mixed` parameter that has to tell one `Core` class from
+/// everything else: [`crate::db`]'s bind reads ADR 0067 § 5's `Core\Db\InList`
+/// out of a `array<mixed>` whose other elements are ordinary values. A member
+/// whose parameter is *declared* as a class needs none of this — the checker
+/// has already answered it.
+pub(crate) fn is_instance(value: Value, class: &CoreClass) -> bool {
+    let Some(object) = value.obj_ptr() else {
+        return false;
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the value argument owns a reference to a live allocation, so \
+                  it is live for the length of this call"
+    )]
+    let found = unsafe { NvsObj::class_of(object) };
+    std::ptr::eq(found, descriptor(class))
+}
+
 /// A fresh instance of `class`, its slots filled from `slots` in declaration
 /// order, as the [`Value`] a helper returns.
 ///
