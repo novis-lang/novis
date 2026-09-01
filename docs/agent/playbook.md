@@ -1364,6 +1364,17 @@ is why" — is this file.
   the question. **One `ls tests/conformance/core/ | grep <class>` before taking the group is the whole
   check**: a purpose-named file is the tell, and reading the two it names costs one call against a
   session spent rewriting a case that exists.
+- **`cargo metadata` reports a build dependency whether or not the feature that uses it is on,
+  and `links` is not a C signal at all.** Writing ADR 0051 § 4's ledger gate
+  (`python tools/gen-attribution.py --check-c-deps`) over the resolved graph turns up four
+  candidates and only one of them is C: `blake3` keeps its `cc` build-dependency in the graph
+  even though this tree takes `default-features = false, features = ["pure"]` and compiles no
+  assembly, and `defmt` and `wasm-bindgen-shared` declare `links` as Cargo's *one-version token*
+  rather than to name a native library. `ring` is the only real one. So an enumeration is a
+  **signal** and the ledger entry is the finding — and a `no-native-code` verdict that rests on a
+  feature has to name that feature, which is what `C_DEPENDENCIES`'s `requires` column checks
+  against the node's active features. Reading the crate's `Cargo.toml` comment settles each in
+  one look; guessing from the crate name does not.
 
 ## Running things
 

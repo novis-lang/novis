@@ -42,8 +42,7 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 4 of the parity program — `Core`'s capability-bearing half, M8 — is
-> running**.       **`Core\Password` and `Core\Crypto` are closed.**  **Stage 5 is closed**:
-> `Core\Http::allowUrl` pins its `Target` (ADR 0058 §§ 3 and 5). **Stage 6 has opened**:
+> running**.       **`Core\Password` and `Core\Crypto` are closed.**   **Stage 6 has opened**:
 > `Core\Cache`'s two tiers are one `Store`, `shared()` the `net.connect` door onto RESP and
 > `local()` the `None` row; § 1's limiters are rows over them. **Stage 7 has opened**: § 6's two
 > writers are one serialiser, § 3's tier 3 is `[app.log] handler` on `Ctx::handler_isolate`'s
@@ -58,11 +57,12 @@
 > `Core\Mail::send` sends through an operator-named `[mail.<name>]` under `mail.send`, and
 > `Core\Storage`'s four rows reach a `[storage.<name>]` disk over `fs.*` alone, and
 > `Core\Cldr::pluralCategory` reads a closed CLDR roster; `https` and mail's `AUTH` run over
-> verified TLS. **Stages 2 and 3 are closed**: spec § 14's handle roster is on `Core\IO\File` and
+> verified TLS. **Stages 2, 3 and 5 are closed**: spec § 14's handle roster is on `Core\IO\File` and
 > ADR 0086's whole terminal surface is on `Core\Cli`. **Stages 11 and 12 have closed**, with
-> `examples/cycles.nvs` and `examples/onexit.nvs`; **stage 10's six gates are closed**, §§ 14-19
-> registered and cased over a 59-key ratchet. Conformance 1346, differential 210 of 210, migration
-> 37% over its 36% floor.
+> `examples/cycles.nvs` and `examples/onexit.nvs`; **stage 10's gates are closed**: §§ 14-19
+> registered and cased over a 59-key ratchet, §§ 16-17's classes over a 9-key one, and `ring` the
+> one C dependency ADR 0051 § 4 records. Conformance 1346, differential 210 of 210, migration 37%
+> over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

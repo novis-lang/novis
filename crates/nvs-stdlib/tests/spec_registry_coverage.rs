@@ -6,7 +6,10 @@
 //!
 //! [`every_part_two_spec_member_is_registered`] asks the same question of
 //! §§ 14-19, which Part II writes as bullets rather than as tables — its own
-//! doc owns that difference, and the two sections' exclusions.
+//! doc owns that difference, and the two sections' exclusions. Those two,
+//! §§ 16 and 17, get [`every_part_two_spec_class_is_registered`] instead: their
+//! members are English but their `Class` column is not, so the roster is
+//! checked where the signatures cannot be.
 //!
 //! This is the mirror of `conformance_coverage.rs`, which walks the registry
 //! and asks the repository for a case. This walks the *spec* and asks the
@@ -740,6 +743,104 @@ fn every_part_two_spec_member_is_registered() {
          produces: {}\n\
          Delete those lines — the list only shrinks, and striking a line is part of the slice \
          that registers the member.",
+        stale.len(),
+        path.display(),
+        stale
+            .iter()
+            .map(|key| key.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+}
+
+/// Every class [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+/// §§ 16-17 name in the `Class` column of their tables, keyed by section.
+///
+/// These are the two sections [`part_two_members`] excludes, and its doc owns
+/// why: their members sit inside an English cell that a shape cannot be read
+/// off. The **class** column is not English — it is one or more `` `Core\X` ``
+/// code spans, one row per class — so a class-level walk is available here
+/// where a member-level one is not.
+fn part_two_classes() -> BTreeSet<String> {
+    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
+    let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
+
+    let mut section = None;
+    let mut found = BTreeSet::new();
+    for line in text.lines() {
+        if let Some(number) = section_number(line) {
+            section = (16..=17).contains(&number).then_some(number);
+            continue;
+        }
+        let Some(number) = section else { continue };
+        // The first cell of a table row, which the header row and the `|---|`
+        // separator both have too — neither writes a code span, so filtering
+        // for one is all the row-shape reading this needs.
+        let Some(cell) = line
+            .strip_prefix('|')
+            .and_then(|rest| rest.split('|').next())
+        else {
+            continue;
+        };
+        for span in spans(cell)
+            .into_iter()
+            .filter(|span| span.starts_with(r"Core\"))
+        {
+            found.insert(format!("§{number} {span}"));
+        }
+    }
+    found
+}
+
+/// The class-level half of [`every_part_two_spec_member_is_registered`], over
+/// the two sections that one cannot read: every class §§ 16-17 name has a
+/// [`registry::CLASSES`] row, or a key in
+/// `tests/spec-classes-part-two-outstanding.txt`.
+///
+/// This is a weaker claim than the member walk and deliberately so — it cannot
+/// see that `Core\Crypto` is missing a member, only that `Core\Crypto` is
+/// missing altogether. That is still the failure the two sections were
+/// otherwise open to: `conformance_coverage.rs` walks the registry, so a class
+/// the spec names and nobody has written is invisible to every other gate in
+/// this crate. Ten classes had no gate of any kind before this one.
+///
+/// The match is **exact**, unlike [`classes_named`]'s: a row for `Core\Xml`
+/// asks for a class called `Core\Xml`, and something registered inside its
+/// namespace does not answer on its behalf. A class-level roster question is
+/// the one place in this file where the looseness the member walks need would
+/// cost the claim its meaning.
+#[test]
+fn every_part_two_spec_class_is_registered() {
+    let outstanding: BTreeSet<String> = part_two_classes()
+        .into_iter()
+        .filter(|key| {
+            let name = key.split_once(' ').map_or("", |(_, name)| name);
+            !registry::CLASSES.iter().any(|class| class.name == name)
+        })
+        .collect();
+
+    let (path, listed) = outstanding_file("spec-classes-part-two-outstanding.txt");
+    let unlisted: Vec<&String> = outstanding.difference(&listed).collect();
+    assert!(
+        unlisted.is_empty(),
+        "{} class(es) in §§ 16-17 have no `registry::CLASSES` row and are not listed in {}: {}\n\
+         Register the class, or add its key to that file if it is genuinely still owed.",
+        unlisted.len(),
+        path.display(),
+        unlisted
+            .iter()
+            .map(|key| key.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+
+    let stale: Vec<&String> = listed.difference(&outstanding).collect();
+    assert!(
+        stale.is_empty(),
+        "{} line(s) in {} name a class that is registered now, or a key no spec row produces: \
+         {}\n\
+         Delete those lines — the list only shrinks, and striking a line is part of the slice \
+         that registers the class.",
         stale.len(),
         path.display(),
         stale

@@ -1,0 +1,24 @@
+# Classes docs/spec/01-core-library.md §§ 16-17 name that no `registry::CLASSES`
+# row declares yet. `every_part_two_spec_class_is_registered` in
+# spec_registry_coverage.rs owns the walk; that test's doc owns why a
+# class-level gate is what these two sections get.
+#
+# One key per line, as the spec section and the class's own spelling. The list
+# only shrinks: registering a class and striking its line here are one slice,
+# and a line naming a class that is registered now fails the same test.
+#
+# Every one of these is owed by a milestone or a goal that has not run, which is
+# why the list opens at nine rather than at zero: `Core\Db` is goal 5's and its
+# surface is § 18, `Core\Metrics` is goal 6's, and the four in § 17 are the
+# document and archive formats M9 carries. `Core\Net`, `Core\Os` and
+# `Core\Signal` have no owning slice yet at all.
+
+§16 Core\Db
+§16 Core\Metrics
+§16 Core\Net
+§16 Core\Os
+§16 Core\Signal
+§17 Core\Compress
+§17 Core\Mime
+§17 Core\Xml
+§17 Core\Zip
