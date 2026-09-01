@@ -4160,6 +4160,13 @@ is why" — is this file.
   test's body rather than a chain of inferences from its name. The twin is still worth having —
   it fails naming a spec section instead of a class — but it is a *direction*, not a hole, and
   writing its doc as though it were a hole would have been a lie a later session would trip on.
+- **Two `.nvst` spellings that will not compile, both found while writing oracle cases over
+  `Core\Bytes`.** A case's top-level statements are **one** scope, so a second `bytes $buffer = …` in a
+  *different* `foreach` body is `E0406` "`$buffer` is already declared" — declare the variable once above
+  the loops and assign inside, or give each loop its own name. And `Core\Bytes::at($b, $i)` takes an
+  **`int`** index while `Core\Bytes::length` answers a `uint`, so the obvious
+  `uint $i = 0; while ($i < Core\Bytes::length($b))` fails `E0401` at the `at` call — carry the index as
+  `int` and cast the length instead (`… as int`).
 
 ## Splitting a file that got too big
 

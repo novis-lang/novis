@@ -2,58 +2,53 @@
 
 ## State
 
-**Goal 4, M8.** The acceptance failure this session opened on — `valgrind examples/limits.nvs: exit 1`
-with the fixture's own `FATAL` on stderr — was a **tooling bug, not a regression**: `[valgrind] skip`
-lost `examples/limits.nvs` at the goal-3→goal-4 switch, because `tools/goal-switch.py`'s `union_list`
-matched only a multi-line list and `skip` is written on one line. The fixture is back in the skip list
-with the comment that says why the list exists, and the union now matches both list shapes and refuses
-rather than silently carrying nothing (playbook, *Tooling*).
+**Goal 4, M8.** The driver's failing acceptance check is the last gate the goal has open:
+`differential`'s `min_passing = 250` (`docs/agent/loop-goal.toml:2630`), against 210 case files that all
+passed. It is **not a regression** — nothing fails, the count is the item, and the work is writing cases.
+`python tools/check-migration.py --min 74` passes at 90%, so the migration table's remaining `pg_*` family
+gates nothing and is backlog rather than the next group.
 
-**`mysqli` is fully classified.** `docs/spec/02-php-migration.md:1375` is a new
-`## Databases: the `mysqli` extension` — a lead naming the three rules that empty it
-([ADR 0067](../adr/0067-core-db.md) §§ 1, 2, 7 plus [ADR 0063](../adr/0063-core-api-conventions.md) R17)
-and four `###` tables covering all 106 names. `python tools/check-migration.py --min 74` is at **90%**,
-1,032 of 1,152 classified, 120 open.
+**The suite is now 221 passing, 0 failing — 29 short.** This session added 11 oracle cases over the three
+classes that had a PHP twin and no differential file at all: `Core\Hash` (the fourteen-algorithm roster
+against `hash()`, the two CRC-32 polynomials against `crc32b`/`crc32c`, `Hash\Stream` against
+`hash_init`/`hash_update`/`hash_final`, `hmac` against `hash_hmac` over RFC 4231), `Core\Encoding` (base64,
+base64url against the `strtr` idiom, hex) and `Core\Bytes` (addressing, search, construction, ordering).
 
-**Those 120 open names are one family: `pg_*`, and nothing else.** `sqlite3` contributes no function to
-the inventory at all — its whole surface is methods on `SQLite3`/`SQLite3Stmt`/`SQLite3Result`, which are
-types — so `pgsql` is the last of the migration table. Nothing about § 15's stdlib half moved: ADR 0112's
-compile-time half is still absent (`crates/nvs-stdlib/src/cap.rs`'s module doc owns what that costs) and
-`crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` is still 41 keys.
+`python tools/gaps.py`'s *differential gap* list is down to **one** member — `Core\Task::afterResponse`
+against `fastcgi_finish_request` — so the remaining 29 are depth over members that already have a twin.
+The group below names the four families with the most untouched PHP surface, ranked by how much of it PHP
+computes for free.
 
 ## Next group
 
-**All three slices are `docs/spec/02-php-migration.md` alone**, appending `###` tables to a new
-`## Databases: the `pgsql` extension` placed immediately before `## Not yet classified`.
-[01 § 18](../spec/01-core-library.md) is the signature roster the cells name, and `check-migration.py`
-validates every `Core\...::member` spelling in a cell against it — so run it after each slice, not at the
-end. The `mysqli` section directly above is the shape to copy: a lead that names the ADR rules doing the
-work, then one table per family.
+**All four slices are new files under `tests/differential/core/`**, and they share the two things this
+session's did: the spec section that names the member's *Replaces* column, and PHP as the expectation, so
+nothing is frozen by hand. `--ORACLE--`, never `--EXPECT--`, and never in `tests/conformance/`
+(`docs/agent/conventions.md`). Run each with `target/debug/nvs.exe test <file>` as you write it — the
+compile errors are cheap and the oracle mismatch prints both sides.
 
-- [ ] **Migration rows: `pg_*`, connections and the calls that run a statement** (~60).
-      `pg_connect`/`_pconnect`/`_close`/`_connection_status`/`_connection_busy`/`_ping`/`_host`/`_dbname`
-      against ADR 0067 § 2's naming and memoization and § 13's per-core pool and its reset;
-      `pg_prepare`/`_execute`/`_query`/`_query_params`/`_send_*`/`_get_result` against § 1's "there is no
-      `prepare`" and § 4's five members; `pg_escape_string`/`_literal`/`_identifier`/`_bytea` against
-      § 12's permanent refusal, with `Core\Db::quoteIdentifier` the one survivor.
-      `docs/spec/02-php-migration.md:1528`, `docs/spec/01-core-library.md:1140`.
-- [ ] **Migration rows: `pg_*`, results, transactions and the deferred subsystems** (~60).
-      `pg_fetch_*`/`_num_rows`/`_num_fields`/`_field_*`/`_result_*` against § 6 and 01 § 18's *Results*
-      table; `pg_lo_*` (~15) against § 12's deferred LOB streaming; `pg_copy_to`/`_from` against its
-      deferred `COPY`; `pg_get_notify`/`_get_pid` against deferred `LISTEN`/`NOTIFY`;
-      `pg_meta_data`/`_convert`/`_insert`/`_update`/`_delete`/`_select` against ADR 0051 test 6, which
-      puts a query builder outside `Core` entirely.
-      `docs/spec/02-php-migration.md:1528`, `docs/spec/01-core-library.md:1186`.
-- [ ] **Close the table.** With `pg_*` landed the inventory is at 100% and
-      `## Not yet classified`'s closing paragraph is wrong — it now names `pgsql` as the last extension.
-      Rewrite it to say what the section still means (the unaudited-extension hole and
-      `AHEAD_OF_THE_BUILD` are not the same thing as an unclassified name), and raise
-      `check-migration`'s `--min` gate in `docs/agent/loop-goal.toml` from 74 to match.
-      `docs/spec/02-php-migration.md:1528`, `docs/agent/loop-goal.toml`.
+- [ ] **`Core\Csv` and `Core\Out` against `str_getcsv`, `fputcsv` and the `ob_*` family** (~4 cases).
+      § 12's second and third tables: quoting, embedded separators and newlines, the empty field and the
+      empty document for `Csv`; nesting, `Out`'s answer at each depth and what a discarded level does for
+      `Out`. `docs/spec/01-core-library.md:846`, `crates/nvs-stdlib/src/csv.rs:1`.
+- [ ] **`Core\Uri` against `parse_url`, and `Core\Validate` against `filter_var`** (~4 cases). § 12's
+      first table and its prose roster — the six genuine validators are the whole of what survives
+      `filter`, and `filter_var`'s own `FILTER_VALIDATE_*` half is the oracle for each.
+      `docs/spec/01-core-library.md:846`.
+- [ ] **`Core\Json::encode` against `json_encode`** (~3 cases). § 6 has a decode case and no encode one:
+      escaping, the object/list distinction over an array with a hole, and the depth and float spellings
+      where the two libraries have to agree. `docs/spec/01-core-library.md:583`.
+- [ ] **`Core\Path` against `pathinfo` and `realpath`'s lexical half** (~2 cases). § 8 already has
+      `basename`, `dirname` and a hand-written normalize; the extension and the join half are untouched.
+      `docs/spec/01-core-library.md:664`.
 
 ## Backlog
 
-- ADR 0112's compile-time half is absent — `crates/nvs-stdlib/src/cap.rs`'s module doc.
-- `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` is 41 keys — spec Part II.
-- ADR 0067's five-driver CI-container matrix needs a reachable Docker daemon — plan, *Blocking*.
-- `Core\Db` has no implementation at all yet; the spec and the migration table are ahead of it — M8.
+- `pg_*`'s 120 migration rows, the previous group — `docs/spec/02-php-migration.md:1528`, three slices,
+  now backlog because `check-migration` passes at 90% against a 74% gate.
+- `Core\Task::afterResponse` against `fastcgi_finish_request`, the one member `gaps.py` still lists as a
+  twin with no oracle case — `crates/nvs-stdlib/src/task.rs:561`.
+- `Core\Time`'s remaining twins: `date`'s format letters past what `a-date-format-string-renders-as-phps-does`
+  covers — `docs/spec/01-core-library.md:430`.
+- ADR 0112's compile-time half of § 15 is still absent — `crates/nvs-stdlib/src/cap.rs`'s module doc.
+- `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` is still 41 keys.
