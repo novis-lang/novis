@@ -292,6 +292,27 @@ enum LogTarget {
     Named(OutputSink),
 }
 
+/// A database connection a request is holding open — `nvs_db`'s `Connection`,
+/// and the seam that lets a [`Ctx`] hold one without naming it.
+///
+/// Declared here for [`Running`](crate::host::Running)'s reason and one more.
+/// A `Core\Db\Connection` is an object with no native drop, so the connection
+/// itself is a key into a table the request owns
+/// ([`Ctx::hold_open_connection`]); the table has to live in this crate,
+/// because this is the crate that learns when a request ends. And the edge
+/// cannot run the other way: [ADR 0132](../../../docs/adr/0132-database-driver-shape.md)
+/// § 1 has `nvs-db` depending on this crate, so a field typed
+/// `nvs_db::Connection` would close a cycle.
+///
+/// The one method is the downcast a holder needs to get its own type back,
+/// which `dyn Trait` cannot do on its own. Nothing in this crate calls it —
+/// what this crate wants from a connection is that it is dropped with the
+/// request, which is [`Drop`]'s job and needs no method at all.
+pub trait HeldConnection: std::fmt::Debug + std::any::Any {
+    /// This connection as the concrete type its driver crate knows it by.
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+}
+
 /// Per-request state, passed to every compiled Novis function and every helper.
 #[repr(C)]
 #[derive(Debug)]
@@ -905,6 +926,9 @@ pub struct Ctx {
     /// The files this request has opened and not yet closed, by the key its
     /// `Core\IO\File` carries — see [`Ctx::hold_open_file`].
     open_files: Vec<Option<std::fs::File>>,
+    /// The database connections this request has opened, each with the
+    /// memoization key it was reached by — see [`Ctx::hold_open_connection`].
+    open_connections: Vec<(Option<String>, Box<dyn HeldConnection>)>,
     /// Every object this context has allocated and not yet dismantled — ADR
     /// 0116 § 2's live list, whose sweep in [`Drop`] reclaims the cyclic graph
     /// the root drain could not. [`crate::object`]'s own docs are the home of
@@ -1338,6 +1362,7 @@ impl Ctx {
             assertions: Vec::new(),
             started_scripts: Vec::new(),
             open_files: Vec::new(),
+            open_connections: Vec::new(),
             live: std::rc::Rc::new(crate::object::LiveList::default()),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
@@ -2947,6 +2972,51 @@ impl Ctx {
     pub fn take_open_file(&mut self, key: u64) -> Option<std::fs::File> {
         let index = usize::try_from(key.checked_sub(1)?).ok()?;
         self.open_files.get_mut(index)?.take()
+    }
+
+    /// Files an open database connection against this request and answers the
+    /// key that reads it back — what a `Core\Db\Connection`'s first slot holds.
+    ///
+    /// The same shape and the same reasoning as [`Ctx::hold_open_file`], and
+    /// [`Ctx::hold_started_script`] is the one home of *why* a `Core` handle is
+    /// a key into a request-owned table. What this adds is `memo`, which is
+    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 2's memoization key —
+    /// the block's name for `Core\Db::connect`, and `None` for a
+    /// `{shared: false}` call, which is exactly what "bypasses memoization"
+    /// means: an entry no [`Ctx::memoized_connection`] lookup can match. The
+    /// key is held beside the connection rather than in a map of its own
+    /// because a request opens a handful of connections at most, so a linear
+    /// scan is the whole lookup and an empty request pays no allocation for it.
+    ///
+    /// There is **no reuse across requests here**, and there is not meant to be
+    /// yet: § 13's per-core pool is what makes a connection outlive the request
+    /// that opened it, and it may only do so behind that section's reset. Until
+    /// it exists, a connection is opened by the request that asks for one and
+    /// closed when this context drops, which is the isolating answer rather
+    /// than the fast one.
+    ///
+    /// **What it spends:** one connection — a socket, a TLS session and its
+    /// statement cache — per distinct `connect` a request performs, released
+    /// with the request. A key is never reused.
+    pub fn hold_open_connection(
+        &mut self,
+        memo: Option<String>,
+        connection: Box<dyn HeldConnection>,
+    ) -> u64 {
+        self.open_connections.push((memo, connection));
+        // The index, one-based, so that a handle slot never holds a key a
+        // zeroed value could be mistaken for.
+        self.open_connections.len() as u64
+    }
+
+    /// The key of the connection this request already opened under `memo`, or
+    /// `None` for a name it has not reached yet — § 2's memoization, asked.
+    #[must_use]
+    pub fn memoized_connection(&self, memo: &str) -> Option<u64> {
+        self.open_connections
+            .iter()
+            .position(|(held, _)| held.as_deref() == Some(memo))
+            .map(|index| index as u64 + 1)
     }
 
     /// Arms [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)

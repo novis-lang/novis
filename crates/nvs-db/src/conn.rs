@@ -525,6 +525,15 @@ impl Connection {
     }
 }
 
+/// A connection is what a request holds open, and `nvs_runtime` is where a
+/// request's own state lives — the trait's own doc comment owns why the seam
+/// exists rather than a field typed for this enum.
+impl nvs_runtime::HeldConnection for Connection {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Driver, State};

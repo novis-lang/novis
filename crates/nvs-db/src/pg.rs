@@ -187,6 +187,16 @@ pub struct PgTarget<'a> {
     pub statement_cache: usize,
 }
 
+/// The port an absent `port` in a `[db.<name>]` block means — PostgreSQL's
+/// own, and a fact about this protocol rather than about whoever opens the
+/// socket.
+///
+/// Not a field of [`PgTarget`] for the reason the address is not one: a port is
+/// half of an address, and the address is resolved by the caller that checked
+/// the `db.connect` capability. What this crate owes that caller is the number
+/// to fall back to.
+pub const DEFAULT_PORT: u16 = 5432;
+
 impl std::fmt::Debug for PgTarget<'_> {
     /// Everything but the password, which is a `secret` at the language level
     /// (ADR 0067 § 3) and is not printed in any rendering.
