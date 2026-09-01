@@ -4080,6 +4080,15 @@ is why" — is this file.
   broken member rather than as an unset variable. The runner that does honour it is the real one:
   `target/debug/nvs.exe test <path/to/one-case.nvst>` takes a single file as well as a tree, runs in
   about a second, and is what to check an `--ENV--` case with while authoring it.
+- **A gate's name records the goal that wrote it, not the set it walks — check the loop before
+  believing the name.** `every_part_one_member_has_a_conformance_case` iterates
+  `registry::CLASSES` whole, with no Part I filter anywhere in it, because when goal 1 wrote it the
+  registry held Part I and nothing else; the same is true of the floor gate beside it. A session
+  sent to write the Part II twin therefore arrives expecting to close a hole that three landed
+  gates already cover between them, and the way to find that out is one `sed -n` over the named
+  test's body rather than a chain of inferences from its name. The twin is still worth having —
+  it fails naming a spec section instead of a class — but it is a *direction*, not a hole, and
+  writing its doc as though it were a hole would have been a lie a later session would trip on.
 
 ## Splitting a file that got too big
 
