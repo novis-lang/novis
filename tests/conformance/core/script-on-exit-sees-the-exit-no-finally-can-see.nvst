@@ -1,0 +1,30 @@
+--TEST--
+An `exit` drains the `Core\Script::onExit` queue and runs no `finally`, so the hook observes the one ending nothing else can — ADR 0127 §§ 2 and 4
+--FILE--
+<?nvs
+// The ending this queue exists for. `exit` runs no `finally` — Novis skips it
+// exactly as PHP does — so before this queue there was no way at all to run
+// code at the ending a CLI program most wants to clean up after. Both halves
+// are asserted here: the `finally` below does not print, and the hook does.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    string $reason = match ($report->reason()) {
+        Core\Script\ExitReason::Normal => "Normal",
+        Core\Script\ExitReason::ExitCall => "ExitCall",
+        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+    };
+    // `ExitCall` carries the suffix so the case never shares a spelling with
+    // the keyword two lines below. The status is the one the call named, and
+    // an `exit` has no error any more than a normal end does.
+    echo "onExit: ", $reason, " ", $report->status(), " ",
+        $report->error() == null ? "no error" : "an error", "\n";
+});
+
+try {
+    echo "in the try\n";
+    exit(0);
+} finally {
+    echo "this finally never runs\n";
+}
+--EXPECT--
+in the try
+onExit: ExitCall 0 no error

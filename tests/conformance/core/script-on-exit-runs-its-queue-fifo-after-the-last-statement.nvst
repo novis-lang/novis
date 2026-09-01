@@ -1,0 +1,39 @@
+--TEST--
+`Core\Script::onExit` runs its hooks FIFO as the last user code of a normal end, and the report says `Normal` with status 0 and no error — ADR 0127 §§ 1-2
+--FILE--
+<?nvs
+// Registration runs nothing: the two hooks below are registered first and the
+// script's own output still comes out first, because the queue is drained
+// after the last top-level statement rather than at the call that filled it.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    string $reason = match ($report->reason()) {
+        Core\Script\ExitReason::Normal => "Normal",
+        Core\Script\ExitReason::ExitCall => "ExitCall",
+        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+    };
+    // § 2's first row, read off all three fields at once: the last statement
+    // ran, so the reason is `Normal`, the status is the 0 the process will
+    // carry, and there is no error because only one of the three endings has
+    // one.
+    echo "first: ", $reason, " ", $report->status(), " ",
+        $report->error() == null ? "no error" : "an error", "\n";
+});
+
+// Registering twice registers twice — a queue and not a slot, which is what
+// lets two unrelated parts of one program each register their own.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    echo "second: ", $report->status(), "\n";
+});
+
+// A hook may declare no parameter at all, exactly as a `Core\Fatal` handler
+// may: what a hook is handed is decided at the call rather than by its row.
+Core\Script::onExit(fn (): void => {
+    echo "third: no parameter\n";
+});
+
+echo "the script's own last line\n";
+--EXPECT--
+the script's own last line
+first: Normal 0 no error
+second: 0
+third: no parameter

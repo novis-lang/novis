@@ -1,0 +1,46 @@
+<?nvs
+// The end of a script, observed from inside it.
+//
+// [ADR 0127](../docs/adr/0127-the-end-of-a-script-is-observable.md) is the
+// design. `Core\Script::onExit` registers a hook that runs as the **last user
+// code of the script**, at every non-fatal ending: the last statement, an
+// `exit`, or a throw that reached the root. The hook is handed a readonly
+// report saying which of those it was and what status the process will carry,
+// and it cannot change either — a hook observes an ending rather than steering
+// one.
+//
+// This program takes the first of the three. Both hooks are registered before
+// any work happens, and neither runs until the last line below has already
+// run: `work done` is printed by the script, and the two lines after it are
+// printed by the queue, in the order the hooks were registered.
+//
+// `exit` is the ending this exists for. A root `try`/`finally` covers a normal
+// end and an uncaught throw, and PHP skips `finally` on `exit` exactly as
+// Novis does — so before this queue there was no way at all to run code at the
+// one ending a CLI program most wants to clean up after.
+//
+// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 12); the source is not.
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    // The reason is an ordinary enum, so a `match` over it is exhaustive and a
+    // fourth ending would be a compile error here rather than a silent branch.
+    // There is deliberately no case for a `FATAL` or a cancellation: neither
+    // runs a hook, so neither has a reason to report.
+    string $reason = match ($report->reason()) {
+        Core\Script\ExitReason::Normal => "Normal",
+        Core\Script\ExitReason::ExitCall => "ExitCall",
+        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+    };
+    echo "onExit: ", $reason, " ", $report->status(), "\n";
+});
+
+// Registering twice registers twice — this is a queue and not a slot, which is
+// what makes it usable by two unrelated parts of one program.
+Core\Script::onExit(fn (): void => {
+    // A hook may declare no parameter at all, exactly as a `Core\Fatal`
+    // handler may: what it is handed is decided at the call.
+    echo "second hook\n";
+});
+
+echo "work done\n";
