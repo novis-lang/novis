@@ -1,0 +1,62 @@
+--TEST--
+Every token Core\Jwt::sign writes is three non-empty base64url segments with no padding and no `+` or `/`, over a sweep of keys and claim widths, and the URL alphabet is not hypothetical — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// Invariance over a sweep, counted. A JWT is carried in a URL, a header and a
+// cookie, so the encoding is part of the contract and not an implementation
+// detail — but a single token is nearly silent about it: whether `+`, `/` or
+// `=` ever appears depends on the bytes that happened to be signed and on the
+// length that happened to result. So the question is asked of twelve tokens
+// under two keys and six claim widths, which is what moves the payload's
+// length through every residue that padding would show up at.
+secret bytes $first = Core\Crypto::generateKey();
+secret bytes $second = Core\Crypto::generateKey();
+
+array<int> $widths = [0, 1, 2, 3, 4, 5];
+array<string> $tokens = [];
+foreach ($widths as int $n) {
+    string $pad = Core\Str::repeat("a", $n as uint);
+    $tokens[] = Core\Jwt::sign(["sub" => "ada" . $pad], 15m, $first);
+    $tokens[] = Core\Jwt::sign(["sub" => "ada" . $pad, "role" => $pad], 1h, $second);
+}
+
+int $threeParts = 0;
+int $segments = 0;
+int $clean = 0;
+int $renamed = 0;
+foreach ($tokens as string $token) {
+    array<string> $parts = Core\Str::split($token, ".");
+    if ((Core\Arr::count($parts) as int) == 3) {
+        $threeParts = $threeParts + 1;
+    }
+    foreach ($parts as string $part) {
+        $segments = $segments + 1;
+        // Non-empty is part of the same property: a `sign` that wrote an empty
+        // signature would still split into three.
+        if (!Core\Str::isEmpty($part)
+            && !Core\Str::contains($part, "=")
+            && !Core\Str::contains($part, "+")
+            && !Core\Str::contains($part, "/")) {
+            $clean = $clean + 1;
+        }
+        if (Core\Str::contains($part, "-") || Core\Str::contains($part, "_")) {
+            $renamed = $renamed + 1;
+        }
+    }
+}
+
+echo Core\Arr::count($tokens), " tokens, ", $threeParts, " of them three segments", "\n";
+echo $clean, " of ", $segments, " segments are non-empty, unpadded and url-safe", "\n";
+
+// And the sweep is not vacuous. Every segment above could be plain base64 and
+// pass the counts if no signature happened to contain one of the two bytes the
+// URL alphabet renames; twelve random 32-byte tags make that outcome
+// vanishingly unlikely, so this line is what says the property was tested
+// rather than merely not contradicted.
+if ($renamed > 0) {
+    echo "and at least one segment carries a byte standard base64 spells `+` or `/`", "\n";
+}
+--EXPECT--
+12 tokens, 12 of them three segments
+36 of 36 segments are non-empty, unpadded and url-safe
+and at least one segment carries a byte standard base64 spells `+` or `/`
