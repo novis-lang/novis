@@ -2,60 +2,63 @@
 
 ## State
 
-**ADR 0086 § 3's table is closed.** `Core\Cli::displayWidth` answers UAX #11 columns, over grapheme
-clusters, measured on the string § 1's substitution will actually put on the screen. `cli.rs`'s
-known gap 1 is gone and the module's row count is fifteen — the whole of § 3 and § 4.
+**ADR 0086 § 2's `Text + Text` is closed, and stage 3 with it.** Two `Cli\Text` compose into a
+`Cli\Text`; every other pairing — a `string` operand, and the cross-carrier `Text + Markup` — is
+refused with a help line naming § 2. `Core\Cli::write` and `echo` take the sum as the carrier, so
+the raw path survives composition.
 
-**The rule and the reasoning have one home each.** ADR 0086 § 3's new paragraph beside the table
-states what a program can rely on: control byte as its Control Picture, cluster not code point, `TAB`
-to the next multiple of eight, `LF` ending a row so the answer is the *widest* row. What
-`nvs_runtime::terminal::display_width`'s doc comment owns is the one thing the ADR does not fix — the
-order the three compose in — and `TAB_STOP`'s own doc owns why eight.
+**The two sink carriers are one rule, in one function.** `carrier_of` in
+`crates/nvs-types/src/expr/operators.rs` answers which carrier a type is, and
+`carrier_composition_result` admits a carrier beside its own kind and nothing else — replacing the
+`Markup`-only `markup_composition_result`. `nvs_runtime::is_carrier` is the same pair of names on
+the render side; the playbook's *"`Core` is two rosters, not one"* bullet is why they are joined
+rather than each stated where it is used.
 
-**The table is the `unicode-width` crate**, in `nvs-runtime` beside `unicode-segmentation`, with
-`default-features = false` because the `cjk` half is an ambient-locale answer and Novis has no
-ambient locale. It was already in `Cargo.lock` as `wasm-encoder`'s, so the lock gains an edge and no
-package; `THIRD-PARTY-LICENSES.txt` is regenerated. `cargo deny` is not installed here — the
-playbook's new *Tooling* bullet is what that costs and what stands in for it.
-
-**`clamp` changed under the region as well**, and that is the reason the count lives in the runtime
-rather than in `Core\Cli`: it now walks grapheme clusters and counts columns through the same
-`advance`, so a row of wide glyphs stops one column short of the edge instead of one past it. A row
-cut against a different measure than the one the program was handed is the wrapped frame ADR 0086
-§ 8's clamp exists to prevent.
+**Which carrier is the checker's answer, not the lowering's.** `nvs_ir::ty::Ty` erases a class to
+`Ty::Object`, so both carriers reach `lower_binary` as the same pair of representations. The
+checker records `ExprInfo::CarrierComposition { symbol }` at the `+` span and `lower_carrier_concat`
+emits that symbol — `ExprInfo::SecretEquality`'s shape, one step further along because there are two
+answers now rather than one bit. `nvs_stdlib::cli` is `pub` for exactly two constants, `NAME` and
+`TEXT_CONCAT_SYMBOL`, reached as `nvs_types::CORE_CLI_TEXT_CLASS`/`CORE_CLI_TEXT_CONCAT`.
 
 **The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate
 over a *complete* Part II, which needs §§ 15-19. Those are `Core\Request` and its neighbours and are
 goal 6's, so this check cannot pass inside this goal and is not a regression.
 
-**Two pack gaps, both still open from last session.** `[context] modules` does not select
-`nvs-runtime/src/terminal.rs`, which is where this item's own anchor was. And `[context] playbook`
-filters to the *item's* anchor paths, so a group that also writes `.nvst` cases never sees the
-case-authoring bullets.
+**Read the plan's stage 7 clause before taking it.** *"`write`'s `fields` refuses a `secret`"*
+scans as owed, but `reject_secret_logged_argument` and `is_fields_argument` are already on disk
+(`crates/nvs-types/src/expr/quals.rs:658`, `:708`) under `E_SECRET_LOGGED`. What is owed there is
+reading `[log] target`.
+
+**Two pack gaps, both still open.** `[context] modules` does not select
+`nvs-runtime/src/terminal.rs`. And `[context] playbook` filters to the *item's* anchor paths, so a
+group that also writes `.nvst` cases never sees the case-authoring bullets — this session wrote two
+cases and paid for the `--EXPECTF-ERROR--` indentation rule out of `conventions.md` instead.
 
 ## Next group
 
-**`Cli\Text + Cli\Text` — ADR 0086 § 2's last owed piece, and `Markup + Markup` is the worked
-precedent for every step of it — over `crates/nvs-types/src/expr/operators.rs`,
-`crates/nvs-ir/src/lower/operator.rs` and `tests/conformance/core/`.**
+**`Core\Storage::list` — ADR 0082 § 2's third member and the last of stage 9's three owed pieces
+that has its whole file set in one place — over `crates/nvs-stdlib/src/storage.rs` and
+`tests/conformance/core/`. `put`/`get`/`delete` are the worked precedent for every step.**
 
-- [ ] **The operator row.** `Text + Text` is `Text` and every other pairing stays refused, beside
-      ADR 0024 § 5's `Markup` row that already says exactly this for the other carrier —
-      `crates/nvs-types/src/expr/operators.rs:1045`, with the refusal's message at
-      `crates/nvs-types/src/expr/operators.rs:949`.
-- [ ] **The lowering.** Two carriers composed into one, against
-      `crates/nvs-ir/src/lower/operator.rs:564`'s `Markup` arm and the object-`+` gate at
-      `crates/nvs-ir/src/lower/operator.rs:647`. The carrier name is
-      `crates/nvs-runtime/src/ctx.rs:199`.
-- [ ] **Two `.nvst` cases** under `tests/conformance/core/`: that the sum is still a carrier `echo`
-      writes raw, and that a `string` on either side is refused rather than lifted — the second is
-      the one that keeps `+` from becoming the hole § 1 closed. `crates/nvs-stdlib/src/cli.rs:78`
-      is the module-doc sentence to delete when it lands.
+- [ ] **The row and its card.** A `list` beside `delete` in `CLASS`, with the reference card in the
+      block after it, in row order — `crates/nvs-stdlib/src/storage.rs:122`, `delete`'s own row at
+      `crates/nvs-stdlib/src/storage.rs:149`. Read ADR 0082 § 2 for what it answers over and whether
+      a prefix is a parameter before writing the signature.
+- [ ] **The body and the `address()` arm**, over the same `fs.*` capabilities the other three reach
+      the disk through and no capability of its own — `crates/nvs-stdlib/src/storage.rs:396` is
+      `get`'s body, `crates/nvs-stdlib/src/storage.rs:253` the arm a miss turns into a runtime panic.
+- [ ] **Three `.nvst` cases** under `tests/conformance/core/`, one per question:
+      `crates/nvs-stdlib/src/storage.rs:122` names the members they have to agree with. The floor in
+      `crates/nvs-stdlib/tests/conformance_coverage.rs` is three, each asking something different.
 
 ## Backlog
 
-- Stage 7: `Core\Log` reading `[log] target` — docs/implementation-plan.md, *Open now*.
-- Stage 9: TLS, `AUTH` and a `list` for `Core\Mail`/`Core\Storage` — same field.
-- Stage 6's Redis legs need a reachable Docker daemon — docs/implementation-plan.md, *Blocking*.
-- `[context] modules` owes `nvs-runtime/src/terminal.rs` — docs/agent/loop-goal.toml.
-- `[context] playbook` owes the case-authoring bullets for a group writing `.nvst` — same file.
+- Redis `AUTH` — `crates/nvs-stdlib/src/cache/redis.rs`, `docs/agent/loop-goal.md` stage 9.
+- `Core\Mail`'s TLS — `crates/nvs-stdlib/src/mail.rs`, same stage.
+- Reading `[log] target` — `crates/nvs-stdlib/src/log.rs`, stage 7's one remaining piece.
+- `[context] modules` is missing `nvs-runtime/src/terminal.rs` — `docs/agent/loop-goal.toml`.
+- `[context] playbook` filters to the item's anchors, so a group writing cases never sees the
+  case-authoring bullets — `docs/agent/loop-goal.toml`.
+- §§ 15-19 are goal 6's, so stage 10's registration gate cannot pass in this goal —
+  `docs/agent/loop-goal.toml`.

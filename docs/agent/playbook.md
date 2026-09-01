@@ -1316,6 +1316,15 @@ is why" — is this file.
   commit:` has been staged. `session.py` reports it as `uncommitted after the wrap`; it is a real
   change and it is yours. Name `docs/novis.md` in the member's own `## commit:` when the slice adds
   a row, and the sweep takes it with the rest.
+- **`python tools/try.py` dies with a `UnicodeDecodeError` on a case whose output is not the
+  console codepage, and the traceback is Python's, not the case's.** It reads the child's stdout
+  through the ambient encoding — `cp1252` here — so a case printing anything the terminal sink
+  substitutes (`␛`, U+241B, which is `E2 90 9B`) takes the whole tool down before it prints a
+  verdict, and a run of several cases loses the other verdicts with it. It is not a failing case
+  and re-running it changes nothing. Run one case through the real runner instead:
+  `target/debug/nvs.exe test tests/conformance/core/<case>.nvst`, which reads the file itself, is
+  what `verify.py` calls, and prints `1 passed` or the expected/actual diff. Keep `try.py` for
+  scratch snippets whose output is ASCII.
 
 ## Running things
 
@@ -5206,6 +5215,25 @@ sibling in the same namespace unqualified.
   `verify.py` cycle here. `Core\Str::length`'s body carries the wording for the second kind — the
   `u64::try_from` arm that no diagnostic refuses at all, because its totality is a property of the
   target rather than of the call.
+- **A row-less `Core` symbol needs two registrations, and missing the second is a JIT panic at run
+  time rather than any kind of build error.** The `address()` arm in the domain module is only half:
+  `nvs_stdlib::symbols()` builds its roster from `CLASSES`' member rows, so a symbol with no row —
+  `html::MARKUP_SYMBOL`, `html::MARKUP_CONCAT_SYMBOL`, `script`'s two, `router::link`'s two,
+  `cli::TEXT_CONCAT_SYMBOL` — is reachable only if it is also `.chain`ed in there
+  (`crates/nvs-stdlib/src/lib.rs:320`). Everything compiles without it, every test that does not run
+  the construct passes, and the case that does dies inside cranelift: *"can't resolve symbol
+  nvs_core_cli_text_concat"*, naming the symbol but nothing about the roster it is missing from.
+  The `.chain` then owes a third edit: `every_registered_member_has_an_implementation_address`
+  counts the rows and adds a **literal** for the row-less ones, so it fails as a bare `left: 471 /
+  right: 470` (`crates/nvs-stdlib/src/lib.rs:447`) naming neither the symbol nor the constructs the
+  number stands for.
+
+- **Making a `mod` public wakes two rustdoc lints on doc comments that were fine while it was
+  private, and they are `-D warnings` in the `doc` step alone.** `pub mod cli;` turned an
+  intra-doc link to a `#[cfg(test)]` item into *unresolved link*, and a
+  `[`X`](crate::path::X)` whose label already resolves into *redundant explicit link target* —
+  neither of which `build`, `test` or `clippy` says anything about, so they land at step 8 of 8
+  after a two-minute run. A module doc that names a test names it in backticks, not brackets.
 
 ## Divergences and refusals already pinned
 
