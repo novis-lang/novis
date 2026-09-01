@@ -1,0 +1,70 @@
+--TEST--
+Core\RateLimit::shed's window is bounded on both sides — the eighth arrival under a limit of eight is admitted and the ninth is shed, counted over one sweep — ADR 0075 §§ 1 and 2
+--FILE--
+<?nvs
+// A bound asserted on both sides, over a *sweep* rather than off a line. § 2's
+// GCRA admits a burst's worth at an instant and drains at `$limit` per `$per`,
+// and with the burst defaulting to the limit exactly eight of these twelve
+// arrivals fit. A limiter that spent its budget one arrival early — seven
+// admitted, the eighth shed — prints the same word on the seventh line and on
+// the ninth as a correct one does, so neither half of the bound says anything
+// without the other. The two numbers are named together below, and the counts
+// are what fail for the early limiter.
+//
+// An hour for eight is one unit every 450 seconds, so nothing measurable drains
+// between these twelve calls: what is pinned here is the window, not the rate.
+int $asked = 0;
+int $admitted = 0;
+int $shed = 0;
+int $lastAdmitted = 0;
+int $firstShed = 0;
+
+// Two agreements ride along on the same sweep, because they are one decision
+// read twice rather than a second question: `remaining` counts the budget down
+// and then stays at zero, and `retryAfter` is absent exactly when the arrival
+// was allowed (§ 3) rather than a zero the caller has to read as absence.
+int $remainingAgreed = 0;
+int $waitAgreed = 0;
+
+foreach (Core\Arr::range(1, 12) as int $n) {
+    var $decision = Core\RateLimit::shed("sweep:eight-per-hour", 8, 1h);
+    $asked = $asked + 1;
+    int $left = $decision->remaining() as int;
+    if ($decision->allowed()) {
+        $admitted = $admitted + 1;
+        $lastAdmitted = $n;
+        if ($left == 8 - $admitted) {
+            $remainingAgreed = $remainingAgreed + 1;
+        }
+        if ($decision->retryAfter() == null) {
+            $waitAgreed = $waitAgreed + 1;
+        }
+    } else {
+        $shed = $shed + 1;
+        if ($firstShed == 0) {
+            $firstShed = $n;
+        }
+        // A refusal charges nothing, so there is nothing left to report and
+        // nothing pushed further out either — the budget is spent, not
+        // overdrawn.
+        if ($left == 0) {
+            $remainingAgreed = $remainingAgreed + 1;
+        }
+        if ($decision->retryAfter() != null) {
+            $waitAgreed = $waitAgreed + 1;
+        }
+    }
+}
+
+// The counts, not the lines. `admitted` and `lastAdmitted` together also say
+// the window does not reopen: an admission at the eleventh arrival would move
+// the second number without moving the first.
+echo "admitted ", $admitted, " and shed ", $shed, " of ", $asked, "\n";
+echo "last admitted ", $lastAdmitted, ", first shed ", $firstShed, "\n";
+echo "remaining agreed ", $remainingAgreed, " of ", $asked, "\n";
+echo "retryAfter absent exactly when allowed ", $waitAgreed, " of ", $asked, "\n";
+--EXPECT--
+admitted 8 and shed 4 of 12
+last admitted 8, first shed 9
+remaining agreed 12 of 12
+retryAfter absent exactly when allowed 12 of 12
