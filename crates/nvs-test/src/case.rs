@@ -136,7 +136,16 @@ pub struct Case {
     /// shell, exactly as [ADR 0044](../../../docs/adr/0044-core-process-argv-only-no-shell.md)
     /// gives `Core\Process` none. Empty lines are dropped, which is what makes a
     /// section written with a blank line under the header the same as an absent
-    /// one.
+    /// one — and so an *empty* argument is the one thing this section cannot
+    /// express, along with a trailing space, since each line is trimmed at its
+    /// end.
+    ///
+    /// These lines are appended to a command line, so the launcher's own
+    /// argument parser sees them first and spends a **leading `--`** as its
+    /// escape token, the way `cargo run --` does. A case that wants the program
+    /// to read a literal `--` as its first word writes the line twice; one
+    /// anywhere later is an ordinary argument. `nvs-cli`'s `arguments` field
+    /// owns that rule.
     pub args: Vec<String>,
     /// `--ENV--`, the environment the case runs under — **one `NAME=value` per
     /// line**, in the order they were written.

@@ -177,6 +177,15 @@ enum Command {
         /// Everything past the file is the program's and nothing here reads it,
         /// which is why it is `trailing_var_arg`: a command declaring a
         /// `--verbose` of its own must not be answered by `nvs run`.
+        ///
+        /// **One word is the exception, and it is the conventional one:** a
+        /// leading `--` is this parser's escape token and is spent here rather
+        /// than passed on, exactly as `cargo run --` spends one. It is spent
+        /// once and only in that position — a `--` anywhere later is an
+        /// ordinary word, and a program that wants one first is started with
+        /// two. `tests/conformance/core/cli-arguments-hands-back-a-word-that-looks-like-syntax-as-the-value-it-is.nvst`
+        /// pins both halves, since `Core\Cli::arguments` is where the
+        /// difference is observable.
         #[arg(
             trailing_var_arg = true,
             allow_hyphen_values = true,

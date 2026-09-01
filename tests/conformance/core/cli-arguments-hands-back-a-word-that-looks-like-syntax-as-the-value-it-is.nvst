@@ -1,0 +1,55 @@
+--TEST--
+`Core\Cli::arguments` hands back a word that looks like syntax as the value it is — `--` ends nothing, `-abc` is one word rather than three flags and `--name=value` is one rather than a pair — spec § 15, ADR 0086 § 6
+--ARGS--
+--
+--
+-
+--name=value
+-abc
+;
+--file
+--FILE--
+<?nvs
+// § 15's list is *raw*: nothing between the shell and this array has an opinion
+// about what a word means. The existing cases pin the order, the empty program
+// and the taint; what none of them reaches is the six spellings every argument
+// parser in the world treats as syntax — the end-of-options `--`, the standard
+// input `-`, a `name=value` pair, a bundled short cluster, a shell operator and
+// a word spelled like the runner's own flag. `Core\Command::run` is where a
+// meaning is assigned to any of that (ADR 0086 § 6), and a program reading this
+// member declared no table, so it gets the words.
+//
+// There is exactly one word the launcher spends before the program sees it, and
+// it is why this section opens with two `--` lines: a leading `--` is the
+// escape token `nvs run`'s own parser consumes, the way `cargo run --` does,
+// and it is consumed once and only in that position. The second one is the
+// program's, which is what the first expected element asserts.
+//
+// Asserted by **counting** rather than off a line: a member that consumed `--`
+// or split `-abc` still prints a plausible list, and fails both counts here.
+array<string> $expected = ["--", "-", "--name=value", "-abc", ";", "--file"];
+array<tainted string> $words = Core\Cli::arguments();
+
+uint $at = 0;
+uint $identical = 0;
+uint $characters = 0;
+foreach ($words as tainted string $word) {
+    if ($at < Core\Arr::count($expected) && $word == $expected[$at]) {
+        $identical = $identical + 1;
+    }
+    $characters = $characters + Core\Str::length($word);
+    $at = $at + 1;
+}
+
+// Three independent counts, because each fails to a different mistake: the
+// first to a word consumed or invented, the second to one reordered or altered,
+// the third to one silently split — a split keeps every character while the
+// count of words it arrives in changes, and a `--` eaten as a separator changes
+// the characters while leaving five plausible words behind.
+echo "words=", Core\Arr::count($words), "\n";
+echo "identical=", $identical, "\n";
+echo "characters=", $characters, "\n";
+--EXPECT--
+words=6
+identical=6
+characters=26
