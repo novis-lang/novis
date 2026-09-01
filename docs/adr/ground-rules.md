@@ -414,3 +414,7 @@ spellings rejected, and the reasoning.
   owner liveness, never age — only at `nvs serve` boot and under `nvs tmp clean`; there is no
   `temporaryFile` and no per-call persist, only the reloadable operator key `[debug] keep_temporary`**
   ([0131](0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)).
+- **A database driver is a borrowed sans-IO codec plus a state machine we write, over the parking stream** —
+  the five live in `crates/nvs-db` as an enum rather than behind a trait, TLS is `nvs-host`'s one client
+  generalised over its transport, and a connection whose wire is not at a known message boundary is closed
+  rather than reset ([0132](0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)).

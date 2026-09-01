@@ -164,6 +164,7 @@ so you never have to open this file to route a topic.
 | XSS, SQL injection, command/header/path injection, taint tracking, `tainted string`, `Core\Html\Markup` | [0024](0024-taint-tracking-for-injection-sinks.md) |
 | Whether a given parameter is a sink, what an unclassified one does, what `echo` writes to in a request / a CLI / an isolate / a scheduled run, how a JSON or plain-text response body is written, `Core\Response::json` | [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) |
 | A database — `Core\Db`, `PDO`/`mysqli`/`pgsql`/`sqlite3`, drivers, connections, prepared statements, transactions, result rows, an ORM | [0067](0067-core-db.md) — signatures in [spec § 18](../spec/01-core-library.md) |
+| Writing a database driver — `crates/nvs-db`, which wire crate backs which driver, `postgres-protocol`/`mysql_common`/TDS, why there is no `sqlx` and no `tokio`, TLS on a database socket, whether a connection is busy, why the drivers are an enum and not a trait | [0132](0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) |
 | SSRF, fetching a user-supplied URL, `Core\Http\Client`, the `net.connect` address policy, DNS rebinding | [0058](0058-outbound-request-policy.md) |
 | `exec`/`system`/`shell_exec`/backticks/`proc_open`, running another program, shell injection | [0044](0044-core-process-argv-only-no-shell.md) |
 | Passwords, API keys, credentials, `secret string`, why a value can't be echoed/logged/dumped | [0033](0033-secret-qualifier-for-confidential-values.md) |
@@ -361,6 +362,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0129](0129-password-verify-reads-a-stored-bcrypt-hash.md) | `Core\Password::verify` reads a PHP-stored bcrypt hash, and `hash` never writes one | Accepted |
 | [0130](0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md) | Usage telemetry is opt-in, counts only operator actions, and a serving process never uploads | Accepted |
 | [0131](0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md) | A temporary directory dies with its script, and the runtime's sweep never throws | Accepted |
+| [0132](0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) | A driver is a sans-IO codec plus its own state machine over the parking stream, and the five are an enum rather than a trait | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
