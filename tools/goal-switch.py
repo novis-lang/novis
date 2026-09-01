@@ -109,21 +109,35 @@ def relabel(lines, stage):
 def union_list(new_text, field, extra):
     """Add every element of `extra` that `new_text`'s `field = [...]` does not already hold.
 
+    Both list shapes this repository writes are matched: the multi-line one, whose `]` sits at the
+    start of its own line, and the single-line one. Only the first was matched until the switch to
+    goal 4, where the single-line `[valgrind] skip` carried none of the previous goal's entries and
+    the regex simply did not fire -- `examples/limits.nvs` lost its skip, the sweep graded a fixture
+    that exits nonzero by design as a leak, and an acceptance run failed on a fixture no session had
+    touched. A union that kept nothing and a union with nothing to add look identical from the
+    outside, which is why a missing field is `None` here and a refusal in the caller rather than a
+    quiet pass-through.
+
     Written as a text edit rather than a re-serialization on purpose: re-emitting the whole TOML
     from `tomllib`'s parse would throw away every comment in the file, and this repository's TOML is
     more comment than data.
     """
     if not extra:
         return new_text
-    m = re.search(rf'^{field}\s*=\s*\[(.*?)^\]', new_text, re.S | re.M)
+    multi = re.search(rf'^{field}\s*=\s*\[(.*?)^\]', new_text, re.S | re.M)
+    m = multi or re.search(rf'^{field}\s*=\s*\[([^\[\]\n]*)\]', new_text, re.M)
     if not m:
-        return new_text
+        return None
     body = m.group(1)
     missing = [e for e in extra if f'"{e}"' not in body]
     if not missing:
         return new_text
-    added = "".join(f'  "{e}",\n' for e in missing)
-    tail = "  # carried from the previous goal by tools/goal-switch.py\n"
+    if multi:
+        tail = "  # carried from the previous goal by tools/goal-switch.py\n"
+        added = "".join(f'  "{e}",\n' for e in missing)
+    else:
+        tail = ""
+        added = (", " if body.strip() else "") + ", ".join(f'"{e}"' for e in missing)
     return new_text[:m.end(1)] + tail + added + new_text[m.end(1):]
 
 
@@ -155,8 +169,14 @@ def main():
         return die(f"{live_path} holds no [[check]] block -- refusing to write an empty floor")
 
     live_spec = tomllib.loads(live_text)
-    new_text = union_list(new_text, "files", live_spec.get("files", []))
-    new_text = union_list(new_text, "skip", live_spec.get("valgrind", {}).get("skip", []))
+    for field, carried in (("files", live_spec.get("files", [])),
+                           ("skip", live_spec.get("valgrind", {}).get("skip", []))):
+        merged = union_list(new_text, field, carried)
+        if merged is None:
+            return die(f"{new_path} has no `{field} = [...]` for the previous goal's "
+                       f"{len(carried)} entr{'y' if len(carried) == 1 else 'ies'} to be carried "
+                       f"into. Add the key -- an empty list is enough -- and run this again.")
+        new_text = merged
 
     banner = (
         f"# {len(floor)} check(s) carried from {live_path.as_posix()} by tools/goal-switch.py.\n"
