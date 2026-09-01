@@ -1,0 +1,78 @@
+--TEST--
+`Core\Process\Result::stdout` and `::stderr` are the child's two streams kept apart — one program writes a different marker to each, and each member is asserted to carry its own **and not the other's** — ADR 0044 § 1
+--FILE--
+<?nvs
+// The two members have the same signature, the same return type and adjacent
+// slots, so a body reading the wrong one is a one-character defect that no
+// "stdout is not empty" assertion can see. Both halves of each answer are named
+// here for that reason: the marker that must be there, and the other stream's
+// marker that must not. A member that answered its neighbour fails on the
+// second half; one that answered the two streams merged — which is what a
+// `2>&1` capture would hand back — fails on it too, while still looking right
+// on the first.
+//
+// The markers are compared as `bytes`, never converted, because the octets a
+// child writes are not this program's to assume anything about (ADR 0009, and
+// this module's *Captured output is `bytes`, never `string`*). Containment
+// rather than equality: each of the two shells below ends a line its own way
+// and one of them pads before a redirect, and none of that is what this case is
+// about.
+//
+// The child is the platform's own shell, for the reason
+// `process-a-completed-run-answers-the-status-the-child-chose.nvst` states —
+// § 1 makes a `PATH` lookup the caller's own, so each candidate is named
+// absolutely and the one that is not this platform's answers `IOError`.
+
+bytes $out = "" as bytes;
+bytes $err = "" as bytes;
+int $started = 0;
+
+try {
+    var $unix = Core\Process::run("/bin/sh", ["-c", "printf OUTPUT; printf DIAGNOSTIC 1>&2"]);
+    $started = $started + 1;
+    $out = $unix->stdout();
+    $err = $unix->stderr();
+} catch (IOError $notAUnix) {
+}
+
+try {
+    var $windows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo OUTPUT& echo DIAGNOSTIC 1>&2"]);
+    $started = $started + 1;
+    $out = $windows->stdout();
+    $err = $windows->stderr();
+} catch (IOError $notWindows) {
+}
+
+echo "started=", $started, "\n";
+
+if (Core\Bytes::contains($out, "OUTPUT" as bytes)) {
+    echo "stdout carries what the child printed\n";
+} else {
+    echo "stdout lost it\n";
+}
+if (Core\Bytes::contains($out, "DIAGNOSTIC" as bytes)) {
+    echo "stdout also carries the other stream\n";
+} else {
+    echo "stdout carries nothing of the other stream\n";
+}
+if (Core\Bytes::contains($err, "DIAGNOSTIC" as bytes)) {
+    echo "stderr carries what the child diagnosed\n";
+} else {
+    echo "stderr lost it\n";
+}
+if (Core\Bytes::contains($err, "OUTPUT" as bytes)) {
+    echo "stderr also carries the other stream\n";
+} else {
+    echo "stderr carries nothing of the other stream\n";
+}
+--FILE nvs.toml--
+# `true` for the reason the exit-code case gives: the door's own scoping is
+# pinned elsewhere, and this case is about which stream is which.
+[capabilities.process]
+exec = true
+--EXPECT--
+started=1
+stdout carries what the child printed
+stdout carries nothing of the other stream
+stderr carries what the child diagnosed
+stderr carries nothing of the other stream
