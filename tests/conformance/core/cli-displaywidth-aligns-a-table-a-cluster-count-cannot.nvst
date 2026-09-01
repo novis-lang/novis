@@ -1,0 +1,43 @@
+--TEST--
+`Core\Cli::displayWidth` is the count a column of text aligns on, asserted over a sweep of labels rather than off one line: padding to a column count aligns every one of them, padding to a cluster count aligns only the labels where the two measures happen to agree — ADR 0086 § 3, ADR 0009 § 2
+--FILE--
+<?nvs
+// § 3 sites this member on `Core\Cli` and not on `Core\Str` because a column
+// count is a property of the renderer: ADR 0009 § 2 fixed `string`'s own unit
+// as the grapheme cluster, and a terminal does not draw clusters, it draws
+// columns. This case is that difference made observable, and it is asserted by
+// **counting** the labels that came out ten columns wide — a member answering
+// plausibly on the ASCII row would still fail here.
+//
+// The four labels are chosen so the two measures agree on half of them: `ok`
+// and a combining-mark `café` are one column per cluster, while a CJK
+// ideograph and a fullwidth Latin letter are two. A padding that used the
+// wrong unit therefore still looks right on two rows out of four, which is
+// exactly how this bug survives a hand-checked table.
+array<string> $labels = ["ok", "日本", "ｗｉｄｅ", "cafe" . Core\Str::fromCodePoint(769)];
+
+uint $byColumn = 0;
+uint $byCluster = 0;
+foreach ($labels as string $label) {
+    string $padded = $label . Core\Str::repeat(" ", 10 - Core\Cli::displayWidth($label));
+    if (Core\Cli::displayWidth($padded) == 10) {
+        $byColumn = $byColumn + 1;
+    }
+    // `padEnd` counts what `Core\Str::length` counts, which is the point.
+    if (Core\Cli::displayWidth(Core\Str::padEnd($label, 10)) == 10) {
+        $byCluster = $byCluster + 1;
+    }
+}
+
+echo "labels=", Core\Arr::count($labels), "\n";
+echo "aligned by column count=", $byColumn, "\n";
+echo "aligned by cluster count=", $byCluster, "\n";
+
+// The same divergence on one row, so the counts above have a witness: two
+// clusters, four columns.
+echo "clusters=", Core\Str::length("日本"), " columns=", Core\Cli::displayWidth("日本"), "\n";
+--EXPECT--
+labels=4
+aligned by column count=4
+aligned by cluster count=2
+clusters=2 columns=4

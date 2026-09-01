@@ -1,0 +1,35 @@
+--TEST--
+`Core\Cli::displayWidth` measures the string the sink will write and not the one it was handed, so a control byte costs the column its Control Picture costs and an SGR sequence cannot make a string measure short — ADR 0086 §§ 1 and 3
+--FILE--
+<?nvs
+// § 1's substitution is uniform and runs on the way to the terminal, so the
+// bytes a program hands `echo` are never the bytes the screen shows. The
+// measurement is taken on the second of those, which is what makes it safe to
+// lay out against: a value that carried an escape sequence would otherwise
+// measure zero columns for it and then draw five, and every box drawn around
+// that value would be one that untrusted input chose the size of.
+string $esc = Core\Str::fromCodePoint(27);
+
+echo "esc=", Core\Cli::displayWidth($esc), "\n";
+echo "del=", Core\Cli::displayWidth(Core\Str::fromCodePoint(127)), "\n";
+echo "c1=", Core\Cli::displayWidth(Core\Str::fromCodePoint(155)), "\n";
+
+// The sequence is five columns because five pictures are what gets drawn —
+// not zero, which is what it would cost a terminal that parsed it, and not
+// one, which is what a member counting "a control byte is invisible" would
+// answer.
+string $sgr = $esc . "[31m";
+echo "sgr=", Core\Cli::displayWidth($sgr), "\n";
+
+// The agreement that keeps the two halves of § 1 from drifting: `escape` is
+// the same table reached as a value, so measuring before it and measuring
+// after it are the same number, and the escaped text is what both were about.
+echo "escaped=", Core\Cli::displayWidth(Core\Cli::escape($sgr)), "\n";
+echo "shown=", Core\Cli::escape($sgr), "\n";
+--EXPECT--
+esc=1
+del=1
+c1=1
+sgr=5
+escaped=5
+shown=␛[31m

@@ -1,0 +1,28 @@
+--TEST--
+The two code points ADR 0086 § 1 passes through are the two that are not a column: a tab advances to the next stop wherever it stands, and a newline ends the row so the answer is the widest row rather than a sum — ADR 0086 §§ 1 and 3
+--FILE--
+<?nvs
+// Both bounds are named together on purpose. A member that gave the tab a
+// fixed width would print plausibly against either line below on its own: one
+// column short of a stop and one column onto it are where a fixed count and a
+// stop disagree, and a tab that lands exactly on a stop still advances a whole
+// one rather than none.
+echo "at seven=", Core\Cli::displayWidth("abcdefg\t|"), "\n";
+echo "at eight=", Core\Cli::displayWidth("abcdefgh\t|"), "\n";
+
+// The newline is the same shape of assertion from the other side: the rows are
+// given in both orders, so an answer that took the first row, the last row or
+// the sum of them fails one of the two while satisfying the other.
+echo "narrow first=", Core\Cli::displayWidth("ab\n日本語"), "\n";
+echo "wide first=", Core\Cli::displayWidth("日本語\nab"), "\n";
+
+// The empty edge, which is a row of no columns and not an absence of rows.
+echo "empty=", Core\Cli::displayWidth(""), "\n";
+echo "newline alone=", Core\Cli::displayWidth("\n"), "\n";
+--EXPECT--
+at seven=9
+at eight=17
+narrow first=6
+wide first=6
+empty=0
+newline alone=0
