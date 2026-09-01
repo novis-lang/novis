@@ -5,7 +5,7 @@
 //! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 3 places the class — Native by
 //! test 3, because it waits on the outside world — and the spec's § 16 row gives it one sentence,
 //! "an SMTP client with structured headers, replacing `mail()`". What belongs here is the roster
-//! that sentence does not write, and the four decisions behind it.
+//! that sentence does not write, and the five decisions behind it.
 //!
 //! # `mail()`'s fourth argument is the whole bug
 //!
@@ -50,30 +50,43 @@
 //! covers the real need — answer to the user — and it changes where a reply goes without claiming
 //! who sent it.
 //!
-//! # Known gaps, both recorded rather than worked around
+//! # A credential asks for TLS, and asking for it is what makes it required
 //!
-//! **There is no TLS, so there is no `AUTH`.** `nvs-stdlib` has no TLS stack yet — `crate::http`'s
-//! transport is plaintext HTTP/1.1 for the same reason — and sending a credential over a cleartext
-//! socket is not a thing this class will do quietly. A `[mail.<name>]` block that sets `user` or
-//! `password` is therefore **refused at the send**, naming the gap, rather than authenticating in
-//! the clear; what works today is the ordinary shape of a local or sidecar relay that accepts
-//! unauthenticated submission from its own network. When a TLS-capable stream lands for
-//! `Core\Http\Client`, `STARTTLS` and `AUTH PLAIN` are one function each on top of [`Session`], and
-//! the refusal below is what gets deleted.
+//! A `[mail.<name>]` block that sets `user` and `password` is sent through `STARTTLS` and
+//! authenticated with `AUTH PLAIN`, and there is no path on which the credential reaches a
+//! plaintext socket: the upgrade is issued after the first `EHLO`, `EHLO` is re-issued over the
+//! secured stream because the extension list is the *session's* and an endpoint offering `AUTH`
+//! only to a secured client is the ordinary case, and an endpoint that advertises neither — or
+//! whose certificate does not verify against [`nvs_host::tls`]'s compiled-in anchors — is refused
+//! with nothing sent.
 //!
-//! **Attachments and inline parts are composition, and composition is § 3's.** ADR 0082 § 2 splits
-//! this class at exactly that line. Two body parts are here because the transport has to choose a
-//! `Content-Type` regardless and a mail with no plain-text alternative is a mail half its readers
-//! cannot read; anything richer — templates, files, `multipart/related` — belongs to the `nvs/web`
-//! package, which composes *into* these arguments.
+//! A block with **no** credential stays in the clear, and that is a decision rather than an
+//! omission. The alternative is opportunistic TLS, which is one of two things: verified, and then
+//! the sidecar relay presenting an internal certificate — the case [`nvs_host::tls`] names as the
+//! operator's and has no `nvs.toml` key for yet — stops working with no remedy in the file that
+//! would hold one; or unverified, which that module has no spelling for and will not grow one,
+//! because a handshake nobody checked is exactly the false confidence
+//! [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md) § 3 refuses to sell.
+//! So TLS here is *asked for*, by configuring the credential that cannot travel without it, and
+//! where it is asked for it is required and verified. Encryption without authentication has no key
+//! today; it belongs beside the anchor bundle that module already names as unlanded, and the two
+//! are one configuration slice.
+//!
+//! # Attachments and inline parts are composition, and composition is § 3's
+//!
+//! ADR 0082 § 2 splits this class at exactly that line. Two body parts are here because the
+//! transport has to choose a `Content-Type` regardless and a mail with no plain-text alternative is
+//! a mail half its readers cannot read; anything richer — templates, files, `multipart/related` —
+//! belongs to the `nvs/web` package, which composes *into* these arguments.
 
-use std::io::{Read as _, Write as _};
+use std::io::{Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs as _};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use nvs_host::net::NvsTcp;
+use nvs_host::tls::NvsTls;
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value};
 use nvs_syntax::duration;
 
@@ -95,9 +108,9 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The submission port a block that names none is read as meaning.
 ///
-/// 25 rather than 587, because 587 is the *authenticated* submission port and
-/// this class cannot authenticate yet — the module doc's first known gap. An
-/// operator running a relay on 587 writes `port = 587`.
+/// 25 rather than 587, because a block that names no port is the unauthenticated
+/// local-relay shape and 587 is the *authenticated* submission port. An operator
+/// writing the `user` that port exists for writes `port = 587` beside it.
 const DEFAULT_PORT: u16 = 25;
 
 /// The ABI slot each parameter and each flattened option lands in — the bag
@@ -230,14 +243,17 @@ const SEND_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "RuntimeError",
             desc: "The capability `mail.send` does not grant `$endpoint`; or no `[mail.<name>]` \
-                   block of that name sets `host` or `from`; or that block sets `user` or \
-                   `password`, which cannot be sent without TLS; or an address is not one. Each is \
-                   a deployment or a call that was written wrong, not a send that failed.",
+                   block of that name sets `host` or `from`; or that block sets one of `user` and \
+                   `password` without the other; or an address is not one. Each is a deployment or \
+                   a call that was written wrong, not a send that failed.",
         },
         ErrorDoc {
             error: "IOError",
             desc: "The configured endpoint could not be reached, closed the connection, or \
-                   refused a command — the last carrying the SMTP reply that said so.",
+                   refused a command — the last carrying the SMTP reply that said so. Also where \
+                   a block configures a credential and its endpoint cannot carry one: no \
+                   `STARTTLS`, no `AUTH PLAIN` over it, or a certificate that does not verify. \
+                   Nothing is sent in the clear on any of those paths.",
         },
     ],
 };
@@ -261,6 +277,9 @@ struct Endpoint {
     from: String,
     /// `timeout`, or [`DEFAULT_TIMEOUT`].
     timeout: Duration,
+    /// `user` and `password`, both or neither — the credential `AUTH PLAIN`
+    /// sends, and the thing whose presence asks for `STARTTLS` at all.
+    credential: Option<(String, String)>,
 }
 
 /// The directive `[mail.<name>] key`, with an empty value read as absent.
@@ -286,8 +305,7 @@ fn configured(ctx: &Ctx, endpoint: &str, key: &str) -> Option<String> {
 /// # Errors
 ///
 /// A catchable `RuntimeError` for an ungranted name, for a block that sets no
-/// `host` or no `from`, and for one that carries a credential this class cannot
-/// yet protect.
+/// `host` or no `from`, and for one that sets half a credential.
 fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Fault> {
     nvs_runtime::capability::require(
         ctx,
@@ -310,18 +328,28 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
     };
     address_of(&from, "the configured `from`", member)?;
 
-    // The module doc's first known gap, refused rather than honoured: there is
-    // no TLS under this socket, so honouring it would put the credential on the
-    // wire in the clear.
-    if configured(ctx, endpoint, "user").is_some()
-        || configured(ctx, endpoint, "password").is_some()
-    {
-        return Err(Fault::thrown(format!(
-            "{member}: `[mail.{endpoint}]` sets a credential, and this transport has no TLS to \
-             send one under — use an endpoint that accepts unauthenticated submission from this \
-             host until it does"
-        )));
-    }
+    // Both or neither. Half a credential is a block half-written, and reading
+    // one as anonymous would submit as nobody to an endpoint the operator
+    // plainly meant to log in to — which fails later, further away, and with the
+    // endpoint's sentence rather than this one.
+    let credential = match (
+        configured(ctx, endpoint, "user"),
+        configured(ctx, endpoint, "password"),
+    ) {
+        (Some(user), Some(password)) => Some((user, password)),
+        (None, None) => None,
+        (user, _) => {
+            let (written, missing) = if user.is_some() {
+                ("user", "password")
+            } else {
+                ("password", "user")
+            };
+            return Err(Fault::thrown(format!(
+                "{member}: `[mail.{endpoint}]` sets `{written}` and no `{missing}`, and half a \
+                 credential is not one"
+            )));
+        }
+    };
 
     let port = configured(ctx, endpoint, "port")
         .and_then(|text| text.parse::<u16>().ok())
@@ -338,6 +366,7 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
         port,
         from,
         timeout,
+        credential,
     })
 }
 
@@ -602,10 +631,58 @@ fn compose(
 /// reader that did not keep what it over-read would lose the head of the next
 /// reply.
 struct Session {
-    /// The socket, which hands the core back rather than blocking it.
-    stream: NvsTcp,
+    /// The socket, or the TLS session `STARTTLS` replaced it with — either way
+    /// it hands the core back rather than blocking it.
+    stream: Wire,
     /// Whatever the last read took past the end of the reply it was completing.
     held: Vec<u8>,
+}
+
+/// What a [`Session`] is talking over.
+///
+/// An enum rather than a boxed trait object because there are two variants and
+/// there will not be a third, and because the upgrade *consumes* the socket:
+/// [`NvsTls::over`] takes an [`NvsTcp`] by value, which is what leaves nobody
+/// holding a plaintext stream to an endpoint that has been secured.
+///
+/// `Secured` is about a kilobyte wider than `Plain` — `rustls`'s session state
+/// is held inline — and that is the trade AGENTS.md's priority ordering asks
+/// for, spent deliberately: there is one `Wire` per in-flight `send`, so the
+/// cost is O(in-flight) rather than O(messages sent), and boxing it would buy an
+/// allocation and an indirection on every record read to save a kilobyte
+/// priority 5 says not to chase.
+#[allow(clippy::large_enum_variant)]
+enum Wire {
+    /// Before `STARTTLS`, and for the whole of a session with no credential.
+    Plain(NvsTcp),
+    /// After it. Every wait inside is still [`nvs_host::net`]'s park, which
+    /// [`nvs_host::tls`]'s module doc is the home of.
+    Secured(NvsTls),
+}
+
+impl Read for Wire {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Plain(stream) => stream.read(buf),
+            Self::Secured(stream) => stream.read(buf),
+        }
+    }
+}
+
+impl Write for Wire {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Plain(stream) => stream.write(buf),
+            Self::Secured(stream) => stream.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Plain(stream) => stream.flush(),
+            Self::Secured(stream) => stream.flush(),
+        }
+    }
 }
 
 impl Session {
@@ -623,20 +700,79 @@ impl Session {
             )
         })?;
         let mut session = Self {
-            stream,
+            stream: Wire::Plain(stream),
             held: Vec::new(),
         };
         session.expect(220, "the greeting", member)?;
         Ok(session)
     }
 
-    /// One command, and the reply code it was answered with.
+    /// The same conversation over TLS: `STARTTLS`, a handshake verified against
+    /// `name`, and the session that answers on the other side of it.
+    ///
+    /// Taken by value, which is the property rather than a style choice — the
+    /// plaintext session is gone by the time this returns, so no later step can
+    /// reach for it.
+    ///
+    /// # Errors
+    ///
+    /// A catchable `IOError` when the endpoint refuses `STARTTLS`, when it sends
+    /// anything between agreeing to it and the handshake, and when the handshake
+    /// does not complete — including a certificate that does not verify against
+    /// [`nvs_host::tls`]'s compiled-in anchors.
+    fn secure(mut self, name: &str, member: &str) -> Result<Self, Fault> {
+        self.command("STARTTLS", 220, "the upgrade", member)?;
+        // The whole reason `held` is inspected anywhere. A man in the middle
+        // who writes commands *after* the endpoint's 220 and before the
+        // handshake has them buffered here, and a session that carried the
+        // buffer across would replay them as though the secured peer had sent
+        // them. The endpoint owes silence between the two, so anything at all is
+        // refused rather than discarded — discarding is the same defence with
+        // the evidence thrown away.
+        if !self.held.is_empty() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{member}: the endpoint sent {} more byte(s) after agreeing to `STARTTLS`, \
+                     which is how a plaintext command is smuggled into a secured session",
+                    self.held.len()
+                ),
+            ));
+        }
+        let Wire::Plain(stream) = self.stream else {
+            return Err(Fault::thrown_as(
+                ThrownClass::Io,
+                format!("{member}: the session is already secured"),
+            ));
+        };
+        let secured = NvsTls::over(stream, name).map_err(|why| {
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!("{member}: the TLS handshake with `{name}` did not complete — {why}"),
+            )
+        })?;
+        Ok(Self {
+            stream: Wire::Secured(secured),
+            held: Vec::new(),
+        })
+    }
+
+    /// One command, and the lines of the reply it was answered with.
+    ///
+    /// `line` never reaches a diagnostic — `what` names the step instead —
+    /// because one of the commands this sends is `AUTH PLAIN`.
     ///
     /// # Errors
     ///
     /// A catchable `IOError` when the write fails, when the connection ends
     /// mid-reply, or when the code is not `want`.
-    fn command(&mut self, line: &str, want: i64, what: &str, member: &str) -> Result<(), Fault> {
+    fn command(
+        &mut self,
+        line: &str,
+        want: i64,
+        what: &str,
+        member: &str,
+    ) -> Result<Vec<String>, Fault> {
         self.stream
             .write_all(format!("{line}\r\n").as_bytes())
             .and_then(|()| self.stream.flush())
@@ -649,7 +785,8 @@ impl Session {
         self.expect(want, what, member)
     }
 
-    /// Reads one whole reply and holds it to `want`.
+    /// Reads one whole reply, holds it to `want`, and answers with its lines —
+    /// which for `EHLO` are the extension list [`advertised`] reads.
     ///
     /// # Errors
     ///
@@ -657,7 +794,8 @@ impl Session {
     /// three digits, or a code other than `want` — the last carrying the
     /// server's own sentence, because that is the only part of the failure the
     /// operator did not already write.
-    fn expect(&mut self, want: i64, what: &str, member: &str) -> Result<(), Fault> {
+    fn expect(&mut self, want: i64, what: &str, member: &str) -> Result<Vec<String>, Fault> {
+        let mut reply = Vec::new();
         loop {
             let line = self.line(what, member)?;
             let code = line
@@ -674,14 +812,16 @@ impl Session {
                 })?;
             // A continuation line writes `250-`; the last one writes `250 `.
             if line.as_bytes().get(3) != Some(&b'-') {
-                if code == want {
-                    return Ok(());
+                if code != want {
+                    return Err(Fault::thrown_as(
+                        ThrownClass::Io,
+                        format!("{member}: the endpoint refused {what} — {line}"),
+                    ));
                 }
-                return Err(Fault::thrown_as(
-                    ThrownClass::Io,
-                    format!("{member}: the endpoint refused {what} — {line}"),
-                ));
+                reply.push(line);
+                return Ok(reply);
             }
+            reply.push(line);
         }
     }
 
@@ -720,13 +860,36 @@ impl Session {
     }
 }
 
+/// The parameters `keyword` was advertised with in an `EHLO` reply, or `None`
+/// where the endpoint did not advertise it at all.
+///
+/// The reply's first line is the endpoint's own greeting rather than a keyword,
+/// so it is skipped; every other line is `250-KEYWORD PARAM PARAM`, and RFC 5321
+/// § 2.4 makes the keyword case-insensitive.
+fn advertised<'a>(reply: &'a [String], keyword: &str) -> Option<&'a str> {
+    reply.iter().skip(1).find_map(|line| {
+        let rest = line.get(4..)?;
+        let (word, params) = rest.split_once(' ').unwrap_or((rest, ""));
+        word.eq_ignore_ascii_case(keyword).then_some(params)
+    })
+}
+
+/// RFC 4616's `PLAIN` message, base64'd: an empty authorization identity — so
+/// the endpoint uses the authentication one — then the user and the password,
+/// NUL-separated.
+fn plain(user: &str, password: &str) -> String {
+    STANDARD.encode(format!("\0{user}\0{password}"))
+}
+
 /// The whole exchange, once every argument has been checked and every
 /// deployment question answered.
 ///
 /// # Errors
 ///
 /// A catchable `IOError` for anything the endpoint said or did — see
-/// [`Session`].
+/// [`Session`] — and for an endpoint that cannot carry a configured credential:
+/// the module doc's § *A credential asks for TLS* is why that is a refusal here
+/// rather than a send in the clear.
 fn deliver(
     address: SocketAddr,
     endpoint: &Endpoint,
@@ -741,7 +904,51 @@ fn deliver(
         .from
         .split_once('@')
         .map_or("localhost", |(_, d)| d);
-    session.command(&format!("EHLO {domain}"), 250, "the greeting", member)?;
+    let greeting = format!("EHLO {domain}");
+    let extensions = session.command(&greeting, 250, "the greeting", member)?;
+
+    if let Some((user, password)) = &endpoint.credential {
+        if advertised(&extensions, "STARTTLS").is_none() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{member}: `[mail]` configures a credential for {} and that endpoint offers \
+                     no `STARTTLS`, so there is nothing to send one under — nothing was sent",
+                    endpoint.host
+                ),
+            ));
+        }
+        // The certificate is checked against the name the *operator* wrote, the
+        // same rule `crate::http::transport` states: the address was derived
+        // from that name and answers for nothing on its own.
+        session = session.secure(&endpoint.host, member)?;
+        // A second `EHLO`, because the extension list belongs to the session and
+        // this is a new one — an endpoint that offers `AUTH` only once the
+        // stream is secured is the ordinary case, not an unusual one.
+        let secured = session.command(&greeting, 250, "the greeting", member)?;
+        let offers_plain = advertised(&secured, "AUTH").is_some_and(|mechanisms| {
+            mechanisms
+                .split_ascii_whitespace()
+                .any(|mechanism| mechanism.eq_ignore_ascii_case("PLAIN"))
+        });
+        if !offers_plain {
+            return Err(Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{member}: {} offers no `AUTH PLAIN` over TLS, and this transport has no \
+                     second mechanism — nothing was sent",
+                    endpoint.host
+                ),
+            ));
+        }
+        session.command(
+            &format!("AUTH PLAIN {}", plain(user, password)),
+            235,
+            "the credential",
+            member,
+        )?;
+    }
+
     session.command(
         &format!("MAIL FROM:<{}>", endpoint.from),
         250,
@@ -854,6 +1061,58 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The extension reader, over the three things an `EHLO` reply can do to
+    /// it: name the endpoint on its first line, spell a keyword in whatever
+    /// case it likes, and carry parameters after it.
+    ///
+    /// The greeting line matters because it is the one line that is *not* a
+    /// keyword: a reader that did not skip it would read an endpoint calling
+    /// itself `starttls.example.com` as an offer of `STARTTLS`, and offer to
+    /// upgrade a connection nothing would answer.
+    #[test]
+    fn the_ehlo_reply_is_read_as_keywords_after_its_first_line() {
+        let reply: Vec<String> = [
+            "250-starttls.example.com at your service",
+            "250-SIZE 35882577",
+            "250-StartTls",
+            "250 AUTH LOGIN PLAIN XOAUTH2",
+        ]
+        .iter()
+        .map(|line| (*line).to_owned())
+        .collect();
+
+        // Case-insensitive, per RFC 5321 § 2.4, and found on a continuation
+        // line as readily as on the last one.
+        assert_eq!(advertised(&reply, "STARTTLS"), Some(""));
+        assert_eq!(advertised(&reply, "size"), Some("35882577"));
+        assert_eq!(advertised(&reply, "AUTH"), Some("LOGIN PLAIN XOAUTH2"));
+
+        // And the greeting is not a keyword, however much it looks like one.
+        let greeting_only = vec![reply[0].clone()];
+        assert_eq!(advertised(&greeting_only, "STARTTLS"), None);
+
+        // A keyword nobody offered is absent rather than empty.
+        assert_eq!(advertised(&reply, "DSN"), None);
+    }
+
+    /// RFC 4616's framing, which is three fields and not two: the empty
+    /// authorization identity in front is what makes the endpoint authorize as
+    /// whoever authenticated, and a message missing it is refused by every
+    /// server rather than read as a shorter one.
+    #[test]
+    fn auth_plain_sends_an_empty_authorization_identity_first() {
+        let message = plain("postmaster@example.com", "hunter2");
+        let decoded = STANDARD.decode(&message).expect("`plain` emits base64");
+
+        assert_eq!(
+            decoded, b"\0postmaster@example.com\0hunter2",
+            "the PLAIN message is NUL-separated with an empty first field"
+        );
+        // The credential is never on the wire in any other spelling, so the
+        // encoded form is the only thing a reply can quote back.
+        assert!(!message.contains("hunter2"));
+    }
 
     /// ADR 0082 § 2's rule, over the two halves that could break it: the
     /// endpoint is a *name* the grant answers about, and there is no parameter

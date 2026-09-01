@@ -459,10 +459,10 @@ pub struct CapMail {
 /// [`Database`]'s and for the same reason: the name is the key and the settings are the
 /// operator's alone, so nothing a program writes can reach past this struct.
 ///
-/// `user` and `password` are here so that a block naming a credential is a *send-time* refusal
-/// that says why rather than a boot-time "unknown field" that does not. `nvs_stdlib::mail`'s
-/// module doc is the home of that gap: there is no TLS under the transport yet, and this is the
-/// pair that must not go out without one.
+/// `user` and `password` are the pair that asks for TLS: a block naming them is sent through
+/// `STARTTLS` and refused where the endpoint cannot carry one, and a block naming neither stays in
+/// the clear. `nvs_stdlib::mail`'s module doc is the home of that decision, including why the
+/// upgrade is not opportunistic.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct MailEndpoint {
@@ -473,9 +473,9 @@ pub struct MailEndpoint {
     /// The envelope sender and the `From:` header, both. There is no call-site override: domain
     /// alignment is a fact about the deployment.
     pub from: Option<String>,
-    /// The submission user, once there is a TLS stream to send it over.
+    /// The submission user. Set with `password` or not at all — half a credential is refused.
     pub user: Option<String>,
-    /// Its password, under [`mod@crate::secret`]'s rules once the pair is honoured.
+    /// Its password, sent as `AUTH PLAIN` over the `STARTTLS` its presence requires.
     pub password: Option<String>,
     /// How long the whole exchange may take, 30s where the block names none.
     pub timeout: Option<String>,
