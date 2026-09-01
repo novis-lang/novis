@@ -626,8 +626,13 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
 /// [`ExprInfo::HookedProperty`] instead, and a hook's `set` accessor is the
 /// write. An erased receiver records [`ExprInfo::ShapeProperty`] and names no
 /// declaring class, so nothing can be asked of it — the same gap every other
-/// rule stated over a class has there.
+/// rule stated over a class has there. A *keyed* access
+/// ([`ExprInfo::KeyedProperty`]) does name a class, so it can be asked, and
+/// [`reject_readonly_write_through_key`] asks it ahead of this.
 fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
+    if reject_readonly_write_through_key(root, env) {
+        return true;
+    }
     let Some(ExprInfo::Property { class, name, .. }) = env.exprs.lookup(root.span) else {
         return false;
     };
@@ -654,6 +659,74 @@ fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool 
              built (ADR 0038 § 1) — assign it in the constructor, take it as a constructor \
              parameter (`public readonly T $x`), or drop the modifier if the property is meant \
              to change",
+        ),
+    );
+    true
+}
+
+/// ADR 0126 § 5's last paragraph: a write *through a property key* is refused
+/// where `T`'s public set holds a `readonly` property, naming it. The code and
+/// the headline are [`reject_readonly_write`]'s, because it is the same rule of
+/// ADR 0038 § 1 being broken — only the question is asked one step less
+/// specifically.
+///
+/// The question is asked of the **set** rather than of one resolved property
+/// because *which* name the key holds is exactly what the access does not know
+/// (ADR 0126 § 5). One `readonly` member is therefore enough to refuse: the
+/// write might name it. § 5 also decides that this is compile-time rather than
+/// a `readonly` bit on `ClassDesc` and a throw the program has to reach —
+/// where a request-controlled name selects the field to write, the earlier
+/// report is the direction priority 1 points in.
+///
+/// It sits here, off the recorded [`ExprInfo::KeyedProperty`], rather than in
+/// the [`super::members`] checker that records that entry, because this is the
+/// one place the access is known to be a **write**: inference sees the same
+/// `$obj->$key` either way, and all four write spellings reach this through
+/// [`check_write_target`], so `$obj->$key++` and `$obj->$key[0] = v` answer
+/// here for free. `unset($obj->$key)` cannot be diagnosed twice either — it is
+/// refused where it is written and records no entry at all.
+///
+/// There is deliberately no constructor exemption, unlike the declared write
+/// above. That exemption is stated over the one property the constructor
+/// promised, and a key names no one property: a keyed write inside `T`'s own
+/// constructor could write the `readonly` member a second time, which is the
+/// promise itself rather than the place it is kept. The fix the diagnostic
+/// prints — write the property out — is the spelling such a constructor wanted.
+fn reject_readonly_write_through_key(root: &Expr, env: &mut Env<'_>) -> bool {
+    let Some(ExprInfo::KeyedProperty { class, .. }) = env.exprs.lookup(root.span) else {
+        return false;
+    };
+    let key_class = QName::parse(class);
+    let refused = public_property_names(&key_class, env)
+        .into_iter()
+        .find_map(|name| {
+            let (owner, _) = crate::signatures::resolve_property_owned(
+                &key_class,
+                &name,
+                env.signatures,
+                env.graph,
+            )?;
+            crate::signatures::property_is_readonly(&owner, &name, env.signatures)
+                .then_some((owner, name))
+        });
+    let Some((owner, name)) = refused else {
+        return false;
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_READONLY_WRITE_AFTER_CONSTRUCTION,
+            format!("`{owner}::${name}` is `readonly`, so only `{owner}`'s constructor writes it"),
+        )
+        .with_primary(
+            root.span,
+            format!(
+                "a `property<{key_class}>` may name any of {key_class}'s public properties, and \
+                 this write cannot know which one it holds"
+            ),
+        )
+        .with_help(
+            "write the property out to name a different one, or drop the modifier if the property \
+             is meant to be assignable",
         ),
     );
     true

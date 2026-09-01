@@ -589,6 +589,12 @@ fn collect_public_properties(
 /// rather than the receiver's, because `T` is what the key was checked against
 /// — a receiver that adds public properties of its own adds no name the key
 /// can hold.
+///
+/// § 5's other refusal — `E0782` where the set holds a `readonly` property —
+/// is **not** here, because it applies to a write only and inference sees the
+/// same access either way. It is asked off the entry this records, at the
+/// place that already knows a target is being written:
+/// [`super::assign::check_write_target`].
 fn check_keyed_property(
     object_ty: TypeId,
     access_span: Span,
