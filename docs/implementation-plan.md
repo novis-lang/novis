@@ -58,10 +58,10 @@
 > `Core\Storage`'s four rows reach a `[storage.<name>]` disk over `fs.*` alone, and
 > `Core\Cldr::pluralCategory` reads a closed CLDR roster; `https` and mail's `AUTH` run over
 > verified TLS. **Stages 2, 3 and 5 are closed**: spec § 14's handle roster is on `Core\IO\File` and
-> ADR 0086's whole terminal surface is on `Core\Cli`. **Stages 11 and 12 have closed**, with
-> `examples/cycles.nvs` and `examples/onexit.nvs`; **stage 10's gates are closed**: §§ 14-19
-> registered and cased over a 41-key ratchet, §§ 16-17's classes over a 9-key one, and `ring` the
-> one C dependency ADR 0051 § 4 records. Conformance 1379, differential 210 of 210, migration 80%
+> ADR 0086's whole terminal surface is on `Core\Cli`. **Stages 10, 11 and 12 have closed**: §§ 14-19
+> over a 41-key ratchet, §§ 16-17's classes over a 9-key one, and `ring` the one C dependency ADR
+> 0051 § 4 records. **Stage 13 has closed**: ADR 0129's roster — `verify` reads a PHP-stored bcrypt
+> hash and `needsRehash` marks every one. Conformance 1380, differential 210 of 210, migration 80%
 > over a 74% gate.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized

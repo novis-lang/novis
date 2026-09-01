@@ -1417,6 +1417,15 @@ is why" — is this file.
   back the exact class and word sets the checker will use. Re-deriving those with your own regex inside a
   shell heredoc does not work — the backslash in `Core\Xml` is eaten before Python sees the pattern, and
   every class comes back missing, which reads as "01 names no classes at all".
+- **`cargo deny check`'s advisories leg can fail on a crate no session added, and the failure
+  arrives inside the diff of the one you just added.** Adding `bcrypt` for ADR 0129 made the first
+  `cargo deny check` of that dependency print `advisories FAILED`, and the finding was
+  `chacha20 0.10.1` — *yanked* upstream, in the tree since `chacha20poly1305` landed, and reached
+  through `rand` as well. A yank is a fact about crates.io that changes under a tree nobody
+  touched, so this leg goes red on its own schedule. Read the finding's own package before
+  suspecting the dependency in your diff; `cargo update -p <crate>` to the next patch is the whole
+  fix when it is a yank rather than an advisory, and it belongs in the same commit as the
+  `Cargo.lock` you were already writing.
 
 ## Running things
 
