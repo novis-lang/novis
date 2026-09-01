@@ -3919,6 +3919,21 @@ is why" — is this file.
   script has exactly one, which makes children the obvious route and it is closed; whether it should be
   is the open question the handoff's backlog carries, since § 2's own words are "at most once per script"
   and a spawned child is a script.
+- **A `secret` cannot be measured from source, so a width invariant is asserted through the members
+  bounded by it.** `Core\Bytes::length($key)` on a `secret bytes` is `E0401: expected bytes, found
+  secret bytes` — ADR 0033's qualifier does not widen downwards and no member reads a length off one,
+  so "every `Core\Crypto::generateKey` draw is 32 octets" is not writable as an equality at all. What a
+  case can write is the behavioural half — every draw is accepted by the members that refuse every
+  other width — with the width itself named separately over plain `bytes` candidates that widen *onto*
+  the parameter, `Core\Bytes::fill($n, 65)` being the one-liner for one. The pair
+  `crypto-names-the-key-length-bound-on-both-sides.nvst` and
+  `crypto-generate-key-draws-are-distinct-and-each-opens-only-its-own.nvst` is that split.
+- **A `.nvst` case is one scope, so two `foreach` bodies cannot each declare the same name.** Copying a
+  loop body to ask the same question of a second sweep earns `E0406: $candidate is already declared`
+  once per local, four at a time, pointing at the copy rather than at the copying — fold the two loops
+  into one and select the rows to echo with an `if`. In the same shape: `Core\Bytes::fill` takes a
+  `uint`, so a sweep of widths is `array<uint>` bound as `foreach (… as uint $width)`, and an
+  `array<int>` of the same literals is an `E0401` at the call site rather than at the literal.
 
 ## Splitting a file that got too big
 

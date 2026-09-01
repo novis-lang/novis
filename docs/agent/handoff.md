@@ -2,69 +2,66 @@
 
 ## State
 
-**`Core\Script\ExitReport` is off `gaps.py`'s list entirely** — its three members went from three cases
-each to five, and `Core\Crypto`, `Core\Process\Result` and `Core\Cli\Color` are the floor now. Two cases
-landed, not the three the group named, and the third is not the one that was written down.
+**`Core\Crypto` is off `gaps.py`'s thin list entirely** — `open` 3→6, `seal` 3→6, `generateKey` 12→15 —
+and `Core\Process\Result` (exitCode 3, stderr 3, stdout 4) is the floor now. All three of the group's
+slices landed, as three `.nvst` files and nothing else: `crates/nvs-stdlib/src/crypto.rs` is unchanged,
+so there is no new refcount edge and no valgrind run behind them.
 
-- **The group's second and third items as written are unreachable, and the finding is why.** Both asked
-  for one case spanning two of ADR 0127 § 2's endings, and a script has exactly one ending. The obvious
-  route is a `spawn script` child per ending — and **a spawned child never drains its `onExit` queue**:
-  `nvs_stdlib::script::run_exit_hooks` has one caller, `crates/nvs-cli/src/main.rs:896`. A child ends
-  `ok=true` with a captured `output` holding only what its body echoed. That is recorded as a playbook
-  trap and as the backlog's open decision; § 2 says "at most once per script" and a `spawn script` child
-  is a script, so this is a gap rather than a scope.
-- **What landed in the second slot is the column no case read**: `exit($n)` puts the very `$n` on the
-  report. Both landed `exit` cases end at 0, which is also the `Normal` row's status, so nothing told
-  "the report carries the number the program chose" from "the report carries 0 unless something threw".
-  42 is not 0, not 1, and the case asserts the non-zero status arrives with `error` still `null` — half
-  the bound the item wanted, in the only form one ending admits.
-- **Identity is what makes the agreement case more than a re-read.** One report is built per ending and
-  handed to every hook, so two hooks' readings collapse into one entry of a `Core\ObjectSet<mixed>`, and
-  `error`'s two readings collapse the same way because § 2's third column is the live `Throwable`.
-- Nothing in `crates/nvs-stdlib/src/script.rs` changed — two `.nvst` files and nothing else — so there is
-  no new refcount edge and no valgrind run behind them.
+- **The key-length bound is one verdict per width for both members, not a line each.** A width is a key
+  or it is not, answered by whether `keyed`'s `LogicError` arrives, and `seal` and `open` are counted as
+  agreeing at all eight widths — 31, 32 and 33 printed adjacent so neither half of the bound reads
+  plausibly alone. The all-`A` 32-octet key seals the probe every `open` is asked about, so the only
+  thing a width is ever refused for there is not being a key.
+- **`generateKey`'s length invariant is behavioural because a `secret` cannot be measured** — that is a
+  playbook bullet now. The case asserts it through the members that refuse every other width, and adds
+  the two a single draw cannot see: 28 pairs distinct, and 56 ordered cross-opens refused.
+- **What the nonce case adds over the landed pair-of-seals assertion is *where* two seals differ.** A
+  member that drew a fresh nonce, prefixed it and then sealed deterministically behind it passes every
+  round trip; the case slices the 24-octet prefix off each of eight seals and counts both the prefixes
+  and the bodies distinct across all 28 pairs.
 
-**The two `orient.py` warnings are still there**: the `[context] modules` patterns
-`crates/nvs-stdlib/src/fatal.rs` and `crates/nvs-stdlib/src/script.rs` are reported as matching no module
-and are then printed in the scoped map anyway. The manifest is right; the matcher is what to check.
+**The two `orient.py` warnings are still there**: `[context] modules` patterns
+`crates/nvs-stdlib/src/fatal.rs` and `crates/nvs-stdlib/src/script.rs` are reported as matching no
+module and are then printed in the scoped map anyway. The manifest is right; the matcher is what to
+check.
 
 **The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate over a
-*complete* Part II, which needs spec §§ 15-19. Those are goal 6's, so it cannot pass inside this goal and
-is not a regression.
+*complete* Part II, which needs spec §§ 15-19. Those are goal 6's, so it cannot pass inside this goal
+and is not a regression.
 
 ## Next group
 
-**`Core\Crypto` is the thinnest class left — `open` 3, `seal` 3, `generateKey` 12 — and all three are
-bound by one rule, ADR 0051 § 3's "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string":
-the cipher, the mode, the padding and the nonce are all off the call, so what is left to assert is the
-key and the nonce. The file set is `crates/nvs-stdlib/src/crypto.rs` and `tests/conformance/core/`; the
-three helper bodies are within fifty lines of each other. The landed cases are
-`crypto-seals-and-opens-with-no-cipher-argument.nvst`,
-`crypto-round-trips-every-message-length-with-a-flat-overhead.nvst` and
-`crypto-open-refuses-every-forgery-with-one-message.nvst` — read those first, because the forgery
-refusal and the length sweep are both already asked.**
+**`Core\Process\Result` is the floor — three members, one rule, ADR 0044 § 1's "a result is a value the
+run left behind, not a pipe still open". The file set is `crates/nvs-stdlib/src/process.rs` and
+`tests/conformance/core/`; the three member bodies are within twenty lines of each other. Five cases
+already ask about it — the empty capture, the status on both sides, the two streams kept apart, every
+member agreeing with itself twice, and two results held at once — so read
+`process-a-child-that-writes-nothing-answers-two-empty-captures.nvst` and
+`process-a-completed-runs-two-streams-stay-apart.nvst` first.**
 
-- [ ] **A case that names the key-length bound on both sides** — `keyed` refuses any `$key` that is not
-      `KEY_LEN`, through one `wrong_key_length` both members share, so the case names the last accepted
-      length beside the first refused one on each side of it, and asserts `seal` and `open` refuse
-      identically rather than each on its own line. `crates/nvs-stdlib/src/crypto.rs:420`,
-      `crates/nvs-stdlib/src/crypto.rs:447` and `crates/nvs-stdlib/src/crypto.rs:463`.
-- [ ] **A case that asserts `generateKey`'s invariants by counting** — over a sweep of keys, every one is
-      distinct, every one is exactly the length `seal` accepts, and no message sealed under one opens
-      under another, counted rather than read off a line.
-      `crates/nvs-stdlib/src/crypto.rs:431`.
-- [ ] **An agreement case over the nonce** — `seal` called twice on one message and one key answers two
-      *different* sealed values, because the nonce is drawn per call and prefixed, and both open to the
-      one message: agreement about the plaintext and disagreement about the ciphertext, in one case.
-      `crates/nvs-stdlib/src/crypto.rs:444` and `crates/nvs-stdlib/src/crypto.rs:463`.
+- [ ] **A capture is whole, not a pipe's worth** — a child writing far more than an OS pipe buffer on
+      both streams at once is captured entire, asserted by length over a sweep of sizes that crosses
+      the 64 KiB boundary, so a `run` that stopped draining at a buffer's edge fails here while
+      answering plausibly for a short child. `crates/nvs-stdlib/src/process.rs:324` and
+      `crates/nvs-stdlib/src/process.rs:382`.
+- [ ] **The two captures are octets, not text** — `stdout` and `stderr` are `bytes`, so a child writing
+      a NUL, a lone `0xFF` and an unpaired surrogate's encoding hands them all back unchanged rather
+      than lossily converted, counted over the sweep. `crates/nvs-stdlib/src/process.rs:382` and
+      `crates/nvs-stdlib/src/process.rs:390`.
+- [ ] **A non-zero status keeps both captures** — over a sweep of statuses the child still wrote both
+      streams, and every one of them arrives beside its `exitCode`, so a `run` that kept output only on
+      success fails by count. `crates/nvs-stdlib/src/process.rs:324` and
+      `crates/nvs-stdlib/src/process.rs:373`.
 
 ## Backlog
 
-- Decide and record whether a `spawn script` child drains its `onExit` queue — ADR 0127 § 2 against
-  `crates/nvs-cli/src/main.rs:896` being the only caller.
-- `Core\Script\ExitReport`'s roster sweep, reframed to one ending: the closed `Core\Script\ExitReason`
-  roster walked and exactly one case matching the report — `docs/adr/0127-…` § 2.
-- `orient.py`'s two `[context] modules` patterns that match no module — `docs/agent/loop-goal.toml`.
-- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case —
-  `crates/nvs-stdlib/src/task.rs:561`, `tests/differential/`.
-- `Core\Process\Result` and `Core\Cli\Color` are the floor after `Core\Crypto` — `python tools/gaps.py`.
+- `Core\Csrf` (issue 3, verify 3) and `Core\Jwt` (sign 3, verify 3) are the next floor after this one —
+  ADR 0060 § 1.
+- `Core\Task::afterResponse` has a PHP twin (`fastcgi_finish_request`) and no oracle case, the last one
+  `gaps.py` reports — `tests/differential/`, `crates/nvs-stdlib/src/task.rs:561`.
+- A `spawn script` child never drains its `onExit` queue: `nvs_stdlib::script::run_exit_hooks` has one
+  caller, `crates/nvs-cli/src/main.rs:896`. Open decision — ADR 0127 § 2 says "at most once per script".
+- `orient.py`'s `[context] modules` matcher rejects two live paths — `docs/agent/loop-goal.toml`.
+- Unasserted thrown paths a case could catch: `crates/nvs-stdlib/src/env.rs:200` (a variable whose
+  bytes are not UTF-8) and `crates/nvs-stdlib/src/csv.rs:610` (a column that is not a string).
+- `Core\Cli\Color` (index 3, rgb 3) — ADR 0086.
