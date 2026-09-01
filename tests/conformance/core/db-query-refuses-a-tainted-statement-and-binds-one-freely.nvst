@@ -1,0 +1,31 @@
+--TEST--
+`query` refuses a `tainted` statement and binds a `tainted` value freely, so untrusted data reaches a database only through a placeholder — ADR 0024 § 4, ADR 0067 §§ 1 and 5
+--FILE--
+<?nvs
+// ADR 0024 § 4 is the whole injection story for `Core\Db\Connection`: the
+// query-text parameter is a **sink**, so a value that came from outside the
+// process cannot be written into the statement at all, and a bound parameter
+// accepts the same value freely. There is no escaper to launder one with —
+// `PDO::quote`, `mysqli_real_escape_string` and `pg_escape_string` have no
+// equivalent (ADR 0067 § 1), which is only tenable because the second half of
+// this case compiles.
+tainted string $outside = "ada";
+
+var $db = Core\Db::connect("main");
+
+// The refusal, and nothing about the value is wrong: it is where it is being
+// put. This is the line `"select … where owner = '" . $_GET["owner"] . "'"`
+// becomes, and it does not reach a server to be found out.
+var $refused = $db->query($outside, []);
+
+// The way through, which is the same value at the same statement. These two
+// lines contribute no diagnostic, and that is half the claim: a sink with no
+// admitting spelling beside it would be a member no program can pass data to.
+var $bound = $db->query("select id from accounts where owner = ?", [$outside]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:16:27
+%A
+error: aborting due to 1 error

@@ -1,0 +1,20 @@
+--TEST--
+`query` answers a `Core\Db\Rows`, so a result set is a type of its own rather than the array `fetchAll` hands back — ADR 0067 §§ 4 and 6, spec § 18
+--FILE--
+<?nvs
+// ADR 0067 § 4 makes `Core\Db\Connection::query` the buffered member — every
+// row is read before it answers, and the connection is free again — and what
+// it answers with is a `Db\Rows` rather than an array. The difference is § 6's:
+// a `Rows` knows the columns the server described, so its rows carry typed
+// readers that answer `?T`, where an array element is whatever the driver
+// happened to make of it and `$row["id"] == 1` silently fails.
+var $db = Core\Db::connect("main");
+
+array<mixed> $wrong = $db->query("select 1", []);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `array<mixed>`, found `Core\Db\Rows`
+   --> case.nvs:10:23
+%A
+error: aborting due to 1 error
