@@ -1381,10 +1381,14 @@ pub const CLASSES: &[CoreClass] = &[
     // has `Transaction` delegate the interface to its connection, so the seven
     // members are declared here once. `query` is the one that has landed.
     crate::db::CONNECTION,
-    // What `query` answers with — ADR 0067 § 4's buffered result set. One slot
-    // and no members until § 18's readers land, so it is on the handle roster
-    // below and `Core\Db\Row` arrives with them.
+    // What `query` answers with — ADR 0067 § 4's buffered result set, and five
+    // of § 18's six readers over it. `columns()` is the one owed, and
+    // [`crate::db`]'s known gaps own the three things it needs.
     crate::db::ROWS,
+    // One row of that set: § 18's associative reading plus the eleven typed
+    // readers ADR 0067 § 6 puts in place of PHP's three fetch modes. Four of
+    // the eleven answer only their refusal until § 9's structured columns land.
+    crate::db::ROW,
     // What `inList` answers with: ADR 0067 § 5's explicit expansion marker,
     // memberless because § 18's own table accepts it nowhere but a bound
     // parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.
@@ -3484,7 +3488,6 @@ mod tests {
             crate::cli::COLOR_NAME,
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,
-            crate::db::ROWS_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

@@ -89,12 +89,22 @@
 //! 5. **`query` is the whole of `Core\Db\Queryable` so far.** `queryAs`,
 //!    `execute`, `executeMany`, `stream`, `streamAs` and `transaction` are
 //!    owed, and so are `close` and § 18's three readonly properties on
-//!    `Connection`. What [`ROWS`] answers with has no members yet either.
+//!    `Connection`. On the result side [`ROWS`] owes one member of six —
+//!    `columns(): array<Column>`, which needs three things at once: a
+//!    `Core\Db\Column` class, a `Core\ColumnType` enum for § 18's own fourteen
+//!    cases, and a classification of a `PgColumn`'s type OID that `nvs-db` does
+//!    not expose (`PgColumn::decode` maps an OID to a *value*, which is a
+//!    different question from what a NULL column's declared type is). `Rows`
+//!    is not `Iterable<Row>` either, for a reason that is not about databases:
+//!    no row in this registry declares an iterable return.
 //! 6. **§ 9's five structured rows do not read back.** A `DATE`, `TIME`,
 //!    `TIMESTAMP`, `TIMESTAMPTZ` or `UUID` column is a `Core\Time` or
 //!    `Core\Uuid` *instance*, which only this crate can allocate;
-//!    [`structured_column`] refuses one by name until `Core\Db\Row`'s typed
-//!    readers build them. Every other row of that table decodes now.
+//!    [`structured_column`] refuses one by name in the *decoder*. `Core\Db\Row`
+//!    has carried the four readers that would answer with them since its own
+//!    members landed, so what is left is building the instance from
+//!    [`nvs_db::PgScalar`]'s parsed components. Every other row of that table
+//!    decodes now.
 //! 7. **`query` declares no `{timeout?: Duration}`.** § 4's option is in the
 //!    spec's signature and is deliberately not in the registry row: a deadline
 //!    on a statement has to reach the socket the way
@@ -108,7 +118,7 @@
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 
-use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -151,14 +161,27 @@ const HANDLE_AT: usize = 0;
 const BLOCK_AT: usize = 1;
 
 /// `Core\Db\Rows`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
-///
-/// `pub(crate)` for `registry`'s handle roster, for [`IN_LIST_NAME`]'s reason —
-/// and only until § 18's `Rows` members land, which is what takes it off.
-pub(crate) const ROWS_NAME: &str = r"Core\Db\Rows";
+const ROWS_NAME: &str = r"Core\Db\Rows";
 
 /// The one slot a [`ROWS`] holds: every row the statement answered, in the
 /// server's order, each one a string-keyed array of its own columns.
 const ROWS_SLOT: &str = "rows";
+
+/// Where [`ROWS_SLOT`] sits, for the six members that read it back.
+const ROWS_AT: usize = 0;
+
+/// `Core\Db\Row`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
+const ROW_NAME: &str = r"Core\Db\Row";
+
+/// The one slot a [`ROW`] holds: that row's own columns, string-keyed and in
+/// the server's order — **the very array [`ROWS_SLOT`] already holds one of per
+/// row**, handed on under a second reference rather than copied, so `all()` over
+/// a thousand rows allocates a thousand objects and not a second thousand
+/// arrays.
+const COLUMNS_SLOT: &str = "columns";
+
+/// Where [`COLUMNS_SLOT`] sits. See [`ROWS_AT`].
+const COLUMNS_AT: usize = 0;
 
 /// Where [`VALUES_SLOT`] sits inside an [`IN_LIST`], for the bind that expands
 /// it.
@@ -258,14 +281,18 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 
 /// Spec § 18's `Core\Db\Rows` — what a buffered statement answers with.
 ///
-/// One slot and no members **yet**, so it is a handle in `registry`'s
-/// `a_class_with_slots_has_instance_members_and_the_reverse` sense and is on
-/// that test's roster until § 18's `all`, `first`, `value`, `column`, `count`
-/// and `columns` land beside `Core\Db\Row`. What the slot holds is the whole of
-/// what those members read, decided here rather than left to them: **every row,
-/// already decoded, each as a string-keyed array of its columns** — which is
-/// `Row::toArray`'s own shape, so the members are readers over it and never a
-/// second decoder.
+/// What the slot holds is the whole of what the members read, decided here
+/// rather than left to them: **every row, already decoded, each as a
+/// string-keyed array of its columns** — which is `Row::toArray`'s own shape, so
+/// every member below is a reader over it and never a second decoder.
+///
+/// **Five of § 18's six members, and `columns()` is the one owed.** It answers
+/// `array<Column>`, which needs three things this slot has not got: a
+/// `Core\Db\Column`, a `Core\ColumnType` enum for spec § 18's own fourteen
+/// cases, and a classification of a `PgColumn`'s type OID that `nvs-db` does not
+/// yet expose. This module's known gap 5 is that list. `Iterable<Row>` is owed
+/// with it, for a separate reason — nothing in this registry spells an iterable
+/// return yet — and `foreach` over `all()` is the same loop until it does.
 ///
 /// **Buffered is ADR 0067 § 4's default and this is what it spends**: a result
 /// set is held whole, per request, and the connection is free the moment
@@ -277,8 +304,228 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 pub(crate) const ROWS: CoreClass = CoreClass {
     name: ROWS_NAME,
     methods: &[],
-    instance: &[],
+    instance: &[
+        CoreMethod {
+            name: "all",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(ROW_NAME)),
+            symbol: "nvs_core_db_rows_all",
+            doc: Some(&ROWS_ALL_DOC),
+        },
+        CoreMethod {
+            name: "first",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(ROW_NAME)),
+            symbol: "nvs_core_db_rows_first",
+            doc: Some(&ROWS_FIRST_DOC),
+        },
+        CoreMethod {
+            name: "value",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_db_rows_value",
+            doc: Some(&ROWS_VALUE_DOC),
+        },
+        CoreMethod {
+            name: "column",
+            names: &["key"],
+            // § 18's `int|string $key`: a number is the column's *position* in
+            // the server's own description and a name is its label. Neutral,
+            // for the reason every name parameter in [`ROW`] is — the values
+            // this answers with carry the database's qualifiers and never the
+            // key's.
+            params: &[CoreTy::Union(&[CoreTy::Int, CoreTy::Text(Qual::Neutral)])],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Mixed),
+            symbol: "nvs_core_db_rows_column",
+            doc: Some(&ROWS_COLUMN_DOC),
+        },
+        CoreMethod {
+            name: "count",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_db_rows_count",
+            doc: Some(&ROWS_COUNT_DOC),
+        },
+    ],
     slots: &[ROWS_SLOT],
+    constants: &[],
+};
+
+/// Spec § 18's `Core\Db\Row` — one row of a [`ROWS`], and the whole of what
+/// ADR 0067 § 6 puts in place of `FETCH_ASSOC`, `FETCH_NUM` and `FETCH_OBJ`.
+///
+/// **The three orderings PHP makes a fetch mode of are one shape here.** A row
+/// is a string-keyed array of its columns and nothing else, so there is no
+/// numeric twin to ask for and no object twin either: `get`/`toArray` are the
+/// associative reading, the typed readers below are what an object reading was
+/// wanted for, and `queryAs<T>` — ADR 0071's `#[Db\Derive]` — is where a real
+/// class comes from. A fetch-mode argument would be [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
+/// R11's flag deciding what a member returns, which is the thing that section
+/// removes.
+///
+/// **The eleven typed readers convert losslessly or throw, and the rule is one
+/// sentence: a reader answers its own tag, and `int`/`uint` are the single
+/// crossing** — [ADR 0007](../../../../docs/adr/0007-static-type-system.md) § 4
+/// makes those two views of one integer, so a `BIGINT` read as `uint` is the
+/// same value and a negative one throws rather than wrapping. Everything else
+/// refuses: `->float` on a `NUMERIC` is not the rounding PHP does silently, and
+/// `->string` on a `BYTEA` is not the re-interpretation
+/// [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) keeps apart. The
+/// universal path § 18 names — `->get()` plus `as` — is what a program that
+/// means a conversion writes.
+///
+/// **Four of the eleven cannot yet answer anything but their refusal**, because
+/// `instant`, `date`, `time` and `uuid` read back a `Core\Time`/`Core\Uuid`
+/// instance and [`nvs_core_db_connection_query`] throws on the five columns that
+/// would carry one ([`structured_column`]). They are written as the lookups they
+/// will always be rather than left out, so that landing § 9's structured columns
+/// changes the decoder and not this class.
+pub(crate) const ROW: CoreClass = CoreClass {
+    name: ROW_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "has",
+            names: &["name"],
+            // § 18's own annotation on this row, and what every other name
+            // parameter in this class carries too: a column name is a lookup
+            // key, so what comes back carries the qualifiers ADR 0067 § 9 gives
+            // the *column* and never the name's. `Qual::Sink` would be the
+            // wrong word — nothing here executes the name.
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_db_row_has",
+            doc: Some(&ROW_HAS_DOC),
+        },
+        CoreMethod {
+            name: "get",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_db_row_get",
+            doc: Some(&ROW_GET_DOC),
+        },
+        CoreMethod {
+            name: "toArray",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Mixed),
+            symbol: "nvs_core_db_row_to_array",
+            doc: Some(&ROW_TO_ARRAY_DOC),
+        },
+        CoreMethod {
+            name: "string",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "nvs_core_db_row_string",
+            doc: Some(&ROW_STRING_DOC),
+        },
+        CoreMethod {
+            name: "bytes",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Bytes),
+            symbol: "nvs_core_db_row_bytes",
+            doc: Some(&ROW_BYTES_DOC),
+        },
+        CoreMethod {
+            name: "int",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Int),
+            symbol: "nvs_core_db_row_int",
+            doc: Some(&ROW_INT_DOC),
+        },
+        CoreMethod {
+            name: "uint",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Uint),
+            symbol: "nvs_core_db_row_uint",
+            doc: Some(&ROW_UINT_DOC),
+        },
+        CoreMethod {
+            name: "float",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Float),
+            symbol: "nvs_core_db_row_float",
+            doc: Some(&ROW_FLOAT_DOC),
+        },
+        CoreMethod {
+            name: "bool",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Bool),
+            symbol: "nvs_core_db_row_bool",
+            doc: Some(&ROW_BOOL_DOC),
+        },
+        CoreMethod {
+            name: "decimal",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Decimal),
+            symbol: "nvs_core_db_row_decimal",
+            doc: Some(&ROW_DECIMAL_DOC),
+        },
+        CoreMethod {
+            name: "instant",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::time::INSTANT_NAME)),
+            symbol: "nvs_core_db_row_instant",
+            doc: Some(&ROW_INSTANT_DOC),
+        },
+        CoreMethod {
+            name: "date",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::time::DATE_NAME)),
+            symbol: "nvs_core_db_row_date",
+            doc: Some(&ROW_DATE_DOC),
+        },
+        CoreMethod {
+            name: "time",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::time::TIME_OF_DAY_NAME)),
+            symbol: "nvs_core_db_row_time",
+            doc: Some(&ROW_TIME_DOC),
+        },
+        CoreMethod {
+            name: "uuid",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::uuid::NAME)),
+            symbol: "nvs_core_db_row_uuid",
+            doc: Some(&ROW_UUID_DOC),
+        },
+    ],
+    slots: &[COLUMNS_SLOT],
     constants: &[],
 };
 
@@ -429,6 +676,294 @@ const QUERY_DOC: MethodDoc = MethodDoc {
                    unusable for the rest of the request.",
         },
     ],
+};
+
+/// `Core\Db\Rows::all`'s reference card — ADR 0117.
+const ROWS_ALL_DOC: MethodDoc = MethodDoc {
+    short: "Every row of the result, in the server's order, each one a `Core\\Db\\Row` — \
+            `PDO::fetchAll` without a fetch-mode argument to choose the shape with.",
+    params: &[],
+    ret: "An `array<Core\\Db\\Row>`, empty for a statement that answered no rows. The rows are the \
+          ones already read, so this costs one object each and no second decode.",
+    errors: &[],
+};
+
+/// `Core\Db\Rows::first`'s reference card — ADR 0117.
+const ROWS_FIRST_DOC: MethodDoc = MethodDoc {
+    short: "The first row, or `null` where there is none — `PDO::fetch`, without its `false` and \
+            without a cursor that a second call would move.",
+    params: &[],
+    ret: "A `Core\\Db\\Row`, or `null` for an empty result — `?T` is the absence spelling \
+          everywhere in `Core`, and a query that matched nothing is an answer rather than a \
+          failure to throw about.",
+    errors: &[],
+};
+
+/// `Core\Db\Rows::value`'s reference card — ADR 0117.
+const ROWS_VALUE_DOC: MethodDoc = MethodDoc {
+    short: "The first column of the first row — `PDO::fetchColumn`, and the shape a `select \
+            count(*)` is read with.",
+    params: &[],
+    ret: "That column's value, or `null` where the result has no rows at all — which is the same \
+          `null` a NULL column reads as, since the declared type is `mixed`. A caller that must \
+          tell the two apart asks `count()` first.",
+    errors: &[],
+};
+
+/// `Core\Db\Rows::column`'s reference card — ADR 0117.
+const ROWS_COLUMN_DOC: MethodDoc = MethodDoc {
+    short: "One column's value from every row, in the server's order — `PDO::fetchAll` under \
+            `FETCH_COLUMN`, with the column named rather than a mode flag.",
+    params: &[ParamDoc {
+        name: "key",
+        desc: "The column: an `int` is its position in the server's own description, counted from \
+               zero, and a `string` is its label.",
+        shape: &[],
+    }],
+    ret: "An `array<mixed>` with one entry per row, empty for a result with no rows.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "No column has that name, or the position is negative or past the last column. An \
+               empty result answers an empty array instead, since it describes no columns to be \
+               wrong about.",
+    }],
+};
+
+/// `Core\Db\Rows::count`'s reference card — ADR 0117.
+const ROWS_COUNT_DOC: MethodDoc = MethodDoc {
+    short: "How many rows the statement answered — `PDOStatement::rowCount` on a select, which is \
+            the use of that member this replaces. A write's count is `Core\\Db\\Write::affected`.",
+    params: &[],
+    ret: "The number of rows held, which is exact because § 4's default read all of them before \
+          `query` returned.",
+    errors: &[],
+};
+
+/// `Core\Db\Row::has`'s reference card — ADR 0117.
+const ROW_HAS_DOC: MethodDoc = MethodDoc {
+    short: "Reports whether the row has a column with this name, so that a reader that would throw \
+            on an unknown one can be asked first.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it. Accepted `tainted`, because this \
+               answers rather than throws.",
+        shape: &[],
+    }],
+    ret: "`true` for a column the row carries, whatever its value — a NULL column is present. \
+          `false` otherwise.",
+    errors: &[],
+};
+
+/// `Core\Db\Row::get`'s reference card — ADR 0117.
+const ROW_GET_DOC: MethodDoc = MethodDoc {
+    short: "One column's value, whatever the SQL-to-Novis type map made of it — the universal \
+            read, which a program narrows with `as` where the typed readers do not fit.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The value, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name.",
+    }],
+};
+
+/// `Core\Db\Row::toArray`'s reference card — ADR 0117.
+const ROW_TO_ARRAY_DOC: MethodDoc = MethodDoc {
+    short: "The whole row as a string-keyed array, in the server's column order — `FETCH_ASSOC`, \
+            which is the only one of PHP's three fetch shapes that survives.",
+    params: &[],
+    ret: "An `array<mixed>` keyed by column label, a NULL column being a `null` entry that is \
+          present rather than absent.",
+    errors: &[],
+};
+
+/// `Core\Db\Row::string`'s reference card — ADR 0117.
+const ROW_STRING_DOC: MethodDoc = MethodDoc {
+    short: "One column as `string`, for the text family alone — `CHAR`, `VARCHAR`, `TEXT`, `ENUM` \
+            and `JSON`, each of which reads back as a `tainted string`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The text, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, or the column is not text — a `BYTEA` is \
+               `bytes` and is read by `->bytes`, and a number is not re-rendered here.",
+    }],
+};
+
+/// `Core\Db\Row::bytes`'s reference card — ADR 0117.
+const ROW_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "One column as `bytes` — `BINARY`, `BLOB` and `BYTEA`, which have no text form at all \
+            and are a separate type from `string`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The octets, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, or the column is text rather than `bytes` — \
+               the two are separate types and this reader does not span them.",
+    }],
+};
+
+/// `Core\Db\Row::int`'s reference card — ADR 0117.
+const ROW_INT_DOC: MethodDoc = MethodDoc {
+    short: "One column as `int` — `SMALLINT`, `INT` and `BIGINT`, and an unsigned column whose \
+            value fits.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The integer, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, the column is not an integer at all, or it is \
+               an unsigned value past `int`'s ceiling — which PHP would hand back as a `float` \
+               that no longer equals it.",
+    }],
+};
+
+/// `Core\Db\Row::uint`'s reference card — ADR 0117.
+const ROW_UINT_DOC: MethodDoc = MethodDoc {
+    short: "One column as `uint` — MySQL's and MariaDB's `… UNSIGNED`, and a signed column that is \
+            not negative.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The integer, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, the column is not an integer at all, or its \
+               value is negative — which would wrap rather than convert.",
+    }],
+};
+
+/// `Core\Db\Row::float`'s reference card — ADR 0117.
+const ROW_FLOAT_DOC: MethodDoc = MethodDoc {
+    short: "One column as `float` — `FLOAT`, `REAL` and `DOUBLE`, and nothing else.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The number, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, or the column is not a floating-point one — a \
+               `DECIMAL` is exact and is read by `->decimal`, since binary floating point is where \
+               money stops adding up.",
+    }],
+};
+
+/// `Core\Db\Row::bool`'s reference card — ADR 0117.
+const ROW_BOOL_DOC: MethodDoc = MethodDoc {
+    short: "One column as `bool` — `BOOLEAN` and `BIT(1)`. MySQL's and MariaDB's `TINYINT(1)` is \
+            naturally an `int` and is read by `->int`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The truth value, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, or the column is not boolean — a `0`/`1` \
+               integer is not silently one.",
+    }],
+};
+
+/// `Core\Db\Row::decimal`'s reference card — ADR 0117.
+const ROW_DECIMAL_DOC: MethodDoc = MethodDoc {
+    short: "One column as `decimal` — `DECIMAL`, `NUMERIC` and `MONEY`, exact, where PHP hands \
+            back a string to parse.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The exact number, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, or the column is not an exact numeric one.",
+    }],
+};
+
+/// `Core\Db\Row::instant`'s reference card — ADR 0117.
+const ROW_INSTANT_DOC: MethodDoc = MethodDoc {
+    short: "One column as a `Core\\Time\\Instant` — `TIMESTAMPTZ` and `datetimeoffset`, the two \
+            that carry their own zone.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The instant, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, or the column is not a zone-carrying \
+               timestamp — a zone-less one is a `Core\\Time\\DateTime` in the connection's \
+               declared zone.",
+    }],
+};
+
+/// `Core\Db\Row::date`'s reference card — ADR 0117.
+const ROW_DATE_DOC: MethodDoc = MethodDoc {
+    short: "One column as a `Core\\Time\\Date` — a `DATE`, which is a calendar day and carries no \
+            time at all.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The day, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, or the column is not a `DATE`.",
+    }],
+};
+
+/// `Core\Db\Row::time`'s reference card — ADR 0117.
+const ROW_TIME_DOC: MethodDoc = MethodDoc {
+    short: "One column as a `Core\\Time\\TimeOfDay` — a `TIME`, which is a clock reading with no \
+            day behind it.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The time of day, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, or the column is not a `TIME`.",
+    }],
+};
+
+/// `Core\Db\Row::uuid`'s reference card — ADR 0117.
+const ROW_UUID_DOC: MethodDoc = MethodDoc {
+    short: "One column as a `Core\\Uuid` — PostgreSQL's `UUID`, SQL Server's `uniqueidentifier` \
+            and MariaDB 10.7+'s `UUID`. MySQL stores one as `BINARY(16)`, which stays `bytes`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The column label, as the server described it.",
+        shape: &[],
+    }],
+    ret: "The identifier, or `null` for a NULL column.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The row has no column with that name, or the column is not a native UUID one — a \
+               `BINARY(16)` is `bytes` and a text rendering is a `string`.",
+    }],
 };
 
 /// `Core\Db::connect`, as its own refusals spell it.
@@ -830,9 +1365,10 @@ fn structured_column(column: &str) -> Fault {
     Fault::thrown(format!(
         "{QUERY}: the column `{column}` is a `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMPTZ` or \
          `UUID`, and ADR 0067 § 9 reads those back as `Core\\Time` and `Core\\Uuid` instances \
-         rather than as text — which is `Core\\Db\\Row`'s typed readers and is the slice after \
-         this one. Every other row of § 9's table reads back now, and a `::text` cast in the \
-         statement is the way to have one of these until then"
+         rather than as text — which this decoder does not build yet, though \
+         `Core\\Db\\Row`'s `date`, `time`, `instant` and `uuid` are already waiting for one. \
+         Every other row of § 9's table reads back now, and a `::text` cast in the statement is \
+         the way to have one of these until then"
     ))
 }
 
@@ -994,6 +1530,529 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// A value read out of an array, with a reference of the caller's own.
+///
+/// Every read below borrows — [`NvsArray::get`] and `value_at` both hand back a
+/// reference the array still owns — so this is the one place the second one is
+/// taken, rather than an `unsafe` block at each of the fourteen members that
+/// hands a slot's value out.
+fn owned(value: Value) -> Value {
+    #[expect(
+        unsafe_code,
+        reason = "the entry is owned by an array the receiver holds, which \
+                  outlives this call, so the value handed back needs a \
+                  reference of its own"
+    )]
+    unsafe {
+        value.retain();
+    }
+    value
+}
+
+/// The rows one of [`ROWS`]'s members reads, borrowed from its receiver.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot holding anything but an array: the slot is
+/// written by [`nvs_core_db_connection_query`] and by nothing else, so that is a
+/// paste error in this crate rather than anything a program can cause.
+fn result_rows(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
+    let receiver = crate::instance::receiver(args[0], &ROWS, member)?;
+    let held = crate::instance::slot(receiver, ROWS_AT);
+    let array = held.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{ROWS_NAME}::{member} found tag {} in its `{ROWS_SLOT}` slot",
+            held.tag_byte()
+        ))
+    })?;
+    Ok(crate::arr::borrowed(array))
+}
+
+/// One row of a [`ROWS`], borrowed — see [`result_rows`] for the refusal.
+fn row_at(
+    rows: &NvsArray,
+    slot: usize,
+    member: &str,
+) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
+    let held = rows
+        .value_at(slot)
+        .expect("next_slot only names live entries");
+    let array = held.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{ROWS_NAME}::{member} found tag {} where a row should be",
+            held.tag_byte()
+        ))
+    })?;
+    Ok(crate::arr::borrowed(array))
+}
+
+/// The columns of the [`ROW`] one of its members was called on, borrowed —
+/// [`result_rows`]'s twin, and its refusal is the same paste error.
+fn row_columns(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
+    let receiver = crate::instance::receiver(args[0], &ROW, member)?;
+    let held = crate::instance::slot(receiver, COLUMNS_AT);
+    let array = held.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{ROW_NAME}::{member} found tag {} in its `{COLUMNS_SLOT}` slot",
+            held.tag_byte()
+        ))
+    })?;
+    Ok(crate::arr::borrowed(array))
+}
+
+/// A column-name argument as the bytes an array is keyed by.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`], because every row that takes one declares it `string` and
+/// a non-text argument is refused at `E0401` first.
+fn column_name<'a>(value: &'a Value, class: &str, member: &str) -> Result<&'a [u8], Fault> {
+    value.as_str_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{class}::{member} expected a `string` column name, got tag {}",
+            value.tag_byte()
+        ))
+    })
+}
+
+/// Spec § 18's "An unknown column name throws", with the names that would have
+/// worked — the one thing a caller holding a misspelling wants next.
+fn unknown_column(class: &str, member: &str, name: &[u8], columns: &NvsArray) -> Fault {
+    let known: Vec<String> = columns
+        .keys()
+        .iter()
+        .map(|key| String::from_utf8_lossy(key).into_owned())
+        .collect();
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{class}::{member}: no column is named `{}` — this row has {}",
+            String::from_utf8_lossy(name),
+            if known.is_empty() {
+                "none at all".to_owned()
+            } else {
+                known.join(", ")
+            }
+        ),
+    )
+}
+
+/// The value at one column *position*, counted from zero over the server's own
+/// description, or `None` for a position the row does not reach — the `int` arm
+/// of [`nvs_core_db_rows_column`]'s `int|string` key.
+fn column_at(row: &NvsArray, index: i64) -> Option<Value> {
+    let index = usize::try_from(index).ok()?;
+    let mut from = 0usize;
+    for _ in 0..index {
+        from = row.next_slot(from)? + 1;
+    }
+    row.next_slot(from).and_then(|slot| row.value_at(slot))
+}
+
+/// The column one of [`ROW`]'s eleven typed readers was asked for, borrowed and
+/// paired with the name it was asked by, or `None` where the column is SQL
+/// `NULL` — which is the `?T` every one of them answers.
+///
+/// # Errors
+///
+/// The [`unknown_column`] throw, and [`row_columns`]'s and [`column_name`]'s
+/// fatals.
+fn typed_column<'a>(args: &'a [Value], member: &str) -> Result<(&'a [u8], Option<Value>), Fault> {
+    let columns = row_columns(args, member)?;
+    let name = column_name(&args[1], ROW_NAME, member)?;
+    let value = columns
+        .get(name)
+        .ok_or_else(|| unknown_column(ROW_NAME, member, name, &columns))?;
+    Ok((name, (value.tag() != Some(Tag::Null)).then_some(value)))
+}
+
+/// A typed reader's refusal for a column it will not convert — ADR 0067 § 6's
+/// "lossless conversion or throws", said with what the column actually is.
+fn wrong_column_type(member: &str, name: &[u8], value: Value, want: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{ROW_NAME}::{member}: the column `{}` came back as {} and this reader answers {want} \
+             only — ADR 0067 § 6 converts losslessly or throws, and `->get()` plus `as` is the \
+             universal path",
+            String::from_utf8_lossy(name),
+            value.tag().map_or_else(
+                || format!("tag {}", value.tag_byte()),
+                |tag| tag.describe().to_owned()
+            )
+        ),
+    )
+}
+
+/// The other half of that refusal: the column *is* an integer, and the reader
+/// asked for is the one of `int`/`uint` it does not fit.
+fn column_out_of_range(member: &str, name: &[u8], holds: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{ROW_NAME}::{member}: the column `{}` holds {holds}, so reading it as `{member}` \
+             would not be the same number — ADR 0067 § 6 converts losslessly or throws",
+            String::from_utf8_lossy(name)
+        ),
+    )
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$rows->all(): array<Db\Row>` — every row at once, replacing
+    /// `PDO::fetchAll` and the fetch-mode argument that chose its shape.
+    ///
+    /// One object per row and no second array: a [`ROW`]'s slot takes a
+    /// reference to the row [`ROWS`] already holds ([`COLUMNS_SLOT`]), so what
+    /// this spends over a result already in memory is one small object each.
+    fn nvs_core_db_rows_all(_ctx, args: [1]) {
+        let rows = result_rows(args, "all")?;
+        let mut all = NvsArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = rows.next_slot(from) {
+            let row = rows
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            all.append(crate::instance::build(&ROW, [owned(row)]));
+            from = slot + 1;
+        }
+        Ok(Value::array(all))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$rows->first(): ?Db\Row` — the first row, or `null` for none.
+    ///
+    /// `null` rather than a throw, and rather than PHP's `false`: ADR 0063 R5
+    /// makes `?T` the only absence spelling, and a `select` that matched
+    /// nothing is an answer rather than a failure. There is no cursor a second
+    /// call would move past, either — this is the first row every time, which
+    /// is what makes it safe to write in a condition.
+    fn nvs_core_db_rows_first(_ctx, args: [1]) {
+        let rows = result_rows(args, "first")?;
+        let Some(slot) = rows.next_slot(0) else {
+            return Ok(Value::null());
+        };
+        let row = rows
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        Ok(crate::instance::build(&ROW, [owned(row)]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$rows->value(): mixed` — the first column of the first row, replacing
+    /// `PDOStatement::fetchColumn`.
+    ///
+    /// **An empty result is `null`, which a NULL column is too**, and the two
+    /// are not told apart here. The declared type is § 18's `mixed`, so there
+    /// is no `?T` to put the absence in that the value itself could not
+    /// already be; a caller that has to distinguish them asks `count()`, which
+    /// is exact. The alternative — throwing on an empty result — would make
+    /// the commonest use, a `select count(*)`, the one shape that has to be
+    /// wrapped in a `try`.
+    fn nvs_core_db_rows_value(_ctx, args: [1]) {
+        let rows = result_rows(args, "value")?;
+        let Some(slot) = rows.next_slot(0) else {
+            return Ok(Value::null());
+        };
+        let row = row_at(&rows, slot, "value")?;
+        Ok(match row.next_slot(0) {
+            Some(at) => owned(
+                row.value_at(at)
+                    .expect("next_slot only names live entries"),
+            ),
+            None => Value::null(),
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$rows->column(int|string $key): array<mixed>` — one column from every
+    /// row, replacing `PDO::fetchAll(PDO::FETCH_COLUMN)`.
+    ///
+    /// The key is checked against each row rather than once, because the check
+    /// *is* the lookup: rows all carry the same columns, so the first row
+    /// decides and the rest cost a hash lookup each. An empty result therefore
+    /// answers an empty array for a key that names nothing — it describes no
+    /// columns for the key to be wrong about, and `columns()` is the member
+    /// that answers what a statement described.
+    fn nvs_core_db_rows_column(_ctx, args: [2]) {
+        let rows = result_rows(args, "column")?;
+        let mut taken = NvsArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = rows.next_slot(from) {
+            let row = row_at(&rows, slot, "column")?;
+            let found = if let Some(index) = args[1].as_int() {
+                column_at(&row, index).ok_or_else(|| {
+                    Fault::thrown_as(
+                        ThrownClass::Logic,
+                        format!(
+                            "{ROWS_NAME}::column: there is no column at position {index} — this \
+                             row has {}, counted from zero",
+                            row.count()
+                        ),
+                    )
+                })?
+            } else {
+                let name = column_name(&args[1], ROWS_NAME, "column")?;
+                row.get(name)
+                    .ok_or_else(|| unknown_column(ROWS_NAME, "column", name, &row))?
+            };
+            taken.append(owned(found));
+            from = slot + 1;
+        }
+        Ok(Value::array(taken))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$rows->count(): uint` — how many rows there are, replacing
+    /// `PDOStatement::rowCount` on a select.
+    ///
+    /// Exact, and that is § 4's buffered default paying for itself: every row
+    /// was read before `query` answered, so this is a length rather than the
+    /// driver-dependent guess `rowCount` is on a select.
+    fn nvs_core_db_rows_count(_ctx, args: [1]) {
+        let rows = result_rows(args, "count")?;
+        let held = rows.count();
+        let count = u64::try_from(held).map_err(|_| {
+            Fault::fatal(format!("{ROWS_NAME}::count: {held} rows do not fit a `uint`"))
+        })?;
+        Ok(Value::uint(count))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->has(string $name): bool` — whether the row carries this column.
+    ///
+    /// A NULL column is present, which is the whole point of asking: the
+    /// typed readers answer `null` for both "this column is NULL" and nothing
+    /// else, so this is where "there is no such column" is told from it.
+    fn nvs_core_db_row_has(_ctx, args: [2]) {
+        let columns = row_columns(args, "has")?;
+        let name = column_name(&args[1], ROW_NAME, "has")?;
+        Ok(Value::bool(columns.has_key(name)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->get(string $name): mixed` — one column, whatever ADR 0067 § 9's
+    /// type map made of it, and the universal path the typed readers narrow.
+    fn nvs_core_db_row_get(_ctx, args: [2]) {
+        let columns = row_columns(args, "get")?;
+        let name = column_name(&args[1], ROW_NAME, "get")?;
+        let found = columns
+            .get(name)
+            .ok_or_else(|| unknown_column(ROW_NAME, "get", name, &columns))?;
+        Ok(owned(found))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->toArray(): array<string, mixed>` — the whole row, replacing
+    /// `FETCH_ASSOC`.
+    ///
+    /// The slot's own array under a second reference rather than a copy: an
+    /// Novis array is a value with copy-on-write, so a caller that writes to
+    /// what it got here separates it and the row is untouched, and a caller
+    /// that only reads pays nothing at all.
+    fn nvs_core_db_row_to_array(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &ROW, "toArray")?;
+        Ok(owned(crate::instance::slot(receiver, COLUMNS_AT)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->string(string $name): ?string` — the text family alone, which
+    /// [`ROW`]'s own docs state the rule for.
+    fn nvs_core_db_row_string(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "string")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        if value.as_str_bytes().is_none() {
+            return Err(wrong_column_type("string", name, value, "`string`"));
+        }
+        Ok(owned(value))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->bytes(string $name): ?bytes` — [`nvs_core_db_row_string`]'s twin
+    /// on ADR 0009's other side.
+    fn nvs_core_db_row_bytes(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "bytes")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        if value.as_bytes().is_none() {
+            return Err(wrong_column_type("bytes", name, value, "`bytes`"));
+        }
+        Ok(owned(value))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->int(string $name): ?int` — the signed half of ADR 0007 § 4's one
+    /// integer, and one of the two readers that cross.
+    fn nvs_core_db_row_int(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "int")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        if let Some(number) = value.as_int() {
+            return Ok(Value::int(number));
+        }
+        let Some(number) = value.as_uint() else {
+            return Err(wrong_column_type("int", name, value, "an integer"));
+        };
+        i64::try_from(number)
+            .map(Value::int)
+            .map_err(|_| column_out_of_range("int", name, "a value past `int`'s ceiling"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->uint(string $name): ?uint` — [`nvs_core_db_row_int`]'s unsigned
+    /// twin, and what `BIGINT UNSIGNED` needs: PHP overflows that column to a
+    /// `float` and stops comparing equal to itself.
+    fn nvs_core_db_row_uint(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "uint")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        if let Some(number) = value.as_uint() {
+            return Ok(Value::uint(number));
+        }
+        let Some(number) = value.as_int() else {
+            return Err(wrong_column_type("uint", name, value, "an integer"));
+        };
+        u64::try_from(number)
+            .map(Value::uint)
+            .map_err(|_| column_out_of_range("uint", name, "a negative value"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->float(string $name): ?float` — `FLOAT`, `REAL` and `DOUBLE`.
+    ///
+    /// A `DECIMAL` is refused rather than widened: that conversion is the one
+    /// this whole type map exists to stop happening by accident.
+    fn nvs_core_db_row_float(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "float")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        value
+            .as_float()
+            .map(Value::float)
+            .ok_or_else(|| wrong_column_type("float", name, value, "`float`"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->bool(string $name): ?bool` — `BOOLEAN` and `BIT(1)`.
+    fn nvs_core_db_row_bool(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "bool")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        value
+            .as_bool()
+            .map(Value::bool)
+            .ok_or_else(|| wrong_column_type("bool", name, value, "`bool`"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->decimal(string $name): ?decimal` — ADR 0054's exact scalar, where
+    /// PHP hands back a string and leaves the parsing to the caller.
+    fn nvs_core_db_row_decimal(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "decimal")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        value
+            .as_decimal()
+            .map(Value::decimal)
+            .ok_or_else(|| wrong_column_type("decimal", name, value, "`decimal`"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->instant(string $name): ?Core\Time\Instant` — `TIMESTAMPTZ` and
+    /// `datetimeoffset`.
+    ///
+    /// One of the four [`ROW`]'s docs name as refusing everything until § 9's
+    /// structured columns land: [`structured_column`] is where such a column
+    /// stops today, so nothing reaches this slot yet.
+    fn nvs_core_db_row_instant(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "instant")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        if !crate::instance::is_instance(value, &crate::time::INSTANT) {
+            return Err(wrong_column_type(
+                "instant",
+                name,
+                value,
+                "a `Core\\Time\\Instant`",
+            ));
+        }
+        Ok(owned(value))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->date(string $name): ?Core\Time\Date` — a `DATE`, and one of
+    /// [`nvs_core_db_row_instant`]'s four.
+    fn nvs_core_db_row_date(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "date")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        if !crate::instance::is_instance(value, &crate::time::DATE) {
+            return Err(wrong_column_type("date", name, value, "a `Core\\Time\\Date`"));
+        }
+        Ok(owned(value))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->time(string $name): ?Core\Time\TimeOfDay` — a `TIME`, and one of
+    /// [`nvs_core_db_row_instant`]'s four.
+    fn nvs_core_db_row_time(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "time")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        if !crate::instance::is_instance(value, &crate::time::TIME_OF_DAY) {
+            return Err(wrong_column_type(
+                "time",
+                name,
+                value,
+                "a `Core\\Time\\TimeOfDay`",
+            ));
+        }
+        Ok(owned(value))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$row->uuid(string $name): ?Core\Uuid` — a native `UUID` column, and the
+    /// last of [`nvs_core_db_row_instant`]'s four.
+    fn nvs_core_db_row_uuid(_ctx, args: [2]) {
+        let (name, found) = typed_column(args, "uuid")?;
+        let Some(value) = found else {
+            return Ok(Value::null());
+        };
+        if !crate::instance::is_instance(value, &crate::uuid::CLASS) {
+            return Err(wrong_column_type("uuid", name, value, "a `Core\\Uuid`"));
+        }
+        Ok(owned(value))
+    }
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -1002,6 +2061,25 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_in_list" => (nvs_core_db_in_list as *const ()).cast(),
         "nvs_core_db_quote_identifier" => (nvs_core_db_quote_identifier as *const ()).cast(),
         "nvs_core_db_connection_query" => (nvs_core_db_connection_query as *const ()).cast(),
+        "nvs_core_db_rows_all" => (nvs_core_db_rows_all as *const ()).cast(),
+        "nvs_core_db_rows_first" => (nvs_core_db_rows_first as *const ()).cast(),
+        "nvs_core_db_rows_value" => (nvs_core_db_rows_value as *const ()).cast(),
+        "nvs_core_db_rows_column" => (nvs_core_db_rows_column as *const ()).cast(),
+        "nvs_core_db_rows_count" => (nvs_core_db_rows_count as *const ()).cast(),
+        "nvs_core_db_row_has" => (nvs_core_db_row_has as *const ()).cast(),
+        "nvs_core_db_row_get" => (nvs_core_db_row_get as *const ()).cast(),
+        "nvs_core_db_row_to_array" => (nvs_core_db_row_to_array as *const ()).cast(),
+        "nvs_core_db_row_string" => (nvs_core_db_row_string as *const ()).cast(),
+        "nvs_core_db_row_bytes" => (nvs_core_db_row_bytes as *const ()).cast(),
+        "nvs_core_db_row_int" => (nvs_core_db_row_int as *const ()).cast(),
+        "nvs_core_db_row_uint" => (nvs_core_db_row_uint as *const ()).cast(),
+        "nvs_core_db_row_float" => (nvs_core_db_row_float as *const ()).cast(),
+        "nvs_core_db_row_bool" => (nvs_core_db_row_bool as *const ()).cast(),
+        "nvs_core_db_row_decimal" => (nvs_core_db_row_decimal as *const ()).cast(),
+        "nvs_core_db_row_instant" => (nvs_core_db_row_instant as *const ()).cast(),
+        "nvs_core_db_row_date" => (nvs_core_db_row_date as *const ()).cast(),
+        "nvs_core_db_row_time" => (nvs_core_db_row_time as *const ()).cast(),
+        "nvs_core_db_row_uuid" => (nvs_core_db_row_uuid as *const ()).cast(),
         _ => return None,
     })
 }
