@@ -1,0 +1,31 @@
+--TEST--
+`rollBack` is a member of the transaction alone, because ADR 0067 § 7 removes the connection-level one along with `commit` and `inTransaction` — ADR 0067 § 7, spec § 18
+--FILE--
+<?nvs
+// The boundary on both sides: `rollBack` is a member of the transaction and of
+// nothing else. ADR 0067 § 7 removes the connection-level `beginTransaction`,
+// `commit`, `rollBack` and `inTransaction` outright — nesting is what removed
+// the reason each of them existed — so the only place a rollback can be asked
+// for is inside the scope that owns one.
+var $db = Core\Db::connect("main");
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    // Everything the transaction did is reachable right up to the refusal, and
+    // none of it survives it: `rollBack` is the last statement that can run
+    // here, because it throws rather than returning.
+    var $rows = $tx->query("select id from accounts", []);
+    var $write = $tx->execute("update accounts set owner = ? where id = ?", ["ada", 1]);
+    var $written = $tx->executeMany("insert into accounts (id) values (?)", [[3], [4]]);
+    $tx->rollBack("the row is already gone");
+});
+
+// Refused: the same spelling on the connection, which has no scope to abandon
+// and so has no such member to reach for.
+$db->rollBack("the row is already gone");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Db\Connection` has no method named `rollBack`
+   --> case.nvs:21:1
+%A
+error: aborting due to 1 error
