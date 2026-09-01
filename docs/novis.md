@@ -16063,9 +16063,19 @@ who chose the same password are indistinguishable in the store. Compare with `::
 options to the current ones for equality, so a hash written under stronger settings asks to be rehashed —
 and a program doing as it was told silently downgrades it. Here a stronger stored hash is left alone.
 
-A stored value that is not a hash this class wrote **throws** rather than answering `false`. A storage
-layer handing back the wrong column otherwise looks exactly like every user typing the wrong password at
-once, and one of those is worth waking someone up for.
+**A PHP user table verifies on day one, and upgrades itself one login at a time.** `::verify` reads two
+shapes: the Argon2id string `::hash` writes, and a bcrypt hash under `$2y$`, `$2a$` or `$2b$` — the column
+PHP's `PASSWORD_DEFAULT` has been writing since 5.5. `::needsRehash` answers `true` for every one of them,
+because a different algorithm is weaker by its own rule, so the ordinary login-time loop below *is* the
+migration: verify the password, notice the row has fallen behind, rehash what was just proved. Nothing is
+converted offline, because a stored hash is not invertible — only a presented password can rewrite the
+row — and nothing writes bcrypt ever again, since `::hash` has no algorithm argument to ask it with. A
+stored cost above 17 is refused before any work, and `$2x$` — the tag that exists to be bug-compatible
+with `crypt_blowfish`'s sign-extension overflow — is not read at all.
+
+A stored value outside those two shapes **throws** rather than answering `false`. A storage layer handing
+back the wrong column otherwise looks exactly like every user typing the wrong password at once, and one
+of those is worth waking someone up for.
 
 ```nvs
 <?nvs
@@ -16137,16 +16147,16 @@ Hashes `$password` for storage with Argon2id under parameters this library choos
 Core\Password::verify(string $password, string $hash): bool
 ```
 
-Reports whether `$password` is the one `$hash` was made from, recomputing under the parameters `$hash` itself carries so that a hash written under older settings still verifies. The comparison is constant-time.
+Reports whether `$password` is the one `$hash` was made from, recomputing under the parameters `$hash` itself carries so that a hash written under older settings still verifies. Two shapes are read: the Argon2id string `hash` writes, and a PHP-stored bcrypt hash under `$2y$`, `$2a$` or `$2b$`. The comparison is constant-time.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$password` | `string` (reveal) | The password offered. A `secret` is accepted; the answer is a `bool` and carries nothing of it. |
-| `$hash` | `string` (neutral) | The stored PHC string, as `hash` answered it. |
+| `$hash` | `string` (neutral) | The stored hash: the PHC string `hash` answered, or a bcrypt hash a PHP application stored. |
 
 **Returns** `bool` — `true` when `$password` produced `$hash`, `false` when it did not.
 
-**Throws** `LogicError` — `$hash` is not a stored hash this class wrote — it does not parse, or it names another algorithm, version or salt. A storage bug rather than a wrong password, which is why it is not `false`.; `RuntimeError` — `$hash` asks for more memory than any hash this class writes could need, or this process cannot spare what it asks for.
+**Throws** `LogicError` — `$hash` is outside the read roster — it does not parse, or it names another algorithm, version or salt, or it carries the `$2x$` tag. A storage bug rather than a wrong password, which is why it is not `false`.; `RuntimeError` — `$hash` asks for more work than any hash it could be — more memory than this class writes, or a bcrypt cost above 17 — or this process cannot spare what it asks for.
 
 <a id="core-core-password-needsrehash"></a>
 #### `Core\Password::needsRehash`
@@ -16159,11 +16169,11 @@ Reports whether `$hash` is weaker than what `hash` would write today — a diffe
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$hash` | `string` (neutral) | The stored PHC string to measure. |
+| `$hash` | `string` (neutral) | The stored hash to measure. |
 
-**Returns** `bool` — `true` when the stored hash has fallen behind, `false` when it is at or above the current parameters. A hash *stronger* than the current ones answers `false`: rehashing it would lower its cost.
+**Returns** `bool` — `true` when the stored hash has fallen behind, `false` when it is at or above the current parameters. A hash *stronger* than the current ones answers `false`: rehashing it would lower its cost. Every bcrypt hash answers `true` — a different algorithm is weaker by this member's own rule — which is what makes the login-time upgrade loop the migration path for a PHP user table.
 
-**Throws** `LogicError` — `$hash` is not a PHC string at all. A hash that parses but names another algorithm answers `true` here rather than throwing — that is precisely the question this member is asked.
+**Throws** `LogicError` — `$hash` is neither a PHC string nor a bcrypt hash. One that parses but names another algorithm answers `true` here rather than throwing — that is precisely the question this member is asked.
 
 <a id="core-core-crypto"></a>
 ### `Core\Crypto`
@@ -18839,3 +18849,409 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `dl` | dropped | nothing is loaded into the process at run time ([ADR 0052](adr/0052-closed-doors.md)) |
 | `php_sapi_name` | dropped | there is one runtime and one execution model; `nvs run` and the server differ in what they are handed, not in an engine to name |
 | `zend_version` | dropped | there is no Zend engine. `Core\Env::VERSION` is the runtime's own version |
+| `file_get_contents` | member | `Core\IO::read` for bytes, `Core\IO::readText` where the file is text in a known charset. A URL is not a path ([ADR 0052](adr/0052-closed-doors.md) § 2); fetching one is `Core\Http\Client` |
+| `file_put_contents` | member | `Core\IO::write`, or `Core\IO::append` for what the `FILE_APPEND` flag meant — an option is never a bitmask (R11) |
+| `file` | member | `Core\IO::lines`, which is lazy where PHP's array is not; the whole-array shape is what `Core\Arr` does to it afterwards |
+| `readfile` | member | `Core\IO::read` and then `Core\Cli::write` or a `Core\Response` body. Reading and writing are two members, never one that does both to two different places |
+| `fpassthru` | member | the same pair, over the handle `Core\IO::open` returns |
+| `tmpfile` | member | `Core\IO::temporaryDir` and `Core\IO::open` inside it. There is no `temporaryFile`, because a program that needs one needs somewhere to put the second ([ADR 0131](adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)) |
+| `tempnam` | member | `Core\IO::temporaryDir`, then the name is the program's to choose inside it — never a name handed back for someone else to race for |
+| `sys_get_temp_dir` | member | `Core\IO::temporaryDir`, which **creates** a private directory that the runtime removes when the script ends, rather than naming a shared one every process can write |
+| `fopen` | member | `Core\IO::open`, whose second argument is the `IO\FileMode` enum (R11) |
+| `feof` | dropped | a read at the end answers empty and `Core\IO::lines` simply ends, so there is no flag to test. PHP's `while (!feof(…))` asks *before* the read, which is why it runs one iteration too many |
+| `fstat` | member | `Core\IO::stat` |
+| `set_file_buffer` | dropped | buffer sizes are the runtime's, tuned where the read is issued. `$file->flush` is the only control a program has over when bytes leave |
+| `fscanf` | dropped | there is no `scanf` grammar: a second parsing language next to `Core\Regex` earns nothing. Read the line with `$file->readLine` and parse it with `Core\Regex` or `Core\Csv::parse` |
+| `fgetcsv` | member | `Core\Csv::parse` over `$file->readLine` — parsing a record and reading a line are separate jobs ([01 § 12](spec/01-core-library.md)) |
+| `fputcsv` | member | `Core\Csv::format`, then `$file->write` |
+| `file_exists` | member | `Core\IO::exists` |
+| `is_file` | member | `Core\IO::isFile` |
+| `is_dir` | member | `Core\IO::isDir` |
+| `is_readable` | member | `Core\IO::isReadable` |
+| `is_writable` | member | `Core\IO::isWritable` |
+| `is_writeable` | member | `Core\IO::isWritable`; `is_writeable` is PHP's own alias |
+| `is_executable` | member | `Core\IO::stat`, whose record carries the mode. There is no predicate of its own, because on Windows PHP's answer is a guess from the extension |
+| `is_link` | member | `Core\IO::stat`, which describes the entry itself rather than what it points at |
+| `filesize` | member | `Core\IO::size` |
+| `filemtime` | member | `Core\IO::modifiedAt` |
+| `fileatime` | member | `Core\IO::stat`. Access time gets no member of its own: it is disabled on most filesystems a server runs on, so a member would be a fact that is usually a lie |
+| `filectime` | member | `Core\IO::stat` |
+| `fileinode` | member | `Core\IO::stat` |
+| `fileowner` | member | `Core\IO::stat` |
+| `filegroup` | member | `Core\IO::stat` |
+| `fileperms` | member | `Core\IO::stat` |
+| `filetype` | member | `Core\IO::stat`, or `Core\IO::isFile`/`Core\IO::isDir` where the question is one of those two — never a string to compare against (R11) |
+| `stat` | member | `Core\IO::stat` |
+| `lstat` | member | `Core\IO::stat`, which does not follow the link |
+| `clearstatcache` | dropped | nothing caches a stat between calls, so there is nothing to clear. The cache existed because PHP's per-function stats were expensive; one `Core\IO::stat` asking every question at once is the replacement |
+| `disk_free_space` | dropped | free space on a mount is a host fact an operator monitors, not a request's to read. A program that checks it before writing has a race and not a guarantee: the write either succeeds or throws |
+| `disk_total_space` | dropped | same |
+| `diskfreespace` | dropped | same; PHP's own alias of `disk_free_space` |
+| `getlastmod` | dropped | there is no main script to stat at run time. `Core\IO::modifiedAt` on a path the program names asks the same question out loud |
+| `copy` | member | `Core\IO::copy` |
+| `rename` | member | `Core\IO::move` |
+| `unlink` | member | `Core\IO::remove` |
+| `touch` | dropped | creating the file is `Core\IO::write` with empty content; setting a timestamp by hand is not offered, because a modification time the filesystem did not observe is one every reader of it is entitled to disbelieve |
+| `mkdir` | member | `Core\IO::makeDir` |
+| `rmdir` | member | `Core\IO::removeDir` |
+| `scandir` | member | `Core\IO::list` |
+| `glob` | member | `Core\IO::list` for one directory and `Core\IO::walk` for a tree, filtered with `Core\Regex` — a glob is a second pattern language for the same job (R17) |
+| `fnmatch` | dropped | same reason: `Core\Regex` is the pattern language |
+| `opendir` | member | `Core\IO::list`, or `Core\IO::walk` where the directory is large enough that the list should not be materialised |
+| `closedir` | dropped | no directory handle is opened, so none is closed |
+| `rewinddir` | dropped | same; a second pass is a second `Core\IO::list`, which is also the only honest way to see what changed |
+| `dir` | dropped | the `Directory` object is `opendir` with methods on it — one job reachable two ways (R17). `Core\IO::list` is the one way |
+| `link` | dropped | a hard link is filesystem topology, which deployment owns rather than a request. Where a copy was what was meant, `Core\IO::copy` says so |
+| `symlink` | dropped | same. A request that can create a link into a directory it cannot otherwise reach has widened its own capability, which is exactly what `fs.write` is scoped to prevent |
+| `readlink` | member | `Core\IO::canonicalize`, which resolves the whole chain rather than one hop of it |
+| `linkinfo` | member | `Core\IO::stat` |
+| `chmod` | dropped | a mode is a deployment fact. A request that can change one can widen its own reach, and the case it is usually reached for — a file only this program reads — is what `Core\IO::temporaryDir` already creates |
+| `chown` | dropped | same, and ownership additionally requires a privilege the runtime declines to hold |
+| `chgrp` | dropped | same |
+| `umask` | dropped | it mutates **process-global** state, so one request's call changes every core's writes — unsound for the same reason `putenv` and `setlocale` are gone |
+| `chdir` | dropped | the working directory is process-global too. A path is absolute, or is joined onto a directory the program was configured with, using `Core\Path::join` |
+| `getcwd` | dropped | with nothing able to change it, the working directory is not a request-visible fact; a program that wants a base directory is given one in `nvs.toml` |
+| `is_uploaded_file` | dropped | there is no temporary file to interrogate: an upload is never written to one. `Core\Request::files` yields the parts, and a part is a part by construction ([ADR 0105](adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)) |
+| `get_include_path` | dropped | there is no runtime include and so no search path: a program's units are resolved while compiling |
+| `set_include_path` | dropped | same, and it is process-global besides |
+| `stream_resolve_include_path` | dropped | same. Resolving a path the program does name is `Core\IO::canonicalize`, and proving it is inside a base is `Core\IO::within` |
+| `ftok` | dropped | System V IPC is not in this runtime. State shared between requests is `Core\Cache` and nothing else ([ADR 0059](adr/0059-cross-request-state-is-explicit.md)) |
+| `stream_wrapper_register` | dropped | a path means a path. No registry exists to add a scheme to |
+| `stream_register_wrapper` | dropped | same; PHP's own alias |
+| `stream_wrapper_unregister` | dropped | nothing is registered, so nothing is unregistered |
+| `stream_wrapper_restore` | dropped | same |
+| `stream_get_wrappers` | dropped | the answer would be the empty list, and a program that asks is about to do something the door is closed on |
+| `stream_get_transports` | dropped | same question about the same registry |
+| `stream_filter_register` | dropped | a transform belongs to the program, applied where the bytes are: `Core\Compress`, `Core\Encoding` or `Core\Hash` over an `Iterable<bytes>` |
+| `stream_filter_append` | dropped | same |
+| `stream_filter_prepend` | dropped | same |
+| `stream_filter_remove` | dropped | same |
+| `stream_get_filters` | dropped | same |
+| `stream_bucket_new` | dropped | a bucket is a filter's unit of work, and there are no filters |
+| `stream_bucket_append` | dropped | same |
+| `stream_bucket_prepend` | dropped | same |
+| `stream_bucket_make_writeable` | dropped | same |
+| `stream_context_create` | dropped | a context is an option array keyed by scheme, which is scheme dispatch by another name. Outbound options are `Core\Http\Options` ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)) |
+| `stream_context_get_default` | dropped | same, and a **default** context is one request setting another's options |
+| `stream_context_set_default` | dropped | same |
+| `stream_context_get_options` | dropped | same |
+| `stream_context_set_option` | dropped | same |
+| `stream_context_set_options` | dropped | same |
+| `stream_context_get_params` | dropped | same |
+| `stream_context_set_params` | dropped | same |
+| `stream_get_contents` | member | `Core\IO::read` for a path, `$file->read` for a handle |
+| `stream_copy_to_stream` | member | `Core\IO::writeStream`, which is the one member every stream-to-disk case goes through |
+| `stream_get_meta_data` | dropped | the array's keys depend on which wrapper produced the handle, which is the mechanism § 2 closes. What a `Core\IO\File` knows, it answers with a member |
+| `socket_get_status` | dropped | same; PHP's own alias of `stream_get_meta_data` |
+| `stream_is_local` | dropped | every path is local, because no path can be anything else |
+| `stream_supports_lock` | dropped | `$file->lock` takes the lock or throws, so there is no capability to test first |
+| `stream_isatty` | member | `Core\Cli::isTty` |
+| `stream_set_blocking` | dropped | there is no blocking mode to choose. A read suspends the task and hands the core to another; that is what the runtime's reactor is for, and a program that could turn it off could stall a core |
+| `socket_set_blocking` | dropped | same; PHP's own alias |
+| `stream_set_timeout` | dropped | a deadline is an argument at the call, not a mode set on a handle — `Core\Http\Options`'s `deadline`, which has no unbounded spelling ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)) |
+| `socket_set_timeout` | dropped | same; PHP's own alias |
+| `stream_set_chunk_size` | dropped | chunk and buffer sizes are the runtime's |
+| `stream_set_read_buffer` | dropped | same |
+| `stream_set_write_buffer` | dropped | same |
+| `stream_select` | dropped | waiting on many sources is `Core\Task` ([ADR 0072](adr/0072-core-task-structured-concurrency.md)): the reactor does the selecting, and a task that is ready is resumed |
+| `stream_socket_enable_crypto` | dropped | a connection is TLS from the moment it is made or it is not TLS at all. Where a protocol requires STARTTLS the client does it — `Core\Mail`'s does — and no program flips a live plaintext socket |
+| `hash` | member | `Core\Hash::of`, whose second argument is a `Digest` case rather than an algorithm name (R11) — a misspelling is a compile error and not a runtime `false` |
+| `hash_algos` | dropped | the roster *is* the `Digest` enum, which the compiler already holds. A list built at run time exists to be searched for a name, which is the failure this removes |
+| `hash_hmac_algos` | dropped | `StrongDigest` is that list, and `Core\Hash::hmac` declares it ([ADR 0047](adr/0047-literal-and-enum-case-types.md)) |
+| `hash_hmac` | member | `Core\Hash::hmac`, whose key is `secret bytes` ([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)) and whose digest cannot be a broken one |
+| `hash_equals` | member | `Core\Hash::equals`, constant-time |
+| `hash_init` | member | `Core\Hash::stream` |
+| `hash_copy` | dropped | a `Hash\Stream` does not fork. Two digests of one input are two streams — PHP's copy exists only because `hash_final` invalidates the context, which is the same rule stated as a workaround |
+| `hash_file` | member | `Core\Hash::of` over `Core\IO::read` where the file fits, `Core\Hash::stream` fed from `Core\IO::open`'s handle where it does not. Reading and digesting are two jobs (R17) |
+| `hash_pbkdf2` | dropped | storing a password is `Core\Password::hash`, which writes Argon2id and takes no cost parameters from the call site ([ADR 0129](adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)). Where PBKDF2 derived a key rather than stored a password, that is `Core\Crypto` |
+| `md5` | member | `Core\Hash::of` with `Digest::Md5`, which the roster keeps for interop and labels collision-broken |
+| `md5_file` | member | the same, over `Core\IO::read` |
+| `sha1` | member | `Core\Hash::of` with `Digest::Sha1` |
+| `sha1_file` | member | the same, over `Core\IO::read` |
+| `crc32` | member | `Core\Hash::of` with `Digest::Crc32`. PHP's `crc32()` is CRC-32/ISO-HDLC — the `crc32b` of `hash()`, not its `crc32` — and `Digest::Crc32c` is beside it for the checksum object stores stamp |
+| `crypt` | member | `Core\Password::hash` to write and `Core\Password::verify` to read. There is no salt argument and no algorithm prefix inside a string, which is what made `crypt` silently fall back to DES for two decades |
+| `password_hash` | member | `Core\Password::hash` — Argon2id, always |
+| `password_verify` | member | `Core\Password::verify`, which also verifies a PHP-stored bcrypt hash ([ADR 0129](adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)) |
+| `password_needs_rehash` | member | `Core\Password::needsRehash`, which answers `true` for every bcrypt hash, so a migrated user table upgrades itself one login at a time |
+| `password_algos` | dropped | there is one algorithm and no argument that could choose another, so there is no list to enumerate |
+| `password_get_info` | dropped | the one fact a program acts on is whether the stored hash needs replacing, and that is `Core\Password::needsRehash` |
+| `mhash` | dropped | `ext/hash`'s compatibility layer for a library retired long ago. `Core\Hash::of` is the one door |
+| `mhash_count` | dropped | same |
+| `mhash_get_block_size` | dropped | same; each case's width is in `Digest`'s roster, which [01 § 11](spec/01-core-library.md) states is its only home |
+| `mhash_get_hash_name` | dropped | same; a case has a name because it is an enum |
+| `mhash_keygen_s2k` | dropped | S2K is OpenPGP's key derivation. Deriving a key is `Core\Crypto` |
+| `ob_start` | member | `Core\Out::capture`, which takes the closure whose output is captured — a buffer's extent is a call, not a pair of statements someone must remember to match |
+| `ob_get_clean` | member | `Core\Out::capture` is exactly this pair: it captures and returns, and there is no state left behind to clean |
+| `ob_get_contents` | member | `Core\Out::capture`'s return value. There is no way to read a buffer somebody else started, because there is no buffer somebody else started |
+| `ob_end_clean` | dropped | a buffer ends when its closure returns |
+| `ob_clean` | dropped | emptying a buffer half way through and carrying on is only possible where the buffer outlives the statement that filled it. A `capture`'s bytes are its closure's return value: not calling it is how they are discarded |
+| `ob_end_flush` | dropped | `capture` always swallows. Re-emitting is a visible `echo Core\Out::capture(…)` rather than the engine passing bytes through on a program's behalf |
+| `ob_flush` | dropped | same |
+| `ob_get_flush` | dropped | same |
+| `ob_get_length` | dropped | the captured value is in hand, so its length is a question about a value and not about the engine |
+| `ob_get_level` | dropped | nesting is call nesting; there is no global stack whose depth could be asked for |
+| `ob_get_status` | dropped | same |
+| `ob_list_handlers` | dropped | same. A `{through:}` filter belongs to the one `capture` that declares it, so there is no list of handlers installed elsewhere |
+| `ob_implicit_flush` | dropped | there is no implicit flushing ([01 § 12](spec/01-core-library.md)) |
+| `ob_gzhandler` | dropped | response compression is configured at the edge, never installed as a callback that rewrites the body — the built-in server compresses nothing itself ([ADR 0097](adr/0097-development-server-and-proxied-origin.md) § 1). `Core\Compress` is for data the program compresses on purpose |
+| `flush` | dropped | a response is written by the runtime when the handler returns. Streaming one is `Core\Response`'s body, which is a value the program produces rather than a global buffer it pushes |
+| `output_add_rewrite_var` | dropped | it edits every URL in the response body on the way out. `Core\Router::url` builds URLs and nothing rewrites them afterwards |
+| `output_reset_rewrite_vars` | dropped | same |
+| `exec` | member | `Core\Process::run`, which takes a program and an `array<string>` of arguments — never a command line ([ADR 0044](adr/0044-core-process-argv-only-no-shell.md)) — and needs `process.exec` |
+| `system` | member | `Core\Process::run`. PHP's four spawning functions differ only in what they do with the output, which is a property of the result and not a reason for four names (R17) |
+| `passthru` | member | `Core\Process::run`, then `Core\Cli::write` |
+| `shell_exec` | member | `Core\Process::run`. The backtick operator goes with it: there is no shell |
+| `escapeshellarg` | dropped | **nothing to escape.** A command is a program plus an argument vector, so the quoting rules this function encodes — different on Windows, different again inside `cmd.exe` — have no input |
+| `escapeshellcmd` | dropped | same, and worse: it escapes a whole command line, which is the construct ADR 0044 exists to remove |
+| `proc_nice` | dropped | scheduling priority is the operator's, set where the process is started. A request that can renice its own runtime can starve every other request on the core |
+| `getmyuid` | dropped | the account the process runs as is a deployment fact, and a program that branches on it is configuring itself from the environment instead of from `nvs.toml` |
+| `getmygid` | dropped | same |
+| `get_current_user` | dropped | same |
+| `getmyinode` | dropped | the inode of the running script, which has no meaning here: there is no script file being interpreted at run time |
+| `getopt` | member | `Core\Command`, whose option table is built while compiling from `#[Command]`, `#[Option]` and `#[Argument]` ([ADR 0086](adr/0086-core-cli-terminal-is-a-sink.md)). `Core\Cli::arguments` is the raw vector where a program insists on reading it itself |
+| `exit` | language | `exit` is a statement, not a function. `Core\Script::onExit` hooks still run, because the end of a script is observable ([ADR 0127](adr/0127-the-end-of-a-script-is-observable.md)) |
+| `die` | language | the same statement; `die` is PHP's second spelling of it |
+| `register_shutdown_function` | member | `Core\Script::onExit`, FIFO, run as the last user code at every non-fatal ending. What PHP used it for on a *fatal* is [ADR 0020](adr/0020-error-escalation-ladder.md)'s handler ladder, which is a different mechanism on a reserved budget |
+| `ignore_user_abort` | dropped | work that must outlive the response is `Core\Task::afterResponse` ([01 § 19](spec/01-core-library.md)), which the runtime owns and bounds — not a flag asking the engine not to notice that the client has gone |
+| `connection_aborted` | dropped | a client that disappears cancels the request and the runtime unwinds it. There is no state to poll, because polling only ever told a program what had already been decided |
+| `connection_status` | dropped | same |
+| `register_tick_function` | dropped | `declare(ticks=…)` does not exist. Sampling a running program is [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s safepoint-shaped probes, which cost nothing when they are off |
+| `unregister_tick_function` | dropped | same |
+| `cli_set_process_title` | dropped | it mutates process-global state, and one process serves many requests: the title one of them set is a label on all the others |
+| `cli_get_process_title` | dropped | same |
+| `sapi_windows_cp_get` | dropped | a `string` is UTF-8 ([ADR 0009](adr/0009-string-and-bytes.md)), so there is no console code page to read or set; conversion at the `bytes` boundary is `Core\Encoding` |
+| `sapi_windows_cp_set` | dropped | same, and it is process-global besides |
+| `sapi_windows_cp_is_utf8` | dropped | same; the answer is fixed |
+| `sapi_windows_cp_conv` | dropped | same — converting between encodings is `Core\Encoding`, on every platform alike |
+| `sapi_windows_vt100_support` | dropped | `Core\Cli` answers what the terminal supports rather than which console API the platform has, and it does so identically on every platform ([ADR 0086](adr/0086-core-cli-terminal-is-a-sink.md) § 1) |
+| `sapi_windows_set_ctrl_handler` | dropped | signals are `Core\Signal`, graceful shutdown only ([ADR 0051](adr/0051-standard-library-tiers.md) § 3) |
+| `sapi_windows_generate_ctrl_event` | dropped | sending one is `Core\Process::spawn`'s handle where the target is a child, and not offered at all where it is not |
+| `class_exists` | member | `Core\Reflect::forClass`, whose `null` is the answer: an undeclared name is an absence rather than a failure (R6). PHP's `$autoload` argument has nothing left to control, because no existence check can run a loader ([ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md)) |
+| `interface_exists` | member | `Core\Reflect::forClass`. Which kind of declaration carries the name is not a second question, and the description it answers with says which |
+| `trait_exists` | dropped | there is no `trait` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)), so no name could answer `true` |
+| `enum_exists` | member | `Core\Reflect::forClass`, the same door. An enum's cases are closed and known while compiling ([ADR 0010](adr/0010-enums-are-a-value-type.md)), so its existence is the only thing left to ask at run time |
+| `get_class` | member | `Core\Reflect::forObject`, whose description carries the name. Where the receiver's class is known while compiling — most calls — `$object::class` is a constant the compiler already holds |
+| `get_called_class` | language | `static::class`. Late static binding has its own spelling, and a function that reads the calling scope is not one |
+| `get_parent_class` | member | `Core\Reflect::forObject`'s description. The test a parent name usually feeds is `instanceof`, which the compiler answers without producing a name at all |
+| `get_object_vars` | member | `Core\Reflect::forObject`, whose property walk respects the visibility the *calling site* has ([ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md) § 2) rather than silently returning more when called from inside the class |
+| `get_mangled_object_vars` | dropped | the mangling is PHP's own encoding of `private` and `protected` into a property key (`"\0Class\0name"`). Novis reports visibility as visibility, so there is no encoded key to hand back |
+| `get_class_methods` | member | `Core\Reflect::forClass` ([01 § 13](spec/01-core-library.md)). The walk is visibility-respecting, so what it lists is what the calling site could have called |
+| `get_class_vars` | member | `Core\Reflect::forClass`. The default-value half is the declaration's own initializer, which reflection reports rather than reconstructs |
+| `method_exists` | member | `Core\Reflect::forClass`. On a receiver whose class the checker knows this is not a question at all — a declared type or an interface answers it while compiling, and reflection is for the receiver whose type was erased |
+| `is_a` | language | `instanceof`, which is an operator (R17). Its `$allow_string` argument is the by-name reading, which is `Core\Reflect::forClass` |
+| `is_subclass_of` | language | `instanceof`. It differs from `is_a` only by excluding the class itself, which is a comparison against the name the description already carries |
+| `class_implements` | member | `Core\Reflect::forClass` ([01 § 13](spec/01-core-library.md)). The plugin-registry use — *which* classes implement an interface — is `Core\Program`'s compile-time `implementing<T>()` query instead, which does not require them to have been loaded first ([ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md)) |
+| `class_parents` | member | `Core\Reflect::forClass`'s description; as with `get_parent_class`, the test it feeds is `instanceof` |
+| `class_uses` | dropped | there is no `trait` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
+| `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker, `Core\Program`'s discovery, and `nvs convert`. Renaming is `use X as Y`, which is per-file and resolved while compiling |
+| `get_declared_traits` | dropped | there is no `trait` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
+| `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` ([ADR 0051](adr/0051-standard-library-tiers.md) § 3); a list of the classes one extension registered describes a build, not a program |
+| `spl_object_hash` | dropped | the same id in hex, with the same reuse hazard and a string's cost on top |
+| `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence ([ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md)). A loader stack is process-global state a thread-per-core runtime cannot keep |
+| `spl_autoload_unregister` | dropped | there is no stack to remove from |
+| `spl_autoload_functions` | dropped | same; there is no stack to enumerate |
+| `spl_autoload_call` | dropped | there is no moment at which a name is declared but not yet resolved |
+| `spl_autoload` | dropped | the default loader, which is the `include`-path search `autoload`'s literal paths replace |
+| `spl_autoload_extensions` | dropped | same — `autoload` names paths, so there is no extension list to guess a filename from |
+| `call_user_func` | language | `$f(...)`. A `callable` is closures only ([ADR 0027](adr/0027-callable-is-closures-only.md)), and a closure is invoked by writing the call; the `"Class::method"` string form has no spelling at all |
+| `call_user_func_array` | language | `$f(...$args)`, argument unpacking |
+| `forward_static_call` | dropped | it exists to forward late static binding through a call whose target is a string. A static call's target is a name the compiler resolves, and the binding is `static::` written directly |
+| `forward_static_call_array` | dropped | the same, with unpacking |
+| `func_get_args` | language | a variadic parameter (`...$args`), which is that list with a declared element type and a name |
+| `func_get_arg` | language | the same parameter, indexed |
+| `func_num_args` | language | that parameter's own length. There is no second arity to discover, because a call passing arguments the signature does not declare fails to compile |
+| `function_exists` | dropped | there are no free functions to look up ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)): a member either resolves while compiling or the call is not compiled. Its feature-detection use asks which components a unit was built against, which cannot differ between two requests of one process |
+| `serialize` | member | `Core\Serialize::encode` — the user-facing half of the one graph copy the `spawn` boundary already runs ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), in a versioned format of Novis's own rather than PHP's |
+| `unserialize` | member | `Core\Serialize::decode`, which is a **`tainted` sink** with no launderer ([01 § 13](spec/01-core-library.md)): bytes that arrived from outside are refused structurally, which is what closes PHP's most productive remote-code-execution class. Its `$options` allowed-class list is the workaround that rule replaces |
+| `var_dump` | member | `Core\Debug::dump`, over the one diagnostic record ([ADR 0092](adr/0092-one-diagnostic-record-three-renderings.md)) |
+| `print_r` | member | `Core\Debug::render` for the string and `Core\Debug::dump` for the write. PHP's `$return` flag chose between those two, which is one member each rather than a boolean that changes a return type |
+| `var_export` | member | `Core\Debug::render`, whose rendering is one of ADR 0092 § 3's three over that same record. The promise that the output is valid source is not kept and is not wanted: there is no `eval` to feed it to ([ADR 0052](adr/0052-closed-doors.md)) |
+| `debug_zval_dump` | dropped | it prints a refcount, which is the runtime's own accounting and not a fact a program is entitled to branch on. The dumping half is `Core\Debug::dump` |
+| `debug_print_backtrace` | member | the same property, handed to `Core\Debug::dump` |
+| `token_get_all` | member | `Core\Ast::parse`, which calls the compiler's own lexer and parser and answers with a typed, inert tree rather than an untyped token array ([ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md) § 3) |
+| `token_name` | dropped | there is no token array whose integer kinds need naming: a node's kind is its type |
+| `get_resource_type` | dropped | there is no `resource` (R14) — anything with a lifetime is an object, and its type is its class |
+| `get_resource_id` | dropped | same; identity across a collection is `Core\ObjectMap`'s key |
+| `get_resources` | dropped | same, and an enumeration of every open handle in the process is not a per-request fact in a runtime that serves many requests at once |
+| `header_remove` | dropped | a header exists on a response because the handler set it, so unsetting one is not setting it. The headers a program does not write are policy's ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)), and overriding one on a single response is `Core\Response::setHeader` |
+| `headers_list` | dropped | a read-back of what the engine was told. The handler holding the response is the one that set them |
+| `headers_sent` | dropped | there is no moment at which the headers escaped and a program must start guarding: the server writes a response the handler returned. The one ordering error it was used to avoid — writing a header after a body — is a compile error ([01 § 15](spec/01-core-library.md)) |
+| `header_register_callback` | dropped | a hook the engine runs just before flushing, to correct headers written from somewhere else. Nothing writes headers from somewhere else |
+| `setrawcookie` | dropped | it differs from `setcookie` only by skipping the URL-encoding, and encoding a cookie's value is `addCookie`'s job rather than a second function's — no operation is reachable two ways ([ADR 0063](adr/0063-core-api-conventions.md)) |
+| `http_get_last_response_headers` | dropped | it reports the headers of the last fetch a **stream wrapper** made — `$http_response_header` under a function name. There are no stream wrappers ([ADR 0052](adr/0052-closed-doors.md)), and an outbound response is the value `Core\Http\Client` returns ([01 § 16](spec/01-core-library.md)) |
+| `http_clear_last_response_headers` | dropped | same; there is no hidden slot to clear |
+| `session_start` | dropped | `Core\Session`'s members are the session ([01 § 15](spec/01-core-library.md)). There is no superglobal to populate first, so there is no call that must come before the others and no failure mode where it did not |
+| `session_status` | dropped | a session that must be asked whether it is running is one the program had to start |
+| `session_id` | dropped | the identifier is the cookie's business. The one operation a program performs on it is `Core\Session::regenerate` after a privilege change, and reading it out is how it ends up in a log |
+| `session_create_id` | dropped | ids are minted by the session. A program that mints its own must be trusted to mint it unpredictably, and `Core\Random` is what it would have to reach for to do so |
+| `session_reset` | dropped | it re-reads the stored data over uncommitted changes, which is only meaningful where writes are buffered until a commit |
+| `session_abort` | dropped | the same buffer, discarded from the other end |
+| `session_commit` | dropped | there is no request-long write buffer to flush: `Core\Session::set` is the write |
+| `session_write_close` | dropped | `session_commit`'s other name, with the same answer |
+| `session_gc` | dropped | expiry belongs to the store, on its own schedule. A request that collects garbage for the ones before it pays their bill |
+| `session_encode` | dropped | the storage format is the backend's own and is never a program-visible string. Serializing a value on purpose is `Core\Serialize::encode` |
+| `session_decode` | dropped | same, and reading a serialized session out of bytes from outside is exactly the hazard `Core\Serialize::decode`'s `tainted` sink refuses ([01 § 13](spec/01-core-library.md)) |
+| `session_name` | dropped | the cookie's name is configuration. A process-global setting one request may change is one it changes for every other request that core is serving |
+| `session_module_name` | dropped | the backend is configured, not named at run time by a string that has to match a compiled-in handler |
+| `session_save_path` | dropped | where sessions live is the operator's decision, and a per-request write to it is the same process-global mutation |
+| `session_set_save_handler` | dropped | a userland handler installed into engine-global state, per request, with six callbacks whose ordering is undocumented. A backend is chosen once, in configuration |
+| `session_get_cookie_params` | dropped | a read-back of the cookie policy, which is `[http.cookies]`'s and applies to every cookie alike ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)) |
+| `session_set_cookie_params` | dropped | the same policy, mutated per request |
+| `session_cache_limiter` | dropped | it writes `Cache-Control` and `Expires` as a side effect of a session existing, from a four-name vocabulary nobody remembers. Caching headers are `Core\Response::setHeader`, written where they are meant |
+| `session_cache_expire` | dropped | the same headers, and the same answer |
+| `session_register_shutdown` | dropped | it exists because a session's write happened at shutdown. Nothing is deferred here, and end-of-script work in general is `Core\Script::onExit` ([ADR 0127](adr/0127-the-end-of-a-script-is-observable.md)) |
+| `zlib_get_coding_type` | dropped | it reports which encoding `ob_gzhandler` picked for the response, and response compression is configured at the edge rather than installed as an output callback ([ADR 0097](adr/0097-development-server-and-proxied-origin.md) § 1) |
+| `gzopen` | dropped | reading and decompressing are two jobs (R17): `Core\IO::open`'s handle yields the bytes and `Core\Compress` decodes them. A handle is an object either way, never a `resource` (R14) |
+| `gzclose` | dropped | there is no second handle roster to close; a `Core\IO` handle's lifetime is the object's |
+| `gzread` | dropped | the same pair — `Core\IO`'s handle reads, `Core\Compress` decodes |
+| `gzwrite` | dropped | the same pair, in the other direction |
+| `gzputs` | dropped | `gzwrite`'s alias. No operation is reachable two ways ([ADR 0063](adr/0063-core-api-conventions.md)) |
+| `gzgetc` | dropped | one byte per call is what a handle offers. The decompressed bytes are a value here, and reading one out of it is `Core\Bytes` ([01 § 7](spec/01-core-library.md)) |
+| `gzgets` | dropped | splitting into lines is `Core\Str`'s job over those bytes, not a second thing the decompressor does |
+| `gzeof` | dropped | end-of-input is a question about a handle being drained by hand. An iteration ends when it ends ([ADR 0053](adr/0053-iteration-and-generators.md)) |
+| `gzseek` | dropped | seeking inside a compressed stream means decompressing from the start and discarding the result, which is a cost no member should hide behind a name that reads as free |
+| `gztell` | dropped | the same, from the other side: an offset into bytes that only exist as they are produced |
+| `gzrewind` | dropped | the same, and the honest spelling is to decode again |
+| `gzfile` | member | `Core\IO::read` for the bytes, `Core\Compress` for the decoding and `Core\Str` for the split into lines — three jobs PHP folded into one call, and the middle one is the only one that is about compression |
+| `gzpassthru` | dropped | it writes the remainder of a handle straight to the output. Output is `echo` over a value the program is holding ([ADR 0088](adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)) |
+| `inflate_get_status` | dropped | an integer read after every `inflate_add` to learn whether the stream ended or failed. A failure throws and an ending is the end of the iteration ([ADR 0063](adr/0063-core-api-conventions.md)) |
+| `inflate_get_read_len` | dropped | how much input the last call consumed, which a caller needs only because PHP's context does not report what it produced |
+| `xml_parser_free` | dropped | a reader's lifetime is its object's (R14). There is no handle to free, and nothing observes the difference |
+| `xml_parser_set_option` | dropped | its options are settled rather than configurable — case folding is `Core\Str`'s job on a name the caller chose to fold, the namespace separator does not exist because a qualified name is a pair rather than a joined string, and the target encoding is `Core\Encoding` at the `bytes`↔`string` boundary ([ADR 0009](adr/0009-string-and-bytes.md)) |
+| `xml_parser_get_option` | dropped | reads back what nothing sets |
+| `xml_set_element_handler` | dropped | start and end tags are two arms of the `foreach` over events, not two registered callbacks — and an arm can `break`, which a handler cannot |
+| `xml_set_character_data_handler` | dropped | the text event, in the same loop |
+| `xml_set_processing_instruction_handler` | dropped | the processing-instruction event, in the same loop |
+| `xml_set_default_handler` | dropped | it catches every event no other handler claimed, which is a fallthrough that only exists because the roster is registrations. A `match` has a default arm already |
+| `xml_set_start_namespace_decl_handler` | dropped | a namespace declaration's scope is a property of the name the event carries, reported with it |
+| `xml_set_end_namespace_decl_handler` | dropped | the same, at the other end of that scope |
+| `xml_set_notation_decl_handler` | dropped | a DTD notation declaration, which is only interesting to a parser that acts on the DTD. This one does not |
+| `xml_set_unparsed_entity_decl_handler` | dropped | it announces an entity naming an external file, so that the program can go and read it. Nothing here resolves one |
+| `xml_set_external_entity_ref_handler` | dropped | the XXE hook itself: PHP hands the program a system id and asks it to fetch and parse what it names. There is no such door (section lead) |
+| `xml_set_object` | dropped | it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have ([ADR 0031](adr/0031-callable-is-the-only-closure-type.md)) |
+| `xml_get_error_code` | dropped | a failed parse throws ([ADR 0063](adr/0063-core-api-conventions.md)), so there is no code left on a parser to read afterwards |
+| `xml_error_string` | dropped | the message arrives on the throw. A code-to-string table is what one diagnostic record with three renderings replaces ([ADR 0092](adr/0092-one-diagnostic-record-three-renderings.md)) |
+| `simplexml_load_file` | member | `Core\IO::read` for the bytes and that same tree entry for the parse. Reading a file and parsing XML are two jobs (R17), and only the first needs `fs.read` |
+| `simplexml_import_dom` | dropped | there is one node family, so there is nothing to convert between |
+| `dom_import_simplexml` | dropped | the same conversion in the other direction, and the same answer |
+| `dom\import_simplexml` | dropped | PHP 8.4's namespaced spelling of that function. One name in the inventory, one row, the same answer |
+| `libxml_use_internal_errors` | dropped | it turns parse errors into a process-global bucket instead of warnings. A malformed document throws, and there is no second mode in which it does not |
+| `libxml_get_errors` | dropped | reads that bucket |
+| `libxml_get_last_error` | dropped | reads the last entry in it |
+| `libxml_clear_errors` | dropped | empties it. Process-global state a request can leave behind is the shape [ADR 0052](adr/0052-closed-doors.md) § 3 closes generally |
+| `libxml_disable_entity_loader` | dropped | the switch that makes libxml safe, deprecated by PHP 8 for being one. There is no resolver to disable, so there is no switch to leave in the wrong position |
+| `libxml_set_external_entity_loader` | dropped | it installs the resolver the section lead says does not exist |
+| `libxml_get_external_entity_loader` | dropped | reads back what nothing installs |
+| `libxml_set_streams_context` | dropped | a stream context for fetches that do not happen, over the stream wrappers [ADR 0052](adr/0052-closed-doors.md) closes |
+| `xmlwriter_open_uri` | dropped | writing to a URI is `Core\IO` under `fs.write` for a path, and nothing at all for a wrapper scheme ([ADR 0052](adr/0052-closed-doors.md)). The writer produces bytes; where they go is the program's call |
+| `xmlwriter_flush` | dropped | the same read, spelled for the URI case as well |
+| `xmlwriter_full_end_element` | dropped | it forces `<a></a>` where `<a/>` would do. Which of the two an empty element is written as is the serialiser's decision, not a second closing call |
+| `xmlwriter_start_element_ns` | dropped | the qualified name goes in the name argument of the row above |
+| `xmlwriter_write_element` | dropped | the shortcut for an element whose whole content is text, which the pair plus the text member already spells (R17) |
+| `xmlwriter_write_element_ns` | dropped | both reasons at once |
+| `xmlwriter_write_raw` | dropped | it puts bytes into the document unescaped, which is the only way to make this API emit a malformed or injected document. There is no `Markup`-shaped launderer for XML, and [ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 3 is why a generic one would not be added |
+| `xmlwriter_start_attribute` | dropped | the pair for something that never nests, whose only purpose is to let `text` be called between the halves |
+| `xmlwriter_end_attribute` | dropped | the other half of it |
+| `xmlwriter_start_attribute_ns` | dropped | the pair, and the `_ns` split |
+| `xmlwriter_write_attribute_ns` | dropped | the qualified name goes in the name argument of `write_attribute` |
+| `xmlwriter_start_comment` | dropped | its pair |
+| `xmlwriter_end_comment` | dropped | the other half |
+| `xmlwriter_start_cdata` | dropped | its pair |
+| `xmlwriter_end_cdata` | dropped | the other half |
+| `xmlwriter_start_pi` | dropped | its pair |
+| `xmlwriter_end_pi` | dropped | the other half |
+| `xmlwriter_start_dtd` | dropped | the pair exists to hold an internal subset |
+| `xmlwriter_end_dtd` | dropped | the other half of it |
+| `xmlwriter_write_dtd_entity` | dropped | an entity declaration's only consumer is a parser that expands it. This one does not, and emitting one hands the next reader the payload the section lead refuses to resolve |
+| `xmlwriter_start_dtd_entity` | dropped | its pair |
+| `xmlwriter_end_dtd_entity` | dropped | the other half |
+| `xmlwriter_write_dtd_element` | dropped | a content-model declaration, which is validation by DTD — a schema language nothing here reads |
+| `xmlwriter_start_dtd_element` | dropped | its pair |
+| `xmlwriter_end_dtd_element` | dropped | the other half |
+| `xmlwriter_write_dtd_attlist` | dropped | an attribute-list declaration, the same schema language, and the one that can carry a default value a resolving parser would inject |
+| `xmlwriter_start_dtd_attlist` | dropped | its pair |
+| `xmlwriter_end_dtd_attlist` | dropped | the other half |
+| `gethostbyname` | dropped | it resolves a name to an address the program then connects to by hand, which is the half of DNS rebinding an application can least afford to own. Resolution happens inside the outbound door, which connects to the address it resolved ([ADR 0058](adr/0058-outbound-request-policy.md)) |
+| `gethostbynamel` | dropped | the same, as a list, and the same gap |
+| `gethostbyaddr` | dropped | a reverse lookup, whose answer is controlled by whoever owns the address and is used almost exclusively as a name to trust |
+| `checkdnsrr` | dropped | "does a record exist" as a boolean, reached for as email validation. `Core\Validate::isDomain` answers the question about the *text*, and no probe makes an address deliverable |
+| `dns_check_record` | dropped | `checkdnsrr`'s alias. No operation is reachable two ways ([ADR 0063](adr/0063-core-api-conventions.md) R17) |
+| `dns_get_record` | dropped | a general DNS query is a client for a protocol nothing in Tier 0 speaks: resolution here is a step inside the outbound door, not a value handed to the program. A program that genuinely needs records builds one over `Core\Net` ([ADR 0051](adr/0051-standard-library-tiers.md) § 1) |
+| `dns_get_mx` | dropped | the same, narrowed to MX. `Core\Mail` sends through an endpoint an operator named, so the one first-party use of an MX lookup is already configuration |
+| `getmxrr` | dropped | `dns_get_mx`'s alias, with the answer returned through two by-reference parameters (R3) |
+| `getprotobyname` | dropped | an `/etc/protocols` lookup, a convenience for building a raw socket. `Core\Net`'s protocol is the constructor it was reached through |
+| `getprotobynumber` | dropped | the same table, other direction |
+| `getservbyname` | dropped | an `/etc/services` lookup. `Core\Net` takes a port, and a well-known port is a constant in the program that needs it |
+| `getservbyport` | dropped | the same table, other direction, and the answer is whatever the host's file says rather than what is listening |
+| `inet_pton` | dropped | packed binary addresses exist to be handed to a C socket call or stored in a fixed-width column. `Core\Validate::isIp` answers what a program asks of the text, and `Core\Net` takes the text |
+| `inet_ntop` | dropped | the inverse, over bytes only a C API produces |
+| `ip2long` | dropped | IPv4-only address arithmetic, reached for as subnet containment — a question that has no answer here for half the addresses a server sees, which is precisely the shape a member takes and an `int` does not |
+| `long2ip` | dropped | the inverse, including for the negative `int` a 32-bit `ip2long` produced |
+| `net_get_interfaces` | dropped | enumerating the host's interfaces is an operator's question rather than a request's, and it is a window onto the network's shape with no capability in front of it ([ADR 0118](adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)) |
+| `get_headers` | dropped | a request spelled as a string function, with no timeout, no redirect policy and no pinned address. `Core\Http\Client`, under [ADR 0074](adr/0074-http-defaults-safe-and-finite.md)'s finite outbound |
+| `get_meta_tags` | dropped | it fetches a URL and scrapes `<meta>` out of it with a regex — two jobs, and the second is a parse: `Core\Http\Client` for the bytes, `Core\Html`'s parser for the tags ([ADR 0122](adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)) |
+| `get_browser` | dropped | it matches a `User-Agent` against a `browscap.ini` the operator is asked to keep current. The header is `Core\Request::header`; behaviour keyed on a parsed browser identity belongs to a package, not to a `Core` member over a data file that ages |
+| `mail` | member | `Core\Mail::send` — an SMTP client with structured headers over an operator-named endpoint, rather than a `sendmail` binary and a header string a caller can inject a second recipient into ([01 § 16](spec/01-core-library.md)) |
+| `set_error_handler` | dropped | it installs a callback for warnings and notices, overwhelmingly in order to turn them into exceptions. Here a failure already throws, so there is nothing to convert and no severity to inspect |
+| `restore_error_handler` | dropped | it pops a stack of handlers that is never pushed |
+| `get_error_handler` | dropped | PHP 8.5's reader for the top of that stack |
+| `restore_exception_handler` | dropped | the same stack, for something that is registered once rather than pushed and popped |
+| `get_exception_handler` | dropped | reads it back |
+| `error_reporting` | dropped | a severity bitmask over a warning system there is none of. What is *written* is `[log] level`, a minimum an operator sets ([ADR 0064](adr/0064-configuration-file-format.md)), and what is *raised* is not a level at all |
+| `error_get_last` | dropped | reads the last warning out of a process-global slot |
+| `error_clear_last` | dropped | empties that slot. Global state a request can leave behind for the next one is the shape [ADR 0052](adr/0052-closed-doors.md) § 3 closes |
+| `trigger_error` | member | `Core\Log::write` to say something happened, `throw` to stop. PHP folds both into one call selected by a severity argument, and they are different instructions |
+| `user_error` | dropped | `trigger_error`'s alias |
+| `error_log` | member | `Core\Log::write`. PHP's third argument turns the same call into an email or an arbitrary file path; the destination is `[log] target` and the operator's ([ADR 0064](adr/0064-configuration-file-format.md)) |
+| `openlog` | dropped | a second logging API, opened with a process-global facility and prefix that every later call reads. Syslog is a `[log] target`, not an API |
+| `syslog` | dropped | that API's write. One serialiser, reached twice, is the rule `Core\Log` and the engine floor already share |
+| `closelog` | dropped | closes what nothing opened |
+| `assert_options` | dropped | the knobs for that deletion — a global callback, a bail flag, and the severity of the warning it raises instead of stopping |
+| `filter_var_array` | dropped | applying a validator to every element is `Core\Arr` plus the member. A *schema* over untrusted input is a decode into a declared shape, which reports every problem as a `Core\Issue` ([ADR 0071](adr/0071-derived-codecs.md)) rather than mixing the value, `null` and `false` in one array |
+| `filter_input` | dropped | it reads a superglobal and validates in one call. The read is `Core\Request::query` and its siblings ([ADR 0012](adr/0012-no-superglobals.md)), the check is a `Core\Validate` member, and the value stays `tainted` either way because no validator launders |
+| `filter_input_array` | dropped | both of those at once, over a spec array |
+| `filter_has_var` | dropped | "did this input exist", against a superglobal. Absence is `?T` ([ADR 0063](adr/0063-core-api-conventions.md)) |
+| `filter_list` | dropped | it enumerates the filters by name, because they are strings. Here they are members |
+| `filter_id` | dropped | maps one of those names to its integer constant |
+| `readline` | member | `Core\Cli::ask`, one of the prompts [ADR 0086](adr/0086-core-cli-terminal-is-a-sink.md) puts on the class that already owns the terminal |
+| `readline_add_history` | dropped | a persistent history file is a REPL's feature, and a Novis program is not one. Nothing in `Core\Cli` writes to the user's home directory on a program's behalf |
+| `readline_read_history` | dropped | the same file, being read. A program that wants one owns it, through `Core\IO` under `fs.read` |
+| `readline_write_history` | dropped | the same, under `fs.write` — which is the point: this is a file operation wearing a prompt's name |
+| `readline_list_history` | dropped | reads libreadline's in-memory copy of it |
+| `readline_clear_history` | dropped | empties that copy |
+| `readline_completion_function` | dropped | it installs a global callback the line editor calls back into. A closed set of answers is `Core\Cli`'s selection prompts; free-text completion over a dynamic set is not a `Core` member |
+| `readline_info` | dropped | reads and writes libreadline's internal state by string key — the widest of the terminal's back doors, and the one [ADR 0086](adr/0086-core-cli-terminal-is-a-sink.md)'s sink rule could not survive |
+| `setlocale` | dropped | process-global C state, unsound per-core and leaky across requests. Locale is an explicit argument, and there is no ambient one to set ([ADR 0051](adr/0051-standard-library-tiers.md) § 3) |
+| `localeconv` | dropped | reads that global's number and currency table. Formatting takes the locale it formats for |
+| `hebrev` | dropped | it reorders logical-order Hebrew into visual order for terminals that could not do bidi. Text is UTF-8 in logical order ([ADR 0009](adr/0009-string-and-bytes.md)) and ordering is the renderer's |
+| `define` | dropped | a runtime constant table. A constant is a class member ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), known where it is used and foldable there ([ADR 0057](adr/0057-intrinsic-literal-folding.md)) |
+| `defined` | dropped | asks whether that table has a key |
+| `constant` | dropped | reads it by a string name — the dynamic lookup that makes the other three necessary |
+| `get_defined_constants` | dropped | enumerates it |
+| `get_defined_functions` | dropped | there are no free functions ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). `Core\Reflect` describes a class it is handed |
+| `get_defined_vars` | dropped | the current scope as an array. `Core\Debug::dump` shows the values a program named; a scope is not a value |
+| `get_included_files` | dropped | the include graph is resolved while compiling ([ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md)), so there is no runtime list that could differ from it |
+| `get_required_files` | dropped | `get_included_files`' alias, from when the two keywords meant different things |
+| `get_loaded_extensions` | dropped | which extensions a build carries. What a program may reach is what its own manifest pins ([ADR 0081](adr/0081-packages-are-digests-resolution-is-a-maximum.md)) plus the `Core` roster, both known before it runs |
+| `get_extension_funcs` | dropped | an extension's function list, in a language with no free functions |
+| `phpinfo` | dropped | the configuration, extension list and build detail as one HTML page, and the disclosure named above. One key at a time is `Core\Config::get` ([01 § 15](spec/01-core-library.md)) |
+| `phpcredits` | dropped | the same page, for names. Attribution ships with the distribution rather than from a call inside a request |
+| `phpversion` | dropped | the engine's version as a fact a request branches on. What a program compiles against is settled before it runs, and the deployed version is the operator's to report |
+| `pdo_drivers` | dropped | the drivers a binary was built with. What is reachable is the `[db.<name>]` blocks an operator configured ([ADR 0067](adr/0067-core-db.md), [ADR 0064](adr/0064-configuration-file-format.md)), which is a different question and the one that was being asked |
+| `php_strip_whitespace` | dropped | source with its comments removed, a deployment-size trick over a language that ships source. Novis ships a compiled artifact ([ADR 0048](adr/0048-portable-single-file-executables.md)) |
+| `highlight_file` | dropped | it reads a source file and prints it as coloured HTML — an information disclosure with a rendering attached |
+| `highlight_string` | dropped | the same over a string. Highlighting is the editor's ([ADR 0016](adr/0016-ide-integration.md)); a program that renders code renders text, through `Core\Html::escape` |
+| `show_source` | dropped | `highlight_file`'s alias |
+| `version_compare` | dropped | its ordering is PHP's own — `pl` above everything, `RC` below release, `beta` folded in by a string scan — and it is a resolver's rule rather than a string operation. Versions are resolved while building ([ADR 0081](adr/0081-packages-are-digests-resolution-is-a-maximum.md)), where a pin is a digest and a range is a maximum |
+| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure ([ADR 0031](adr/0031-callable-is-the-only-closure-type.md)) |
+| `pack` | member | `Core\Bytes::pack` ([01 § 7](spec/01-core-library.md)), whose format string is a template rather than a mode string, so R11 does not reach it |
+| `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |
+| `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program ([ADR 0064](adr/0064-configuration-file-format.md)); `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |
+| `parse_ini_string` | dropped | the same over a string, with the same answer |
+| `getimagesize` | dropped | it opens a path — or a URL, over the wrappers [ADR 0052](adr/0052-closed-doors.md) closes — and returns dimensions, a type constant and a ready-made HTML attribute string in one array. Dimensions come from the image component ([ADR 0120](adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 11), the type from `Core\Mime` by magic bytes, and the attribute string from whoever is writing the markup |
+| `getimagesizefromstring` | dropped | the same over bytes, and the same split |
+| `image_type_to_mime_type` | dropped | maps PHP's `IMAGETYPE_*` integers to a MIME string. `Core\Mime` answers from the bytes, rather than from a constant the caller was already holding |
+| `image_type_to_extension` | dropped | the same table in the other direction. An extension is a naming convention, and names are built with `Core\Path` |
+| `iptcparse` | dropped | IPTC metadata out of an APP13 marker the caller sliced out by hand. Image metadata is read by the component already holding the decoded file ([ADR 0120](adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 11) |
+| `iptcembed` | dropped | writes it back by splicing bytes into a JPEG, same owner and the same reason |
+| `hash_hmac_file` | member | `Core\Hash::hmac` over the bytes `Core\IO::read` returns, or over the digest stream where the file does not fit — the same R17 split `hash_file` takes above |
