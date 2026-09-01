@@ -69,6 +69,7 @@ Conventions the whole file uses:
 | [`Core\IO`](#core-core-io) | whole-file read and write on paths the configuration has granted |
 | [`Core\IO\Lines`](#core-core-io-lines) |  |
 | [`Core\IO\File`](#core-core-io-file) |  |
+| [`Core\IO\Metadata`](#core-core-io-metadata) |  |
 | [`Core\Process`](#core-core-process) |  |
 | [`Core\Process\Result`](#core-core-process-result) |  |
 | [`Core\Time`](#core-core-time) | the clock and the constructors — an absolute `Instant`, or a civil `DateTime` built in a named `Zone` |
@@ -10132,7 +10133,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, append, writeStream, exists, isFile, isDir, size, copy, move, remove, makeDir, removeDir, list, temporaryDir, canonicalize, within, readText, lines, open, stdin
+Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, append, writeStream, exists, isFile, isDir, isReadable, isWritable, size, modifiedAt, stat, copy, move, remove, makeDir, removeDir, list, temporaryDir, canonicalize, within, readText, lines, open, stdin
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -10188,7 +10189,11 @@ outside: refused
 | [`Core\IO::exists`](#core-core-io-exists) | `exists(string $path): bool` |
 | [`Core\IO::isFile`](#core-core-io-isfile) | `isFile(string $path): bool` |
 | [`Core\IO::isDir`](#core-core-io-isdir) | `isDir(string $path): bool` |
+| [`Core\IO::isReadable`](#core-core-io-isreadable) | `isReadable(string $path): bool` |
+| [`Core\IO::isWritable`](#core-core-io-iswritable) | `isWritable(string $path): bool` |
 | [`Core\IO::size`](#core-core-io-size) | `size(string $path): uint` |
+| [`Core\IO::modifiedAt`](#core-core-io-modifiedat) | `modifiedAt(string $path): Core\Time\Instant` |
+| [`Core\IO::stat`](#core-core-io-stat) | `stat(string $path): Core\IO\Metadata` |
 | [`Core\IO::copy`](#core-core-io-copy) | `copy(string $from, string $to): void` |
 | [`Core\IO::move`](#core-core-io-move) | `move(string $from, string $to): void` |
 | [`Core\IO::remove`](#core-core-io-remove) | `remove(string $path): void` |
@@ -10327,6 +10332,40 @@ Reports whether `$path` names a directory — `is_dir`. Symbolic links are follo
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The operating system could answer neither yes nor no — a parent directory it will not traverse.
 
+<a id="core-core-io-isreadable"></a>
+#### `Core\IO::isReadable`
+
+```nvs skip
+Core\IO::isReadable(string $path): bool
+```
+
+Whether this process could read what is at `$path` right now — `is_readable`. Needs the `fs.read` capability, which is a separate and earlier gate: a path outside the grant is refused rather than reported as unreadable.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file or directory to ask about, absolute or relative to the working directory. |
+
+**Returns** `bool` — `true` if the operating system would allow a read, `false` if it would not — including for a name that is not there. The answer is about the instant it was asked and nothing holds it still, so a read that follows it can still fail.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.
+
+<a id="core-core-io-iswritable"></a>
+#### `Core\IO::isWritable`
+
+```nvs skip
+Core\IO::isWritable(string $path): bool
+```
+
+Whether this process could write what is at `$path` right now — `is_writable`. Needs the `fs.write` capability, because the whole question is about writing: a program granted only reads cannot ask where it could write.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file or directory to ask about, absolute or relative to the working directory. |
+
+**Returns** `bool` — `true` if the operating system would allow a write, `false` if it would not — including for a name that is not there. A snapshot, exactly as `isReadable` is.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path.
+
 <a id="core-core-io-size"></a>
 #### `Core\IO::size`
 
@@ -10343,6 +10382,40 @@ The size of the file at `$path` in bytes, as the operating system reports it —
 **Returns** `uint` — The byte count as a `uint`. For a text file this is bytes and not characters — a `string`'s own length is `Core\Str::length`, which counts what § 1 says it counts.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The capability allowed it and the operating system did not — there is nothing at the path, or its metadata could not be read. A missing file has no size, so it throws here where `exists` answers `false`.
+
+<a id="core-core-io-modifiedat"></a>
+#### `Core\IO::modifiedAt`
+
+```nvs skip
+Core\IO::modifiedAt(string $path): Core\Time\Instant
+```
+
+When the file at `$path` was last written, as a `Core\Time\Instant` — `filemtime`, with the unit in the type instead of in the caller's memory. Needs the `fs.read` capability: asking when a file changed is reading it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file or directory to ask about, absolute or relative to the working directory. |
+
+**Returns** `Core\Time\Instant` — The modification time as an absolute point on the timeline, with no zone of its own — `->in($zone)` is what gives it a calendar.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — There is nothing at the path, its metadata could not be read, the platform does not record a modification time, or the one it recorded falls outside the range a `Core\Time\Instant` can name.
+
+<a id="core-core-io-stat"></a>
+#### `Core\IO::stat`
+
+```nvs skip
+Core\IO::stat(string $path): Core\IO\Metadata
+```
+
+Everything one `stat` answers about `$path`, as a `Core\IO\Metadata` — `stat`, `lstat` and `filemtime` in one call, so a program asking more than one question about a file pays for one syscall rather than one per question. Needs the `fs.read` capability.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file or directory to measure, absolute or relative to the working directory. |
+
+**Returns** `Core\IO\Metadata` — A `Core\IO\Metadata` — a snapshot, not a live view: it answers about the moment the call was made, and says nothing about the file afterwards.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — There is nothing at the path, or its metadata could not be read. A missing file has no metadata, so it throws here where `exists` answers `false`.
 
 <a id="core-core-io-copy"></a>
 #### `Core\IO::copy`
@@ -10719,6 +10792,62 @@ Closes the handle and releases the descriptor — `fclose`. Calling it is option
 **Returns** `void` — Nothing.
 
 **Throws** `RuntimeError` — The handle has already been closed. Closing twice is a bug in the program rather than a state of the file, so it is reported rather than ignored.
+
+<a id="core-core-io-metadata"></a>
+### `Core\IO\Metadata`
+
+Keywords: size, modifiedAt, isFile, isDir
+
+| Member | Signature |
+|---|---|
+| [`Core\IO\Metadata->size`](#core-core-io-metadata-size) | `size(): uint` |
+| [`Core\IO\Metadata->modifiedAt`](#core-core-io-metadata-modifiedat) | `modifiedAt(): Core\Time\Instant` |
+| [`Core\IO\Metadata->isFile`](#core-core-io-metadata-isfile) | `isFile(): bool` |
+| [`Core\IO\Metadata->isDir`](#core-core-io-metadata-isdir) | `isDir(): bool` |
+
+<a id="core-core-io-metadata-size"></a>
+#### `Core\IO\Metadata->size`
+
+```nvs skip
+$metadata->size(): uint
+```
+
+The file's size in bytes at the moment `stat` was called. Needs no capability of its own: the path was checked when `stat` produced this value.
+
+**Returns** `uint` — The byte count as a `uint`. A directory's is the platform's own number for a directory entry and means nothing portable.
+
+<a id="core-core-io-metadata-modifiedat"></a>
+#### `Core\IO\Metadata->modifiedAt`
+
+```nvs skip
+$metadata->modifiedAt(): Core\Time\Instant
+```
+
+When the file was last written, as a `Core\Time\Instant` — the same answer `Core\IO::modifiedAt` gives, out of the `stat` this value already holds.
+
+**Returns** `Core\Time\Instant` — The modification time as an absolute point on the timeline, with no zone of its own.
+
+<a id="core-core-io-metadata-isfile"></a>
+#### `Core\IO\Metadata->isFile`
+
+```nvs skip
+$metadata->isFile(): bool
+```
+
+Whether the path was a regular file. Together with `isDir` this partitions most of what exists and does not cover it — a socket, a device node and a named pipe answer `false` to both.
+
+**Returns** `bool` — `true` for a regular file, `false` for anything else that was there.
+
+<a id="core-core-io-metadata-isdir"></a>
+#### `Core\IO\Metadata->isDir`
+
+```nvs skip
+$metadata->isDir(): bool
+```
+
+Whether the path was a directory — the other half of the partition `isFile` describes.
+
+**Returns** `bool` — `true` for a directory, `false` for anything else that was there.
 
 <a id="core-core-process"></a>
 ### `Core\Process`
