@@ -2,52 +2,60 @@
 
 ## State
 
-**`Core\Db\RolledBack` is in spec § 10's tree.** The row is `crates/nvs-hir/src/errors.rs:80`,
-under `RuntimeError`. The whole roster a § 10 class owes is landed — the playbook's *Adding a row
-to `nvs_hir::errors::TREE`* bullet enumerates six sites, and the bullet added beside it names the
-three more that a new *property* costs, plus the insta snapshots.
+**ADR 0067 § 7's transaction is landed, closure and all.** `transaction` is one
+`TRANSACTION_ROW` (`crates/nvs-stdlib/src/db.rs:392`) carried by both `CONNECTION` and the new
+`TRANSACTION` class, and `handle_of` is what makes one statement path serve either receiver —
+which is how ADR 0043's `implements Queryable by $connection` is spelled here: the same rows
+under the same symbols, no forwarding bodies. Returning commits, throwing rolls back, and the
+`rollBack` flag is read off the transaction's own slot so an intervening `catch (Throwable)`
+cannot leave the work committed. `TRANSACTION`'s own doc comment owns the slot layout and why
+the first two are `CONNECTION`'s.
 
-**A § 10 class may add a property, and the mechanism is `OWN_PROPERTIES`** — that was the question
-the item said to settle first. `ParseError` was already the precedent and `errors.rs`' own doc had
-anticipated `Core\Db\DbError` joining it. `REASON_SLOT` is `PROPERTIES.len()` for the reason
-`ISSUES_SLOT` is, and the two are siblings: `rolled_back_s_own_slot_starts_after_the_root_s`
-asserts it separately so a slot added to either cannot silently move the other.
+**`examples/transaction.nvs` now compiles and runs to the capability check** — the goal's
+stated external precondition (a reachable Docker daemon behind `[db.main]`) is all that stands
+between it and the five frozen lines. Nothing in the tree blocks it.
 
-**`reason` is initialized to the message, not to the empty string** — the one design call in the
-slice, recorded on `ExtraInit` in `crates/nvs-ir/src/lower/exception.rs`. Spec § 18 gives the class
-nothing else to carry, so `new Core\Db\RolledBack("cart is empty")` and § 7's
-`rollBack("cart is empty")` agree, and a helper raising `ThrownClass::DbRolledBack` writes no
-second slot. `ParseError::$issues` still starts empty, because a hand-raised one has no field list
-to report — which is why the extras are an enum rather than one shared initializer.
+**§ 7's options bag is owed and its absence is a subset, not a divergence**: with no
+`{isolation?, readOnly?, retries?}` every call takes § 7's own defaults — driver isolation,
+read-write, zero retries. `TRANSACTION_ROW`'s doc comment is that fact's home, and the next
+group closes it.
 
-**The acceptance check is unchanged**: `examples/transaction.nvs` still stops at `->transaction`
-(`E0405`). Closing it is the group below, which this session did not start: it touches none of the
-files this one loaded, and `crates/nvs-stdlib/src/db.rs` is a 2,000-line read on its own.
+**A `use` alias does not reach a `catch`** — the playbook bullet added this session has the
+anchor and the three classes it bites. The example works around it by writing
+`Core\Db\RolledBack` out; nothing else in the corpus does yet.
 
 ## Next group
 
-**Closing the acceptance check — the file set is `crates/nvs-stdlib/src/db.rs` and
-`crates/nvs-db/src/pg.rs`, which already carries § 7's `BEGIN`/`COMMIT`/`ROLLBACK` and its
-`SAVEPOINT` depth.**
+**§ 7's options bag — the file set is `crates/nvs-stdlib/src/db.rs` and
+`crates/nvs-db/src/pg.rs`, which already carries the `Isolation` enum and renders both options
+into a `BEGIN`.**
 
-- [ ] **§ 7's `transaction`, and the `Core\Db\Transaction` it hands the closure** — ADR 0067 § 7.
-      The row joins `Connection`'s roster at `crates/nvs-stdlib/src/db.rs:319`, the body sits
-      beside `executeMany`'s at `crates/nvs-stdlib/src/db.rs:2051`, and `nvs-db`'s half is landed
-      at `crates/nvs-db/src/pg.rs:2658`. `nvs_runtime::call_closure` invokes the block;
-      `crates/nvs-stdlib/tests/allocation_policy.rs:1` names `closure_of`, the shape a
-      `-p nvs-stdlib` test uses to hand a real callable over with no compiler in front of it.
-- [ ] **`Transaction` delegates `Queryable` to its connection** (ADR 0043) — the three landed
-      members are `query`, `execute` and `executeMany` at `crates/nvs-stdlib/src/db.rs:319`; each
-      needs a `Transaction` row answering the same shape through the connection it holds.
-- [ ] **`rollBack` raises `ThrownClass::DbRolledBack`** — the variant is
-      `crates/nvs-runtime/src/throwable.rs:136` and the message *is* the reason, so nothing writes
-      a slot. Known gap 4 at `crates/nvs-stdlib/src/db.rs:85` is the half that stops being true.
+- [ ] **`Core\Db\Isolation`, § 7's five cases as a registry enum** — ADR 0067 § 7, spec
+      § 18's own `Isolation { ReadUncommitted, ReadCommitted, RepeatableRead, Snapshot,
+      Serializable }` line. `nvs-db`'s half is landed at `crates/nvs-db/src/conn.rs:203` and
+      the five spellings PostgreSQL wants at `crates/nvs-db/src/pg.rs:3049`; the registry side
+      is a `CoreEnum` beside the classes at `crates/nvs-stdlib/src/db.rs:432`, reached from a
+      `CoreTy::Enum` — `registry.rs`'s `CoreTy::Enum` doc says how a name resolves.
+- [ ] **`transaction`'s `{isolation?, readOnly?}` bag, reaching `PgConn::begin`** — ADR 0067
+      § 7. The row is `crates/nvs-stdlib/src/db.rs:392` and gains a trailing
+      `CoreTy::Options`; the body is `crates/nvs-stdlib/src/db.rs:2385`, whose `begin(None,
+      false)` is where the two land. Note ADR 0063 R2: an options bag has no `names` entry, so
+      only `MethodDoc::params` grows — one `ParamDoc` per option, under the option's own name.
+- [ ] **`{retries: n}`, outermost transactions only** — ADR 0067 § 7's last paragraph, whose
+      default of 0 is deliberate and stays. The loop goes around the `begin`/`call_closure`
+      pair at `crates/nvs-stdlib/src/db.rs:2385`, and re-runs only on `Deadlock` and
+      `SerializationFailure`, which means reading § 8's kind off the refusal —
+      `crates/nvs-db/src/pg.rs:1018` is the code table that answers it. Backing off has to
+      suspend the coroutine rather than block the core.
 
 ## Backlog
 
-- `Core\Db\DbError` in § 10's tree with § 18's five readonly properties — `docs/spec/01-core-library.md:1231`; wants a `Core\Db\ErrorKind` enum first.
-- `Rows::columns()`, blocked on a `Core\Db\Column` class and a `Core\ColumnType` enum — `db.rs`'s known gap 5.
-- § 9's five structured rows do not read back — `db.rs`'s known gap 6.
-- `open` waits on a shape-parameter type — `db.rs`'s known gap 1.
-- Only PostgreSQL opens; the other four drivers have no connect path — `db.rs`'s known gap 2.
-- ADR 0067 § 13's per-core pool, Stages 3 to 7 — `docs/plan/m8.md`.
+- `Rows::columns()` and its `Core\Db\Column`/`ColumnType` pair — `crates/nvs-stdlib/src/db.rs`'s
+  `ROWS` doc lists the three things it needs.
+- `queryAs<T>`, `stream` and `streamAs` on both `Queryable` classes — ADR 0067 §§ 4 and 6.
+- `Core\Db::open` waits on a `CoreTy` for a shape *parameter* — that module's known gaps.
+- A `use` alias reaching a `catch` — `crates/nvs-ir/src/lower/exception.rs:597`, and the design
+  question is which crate resolves the label.
+- Stage 5's remaining `nvs-db` cases (`savepoints_nest`, `retries_recover_an_induced_deadlock`)
+  — `docs/agent/loop-goal.toml`'s stage 5 list.
+- Stages 6 and 7 — the four other drivers and § 13's pool — both need Docker.

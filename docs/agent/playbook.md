@@ -4292,6 +4292,19 @@ is why" — is this file.
   body, in a comment if nowhere else. A three-case set whose titles named the class and whose
   bodies did not would pass `try.py` and fail `every_part_one_member_has_a_conformance_case` with
   a message naming the member rather than the omission.
+- **A `use` alias does not reach a `catch`, so a namespaced § 10 tree class has to be written
+  out there.** `use Core\Db\RolledBack;` plus `catch (RolledBack $e)` is what
+  `examples/transaction.nvs` shipped with, and it fails at *codegen* — "does not lower
+  `instanceof RolledBack`, whose class this unit declares no descriptor for" — which names
+  neither the alias nor the cause, and reads like the class is missing rather than the name.
+  `nvs_ir::lower::exception`'s `caught_class_label`
+  (`crates/nvs-ir/src/lower/exception.rs:597`) is the whole of it: a catch clause is tested by
+  the **source text** of its type, because that crate deliberately depends on neither
+  `nvs-hir`'s nor `nvs-types`' name resolution. So it bites exactly the three namespaced rows
+  of `nvs_hir::errors::TREE` — `Core\Test\Failure`, `Core\Cli\NotInteractive`,
+  `Core\Db\RolledBack` — and never `Throwable` or `LogicError`, whose short name *is* their
+  label. Write the class out in a `catch`; the `use` still earns its keep for a `new` and for
+  a parameter type, both of which resolve through `nvs_hir::resolve_ref`.
 
 ## Splitting a file that got too big
 
@@ -5836,6 +5849,15 @@ sibling in the same namespace unqualified.
   red, because each renders the whole lowered program and every synthesized constructor is in it.
   `cargo insta` is **not installed** in this tree: `INSTA_UPDATE=always cargo test -p nvs-ir --lib`
   is what rewrites them in place, and it leaves no `.snap.new` behind for `git status` to catch.
+- **The registry's guards are not all in `registry.rs`, and the one that bit hardest is in
+  `crates/nvs-stdlib/src/lib.rs`.** Grepping `registry.rs` for a symbol-uniqueness rule finds
+  only `every_constructible_class_is_registered_with_slots`'s constructor-versus-member check,
+  which reads like the whole of it and is not: `lib.rs`'s own `mod tests` holds the roster-wide
+  ones — every symbol resolves to an address, the count of symbols equals the count of rows
+  plus the five constructs that have no row, and (until this session) no two rows share a
+  symbol at all. So before designing anything around *how rows map to symbols*, grep
+  `crates/nvs-stdlib/src/lib.rs` too; a design that collides with one of them is found by
+  `cargo test -p nvs-stdlib --lib`, which is 0.2s, and not by anything nearer.
 
 ## Divergences and refusals already pinned
 
