@@ -1,0 +1,89 @@
+--TEST--
+Core\SignedCookie::open accepts a cookie while the key that sealed it is anywhere in the ring and refuses it the step after that key leaves, counted over a ring walked one key at a time from both ends — ADR 0060 §§ 1 and 4
+--FILE--
+<?nvs
+// A bound asserted on both sides. The rotation case next door pins which end of
+// the ring `seal` writes with; this one pins what the *rest* of the ring is for,
+// which is the half an operator's deploy depends on. The rule
+// `crates/nvs-stdlib/src/signed_cookie.rs` states is membership and nothing
+// else — a cookie opens while its key is in the list, at any position, and
+// stops the moment it is dropped — so the assertion is a count that moves in
+// lockstep with the ring's length rather than one accepted cookie and one
+// refused one.
+secret bytes $k0 = Core\Crypto::generateKey();
+secret bytes $k1 = Core\Crypto::generateKey();
+secret bytes $k2 = Core\Crypto::generateKey();
+secret bytes $k3 = Core\Crypto::generateKey();
+secret bytes $k4 = Core\Crypto::generateKey();
+array<secret bytes> $all = [$k0, $k1, $k2, $k3, $k4];
+
+// Five cookies, each sealed under a one-key ring, so each one has exactly one
+// key in the whole set that can open it. The one-key ring is the degenerate end
+// of the surface and it is where every cookie here comes from.
+array<string> $payloads = ["under 0", "under 1", "under 2", "under 3", "under 4"];
+array<string> $cookies = [
+    Core\SignedCookie::seal($payloads[0], [$k0]),
+    Core\SignedCookie::seal($payloads[1], [$k1]),
+    Core\SignedCookie::seal($payloads[2], [$k2]),
+    Core\SignedCookie::seal($payloads[3], [$k3]),
+    Core\SignedCookie::seal($payloads[4], [$k4]),
+];
+
+// Growing from the front: the ring `[k0]`, then `[k0, k1]`, and so on. At every
+// step the number of cookies that open is the ring's own length — which names
+// the last accepted key and the first refused one together on one line. A
+// member that stopped one key short of the tail prints plausibly against a
+// two-key ring and loses a cookie per rotation in production.
+int $j = 1;
+while ($j <= 5) {
+    array<secret bytes> $ring = Core\Arr::slice($all, 0, $j);
+    int $opened = 0;
+    int $refused = 0;
+    int $c = 0;
+    while ($c < 5) {
+        try {
+            if (Core\SignedCookie::open($cookies[$c], $ring) == $payloads[$c]) {
+                $opened = $opened + 1;
+            }
+        } catch (RuntimeError $outside) {
+            $refused = $refused + 1;
+        }
+        $c = $c + 1;
+    }
+    echo "a ring of ", $j, " opens ", $opened, " and refuses ", $refused, "\n";
+    $j = $j + 1;
+}
+
+// And shrinking from the front, which is what retiring a key actually is. This
+// half is not the first one read backwards: it walks the *tail* of the list, so
+// a key that was the head a moment ago is now at position 0 of a shorter ring
+// and every other key has moved. A member that keyed its acceptance off a
+// position rather than off membership agrees with the growing walk and
+// disagrees here.
+int $r = 1;
+while ($r <= 4) {
+    array<secret bytes> $tail = Core\Arr::slice($all, $r, 5 - $r);
+    int $survives = 0;
+    int $t = 0;
+    while ($t < 5) {
+        try {
+            if (Core\SignedCookie::open($cookies[$t], $tail) == $payloads[$t]) {
+                $survives = $survives + 1;
+            }
+        } catch (RuntimeError $retired) {
+        }
+        $t = $t + 1;
+    }
+    echo "after retiring ", $r, ", ", $survives, " of 5 still open\n";
+    $r = $r + 1;
+}
+--EXPECT--
+a ring of 1 opens 1 and refuses 4
+a ring of 2 opens 2 and refuses 3
+a ring of 3 opens 3 and refuses 2
+a ring of 4 opens 4 and refuses 1
+a ring of 5 opens 5 and refuses 0
+after retiring 1, 4 of 5 still open
+after retiring 2, 3 of 5 still open
+after retiring 3, 2 of 5 still open
+after retiring 4, 1 of 5 still open
