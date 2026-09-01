@@ -1,0 +1,41 @@
+[package]
+name = "nvs-db"
+description = "The five database drivers: a borrowed sans-IO codec and a state machine of our own, over the parking stream"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+# ADR 0132 § 1 fixes this crate's place in the graph, and the direction is the
+# part that matters: `nvs-stdlib` depends on this crate and never the reverse.
+# `Core\Db`'s registry rows, reference cards and helper bodies stay where every
+# other class's are; the wire lives here. A single `use nvs_stdlib::…` added to
+# this crate turns the workspace into a cycle, which is why the rule is stated
+# on both manifests rather than only on the one that adds the edge.
+[dependencies]
+# Values, `Ctx` and faults. A driver answers with `nvs-runtime`'s values and a
+# protocol failure becomes a `Fault` there, so this crate defines no error type
+# that has to be translated at the `Core\Db` boundary.
+nvs-runtime.workspace = true
+# The parking stream, its TLS session, and the blocking pool ADR 0132 § 3 hands
+# SQLite to. This edge is why no driver here needs an async runtime: a socket
+# that hands the core back is a plain `Read`/`Write` to everything above it, so
+# a sans-IO codec is the only other half required.
+nvs-host.workspace = true
+# ADR 0067 § 2's `[db.*]` block, which is the only place a connection is named,
+# and the capability enum that gates reaching one at all.
+nvs-config.workspace = true
+
+# The wire crates of ADR 0132 § 2 are declared in the workspace manifest and are
+# taken here one driver at a time, so the audit surface this crate exists to
+# concentrate stays a list of what is actually reachable. `rusqlite` is the one
+# that costs something to add: it is a C dependency, and ADR 0132 § 2 requires
+# the slice that takes it to add its row to `tools/gen-attribution.py`'s
+# `C_DEPENDENCIES` ledger in the same commit -- that gate fails both ways, on an
+# unrecorded C crate in the graph and on a recorded one that is not in it.
+
+[lints]
+workspace = true

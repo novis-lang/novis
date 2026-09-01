@@ -37,6 +37,7 @@ nvs-render = { path = "crates/nvs-render", version = "0.0.1" }
 nvs-runtime = { path = "crates/nvs-runtime", version = "0.0.1" }
 nvs-host = { path = "crates/nvs-host", version = "0.0.1" }
 nvs-config = { path = "crates/nvs-config", version = "0.0.1" }
+nvs-db = { path = "crates/nvs-db", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
 nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
 
@@ -505,6 +506,36 @@ csv-core = "0.1"
 # `crates/nvs-stdlib/src/uri.rs` owns what the member does and does not do with
 # what this crate answers.
 fluent-uri = "0.4"
+
+# --- database wire (ADR 0132 § 2) ---
+# The rule that picked these: a codec is borrowed, a state machine is written.
+# Message framing, value encoding and authentication mechanisms are large,
+# fiddly and identical for everyone, and that is precisely what a sans-IO crate
+# is; sequencing -- what to send next, what a park mid-message means, when a
+# connection is reusable -- is `crates/nvs-db`'s own, and borrowing that half is
+# what would have dragged an async runtime in. `sqlx`, `tokio-postgres` and
+# `tiberius` each need a runtime that spawns, so none of them is reachable from
+# a thread-per-core host at all; that is structural and not a preference.
+#
+# ADR 0051 § 4's first question is "yes" for all of these -- a server's response
+# bytes are attacker-controlled the moment the server is -- which is the whole
+# reason the framing is borrowed from a crate that is fuzzed rather than
+# written here a fifth time.
+#
+# There is no TDS entry: SQL Server's protocol has no sans-IO crate, and the one
+# implementation is async over `futures-io` with its TLS behind `tokio-rustls`,
+# so `nvs-db` writes TDS 7.4 by hand.
+postgres-protocol = "0.6"
+postgres-types = "0.2"
+mysql_common = "0.38"
+# The one C dependency this goal adds, pre-answered under ADR 0051 § 4's second
+# question and recorded against it. The slice that first takes this as a
+# dependency of `nvs-db` also adds its row to `tools/gen-attribution.py`'s
+# `C_DEPENDENCIES` ledger, in the same commit: that gate fails on an unrecorded
+# C crate in the graph *and* on a recorded one that is not in it, so the two
+# halves cannot be split across sessions. A version here is not a graph edge --
+# nothing resolves a workspace dependency no crate names.
+rusqlite = "0.40"
 
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in nvs-diagnostics (the output format is
