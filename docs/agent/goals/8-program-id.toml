@@ -1,0 +1,100 @@
+# Goal 8 -- Core\Program::id(). The acceptance test, as data.
+#
+# `8-program-id.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/program-id.nvs",
+]
+
+[context]
+
+modules = [
+  # `content_hash` and `env_hash` live here; the `program_id` combine joins them.
+  "crates/nvs-config/src/cache.rs",
+  # `resolve_program` -- where the unit set becomes final.
+  "crates/nvs-hir/src/requires.rs",
+  # The per-program state the runtime reads; the id is stored beside it.
+  "crates/nvs-runtime/src/ctx.rs",
+  # The registry card, and the member's own new module beside it.
+  "crates/nvs-stdlib/src/registry.rs",
+]
+
+rules = ["0061", "0042", "0078", "0017", "0117", "0033", "0063", "0004"]
+
+# 0061 whole: the amendment this goal folds into it is its one design act.
+adrs = ["0061", "0042", "0017"]
+
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goal 4's Redis tier, goal 5's drivers and goal 6's session store, all of which need
+# containers. Same compose file, same memoization.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the combine, deterministic and complete. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the combine"
+name = "nvs-config (the program id)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "the_program_id_is_stable_for_identical_units_and_env",
+  "the_program_id_changes_when_one_units_content_does",
+  "the_program_id_changes_when_the_env_hash_does",
+  "the_program_id_changes_when_the_unit_order_does",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the member: Core\Program::id() reads the stored value. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "3 the member"
+file = "examples/program-id.nvs"
+want = [
+  "id is 64 lowercase hex characters",
+  "two reads within one run agree",
+]

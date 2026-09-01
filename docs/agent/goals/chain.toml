@@ -71,3 +71,14 @@ toml = "docs/agent/goals/7-temp-sweep.toml"
 handoff = "docs/agent/goals/7-temp-sweep.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+
+# Post-parity: `Core\Program::id()` — the program fingerprint the freeze/thaw design needs and userland
+# gets. One member over hashes the artifact cache already computes; the smallest goal on the chain.
+# Docker preflight because its floor carries goals 4-7's container-backed checks.
+[[goal]]
+name = "8 program-id"
+md = "docs/agent/goals/8-program-id.md"
+toml = "docs/agent/goals/8-program-id.toml"
+handoff = "docs/agent/goals/8-program-id.handoff.md"
+milestone = "post-parity"
+preflight = "docker"

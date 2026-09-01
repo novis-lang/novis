@@ -33,5 +33,6 @@ liveness, never age, and every ambiguity resolves toward *skip*.
 - Stage 3 (server sweeps) and Stage 4 (`nvs tmp clean`) share the pid-liveness helper — whichever lands
   first creates it, the other reuses it; its per-platform edges are a standing decision in the goal
   prose.
-- When this goal's last check goes green the chain is finished. The milestone table's order 6 is M4B,
-  whose staged goal is `docs/agent/next-goal-m4b.md`.
+- When this goal's last check goes green the driver takes goal 8 — `Core\Program::id()`,
+  `docs/agent/goals/8-program-id.md`. The milestone table's order 6 is M4B, whose staged goal is
+  `docs/agent/next-goal-m4b.md`.
