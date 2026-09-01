@@ -1,0 +1,54 @@
+--TEST--
+Core\Storage refuses a `$disk` no `[storage.<name>]` block gives a `root`, and fails over a `root` that is there and is not a directory — ADR 0082 § 2
+--FILE--
+<?nvs
+// Two refusals with nothing between them, and they are different in kind: the
+// first is about `nvs.toml` and happens before any door is asked, the second is
+// about the disk and happens after the grant has already opened one.
+//
+// The first, in three spellings that are one sentence. No block of that name, a
+// block that sets no `root`, and a `root` an operator cleared are all "there is
+// no disk of that name": `crates/nvs-stdlib/src/storage.rs`'s `root_of` reads
+// blank as absent on purpose, since a `root = ""` read as a directory would
+// produce a refusal about the working directory rather than about the
+// configuration.
+array<string> $nameless = ["missing", "empty", "blank"];
+foreach ($nameless as string $disk) {
+    try {
+        Core\Storage::get($disk, "note.txt");
+        echo "reached a disk with no root: ", $disk, "\n";
+    } catch (RuntimeError $error) {
+        echo $error->message, "\n";
+    }
+}
+
+// The second. `root` names something that exists and is a file, and the `fs.*`
+// grant covers it — so nothing about configuration or capability is wrong and
+// the door opens onto a path the operating system will not read as a directory.
+// That is an `IOError`, and this case names the class rather than the wording:
+// the sentence inside it is the host's own and differs between them.
+try {
+    Core\Storage::list("broken");
+    echo "listed a disk whose root is a file", "\n";
+} catch (IOError $failure) {
+    echo "list: IOError", "\n";
+}
+--FILE nvs.toml--
+[storage.empty]
+
+[storage.blank]
+root = ""
+
+[storage.broken]
+root = "./notes.txt"
+
+[capabilities.fs]
+read = ["./notes.txt"]
+write = ["./notes.txt"]
+--FILE notes.txt--
+a file, where the deployment said a directory
+--EXPECT--
+Core\Storage::get: no `[storage.missing]` block sets `root`, so there is no disk of that name to store on
+Core\Storage::get: no `[storage.empty]` block sets `root`, so there is no disk of that name to store on
+Core\Storage::get: no `[storage.blank]` block sets `root`, so there is no disk of that name to store on
+list: IOError
