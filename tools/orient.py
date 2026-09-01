@@ -661,11 +661,15 @@ def run_map(m: Manifest) -> None:
         for within, summary in entries:
             total += 1
             full = f"{prefix[crate]}/{within}"
-            for pat in m.modules:
-                if fnmatch.fnmatch(full, pat) or fnmatch.fnmatch(full, pat.rstrip("/") + "/**"):
-                    keep.append((within, summary or "(no header doc comment)"))
-                    unmatched.discard(pat)
-                    break
+            # Every pattern that matches this module is a live pattern, not just the first one to
+            # fire. Stopping at the first left a specific entry -- `nvs-stdlib/src/script.rs` sitting
+            # under a broad `nvs-stdlib/src/*.rs` -- looking unmatched, and the warning below then
+            # sent an optimization pass to delete a selector that was doing its job.
+            hit = [pat for pat in m.modules
+                   if fnmatch.fnmatch(full, pat) or fnmatch.fnmatch(full, pat.rstrip("/") + "/**")]
+            if hit:
+                keep.append((within, summary or "(no header doc comment)"))
+                unmatched.difference_update(hit)
         if not keep:
             continue
         emit()
