@@ -560,6 +560,46 @@ impl<'a> Lowering<'a> {
         )
     }
 
+    /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// § 5's `Markup + Markup` — two trusted fragments composed into one, and
+    /// the second of the two ways a `Core\Html\Markup` is obtained.
+    ///
+    /// It is an [`InstKind::CoreCall`] for the reason
+    /// [`Self::lower_markup_lift`] is: what it produces is a one-slot instance
+    /// of a class whose layout `nvs-stdlib` owns, and every [`Helper`] symbol
+    /// is one `nvs-runtime` exports.
+    ///
+    /// **The operands are staged rather than released inline**, exactly as the
+    /// `Ty::Tagged` arithmetic arm below stages its own and for the same
+    /// reason: the call carries ADR 0002's error edge, so an operand released
+    /// after it would be abandoned on the edge a throw leaves by.
+    fn lower_markup_concat(
+        &mut self,
+        lv: ValueId,
+        lhs: &Expr,
+        rv: ValueId,
+        rhs: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
+        for (operand, value) in [(lhs, lv), (rhs, rv)] {
+            let aliasing = self.aliasing_read(operand);
+            self.account_for_arg(value, Ty::Object, ArgOwnership::Borrowed, aliasing, *cur);
+        }
+        let (answer, _) = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::CoreCall {
+                symbol: nvs_types::CORE_HTML_MARKUP_CONCAT,
+                args: vec![lv, rv],
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        (answer, Ty::Object)
+    }
+
     pub(crate) fn lower_binary(
         &mut self,
         whole: &Expr,
@@ -603,6 +643,15 @@ impl<'a> Lowering<'a> {
         // which the helper promotes from the operand's own tag.
         if lty == Ty::Decimal || rty == Ty::Decimal {
             return self.lower_decimal_binary(op, lv, rv, env, cur);
+        }
+        // ADR 0024 § 5's `Markup + Markup`, and the whole of what an object
+        // operand may do under an arithmetic operator: `nvs_types::expr::
+        // operators`' `markup_composition_result` admits that one pair and
+        // `reject_unrowed_arithmetic_operand` refuses every other class beside
+        // `+`, so a pair of `Ty::Object`s arriving here is the carrier pair
+        // and there is nothing left to tell apart.
+        if op == BinaryOp::Add && lty == Ty::Object && rty == Ty::Object {
+            return self.lower_markup_concat(lv, lhs, rv, rhs, env, cur);
         }
         // ADR 0090 § 5: a `mixed` or union operand is the one pairing whose
         // § 3 row is a runtime tag, so it dispatches through

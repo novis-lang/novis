@@ -229,7 +229,7 @@ pub mod format;
 pub mod granularity;
 mod hash;
 mod heap;
-mod html;
+pub mod html;
 mod http;
 mod identity_store;
 mod instance;
@@ -315,6 +315,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // so have no row to be found through — `script`'s own module doc owns
         // why a `spawn script`/`await` symbol may not be callable by name.
         .chain([script::SPAWN_SYMBOL, script::AWAIT_SYMBOL])
+        // ADR 0024 § 5's lift, which is `as` on a source literal and so has no
+        // row for the same reason those two do not — `html`'s own module doc
+        // owns why a `Markup` may not be constructed by name.
+        .chain([html::MARKUP_SYMBOL, html::MARKUP_CONCAT_SYMBOL])
         .map(|symbol| (symbol, address_of(symbol)))
         .collect()
 }
@@ -424,9 +428,11 @@ mod tests {
                 // to `Core\Router::url`/`::urlAbsolute` and to no row of their
                 // own — see `router::link`.
                 + router::link::SYMBOLS.len()
-                // ADR 0006's `spawn script` and `await`, which are syntax and
-                // so have no row either — see `script`'s module doc.
-                + 2
+                // ADR 0006's `spawn script` and `await`, and ADR 0024 § 5's
+                // `as Markup` and `Markup + Markup`: four constructs, each
+                // syntax rather than a call, so none of them has a row either
+                // — see `script`'s and `html`'s module docs.
+                + 4
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }

@@ -373,7 +373,7 @@ pub(crate) fn reject_secret_markup_conversion(
     let Ty::Class(qname, _) = env.interner.get(to) else {
         return;
     };
-    if qname.to_string() != "Core\\Html\\Markup" {
+    if qname.to_string() != crate::CORE_HTML_MARKUP_CLASS {
         return;
     }
     if !is_secret(inner_ty, env.interner) {
@@ -407,7 +407,7 @@ pub(crate) fn reject_non_literal_markup_conversion(
     let Ty::Class(qname, _) = env.interner.get(to) else {
         return;
     };
-    if qname.to_string() != "Core\\Html\\Markup" {
+    if qname.to_string() != crate::CORE_HTML_MARKUP_CLASS {
         return;
     }
     if is_literal_string(inner) {

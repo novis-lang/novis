@@ -537,16 +537,18 @@
 //!     from its runtime tag instead ([`ir::Helper::TaggedToBytes`]), which is
 //!     the only shape of `as bytes` that reaches a call at all.
 //!
-//!     What panics is one row, and **it is now the whole of it**: every other
-//!     operand/target pair naming no row of ADR 0007 § 2's closed table is
-//!     `E0708` where it is written (`nvs_types::expr::operators`'
-//!     `reject_unconvertible`), and every object target with no class to test
-//!     against is `E0711` beside it, so a pair that arrives here is a missing
-//!     lowering rather than a missing rule.
-//!
-//!     It is ADR 0024 § 5's `string as Core\Html\Markup`, which is a *rule*
-//!     rather than a test — a source-literal string and nothing else — and
-//!     waits on `Core\Html` existing at all (M7).
+//!     **Nothing panics any more.** Every operand/target pair naming no row of
+//!     ADR 0007 § 2's closed table is `E0708` where it is written
+//!     (`nvs_types::expr::operators`' `reject_unconvertible`), every object
+//!     target with no class to test against is `E0711` beside it, and the last
+//!     row that used to arrive with no lowering — ADR 0024 § 5's
+//!     `string as Core\Html\Markup` — is
+//!     `lower::Lowering::lower_markup_lift`. That one is a *rule* rather than
+//!     a test: the operand is a source literal or it is `E0417`, so what the
+//!     lowering does is **build** the carrier rather than check anything, and
+//!     it is one `ir::InstKind::CoreCall` on a symbol `nvs-stdlib` owns
+//!     because a `Helper` is a symbol `nvs-runtime` exports and that crate
+//!     cannot reach a `Core` class's layout.
 //!
 //!     `array<T> as array<U>` used to be the other, and it is a **walk**
 //!     rather than a row: what decides it is the target's element type, which

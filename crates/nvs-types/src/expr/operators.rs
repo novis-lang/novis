@@ -341,7 +341,11 @@ pub(crate) fn binary_result(
             let secret = is_secret(lhs, env.interner) || is_secret(rhs, env.interner);
             qualified_scalar(false, tainted, secret, env.interner)
         }
-        BinaryOp::Add => reject_array_combination(lhs, rhs, span, env)
+        // ADR 0024 § 5's composition rule is ahead of the arithmetic table
+        // rather than a row of it: `Markup` is a class, and every class beside
+        // an arithmetic operator is refused two lines down.
+        BinaryOp::Add => markup_composition_result(lhs, rhs, env)
+            .or_else(|| reject_array_combination(lhs, rhs, span, env))
             .or_else(|| reject_unrowed_arithmetic_operand(op, lhs, rhs, span, env))
             .unwrap_or_else(|| arithmetic_result(lhs, rhs, span, env)),
         BinaryOp::Sub | BinaryOp::Mul => reject_unrowed_arithmetic_operand(op, lhs, rhs, span, env)
@@ -940,9 +944,23 @@ fn reject_unrowed_arithmetic_operand(
             "ADR 0007 § 4 tabulates no arithmetic for text; `.` is how two strings combine, and \
              `$s as int`/`$s as float` is how one becomes a number"
         }
+        // ADR 0024 § 5's carrier is the one class with an arithmetic row, so
+        // the general help below would be false where it is most likely to be
+        // read: `$m + "raw"` is a half-composed `Markup`, and the fix is to
+        // make the other side one rather than to look for a member that
+        // deliberately does not exist ([`markup_composition_result`]).
+        EqDomain::Object
+            if matches!(env.interner.get(offender), Ty::Class(qname, _)
+                if qname.to_string() == crate::CORE_HTML_MARKUP_CLASS) =>
+        {
+            "ADR 0024 § 5 composes `Markup` with `Markup` and nothing else: lift the other \
+             operand with `as Markup` if it is a source literal, or escape it with \
+             `Core\\Html::escape(...)` — `+` is not a sink and will not escape it for you"
+        }
         EqDomain::Object => {
-            "Novis has no operator overloading: ADR 0007 § 4 names no class in its arithmetic \
-             rows, so the operation belongs in a method on that class"
+            "Novis has no operator overloading: ADR 0007 § 4 names one class in its arithmetic \
+             rows and it is ADR 0024 § 5's `Core\\Html\\Markup`, so for every other class the \
+             operation belongs in a method on it"
         }
         _ => {
             "ADR 0007 § 4's arithmetic rows are `int`, `uint`, `float` and `decimal`; this \
@@ -1021,6 +1039,32 @@ pub(crate) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut 
         }
         _ => env.interner.mixed(),
     }
+}
+
+/// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+/// § 5's `Markup + Markup` is `Markup` — the one row of any operator table
+/// whose operands are a class, and the only arithmetic-shaped pair that is not
+/// arithmetic at all.
+///
+/// It is `+` rather than `.` because § 5 words it that way, and the wording is
+/// load-bearing: `.` is [`BinaryOp::Concat`], whose result is a `string`, and
+/// composing two trusted fragments into an untrusted one would lose exactly
+/// what the carrier exists to carry. `+` has no `string` row to be confused
+/// with, so the class pair is unambiguous.
+///
+/// **Both operands, never one.** `$m + "x"` and `$m + 1` fall straight through
+/// to [`reject_unrowed_arithmetic_operand`], which refuses any class beside an
+/// arithmetic operator — which is the refusal § 5 wants, since the other side
+/// would have to be escaped and this operator is not a sink.
+///
+/// Returns `Some` for the pair and `None` for everything else, so
+/// [`binary_result`]'s own table runs unchanged.
+fn markup_composition_result(lhs: TypeId, rhs: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
+    let is_markup = |ty: TypeId, env: &Env<'_>| {
+        matches!(env.interner.get(ty), Ty::Class(qname, _)
+            if qname.to_string() == crate::CORE_HTML_MARKUP_CLASS)
+    };
+    (is_markup(lhs, env) && is_markup(rhs, env)).then_some(lhs)
 }
 
 /// ADR 0010 § 5: "No arithmetic or bitwise operator is defined on an enum
@@ -1752,7 +1796,7 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
         // records; every other `Core` class has no descriptor in the unit, the
         // same fact `instanceof Core\Uri` is refused for
         // (`E_INSTANCEOF_NOT_A_CLASS`).
-        if qname.to_string() != "Core\\Html\\Markup" {
+        if qname.to_string() != crate::CORE_HTML_MARKUP_CLASS {
             reject_untestable_object_target(from, to, span, env);
         }
         return;

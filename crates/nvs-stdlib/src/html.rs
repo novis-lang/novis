@@ -17,14 +17,12 @@
 //! WHATWG parser over `Core\Xml`'s tree, both of which wait on that tree
 //! existing at all.
 //!
-//! [`MARKUP`] is registered and § 5's third and last piece is not: **nothing
-//! yet lowers `"<b>" as Core\Html\Markup`**. The checker admits it — the
-//! conversion type-checks, `nvs_types::expr::quals` refuses a `tainted` or
-//! `secret` operand and `E0417` refuses a non-literal one — and then
-//! `nvs_ir::lower::convert` reaches the arm that has no row for it and panics
-//! naming this class, whose absence it had been waiting on. What that row
-//! needs is a way to build a one-slot instance of a registered `Core` class
-//! from the IR, which no conversion has needed before.
+//! [`MARKUP`] is registered *and* reachable: two of ADR 0024 § 5's three ways
+//! to obtain one are here, as [`MARKUP_SYMBOL`] for `as Markup` on a source
+//! literal and [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`. The third is
+//! the sink's own **escape-and-lift** — every non-`Markup` interpolation into
+//! an HTML response is escaped through `escape` and wrapped — and it waits on
+//! that response existing, which is the same wait `Core\Request` is on.
 //!
 //! # Why the escape set is fixed at five, with no argument
 //!
@@ -95,7 +93,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// [`nvs_runtime::CARRIER_CLI_TEXT`]'s reason one carrier over: the class a
 /// program writes and the class [`nvs_runtime::value_to_string`] renders
 /// cannot drift apart if there is only one string.
-pub(crate) const MARKUP_NAME: &str = nvs_runtime::CARRIER_HTML_MARKUP;
+pub const MARKUP_NAME: &str = nvs_runtime::CARRIER_HTML_MARKUP;
 
 /// ADR 0024 § 5's `Core\Html\Markup` — the HTML sink's only raw-write bypass.
 ///
@@ -126,6 +124,32 @@ pub(crate) const MARKUP: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// The symbol `<literal> as Core\Html\Markup` lowers to — ADR 0024 § 5's lift
+/// of a trusted source literal into [`MARKUP`].
+///
+/// No [`CoreMethod`] row, for the same reason [`MARKUP`] has no members at
+/// all: a member taking a `string` is precisely the runtime-computed bypass
+/// § 5 closes, so the only thing allowed to call this is the lowering of the
+/// construct that spells it, and a row would make it callable by name.
+/// `crate::script`'s two symbols are the same arrangement one construct over,
+/// and its module doc is the home of why a symbol without a row is a shape
+/// rather than an oversight.
+///
+/// `nvs-ir` reaches it through `nvs_types`, which is the only edge there is:
+/// `nvs-runtime` owns every `nvs_ir::Helper` symbol and cannot reach this
+/// crate's layout for a `Core` class, so the lift is a `CoreCall` rather than
+/// a helper row.
+pub const MARKUP_SYMBOL: &str = "nvs_core_html_markup";
+
+/// The symbol `Markup + Markup` lowers to — ADR 0024 § 5's composition rule,
+/// which is the second and last way a program obtains a [`MARKUP`].
+///
+/// Row-less for [`MARKUP_SYMBOL`]'s reason and by the same argument: `+` is
+/// the spelling § 5 gives composition, so the operator's own lowering is the
+/// only thing allowed to reach this, and a member row would be a third way in
+/// that took its operands from anywhere.
+pub const MARKUP_CONCAT_SYMBOL: &str = "nvs_core_html_markup_concat";
+
 /// `Core\Html::escape`'s reference card — ADR 0117.
 const ESCAPE_DOC: MethodDoc = MethodDoc {
     short: "Writes `&`, `<`, `>`, `\"` and `'` in `$text` as character references, and replaces \
@@ -148,6 +172,8 @@ const ESCAPE_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_html_escape" => (nvs_core_html_escape as *const ()).cast(),
+        MARKUP_SYMBOL => (nvs_core_html_markup as *const ()).cast(),
+        MARKUP_CONCAT_SYMBOL => (nvs_core_html_markup_concat as *const ()).cast(),
         _ => return None,
     })
 }
@@ -170,20 +196,22 @@ fn escaped(c: char) -> Option<&'static str> {
     }
 }
 
-/// A `string` argument, or the fault a non-`string` tag produces.
+/// A `string`, or the fault a non-`string` tag produces. `subject` names what
+/// was expected to be text and heads the message.
 ///
 /// The tag check is ADR 0009's UTF-8 guarantee itself: `bytes` is its own tag
 /// over the same allocation and reaches `None` here, which is what keeps a
 /// binary payload out of a text format.
-fn text<'a>(value: &'a Value, position: &str) -> Result<&'a str, Fault> {
+fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {
     value.as_text().ok_or_else(|| {
-        // Unreachable from source: the row declares one `CoreTy::Text`
+        // Unreachable from source: `escape`'s row declares one `CoreTy::Text`
         // parameter, so a `bytes` argument — the only other tag over this
         // allocation — is `E0401` (*expected `string`, found `bytes`*) at the
-        // call and never reaches this body. The check stays because the ABI
-        // is `*const Value` and nothing in it carries the row's promise.
+        // call and never reaches this body, and a carrier's slot holds what
+        // this module put there. The check stays because the ABI is
+        // `*const Value` and nothing in it carries either promise.
         Fault::fatal(format!(
-            "Core\\Html::escape expected {:?} for {position}, got tag {}",
+            "{subject} expected {:?}, got tag {}",
             Tag::Str,
             value.tag_byte()
         ))
@@ -211,7 +239,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_render::text::substitute`] answers a borrow for the same reason
     /// one sink over.
     fn nvs_core_html_escape(_ctx, args: [1]) {
-        let text = text(&args[0], "the text")?;
+        let text = text(&args[0], r"`Core\Html::escape`'s `$text`")?;
 
         // Both halves are a scan and neither fires on ordinary text, so they
         // are asked before anything is allocated.
@@ -245,6 +273,91 @@ nvs_runtime::nvs_helper! {
             }
         }
         Ok(Value::str(NvsStr::new(out.as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `"<b>" as Core\Html\Markup` — ADR 0024 § 5's lift, and the whole of
+    /// what [`MARKUP_SYMBOL`] does.
+    ///
+    /// The *trust* decision is not here and cannot be: `nvs_types::expr::quals`
+    /// has already refused a `tainted` operand, a `secret` one and anything
+    /// computed (`E0417`), so by the time this runs the argument is a source
+    /// literal the author wrote and the only thing left is to put it in the
+    /// carrier's one slot. A body that re-asked the question would be asking
+    /// it of a value that no longer remembers where it came from, which is
+    /// exactly why § 5's rule is a compile-time one.
+    ///
+    /// **What it spends:** one object allocation per lift, which is
+    /// [`crate::instance`]'s cost and charged to the request like every other
+    /// `Core` instance. The literal's bytes are not copied — the slot holds
+    /// one more reference to the same [`NvsStr`].
+    fn nvs_core_html_markup(_ctx, args: [1]) {
+        // Unreachable from source for `text`'s own reason: `nvs-ir` emits this
+        // over a `Ty::Str` the checker proved is a literal. The check stays
+        // because the ABI is `*const Value`, and the slot it fills is the one
+        // `nvs_runtime::value_to_string` writes out raw.
+        text(&args[0], r"the literal lifted by `as Core\Html\Markup`")?;
+
+        // A `CoreCall`'s arguments are borrowed and `instance::build` takes
+        // over each slot's reference, so the reference the carrier ends up
+        // holding is taken here rather than handed over by the caller.
+        #[expect(
+            unsafe_code,
+            reason = "the argument slot holds a live reference for the length of \
+                      the call, which is `Value::retain`'s whole obligation"
+        )]
+        unsafe {
+            args[0].retain();
+        }
+        Ok(crate::instance::build(&MARKUP, [args[0]]))
+    }
+}
+
+/// One `Core\Html\Markup` operand's trusted bytes — slot
+/// [`nvs_runtime::CARRIER_TEXT_SLOT`], **borrowed**, exactly as
+/// [`crate::instance::slot`] hands it over.
+///
+/// Returned as a [`Value`] rather than as a `&str` because the borrow has to
+/// outlive this call: the slot's own `Value` is what owns the reference the
+/// text is read through.
+fn markup_slot(value: Value, position: &str) -> Result<Value, Fault> {
+    let object = crate::instance::receiver(value, &MARKUP, position)?;
+    Ok(crate::instance::slot(
+        object,
+        nvs_runtime::CARRIER_TEXT_SLOT,
+    ))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$a + $b` over two `Core\Html\Markup` — ADR 0024 § 5's composition
+    /// rule, and the whole of what [`MARKUP_CONCAT_SYMBOL`] does.
+    ///
+    /// **Nothing is checked and nothing is escaped**, which is the rule rather
+    /// than an omission: § 5 grants composition precisely because both
+    /// fragments already passed whichever rule made them `Markup`, so
+    /// re-escaping either here would corrupt the markup it was lifted for.
+    /// The pair is the operator table's own — `nvs_types::expr::operators`
+    /// admits `Markup + Markup` and refuses every other object beside `+` — so
+    /// the only judgement left is the one the tag check below makes.
+    ///
+    /// **What it spends:** one string allocation and one object allocation per
+    /// composition, both charged to the request. Neither operand is touched: a
+    /// `Markup` is a value type, so `$a + $b` leaves both of them where they
+    /// were, and a chain of `n` fragments is `n - 1` of these.
+    fn nvs_core_html_markup_concat(_ctx, args: [2]) {
+        let left = markup_slot(args[0], "the left operand")?;
+        let right = markup_slot(args[1], "the right operand")?;
+        let left = text(&left, "the left operand of `Markup + Markup`")?;
+        let right = text(&right, "the right operand of `Markup + Markup`")?;
+
+        let mut out = String::with_capacity(left.len() + right.len());
+        out.push_str(left);
+        out.push_str(right);
+        Ok(crate::instance::build(
+            &MARKUP,
+            [Value::str(NvsStr::new(out.as_bytes()))],
+        ))
     }
 }
 

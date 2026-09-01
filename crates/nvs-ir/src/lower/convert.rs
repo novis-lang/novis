@@ -343,23 +343,23 @@ impl<'a> Lowering<'a> {
                 }
                 out
             }
-            // One shape reaches here, and it is a missing *lowering*:
-            // `nvs_types`' `reject_unconvertible` refuses every pair ADR 0007
-            // § 2's closed table has no row for (`E0708`), and every object
-            // target with no class to test against (`E0711`), so this is no
-            // longer where a missing rule is discovered.
+            // Nothing reaches here any more, and that is now the claim rather
+            // than a hope: `nvs_types`' `reject_unconvertible` refuses every
+            // pair ADR 0007 § 2's closed table has no row for (`E0708`) and
+            // every object target with no class to test against (`E0711`), and
+            // the rows whose decision is a *label* `Ty` has erased are arms of
+            // `Self::lower_conversion` rather than of this table.
             _ => panic!(
                 "nvs-ir lowers ADR 0007 § 2's scalar conversion rows, ADR 0009 § 3's `string` ↔ \
                  `bytes` pair, both of ADR 0010 § 5's enum ones, a `Ty::Tagged` operand into \
                  every scalar target among them and into `bytes`, and every operand into a \
-                 tagged target — got `{from:?} as {to:?}`. One row is still missing and is the \
-                 whole of what can arrive here, every other pair being `E0708` or `E0711` a \
-                 phase up: ADR 0024 § 5's `string as Core\\Html\\Markup`, which waits on \
-                 `Core\\Html` existing at all (M7). Two targets do not reach this table at all, \
-                 each because what decides it is a *label* one `Ty` has erased: a declared class \
-                 is `Self::lower_checked_downcast` and an `array<U>` is \
-                 `Self::lower_array_restamp`, both callers of it rather than rows of it. See the \
-                 crate docs' known gaps"
+                 tagged target — got `{from:?} as {to:?}`. No row is missing: every other pair \
+                 is `E0708` or `E0711` a phase up, so a pair arriving here is a rule that was \
+                 admitted and never lowered. Three targets do not reach this table at all, each \
+                 because what decides it is a *label* one `Ty` has erased: a declared class is \
+                 `Self::lower_checked_downcast`, an `array<U>` is `Self::lower_array_restamp` \
+                 and ADR 0024 § 5's `Core\\Html\\Markup` is `Self::lower_markup_lift`, all \
+                 callers of it rather than rows of it. See the crate docs' known gaps"
             ),
         }
     }
@@ -810,6 +810,14 @@ impl<'a> Lowering<'a> {
                 {
                     return self.lower_checked_downcast(v, &class, inner, ty.span, env, cur);
                 }
+                // ADR 0024 § 5's `"<b>" as Core\Html\Markup`, and it is here
+                // for the downcast's reason exactly: both targets erase to
+                // `Ty::Object`, so only the written name tells a class that is
+                // *tested* from the one class that is *built*. See
+                // [`Self::lower_markup_lift`] for which of the two this is.
+                if to == Ty::Object && self.markup_target(ty) {
+                    return self.lower_markup_lift(v, inner, env, cur);
+                }
                 // ADR 0007 § 2's `array<T> as array<U>` row, and it is here
                 // for the reason the downcast above is: what decides it is the
                 // *element* type, which `Ty::Array` has erased. Both sides of
@@ -1193,6 +1201,78 @@ impl<'a> Lowering<'a> {
             self.emit_retain(hit, out);
         }
         (out, Ty::Object)
+    }
+
+    /// Whether `ty` names [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// § 5's `Core\Html\Markup` — the one class target this crate lowers by
+    /// *building* rather than by testing.
+    ///
+    /// [`super::closure::declared_class`] cannot answer it and should not:
+    /// that helper reports only a class the program itself declared, `Core`
+    /// names deliberately excluded, because every target it feeds is checked
+    /// against a descriptor the compiled unit laid out and a `Core` class has
+    /// none in it. This target is decided by a *rule* instead — a source
+    /// literal, refused as `E0417` where it is not — so the name is all that
+    /// has to survive, and it comes from `nvs_stdlib` through `nvs_types`
+    /// rather than being spelled again here.
+    fn markup_target(&self, ty: &Type) -> bool {
+        let Some(id) = self.exprs.declared_ty(ty.span) else {
+            return false;
+        };
+        match self.checked_types.get(id) {
+            // `QName` is destructured rather than named, for
+            // `super::closure::declared_class`'s reason: `nvs-hir` is a
+            // dev-dependency of this crate.
+            CheckedTy::Class(qname, _) => qname.to_string() == nvs_types::CORE_HTML_MARKUP_CLASS,
+            _ => false,
+        }
+    }
+
+    /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// § 5's `"<b>" as Core\Html\Markup` — the sink's only raw-write bypass,
+    /// and the one conversion in this crate whose result is *constructed*.
+    ///
+    /// **Nothing is decided here.** § 5's rule is that the operand is a source
+    /// literal and never anything computed, and `nvs_types::expr::quals` has
+    /// already refused every other operand where it was written — a `tainted`
+    /// value, a `secret` one and anything with a run-time step in it
+    /// (`E0417`). So what is left by this point is one trusted `string` and
+    /// the layout it has to be wrapped in.
+    ///
+    /// **It is an [`InstKind::CoreCall`] rather than a [`Helper`] row**, which
+    /// is the whole of what makes it a decision rather than a transcription.
+    /// Every `Helper` symbol is one `nvs-runtime` exports, and a `Markup` is a
+    /// one-slot instance of a class registered in `nvs-stdlib` — a crate
+    /// `nvs-runtime` may not depend on, since the dependency runs the other
+    /// way. `nvs-stdlib` owns the layout, so `nvs-stdlib` owns the symbol, and
+    /// this crate names it through `nvs_types` exactly as `spawn script` and a
+    /// duration literal name theirs.
+    ///
+    /// **Ownership is the string rows' in [`Self::convert`]**: a `CoreCall`
+    /// borrows its arguments, the callee takes its own reference for the slot,
+    /// so a fresh operand is released once the call has read it and a borrowed
+    /// one is left alone — the pair that leaves exactly one reference for the
+    /// consumer of an `as` to own.
+    fn lower_markup_lift(
+        &mut self,
+        v: ValueId,
+        operand: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let out = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::CoreCall {
+                symbol: nvs_types::CORE_HTML_MARKUP,
+                args: vec![v],
+            },
+            env,
+        );
+        if !self.aliasing_read(operand) {
+            self.emit_release(*cur, v);
+        }
+        out
     }
 
     /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2's

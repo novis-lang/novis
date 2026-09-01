@@ -238,6 +238,10 @@ pub use expr_table::{
     Delegation, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall, UrlPiece,
 };
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
+pub use nvs_stdlib::html::{
+    MARKUP_CONCAT_SYMBOL as CORE_HTML_MARKUP_CONCAT, MARKUP_NAME as CORE_HTML_MARKUP_CLASS,
+    MARKUP_SYMBOL as CORE_HTML_MARKUP,
+};
 pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use nvs_stdlib::router::link::{
