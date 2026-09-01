@@ -1,0 +1,80 @@
+--TEST--
+Core\RateLimit::shed keys its own memory — two keys under one limit spend separate budgets and a third opens on a full one — ADR 0075 § 1 and ADR 0059 § 1
+--FILE--
+<?nvs
+// ADR 0059 § 1's "a map in the calling core's own thread", asked as behaviour
+// rather than as structure: `shed` holds one arrival time *per key*, so the
+// `$key` argument is what separates one account's budget from another's. A
+// limiter that kept a single arrival time — the shape a first implementation
+// reaches for, and the shape a namespacing bug degenerates to — admits four of
+// these eight and sheds the rest, while every individual line it prints is a
+// sentence a correct limiter also prints.
+//
+// Four an hour for each of two keys, taken alternately. The burst defaults to
+// the limit, so a key that owns its own budget admits all four at an instant.
+int $admitted = 0;
+int $stepped = 0;
+int $paired = 0;
+
+foreach (Core\Arr::range(1, 4) as int $n) {
+    var $a = Core\RateLimit::shed("tenant:a", 4, 1h);
+    var $b = Core\RateLimit::shed("tenant:b", 4, 1h);
+    int $leftA = $a->remaining() as int;
+    int $leftB = $b->remaining() as int;
+
+    if ($a->allowed()) {
+        $admitted = $admitted + 1;
+    }
+    if ($b->allowed()) {
+        $admitted = $admitted + 1;
+    }
+
+    // Each key drains at its own rate through its own budget, so both report
+    // the same figure at the same arrival — the count that a shared budget
+    // fails at the first pair, where it would answer 3 and 2.
+    if ($leftA == $leftB) {
+        $paired = $paired + 1;
+    }
+    if ($leftA == 4 - $n) {
+        $stepped = $stepped + 1;
+    }
+    if ($leftB == 4 - $n) {
+        $stepped = $stepped + 1;
+    }
+}
+
+echo "admitted ", $admitted, " of 8 across two keys, alternately", "\n";
+echo "the two keys agreed on what was left ", $paired, " of 4", "\n";
+echo "each key counted its own four down ", $stepped, " of 8", "\n";
+
+// The other side of the same bound, per key: the fifth arrival on each is shed,
+// which is what says the four above were one key's budget and not two halves of
+// one shared one.
+int $shedBoth = 0;
+var $fifthA = Core\RateLimit::shed("tenant:a", 4, 1h);
+var $fifthB = Core\RateLimit::shed("tenant:b", 4, 1h);
+if (!$fifthA->allowed()) {
+    $shedBoth = $shedBoth + 1;
+}
+if (!$fifthB->allowed()) {
+    $shedBoth = $shedBoth + 1;
+}
+echo "each key spent its own budget and no more ", $shedBoth, " of 2", "\n";
+
+// And a key neither of them touched still has its whole window: an absent entry
+// is an unspent budget, not a shared one.
+int $untouched = 0;
+var $third = Core\RateLimit::shed("tenant:c", 4, 1h);
+if ($third->allowed()) {
+    $untouched = $untouched + 1;
+}
+if (($third->remaining() as int) == 3) {
+    $untouched = $untouched + 1;
+}
+echo "a third key opened on a full budget ", $untouched, " of 2", "\n";
+--EXPECT--
+admitted 8 of 8 across two keys, alternately
+the two keys agreed on what was left 4 of 4
+each key counted its own four down 8 of 8
+each key spent its own budget and no more 2 of 2
+a third key opened on a full budget 2 of 2
