@@ -1,0 +1,1140 @@
+//! [ADR 0067 § 5](../../../docs/adr/0067-core-db.md)'s placeholder rewriter: one
+//! spelling in, the driver's own out, and the `inList` expansion that § 1's
+//! statement cache keys on.
+//!
+//! Novis code writes `?` or `:name` whichever database it is talking to, and
+//! every driver gets the spelling its own protocol wants — `$1` on PostgreSQL,
+//! `@p1` on SQL Server, `?` on MySQL, MariaDB and SQLite. That is the whole of
+//! this module: [`rewrite`] is a pure function of the SQL text, the shape of the
+//! bound arguments and a [`Dialect`], and it never sees a value. It is a free
+//! function rather than a method on a connection for the reason ADR 0132 § 5
+//! gives for the rest of the shared half — there is nothing per-connection in
+//! it, and a test that had to build a `PgConn` to reach it would need a socket
+//! and a certificate to ask what `IN ?` expands to.
+//!
+//! # What it returns, and why it is two things
+//!
+//! [`Statement::sql`] is the text to send; [`Statement::binds`] is the order the
+//! caller's arguments go on the wire in, which is *not* the order they were
+//! written in. A `:name` used twice is one argument bound at two markers, and an
+//! `inList` is one argument bound at several — so a driver cannot recover the
+//! bind order by counting the arguments it was handed, and this is the only
+//! place that knows it.
+//!
+//! `binds.len()` is § 1's **expansion arity**, and the statement cache keys on
+//! the original SQL text plus that number rather than on the rewritten text: the
+//! rewriting is a pure function of the two, so they identify the same entries
+//! while being cheaper to hash. `IN` over three ids and over four are two
+//! entries, which is the whole reason the arity is in the key at all.
+//!
+//! [`StatementCache`] is here for that reason and no other — it is the half of
+//! § 1 that decides whether a batch carries a `Parse`, and it is the same
+//! decision on all five drivers, so it is plain data with no wire in it. Which
+//! messages the answer turns into is each driver's own.
+//!
+//! # What it skips, and what it does not diagnose
+//!
+//! A `?` inside a string literal, a comment or a quoted identifier is text, not
+//! a placeholder, so the scan tracks those regions. It also leaves PostgreSQL's
+//! `::` cast and its `?|`/`?&` jsonb operators alone. What it cannot tell apart
+//! is jsonb's bare `?` operator from a placeholder — they are the same byte in
+//! the same position — which is why § 5 gives `??` as the escape for a literal
+//! question mark, and why that escape is the one piece of syntax this rewriter
+//! adds to SQL rather than removing.
+//!
+//! **Malformed SQL is the server's diagnosis, not ours.** An unterminated quote
+//! or comment ends the scan at the end of the text and the statement goes out to
+//! be rejected by a parser that can say what is actually wrong with it. The
+//! errors below are only the ones about *placeholders and arguments*, which the
+//! server cannot see because it never receives the original spelling.
+
+use std::io;
+
+use crate::conn::Driver;
+
+/// How one driver spells a bound parameter, and how it quotes and comments.
+///
+/// Four values for five drivers: MariaDB and MySQL share a syntax exactly, and
+/// [ADR 0067](../../../docs/adr/0067-core-db.md)'s insistence that they are two
+/// drivers is about auth plugins, error tables and capability flags, none of
+/// which reaches the SQL text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dialect {
+    /// `$1`, dollar-quoted bodies, nested block comments, no backslash escape.
+    PostgreSql,
+    /// `?`, backtick identifiers, `#` comments, and `\` escapes inside strings.
+    MySql,
+    /// `?`, backtick identifiers, and no backslash escape.
+    Sqlite,
+    /// `@p1`, and `[bracketed]` identifiers.
+    SqlServer,
+}
+
+impl Dialect {
+    /// The dialect a driver writes.
+    #[must_use]
+    pub const fn of(driver: Driver) -> Dialect {
+        match driver {
+            Driver::Postgres => Dialect::PostgreSql,
+            Driver::MySql | Driver::MariaDb => Dialect::MySql,
+            Driver::SqlServer => Dialect::SqlServer,
+            Driver::Sqlite => Dialect::Sqlite,
+        }
+    }
+
+    /// The `n`th marker, one-based, as the protocol wants to read it.
+    fn marker(self, n: usize) -> String {
+        match self {
+            Dialect::PostgreSql => format!("${n}"),
+            Dialect::MySql | Dialect::Sqlite => "?".to_string(),
+            Dialect::SqlServer => format!("@p{n}"),
+        }
+    }
+
+    /// Whether a marker carries its own number, which is what lets a repeated
+    /// `:name` be sent once and read twice.
+    const fn numbered(self) -> bool {
+        matches!(self, Dialect::PostgreSql | Dialect::SqlServer)
+    }
+
+    /// Whether `\` escapes the next byte inside a quoted run. MySQL's default,
+    /// and nobody else's: PostgreSQL has `standard_conforming_strings` on, and
+    /// SQLite and SQL Server never had it.
+    const fn backslash_escapes(self) -> bool {
+        matches!(self, Dialect::MySql)
+    }
+
+    /// Whether `$tag$…$tag$` is a string body. PostgreSQL only, and it matters
+    /// because a function body is exactly where a stray `?` lives.
+    const fn dollar_quotes(self) -> bool {
+        matches!(self, Dialect::PostgreSql)
+    }
+
+    /// Whether `[…]` is a quoted identifier. On PostgreSQL and SQLite the same
+    /// bracket is an array subscript, so this cannot be unconditional.
+    const fn bracket_quotes(self) -> bool {
+        matches!(self, Dialect::SqlServer)
+    }
+
+    /// Whether `` `…` `` is a quoted identifier.
+    const fn backtick_quotes(self) -> bool {
+        matches!(self, Dialect::MySql | Dialect::Sqlite)
+    }
+
+    /// Whether `#` starts a comment. MySQL's alone: on PostgreSQL `#` is a
+    /// legal operator character.
+    const fn hash_comments(self) -> bool {
+        matches!(self, Dialect::MySql)
+    }
+
+    /// Whether `/* /* */ */` nests, as PostgreSQL's does and no one else's.
+    const fn nested_block_comments(self) -> bool {
+        matches!(self, Dialect::PostgreSql)
+    }
+
+    /// Whether `?|` and `?&` are operators rather than a placeholder followed
+    /// by something. jsonb's, so PostgreSQL's; elsewhere a `?` is always a
+    /// placeholder and `? | 3` is written with the space it needs anyway.
+    const fn jsonb_question_operators(self) -> bool {
+        matches!(self, Dialect::PostgreSql)
+    }
+}
+
+/// What one bound argument does to the SQL text — all this rewriter needs to
+/// know about a value it never sees.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Binding {
+    /// One value at one marker, whatever it encodes to. § 5's "one parameter is
+    /// always one value": a list bound this way is a PostgreSQL array or a JSON
+    /// document, not an expansion.
+    One,
+    /// `Core\Db::inList($values)`, holding the number of values — the explicit
+    /// marker that expands to a parenthesised list of that many markers.
+    List(usize),
+}
+
+/// Which spelling the caller's arguments arrived in, per § 5.
+///
+/// The two are exclusive by construction here: an array is list-keyed or
+/// string-keyed, and the `LogicError` for one that is both is raised where the
+/// array is, not here.
+#[derive(Debug, Clone, Copy)]
+pub enum Params<'a> {
+    /// A list-keyed array: positional `?`, bound in the order they appear.
+    Positional(&'a [Binding]),
+    /// A string-keyed array: `:name`, in the caller's own order, which is what
+    /// [`Source::arg`] indexes into.
+    Named(&'a [(&'a str, Binding)]),
+}
+
+/// Where one marker takes its value from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Source {
+    /// The index into [`Params`]'s own slice, whichever form it took.
+    pub arg: usize,
+    /// Which element of an [`Binding::List`] argument, and always `0` for a
+    /// single value.
+    pub element: usize,
+}
+
+/// A rewritten statement: the text to send and the order to bind in.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Statement {
+    /// The SQL with every placeholder replaced by the dialect's own marker.
+    pub sql: String,
+    /// One entry per marker, in the order the protocol reads them.
+    pub binds: Vec<Source>,
+}
+
+impl Statement {
+    /// § 1's expansion arity — the number of markers, which is what the
+    /// statement cache's key carries alongside the *original* SQL text.
+    #[must_use]
+    pub fn arity(&self) -> usize {
+        self.binds.len()
+    }
+}
+
+/// [ADR 0067 § 1](../../../docs/adr/0067-core-db.md)'s per-connection LRU of
+/// server-side prepared statements.
+///
+/// There is no `prepare` step in the Novis API, so this is what makes "every
+/// statement is prepared" cost what § 1 says it costs: the first execution of a
+/// statement in a connection's life pays for a parse and every later one does
+/// not. It is the *connection's* cache and never a process-wide one — a prepared
+/// statement is a name on one session, and two connections that shared this
+/// would bind against names the other's server has never heard of.
+///
+/// **The key is the SQL text plus [`Statement::arity`]**, not the rewritten
+/// text: `IN` over three ids and over four are two server-side statements
+/// because they are two different texts, and the arity is what tells them apart
+/// without hashing the longer string. Text alone would hand the second one the
+/// first one's plan, which is the bug this key exists to make unspellable.
+///
+/// # Its size, and why it is a parameter here
+///
+/// § 1 sizes it by `statement_cache` in the connection's config block. That
+/// field has no reader yet — nothing in this crate opens a connection *from*
+/// config — so the capacity arrives at [`StatementCache::new`] and
+/// [`DEFAULT_CAPACITY`](StatementCache::DEFAULT_CAPACITY) is what the drivers
+/// pass until the connect path reads one. A capacity of `0` is not a broken
+/// cache: it is the unnamed statement every time, which is the behaviour
+/// PostgreSQL had before this type existed.
+#[derive(Debug)]
+pub struct StatementCache {
+    /// Most recently used first. A `Vec` rather than a map because the capacity
+    /// is a handful: a linear scan over that beats hashing the SQL text, and
+    /// the LRU order is then the vector's own with nothing to maintain.
+    entries: Vec<Entry>,
+    capacity: usize,
+    /// Names are minted and never reused, so a `Close` still in flight can
+    /// never collide with a `Parse` that follows it.
+    next: u64,
+}
+
+/// One statement the server is holding for us.
+#[derive(Debug)]
+struct Entry {
+    sql: String,
+    arity: usize,
+    name: String,
+}
+
+/// What the cache says about a statement that is about to be sent.
+///
+/// The three variants are the three shapes the batch takes, which is why this
+/// is an answer and not a lookup: a driver matches once and writes the messages
+/// the answer names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Prepared {
+    /// The server already has it under this name, so the batch carries no
+    /// `Parse` at all — § 1's "cached re-executions cost one round trip".
+    Hit(String),
+    /// It must be parsed under this name, and `evicted` is the name that had to
+    /// leave to make room, to be closed in the same batch.
+    Miss {
+        /// The fresh name to parse under.
+        name: String,
+        /// The statement to deallocate alongside it, if the cache was full.
+        evicted: Option<String>,
+    },
+    /// No caching: the unnamed statement, parsed every time. What a capacity of
+    /// zero means, and it is a supported configuration rather than a failure.
+    Unnamed,
+}
+
+impl Prepared {
+    /// The server-side name to bind against — the empty string for the unnamed
+    /// statement, which is the protocol's own spelling of it.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        match self {
+            Prepared::Hit(name) | Prepared::Miss { name, .. } => name,
+            Prepared::Unnamed => "",
+        }
+    }
+}
+
+impl StatementCache {
+    /// What a driver sizes itself with until `statement_cache` has a reader.
+    ///
+    /// A request runs a handful of distinct statements, and this holds them all
+    /// without asking a server to keep a hundred plans alive for a connection
+    /// that is idle in a pool.
+    pub const DEFAULT_CAPACITY: usize = 16;
+
+    /// An empty cache holding at most `capacity` statements; `0` disables it.
+    #[must_use]
+    pub fn new(capacity: usize) -> StatementCache {
+        StatementCache {
+            entries: Vec::with_capacity(capacity.min(64)),
+            capacity,
+            next: 0,
+        }
+    }
+
+    /// How many statements the server may be holding at once.
+    #[must_use]
+    pub const fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    /// How many it is holding now.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Whether the server is holding none.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Answers what the batch for this statement has to carry, promoting a hit
+    /// to most-recently-used and minting a name for a miss.
+    ///
+    /// A miss's entry is **not** recorded here: the statement does not exist on
+    /// the server until it has parsed, and a driver calls [`Self::commit`] once
+    /// it has. Forgetting to commit costs a round trip and nothing else, which
+    /// is the direction this split is biased in.
+    pub fn prepare(&mut self, sql: &str, arity: usize) -> Prepared {
+        if self.capacity == 0 {
+            return Prepared::Unnamed;
+        }
+        if let Some(at) = self
+            .entries
+            .iter()
+            .position(|entry| entry.arity == arity && entry.sql == sql)
+        {
+            let entry = self.entries.remove(at);
+            let name = entry.name.clone();
+            self.entries.insert(0, entry);
+            return Prepared::Hit(name);
+        }
+        let evicted = (self.entries.len() >= self.capacity)
+            .then(|| self.entries.pop().map(|entry| entry.name))
+            .flatten();
+        let name = format!("s{}", self.next);
+        self.next += 1;
+        Prepared::Miss { name, evicted }
+    }
+
+    /// Records a statement the server has now parsed, as most-recently-used.
+    ///
+    /// Only ever called with the name from a [`Prepared::Miss`] that reached
+    /// its `ParseComplete`, and once per miss: ADR 0067 § 4 allows one statement
+    /// at a time, so nothing can have touched the cache in between.
+    pub fn commit(&mut self, sql: &str, arity: usize, name: String) {
+        if self.capacity == 0 {
+            return;
+        }
+        self.entries.insert(
+            0,
+            Entry {
+                sql: sql.to_string(),
+                arity,
+                name,
+            },
+        );
+    }
+
+    /// Forgets every statement, for a reset that deallocated them.
+    ///
+    /// § 13's asymmetry, and it is the protocol's rather than a choice:
+    /// `COM_RESET_CONNECTION` and `sp_reset_connection` drop prepared statements
+    /// along with everything else, so their drivers call this and PostgreSQL's —
+    /// whose reset is deliberately not `DISCARD ALL` — never does.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+}
+
+/// Rewrites `sql`'s `?` or `:name` placeholders into `dialect`'s markers.
+///
+/// # Errors
+///
+/// Every one of these is [`io::ErrorKind::InvalidInput`] and becomes a
+/// `LogicError` at the `Core\Db` boundary — they are all mistakes in the call
+/// rather than answers from a server, and this crate builds no fault of its own
+/// (`Cargo.toml` § 1 is the rule):
+///
+/// - the SQL's spelling disagrees with the arguments' — a `:name` against a
+///   list-keyed array, or a `?` against a string-keyed one;
+/// - a positional statement has more or fewer `?` than arguments;
+/// - a `:name` names no argument, or an argument is never named;
+/// - an `inList` is empty, which § 5 refuses because the rewriter cannot tell
+///   `IN` from `NOT IN` and the two want opposite answers.
+pub fn rewrite(sql: &str, params: Params<'_>, dialect: Dialect) -> io::Result<Statement> {
+    let bytes = sql.as_bytes();
+    let mut out = String::with_capacity(sql.len() + 16);
+    let mut binds: Vec<Source> = Vec::new();
+    // A numbered dialect renders a repeated `:name` back to the same marker, so
+    // the value goes out once; keeping the rendered text is simpler than
+    // recovering it from the bind indices, and there is one entry per name.
+    let mut rendered: Vec<(&str, String)> = Vec::new();
+    let mut used = match params {
+        Params::Named(list) => vec![false; list.len()],
+        Params::Positional(_) => Vec::new(),
+    };
+    let mut positional = 0usize;
+    // Everything from here to `i` is text we have not yet had a reason to cut.
+    let mut copied = 0usize;
+    let mut i = 0usize;
+
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\'' => i = skip_quoted(bytes, i, b'\'', dialect.backslash_escapes()),
+            b'"' => i = skip_quoted(bytes, i, b'"', dialect.backslash_escapes()),
+            b'`' if dialect.backtick_quotes() => i = skip_quoted(bytes, i, b'`', false),
+            b'[' if dialect.bracket_quotes() => i = skip_bracket(bytes, i),
+            b'-' if bytes.get(i + 1) == Some(&b'-') => i = skip_line(bytes, i),
+            b'#' if dialect.hash_comments() => i = skip_line(bytes, i),
+            b'/' if bytes.get(i + 1) == Some(&b'*') => {
+                i = skip_block(bytes, i, dialect.nested_block_comments());
+            }
+            b'$' if dialect.dollar_quotes() => {
+                i = skip_dollar(bytes, i).unwrap_or(i + 1);
+            }
+            // A cast, not a name. `::` is the reason a `:` alone is not enough
+            // to start one.
+            b':' if bytes.get(i + 1) == Some(&b':') => i += 2,
+            b':' if bytes.get(i + 1).is_some_and(|c| is_name_start(*c)) => {
+                let end = name_end(bytes, i + 1);
+                let name = &sql[i + 1..end];
+                let list = match params {
+                    Params::Positional(_) => return Err(named_against_a_list(name)),
+                    Params::Named(list) => list,
+                };
+                let arg = list
+                    .iter()
+                    .position(|(bound, _)| *bound == name)
+                    .ok_or_else(|| unbound_name(name))?;
+                used[arg] = true;
+                out.push_str(&sql[copied..i]);
+                match rendered.iter().find(|(seen, _)| *seen == name) {
+                    Some((_, text)) if dialect.numbered() => out.push_str(text),
+                    _ => {
+                        let text = expand(dialect, &mut binds, arg, list[arg].1)?;
+                        out.push_str(&text);
+                        rendered.push((name, text));
+                    }
+                }
+                i = end;
+                copied = end;
+            }
+            b'?' => {
+                // `??` is § 5's escape, and on PostgreSQL it is also the only
+                // way to write jsonb's own one-byte `?` operator.
+                if bytes.get(i + 1) == Some(&b'?') {
+                    out.push_str(&sql[copied..i]);
+                    out.push('?');
+                    i += 2;
+                    copied = i;
+                } else if dialect.jsonb_question_operators()
+                    && matches!(bytes.get(i + 1), Some(b'|' | b'&'))
+                {
+                    i += 2;
+                } else {
+                    let slots = match params {
+                        Params::Named(_) => return Err(positional_against_names()),
+                        Params::Positional(slots) => slots,
+                    };
+                    let binding = *slots
+                        .get(positional)
+                        .ok_or_else(|| positional_mismatch(positional + 1, slots.len()))?;
+                    out.push_str(&sql[copied..i]);
+                    let text = expand(dialect, &mut binds, positional, binding)?;
+                    out.push_str(&text);
+                    positional += 1;
+                    i += 1;
+                    copied = i;
+                }
+            }
+            _ => i += 1,
+        }
+    }
+    out.push_str(&sql[copied..]);
+
+    match params {
+        Params::Positional(slots) if positional != slots.len() => {
+            Err(positional_mismatch(positional, slots.len()))
+        }
+        Params::Named(list) => match used.iter().position(|seen| !seen) {
+            Some(unused) => Err(unused_name(list[unused].0)),
+            None => Ok(Statement { sql: out, binds }),
+        },
+        Params::Positional(_) => Ok(Statement { sql: out, binds }),
+    }
+}
+
+/// Renders the markers one argument expands to, recording what each binds.
+fn expand(
+    dialect: Dialect,
+    binds: &mut Vec<Source>,
+    arg: usize,
+    binding: Binding,
+) -> io::Result<String> {
+    match binding {
+        Binding::One => {
+            let text = dialect.marker(binds.len() + 1);
+            binds.push(Source { arg, element: 0 });
+            Ok(text)
+        }
+        Binding::List(0) => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "argument {arg} is an empty `inList`, and ADR 0067 § 5 refuses one: an empty list \
+                 matches nothing inside `IN` and everything inside `NOT IN`, the rewriter cannot \
+                 tell which it is in, and the caller has to branch"
+            ),
+        )),
+        Binding::List(len) => {
+            let mut text = String::with_capacity(len * 5 + 2);
+            text.push('(');
+            for element in 0..len {
+                if element > 0 {
+                    text.push_str(", ");
+                }
+                text.push_str(&dialect.marker(binds.len() + 1));
+                binds.push(Source { arg, element });
+            }
+            text.push(')');
+            Ok(text)
+        }
+    }
+}
+
+/// A `:name` in the SQL, and a list-keyed array at the call.
+fn named_against_a_list(name: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!(
+            "the statement binds `:{name}` but its arguments are a list, and ADR 0067 § 5 reads \
+             the array's keys as the choice: give the array string keys, or write `?` in the SQL"
+        ),
+    )
+}
+
+/// A `?` in the SQL, and a string-keyed array at the call.
+fn positional_against_names() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "the statement binds `?` but its arguments are string-keyed, and ADR 0067 § 5 reads the \
+         array's keys as the choice: write `:name` in the SQL, or give the array list keys",
+    )
+}
+
+/// More or fewer `?` than there were arguments.
+fn positional_mismatch(placeholders: usize, arguments: usize) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!(
+            "the statement has {placeholders} `?` placeholder(s) and was given {arguments} \
+             argument(s), and ADR 0067 § 5 binds them one for one — an `inList` counts as the one \
+             argument it is, however many values it holds"
+        ),
+    )
+}
+
+/// A `:name` that no argument answers to.
+fn unbound_name(name: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!("the statement binds `:{name}` and no argument is keyed `{name}`"),
+    )
+}
+
+/// An argument no `:name` ever asked for — a misspelling on one side or the
+/// other, and never something the server could report.
+fn unused_name(name: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!("the argument keyed `{name}` is never bound: the statement has no `:{name}`"),
+    )
+}
+
+/// Whether a byte may open a `:name`.
+const fn is_name_start(c: u8) -> bool {
+    c.is_ascii_alphabetic() || c == b'_'
+}
+
+/// One past the end of the name starting at `start`.
+fn name_end(bytes: &[u8], start: usize) -> usize {
+    let mut i = start;
+    while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+        i += 1;
+    }
+    i
+}
+
+/// One past the closing `quote`, or the end of the text if there is none.
+///
+/// Doubling is the escape everywhere; a backslash is one only where the dialect
+/// says so.
+fn skip_quoted(bytes: &[u8], start: usize, quote: u8, backslash: bool) -> usize {
+    let mut i = start + 1;
+    while i < bytes.len() {
+        if backslash && bytes[i] == b'\\' {
+            i += 2;
+        } else if bytes[i] == quote {
+            if bytes.get(i + 1) == Some(&quote) {
+                i += 2;
+            } else {
+                return i + 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    bytes.len()
+}
+
+/// One past the closing `]`, where `]]` is the escape.
+fn skip_bracket(bytes: &[u8], start: usize) -> usize {
+    let mut i = start + 1;
+    while i < bytes.len() {
+        if bytes[i] == b']' {
+            if bytes.get(i + 1) == Some(&b']') {
+                i += 2;
+            } else {
+                return i + 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    bytes.len()
+}
+
+/// One past the newline that ends a `--` or `#` comment.
+fn skip_line(bytes: &[u8], start: usize) -> usize {
+    let mut i = start + 1;
+    while i < bytes.len() && bytes[i] != b'\n' {
+        i += 1;
+    }
+    // The newline itself is ordinary text, and copying it with the comment is
+    // what keeps the rewritten SQL line-for-line with what was written.
+    (i + 1).min(bytes.len())
+}
+
+/// One past the `*/` that closes a block comment, counting depth where the
+/// dialect nests.
+fn skip_block(bytes: &[u8], start: usize, nested: bool) -> usize {
+    let mut depth = 1usize;
+    let mut i = start + 2;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'*' && bytes[i + 1] == b'/' {
+            depth -= 1;
+            if depth == 0 {
+                return i + 2;
+            }
+            i += 2;
+        } else if nested && bytes[i] == b'/' && bytes[i + 1] == b'*' {
+            depth += 1;
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    bytes.len()
+}
+
+/// One past the closing `$tag$`, or `None` if this `$` opens no body at all —
+/// which is what `$1` and a bare `$` are.
+fn skip_dollar(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut j = start + 1;
+    if bytes.get(j).is_some_and(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
+        j += 1;
+    }
+    if bytes.get(j) != Some(&b'$') {
+        return None;
+    }
+    let tag = &bytes[start..=j];
+    let mut i = j + 1;
+    while i + tag.len() <= bytes.len() {
+        if &bytes[i..i + tag.len()] == tag {
+            return Some(i + tag.len());
+        }
+        i += 1;
+    }
+    Some(bytes.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Binding, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite};
+    use crate::conn::Driver;
+
+    /// The rewritten text alone, for the cases that are about the scan.
+    fn pg(sql: &str, slots: &[Binding]) -> String {
+        rewrite(sql, Params::Positional(slots), Dialect::PostgreSql)
+            .expect("the rewrite should succeed")
+            .sql
+    }
+
+    fn pg_named(sql: &str, list: &[(&str, Binding)]) -> Statement {
+        rewrite(sql, Params::Named(list), Dialect::PostgreSql).expect("the rewrite should succeed")
+    }
+
+    fn refused(sql: &str, params: Params<'_>) -> String {
+        rewrite(sql, params, Dialect::PostgreSql)
+            .expect_err("the rewrite should be refused")
+            .to_string()
+    }
+
+    #[test]
+    fn positional_placeholders_become_numbered_markers() {
+        let one = Binding::One;
+        let statement = rewrite(
+            "select * from t where a = ? and b = ?",
+            Params::Positional(&[one, one]),
+            Dialect::PostgreSql,
+        )
+        .expect("two placeholders, two arguments");
+        assert_eq!(statement.sql, "select * from t where a = $1 and b = $2");
+        assert_eq!(
+            statement.binds,
+            [Source { arg: 0, element: 0 }, Source { arg: 1, element: 0 },]
+        );
+        assert_eq!(statement.arity(), 2);
+    }
+
+    #[test]
+    fn every_dialect_spells_the_same_statement_its_own_way() {
+        let sql = "select ? , ?";
+        let slots = [Binding::One, Binding::One];
+        let spellings = [
+            (Dialect::PostgreSql, "select $1 , $2"),
+            (Dialect::MySql, "select ? , ?"),
+            (Dialect::Sqlite, "select ? , ?"),
+            (Dialect::SqlServer, "select @p1 , @p2"),
+        ];
+        for (dialect, expected) in spellings {
+            let statement = rewrite(sql, Params::Positional(&slots), dialect)
+                .expect("two placeholders, two arguments");
+            assert_eq!(statement.sql, expected, "{dialect:?}");
+            // Whatever the spelling, the bind order is the same.
+            assert_eq!(statement.arity(), 2, "{dialect:?}");
+        }
+    }
+
+    #[test]
+    fn mariadb_and_mysql_are_one_dialect_and_the_five_drivers_map_onto_four() {
+        assert_eq!(Dialect::of(Driver::MariaDb), Dialect::of(Driver::MySql));
+        assert_eq!(Dialect::of(Driver::Postgres), Dialect::PostgreSql);
+        assert_eq!(Dialect::of(Driver::SqlServer), Dialect::SqlServer);
+        assert_eq!(Dialect::of(Driver::Sqlite), Dialect::Sqlite);
+    }
+
+    #[test]
+    fn a_repeated_name_binds_one_value_once_where_the_marker_is_numbered() {
+        let statement = pg_named(
+            "select * from t where a = :id or b = :id",
+            &[("id", Binding::One)],
+        );
+        assert_eq!(statement.sql, "select * from t where a = $1 or b = $1");
+        assert_eq!(statement.binds, [Source { arg: 0, element: 0 }]);
+        assert_eq!(statement.arity(), 1);
+    }
+
+    #[test]
+    fn a_repeated_name_is_sent_twice_where_the_marker_is_not() {
+        // The asymmetry § 5 names: positional form cannot express the reuse,
+        // and neither can a protocol whose marker carries no number.
+        let statement = rewrite(
+            "select * from t where a = :id or b = :id",
+            Params::Named(&[("id", Binding::One)]),
+            Dialect::MySql,
+        )
+        .expect("one argument, bound twice");
+        assert_eq!(statement.sql, "select * from t where a = ? or b = ?");
+        assert_eq!(
+            statement.binds,
+            [Source { arg: 0, element: 0 }, Source { arg: 0, element: 0 },]
+        );
+    }
+
+    #[test]
+    fn in_list_expands_to_a_parenthesised_run_and_moves_the_arity() {
+        let statement = rewrite(
+            "select * from t where id in ? and k = ?",
+            Params::Positional(&[Binding::List(3), Binding::One]),
+            Dialect::PostgreSql,
+        )
+        .expect("two arguments, four markers");
+        assert_eq!(
+            statement.sql,
+            "select * from t where id in ($1, $2, $3) and k = $4"
+        );
+        assert_eq!(
+            statement.binds,
+            [
+                Source { arg: 0, element: 0 },
+                Source { arg: 0, element: 1 },
+                Source { arg: 0, element: 2 },
+                Source { arg: 1, element: 0 },
+            ]
+        );
+        assert_eq!(statement.arity(), 4);
+    }
+
+    #[test]
+    fn one_text_over_three_ids_and_over_four_are_two_cache_keys() {
+        // § 1's key is the original text plus the arity, so the arity is the
+        // only thing that may distinguish these two.
+        let sql = "select * from t where id in ?";
+        let three = rewrite(
+            sql,
+            Params::Positional(&[Binding::List(3)]),
+            Dialect::PostgreSql,
+        )
+        .expect("three values");
+        let four = rewrite(
+            sql,
+            Params::Positional(&[Binding::List(4)]),
+            Dialect::PostgreSql,
+        )
+        .expect("four values");
+        assert_ne!(three.arity(), four.arity());
+        assert_ne!(three.sql, four.sql);
+    }
+
+    #[test]
+    fn an_empty_in_list_is_refused_rather_than_guessed_at() {
+        let message = refused(
+            "select * from t where id in ?",
+            Params::Positional(&[Binding::List(0)]),
+        );
+        assert!(message.contains("empty `inList`"), "{message}");
+        assert!(message.contains("NOT IN"), "{message}");
+    }
+
+    #[test]
+    fn a_question_mark_inside_a_literal_or_a_comment_is_text() {
+        assert_eq!(
+            pg("select 'a ? b', ?", &[Binding::One]),
+            "select 'a ? b', $1"
+        );
+        assert_eq!(
+            pg("select 'it''s ?', ?", &[Binding::One]),
+            "select 'it''s ?', $1"
+        );
+        assert_eq!(
+            pg("select \"a ? b\", ?", &[Binding::One]),
+            "select \"a ? b\", $1"
+        );
+        assert_eq!(pg("-- ?\nselect ?", &[Binding::One]), "-- ?\nselect $1");
+        assert_eq!(pg("/* ? */ select ?", &[Binding::One]), "/* ? */ select $1");
+        assert_eq!(
+            pg("/* /* ? */ ? */ select ?", &[Binding::One]),
+            "/* /* ? */ ? */ select $1"
+        );
+        assert_eq!(
+            pg("select $fn$ a ? b $fn$, ?", &[Binding::One]),
+            "select $fn$ a ? b $fn$, $1"
+        );
+        assert_eq!(
+            pg("select $$ ? $$, ?", &[Binding::One]),
+            "select $$ ? $$, $1"
+        );
+    }
+
+    #[test]
+    fn a_name_inside_a_literal_or_a_comment_is_text() {
+        let statement = pg_named("select ':id', -- :id\n :id", &[("id", Binding::One)]);
+        assert_eq!(statement.sql, "select ':id', -- :id\n $1");
+        assert_eq!(statement.arity(), 1);
+    }
+
+    #[test]
+    fn a_backslash_ends_a_mysql_literal_and_does_not_end_a_postgresql_one() {
+        // The one place the dialects disagree about where a literal stops, and
+        // getting it wrong rewrites a `?` that was never a placeholder.
+        let sql = r"select 'a\', ?";
+        assert_eq!(
+            rewrite(
+                sql,
+                Params::Positional(&[Binding::One]),
+                Dialect::PostgreSql
+            )
+            .expect("the literal runs to the second quote")
+            .sql,
+            r"select 'a\', $1"
+        );
+        // On MySQL `\'` is an escape, so the literal is unterminated and there
+        // is no placeholder in the text at all.
+        let message = rewrite(sql, Params::Positional(&[Binding::One]), Dialect::MySql)
+            .expect_err("no placeholder, one argument")
+            .to_string();
+        assert!(message.contains("0 `?` placeholder(s)"), "{message}");
+    }
+
+    #[test]
+    fn the_operators_a_question_mark_is_part_of_are_left_alone() {
+        assert_eq!(
+            pg("select a ?| array['x'], ?", &[Binding::One]),
+            "select a ?| array['x'], $1"
+        );
+        assert_eq!(pg("select a ?& b, ?", &[Binding::One]), "select a ?& b, $1");
+        // MySQL has no such operator, so there the same bytes are a
+        // placeholder followed by an operator.
+        assert_eq!(
+            rewrite(
+                "select a ?| b",
+                Params::Positional(&[Binding::One]),
+                Dialect::MySql
+            )
+            .expect("one placeholder")
+            .sql,
+            "select a ?| b"
+        );
+    }
+
+    #[test]
+    fn a_doubled_question_mark_is_one_literal_question_mark() {
+        assert_eq!(
+            pg("select a ?? 'k', ?", &[Binding::One]),
+            "select a ? 'k', $1"
+        );
+        // And the escape is what makes the jsonb `?` operator writable at all.
+        assert_eq!(pg("select a ?? 'k'", &[]), "select a ? 'k'");
+    }
+
+    #[test]
+    fn a_cast_is_not_a_name() {
+        let statement = pg_named("select :id::text", &[("id", Binding::One)]);
+        assert_eq!(statement.sql, "select $1::text");
+    }
+
+    #[test]
+    fn a_quoted_identifier_hides_a_placeholder_in_the_dialect_that_has_it() {
+        assert_eq!(
+            rewrite(
+                "select `a?b`, ?",
+                Params::Positional(&[Binding::One]),
+                Dialect::MySql
+            )
+            .expect("one placeholder")
+            .sql,
+            "select `a?b`, ?"
+        );
+        assert_eq!(
+            rewrite(
+                "select [a?b], ?",
+                Params::Positional(&[Binding::One]),
+                Dialect::SqlServer
+            )
+            .expect("one placeholder")
+            .sql,
+            "select [a?b], @p1"
+        );
+        // The same bracket is a subscript on PostgreSQL, so the `?` inside it
+        // is a placeholder there.
+        assert_eq!(pg("select a[?]", &[Binding::One]), "select a[$1]");
+    }
+
+    #[test]
+    fn a_hash_comment_is_mysqls_alone() {
+        assert_eq!(
+            rewrite(
+                "select ? # ?\n",
+                Params::Positional(&[Binding::One]),
+                Dialect::MySql
+            )
+            .expect("one placeholder")
+            .sql,
+            "select ? # ?\n"
+        );
+        assert_eq!(
+            pg("select ? # ?", &[Binding::One, Binding::One]),
+            "select $1 # $2"
+        );
+    }
+
+    #[test]
+    fn a_spelling_that_disagrees_with_the_arguments_is_refused_both_ways() {
+        let named = refused("select :id", Params::Positional(&[Binding::One]));
+        assert!(
+            named.contains("binds `:id` but its arguments are a list"),
+            "{named}"
+        );
+        let positional = refused("select ?", Params::Named(&[("id", Binding::One)]));
+        assert!(
+            positional.contains("binds `?` but its arguments are string-keyed"),
+            "{positional}"
+        );
+    }
+
+    #[test]
+    fn a_positional_count_is_refused_on_both_sides_of_the_match() {
+        let too_few = refused("select ?, ?", Params::Positional(&[Binding::One]));
+        assert!(
+            too_few.contains("2 `?` placeholder(s) and was given 1"),
+            "{too_few}"
+        );
+        let too_many = refused(
+            "select ?",
+            Params::Positional(&[Binding::One, Binding::One]),
+        );
+        assert!(
+            too_many.contains("1 `?` placeholder(s) and was given 2"),
+            "{too_many}"
+        );
+    }
+
+    #[test]
+    fn a_name_with_no_argument_and_an_argument_with_no_name_are_both_refused() {
+        let unbound = refused("select :nope", Params::Named(&[("id", Binding::One)]));
+        assert!(unbound.contains("no argument is keyed `nope`"), "{unbound}");
+        let unused = refused(
+            "select :id",
+            Params::Named(&[("id", Binding::One), ("spare", Binding::One)]),
+        );
+        assert!(unused.contains("keyed `spare` is never bound"), "{unused}");
+    }
+
+    #[test]
+    fn a_statement_with_no_placeholders_and_no_arguments_passes_through_whole() {
+        let sql = "select now()";
+        assert_eq!(pg(sql, &[]), sql);
+        assert_eq!(pg_named(sql, &[]).arity(), 0);
+    }
+
+    /// Runs one statement all the way through a cache, as a driver does.
+    fn cached(cache: &mut StatementCache, sql: &str, arity: usize) -> Prepared {
+        let answer = cache.prepare(sql, arity);
+        if let Prepared::Miss { name, .. } = &answer {
+            cache.commit(sql, arity, name.clone());
+        }
+        answer
+    }
+
+    #[test]
+    fn the_first_execution_parses_and_every_later_one_does_not() {
+        let mut cache = StatementCache::new(4);
+        let first = cached(&mut cache, "select 1", 0);
+        assert!(matches!(first, Prepared::Miss { evicted: None, .. }));
+        assert_eq!(cache.len(), 1);
+        let second = cached(&mut cache, "select 1", 0);
+        assert_eq!(second, Prepared::Hit(first.name().to_string()));
+        // A hit records nothing new: it is the same statement on the server.
+        assert_eq!(cache.len(), 1);
+    }
+
+    #[test]
+    fn one_text_at_two_arities_is_two_server_side_statements() {
+        // § 1's key, and the reason it is not the SQL text alone: `IN` over
+        // three ids and over four are two different texts on the wire.
+        let mut cache = StatementCache::new(4);
+        let three = cached(&mut cache, "select * from t where id in ?", 3);
+        let four = cached(&mut cache, "select * from t where id in ?", 4);
+        assert_ne!(three.name(), four.name());
+        assert_eq!(cache.len(), 2);
+        assert_eq!(
+            cached(&mut cache, "select * from t where id in ?", 3),
+            Prepared::Hit(three.name().to_string())
+        );
+    }
+
+    #[test]
+    fn a_full_cache_evicts_the_least_recently_used_and_names_it_to_be_closed() {
+        let mut cache = StatementCache::new(2);
+        let a = cached(&mut cache, "select 'a'", 0);
+        let b = cached(&mut cache, "select 'b'", 0);
+        // Touching `a` makes `b` the least recently used one.
+        assert!(matches!(cache.prepare("select 'a'", 0), Prepared::Hit(_)));
+        let evicted = match cache.prepare("select 'c'", 0) {
+            Prepared::Miss { evicted, .. } => evicted,
+            other => panic!("a third statement should not fit: {other:?}"),
+        };
+        assert_eq!(evicted.as_deref(), Some(b.name()));
+        assert_eq!(
+            cache.len(),
+            1,
+            "the victim left before the newcomer arrived"
+        );
+        assert!(matches!(cache.prepare("select 'a'", 0), Prepared::Hit(_)));
+        drop(a);
+    }
+
+    #[test]
+    fn a_name_is_never_reused_even_after_its_statement_is_closed() {
+        // A `Close` and the `Parse` that follows it are in flight together, so a
+        // recycled name would bind against whichever the server saw last.
+        let mut cache = StatementCache::new(1);
+        let first = cached(&mut cache, "select 'a'", 0);
+        let second = cached(&mut cache, "select 'b'", 0);
+        let third = cached(&mut cache, "select 'c'", 0);
+        assert_ne!(first.name(), second.name());
+        assert_ne!(second.name(), third.name());
+        assert_ne!(first.name(), third.name());
+    }
+
+    #[test]
+    fn a_statement_that_never_parsed_is_not_remembered() {
+        // The split that costs a round trip when it goes wrong and never a
+        // wrong answer: an uncommitted miss is simply missed again.
+        let mut cache = StatementCache::new(4);
+        let first = cache.prepare("select 1", 0);
+        assert!(matches!(first, Prepared::Miss { .. }));
+        assert!(cache.is_empty());
+        assert!(matches!(
+            cache.prepare("select 1", 0),
+            Prepared::Miss { .. }
+        ));
+    }
+
+    #[test]
+    fn a_capacity_of_zero_is_the_unnamed_statement_every_time() {
+        let mut cache = StatementCache::new(0);
+        assert_eq!(cache.capacity(), 0);
+        assert_eq!(cached(&mut cache, "select 1", 0), Prepared::Unnamed);
+        assert_eq!(cached(&mut cache, "select 1", 0), Prepared::Unnamed);
+        assert_eq!(Prepared::Unnamed.name(), "");
+        assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn a_reset_that_deallocated_everything_leaves_nothing_claimed() {
+        // MySQL's and SQL Server's resets, not PostgreSQL's — § 13's asymmetry.
+        let mut cache = StatementCache::new(4);
+        cached(&mut cache, "select 1", 0);
+        cache.clear();
+        assert!(cache.is_empty());
+        assert!(matches!(
+            cache.prepare("select 1", 0),
+            Prepared::Miss { .. }
+        ));
+    }
+
+    #[test]
+    fn multibyte_text_around_a_placeholder_survives_the_cut() {
+        // Every cut this scan makes is at an ASCII byte; the case exists
+        // because a cut inside a character would panic rather than misbehave.
+        assert_eq!(pg("select 'é☃', ?", &[Binding::One]), "select 'é☃', $1");
+    }
+}

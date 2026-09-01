@@ -106,12 +106,17 @@
 //! machine that walks [`State`]'s four values over one flushed round trip, and
 //! ADR 0067 § 13's reset — six commands pipelined into a second round trip, with
 //! `PgConn::reset` taking `self` by value so a reset that failed cannot hand a
-//! connection back. The
-//! `?`/`:name` rewriter and `inList` expansion, the statement cache and its
-//! arity-aware key, the pool and its acquire path, and the Novis side of ADR
-//! 0067 § 9's type map are still to come — PostgreSQL first throughout, because its
-//! extended protocol pays nothing extra for a prepare and so exercises the
-//! design rather than the driver's own quirks.
+//! connection back. [`sql`] is the shared half of the statement path, plain
+//! data with no wire in it because every driver makes the same two decisions:
+//! ADR 0067 § 5's `?`/`:name` rewriter and `inList` expansion over four
+//! dialects, holding the bind order a driver cannot recover by counting, and
+//! § 1's [`StatementCache`] keyed by SQL text plus that expansion's arity.
+//! [`pg`] is the first driver to spend it: a hit drops the `Parse` from the
+//! batch, and an eviction's `Close` rides in the batch that replaced it. The
+//! pool and its acquire path, and the Novis side of ADR 0067 § 9's type map,
+//! are still to come — PostgreSQL first throughout, because its extended
+//! protocol pays nothing extra for a prepare and so exercises the design rather
+//! than the driver's own quirks.
 //!
 //! **No driver can yet complete a handshake against `tests/db/compose.yaml`.**
 //! Those servers serve a self-signed certificate and `nvs_host::tls` verifies
@@ -125,6 +130,8 @@
 pub mod conn;
 pub mod matrix;
 pub mod pg;
+pub mod sql;
 
 pub use conn::{Connection, Driver, MariaConn, MySqlConn, PgConn, SqliteConn, State, TdsConn};
 pub use pg::{CancelKey, PgColumn, PgRow, PgRows, PgTarget};
+pub use sql::{Binding, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite};
