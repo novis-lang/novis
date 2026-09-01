@@ -2,84 +2,66 @@
 
 ## State
 
-**Novis has a TLS client, and `Core\Http\Client` fetches `https` through it.**
-`crates/nvs-host/src/tls.rs` is the whole of it: `NvsTls::over` takes a connected `NvsTcp`,
-completes a handshake on it and hands back a plaintext `Read`/`Write`. It is a *wrapper* and
-not a transport — `rustls` reaches the socket only through the two standard traits, so every
-wait inside a handshake or a record read is ADR 0115 § 3's park, unchanged and unaware.
+**`Core\Mail` authenticates.** A `[mail.<name>]` block that sets `user` and `password` is sent
+through `STARTTLS` and `AUTH PLAIN`; one that sets neither stays in the clear exactly as before.
+The three decisions behind that are in `crates/nvs-stdlib/src/mail.rs`'s module doc § *A credential
+asks for TLS*, which is their only home:
 
-**The trust anchors are compiled in, and that module's doc is the decision's only home.**
-Mozilla's set via `webpki-roots`, not the host's store: the same binary then trusts the same
-certificates everywhere, a distroless image with no `ca-certificates` still verifies, and
-nothing reads a file on a path with no request behind it. A private CA is left to the
-**operator** through configuration that has not landed; `tls::upgraded` is the seam it plugs
-into. A *program* choosing anchors, or turning verification off, has no spelling and will not
-get one.
+- **TLS is asked for by configuring the credential that needs it**, and where it is asked for it is
+  *required and verified*. Opportunistic TLS was rejected in both its spellings: verified, it
+  breaks the sidecar relay presenting an internal certificate an operator has no `nvs.toml` key to
+  name yet; unverified, `nvs_host::tls` has no spelling for it and will not grow one. Encryption
+  *without* authentication therefore has no key today — it belongs beside that unlanded anchor
+  bundle, and the two are one configuration slice.
+- **Half a credential is refused at `endpoint_of`**, before a socket opens, as a `RuntimeError`.
+- **The upgrade refuses a non-empty read buffer**, which is the `STARTTLS` command-injection
+  defence; see the playbook bullet.
 
-**`ring` is now a shipped dependency and is spent under ADR 0051 § 4**, whose first question is
-`yes` — a record layer is where hostile bytes land. The workspace `Cargo.toml`'s comment above
-`rustls` carries the second question's answer. `rustls`/`rustls-webpki`, which is where TLS's
-historical failures actually live, stay pure Rust.
+`Session` now holds a `Wire` — `Plain(NvsTcp)` or `Secured(NvsTls)` — and `expect`/`command` answer
+with the reply's lines, because `EHLO`'s lines *are* the extension list. `advertised` reads them,
+skipping the greeting line, which is the one line that is not a keyword.
 
-**`https` in the outbound transport is `parts.tls` plus three lines.** `transport::exchange` is
-generic over `Read + Write`, so `http` and `https` share one copy of the framing, the ceiling
-and the retry rules. Two decisions are the transport's own and are in its module doc: the
-certificate is checked against the **host the launderer approved** and never the pinned
-address, and a certificate that does not verify leaves as a `Fault` (settled) while a timeout
-or a reset mid-handshake is `Attempt::Failed` (retried).
+**No `.nvst` case covers any of this and none can**: every new path is past the `mail.send` grant
+and needs a live endpoint, so the three Rust cases in `mail.rs` carry it — the same shape
+`nvs_host::tls` already uses. `Core\Mail::send`'s three conformance cases are unchanged and still
+meet the coverage floor.
 
-**`cargo deny check`'s `advisories` leg is red on a yanked `chacha20` that predates this goal**
-and arrives through `rand`; `licenses`, `bans` and `sources` are green, including the
-`CDLA-Permissive-2.0` that `webpki-roots` needed added to `deny.toml` and to
-`gen-attribution.py`'s `PREFERENCE`. See the playbook bullet.
+**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate
+over a *complete* Part II, which needs §§ 15-19. Those are `Core\Request` and its neighbours and
+are goal 6's, so this check cannot pass inside this goal and is not a regression.
 
-**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's
-gate over a *complete* Part II, which needs §§ 15-19. Those are `Core\Request` and its
-neighbours and are goal 6's, so this check cannot pass inside this goal and is not a
-regression.
-
-**No `.nvst` case covers the `https` happy path and none can**: conformance runs with no
-network and no TLS peer, so the three Rust cases in `tls.rs` carry it. The client case that
-used to pin the `https` *refusal* now pins the header-injection refusal instead — the same
-claim (the transport decides before it connects) over a rule that still exists.
+**`cargo deny check`'s `advisories` leg is red on a yanked `chacha20` that predates this goal** and
+arrives through `rand`; `licenses`, `bans` and `sources` are green. See the playbook bullet.
 
 **Two pack gaps, both still open.** `[context] modules` does not select
-`nvs-runtime/src/terminal.rs`. And `[context] playbook` filters to the *item's* anchor paths,
-so a group that also writes `.nvst` cases never sees the case-authoring bullets.
+`nvs-runtime/src/terminal.rs`. And `[context] playbook` filters to the *item's* anchor paths, so a
+group that also writes `.nvst` cases never sees the case-authoring bullets.
 
 ## Next group
 
-**`Core\Mail`'s two owed members, both now unblocked by `NvsTls` — over
-`crates/nvs-stdlib/src/mail.rs` alone, with `crates/nvs-host/src/tls.rs` read-only beside it.
-ADR 0082 § 2 and the module's own doc § *known gaps* specify them.**
+**`Core\Storage`'s owed depth, over `crates/nvs-stdlib/src/storage.rs` and its conformance cases —
+the file set is that module plus `tests/conformance/core/storage-*.nvst`. The module's own doc
+§ *known gaps* and ADR 0082 § 2 specify all three.**
 
-- [ ] **`STARTTLS` on the SMTP session.** `Session` holds an `NvsTcp` today; make it hold either
-      that or an `NvsTls` and issue `STARTTLS` after the first `EHLO`, re-issuing `EHLO` over the
-      upgraded stream because the advertised extensions change.
-      `crates/nvs-stdlib/src/mail.rs:604` is the struct, `crates/nvs-stdlib/src/mail.rs:618` is
-      `open`, `crates/nvs-stdlib/src/mail.rs:639` is `command`.
-- [ ] **`AUTH PLAIN` over it, and never without it.** `endpoint_of` refuses a configured
-      `password` today with a sentence naming the gap —
-      `crates/nvs-stdlib/src/mail.rs:291` is the function and
-      `crates/nvs-stdlib/src/mail.rs:317` the refusal. `DEFAULT_PORT` at
-      `crates/nvs-stdlib/src/mail.rs:101` says 25 *because* this class cannot authenticate, so
-      587 is part of the same slice. Refuse `AUTH` on a stream that is still plaintext.
-- [ ] **The card and the cases.** `SEND_DOC`'s `errors` at
-      `crates/nvs-stdlib/src/mail.rs:177` and the `password` sentence at
-      `crates/nvs-stdlib/src/mail.rs:234` both describe the refusal that is going away; the
-      module tests start at `crates/nvs-stdlib/src/mail.rs:866`.
+- [ ] **A key is one segment, asserted on both sides.** The bound that admits the last accepted key
+      and refuses the first rejected one — `a/b`, a leading dot, an empty key — named together in
+      one case, which is `conventions.md`'s *bound asserted on both sides* shape.
+      `crates/nvs-stdlib/src/storage.rs:1` is the module doc that states the rule.
+- [ ] **The four rows agree about a missing object.** One question asked of `get`, `delete` and
+      `list` over a disk that has none, asserting they **agree** rather than what each answered.
+      `crates/nvs-stdlib/src/storage.rs:1`.
+- [ ] **`[storage.<name>]` with no `root`, and a `root` that is not a directory.** Two refusals with
+      no case between them; `crates/nvs-config/src/tree.rs:484` is the block they read.
 
 ## Backlog
 
-- `cargo update -p chacha20` — the yanked crate `cargo deny check`'s advisories leg reports,
-  unrelated to any goal-4 slice. Owner: `deny.toml`.
-- An operator-configured anchor bundle in `nvs.toml`, plugging into `tls::upgraded`. Owner:
-  `crates/nvs-host/src/tls.rs`'s module doc.
-- Connection pooling in the outbound transport — ADR 0004 priority 3 against 4, measurable.
-  Owner: `crates/nvs-stdlib/src/http/transport.rs`'s module doc.
-- Reading `[log] target`, which is what stage 7 actually still owes. Owner:
-  `docs/implementation-plan.md`.
-- `[context] modules` does not select `nvs-runtime/src/terminal.rs`. Owner:
+- Encryption without authentication for `Core\Mail` needs an `nvs.toml` key, beside
+  `nvs_host::tls`'s unlanded anchor bundle — `crates/nvs-host/src/tls.rs` module doc.
+- `AUTH LOGIN` and `XOAUTH2` have no spelling; `PLAIN` over TLS is the whole roster —
+  `crates/nvs-stdlib/src/mail.rs` module doc.
+- `[context] modules` does not select `nvs-runtime/src/terminal.rs` — `docs/agent/loop-goal.toml`.
+- `[context] playbook` filters to the item's anchor paths, so case-authoring bullets never print —
   `docs/agent/loop-goal.toml`.
-- `[context] playbook` filters to the item's anchor paths, so case-authoring bullets never
-  print for a group that writes cases. Owner: `docs/agent/loop-goal.toml`.
+- `cargo deny check advisories` is red on a yanked `chacha20` via `rand` — `deny.toml`.
+- Stage 10's `every_part_two_spec_member_is_registered` needs spec §§ 15-19, which are goal 6's —
+  `docs/agent/loop-goal.toml`.

@@ -5243,6 +5243,14 @@ sibling in the same namespace unqualified.
   `[`X`](crate::path::X)` whose label already resolves into *redundant explicit link target* —
   neither of which `build`, `test` or `clippy` says anything about, so they land at step 8 of 8
   after a two-minute run. A module doc that names a test names it in backticks, not brackets.
+- **A `Read`/`Write` stream that may be upgraded is an enum taken *by value*, not a `&mut` swap.**
+  `NvsTls::over` consumes its `NvsTcp`, so a `Session { stream: NvsTcp }` cannot be secured in
+  place without a placeholder variant nobody may observe. `nvs_stdlib::mail::Session::secure`
+  takes `self` and returns a new one instead: the plaintext session is gone when it returns, and
+  the compiler is what says so rather than a comment. The buffered-read field is the other half —
+  `STARTTLS`'s command-injection class (the 2021 *NO STARTTLS* paper) is exactly bytes held from
+  before the handshake being replayed after it, so the upgrade **refuses** a non-empty read buffer
+  rather than clearing it. Any protocol with an in-band upgrade owes both halves.
 
 ## Divergences and refusals already pinned
 
