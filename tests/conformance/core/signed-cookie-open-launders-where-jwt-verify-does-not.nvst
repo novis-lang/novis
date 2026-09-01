@@ -1,0 +1,61 @@
+--TEST--
+Core\SignedCookie::open takes a tainted cookie and answers a plain string, while Core\Jwt::verify answers tainted claims for a token signed under the same key one line earlier — the two halves of the one rule that a verified signature does not launder — ADR 0060 § 5, ADR 0024 § 3
+--FILE--
+<?nvs
+// The agreement shape, over a rule whose entire content is that two members of
+// the same closed roster answer differently. ADR 0060 § 5 says a verified
+// signature does not launder — a JWT's claims come back `tainted` because a
+// signature proves origin and not safety — and then names exactly one
+// exception: a payload the application itself sealed comes back unqualified,
+// because it was already plain when it went in. That reads like an oversight
+// from either side alone, which is why it is asserted from both here.
+// `crates/nvs-stdlib/src/signed_cookie.rs`'s `open` launders section is the home
+// of the reasoning.
+//
+// Both halves are asserted by the *declarations* below rather than by anything
+// printed: neither one can be spelled the other way round and still compile, so
+// this file compiling at all is the assertion and the output is the evidence
+// that the values are the ones being talked about.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+// A cookie is read back out of a request header, so its text is untrusted
+// before anything has looked at it. `open`'s `$cookie` is a laundering
+// parameter, so a tainted value is what it is written to receive.
+string $sealed = Core\SignedCookie::seal("id=42; role=admin", $ring);
+tainted string $fromHeader = $sealed;
+
+// And a plain `string` comes back out. A contagious row would refuse this
+// declaration, and so would a row that answered `tainted string` the way the
+// class beside it does.
+string $payload = Core\SignedCookie::open($fromHeader, $ring);
+echo $payload, "\n";
+
+// The other half, under a key of the same kind and over the same text: a token
+// this program signed a moment ago, verified by the member next to it on ADR
+// 0060 § 1's roster, hands its claims back qualified. The signature is no
+// weaker here — it is the same HMAC over the same key — so what the qualifier
+// tracks is where the plaintext came from, which for a claim is an issuer and
+// for a cookie payload was this program.
+string $token = Core\Jwt::sign(["sub" => "ada", "role" => "admin"], 15m, $key);
+array<tainted string> $claims = Core\Jwt::verify($token, $key);
+tainted string $role = $claims["role"];
+
+// So the rule is legible as code rather than as a comment: the pattern sink
+// refuses a tainted argument outright, and which of these two values needs
+// `Core\Regex::quote` in front of it is the whole of ADR 0060 § 5. The cookie
+// payload goes straight in.
+Core\Regex\Pattern $direct = Core\Regex::compile($payload);
+echo Core\Regex::matches("id=42; role=admin", $direct) ? "y" : "n", "\n";
+
+// The claim cannot, even though it is a substring of the value the same file
+// sealed and opened above — laundering it is a separate, written act.
+string $quoted = Core\Regex::quote($role);
+Core\Regex\Pattern $laundered = Core\Regex::compile($quoted);
+echo Core\Regex::matches("admin", $laundered) ? "y" : "n", "\n";
+echo $quoted, "\n";
+--EXPECT--
+id=42; role=admin
+y
+y
+admin
