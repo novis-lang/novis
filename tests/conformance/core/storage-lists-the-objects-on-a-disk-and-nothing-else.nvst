@@ -1,0 +1,55 @@
+--TEST--
+Core\Storage::list answers the keys of a disk's objects, sorted byte-ascending, and a name that is not an object key is not one of them — ADR 0082 § 2
+--FILE--
+<?nvs
+// ADR 0082 § 2's storage, fourth row, from the outside. A disk's root is an
+// operator's directory and may hold whatever an operator put there, so what
+// this case pins is the two halves of the answer: which of the root's entries
+// are objects, and in which order they come back.
+//
+// The fixture below writes four names into the root beside the two ordinary
+// objects — one beginning with a `.`, one carrying a character the key grammar
+// does not admit, and one directory. None of them is a key `Core\Storage::get`
+// could ever answer octets for, so none of them is listed.
+echo Core\Str::join(Core\Storage::list("uploads"), ","), "\n";
+
+// The order is the member's and not the directory's: this object is written
+// last and comes back first, because the answer is sorted byte-ascending
+// rather than left in whatever order the filesystem walks its own entries.
+Core\Storage::put("uploads", "a-late-write.txt", "late\n" as bytes);
+echo Core\Str::join(Core\Storage::list("uploads"), ","), "\n";
+
+// And the property behind the listing, asserted by counting rather than read
+// off a line: every key it answers is one `get` hands octets back for, so a
+// listing that grew an entry the reading half cannot honour fails here while
+// still looking plausible name by name.
+int $honoured = 0;
+foreach (Core\Storage::list("uploads") as string $key) {
+    if (Core\Storage::get("uploads", $key) == null) {
+        echo "listed but unreadable: ", $key, "\n";
+    } else {
+        $honoured = $honoured + 1;
+    }
+}
+echo "objects: ", Core\Arr::count(Core\Storage::list("uploads")), ", readable: ", $honoured, "\n";
+--FILE nvs.toml--
+[storage.uploads]
+root = "./objects"
+
+[capabilities.fs]
+read = ["./objects"]
+write = ["./objects"]
+--FILE objects/alpha.txt--
+an object, and one of the two the first listing answers
+--FILE objects/beta.txt--
+the other one
+--FILE objects/.hidden--
+not a key: a key never begins with a `.`
+--FILE objects/plus+sign.txt--
+not a key: `+` is not one of the bytes the grammar admits
+--FILE objects/sub/nested.txt--
+not an object: `sub` is a directory, and no key of this class could have made one
+--EXPECT--
+alpha.txt,beta.txt
+a-late-write.txt,alpha.txt,beta.txt
+objects: 3, readable: 3

@@ -1,0 +1,59 @@
+--TEST--
+Core\Storage's four rows are one view of one disk: a put appears in the listing, a replace does not add a key, and a delete leaves it — ADR 0082 § 2
+--FILE--
+<?nvs
+// The agreement case. Each of ADR 0082 § 2's four rows is asked the same
+// question about the same disk after each change, so a listing that missed a
+// write or held a key `delete` removed fails here while every one of the three
+// round-trip cases beside it stays green.
+final class Disk {
+    public static function keys(): string {
+        return Core\Str::join(Core\Storage::list("uploads"), ",");
+    }
+
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "yes";
+        }
+        return "no";
+    }
+}
+
+// The root exists and holds no object: `.keep` is not a key, so the disk a
+// deployment has just configured lists as empty rather than as one entry.
+echo "configured: ", Core\Arr::count(Core\Storage::list("uploads")), "\n";
+
+Core\Storage::put("uploads", "b.txt", "b\n" as bytes);
+Core\Storage::put("uploads", "a.txt", "a\n" as bytes);
+echo "after two puts: ", Disk::keys(), "\n";
+
+// Replacing an object does not add a key. `put` names one object, so the
+// second write is the same entry — which is the object-store contract the
+// `overwrite` option is written around.
+Core\Storage::put("uploads", "a.txt", "again\n" as bytes);
+echo "after replace: ", Disk::keys(), "\n";
+
+Core\Storage::delete("uploads", "a.txt");
+echo "after delete: ", Disk::keys(), "\n";
+
+// And both directions of the agreement at once: the deleted key is gone from
+// the listing, and the key that remains is one `get` still answers for.
+echo "deleted key listed: ", Disk::yn(Core\Arr::contains(Core\Storage::list("uploads"), "a.txt")), "\n";
+echo "listed key readable: ", Disk::yn(Core\Storage::get("uploads", "b.txt") == ("b\n" as bytes)), "\n";
+--FILE nvs.toml--
+[storage.uploads]
+root = "./objects"
+
+[capabilities.fs]
+read = ["./objects"]
+write = ["./objects"]
+--FILE objects/.keep--
+the disk's root has to exist; a name beginning with a `.` is not a key, so this
+makes it without putting an object on it
+--EXPECT--
+configured: 0
+after two puts: a.txt,b.txt
+after replace: a.txt,b.txt
+after delete: b.txt
+deleted key listed: no
+listed key readable: yes

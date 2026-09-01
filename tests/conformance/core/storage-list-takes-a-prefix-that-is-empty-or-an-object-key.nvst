@@ -1,0 +1,60 @@
+--TEST--
+Core\Storage::list filters on a `prefix` that is empty or itself an object key, and refuses one no key on the disk could begin with — ADR 0082 § 2, ADR 0095
+--FILE--
+<?nvs
+// `prefix` is the row's one option — optional, so ADR 0063 R3 puts it in the
+// single trailing shape rather than in a second positional slot — and it is
+// bounded on both sides. This case names the last accepted spelling and the
+// first refused one together, because a member that stopped one entry early
+// would print plausibly against either half alone.
+//
+// The accepted side. Empty is the default and is every object on the disk; a
+// prefix that is a key is the objects whose keys begin with it.
+echo "all: ", Core\Str::join(Core\Storage::list("uploads"), ","), "\n";
+echo "empty: ", Core\Str::join(Core\Storage::list("uploads", {prefix: ""}), ","), "\n";
+echo "note: ", Core\Str::join(Core\Storage::list("uploads", {prefix: "note"}), ","), "\n";
+echo "note.: ", Core\Str::join(Core\Storage::list("uploads", {prefix: "note."}), ","), "\n";
+
+// A prefix that happens to match nothing is a different question from one that
+// could never match anything: this one is a key, so it is asked and answers an
+// empty array.
+echo "zz: ", Core\Arr::count(Core\Storage::list("uploads", {prefix: "zz"})), "\n";
+
+// The refused side. Every non-empty prefix of a key is itself a key, so a
+// spelling the key grammar turns down is one no key on this disk can begin
+// with — and ADR 0095 refuses it rather than repairing it into an empty
+// answer. The message is the key grammar's own, because that is exactly what
+// is wrong with it.
+try {
+    Core\Storage::list("uploads", {prefix: "note/"});
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+try {
+    Core\Storage::list("uploads", {prefix: ".no"});
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+--FILE nvs.toml--
+[storage.uploads]
+root = "./objects"
+
+[capabilities.fs]
+read = ["./objects"]
+write = ["./objects"]
+--FILE objects/note.txt--
+one
+--FILE objects/note.md--
+two
+--FILE objects/notebook--
+three: a key needs no extension
+--FILE objects/other.txt--
+four: the one `note` does not reach
+--EXPECT--
+all: note.md,note.txt,notebook,other.txt
+empty: note.md,note.txt,notebook,other.txt
+note: note.md,note.txt,notebook
+note.: note.md,note.txt
+zz: 0
+Core\Storage::list: `note/` is not an object key — one to 255 bytes of ASCII letters, digits, `.`, `-` and `_`, not beginning with a `.`. A key names an object on the disk and never a path through it, so a separator is refused rather than resolved
+Core\Storage::list: `.no` is not an object key — one to 255 bytes of ASCII letters, digits, `.`, `-` and `_`, not beginning with a `.`. A key names an object on the disk and never a path through it, so a separator is refused rather than resolved
