@@ -608,6 +608,81 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::registry::CLASSES;
+
+    /// ADR 0024 § 3, asked of the rows rather than of the module doc above
+    /// that argues it: **`Core\Validate` launders nothing**, because nothing
+    /// in it answers its own subject back.
+    ///
+    /// The class is the one ADR 0051 § 3 calls "*the* launderer" — the member
+    /// list PHP's `filter` shrank to once its sanitizing half was dropped —
+    /// so a blanket [`Qual::Launder`] over it is the plausible reading, and it
+    /// is the false confidence ADR 0024 exists to prevent: a syntactically
+    /// valid address is still a `tainted` one at every sink. What holds the
+    /// rows to that is structural rather than a promise. All six answer a
+    /// [`CoreTy::Bool`], and a verdict carries no byte of what it was asked
+    /// about, so there is nothing here a qualifier could be removed *from*.
+    ///
+    /// The last assertion is the same claim asked of the whole registry, and
+    /// is what makes this more than these six rows read back: **no laundering
+    /// member anywhere answers a `bool`**. Every one of them hands its subject
+    /// back — `Core\Html::escape` and `Core\Regex::quote` as an unqualified
+    /// `string`, `Core\Http::allowUrl` as a carrier — because laundering is a
+    /// transformation and validating is a question about the input. A
+    /// validator that grew a `Qual::Launder` fails here on the day it is
+    /// added, in whichever class it is added to.
+    #[test]
+    fn validate_launders_only_what_it_actually_validated() {
+        // Counted, not read off six lines: a seventh member added without a
+        // thought for its qualifier fails here rather than passing by absence.
+        let members: Vec<&'static CoreMethod> = CLASS.members().collect();
+        assert_eq!(
+            members.len(),
+            6,
+            "spec § 12's prose roster is six validators"
+        );
+
+        for method in &members {
+            assert!(
+                matches!(method.return_ty, CoreTy::Bool),
+                "`Core\\Validate::{}` answers a verdict, which is what makes \
+                 [`Qual::Neutral`] the honest mark on its subject",
+                method.name
+            );
+            for param in method.params {
+                assert!(
+                    !matches!(param, CoreTy::Text(Qual::Launder | Qual::Reveal)),
+                    "`Core\\Validate::{}` removes no qualifier on either axis",
+                    method.name
+                );
+                if let CoreTy::Text(qual) = param {
+                    assert!(
+                        matches!(qual, Qual::Neutral),
+                        "`Core\\Validate::{}`'s text parameter is [`Qual::Neutral`], \
+                         not {qual:?}",
+                        method.name
+                    );
+                }
+            }
+        }
+
+        let laundering_validators: Vec<String> = CLASSES
+            .iter()
+            .flat_map(|class| class.members().map(move |method| (class.name, method)))
+            .filter(|(_, method)| {
+                matches!(method.return_ty, CoreTy::Bool)
+                    && method
+                        .params
+                        .iter()
+                        .any(|param| matches!(param, CoreTy::Text(Qual::Launder)))
+            })
+            .map(|(class, method)| format!("{class}::{}", method.name))
+            .collect();
+        assert!(
+            laundering_validators.is_empty(),
+            "a launderer answers its subject back, not a verdict: {laundering_validators:?}"
+        );
+    }
 
     /// The line `isEmail` draws, from both sides — the accepted shapes and
     /// each refusal the module docs name.
