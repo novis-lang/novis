@@ -69,8 +69,12 @@ files = [
 # it exists. `src/*.rs` and not `src/**/*.rs` -- fnmatch's `*` crosses a `/` already.
 modules = [
   "crates/nvs-db/src/*.rs",
-  # The stream every driver is written over, and the pool a blocking call goes to.
-  "crates/nvs-host/src/stream.rs",
+  # The stream every driver is written over, the TLS client that layers on it (ADR 0132 § 3), and
+  # the pool a blocking SQLite call goes to. `net.rs` is the stream's file -- there is no
+  # `stream.rs`, which this list named until ADR 0132's session found the warning.
+  "crates/nvs-host/src/net.rs",
+  "crates/nvs-host/src/tls.rs",
+  "crates/nvs-host/src/blocking.rs",
   # Stage 0's pass, and the one it copies.
   "crates/nvs-types/src/derive.rs",
   # § 10's compile-time diagnostics on a literal query, and the qualifier half beside them.
