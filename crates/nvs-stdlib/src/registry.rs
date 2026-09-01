@@ -1449,7 +1449,18 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::io::FILE_NAME, "write", None),
     (crate::io::FILE_NAME, "seek", None),
     (crate::io::FILE_NAME, "tell", None),
+    // `truncate` is where that reading is worth stating out loud, because it is
+    // the one member of this class that destroys data the handle never wrote:
+    // the answer is still the descriptor's, since re-checking the *path* would
+    // check a name that may since have been renamed away from the file being
+    // resized. A handle opened `Read` has no such proof and the operating system
+    // refuses it, which is `nvs_core_io_file_truncate`'s own doc.
+    (crate::io::FILE_NAME, "truncate", None),
     (crate::io::FILE_NAME, "flush", None),
+    // `lock` reaches no further than the descriptor either, and reaches *less*
+    // far than `write`: it changes nothing about the file's contents, which is
+    // why a handle opened `Read` may take one.
+    (crate::io::FILE_NAME, "lock", None),
     (crate::io::FILE_NAME, "close", None),
     // ADR 0044 § 6: starting a program is deny-by-default and path-scoped, the
     // same shape `script.spawn` already has. `Core\Process\Result`'s three

@@ -66,7 +66,7 @@ use std::io::{Read, Seek, Write};
 use std::path::Path;
 
 use nvs_runtime::capability::Access;
-use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
+use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
@@ -745,14 +745,17 @@ const LINE_CHUNK: usize = 8 * 1024;
 /// open — which is one question, answered in [`open_file`], and is the one thing
 /// a static type genuinely cannot know.
 ///
-/// # Seven members so far, and the rest of § 14's roster is owed
+/// # § 14's handle roster is complete, and the standard streams are owed
 ///
-/// `read`, `readLine`, `write`, `seek`, `tell`, `flush` and `close` — the last
-/// two of those added when the handle became random-access, since a position a
-/// caller can set is the whole difference between this and a stream. The spec
-/// also names `truncate` and `lock`, each a signature over the same slot with
-/// nothing new to decide; they are absent because nothing has needed one yet,
-/// which is the same test every row in [`crate::registry::ENUMS`] passes.
+/// `read`, `readLine`, `write`, `seek`, `tell`, `truncate`, `flush`, `lock`
+/// and `close`. `seek` and `tell` arrived when the handle became
+/// random-access, since a position a caller can set is the whole difference
+/// between this and a stream; `truncate` is the length half of the same idea,
+/// and the only way a program shortens a file it is already holding open.
+/// `lock` is the one member here that is not about this program's own view of
+/// the file at all, and [`nvs_core_io_file_lock`] is the home of what it does
+/// and does not promise. `Core\IO::stdin`/`stdout`/`stderr` answer this class
+/// too and are owed still.
 /// `Core\IO::stdin`/`stdout`/`stderr` answer this class too and are owed with
 /// them.
 pub(crate) const FILE: CoreClass = CoreClass {
@@ -810,6 +813,17 @@ pub(crate) const FILE: CoreClass = CoreClass {
             doc: Some(&FILE_TELL_DOC),
         },
         CoreMethod {
+            name: "truncate",
+            // A length is measured from the start of the file and from nowhere
+            // else, so there is no origin to name here for `seek`'s reason.
+            names: &["size"],
+            params: &[CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_io_file_truncate",
+            doc: Some(&FILE_TRUNCATE_DOC),
+        },
+        CoreMethod {
             name: "flush",
             names: &[],
             params: &[],
@@ -817,6 +831,18 @@ pub(crate) const FILE: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_file_flush",
             doc: Some(&FILE_FLUSH_DOC),
+        },
+        CoreMethod {
+            name: "lock",
+            // No `LOCK_SH`/`LOCK_EX`/`LOCK_UN`: R3 refuses the mode argument,
+            // `close` is what `LOCK_UN` was, and exclusive is the one a caller
+            // reaching for a lock at all means.
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_io_file_lock",
+            doc: Some(&FILE_LOCK_DOC),
         },
         CoreMethod {
             name: "close",
@@ -945,6 +971,32 @@ const FILE_TELL_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO\File::truncate`'s reference card — ADR 0117.
+const FILE_TRUNCATE_DOC: MethodDoc = MethodDoc {
+    short: "Sets the file's length to `$size` bytes — `ftruncate`. A smaller size drops \
+            everything past it; a larger one extends the file with zeroes, which is the same \
+            hole a write past the end leaves.",
+    params: &[ParamDoc {
+        name: "size",
+        desc: "How long the file is to be afterwards, in bytes from its start.",
+        shape: &[],
+    }],
+    ret: "Nothing. The handle's own position does not move, so shortening a file can leave the \
+          handle past its new end — `tell` still answers where it was, and a write there lands \
+          over a hole rather than at the end.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The handle has already been closed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The resize itself failed — most often a handle opened `FileMode::Read`, which \
+                   the operating system will not resize.",
+        },
+    ],
+};
+
 /// `Core\IO\File::flush`'s reference card — ADR 0117.
 const FILE_FLUSH_DOC: MethodDoc = MethodDoc {
     short: "Hands everything written on this handle to the operating system — `fflush`. Novis \
@@ -963,6 +1015,28 @@ const FILE_FLUSH_DOC: MethodDoc = MethodDoc {
             desc: "The flush itself failed. Nothing this class does can provoke one today, and \
                    the row is here because the answer belongs to the operating system rather than \
                    to this member.",
+        },
+    ],
+};
+
+/// `Core\IO\File::lock`'s reference card — ADR 0117.
+const FILE_LOCK_DOC: MethodDoc = MethodDoc {
+    short: "Takes an exclusive lock on the file and holds it until the handle closes — `flock` \
+            with `LOCK_EX`. It never waits: a lock another handle holds is refused rather than \
+            queued for, so there is no `LOCK_NB` to remember and no unbounded wait to forget.",
+    params: &[],
+    ret: "Nothing, and there is no `unlock` — the lock's lifetime is the handle's, so `close` \
+          releases it and so does the end of the request.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The handle has already been closed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "Another handle already holds the lock, or the operating system refused it. \
+                   Whether a lock stops a *non-holder's* own reads and writes is the platform's \
+                   answer rather than this member's.",
         },
     ],
 };
@@ -1054,7 +1128,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_file_write" => (nvs_core_io_file_write as *const ()).cast(),
         "nvs_core_io_file_seek" => (nvs_core_io_file_seek as *const ()).cast(),
         "nvs_core_io_file_tell" => (nvs_core_io_file_tell as *const ()).cast(),
+        "nvs_core_io_file_truncate" => (nvs_core_io_file_truncate as *const ()).cast(),
         "nvs_core_io_file_flush" => (nvs_core_io_file_flush as *const ()).cast(),
+        "nvs_core_io_file_lock" => (nvs_core_io_file_lock as *const ()).cast(),
         "nvs_core_io_file_close" => (nvs_core_io_file_close as *const ()).cast(),
         LINES_ITERATE_SYMBOL => (nvs_core_io_lines_iterate as *const ()).cast(),
         _ => return None,
@@ -1479,6 +1555,61 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\IO\File::truncate(uint $size): void` — replacing `ftruncate`.
+    ///
+    /// # Decision: no capability of its own, because the handle is the grant
+    ///
+    /// Every other door in this module opens on a *path*, and
+    /// [`nvs_runtime::capability`] has no member that takes a descriptor —
+    /// deliberately, because by the time one exists the question has already
+    /// been answered. [`nvs_core_io_open`] asked for `fs.write` when the mode
+    /// was `Write`, `Append` or `ReadWrite`, and the handle is the proof that
+    /// it was granted. Re-checking the path here would be checking a *second*
+    /// path: the name may have been renamed or replaced since the descriptor
+    /// was opened, and the file this member resizes is the one the descriptor
+    /// holds either way. `Core\Storage` reuses the same reading over the same
+    /// `fs.*` grants, and [`crate::storage`]'s module doc is the home of it.
+    ///
+    /// A handle opened `Read` carries no such proof, and nothing in this body
+    /// looks for one: the operating system refuses the resize, and the program
+    /// sees the `IOError` every other failure of the file itself arrives as.
+    /// The alternative — reading the mode back out of a third slot and raising
+    /// a refusal of our own — spends a slot per open handle to restate an
+    /// answer the descriptor already has.
+    ///
+    /// # Decision: the position is left where it was
+    ///
+    /// POSIX `ftruncate` does not move the file offset and neither does
+    /// [`std::fs::File::set_len`], so a handle at byte 10 of a file cut to 4
+    /// stays at 10, and the next write lands there over a zero hole. That is
+    /// the state [`nvs_core_io_file_seek`] can already produce past the end, so
+    /// a program has one rule to learn rather than two, and this member gains
+    /// no answer of its own that a caller would have to check.
+    fn nvs_core_io_file_truncate(ctx, args: [2]) {
+        let (key, path) = handle_of(args[0], "truncate")?;
+        let size = args[1].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{FILE_NAME}::truncate expected {:?} for its size, got tag {}",
+                Tag::Uint,
+                args[1].tag_byte()
+            ))
+        })?;
+        {
+            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("truncate", &path))?;
+            file.set_len(size)
+        }
+        .map_err(|err| {
+            nvs_runtime::capability::io_failure(
+                "Core\\IO\\File::truncate",
+                Path::new(path.as_text().unwrap_or("?")),
+                &err,
+            )
+        })?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\IO\File::flush(): void` — replacing `fflush`.
     ///
     /// Novis holds no buffer of its own in front of the descriptor: every
@@ -1508,6 +1639,87 @@ nvs_runtime::nvs_helper! {
             )
         })?;
         Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO\File::lock(): void` — replacing `flock`, and the whole of it.
+    ///
+    /// # Decision: exclusive, and there is no mode argument
+    ///
+    /// PHP's `flock($h, LOCK_SH|LOCK_EX|LOCK_UN)` is three unrelated
+    /// operations behind one `int`, which is exactly ADR 0063 R3's refusal —
+    /// and one of the three is not an operation on the lock at all. `LOCK_UN`
+    /// is this class's [`nvs_core_io_file_close`]: the lock is the
+    /// descriptor's, so the operating system drops it when the descriptor
+    /// goes, and a release member would be a second spelling for something
+    /// that already happens. What is left is shared against exclusive, and
+    /// this is the exclusive one because it is what a caller reaching for a
+    /// lock at all almost always means. A shared lock coordinates readers
+    /// against a writer, which is a second question; it would arrive as R11's
+    /// enum — a row in [`crate::registry::ENUMS`] and a parameter — rather
+    /// than as the `bool` that would make this member two members.
+    ///
+    /// # Decision: it never waits, and contention throws
+    ///
+    /// `flock` without `LOCK_NB` waits for as long as the other holder cares
+    /// to hold it, which on a request path is an unbounded wait governed by no
+    /// timeout in this process. Every other member of this class blocks its
+    /// core too, and that is not the same thing: a read finishes because the
+    /// disk finishes, while a contended lock finishes when another *program*
+    /// decides. That is the wait ADR 0074 leaves no spelling for on the
+    /// outbound side, and the reading carries over, so this is `try_lock` and
+    /// there is no waiting form of it anywhere.
+    ///
+    /// Contention is therefore an `IOError` and never a `false`: ADR 0063
+    /// leaves no room for a falsy return, and ADR 0020 § 2's split puts this
+    /// on the file's side of the line — nothing about the program is wrong,
+    /// the file is held. A caller that wants to wait writes the wait it
+    /// actually means, out of a task that sleeps between attempts and hands
+    /// the core back while it does.
+    ///
+    /// # What this does not promise
+    ///
+    /// Whether the lock stops a *non-holder's* `read` or `write` is the
+    /// operating system's answer and not this member's — advisory on Unix,
+    /// mandatory on Windows, as [`std::fs::File::try_lock`] states — so no
+    /// case in this tree freezes either behaviour. What is portable, and what
+    /// the member is for, is that two handles cannot hold it at once. Locking
+    /// a handle that already holds one is unspecified for the same reason, and
+    /// the only thing that keeps that from being a hazard is that this member
+    /// never blocks: the worst it can do is refuse.
+    fn nvs_core_io_file_lock(ctx, args: [1]) {
+        let (key, path) = handle_of(args[0], "lock")?;
+        let taken = {
+            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("lock", &path))?;
+            file.try_lock()
+        };
+        // Through `io::Error` rather than matching the two arms of the lock's
+        // own error type: naming that type means naming `std::fs`, which the
+        // scan in `tests/capability.rs` forbids this crate outright, and the
+        // conversion is the one std defines — contention becomes
+        // `ErrorKind::WouldBlock` and nothing else does.
+        match taken {
+            Ok(()) => Ok(Value::null()),
+            Err(refused) => {
+                let refused = std::io::Error::from(refused);
+                if refused.kind() == std::io::ErrorKind::WouldBlock {
+                    Err(Fault::thrown_as(
+                        ThrownClass::Io,
+                        format!(
+                            "Core\\IO\\File::lock: another handle already holds the lock on {}",
+                            path.as_text().unwrap_or("?")
+                        ),
+                    ))
+                } else {
+                    Err(nvs_runtime::capability::io_failure(
+                        "Core\\IO\\File::lock",
+                        Path::new(path.as_text().unwrap_or("?")),
+                        &refused,
+                    ))
+                }
+            }
+        }
     }
 }
 
