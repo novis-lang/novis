@@ -1945,6 +1945,14 @@ is why" — is this file.
   with the case. `./target/debug/nvs.exe test <case.nvst>` is the runner that honours every section,
   it takes as many paths as you like in one call, and it is already built at the commit the session
   opens on.
+- **Write a goal's acceptance fixture red, but never write its `nvs.toml` block red.** The two look
+  like halves of one slice and they are not. A `.nvs` fixture naming a member that does not exist yet
+  fails at `E0405` and costs only itself, which is why the playbook's *A missing acceptance fixture*
+  bullet says to write it the moment the goal names it. A config block naming a table `nvs_config`
+  does not know is different in kind: `deny_unknown_fields` sits on every struct in
+  `crates/nvs-config/src/tree.rs`, so an unrecognised `[db.main]` fails at *boot*, for every program
+  in the repository, and turns one red fixture into fifty. The config block belongs to the slice that
+  adds the struct that reads it.
 
 ## Writing a test case
 

@@ -48,8 +48,9 @@
 > column and a nested class is not, which is where the two formats' maps first disagree.
 > `crates/nvs-db` does not exist yet: the driver crate, its wire I/O over goal 2's parking stream,
 > the statement cache and the pool are Stages 2 to 7, and this goal's one ADR slot for their shape
-> is unclaimed. **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** — `Core`'s
-> capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
+> is unclaimed; the goal's three fixtures are on disk and red at `E0405`, which is what lets the
+> acceptance sweep run at all. **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** —
+> `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
 > Conformance 1382, differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
