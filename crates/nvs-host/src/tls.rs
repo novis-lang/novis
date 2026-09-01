@@ -7,13 +7,30 @@
 //! usable was never the transport — it was a **client**, and a client is a
 //! session plus an answer to "whose certificates do you believe". This module
 //! is those two things and nothing else: [`NvsTls::over`] takes a connected
-//! [`NvsTcp`], completes a handshake on it, and hands back a plaintext
+//! stream, completes a handshake on it, and hands back a plaintext
 //! `Read`/`Write` that parks exactly like the stream underneath it.
 //!
 //! Nothing here knows about HTTP or SMTP. `Core\Http\Client` reaches it for an
 //! `https` URL and `Core\Mail` reaches it for `STARTTLS`, and both of those are
 //! the same three lines, because a protocol that was written against a socket
 //! is written against this too.
+//!
+//! # The transport is generic, and `NvsTcp` is its default
+//!
+//! [`NvsTls`] is `NvsTls<T: Read + Write>` and `NvsTls` on its own still means
+//! `NvsTls<NvsTcp>`, which is what every caller in the tree writes. The
+//! parameter exists for one shape the socket cannot express: a handshake
+//! **tunnelled inside another protocol's framing**, where the bytes `rustls`
+//! produces are not the bytes that go on the wire. SQL Server is that case — it
+//! wraps handshake records in TDS `PRELOGIN` packets — and the adapter that
+//! reconciles the two is an ordinary `Read`/`Write` in `nvs-db` rather than a
+//! second TLS client
+//! ([ADR 0132 § 3](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)).
+//! That is the whole reason to generalise rather than to let a driver build its
+//! own session: the anchors below, the protocol versions and the verifier are
+//! decided once, here, and a driver cannot widen any of them by construction.
+//! What stays on `NvsTls<NvsTcp>` alone is what belongs to the socket rather
+//! than to the session — the deadline and the peer address.
 //!
 //! # The core is still handed back, and this module does nothing to keep it
 //!
@@ -109,11 +126,11 @@ use crate::net::NvsTcp;
 /// pinned address and not a name this layer would re-resolve. The name passed
 /// in is what the certificate is checked against, and it is the name the caller
 /// was granted — never the address it was pinned to.
-pub struct NvsTls {
-    inner: StreamOwned<ClientConnection, NvsTcp>,
+pub struct NvsTls<T: Read + Write = NvsTcp> {
+    inner: StreamOwned<ClientConnection, T>,
 }
 
-impl std::fmt::Debug for NvsTls {
+impl<T: Read + Write + std::fmt::Debug> std::fmt::Debug for NvsTls<T> {
     /// The socket and the deadline. The session state is `rustls`'s and holds
     /// key material, so it is not printed even in a debug rendering.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -123,7 +140,7 @@ impl std::fmt::Debug for NvsTls {
     }
 }
 
-impl NvsTls {
+impl<T: Read + Write> NvsTls<T> {
     /// Completes a TLS handshake over `stream`, verifying the peer against the
     /// compiled-in anchors, and hands back the plaintext stream.
     ///
@@ -135,6 +152,18 @@ impl NvsTls {
     /// Returns once the handshake is complete, so a certificate that does not
     /// verify is an error *here* rather than half a request later.
     ///
+    /// `stream` is usually an [`NvsTcp`], and that is the case every caller in
+    /// the tree has: a few plaintext bytes of the protocol's own upgrade, then
+    /// every subsequent byte is a TLS record on the same socket. It is generic
+    /// for the one shape that is not — SQL Server wraps the handshake records
+    /// in TDS `PRELOGIN` packets, so during the handshake the bytes `rustls`
+    /// produces are not the bytes that go on the socket, and the framer that
+    /// reconciles them is an ordinary `Read`/`Write` adapter in `nvs-db`. That
+    /// keeps one TLS client and one answer to "whose certificates do you
+    /// believe"; a second `rustls` session built inside a driver would be a
+    /// second answer to a question this module has already decided at length
+    /// ([ADR 0132 § 3](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)).
+    ///
     /// # Errors
     ///
     /// `InvalidInput` when `name` is neither a DNS name nor an IP literal,
@@ -142,10 +171,19 @@ impl NvsTls {
     /// anchors or the handshake is otherwise refused, `TimedOut` when the
     /// stream's deadline passed mid-handshake, and whatever the socket itself
     /// reported. `UnexpectedEof` when the peer went away mid-handshake.
-    pub fn over(stream: NvsTcp, name: &str) -> io::Result<Self> {
+    pub fn over(stream: T, name: &str) -> io::Result<Self> {
         upgraded(stream, name, anchors())
     }
+}
 
+/// The methods that are the socket's rather than the session's.
+///
+/// They stay on the `NvsTcp` transport because that is what they are about: a
+/// deadline is kept by the thing that waits, and a peer address is a property
+/// of a socket. A session over some other transport reaches both through
+/// whatever owns the stream underneath its framer, which is where they remain
+/// one clock and one address rather than two.
+impl NvsTls<NvsTcp> {
     /// Bounds every wait on the session — handshake renegotiation, reads,
     /// writes — by `at`, or lifts the bound.
     ///
@@ -170,7 +208,7 @@ impl NvsTls {
     }
 }
 
-impl Read for NvsTls {
+impl<T: Read + Write> Read for NvsTls<T> {
     /// Plaintext out of the session, decrypting whole records and parking for
     /// the rest of a record that has not arrived.
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -178,7 +216,7 @@ impl Read for NvsTls {
     }
 }
 
-impl Write for NvsTls {
+impl<T: Read + Write> Write for NvsTls<T> {
     /// Plaintext into the session, framed into records and written through.
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.inner.write(buf)
@@ -196,7 +234,11 @@ impl Write for NvsTls {
 /// Private, and it stays private until an operator can name a bundle in
 /// `nvs.toml` — this module's docs § *The trust anchors are compiled in* is why
 /// a program may never reach it.
-fn upgraded(stream: NvsTcp, name: &str, config: Arc<ClientConfig>) -> io::Result<NvsTls> {
+fn upgraded<T: Read + Write>(
+    stream: T,
+    name: &str,
+    config: Arc<ClientConfig>,
+) -> io::Result<NvsTls<T>> {
     let name = ServerName::try_from(name)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
         .to_owned();

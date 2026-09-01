@@ -110,14 +110,17 @@ Two shapes, and the second is why `nvs-host` changes:
 - **In-band upgrade over the same socket** — PostgreSQL's `SSLRequest`, MySQL and MariaDB's `CLIENT_SSL`
   capability flag. A few plaintext bytes, a one-byte answer, then every subsequent byte is a TLS record on
   the same socket. `NvsTls::over(NvsTcp, name)`
-  ([`tls.rs:145`](../../crates/nvs-host/src/tls.rs)) expresses this today, unchanged.
+  ([`tls.rs:174`](../../crates/nvs-host/src/tls.rs)) expresses this today, unchanged.
 - **A handshake tunnelled inside the protocol's own framing** — SQL Server wraps the TLS handshake records
   in TDS `PRELOGIN` packets, so during the handshake the bytes `rustls` produces are not the bytes that go
   on the socket. `NvsTls::over` cannot express that, because its transport is the concrete `NvsTcp`.
 
-So **`NvsTls` becomes generic over its transport** — `NvsTls<T: Read + Write>`, with the existing
-`NvsTls<NvsTcp>` spelling kept as the alias `Core\Http\Client` and `Core\Mail` already use — and the TDS
-packet framer is an ordinary `Read`/`Write` adapter in `nvs-db`. One TLS client, one answer to "whose
+So **`NvsTls` becomes generic over its transport** — `NvsTls<T: Read + Write = NvsTcp>`, the default being
+what keeps the bare `NvsTls` spelling `Core\Http\Client` and `Core\Mail` already use meaning exactly what it
+meant, with no second name to keep in step — and the TDS
+packet framer is an ordinary `Read`/`Write` adapter in `nvs-db`. What does *not* generalise is what belongs
+to the socket rather than to the session: the deadline and the peer address stay on `NvsTls<NvsTcp>`, so
+there is still one clock, on the thing that waits. One TLS client, one answer to "whose
 certificates do you believe", one place the future `nvs.toml` anchor bundle plugs into. A second `rustls`
 session built inside `nvs-db` would be a second answer to a question `tls.rs` has already decided at length.
 
