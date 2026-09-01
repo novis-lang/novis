@@ -1,0 +1,31 @@
+--TEST--
+An empty value is a value and not an absence, in both of `Core\Env`'s answers — spec § 15, ADR 0063
+--ENV--
+NVS_CASE_EMPTY=
+NVS_CASE_FULL=x
+--FILE--
+<?nvs
+// The bound named on both sides: a variable the operator set to nothing, and a
+// name nobody set at all. ADR 0063 gives `?T` one meaning — absence — so the
+// first of these is a `string` of length 0 and only the second is `null`. A
+// member that read an empty value as "unset" prints plausibly against the
+// second line alone.
+tainted string $empty = Core\Env::get("NVS_CASE_EMPTY") ?? "<unset>";
+tainted string $absent = Core\Env::get("NVS_CASE_NOBODY_SET_THIS") ?? "<unset>";
+echo "empty: [", $empty, "] ", Core\Str::length($empty) as string, "\n";
+echo "absent: [", $absent, "] ", Core\Str::length($absent) as string, "\n";
+
+// And the sweep agrees with the single-name read about which of the two the
+// environment holds, since they are two readings of one table rather than two
+// tables. The empty one is a key with an empty value, not a key that went
+// missing on the way out.
+var $all = Core\Env::all();
+echo "empty in all: ", Core\Arr::hasKey($all, "NVS_CASE_EMPTY") ? "yes" : "no", "\n";
+echo "full in all: ", Core\Arr::hasKey($all, "NVS_CASE_FULL") ? "yes" : "no", "\n";
+echo "absent in all: ", Core\Arr::hasKey($all, "NVS_CASE_NOBODY_SET_THIS") ? "yes" : "no", "\n";
+--EXPECT--
+empty: [] 0
+absent: [<unset>] 7
+empty in all: yes
+full in all: yes
+absent in all: no
