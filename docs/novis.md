@@ -139,6 +139,7 @@ Conventions the whole file uses:
 | [`Core\Ast\Node`](#core-core-ast-node) |  |
 | [`Core\Db`](#core-core-db) |  |
 | [`Core\Db\Connection`](#core-core-db-connection) |  |
+| [`Core\Db\Transaction`](#core-core-db-transaction) |  |
 | [`Core\Db\Rows`](#core-core-db-rows) |  |
 | [`Core\Db\Row`](#core-core-db-row) |  |
 | [`Core\Db\Write`](#core-core-db-write) |  |
@@ -17205,13 +17206,14 @@ Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, 
 <a id="core-core-db-connection"></a>
 ### `Core\Db\Connection`
 
-Keywords: query, execute, executeMany
+Keywords: query, execute, executeMany, transaction
 
 | Member | Signature |
 |---|---|
 | [`Core\Db\Connection->query`](#core-core-db-connection-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows` |
 | [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 | [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
+| [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable $fn): T` |
 
 <a id="core-core-db-connection-query"></a>
 #### `Core\Db\Connection->query`
@@ -17266,6 +17268,124 @@ Runs one statement once per set of values and answers how many rows the whole ba
 **Returns** `uint` — The sum of what each execution reported, with a command whose tag carries no count contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a `RETURNING` clause produced are discarded, and there is no `lastId`: neither has one execution to belong to.
 
 **Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `RuntimeError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-connection-transaction"></a>
+#### `Core\Db\Connection->transaction`
+
+```nvs skip
+$connection->transaction(callable $fn): T
+```
+
+Runs `$fn` inside a transaction and answers whatever it answered: returning commits, throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` and every savepoint member with the one shape that cannot be left open by an early return.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$fn` | `callable` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. Called once — retries are not on by default, because a closure with side effects should not be re-run without being asked for. |
+
+**Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
+
+**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, or the transaction was reached after the call that owned it returned.; `RuntimeError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-transaction"></a>
+### `Core\Db\Transaction`
+
+Keywords: query, execute, executeMany, transaction, rollBack
+
+| Member | Signature |
+|---|---|
+| [`Core\Db\Transaction->query`](#core-core-db-transaction-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows` |
+| [`Core\Db\Transaction->execute`](#core-core-db-transaction-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
+| [`Core\Db\Transaction->executeMany`](#core-core-db-transaction-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
+| [`Core\Db\Transaction->transaction`](#core-core-db-transaction-transaction) | `transaction(callable $fn): T` |
+| [`Core\Db\Transaction->rollBack`](#core-core-db-transaction-rollback) | `rollBack(string $reason): void` |
+
+<a id="core-core-db-transaction-query"></a>
+#### `Core\Db\Transaction->query`
+
+```nvs skip
+$transaction->query(string $sql, array<mixed> $params): Core\Db\Rows
+```
+
+Runs one statement with its values bound, and reads every row it answers into memory before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no `prepare` step because every statement is prepared. The connection is free again the moment this returns; `stream` is the one that holds it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, with a `?` for each value or a `:name` for each — never a value written into the text. It is a sink, so a `tainted` string is refused while compiling and there is no escaper to launder one with. |
+| `$params` | `array<mixed>` | The values to bind: list-keyed for `?` and string-keyed for `:name`, one array and never both spellings. A `Core\Db::inList` element expands into a run of placeholders at its own position, and nothing else expands. |
+
+**Returns** `Core\Db\Rows` — A `Core\Db\Rows` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
+
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-transaction-execute"></a>
+#### `Core\Db\Transaction->execute`
+
+```nvs skip
+$transaction->execute(string $sql, array<mixed> $params): Core\Db\Write
+```
+
+Runs one statement that answers counts rather than rows — an `insert`, an `update`, a `delete`, a `create table` — and answers what it did: `PDO::exec`, `PDOStatement::execute` and `lastInsertId` in one call, with the values bound the same way `query` binds them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, with a `?` for each value or a `:name` for each — never a value written into the text. It is a sink, so a `tainted` string is refused while compiling and there is no escaper to launder one with. |
+| `$params` | `array<mixed>` | The values to bind: list-keyed for `?` and string-keyed for `:name`, one array and never both spellings — `query`'s rule exactly, since both members bind through the same rewriter. |
+
+**Returns** `Core\Db\Write` — A `Core\Db\Write` carrying how many rows were affected, that count as the server reported it, and the id a `RETURNING` clause handed back. Rows the statement did answer are read to the end and discarded, so the connection is free when this returns; `query` is the member that keeps them.
+
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-transaction-executemany"></a>
+#### `Core\Db\Transaction->executeMany`
+
+```nvs skip
+$transaction->executeMany(string $sql, array<array<mixed>> $sets): uint
+```
+
+Runs one statement once per set of values and answers how many rows the whole batch wrote — the loop around `PDOStatement::execute` that every driver writes by hand, with one prepare and one round trip instead of one of each per set.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, written once and bound once per set. It is a sink exactly as `execute`'s is, and the batch gives it no second spelling: there is one text for every set. |
+| `$sets` | `array<array<mixed>>` | One `$params` array per execution, each keyed the way `execute` requires and all of them binding the same number of values — a set whose `inList` is a different width is a different statement, not another row of this one. |
+
+**Returns** `uint` — The sum of what each execution reported, with a command whose tag carries no count contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a `RETURNING` clause produced are discarded, and there is no `lastId`: neither has one execution to belong to.
+
+**Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `RuntimeError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-transaction-transaction"></a>
+#### `Core\Db\Transaction->transaction`
+
+```nvs skip
+$transaction->transaction(callable $fn): T
+```
+
+Runs `$fn` inside a transaction and answers whatever it answered: returning commits, throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` and every savepoint member with the one shape that cannot be left open by an early return.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$fn` | `callable` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. Called once — retries are not on by default, because a closure with side effects should not be re-run without being asked for. |
+
+**Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
+
+**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, or the transaction was reached after the call that owned it returned.; `RuntimeError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-transaction-rollback"></a>
+#### `Core\Db\Transaction->rollBack`
+
+```nvs skip
+$transaction->rollBack(string $reason): void
+```
+
+Gives up on this transaction: records `$reason`, and throws `Core\Db\RolledBack` carrying it. There is no way to ask for a rollback and carry on inside the same transaction, which is the difference from a `setRollbackOnly` every layer has to remember to check.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reason` | `string` (neutral) | Why the work is being abandoned. It becomes the thrown `RolledBack`'s `reason` property and its message, so it is written for whoever reads the failure. |
+
+**Returns** `void` — Nothing — this member always throws.
+
+**Throws** `Core\Db\RolledBack` — Always. It propagates out of the owning `transaction()` call even if something between here and there catches it, because the owning frame acts on the recorded reason rather than on seeing the throw.; `LogicError` — The transaction was reached after the `transaction()` call that owned it returned, so there is no longer a scope to roll back.
 
 <a id="core-core-db-rows"></a>
 ### `Core\Db\Rows`
