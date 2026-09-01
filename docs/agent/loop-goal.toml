@@ -1,13 +1,18 @@
-# Goal 4 of the parity program -- `Core`'s capability-bearing half. The acceptance test, as data.
+# Goal 5 of the parity program -- `Core\Db` and five drivers. The acceptance test, as data.
 #
-# `4-core-part-ii.md` is the prose. One home each.
+# `5-database.md` is the prose. One home each.
 #
-# This is the largest goal in the program -- nine subsystems, each with its own ADR -- and the stages are
-# grouped by FILE SET so that its size costs sessions rather than costing any one session context.
+# THIS GOAL HAS AN EXTERNAL PRECONDITION. `chain.toml` marks it `preflight = "docker"`, so the driver
+# checks for a reachable daemon before this goal's first session and stops the run naming it. Four of the
+# five drivers are verified against real servers; SQLite is a file and needs nothing.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
+  "examples/db.nvs",
+  "examples/transaction.nvs",
+  "examples/queue.nvs",
+  # carried from the previous goal by tools/goal-switch.py
   "examples/files.nvs",
   "examples/process.nvs",
   "examples/cli.nvs",
@@ -18,7 +23,6 @@ files = [
   "examples/reflect.nvs",
   "examples/cycles.nvs",
   "examples/onexit.nvs",
-  # carried from the previous goal by tools/goal-switch.py
   "examples/config.nvs",
   "examples/limits.nvs",
   "examples/capability.nvs",
@@ -61,70 +65,45 @@ files = [
 
 [context]
 
-# One glob per subsystem. `nvs-stdlib` is where almost all of this goal lives, so the glob is deliberate:
-# naming thirty modules by hand is a manifest that goes stale weekly.
-#
-# `src/*.rs` and not `src/**/*.rs` -- the matcher is `fnmatch`, whose `*` already crosses a `/`, so `**`
-# demands a subdirectory and silently misses every top-level module. The `nvs-host` and `nvs-config`
-# patterns name files goals 2 and 3 created; if one warns, that goal moved it.
+# `nvs-db` is new and is created by Stage 2, so orient.py warns that its pattern matches nothing until
+# it exists. `src/*.rs` and not `src/**/*.rs` -- fnmatch's `*` crosses a `/` already.
 modules = [
-  "crates/nvs-stdlib/src/*.rs",
-  # The gate goal 3 built. Every member in this goal declares against it.
-  "crates/nvs-config/src/capability.rs",
-  # The stream every network member is written over, and the pool every blocking call goes to.
-  "crates/nvs-host/src/net.rs",
-  "crates/nvs-host/src/blocking.rs",
-  # Items 16, 23, 25 are checker work rather than member work.
+  "crates/nvs-db/src/*.rs",
+  # The stream every driver is written over, and the pool a blocking call goes to.
+  "crates/nvs-host/src/stream.rs",
+  # Stage 0's pass, and the one it copies.
+  "crates/nvs-types/src/derive.rs",
+  # § 10's compile-time diagnostics on a literal query, and the qualifier half beside them.
   "crates/nvs-types/src/expr/quals.rs",
-  "crates/nvs-types/src/retrieval.rs",
-  # Item 35 -- the property key: the parser refusal it moves, the type atom, the checker's conversion
-  # rows and member-name split, the name-keyed instructions, and the descriptor's per-field tables.
-  "crates/nvs-syntax/src/parser/expr.rs",
-  "crates/nvs-syntax/src/parser/ty.rs",
-  "crates/nvs-types/src/ty.rs",
-  "crates/nvs-types/src/expr/operators.rs",
-  "crates/nvs-types/src/expr/members.rs",
-  "crates/nvs-ir/src/ir.rs",
-  "crates/nvs-runtime/src/object.rs",
-  # Stage 11 -- the teardown sweep: the drain the sweep follows, and the `Ctx` that owns the live list.
-  "crates/nvs-runtime/src/release.rs",
-  "crates/nvs-runtime/src/ctx.rs",
-  # Stage 12 -- the exit hook: the class that registers it, and the ladder neighbour it orders against.
-  "crates/nvs-stdlib/src/script.rs",
-  "crates/nvs-stdlib/src/fatal.rs",
+  # `Core\Db`, `Core\Queue` and the row types are registered here.
+  "crates/nvs-stdlib/src/registry.rs",
+  # The two things the type map borrows: Time's types for date columns, Json's for the JSON ones.
+  "crates/nvs-stdlib/src/time.rs",
+  "crates/nvs-stdlib/src/json.rs",
 ]
 
-rules = [
-  "0014", "0019", "0020", "0024", "0033", "0044", "0046", "0051", "0052", "0054",
-  "0056", "0058", "0059", "0060", "0063", "0074", "0075", "0076", "0082", "0086", "0105",
-  "0116", "0127", "0129",
-]
+rules = ["0067", "0084", "0071", "0051", "0058", "0024", "0054", "0063", "0082"]
 
-# The sections EVERY session of this goal reads. 0063 is the shape rule for every member it writes;
-# 0024 § 3 is what a launderer is, and nine of the ten stages produce a `tainted` value; 0051 § 3 is the
-# roster that says which class belongs here at all. Eighteen ADRs are named in `rules` above and printing
-# a section of each would be 20k a session -- read the rest at the item's own heading.
+# The sections EVERY session of this goal reads. § 1 is why there is no escaping API to reach for, § 9's
+# map is the one every driver item is measured against, and § 13's reset is a security boundary that a
+# pool implementation gets wrong by default. The other eleven sections are named per item.
 adrs = [
-  "0063",
-  "0024 §3",
-  "0051 §3",
+  "0067 §1",
+  "0067 §9",
+  "0067 §13",
 ]
 
-shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
   'Tooling > a core class',
-  'Writing a test case > no core',
   'Running things > adding a',
   'Writing a test case > a rule',
   'Writing a test case > a test binary',
   'Writing a test case > a -p',
-  'Running things > value::asstrbytes and',
-  'Running things > a fatal',
+  'Writing a test case > a multi-file',
   'Running things > a leak whose',
-  'Divergences and refusals already pinned > --errors names no catchable',
-  'Tooling > alloc::pooled recycles',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -144,38 +123,53 @@ plan = ["Open now", "Blocking"]
 milestones = ["M8:verify"]
 
 [valgrind]
-# The sweep grades a fixture on its exit status, because `--error-exitcode=1` is the only signal
-# valgrind has left once the program itself has exited nonzero. Every fixture that exits nonzero BY
-# DESIGN therefore has to be named here, or it reports as a leak it does not have. All three below
-# have their own `[[check]]` asserting the exact failure they exist to show -- `limits.nvs` is stage
-# 4's `exit = "nonzero"` with `FATAL` and `memory` on stderr -- so nothing goes unasserted by sitting
-# in this list.
-skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/limits.nvs"]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The shared cache tier's store, up once per run rather than once per iteration. Stage 6's fixture and
-# `Core\RateLimit`'s limiter both open whatever `nvs.toml`'s `[cache.shared] url` names, and that key
-# names this service: `tests/db/compose.yaml` is one file for every server the program needs, so goal 5's
-# driver matrix and this tier cannot drift into two. `--wait` is what makes "up" mean healthy rather than
-# started. ONE STORE SERVES BOTH LEGS, unlike `tools/origin.py`, which needs a listener inside the distro
-# because a WSL loopback is its own: Docker Desktop forwards the published `127.0.0.1:16379` into the
-# distro, so the WSL leg's `examples/cache.nvs` reaches the same container the native one does.
+# The five servers ADR 0067's Verification names. Brought up ONCE per run rather than per iteration and
+# memoized against `crates/nvs-db/**` the way the WSL leg is memoized against its own inputs -- the matrix
+# costs minutes and identical bytes into a deterministic check cannot come out a different verdict.
 [docker]
 compose = "tests/db/compose.yaml"
-services = ["redis"]
+services = ["mysql", "mariadb", "postgres", "mssql", "redis"]
+memoize_on = ["crates/nvs-db", "tests/db"]
 
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- ADR 0071's pass over a second format. It goes first because § 6's `queryAs<T>` is written
+# against it, and a row mapping written without it is written twice.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 db derive"
+name = "nvs-types (the second derive)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "db_derive_and_db_field_are_on_the_attribute_roster",
+  "a_db_derive_field_whose_type_has_no_column_mapping_is_refused_where_declared",
+  "the_json_and_db_derives_share_one_pass",
+  # carried from the previous goal by tools/goal-switch.py
+  "examples/limits.nvs",
+]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 174 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- ADR 0056's tiering. It changes what an EXISTING pattern does, so every regex case written
 # before it lands is written against the wrong engine, and a catastrophic pattern that silently works
 # today is a case that silently stops working later.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "0 regex tiering"
+stage = "1 floor"
 name = "nvs-stdlib (two tiers, one rule)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -190,14 +184,13 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "0 regex tiering"
+stage = "1 floor"
 name = "nvs-types (the tier is settled at compile time)"
 args = ["test", "-p", "nvs-types"]
 tests = [
   "a_literal_patterns_tier_is_settled_while_checking",
   "a_regex_pattern_argument_refuses_a_tainted_operand",
 ]
-
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -2211,15 +2204,12 @@ cases = [
   "tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the filesystem. Spec § 14 is the member list and is authoritative.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 filesystem"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\IO)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2238,21 +2228,19 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "2 filesystem"
+stage = "1 floor"
 file = "examples/files.nvs"
 want = [
   "wrote 12 bytes", "read back: hello world", "lines=3", "exists=true",
   "within ok", "within refused", "removed",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- processes and the terminal.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 process and terminal"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Process)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2266,7 +2254,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 process and terminal"
+stage = "1 floor"
 name = "nvs-types (the process qualifier rules)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -2276,7 +2264,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 process and terminal"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Cli)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2297,24 +2285,22 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "3 process and terminal"
+stage = "1 floor"
 file = "examples/process.nvs"
 want = ["exit=0", "stdout=hello", "refused: no shell form"]
 
 [[check]]
 kind = "exact"
-stage = "3 process and terminal"
+stage = "1 floor"
 file = "examples/cli.nvs"
 want = ["greet: Hello, ada!", "usage: greet <name> [--loud]", "width resolved once"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- crypto and the protocols on it. AEAD-only per ADR 0051 § 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 crypto"
+stage = "1 floor"
 name = "nvs-stdlib (crypto and the roster)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2327,7 +2313,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 crypto"
+stage = "1 floor"
 name = "nvs-types (secret, and what a signature does not do)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -2339,18 +2325,16 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "4 crypto"
+stage = "1 floor"
 file = "examples/crypto.nvs"
 want = ["hash ok", "verify ok", "verify failed", "sealed", "opened", "tamper refused"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the network, over goal 2's parking stream with rustls on it.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 network"
+stage = "1 floor"
 name = "nvs-types (the outbound compile-time rules)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -2365,7 +2349,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 network"
+stage = "1 floor"
 name = "nvs-stdlib (the client and the socket)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2392,19 +2376,17 @@ tests = [
 # sub-millisecond loopback round trip; its module doc is the home of that reasoning.
 [[check]]
 kind = "exact"
-stage = "5 network"
+stage = "1 floor"
 file = "examples/http.nvs"
 want = ["status=200", "body=ok", "refused: tainted url", "refused: denied range", "deadline hit"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the two stores. Redis by default for the shared tier (ADR 0059 § 1); the container it runs
 # in is the same compose file goal 5 uses, brought up once per run.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "6 stores"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Cache)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2420,7 +2402,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "6 stores"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\RateLimit)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2436,19 +2418,17 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "6 stores"
+stage = "1 floor"
 file = "examples/cache.nvs"
 want = ["local miss", "local hit", "shared hit", "allowed=true", "allowed=false retryAfter=2"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 7 -- the escalation ladder's remaining half. One serialiser reached twice, exactly as goal 2's
 # graph copy is one walk reached twice.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "7 fatal and log"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Fatal and Core\\Log)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2465,7 +2445,7 @@ tests = [
 # `-p nvs-stdlib` that could never have run them.
 [[check]]
 kind = "cargo-named"
-stage = "7 fatal and log"
+stage = "1 floor"
 name = "nvs-host (the tier-3 handler script)"
 args = ["test", "-p", "nvs-host"]
 tests = [
@@ -2475,26 +2455,24 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "7 fatal and log"
+stage = "1 floor"
 name = "nvs-types (the open-typed argument that is still checked)"
 args = ["test", "-p", "nvs-types"]
 tests = ["a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type"]
 
 [[check]]
 kind = "exact"
-stage = "7 fatal and log"
+stage = "1 floor"
 file = "examples/logging.nvs"
 want = ['{"level":"info","msg":"started"}', '{"level":"error","msg":"boom"}', "handler ran"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- introspection. ADR 0019's two rules are the whole item: reflection obeys the same visibility
 # checks ordinary code does, and a parsed AST is inert.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "8 introspection"
+stage = "1 floor"
 name = "nvs-stdlib (Reflect, Ast, Decimal)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2508,7 +2486,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "8 introspection"
+stage = "1 floor"
 name = "nvs-types (attribute retrieval folds)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -2521,7 +2499,7 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "8 introspection"
+stage = "1 floor"
 file = "examples/reflect.nvs"
 want = ["class=Point", "members=2", "private refused", "kind=int", "parsed 4 nodes"]
 
@@ -2529,7 +2507,7 @@ want = ["class=Point", "members=2", "private refused", "kind=int", "parsed 4 nod
 # the item's first slice.
 [[check]]
 kind = "cargo-named"
-stage = "8 introspection"
+stage = "1 floor"
 name = "nvs-types (the property key)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -2540,7 +2518,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "8 introspection"
+stage = "1 floor"
 name = "conformance (the property key)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -2549,15 +2527,13 @@ cases = [
   "tests/conformance/reject/a-private-property-is-not-a-property-key.nvst",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 9 -- the launderers and the framework's privileged half. Every other stage produces a `tainted`
 # value; this is the stage that says how one stops being one.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "9 launderers"
+stage = "1 floor"
 name = "nvs-stdlib (the privileged half)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2568,7 +2544,6 @@ tests = [
   "plural_category_answers_from_the_carried_cldr_data",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 10 -- the gates. The set claims, checked over the registry rather than over fixtures.
 #
@@ -2576,10 +2551,9 @@ tests = [
 # ADR 0051 § 4 allows, and a gate written by the goal that needs an exemption is a gate with an exemption
 # in it.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "10 gates"
+stage = "1 floor"
 name = "nvs-stdlib (Part II is registered, cased and classified)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2593,14 +2567,14 @@ tests = [
 
 [[check]]
 kind = "command"
-stage = "10 gates"
+stage = "1 floor"
 name = "the C-dependency ledger is unchanged"
 argv = ["python", "tools/gen-attribution.py", "--check-c-deps"]
 want = ["C dependencies"]
 
 [[check]]
 kind = "nvs-suite"
-stage = "10 gates"
+stage = "1 floor"
 name = "conformance"
 args = ["test", "tests/conformance/"]
 min_passing = 1250
@@ -2629,7 +2603,7 @@ cases = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "10 gates"
+stage = "1 floor"
 name = "differential"
 args = ["test", "tests/differential/"]
 min_passing = 250
@@ -2641,7 +2615,7 @@ min_passing = 250
 # belong elsewhere must not fail a run. 1-core-depth.toml's Stage 7 comment derives the whole curve.
 [[check]]
 kind = "command"
-stage = "10 gates"
+stage = "1 floor"
 name = "check-migration at 74%"
 argv = ["python", "tools/check-migration.py", "--min", "74"]
 want = ["inventory:", "classified:"]
@@ -2655,7 +2629,7 @@ want = ["inventory:", "classified:"]
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
-stage = "11 teardown sweep"
+stage = "1 floor"
 name = "nvs-runtime (the live list and the sweep)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -2684,7 +2658,7 @@ tests = [
 # platform heap so the checker can see it.
 [[check]]
 kind = "exact"
-stage = "11 teardown sweep"
+stage = "1 floor"
 file = "examples/cycles.nvs"
 want = ["built=1000", "crossed=ok", "done"]
 
@@ -2697,7 +2671,7 @@ want = ["built=1000", "crossed=ok", "done"]
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
-stage = "12 exit hook"
+stage = "1 floor"
 name = "nvs-stdlib (the onExit queue)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2716,7 +2690,7 @@ tests = [
 # The end-to-end half: hooks registered early, work done, a clean end runs them in order.
 [[check]]
 kind = "exact"
-stage = "12 exit hook"
+stage = "1 floor"
 file = "examples/onexit.nvs"
 want = ["work done", "onExit: Normal 0", "second hook"]
 
@@ -2730,7 +2704,7 @@ want = ["work done", "onExit: Normal 0", "second hook"]
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
-stage = "13 bcrypt read-path"
+stage = "1 floor"
 name = "nvs-stdlib (the bcrypt read roster)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -2748,10 +2722,271 @@ tests = [
 # verify again -- beside the landed refusal case, which must pass unchanged.
 [[check]]
 kind = "nvs-suite"
-stage = "13 bcrypt read-path"
+stage = "1 floor"
 name = "conformance (the bcrypt upgrade loop)"
 args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/core/password-verify-reads-a-php-stored-bcrypt-hash-and-upgrades-it.nvst",
   "tests/conformance/core/password-refuses-a-stored-value-that-is-not-a-hash-it-wrote.nvst",
 ]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone. PostgreSQL first and no second driver until it is green end to end: its
+# extended protocol pays nothing extra for a prepare, so the first driver exercises the design rather
+# than the driver's own quirks.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 first driver"
+name = "nvs-db (a connection, over the parking stream)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream",
+  "a_connection_read_parks_its_coroutine_rather_than_blocking_the_core",
+  # § 2 -- memoized for the request, and five settings TYPES rather than one loose shape.
+  "a_named_connection_is_memoized_for_the_request",
+  # § 1 -- emulated prepares do not exist in any form.
+  "no_driver_path_interpolates_a_value_into_sql",
+  # § 3 -- a property of the CLIENT, because a malicious server can request it at any time.
+  "local_infile_is_refused_and_no_file_is_sent",
+  "the_connection_charset_is_forced_to_utf8",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 first driver"
+name = "nvs-types (the settings shape and the two capabilities)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # § 2 -- SQLite has no host, and a host on its settings literal is a compile error.
+  "a_host_on_a_sqlite_settings_literal_is_a_compile_error",
+  # § 3 -- the two capabilities answer different questions and collapsing them is the mistake.
+  "a_connect_named_private_endpoint_needs_no_net_connect_grant",
+  "a_db_open_target_in_a_denied_range_fails",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3-4 -- the statement, and § 9's type map.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 statements"
+name = "nvs-db (the five ways, and the rewriter)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  # § 4 -- only one streams, and a second statement on a busy connection is a LogicError. SQL Server's
+  # MARS could lift that and deliberately does not, so one program runs on all four drivers.
+  "a_large_result_streams_at_constant_memory",
+  "a_second_statement_on_a_busy_connection_is_a_logic_error",
+  # § 5 -- the case that catches a naive rewriter, in one query.
+  "a_postgres_cast_and_a_jsonb_question_mark_survive_the_rewrite",
+  "the_rewriter_skips_string_literals_and_comments",
+  "a_named_parameter_used_twice_binds_one_value_once",
+  "in_list_expands_and_an_empty_list_throws",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 type map"
+name = "nvs-db (every row of § 9)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "every_row_of_the_type_map_round_trips",
+  # The rows that are rules rather than mappings.
+  "tinyint_one_reads_int_and_bool_and_throws_for_a_stored_seven",
+  "bigint_unsigned_past_i64_max_reads_uint_and_throws_for_int",
+  "a_decimal_into_a_float_field_throws",
+  "a_zoneless_column_reads_in_the_declared_zone_and_a_timestamptz_ignores_it",
+  "affected_is_the_matched_count_and_changed_is_mysql_only",
+  # § Context -- the defect this API exists to remove.
+  "no_driver_returns_a_number_as_a_string",
+  # § 6 -- naming the column is the item; a mapper that throws without one is unusable at 40 columns.
+  "query_as_throws_naming_the_column_for_a_mismatch_a_missing_column_and_a_null",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- transactions. A closure, and `Transaction` is a `Queryable` rather than a second surface.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 transactions"
+name = "nvs-db (transactions and errors)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_transaction_is_a_closure_and_transaction_is_a_queryable",
+  "savepoints_nest",
+  # The case a naive implementation loses: the catch swallows the signal the rollback was waiting on.
+  "roll_back_survives_an_intervening_catch_of_throwable",
+  "retries_recover_an_induced_deadlock",
+  # § 8 -- four drivers, FIVE dialects. MariaDB needs its own code table.
+  "every_driver_normalises_its_codes_to_one_error_kind",
+  "mariadb_uses_its_own_code_table_and_not_mysqls",
+  "a_db_error_message_contains_no_bound_value",
+]
+
+[[check]]
+kind = "exact"
+stage = "5 transactions"
+file = "examples/transaction.nvs"
+want = ["inserted 2", "rolled back", "count=0", "committed", "count=2"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the other four drivers, against real servers. MariaDB is a DISTINCT driver, argued at length
+# in ADR 0067's Context and not a simplification to rediscover.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "6 the matrix"
+name = "the five-driver matrix"
+argv = ["python", "tools/db-matrix.py", "--all"]
+want = ["mysql: ok", "mariadb: ok", "postgres: ok", "mssql: ok", "sqlite: ok"]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the matrix"
+name = "nvs-db (per-driver specifics)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "execute_many_uses_the_bulk_protocol_on_mariadb",
+  "mariadb_returning_is_available_and_mysqls_is_not",
+  # ADR 0051 § 4 named this case in advance so it would be answered by the test, not by convenience.
+  "the_mariadb_auth_plugins_are_implemented_in_rust_or_refused_by_name",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the pool. § 13's reset is a SECURITY BOUNDARY, and a connection returned carrying one
+# request's state is one request reading another's.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 pool"
+name = "nvs-db (the pool and its reset)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "the_pool_is_per_core_and_keyed_as_connect_and_open_key",
+  "postgres_resets_without_losing_its_statement_cache",
+  "mysql_and_mssql_reset_through_the_protocol_and_lose_theirs",
+  "a_failed_reset_destroys_the_connection_rather_than_returning_it",
+  "no_session_state_survives_a_return_to_the_pool",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- ADR 0084's queue. The transactional-enqueue property is the reason for the whole design.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "8 queue"
+name = "nvs-db (Core\\Queue)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  # § 3 -- a job never exists for a row that was rolled back. This is the property, not a feature.
+  "an_enqueue_commits_with_the_write_that_made_it",
+  "a_rolled_back_write_leaves_no_job",
+  # § 4-6.
+  "claiming_is_skip_locked_shaped_on_every_backend_that_has_it",
+  "a_visibility_timeout_returns_an_abandoned_job_to_the_queue",
+  "retries_are_bounded_and_backoff_is_jittered",
+  "an_exhausted_job_reaches_the_dead_letter_table_and_is_not_discarded",
+]
+
+[[check]]
+kind = "command"
+stage = "8 queue"
+name = "nvs queue migrate creates both tables"
+argv = ["{nvs}", "queue", "migrate", "--connection", "main", "--dry-run"]
+want = ["jobs", "dead_letter"]
+
+[[check]]
+kind = "exact"
+stage = "8 queue"
+file = "examples/queue.nvs"
+want = ["enqueued", "claimed 1", "ran", "retried", "dead-lettered"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- what `nvs check` proves about a literal query, and the trace event.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "9 check and trace"
+name = "nvs-types (the literal-query diagnostics)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  # § 10.
+  "a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic",
+  "mixed_placeholder_styles_on_a_literal_are_a_diagnostic",
+  "an_open_host_matching_no_grant_is_a_diagnostic",
+  "a_two_statement_literal_query_is_a_diagnostic",
+  # ADR 0024's own M8 item -- the pair that has to be checked together.
+  "a_tainted_value_at_a_query_text_parameter_is_a_diagnostic",
+  "the_same_tainted_value_at_a_bound_parameter_compiles",
+  "a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 check and trace"
+name = "nvs-db (the span carries no value)"
+args = ["test", "-p", "nvs-db"]
+tests = ["a_query_span_contains_no_parameter_value_anywhere"]
+
+[[check]]
+kind = "exact"
+stage = "9 check and trace"
+file = "examples/db.nvs"
+want = ["rows=3", "ada", "grace", "alan", "affected=1", "typed row ok"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- the corpus and the migration floor, and this is the second-largest jump in the program.
+# The oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29, so the three APIs ADR 0067
+# replaces are now IN the inventory rather than a named hole beside it: 227 names, a fifth of the whole
+# table, all of them this goal's. Modelled at 98%; the floor is 94.
+# 1-core-depth.toml's Stage 7 comment derives the whole curve.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "10 corpus"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 1350
+cases = [
+  "tests/conformance/db/a-prepared-statement-binds-by-name-and-by-position.nvst",
+  "tests/conformance/db/a-transaction-is-a-closure-that-rolls-back-on-a-throw.nvst",
+  "tests/conformance/db/a-roll-back-survives-a-catch-of-throwable.nvst",
+  "tests/conformance/db/a-typed-row-throws-naming-the-column.nvst",
+  "tests/conformance/reject/a-tainted-value-at-a-query-text-parameter-is-refused.nvst",
+  "tests/conformance/reject/a-two-statement-literal-query-is-refused.nvst",
+  "tests/conformance/reject/a-host-on-a-sqlite-settings-literal-is-refused.nvst",
+  "tests/conformance/db/an-enqueue-commits-with-the-write-that-made-it.nvst",
+  "tests/conformance/db/an-exhausted-job-is-dead-lettered-and-not-discarded.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "10 corpus"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 255
+
+[[check]]
+kind = "command"
+stage = "10 corpus"
+name = "check-migration at 94%"
+argv = ["python", "tools/check-migration.py", "--min", "94"]
+want = ["inventory:", "classified:"]
