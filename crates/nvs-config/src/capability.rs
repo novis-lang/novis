@@ -51,6 +51,13 @@ pub enum Cap {
     DbConnect,
     /// `db.open` — which hosts a program-supplied `Db\Settings` may reach.
     DbOpen,
+    /// `mail.send` — which `[mail.<name>]` blocks a program may send through (ADR 0082 § 2).
+    ///
+    /// Named by block and never by host, which is [`DbConnect`](Self::DbConnect)'s shape and ADR
+    /// 0067 § 3's reasoning: the endpoint an operator wrote into root-owned configuration carries
+    /// the authority that granted this capability, so it is pre-approved and is not additionally
+    /// asked about ADR 0058 § 3's denied ranges — where every ordinary relay lives.
+    MailSend,
 }
 
 /// What a capability is being asked *about* — the second half of § 1's question.
@@ -151,6 +158,7 @@ impl Cap {
         Self::DebugProfile,
         Self::DbConnect,
         Self::DbOpen,
+        Self::MailSend,
     ];
 
     /// The name `nvs.toml` grants it under, which is also the name a refusal prints — the operator
@@ -167,6 +175,7 @@ impl Cap {
             Self::DebugProfile => "debug.profile",
             Self::DbConnect => "db.connect",
             Self::DbOpen => "db.open",
+            Self::MailSend => "mail.send",
         }
     }
 
@@ -205,6 +214,7 @@ impl Cap {
             Self::DebugProfile => caps.debug.as_ref()?.profile.as_ref(),
             Self::DbConnect => caps.db.as_ref()?.connect.as_ref(),
             Self::DbOpen => caps.db.as_ref()?.open.as_ref(),
+            Self::MailSend => caps.mail.as_ref()?.send.as_ref(),
         }
     }
 
@@ -224,6 +234,7 @@ impl Cap {
             Self::DebugProfile => caps.debug.as_mut()?.profile.as_mut(),
             Self::DbConnect => caps.db.as_mut()?.connect.as_mut(),
             Self::DbOpen => caps.db.as_mut()?.open.as_mut(),
+            Self::MailSend => caps.mail.as_mut()?.send.as_mut(),
         }
     }
 }

@@ -96,6 +96,8 @@ pub struct Config {
     pub http: Option<Http>,
     /// `[db.<name>]` — one named connection per sub-table (ADR 0067 § 2).
     pub db: BTreeMap<String, Database>,
+    /// `[mail.<name>]` — one named SMTP endpoint per sub-table (ADR 0082 § 2).
+    pub mail: BTreeMap<String, MailEndpoint>,
     /// `[deferred]` — the after-response executor's bounds (ADR 0072 § 7).
     pub deferred: Option<Deferred>,
     /// `[[schedule]]` — scheduled work, which is configuration and not an API (ADR 0073).
@@ -245,6 +247,8 @@ pub struct Capabilities {
     pub debug: Option<CapDebug>,
     /// `db.connect` and `db.open` (ADR 0067 § 3).
     pub db: Option<CapDb>,
+    /// `mail.send` (ADR 0082 § 2).
+    pub mail: Option<CapMail>,
 }
 
 /// The `script.*` grants.
@@ -438,6 +442,41 @@ pub struct HttpClient {
     pub deadline: Option<String>,
     /// Redirects are off by default (ADR 0058 § 4).
     pub max_redirects: Option<u32>,
+}
+
+/// The `mail.*` grants.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct CapMail {
+    /// Which `[mail.<name>]` blocks a program may send through, by name — never by host, for
+    /// [`crate::Cap::MailSend`]'s reason.
+    pub send: Option<Setting>,
+}
+
+/// One `[mail.<name>]` block — ADR 0082 § 2's operator-named SMTP endpoint, whose shape is
+/// [`Database`]'s and for the same reason: the name is the key and the settings are the
+/// operator's alone, so nothing a program writes can reach past this struct.
+///
+/// `user` and `password` are here so that a block naming a credential is a *send-time* refusal
+/// that says why rather than a boot-time "unknown field" that does not. `nvs_stdlib::mail`'s
+/// module doc is the home of that gap: there is no TLS under the transport yet, and this is the
+/// pair that must not go out without one.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct MailEndpoint {
+    /// The relay's host. Never program-supplied and never laundered — an operator wrote it.
+    pub host: Option<String>,
+    /// The submission port, 25 where the block names none.
+    pub port: Option<u16>,
+    /// The envelope sender and the `From:` header, both. There is no call-site override: domain
+    /// alignment is a fact about the deployment.
+    pub from: Option<String>,
+    /// The submission user, once there is a TLS stream to send it over.
+    pub user: Option<String>,
+    /// Its password, under [`mod@crate::secret`]'s rules once the pair is honoured.
+    pub password: Option<String>,
+    /// How long the whole exchange may take, 30s where the block names none.
+    pub timeout: Option<String>,
 }
 
 /// One `[db.<name>]` block — ADR 0067 § 2, where the name and not the settings is the key.
