@@ -17204,12 +17204,13 @@ Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, 
 <a id="core-core-db-connection"></a>
 ### `Core\Db\Connection`
 
-Keywords: query, execute
+Keywords: query, execute, executeMany
 
 | Member | Signature |
 |---|---|
 | [`Core\Db\Connection->query`](#core-core-db-connection-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows` |
 | [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
+| [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
 
 <a id="core-core-db-connection-query"></a>
 #### `Core\Db\Connection->query`
@@ -17246,6 +17247,24 @@ Runs one statement that answers counts rather than rows — an `insert`, an `upd
 **Returns** `Core\Db\Write` — A `Core\Db\Write` carrying how many rows were affected, that count as the server reported it, and the id a `RETURNING` clause handed back. Rows the statement did answer are read to the end and discarded, so the connection is free when this returns; `query` is the member that keeps them.
 
 **Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-connection-executemany"></a>
+#### `Core\Db\Connection->executeMany`
+
+```nvs skip
+$connection->executeMany(string $sql, array<array<mixed>> $sets): uint
+```
+
+Runs one statement once per set of values and answers how many rows the whole batch wrote — the loop around `PDOStatement::execute` that every driver writes by hand, with one prepare and one round trip instead of one of each per set.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, written once and bound once per set. It is a sink exactly as `execute`'s is, and the batch gives it no second spelling: there is one text for every set. |
+| `$sets` | `array<array<mixed>>` | One `$params` array per execution, each keyed the way `execute` requires and all of them binding the same number of values — a set whose `inList` is a different width is a different statement, not another row of this one. |
+
+**Returns** `uint` — The sum of what each execution reported, with a command whose tag carries no count contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a `RETURNING` clause produced are discarded, and there is no `lastId`: neither has one execution to belong to.
+
+**Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `RuntimeError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-rows"></a>
 ### `Core\Db\Rows`
