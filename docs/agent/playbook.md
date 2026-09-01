@@ -1286,6 +1286,20 @@ is why" — is this file.
   handful of lines. When the question really is "what is the spelling for X across the corpus",
   send a subagent — that is exactly the read whose *findings* are three lines and whose *reading*
   is enormous.
+- **`tools/reference.py` reads the *built* binary, so a card edit it has not been rebuilt for is
+  reported as `docs/novis.md unchanged`.** The generator asks `nvs meta` for the registry rather than
+  parsing `registry.rs`, so after fixing a `MethodDoc` the sequence is `cargo build` and *then*
+  `reference.py` — run the other way round it writes the stale card, says nothing changed, and the
+  wrong text is what gets committed. `cargo test -p nvs-stdlib` does not rebuild the binary either,
+  so a card fix that passes its own gate can still ship the old sentence to `docs/novis.md`.
+- **`nvs-stdlib`'s gates scan `io.rs`'s *prose*, not just its rows, and two of them read a doc
+  comment as code.** `no_member_dispatches_on_a_uri_scheme` fails on the string `php://stdin` inside
+  a reference card's `short` — the scan is for the scheme spelling anywhere in the module, because
+  ADR 0052 § 2 is that a path naming one is a file with that name, and a `-p nvs-stdlib --test
+  capability` failure naming a line number in a doc comment reads like a code bug for a minute.
+  Name what PHP's spelling *did* ("the standard-input wrapper") rather than writing it. Its sibling
+  `no_registry_card_cites_an_adr` is the same shape one file over, and both fail a run that the
+  member's own conformance cases pass.
 
 ## Running things
 
@@ -3790,6 +3804,17 @@ is why" — is this file.
   stale row a *bug in the ADR* to fix in the same session, not a note in the handoff. Reading the row's
   reason — why the member exists — separately from its claim about the tree is what tells the two apart:
   the reason survived unchanged here and only the claim was wrong.
+- **A refusal only the *environment* can trigger cannot be written, because no case can reach it and
+  `every_error_path_is_asserted_or_declared_unreachable` counts it as owed.** `Core\IO::stdin` was
+  drafted throwing when standard input is a terminal; a case is spawned through `Command::output`,
+  which gives it `Stdio::null`, so the gate asked for a case that cannot exist and the site's only
+  other exit — a "unreachable from source" comment naming the diagnostic that refuses the call
+  first — would have been a lie, since the path is reachable, just not from here. Freezing it into
+  `OWED_A_CASE` is the ratchet run backwards. The way out is to notice that the gate is right: a
+  message no case can provoke is the third state it exists to forbid, so either the condition is
+  wrong or the rule belongs where it *can* be asserted. Check what a case's environment can actually
+  present before writing a guard on it — closed standard input, no terminal on any stream, no
+  command line beyond `--ARGS--`.
 
 ## Splitting a file that got too big
 
