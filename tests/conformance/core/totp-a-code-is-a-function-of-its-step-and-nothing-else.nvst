@@ -1,0 +1,93 @@
+--TEST--
+Core\Totp::code is a function of the step and the secret and of nothing else: every draw inside one step answers the same six digits, a wall-clock second moves the code only when it moves the step, and no code belongs to the step after its own -- ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// Invariance over a sweep, asserted by counting. `Core\Totp::code` takes no
+// `at:` -- the clock is the runtime's, and `crates/nvs-stdlib/src/totp.rs` owns
+// why -- so what a case can measure from the language is the *function*: one
+// secret inside one step answers one code, and the code moves only when the
+// step does. A member that folded the wall clock in below the step answers
+// plausibly for a single draw and fails every count here.
+
+use Core\Time\Duration;
+
+array<secret bytes> $secrets = [
+    Core\Random::bytes(20), Core\Random::bytes(20), Core\Random::bytes(20),
+    Core\Random::bytes(20), Core\Random::bytes(20), Core\Random::bytes(20),
+    Core\Random::bytes(20), Core\Random::bytes(20),
+];
+
+// 1. Eight secrets, six redraws each, microseconds apart. This half sees a
+// member reading anything finer than a second; the sleep below is what sees one
+// reading the second itself. That `check` names the same step for all forty-
+// eight is the other half of the same claim, because a code that moved would
+// still verify against a member whose window moved with it.
+array<string> $first = [];
+int $steady = 0;
+int $named = 0;
+foreach ($secrets as secret bytes $secret) {
+    string $code = Core\Totp::code($secret);
+    int $step = Core\Totp::check($code, $secret) ?? -1;
+    $first[] = $code;
+    int $draw = 0;
+    while ($draw < 6) {
+        string $again = Core\Totp::code($secret);
+        if ($again == $code) {
+            $steady = $steady + 1;
+        }
+        if ((Core\Totp::check($again, $secret) ?? -1) == $step) {
+            $named = $named + 1;
+        }
+        $draw = $draw + 1;
+    }
+}
+echo "steady ", $steady, " of 48\n";
+echo "named ", $named, " of 48\n";
+
+// 2. Across a real wall-clock second, which the sweep above cannot reach: forty-
+// eight draws inside one microsecond share the second as well as the step. A
+// step is thirty of these seconds, so the crossing moves the step about once in
+// thirty runs -- which is why what is counted is the biconditional rather than
+// "the code is unchanged". The code moves exactly when the step does, and that
+// holds whichever side of a step boundary the run lands on.
+int $millis = Core\Time::now()->toEpochMillis();
+Core\Time::sleep(Duration::milliseconds(1020 - ($millis % 1000)));
+
+// Whether the step moved is one reading rather than eight, because every secret
+// shares the clock. The sweep's own code still names the step it was drawn in
+// -- that step is still inside the window either way -- and a code drawn now,
+// refused against it as `$after`, says whether the clock has left it.
+int $then = Core\Totp::check($first[0], $secrets[0]) ?? -1;
+bool $moved = Core\Totp::check(Core\Totp::code($secrets[0]), $secrets[0], $then) != null;
+
+int $agreed = 0;
+int $index = 0;
+while ($index < Core\Arr::count($secrets)) {
+    bool $same = Core\Totp::code($secrets[$index]) == $first[$index];
+    if ($same == !$moved) {
+        $agreed = $agreed + 1;
+    }
+    $index = $index + 1;
+}
+echo "agreed ", $agreed, " of 8\n";
+
+// 3. And no code belongs to the step after its own. `check` tries the step
+// either side of the current one, so a member whose codes repeated across
+// adjacent steps would answer the successor here instead of `null`. Counted
+// over the sweep, which is what parts it from the replay refusal a single pair
+// asserts: one pair cannot tell "this code is only this step's" from "the
+// second answer is always null".
+int $alone = 0;
+foreach ($secrets as secret bytes $secret) {
+    string $one = Core\Totp::code($secret);
+    int $its = Core\Totp::check($one, $secret) ?? -1;
+    if (Core\Totp::check($one, $secret, $its) == null) {
+        $alone = $alone + 1;
+    }
+}
+echo "alone ", $alone, " of 8\n";
+--EXPECT--
+steady 48 of 48
+named 48 of 48
+agreed 8 of 8
+alone 8 of 8
