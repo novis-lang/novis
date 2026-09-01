@@ -290,6 +290,30 @@ fn code_at(secret: &[u8], step: i64) -> String {
     )
 }
 
+/// The step `$code` belongs to, among the ones a clock at `now` admits and
+/// `after` has not already spent — the whole of [`check`]'s decision.
+///
+/// Factored out of the helper rather than inlined in it so that a test can ask
+/// *this* the question [`code_at`] answers, instead of re-deriving the window
+/// beside it: a `check` that grew its own derivation is exactly the failure a
+/// reconstruction cannot see. The skip is on the candidate rather than on the
+/// match, which is the module doc's *constant time* section — a replayed code
+/// costs what a wrong one does.
+fn match_step(secret: &[u8], code: &[u8], now: i64, after: i64) -> Option<i64> {
+    let mut matched = None;
+    for step in (now - DRIFT)..=(now + DRIFT) {
+        // A step already accepted is not a candidate at all, which is the
+        // replay refusal: `after` is the last step this account used.
+        if step <= after {
+            continue;
+        }
+        if bool::from(code_at(secret, step).as_bytes().ct_eq(code)) {
+            matched = Some(step);
+        }
+    }
+    matched
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Totp::code(secret bytes $secret): string` — RFC 6238 for the
     /// current step, replacing the `hash_hmac('sha1', pack('J', ...))` incantation
@@ -331,19 +355,7 @@ nvs_runtime::nvs_helper! {
         })?;
         let now = step_now(_ctx, "check")?;
 
-        let mut matched = None;
-        for step in (now - DRIFT)..=(now + DRIFT) {
-            // A step already accepted is not a candidate at all, which is the
-            // replay refusal: `$after` is the last step this account used.
-            if step <= after {
-                continue;
-            }
-            if bool::from(code_at(secret, step).as_bytes().ct_eq(code.as_bytes())) {
-                matched = Some(step);
-            }
-        }
-
-        Ok(match matched {
+        Ok(match match_step(secret, code.as_bytes(), now, after) {
             Some(step) => Value::int(step),
             None => Value::null(),
         })
@@ -437,6 +449,104 @@ mod tests {
                 .len(),
             3,
             "each step in the window has its own code: {window:?}"
+        );
+    }
+
+    /// One question asked of both members: [`code_at`] is the whole of what
+    /// `code` answers and [`match_step`] is the whole of what `check` decides,
+    /// so this asks them to **agree** at every offset the window accepts, one
+    /// past it on each side, and across the narrowing `$after` does.
+    ///
+    /// The failure it exists for is a `check` that grew its own derivation — a
+    /// counter packed at another width, a different truncation, the seconds
+    /// where the step belongs. Such a member verifies every code it issues and
+    /// reads plausibly on its own line; it parts from `code` here, at every
+    /// offset at once. That is also why the window is asked of `match_step`
+    /// rather than of a `((now - DRIFT)..=(now + DRIFT))` written out again:
+    /// a reconstruction agrees with itself by construction.
+    #[test]
+    fn code_and_check_agree_at_every_offset_the_window_accepts() {
+        let secret = b"12345678901234567890";
+
+        // Three clocks far apart, because a counter packed at the wrong width
+        // agrees with itself below 2^31 and parts from itself above it.
+        for now in [1_i64, 41_152_263, 66_666_666_666] {
+            // Nothing spent yet: the window is the whole of what is accepted,
+            // and the two steps just outside it are refused by both.
+            for offset in -2_i64..=2 {
+                let code = code_at(secret, now + offset);
+                let inside = offset.abs() <= DRIFT;
+                assert_eq!(
+                    match_step(secret, code.as_bytes(), now, now - DRIFT - 1),
+                    inside.then_some(now + offset),
+                    "the code for step {} against a clock at {now}",
+                    now + offset
+                );
+            }
+
+            // And the same agreement under `$after`, which is the other half of
+            // what the window accepts: the step a caller has stored is no
+            // longer an offset at all, while it is still one the moment the
+            // stored step is the one below it.
+            for offset in -DRIFT..=DRIFT {
+                let code = code_at(secret, now + offset);
+                assert_eq!(
+                    match_step(secret, code.as_bytes(), now, now + offset),
+                    None,
+                    "step {} is spent, so its own code is not in the window",
+                    now + offset
+                );
+                assert_eq!(
+                    match_step(secret, code.as_bytes(), now, now + offset - 1),
+                    Some(now + offset),
+                    "step {} is still in the window with the one below it spent",
+                    now + offset
+                );
+            }
+        }
+    }
+
+    /// Every code is six ASCII digits and keeps its leading zeros — over a
+    /// sweep of secrets *and steps*, counted rather than read off one draw.
+    ///
+    /// `tests/conformance/core/totp-codes-are-six-characters-and-never-cross-between-secrets.nvst`
+    /// asks the length question of `Core\Totp::code` across secrets at the one
+    /// step a case can reach; the axis only this side can sweep is the step,
+    /// and it is the axis a rendering that went through a number fails on —
+    /// about one code in ten, so a member formatting the integer looks right
+    /// nine draws out of ten and loses a digit on the tenth. The count of
+    /// leading zeros is what makes the sweep an assertion about the rendering
+    /// rather than about the width.
+    #[test]
+    fn every_code_is_six_ascii_digits_and_keeps_its_leading_zeros() {
+        let secrets: [&[u8]; 3] = [b"12345678901234567890", b"0123456789abcdef", &[0xff; 20]];
+
+        let mut counted = 0_u32;
+        let mut zeros = 0_u32;
+        for secret in secrets {
+            for step in 0..400_i64 {
+                let code = code_at(secret, step);
+                assert_eq!(
+                    code.len(),
+                    DIGITS as usize,
+                    "step {step} answered {code:?}, which is not six characters"
+                );
+                assert!(
+                    code.bytes().all(|byte| byte.is_ascii_digit()),
+                    "step {step} answered {code:?}, which is not decimal throughout"
+                );
+                counted += 1;
+                zeros += u32::from(code.starts_with('0'));
+            }
+        }
+
+        assert_eq!(
+            counted, 1_200,
+            "the sweep is three secrets by four hundred steps"
+        );
+        assert!(
+            zeros > 60,
+            "a sweep of {counted} codes carries its leading zeros, and this one has {zeros}"
         );
     }
 }
