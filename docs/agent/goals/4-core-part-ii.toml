@@ -2652,8 +2652,11 @@ tests = [
   # list, or the child's sweep dismantles what the parent still holds. The relink lives INSIDE
   # Live::adopt -- the one place ownership changes -- never at a call site.
   "an_adopted_object_moves_to_the_destinations_live_list",
-  # Item 36 -- the debug-build owner stamp: dismantle and sweep assert the object belongs to the
-  # context doing it, so a future drift panics in every test run instead of corrupting a parent.
+  # Item 36 -- the debug-build owner stamp: dismantle and sweep assert that an object is linked on
+  # the list it names, so a second place that moves one between lists panics in every test run
+  # instead of corrupting a parent. NOT "the context releasing it is the one that made it": that is
+  # routinely and legitimately false -- `nvs_host`'s `finish` drops a child's exception and copies
+  # its answer out while the parent is the installed context.
   "dismantling_through_a_foreign_context_panics_in_debug",
   # Item 37 -- the claim itself, measured by the allocator the way the acyclic guard already is.
   "a_cyclic_object_graph_is_reclaimed_when_its_context_drops",

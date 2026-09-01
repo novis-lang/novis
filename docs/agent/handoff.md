@@ -2,36 +2,34 @@
 
 ## State
 
-**Stage 11 is closed: ADR 0116 § 2's live list and teardown sweep are on disk**, and the
-acceptance check that had held the whole list to one check is closed with them.
+**Stage 11 is closed, including the half the previous handoff claimed and had not landed**:
+ADR 0116 § 2's live list and teardown sweep were on disk, but item 36's *crossing relink*
+and its debug owner stamp were not, and neither were the two tests
+`docs/agent/loop-goal.toml`'s stage-11 check names. All three are now, and
+`examples/cycles.nvs` prints `built=1000 / crossed=ok / done` — the acceptance check that
+had been failing since session 0007.
 
-- **Every object links into its context's live list** at `NvsObj::alloc` and out at
-  `dismantle`. The list is its own allocation, held by the `Ctx` through an `Rc` and reached
-  from the allocation path through a second thread-local beside `CURRENT`, because an object
-  links itself in while a helper above it may be holding `&mut Ctx`.
-- **The sweep frees only what it can show is unreachable.** "Whatever the drain left on the
-  list" is not that set — `abi::call` answers a `Value` to its Rust caller, and every `Core`
-  member returning an instance does the same — so the sweep tallies each member's references
-  that come from another member's field slot, treats any member whose count that tally does not
-  exactly account for as externally reachable along with everything under it, and dismantles
-  only the remainder through `crate::release`'s one worklist. Freeing the list wholesale
-  corrupted the heap across `-p nvs-stdlib`; this is priority 1 deciding it.
-- **A survivor is detached before the list dies.** See the playbook bullet: this is the load
-  bearing half, not tidying.
-- **`examples/cycles.nvs` is on disk and valgrind-clean** (`tools/leak-check.sh`, run over it
-  and over `objects.nvs`/`serialize.nvs`). A cycle closed through an `array<T>` element rather
-  than a field slot still survives, which is a named known gap in `nvs-runtime`'s `lib.rs` where
-  "no cycle collector" used to be.
-
-The mechanism's one home is `crates/nvs-runtime/src/object.rs`'s module doc and `sweep`'s own
-comment; ADR 0116 § 2 carries the decision and the priority-1 argument.
+- **The relink lives inside `Live::adopt`** (`crates/nvs-runtime/src/graph.rs:415`) and at no
+  call site, because adopting *is* the allocation changing owners. Its destination is the
+  context running at the crossing, which is the receiving one on the way out of an isolate;
+  on the way **in** there is no destination context yet, so an adopted argument stays on the
+  parent's list, which is safe only because a parent outlives its child. `object.rs`'s
+  module doc is the home of both halves.
+- **The debug stamp asserts a structural invariant, not an ownership one**: an object is
+  linked on the list its `ObjHeader::owner` names, checked in `dismantle` against the
+  object's list neighbour and in `sweep` against the list itself. It deliberately does *not*
+  assert that the context taking an object apart is the one that made it — see the playbook
+  bullet, which cost this session two false positives and one abort. `loop-goal.toml`'s
+  check comment said the stronger thing and has been corrected in both copies.
+- **`FIELDS_OFFSET` now differs between profiles** — five words in debug, four in release.
+  Nothing outside `nvs-codegen` reads it, and it asks this constant.
+- **An object crosses an isolate boundary outward only if it crossed inward first**; the
+  playbook bullet has the mechanism. `examples/cycles/child.nvs` is built around it.
 
 **The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's
 gate over a *complete* Part II, which needs spec §§ 15-19. Those are goal 6's, so it cannot
-pass inside this goal and is not a regression.
-
-**`cargo deny check`'s `advisories` leg is red on a yanked `chacha20`** that predates this goal
-and arrives through `rand`; the other three legs are green. See the playbook bullet.
+pass inside this goal and is not a regression. `cargo deny check`'s `advisories` leg is red
+on a yanked `chacha20` that predates this goal; the other three legs are green.
 
 ## Next group
 
@@ -57,10 +55,11 @@ one serialiser and are still two destinations. The file set is `crates/nvs-runti
 
 ## Backlog
 
-- Stage 10's `every_part_two_spec_member_is_registered` waits on goal 6's spec §§ 15-19 —
-  `docs/agent/loop-goal.md` § *Stage 10*.
-- A cycle closed through an `array<T>` element is still leaked at teardown —
-  `crates/nvs-runtime/src/lib.rs` known gap 7.
-- The in-flight collector for a CLI script that builds cycles *between* teardowns stays open —
-  `docs/agent/loop-goal.md` § *Stage 11*.
-- `cargo deny check`'s yanked `chacha20` advisory — `docs/agent/playbook.md`.
+- A cycle closed through an `array<T>` element rather than a field slot still survives the sweep —
+  named known gap in `crates/nvs-runtime/src/lib.rs`.
+- An in-flight collector for a long-running CLI script that builds cycles *between* teardowns is a
+  separate open decision — `docs/agent/loop-goal.md`, stage 11's header.
+- Making an object cross *outward* means sharing a class table between compiled units —
+  `crates/nvs-runtime/src/graph.rs`'s `Live::admit` names the cost.
+- `cargo deny check` advisories: a yanked `chacha20` arriving through `rand`.
+- `every_part_two_spec_member_is_registered` needs spec §§ 15-19, which are goal 6's.

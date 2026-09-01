@@ -3873,6 +3873,16 @@ is why" — is this file.
   and not to its block, exactly as an ordinary local is. The diagnostic is clear, but the shape is
   the natural one to write when a case asks two questions of two error classes, so name the second
   one something else.
+- **An object cannot cross an isolate boundary *outward* unless it crossed inward first, and the
+  refusal reads like a bug in the fixture.** `nvs_runtime::graph`'s `Live::admit` compares the
+  *descriptor address*, and `nvs-cli` compiles one unit per written path, so a `class Node` declared
+  in both the parent and the child is two descriptors: `return new Node(...)` from a child comes
+  back as `ok=false` with "`Node` on the receiving side is a different class". Nothing in the tree
+  had ever returned an object from a child, so the first fixture that tries pays for finding out.
+  What *does* work, and is what `examples/cycles.nvs` is built around: pass the object in as
+  `args:` — the inward copy has no receiving table to check against, so it adopts at refcount 1 and
+  keeps the parent's descriptor — and have the child hand the same object back. Reading the
+  `ScriptResult` needs `$done->error?->message` (the field is nullable) and `$done->value as Node`.
 
 ## Splitting a file that got too big
 
@@ -5296,6 +5306,16 @@ sibling in the same namespace unqualified.
   nothing about which field did it. The four `set_*(Value::null())` lines already in `Ctx::drop`
   are that same rule written out; `pending` had never needed to join them, because nothing used
   to run after it.
+- **A debug assertion in `dismantle` may not say "the context releasing this object is the one that
+  allocated it" — that is routinely false, and the panic it raises *aborts*.** Two shapes break it
+  immediately: `nvs_host::isolate::finish` drops a child's `Thrown` and copies its answer out while
+  the **parent** is the installed context, and a value that outlives its whole context (which
+  `object::sweep`'s own docs name two ways of producing) is released later still. Worse, the check
+  sits under `nvs_object_release`, which is `extern "C"` and non-unwinding, so a false positive is
+  `thread caused non-unwinding panic. aborting` rather than a failed test — `examples/tasks.nvs`
+  died that way. The invariant that *is* true and costs the same is structural: an object is linked
+  on the list its stamp names, checked against its list neighbour. `assert_linked_where_it_says` is
+  the home of the reasoning.
 
 ## Divergences and refusals already pinned
 
