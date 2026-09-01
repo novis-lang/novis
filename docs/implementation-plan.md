@@ -56,11 +56,12 @@
 > and `Core\Storage`'s four rows reach a `[storage.<name>]` disk over `fs.*` alone, and
 > `Core\Cldr::pluralCategory` reads a closed CLDR roster; `https` and mail's `AUTH` run over
 > verified TLS. **Stages 2 and 3 are closed**: spec § 14's handle roster is on `Core\IO\File` and
-> ADR 0086's whole terminal surface is on `Core\Cli`. **Stage 11 has closed**: every object links
-> into its `Ctx`'s live list, a crossing relinks inside `Live::adopt`, and the teardown sweep
-> dismantles what the root drain left and can show unreachable (ADR 0116 § 2), with
-> `examples/cycles.nvs` crossing an object into an isolate and valgrind-clean. Conformance 1282,
-> differential 210 of 210, migration 37% over its 36% floor.
+> ADR 0086's whole terminal surface is on `Core\Cli`. **Stage 12 has closed**: `Core\Script::onExit`
+> drains FIFO at ADR 0127's three non-fatal endings and at neither termination, with
+> `examples/onexit.nvs`. **Stage 11 has closed**: every object links into its `Ctx`'s live list, a
+> crossing relinks inside `Live::adopt`, and the teardown sweep dismantles what the drain left (ADR
+> 0116 § 2), with `examples/cycles.nvs`. Conformance 1285, differential 210 of 210, migration 37%
+> over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

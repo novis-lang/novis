@@ -48,9 +48,17 @@ Core\Script::onExit(callable $hook): void
 
 enum Script\ExitReason { Normal, ExitCall, UncaughtThrow }
 
-// readonly; handed to each hook, which may also declare no parameter at all
-Script\ExitReport { reason: Script\ExitReason, status: int, error: ?Throwable }
+// handed to each hook, which may also declare no parameter at all
+Script\ExitReport::reason(): Script\ExitReason
+Script\ExitReport::status(): int
+Script\ExitReport::error(): ?Throwable
 ```
+
+Three accessors and not three properties, because a `Core`-owned instance has no property a program
+can reach — [ADR 0063](0063-core-api-conventions.md)'s shape, stated at
+`nvs_stdlib::registry::CoreTy::Instance` and already spelled this way by `Core\RateLimit\Decision`
+and `Core\Http\Response`. Readonly is then structural: there is no member that writes a slot and no
+constructor a program may reach, so the only thing that builds a report is the ending itself.
 
 Registration is request-local and runs nothing; hooks run FIFO in registration order. There is no cap
 beyond the request's own memory budget: a registration is an ordinary value on the request heap, and the

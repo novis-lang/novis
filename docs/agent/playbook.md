@@ -5316,6 +5316,18 @@ sibling in the same namespace unqualified.
   died that way. The invariant that *is* true and costs the same is structural: an object is linked
   on the list its stamp names, checked against its list neighbour. `assert_linked_where_it_says` is
   the home of the reasoning.
+- **A `Core` row can name a class `nvs_stdlib::registry::CLASSES` does not hold, and exactly one test
+  stands in the way.** `Core\Script\ExitReport::error(): ?Throwable` needs the *exception tree's*
+  root, which lives in `nvs_hir::errors::TREE` and is seeded into the checker's class table by
+  `nvs_types::error_lib` — so `CoreTy::Instance("Throwable")` interns and resolves exactly like any
+  other class type, and the only thing that refuses it is
+  `every_instance_type_names_a_registered_class`, which reads `CLASSES` alone. Its `EXCEPTION_TREE`
+  list is now the second roster. The same shape as the `is_core()` bullet above, one layer down: a
+  rule stated over `registry.rs`'s rows is not the whole rule wherever another crate answers for a
+  class. And note what is *not* available — an ADR that sketches a report as
+  `{reason: …, status: …}` cannot be built that way at all, because a `Core`-owned instance has no
+  property a program can reach; three accessors is the shape, and `Core\RateLimit\Decision` is the
+  precedent to copy rather than re-derive.
 
 ## Divergences and refusals already pinned
 
