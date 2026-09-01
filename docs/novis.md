@@ -117,6 +117,7 @@ Conventions the whole file uses:
 | [`Core\Totp`](#core-core-totp) |  |
 | [`Core\Jwt`](#core-core-jwt) |  |
 | [`Core\Html`](#core-core-html) |  |
+| [`Core\Html\Markup`](#core-core-html-markup) |  |
 | [`Core\Http`](#core-core-http) |  |
 | [`Core\Http\Target`](#core-core-http-target) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
@@ -15889,6 +15890,14 @@ Writes `&`, `<`, `>`, `"` and `'` in `$text` as character references, and replac
 | `$text` | `string` (launder) | The text to write into an HTML document, as text rather than as markup. |
 
 **Returns** `string` — The escaped text, safe in element content and in an attribute value quoted either way. Text with none of the five characters and no unterminated control comes back unchanged. The five are escaped unconditionally: there is no flag, and an input that already reads as a reference is escaped again, since `&amp;` in the input is text that said `&amp;`.
+
+<a id="core-core-html-markup"></a>
+### `Core\Html\Markup`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
 
 <a id="core-core-http"></a>
 ### `Core\Http`
