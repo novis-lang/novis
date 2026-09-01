@@ -17815,6 +17815,7 @@ long-running host — at a reload, or only at boot.
 | `log.handler` | operator only — a request cannot change it | at reload |
 | `log.handler_reserve_memory` | operator only — a request cannot change it | at reload |
 | `log.handler_reserve_time` | operator only — a request cannot change it | at reload |
+| `log.target` | operator only — a request cannot change it | at reload |
 | `cache.dir` | operator only — a request cannot change it | at boot only |
 | `cache.shared` | operator only — a request cannot change it | at boot only |
 | `cache.local` | operator only — a request cannot change it | at reload |
