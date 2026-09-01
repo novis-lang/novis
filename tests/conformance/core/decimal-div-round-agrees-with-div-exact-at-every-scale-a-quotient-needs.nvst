@@ -1,0 +1,66 @@
+--TEST--
+ADR 0054 § 3: `Core\Decimal::divRound` under every mode equals `Core\Decimal::divExact` wherever the quotient is exact at the named scale, over a sweep
+--FILE--
+<?nvs
+// The two members are one long division read two ways, so wherever the
+// quotient comes out even at the scale the call names, the mode has nothing
+// left to decide and both must answer the same thing. Asserted by counting
+// over a sweep rather than at one quotient: a member that grew a rounding rule
+// of its own still prints a plausible line on any single row.
+array<Core\RoundMode> $modes = [
+    Core\RoundMode::HalfUp,
+    Core\RoundMode::HalfDown,
+    Core\RoundMode::HalfEven,
+    Core\RoundMode::HalfOdd,
+    Core\RoundMode::Up,
+    Core\RoundMode::Down,
+];
+
+// 1 / 2^k is exact and needs exactly k fractional digits, which makes the
+// sweep's scale the sweep's own counter -- and one place short of it the
+// division stops being exact, so the same comparison must then match nothing
+// at all. That second count is what says the first is not vacuous.
+decimal $one = 1;
+decimal $two = 2;
+decimal $divisor = 1;
+decimal $exact = 1;
+int $agreed = 0;
+int $short = 0;
+uint $k = 0;
+while ($k < 12) {
+    $k = $k + 1;
+    $divisor = $divisor * $two;
+    $exact = Core\Decimal::divExact($one, $divisor);
+    foreach ($modes as Core\RoundMode $mode) {
+        if (Core\Decimal::divRound($one, $divisor, $k, $mode) == $exact) {
+            $agreed = $agreed + 1;
+        }
+        if (Core\Decimal::divRound($one, $divisor, $k - 1, $mode) == $exact) {
+            $short = $short + 1;
+        }
+    }
+}
+echo "agreed ", $agreed, " of ", Core\Arr::count($modes) * 12, ", and ", $short, " one place short\n";
+
+// Agreement is bounded by exactness and nothing else: where the quotient
+// repeats, the members' domains part outright -- `divExact` refuses the
+// division that `divRound` answers under all six modes, which is why § 3 has
+// both spellings rather than a mode meaning "do not round".
+decimal $three = 3;
+decimal $rounded = 1;
+int $refused = 0;
+int $answered = 0;
+try {
+    echo Core\Decimal::divExact($one, $three);
+} catch (ArithmeticError $repeats) {
+    $refused = $refused + 1;
+}
+foreach ($modes as Core\RoundMode $mode) {
+    $rounded = Core\Decimal::divRound($one, $three, 12, $mode);
+    $answered = $answered + 1;
+}
+echo "where the quotient repeats: divExact refusals ", $refused, ", divRound answers ", $answered,
+     ", last ", $rounded, "\n";
+--EXPECT--
+agreed 72 of 72, and 0 one place short
+where the quotient repeats: divExact refusals 1, divRound answers 6, last 0.333333333333
