@@ -1,0 +1,40 @@
+--TEST--
+`Core\IO::walk` names `fs.read` and is refused at the door for a directory the configuration does not cover — the refusal arrives instead of the value and not partway through a loop over it, so a program cannot count what it was not allowed to read — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// `fs.read` covers `open` and nothing else, so one member answers for one
+// directory and refuses for its neighbour. `shut` is right there on disk with
+// two entries in it: a member that asked only the filesystem would have walked
+// it, and one that asked the door once the loop had started would have handed
+// over an entry before refusing.
+int $walked = 0;
+foreach (Core\IO::walk("open") as string $entry) {
+    $walked = $walked + 1;
+}
+echo "open: ", $walked as string, "\n";
+
+int $seen = 0;
+try {
+    foreach (Core\IO::walk("shut") as string $entry) {
+        $seen = $seen + 1;
+    }
+    echo "shut: walked\n";
+} catch (RuntimeError $denied) {
+    echo "shut: ", $denied->message, "\n";
+}
+echo "entries seen before the refusal: ", $seen as string, "\n";
+--FILE open/one.txt--
+one
+--FILE open/nested/two.txt--
+two
+--FILE shut/three.txt--
+three
+--FILE shut/four.txt--
+four
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["open"]
+--EXPECT--
+open: 3
+shut: Core\IO::walk needs the capability `fs.read` for shut, which is not granted
+entries seen before the refusal: 0

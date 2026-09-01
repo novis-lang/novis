@@ -62,8 +62,9 @@
 //! the octets afterwards, which is the shape this class keeps rather than
 //! growing a reader per question.
 
+use std::collections::VecDeque;
 use std::io::{Read, Seek, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use nvs_runtime::capability::Access;
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
@@ -279,6 +280,21 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
             symbol: "nvs_core_io_list",
             doc: Some(&LIST_DOC),
+        },
+        CoreMethod {
+            name: "walk",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            // `Iterable<string>` spelled the way `lines` above spells one — a
+            // named class, because `CoreTy::Iterated` is parameter position
+            // only. [`WALK`]'s own docs are the home of why this is a second
+            // *question* rather than a second spelling of `list`'s: that row
+            // reads one directory and this one reads the tree under it, which
+            // is the only reading of the two that ADR 0063 R6 admits.
+            return_ty: CoreTy::Instance(WALK_NAME),
+            symbol: "nvs_core_io_walk",
+            doc: Some(&WALK_DOC),
         },
         CoreMethod {
             name: "temporaryDir",
@@ -925,7 +941,8 @@ const LIST_DOC: MethodDoc = MethodDoc {
     ret: "One `string` per entry, each a name and not a path: joining it back onto `$path` is the \
           caller's own step, and `within` is what makes that join safe when the name reached this \
           program from outside. The whole directory is held at once, which is what makes this a \
-          member for a directory a program expects to fit in memory; `walk` is the streaming half.",
+          member for a directory a program expects to fit in memory; `walk` is the member for the \
+          tree underneath it.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -936,6 +953,39 @@ const LIST_DOC: MethodDoc = MethodDoc {
             desc: "The capability allowed it and the operating system did not — nothing is at the \
                    path, it is not a directory, or an entry could not be read partway through the \
                    walk.",
+        },
+    ],
+};
+
+/// `Core\IO::walk`'s reference card — ADR 0117.
+const WALK_DOC: MethodDoc = MethodDoc {
+    short: "Every entry of the tree under `$path`, as an `Iterable<string>` of paths relative to it \
+            — replacing `RecursiveDirectoryIterator`, `RecursiveIteratorIterator` and a recursive \
+            `glob`. `list` is the one-directory member and this is the whole-tree one; needs the \
+            `fs.read` capability, which is asked for **every** directory the walk enters and not \
+            only for the root. A symbolic link is an entry and is never descended into, so the walk \
+            is finite whatever the links say.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The directory the walk starts at. A file throws, exactly as `list` does.",
+        shape: &[],
+    }],
+    ret: "One `string` per entry found anywhere beneath `$path`, each a path *relative to* `$path` \
+          and spelled with `Core\\Path::SEPARATOR` — joining it back on is the caller's own step, \
+          and `within` is what makes that join safe. Every entry of a directory is answered before \
+          any entry beneath it, and within one directory the order is the operating system's own.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for a directory the walk asked to \
+                   read; the message names the one it stopped at, which is the root unless a grant \
+                   covers less than a whole subtree.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and the operating system did not — nothing is at the \
+                   path, it is not a directory, or a directory the walk had entered could not be \
+                   read to the end.",
         },
     ],
 };
@@ -1615,6 +1665,79 @@ pub(crate) const LINES: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\IO::walk`'s answer, as [`CoreTy::Instance`] spells it.
+pub(crate) const WALK_NAME: &str = r"Core\IO\Walk";
+
+/// The symbol behind this class's `iterate()`, reached by name exactly as
+/// [`LINES_ITERATE_SYMBOL`] is.
+pub(crate) const WALK_ITERATE_SYMBOL: &str = "nvs_core_io_walk_iterate";
+
+/// [`WALK`]'s one slot: the entries themselves, as an `array<string>`.
+const WALK_SLOT: usize = 0;
+
+/// The class `walk` answers with — spec § 14's second `Iterable<string>`.
+///
+/// # Decision: a tree, where `list` is a directory
+///
+/// Spec § 14 writes `list(string $path): array<string>` and
+/// `walk(string $path): Iterable<string>` next to each other, and the only
+/// reading of that pair [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+/// R6 admits is two *questions*: a member that answered the same entries in a
+/// second container would be one operation reachable two ways, which is the
+/// shape that rule closes. So `list` reads one directory and this reads the
+/// whole tree under it — which is also what makes the pair cover everything
+/// § 14's row names, `RecursiveDirectoryIterator` and the rest of the
+/// `DirectoryIterator` family included, rather than `scandir` twice.
+///
+/// **An entry is a path relative to the root, not a bare name.** `list`'s
+/// bare name is unambiguous because there is one directory; here there is a
+/// tree, and a name alone could not say which of two `config.toml`s it found.
+/// The join back onto the root is still the caller's own step for the reason
+/// [`nvs_core_io_list`] gives, and `within` is still the member for it.
+///
+/// **A symbolic link is an entry and is never descended into.** `std::fs`'s
+/// `DirEntry::file_type` reports the link rather than what it points at, which
+/// is what this body asks — so a link that points back up its own tree makes
+/// the walk finite instead of endless. That is a deliberate divergence from
+/// [`nvs_core_io_is_dir`], whose whole partition follows links: a predicate
+/// about one name is answering a question about what the name leads to, where
+/// a walk that followed one would be enumerating a graph and calling it a
+/// tree.
+///
+/// **Every directory the walk enters goes through the door**, rather than the
+/// root alone standing for all of them. With today's path grants that cannot
+/// refuse partway — `nvs_config`'s `Scope::Path` is a canonicalized prefix
+/// match, so a granted root implies everything under it — and the check is per
+/// directory anyway, because the door is where a `read_dir` is authorized and
+/// a member that authorized one syscall on the strength of having authorized a
+/// different one would be encoding that prefix rule into `Core\IO`. What it
+/// spends is one capability check per directory, which is a string comparison
+/// beside a `readdir` syscall.
+///
+/// # Decision: the entries are held, not streamed
+///
+/// The same decision [`LINES`] makes and the same reasoning, over a bigger
+/// subject: the walk is taken whole when the member is called, so the value
+/// can be walked twice and cannot fail halfway through a `foreach`. **What it
+/// spends** is one `string` per entry in the tree plus the list holding them,
+/// for as long as the program holds the value — charged to the request that
+/// asked and bounded by its memory limit. That is a larger bill than `lines`'
+/// and it is the same trade: `AGENTS.md`'s ordering puts footprint last, and a
+/// streaming implementation lands behind `Iterable<string>` unchanged if a
+/// tree that does not fit ever turns up.
+///
+/// # Why it has no members
+///
+/// [`LINES`]'s answer, for [`LINES`]'s reason: everything it does is
+/// `iterate()`, dispatched by name through [`crate::instance`]'s roster.
+pub(crate) const WALK: CoreClass = CoreClass {
+    name: WALK_NAME,
+    methods: &[],
+    instance: &[],
+    slots: &["entries"],
+    constants: &[],
+};
+
 /// `Core\IO::stat`'s answer, as [`CoreTy::Instance`] spells it.
 pub(crate) const METADATA_NAME: &str = r"Core\IO\Metadata";
 
@@ -1796,6 +1919,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_temporary_dir" => (nvs_core_io_temporary_dir as *const ()).cast(),
         "nvs_core_io_within" => (nvs_core_io_within as *const ()).cast(),
         "nvs_core_io_lines" => (nvs_core_io_lines as *const ()).cast(),
+        "nvs_core_io_walk" => (nvs_core_io_walk as *const ()).cast(),
         "nvs_core_io_open" => (nvs_core_io_open as *const ()).cast(),
         "nvs_core_io_stdin" => (nvs_core_io_stdin as *const ()).cast(),
         "nvs_core_io_file_read" => (nvs_core_io_file_read as *const ()).cast(),
@@ -1808,6 +1932,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_file_lock" => (nvs_core_io_file_lock as *const ()).cast(),
         "nvs_core_io_file_close" => (nvs_core_io_file_close as *const ()).cast(),
         LINES_ITERATE_SYMBOL => (nvs_core_io_lines_iterate as *const ()).cast(),
+        WALK_ITERATE_SYMBOL => (nvs_core_io_walk_iterate as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1893,29 +2018,42 @@ nvs_runtime::nvs_helper! {
     /// snapshot every other `iterate()` has to take was taken once already
     /// when `lines` built the value.
     fn nvs_core_io_lines_iterate(_ctx, args: [1]) {
-        let cursor = held_lines(args[0], nvs_runtime::sequence::ITERATE).map(crate::cursor::over);
+        let cursor = held_strings(args[0], &LINES, LINES_SLOT, nvs_runtime::sequence::ITERATE)
+            .map(crate::cursor::over);
         crate::cursor::consume(args[0]);
         cursor
     }
 }
 
-/// The `array<string>` a [`LINES`] receiver holds, **retained** — the caller
-/// takes over the reference this answers with.
+/// The `array<string>` a [`LINES`] or [`WALK`] receiver holds, **retained** —
+/// the caller takes over the reference this answers with.
+///
+/// One function for both because the two classes are one shape: a slot holding
+/// the walk that was taken when the member was called, read by an `iterate()`
+/// that is reached by name. `class` and `slot` are what tell them apart, and
+/// the message names the class it was handed.
 ///
 /// # Errors
 ///
-/// A `Fault::fatal` if the receiver is not one of this class's instances, on
+/// A `Fault::fatal` if the receiver is not one of that class's instances, on
 /// the same reading as [`text`]: the signature was checked at compile time and
-/// the slot is written by [`nvs_core_io_lines`] and by nothing else, so either
-/// mismatch is a bug in this crate rather than something a program can reach.
-fn held_lines(value: Value, member: &str) -> Result<NvsArray, Fault> {
-    let receiver = crate::instance::receiver(value, &LINES, member)?;
-    let held = crate::instance::slot(receiver, LINES_SLOT);
+/// the slot is written by the member that built the value and by nothing else,
+/// so either mismatch is a bug in this crate rather than something a program
+/// can reach.
+fn held_strings(
+    value: Value,
+    class: &'static CoreClass,
+    slot: usize,
+    member: &str,
+) -> Result<NvsArray, Fault> {
+    let receiver = crate::instance::receiver(value, class, member)?;
+    let held = crate::instance::slot(receiver, slot);
     let ptr = held.array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
-            "{LINES_NAME}::{member} expected {:?} in its `{}` slot, got tag {}",
+            "{}::{member} expected {:?} in its `{}` slot, got tag {}",
+            class.name,
             Tag::Array,
-            LINES.slots[LINES_SLOT],
+            class.slots[slot],
             held.tag_byte()
         ))
     })?;
@@ -3018,6 +3156,74 @@ nvs_runtime::nvs_helper! {
             )));
         }
         Ok(Value::array(names))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::walk(string $path): Iterable<string>` — replacing
+    /// `RecursiveDirectoryIterator`, `RecursiveIteratorIterator` and the
+    /// recursive half of `glob`.
+    ///
+    /// [`nvs_core_io_list`] over one directory, and then over every directory
+    /// it found: the door, the entry names and the treatment of `.` and `..`
+    /// are all that member's. [`WALK`]'s own docs own the four decisions that
+    /// are this member's alone — a tree rather than a directory, a relative
+    /// path rather than a bare name, a link that is an entry and not a
+    /// descent, and a capability asked per directory.
+    ///
+    /// The frontier is a queue and not recursion, so a tree deep enough to
+    /// exhaust the native stack is a slow answer rather than a crash. It holds
+    /// one entry per directory *not yet read*, which is bounded by the tree's
+    /// width and not by the count this member is building.
+    fn nvs_core_io_walk(ctx, args: [1]) {
+        const MEMBER: &str = "Core\\IO::walk";
+
+        let root = Path::new(text(&args[0], "walk", "path")?);
+        let mut found = NvsArray::new();
+        // `(directory, its path relative to the root)`. The root's own prefix
+        // is empty, which is what makes every entry below it relative to the
+        // path the caller named.
+        let mut frontier: VecDeque<(PathBuf, PathBuf)> =
+            VecDeque::from([(root.to_path_buf(), PathBuf::new())]);
+        while let Some((directory, prefix)) = frontier.pop_front() {
+            let entries = nvs_runtime::capability::read_dir(ctx, &directory, MEMBER)?;
+            for entry in entries {
+                // A failure partway through is this member's and not the
+                // caller's, on `list`'s own reading: `walk` promised the tree,
+                // so part of it is not an answer.
+                let entry = entry
+                    .map_err(|err| nvs_runtime::capability::io_failure(MEMBER, &directory, &err))?;
+                let descend = entry
+                    .file_type()
+                    .map_err(|err| nvs_runtime::capability::io_failure(MEMBER, &directory, &err))?
+                    .is_dir();
+                let relative = prefix.join(entry.file_name());
+                // Lossy only where a name is not UTF-8, exactly as `list` is.
+                found.append(Value::str(NvsStr::new(
+                    relative.to_string_lossy().as_bytes(),
+                )));
+                if descend {
+                    frontier.push_back((entry.path(), relative));
+                }
+            }
+        }
+        Ok(crate::instance::build(&WALK, [Value::array(found)]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<string>::iterate(): Iterator<string>` — a cursor over the
+    /// entries this value is already holding.
+    ///
+    /// [`nvs_core_io_lines_iterate`]'s body over [`WALK`]'s slot, and that
+    /// member's doc comment owns both halves of the convention it keeps: the
+    /// receiver is transferred rather than borrowed, and the cursor shares the
+    /// list because no member can change it.
+    fn nvs_core_io_walk_iterate(_ctx, args: [1]) {
+        let cursor = held_strings(args[0], &WALK, WALK_SLOT, nvs_runtime::sequence::ITERATE)
+            .map(crate::cursor::over);
+        crate::cursor::consume(args[0]);
+        cursor
     }
 }
 

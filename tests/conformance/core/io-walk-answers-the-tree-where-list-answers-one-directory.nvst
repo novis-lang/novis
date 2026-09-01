@@ -1,0 +1,94 @@
+--TEST--
+`Core\IO::walk` answers every entry of the tree under `$path`, each as a path relative to it, where `Core\IO::list` answers one directory as bare names — the two agree about the level they share, and the difference between them is counted rather than read off a line — spec § 14 *Manipulation*, ADR 0063 R6, ADR 0118 § 2
+--FILE--
+<?nvs
+// Nothing here may depend on the order the operating system reports entries in,
+// so every assertion below is a count or a sorted rendering -- `list`'s own case
+// makes the same choice for the same reason. The separator is normalized on the
+// way in, because only the *rendering* of a path is platform-dependent
+// (`Core\Path`'s module doc): a case that printed the native one would pass on
+// the WSL leg and fail on the Windows one.
+array<string> $entries = [];
+foreach (Core\IO::walk("tree") as string $found) {
+    $entries[] = Core\Str::replace($found, Core\Path::SEPARATOR, "/");
+}
+
+echo "walked: ", Core\Arr::count($entries) as string, "\n";
+foreach (Core\Arr::sort($entries) as string $entry) {
+    echo "  ", $entry, "\n";
+}
+
+// The two members partition the same tree: an entry either names something in
+// the top directory, where it is exactly the bare name `list` answered, or it
+// names something deeper and carries a separator. Both halves are counted,
+// because a member that answered whole paths from the root would make the first
+// count 0 while the total above stayed right.
+array<string> $named = Core\IO::list("tree");
+int $top = 0;
+int $deeper = 0;
+foreach ($entries as string $entry) {
+    if (Core\Str::contains($entry, "/")) {
+        $deeper = $deeper + 1;
+    } else {
+        $top = $top + 1;
+    }
+}
+echo "listed: ", Core\Arr::count($named) as string,
+     ", at the top: ", $top as string,
+     ", deeper: ", $deeper as string, "\n";
+
+// Agreement, and not two plausible answers: every top-level entry of the walk is
+// one of the names `list` gave for the same directory. A `walk` that grew its
+// own listing -- one that kept `.` and `..`, or that spelled a name differently
+// -- fails here while still counting right on the line above.
+int $agreed = 0;
+foreach ($entries as string $entry) {
+    if (!Core\Str::contains($entry, "/")) {
+        foreach ($named as string $name) {
+            if ($name == $entry) {
+                $agreed = $agreed + 1;
+            }
+        }
+    }
+}
+echo "top entries `list` also names: ", $agreed as string, "\n";
+
+// Relative to the root, asserted from both ends at once: an entry resolves to
+// nothing on its own, and resolves to something once it is joined onto the
+// directory the walk started at. A member answering absolute paths would make
+// the first count 0, and one answering bare names would make the second one
+// wrong for everything below the top.
+int $relative = 0;
+int $resolving = 0;
+foreach ($entries as string $entry) {
+    if (!Core\IO::exists($entry)) {
+        $relative = $relative + 1;
+    }
+    if (Core\IO::exists("tree/" . $entry)) {
+        $resolving = $resolving + 1;
+    }
+}
+echo "entries that are not paths on their own: ", $relative as string,
+     ", that resolve under the root: ", $resolving as string, "\n";
+--FILE tree/one.txt--
+one
+--FILE tree/two.txt--
+two
+--FILE tree/nested/three.txt--
+three
+--FILE tree/nested/deep/four.txt--
+four
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+walked: 6
+  nested
+  nested/deep
+  nested/deep/four.txt
+  nested/three.txt
+  one.txt
+  two.txt
+listed: 3, at the top: 3, deeper: 3
+top entries `list` also names: 3
+entries that are not paths on their own: 6, that resolve under the root: 6

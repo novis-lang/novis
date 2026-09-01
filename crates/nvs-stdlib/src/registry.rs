@@ -1105,6 +1105,11 @@ pub const CLASSES: &[CoreClass] = &[
     // `Iterable<string>` — a name for the walk, with no member on it. Its own
     // docs say why it holds the lines rather than streaming them.
     crate::io::LINES,
+    // What `Core\IO::walk` answers with — the same shape as `LINES` above and
+    // the other of spec § 14's two `Iterable<string>`s. Its own docs say why a
+    // tree is a different question from `list`'s directory rather than a second
+    // spelling of it.
+    crate::io::WALK,
     // Spec § 14's `File` — R14's "an open file is an object and never a
     // `resource`". Its slot holds a key into the request's own table of open
     // descriptors, which its own docs argue for; `Core\Script\Handle` is the
@@ -1456,6 +1461,10 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // the home of that reading, and of why it is a door rather than a widening
     // of `exists`.
     (crate::io::NAME, "list", Some(nvs_config::Cap::FsRead)),
+    // The same grant for the same door, declared once here and asked for every
+    // directory the walk enters: this table names the authority a member
+    // exercises, not the number of times it exercises it.
+    (crate::io::NAME, "walk", Some(nvs_config::Cap::FsRead)),
     // Resolving a name reads the directories above it, so `fs.read` and not
     // nothing: a program that can resolve a path it was never granted can
     // learn which of that path's components exist.
@@ -1919,6 +1928,9 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // receiver's own type variables: `Core\IO::lines` answers a walk over the
     // lines of a file, and a line is a `string` whatever the file was.
     (crate::io::LINES_NAME, &CoreTy::Str),
+    // And the second, for the same reason: an entry of a walked tree is a
+    // `string` whatever the tree held.
+    (crate::io::WALK_NAME, &CoreTy::Str),
 ];
 
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is
@@ -3415,6 +3427,7 @@ mod tests {
             nvs_runtime::CARRIER_HTML_MARKUP,
             crate::script::HANDLE_NAME,
             crate::io::LINES_NAME,
+            crate::io::WALK_NAME,
             crate::http::TARGET_NAME,
             crate::cli::COLOR_NAME,
             crate::cli::STYLE_NAME,

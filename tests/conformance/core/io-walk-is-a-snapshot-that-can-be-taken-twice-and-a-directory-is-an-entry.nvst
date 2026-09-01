@@ -1,0 +1,75 @@
+--TEST--
+`Core\IO::walk` takes the whole tree when it is called — the value it answers may be walked more than once and does not notice a file written afterwards — and a directory is an entry as well as somewhere to descend, so an empty one walks to nothing and a directory holding one walks to exactly one — spec § 14, ADR 0053 § 1
+--FILE--
+<?nvs
+// The bound on both sides first: a directory with nothing in it and a directory
+// whose only content is an empty directory are one entry apart. A member that
+// reported files and descended silently past directories answers 0 to both, and
+// the first line alone would not have caught it.
+Core\IO::makeDir("hollow");
+Core\IO::makeDir("outer/inner");
+
+int $hollow = 0;
+foreach (Core\IO::walk("hollow") as string $entry) {
+    $hollow = $hollow + 1;
+}
+
+int $outer = 0;
+string $only = "";
+foreach (Core\IO::walk("outer") as string $entry) {
+    $outer = $outer + 1;
+    $only = Core\Str::replace($entry, Core\Path::SEPARATOR, "/");
+}
+
+echo "hollow: ", $hollow as string, ", outer: ", $outer as string, " (", $only, ")\n";
+
+// `Iterable<string>` is a value a `foreach` asks for a walk, not a walk that has
+// already begun: two loops over one value see the same tree. A value that were
+// the walk itself would answer nothing the second time, which is exactly the
+// mistake PHP's own generators make available.
+Core\IO\Walk $held = Core\IO::walk("tree");
+
+int $first = 0;
+foreach ($held as string $entry) {
+    $first = $first + 1;
+}
+
+int $second = 0;
+foreach ($held as string $entry) {
+    $second = $second + 1;
+}
+
+echo "first walk: ", $first as string, ", second walk: ", $second as string, "\n";
+
+// And the decision `Core\IO\Walk`'s own docs argue: the tree is read when the
+// member is called, so the value is a snapshot rather than a live view. A file
+// written after it was built is not in it, and is in the next one -- the two
+// counts named together, because either alone reads as a member that simply
+// answered a number.
+Core\IO::write("tree/late.txt", "late");
+
+int $again = 0;
+foreach ($held as string $entry) {
+    $again = $again + 1;
+}
+
+int $fresh = 0;
+foreach (Core\IO::walk("tree") as string $entry) {
+    $fresh = $fresh + 1;
+}
+
+echo "the value already taken: ", $again as string, ", a walk taken now: ", $fresh as string, "\n";
+--FILE tree/one.txt--
+one
+--FILE tree/two.txt--
+two
+--FILE tree/nested/three.txt--
+three
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+hollow: 0, outer: 1 (inner)
+first walk: 4, second walk: 4
+the value already taken: 4, a walk taken now: 5
