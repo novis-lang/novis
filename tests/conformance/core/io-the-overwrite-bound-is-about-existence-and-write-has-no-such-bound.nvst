@@ -1,0 +1,114 @@
+--TEST--
+Core\IO::writeStream's `overwrite` bound is about a file existing and not about what is in it — an empty file refuses as a full one does — and with it set the member answers what Core\IO::write answers on every state of the path, which is the whole difference between the two whole-file writers — ADR 0105 § 4, spec § 14
+--FILE--
+<?nvs
+// Two members write a whole file, and only one of them asks first. The
+// asymmetry is deliberate -- `WRITE_STREAM_OPTIONS`' own doc argues it: a
+// stream arrives from outside the program, so replacing is a thing the caller
+// must say, while a whole-buffer write is a path the program already chose.
+// Nothing asserted that, because each member's cases only ever ask about
+// itself.
+//
+// The three states are the ones the door can tell apart at all, and the middle
+// one is the boundary: a member that read a size rather than asking whether
+// the name is taken lets an empty file through and looks right on both of the
+// others.
+array<string> $states = ["absent", "empty", "occupied"];
+array<bytes> $chunk = ["after" as bytes];
+int $n = Core\Arr::count($states) as int;
+
+array<string> $byDefault = [];
+array<string> $byOverwrite = [];
+array<string> $byWrite = [];
+
+int $s = 0;
+for (; $s < $n; $s = $s + 1) {
+    // Each writer meets each state three times over, so the state is rebuilt
+    // rather than inherited from whatever the last call left behind.
+    int $w = 0;
+    for (; $w < 3; $w = $w + 1) {
+        if (Core\IO::exists("subject.txt")) {
+            Core\IO::remove("subject.txt");
+        }
+        if ($states[$s] == "empty") {
+            Core\IO::write("subject.txt", "");
+        }
+        if ($states[$s] == "occupied") {
+            Core\IO::write("subject.txt", "before");
+        }
+
+        // The outcome is what is on disk afterwards, not the fact that a call
+        // returned: a writer that refused and truncated on the way out reads
+        // as a refusal from the throw alone.
+        string $outcome = "";
+        try {
+            if ($w == 0) {
+                Core\IO::writeStream("subject.txt", $chunk);
+            }
+            if ($w == 1) {
+                Core\IO::writeStream("subject.txt", $chunk, {overwrite: true});
+            }
+            if ($w == 2) {
+                Core\IO::write("subject.txt", "after");
+            }
+            $outcome = "wrote " . Core\IO::read("subject.txt");
+        } catch (IOError $refused) {
+            $outcome = "refused, holding ";
+            if (Core\IO::exists("subject.txt")) {
+                $outcome = $outcome . "'" . Core\IO::read("subject.txt") . "'";
+            } else {
+                $outcome = $outcome . "nothing";
+            }
+        }
+
+        if ($w == 0) {
+            $byDefault[] = $outcome;
+        }
+        if ($w == 1) {
+            $byOverwrite[] = $outcome;
+        }
+        if ($w == 2) {
+            $byWrite[] = $outcome;
+        }
+    }
+}
+
+if (Core\IO::exists("subject.txt")) {
+    Core\IO::remove("subject.txt");
+}
+
+// The whole table, one line per writer, so the boundary is read as a row
+// rather than as a verdict: the default refuses the empty file and the
+// occupied one alike, and creates where there was no name to take.
+echo "default:   ", Core\Str::join($byDefault, " / "), "\n";
+echo "overwrite: ", Core\Str::join($byOverwrite, " / "), "\n";
+echo "write:     ", Core\Str::join($byWrite, " / "), "\n";
+
+// And the agreement, counted, because that is the claim the two rows above
+// only illustrate: `overwrite: true` is not *like* `write`, it is the same
+// answer on every state a path can be in, which is what makes the default the
+// only difference between the two members.
+int $agree = 0;
+int $refusals = 0;
+int $i = 0;
+for (; $i < $n; $i = $i + 1) {
+    if ($byOverwrite[$i] == $byWrite[$i]) {
+        $agree = $agree + 1;
+    }
+    if ($byDefault[$i] != $byWrite[$i]) {
+        $refusals = $refusals + 1;
+    }
+}
+
+echo "states: ", $n as string,
+     ", overwrite answers what write answers on: ", $agree as string,
+     ", states the default parts company on: ", $refusals as string, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+default:   wrote after / refused, holding '' / refused, holding 'before'
+overwrite: wrote after / wrote after / wrote after
+write:     wrote after / wrote after / wrote after
+states: 3, overwrite answers what write answers on: 3, states the default parts company on: 2
