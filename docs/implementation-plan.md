@@ -54,14 +54,14 @@
 > is on it too — `BEGIN`/`COMMIT`/`ROLLBACK`, a nested one a `SAVEPOINT` the depth names, and § 8's
 > kind inside every refusal. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect`, over a
 > connection the request holds and drops with it, beside `inList`, `quoteIdentifier` and § 4's
-> `query` — bound in § 5's rewriter's order, every row decoded into a `Core\Db\Rows` before it
-> answers, and § 18's readers over it: five of `Rows`' six and all fourteen of `Row`, with
+> `query` and `execute` — bound in § 5's rewriter's order, every row decoded before it answers, and
+> § 18's readers over it: five of `Rows`' six, all fourteen of `Row`, `Write`'s three, with
 > `columns()` owed on a `ColumnType` enum. `open` waits on a shape-parameter type. The pool is
 > Stages 3 to 7, and **ADR 0132 has claimed the goal's one ADR slot**: a driver is a borrowed
 > sans-IO codec plus a state machine over the parking stream, and the five are an enum rather than a
 > trait.   **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** — `Core`'s
 > capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
-> Conformance 1398, differential 250, its gate met, migration 90%/74%.
+> Conformance 1401, differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
