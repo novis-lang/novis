@@ -55,13 +55,11 @@
 > both lower; `Core\Mail::send` sends through an operator-named `[mail.<name>]` under `mail.send`,
 > and `Core\Storage`'s four rows reach a `[storage.<name>]` disk over `fs.*` alone, and
 > `Core\Cldr::pluralCategory` reads a closed CLDR roster; `https` and mail's `AUTH` run over
-> verified TLS. **Stage 2 is closed**: `Core\IO::open` answers a `Core\IO\File` whose slot keys the
-> request's own descriptor table, `Core\IO\FileMode` is R11's enum, § 14's nine handle members are
-> on it, and the standard streams are `stdin()` alone with no writing half (ADR 0086 § 7). **Stage 3
-> is closed**: `write` performs § 1's table onto `Out` or `Err`, § 2 is `Cli\Color`, `Cli\Style` and
-> `Text::styled`, § 4's prompts read under a deadline, `live<T>`/`progress<T>` open a region a
-> `Drop` restores, and `displayWidth` counts UAX #11 columns, and `Text + Text` composes.
-> Conformance 1282, differential 210 of 210, migration 37% over its 36% floor.
+> verified TLS. **Stages 2 and 3 are closed**: spec § 14's handle roster is on `Core\IO\File` and
+> ADR 0086's whole terminal surface is on `Core\Cli`. **Stage 11 has closed**: every object links
+> into its `Ctx`'s live list, and the teardown sweep dismantles what the root drain left there and
+> can show unreachable (ADR 0116 § 2), with `examples/cycles.nvs` valgrind-clean. Conformance 1282,
+> differential 210 of 210, migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

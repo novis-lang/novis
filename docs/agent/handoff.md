@@ -2,32 +2,36 @@
 
 ## State
 
-**`Core\Storage` is cased to the depth its module doc argues for.** Three conformance cases
-landed over `crates/nvs-stdlib/src/storage.rs`, and no Rust changed: every rule they pin was
-already on disk, and what was missing was the case that would notice it breaking.
+**Stage 11 is closed: ADR 0116 § 2's live list and teardown sweep are on disk**, and the
+acceptance check that had held the whole list to one check is closed with them.
 
-- **The key grammar, bounded on both sides.** Every refusal is named beside the nearest accepted
-  spelling — `a.hidden` beside `.hidden`, `note.txt` beside `note/txt`, `cafe` beside `café`, and
-  255 bytes beside 256. The length bound is asked through `list`'s `prefix`, which is `key_of`'s
-  own grammar for anything non-empty and builds no path, so the case does not depend on the host's
-  own limit on a filename's length.
-- **The four rows agree about a missing object**, each in its own vocabulary: `get` answers `null`,
-  `delete` fails, `list` omits, and `put` under `overwrite: false` succeeds. The two mutating rows
-  put back what they took, so the eight questions are eight readings of two disk states.
-- **The two configuration refusals.** No block, a block with no `root` and `root = ""` are one
-  sentence, because the difference between them is invisible to a program. A `root` that is there
-  and is not a directory is an `IOError` instead, and the case names the class rather than the
-  wording — the sentence inside it is the host's own.
+- **Every object links into its context's live list** at `NvsObj::alloc` and out at
+  `dismantle`. The list is its own allocation, held by the `Ctx` through an `Rc` and reached
+  from the allocation path through a second thread-local beside `CURRENT`, because an object
+  links itself in while a helper above it may be holding `&mut Ctx`.
+- **The sweep frees only what it can show is unreachable.** "Whatever the drain left on the
+  list" is not that set — `abi::call` answers a `Value` to its Rust caller, and every `Core`
+  member returning an instance does the same — so the sweep tallies each member's references
+  that come from another member's field slot, treats any member whose count that tally does not
+  exactly account for as externally reachable along with everything under it, and dismantles
+  only the remainder through `crate::release`'s one worklist. Freeing the list wholesale
+  corrupted the heap across `-p nvs-stdlib`; this is priority 1 deciding it.
+- **A survivor is detached before the list dies.** See the playbook bullet: this is the load
+  bearing half, not tidying.
+- **`examples/cycles.nvs` is on disk and valgrind-clean** (`tools/leak-check.sh`, run over it
+  and over `objects.nvs`/`serialize.nvs`). A cycle closed through an `array<T>` element rather
+  than a field slot still survives, which is a named known gap in `nvs-runtime`'s `lib.rs` where
+  "no cycle collector" used to be.
 
-The rules themselves live in that module's doc §§ *A key is not a path*, *What `list` answers over*
-and *Known gaps*, which stay their only home.
+The mechanism's one home is `crates/nvs-runtime/src/object.rs`'s module doc and `sweep`'s own
+comment; ADR 0116 § 2 carries the decision and the priority-1 argument.
 
-**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate
-over a *complete* Part II, which needs spec §§ 15-19. Those are `Core\Request` and its neighbours
-and are goal 6's, so this check cannot pass inside this goal and is not a regression.
+**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's
+gate over a *complete* Part II, which needs spec §§ 15-19. Those are goal 6's, so it cannot
+pass inside this goal and is not a regression.
 
-**`cargo deny check`'s `advisories` leg is red on a yanked `chacha20`** that predates this goal and
-arrives through `rand`; `licenses`, `bans` and `sources` are green. See the playbook bullet.
+**`cargo deny check`'s `advisories` leg is red on a yanked `chacha20`** that predates this goal
+and arrives through `rand`; the other three legs are green. See the playbook bullet.
 
 ## Next group
 
@@ -37,27 +41,26 @@ one serialiser and are still two destinations. The file set is `crates/nvs-runti
 `crates/nvs-config/src/tree.rs`; ADR 0092 § 2 and ADR 0020 § 6 specify it.**
 
 - [ ] **One place reads `[log] target`, and both writers reach it.** `Core\Log::write` writes
-      through `ctx.write_output` and the floor writes its own way; the destination the config names
-      — `stderr`, `file:<path>` or `syslog` — is read nowhere. `crates/nvs-runtime/src/ctx.rs:250`
-      is the doc comment that already says what `file:…` selects "once something reads that";
-      `crates/nvs-stdlib/src/log.rs:202` and `crates/nvs-runtime/src/floor.rs:172` are the two
-      call sites.
-- [ ] **An unspelled target is refused where it is written, not where it is used.**
-      `crates/nvs-config/src/tree.rs:353` is the `Option<String>` today, so a typo reaches the sink
-      as a filename. ADR 0095's direction, and the same shape `[mail.<name>]` uses.
-- [ ] **A case that both writers land in the target the deployment named**, which is § 6's "two
-      writers are one serialiser" asserted about *where* rather than about the record's shape.
-      `crates/nvs-stdlib/src/log.rs:365` is where the floor's line is built beside the member's.
+      through `ctx.write_output` and the floor writes its own way; the destination the config
+      names — `stderr`, `file:<path>` or `syslog` — is read nowhere.
+      `crates/nvs-runtime/src/ctx.rs:257` is the doc comment that already says what `file:…`
+      selects "once something reads that"; `crates/nvs-stdlib/src/log.rs:202` and
+      `crates/nvs-runtime/src/floor.rs:172` are the two call sites.
+- [ ] **An unspelled target is refused where it is written, not where it is used.** A
+      `[log] target` naming neither `stderr` nor `file:<path>` nor `syslog` is a configuration
+      diagnostic in `crates/nvs-config/src/tree.rs:1`, beside the directives it already reads,
+      rather than a run-time surprise on the first record written.
+- [ ] **A case that both writers land in the target the deployment named** — ADR 0092 § 6's
+      "two writers, one destination", asserted by writing one record from each and finding both
+      in the file. `tests/conformance/error/the-log-floor-and-core-log-agree-on-shape.nvst:1` is
+      the case they already agree on shape in.
 
 ## Backlog
 
-- Encryption without authentication for `Core\Mail` needs an `nvs.toml` key, beside
-  `nvs_host::tls`'s unlanded anchor bundle — `crates/nvs-host/src/tls.rs` module doc.
-- `AUTH LOGIN` and `XOAUTH2` have no spelling; `PLAIN` over TLS is the whole roster —
-  `crates/nvs-stdlib/src/mail.rs` module doc.
-- `[context] modules` does not select `nvs-runtime/src/terminal.rs` — `docs/agent/loop-goal.toml`.
-- `[context] playbook` filters to the item's anchor paths, so case-authoring bullets never print —
-  `docs/agent/loop-goal.toml`.
-- `cargo deny check advisories` is red on a yanked `chacha20` via `rand` — `deny.toml`.
-- Stage 10's `every_part_two_spec_member_is_registered` needs spec §§ 15-19, which are goal 6's —
-  `docs/agent/loop-goal.toml`.
+- Stage 10's `every_part_two_spec_member_is_registered` waits on goal 6's spec §§ 15-19 —
+  `docs/agent/loop-goal.md` § *Stage 10*.
+- A cycle closed through an `array<T>` element is still leaked at teardown —
+  `crates/nvs-runtime/src/lib.rs` known gap 7.
+- The in-flight collector for a CLI script that builds cycles *between* teardowns stays open —
+  `docs/agent/loop-goal.md` § *Stage 11*.
+- `cargo deny check`'s yanked `chacha20` advisory — `docs/agent/playbook.md`.

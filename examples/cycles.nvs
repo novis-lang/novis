@@ -1,0 +1,48 @@
+<?nvs
+// ADR 0116 § 2's teardown sweep, end to end: a program that builds object
+// cycles in a loop and exits clean.
+//
+// Every pair below is unreachable the moment the loop goes round — nothing
+// names it and nothing can reach it — and refcounting alone frees none of it,
+// because each node holds the other above zero. What reclaims it is the sweep
+// over the context's live list at teardown, which is why the WSL leg runs this
+// fixture under `valgrind --leak-check=full`: the output would be identical
+// either way, and only the checker can tell a program that let go of its
+// memory from one that merely stopped mentioning it.
+//
+// The pair is the smallest cycle, and the third node makes it a cycle through a
+// chain rather than a mutual pair, which is the shape a sweep that only handles
+// self-reference would still get wrong.
+
+class Node {
+    public string $label = "";
+    public ?Node $peer;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+        $this->peer = null;
+    }
+}
+
+var $built = 0;
+
+for (int $i = 0; $i < 1000; $i += 1) {
+    var $first = new Node("first");
+    var $second = new Node("second");
+    var $third = new Node("third");
+
+    $first->peer = $second;
+    $second->peer = $third;
+    $third->peer = $first;
+
+    $built += 1;
+}
+
+// A node that points at itself, held to the end of the program: the cycle the
+// sweep meets while the rest of the request is still being taken apart around
+// it, rather than one abandoned a thousand iterations ago.
+var $loop = new Node("loop");
+$loop->peer = $loop;
+
+echo "built=", $built, "\n";
+echo "done", "\n";

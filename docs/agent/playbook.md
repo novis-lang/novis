@@ -1786,6 +1786,15 @@ is why" — is this file.
   `licenses`, `bans` and `sources`; read those three and say in the handoff that the fourth was
   already red, rather than either fixing an unrelated lockfile entry or reporting your own change as
   the failure.
+- **A missing acceptance *fixture* holds the whole check list to one check, and the ledger's
+  check count is the only tell.** `examples/cycles.nvs` was added to `loop-goal.toml`'s `files`
+  list by the user along with stage 11, and until it existed `.loop/log.md` read
+  `goal cost: 0s over 1 check(s)` where a healthy iteration reads `over 165 check(s)`. The
+  guard is `loop.py`'s own — a `kind = "exact"` check's `file` must be in `files`, and a `files`
+  entry that is not on disk stops the run before any leg — so the 164 checks that would have
+  passed never ran, and no regression anywhere else could have been reported for as long as it
+  lasted. The failure message reads like the ordinary "an item is still open" state; the check
+  count does not. Treat any iteration reporting fewer than a dozen checks as a stopped list.
 
 ## Writing a test case
 
@@ -5266,6 +5275,27 @@ sibling in the same namespace unqualified.
   `STARTTLS`'s command-injection class (the 2021 *NO STARTTLS* paper) is exactly bytes held from
   before the handshake being replayed after it, so the upgrade **refuses** a non-empty read buffer
   rather than clearing it. Any protocol with an in-band upgrade owes both halves.
+- **An intrusive list whose head lives in the `Ctx` outlives nothing: a survivor must be
+  *detached*, not just left alone.** The teardown sweep leaves anything it cannot prove
+  unreachable, and a `Value` really does leave a context — `abi::call` answers one to its Rust
+  caller. A survivor left linked still holds a `prev` naming the list head inside the context's
+  own allocation, so the next time its count reached zero `unlink` wrote eight bytes into freed
+  memory. The symptom was a *third* party: `-p nvs-stdlib --lib` failed about one run in three
+  with `Core\Uri::parse` refusing `"http://example.c\0\0\0"` — a string whose bytes had been
+  overwritten, in a test that never allocates an object. Two things cut the search short:
+  disabling the sweep body and finding the flake unchanged (so the *list*, not the sweep), and
+  printing the rejected text rather than the status (the NULs said "sixteen bytes of somebody
+  else's write", not "bad parse"). `crates/nvs-runtime/src/object.rs`'s `Detach` guard is the
+  fix and owns the reasoning.
+
+- **A field of `Ctx` that owns a Novis reference must be released in `Drop::drop`, not left to
+  its own field drop, and the failure is a refcount underflow in `object::drop_one`.** Rust runs
+  `Drop::drop` *before* dropping the struct's fields, so `pending: Option<Pending>` — whose
+  `Thrown` releases its exception object — was still holding one when the sweep added at the end
+  of that body ran. The panic names `refcount.get() - 1`, which says "released twice" and
+  nothing about which field did it. The four `set_*(Value::null())` lines already in `Ctx::drop`
+  are that same rule written out; `pending` had never needed to join them, because nothing used
+  to run after it.
 
 ## Divergences and refusals already pinned
 
