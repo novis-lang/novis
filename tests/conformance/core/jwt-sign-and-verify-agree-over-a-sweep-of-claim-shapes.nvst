@@ -1,0 +1,74 @@
+--TEST--
+Core\Jwt::sign and Core\Jwt::verify agree over a sweep of claim shapes — an empty bag, JSON text held as one claim, non-ASCII in a name and a value, the integer bounds and a 2048-character claim all come back as the claim that went in, counted — ADR 0060 §§ 1, 4, 5
+--FILE--
+<?nvs
+// Agreement, counted. `sign` assembles the payload as text by hand so the
+// claims keep their insertion order (crates/nvs-stdlib/src/jwt.rs's
+// `payload_of` owns why), and `verify` reads it back through a real JSON
+// parser. Two different pieces of code, one question asked of both: is the
+// claim on the way out the claim that went in? A member that re-encoded,
+// coerced or truncated anything harder than a flat bag of short ASCII still
+// round-trips `["sub" => "ada"]` plausibly and fails the counts below.
+secret bytes $key = Core\Crypto::generateKey();
+
+// 2048 characters, which is past any fixed buffer a hand-assembled serializer
+// would have reached for.
+string $long = Core\Str::repeat("ada-", 512);
+
+array<array<string>> $shapes = [
+    // No claims at all — the one shape where the payload is the registered
+    // pair and nothing else, and so the one that catches a separator written
+    // before it is needed.
+    [],
+    // The flat bag every other case already asks about, here so the sweep
+    // contains the shape that passes trivially.
+    ["sub" => "ada"],
+    // A claim whose value is itself JSON. It has to come back as one claim
+    // holding that text, not as an object the parser flattened into claims of
+    // its own: the module doc's *a claim is text* section is why there is no
+    // second reading of it.
+    ["profile" => "{\"roles\":[\"admin\",\"ops\"],\"tenant\":{\"id\":7}}"],
+    // Non-ASCII in both halves. A name and a value go through the same
+    // escaper, so a name is as much a test of it as a value is.
+    ["nom" => "Ada Lovelace — Grüße, 東京, 🔐", "hôte" => "acme"],
+    // The integer bounds, one past them, and a padded number: text a
+    // serializer tempted to coerce would hand back in a different spelling
+    // while every one of these still looks like a number.
+    ["min" => "-9223372036854775808", "max" => "9223372036854775807", "past" => "9223372036854775808", "padded" => "007"],
+    // Length.
+    ["blob" => $long]
+];
+
+int $signed = 0;
+int $counted = 0;
+int $claimsIn = 0;
+int $identical = 0;
+foreach ($shapes as array<string> $bag) {
+    string $token = Core\Jwt::sign($bag, 15m, $key);
+    array<tainted string> $back = Core\Jwt::verify($token, $key);
+    $signed = $signed + 1;
+    $claimsIn = $claimsIn + (Core\Arr::count($bag) as int);
+    // The caller's claims and exactly the two the member owns — a shape that
+    // gained or lost one fails here rather than on the value comparison.
+    if ((Core\Arr::count($back) as int) == (Core\Arr::count($bag) as int) + 2) {
+        $counted = $counted + 1;
+    }
+    foreach ($bag as string $name => string $value) {
+        if ($back[$name] == $value) {
+            $identical = $identical + 1;
+        }
+    }
+}
+echo $signed, " shapes signed, ", $counted, " of them verify back to the caller's claims plus the registered pair", "\n";
+echo $identical, " of ", $claimsIn, " claims are the claim that went in", "\n";
+
+// The long one reported as a length rather than as a boolean, so a truncation
+// says what it truncated to. Nothing here echoes a claim: they come back
+// `tainted` (ADR 0060 § 5), and `Core\Str::length` is the neutral member that
+// answers about one without carrying a byte of it.
+array<tainted string> $blob = Core\Jwt::verify(Core\Jwt::sign(["blob" => $long], 15m, $key), $key);
+echo "the ", Core\Str::length($long), "-character claim comes back ", Core\Str::length($blob["blob"]), " long", "\n";
+--EXPECT--
+6 shapes signed, 6 of them verify back to the caller's claims plus the registered pair
+9 of 9 claims are the claim that went in
+the 2048-character claim comes back 2048 long
