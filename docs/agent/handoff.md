@@ -2,58 +2,51 @@
 
 ## State
 
-**Stage 2's crate half is on disk.** `crates/nvs-db` exists and is green:
-[ADR 0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) § 5's `Connection`
-enum with all five variants, § 4's four-state busy field as a `Cell` on each driver's own
-connection, and the `NVS_DB_MATRIX_*` reader. Its module doc is the home of both the state machine
-and the skip rule (a case that finds `NVS_DB_MATRIX_DRIVER` unset asserts nothing, so `verify.py`
-stays green with no containers); `tools/db-matrix.py` states the harness half and defers to it.
-§ 1's edges are wired both ways — `nvs-stdlib` depends on `nvs-db` and each manifest carries the
-no-cycle rule beside the edge.
+**PostgreSQL's opening is on disk and green.** `crates/nvs-db/src/pg.rs` is ADR 0132 § 3's three
+exchanges — the `SSLRequest` upgrade, `NvsTls::over` on the same socket, then SASL — and `PgConn` now
+carries a `Wire` (the stream plus its frame buffer), the `State` cell and the `CancelKey` the backend
+hands over exactly once. That module's doc is the home of why channel binding is `unsupported`, why a
+cleartext or MD5 request is refused, and why an `AuthenticationOk` with no exchange is not.
 
-**`NvsTls` is generic over its transport** — `NvsTls<T: Read + Write = NvsTcp>`, ADR 0132 § 3. The
-default is what keeps the bare spelling working unchanged in `Core\Http\Client` and `Core\Mail`; the
-deadline and the peer address stayed behind on `NvsTls<NvsTcp>`, because they belong to the socket
-rather than to the session. § 3's body was folded to say "default type parameter" where it had said
-"alias", which is the mechanism that landed and the cheaper one — no second name to keep in step.
+**Nothing can complete a handshake against `tests/db/compose.yaml`.** Those servers are self-signed
+and `nvs_host::tls`'s anchor set has no seam for a private root, so a matrix case reaches the upgrade
+byte and stops; `crates/nvs-db/src/lib.rs`'s module doc states it. That is why the exchange is
+asserted in-crate against a SCRAM server that verifies the client's proof and signs its own final
+message, and closing the seam is what turns ADR 0067's five-driver matrix on at all.
 
-**No wire code exists yet**, so the goal's three fixtures stay red at `E0405` and stage 6's matrix
-check stays red. That is the ordinary state of this goal and not a regression. `rusqlite` has a
-version in the workspace table but is deliberately a dependency of nothing: ADR 0132 § 2 requires
-the slice that first takes it to add its `tools/gen-attribution.py` `C_DEPENDENCIES` row in the same
-commit, and that gate fails on a recorded crate absent from the graph as well as on the reverse.
+**`postgres-protocol` is taken**, with `bytes` and `fallible-iterator` — the two crates its surface is
+spelled in. `THIRD-PARTY-LICENSES.txt` is regenerated and `--check-c-deps` still reads four in the
+graph and four recorded, so `rusqlite` remains the one that moves it.
 
-**Manifest gap:** `[context] adrs` in `docs/agent/loop-goal.toml` names no section of ADR 0132, so
-the pack printed 0067 §§ 1/9/13 for an item specified entirely by 0132 §§ 1/3/4/5. That cost two
-peeks. Add 0132 §§ 1-5 to that field; `[context] modules` also still globs
-`crates/nvs-db/src/*.rs`, which now matches and needs no change.
+**Manifest gap, open a second session:** `[context] adrs` in `docs/agent/loop-goal.toml` names no
+section of ADR 0132, so this session paid for §§ 2 and 3 by hand again. Add §§ 1-5.
 
 ## Next group
 
-**The first PostgreSQL connection** — loop-goal Stage 2 item 3, specified by ADR 0132 §§ 2 and 3 and
-ADR 0067 §§ 1 and 5. One file set: `crates/nvs-db/src/` and that crate's own `Cargo.toml`. Nothing
-outside the new crate is touched, which is what makes these three one group.
+**The rest of the PostgreSQL driver**, all three in `crates/nvs-db/src/` and none of them outside it —
+`pg.rs` is the file every one of them opens, so they are one group.
 
-- [ ] **`PgConn` opens, upgrades and authenticates** — ADR 0132 §§ 2 and 3: `SSLRequest` over the
-      plaintext socket, the one-byte answer, `NvsTls::over` on the same `NvsTcp`, then SASL.
-      `postgres-protocol` frames it and the sequencing is written here; it is already a version in
-      the workspace table and needs only `postgres-protocol.workspace = true`. Anchors:
-      `crates/nvs-db/src/conn.rs:158`, `crates/nvs-db/Cargo.toml:30`,
-      `crates/nvs-host/src/tls.rs:174`.
-- [ ] **The extended-query state machine moves `State` through its four values** — ADR 0132 § 4:
-      `Parse`/`Bind`/`Execute` leave the connection `Streaming`, a `Sync` after closing the portal
-      returns it to `Idle`, and a decode failure poisons it rather than draining a length prefix that
-      has already proven untrustworthy. Anchors: `crates/nvs-db/src/conn.rs:118`,
-      `crates/nvs-db/src/conn.rs:235`.
-- [ ] **The `?`/`:name` rewriter and `inList` expansion** — ADR 0067 § 5, and the shared half ADR
-      0132 § 5 keeps as plain functions with no driver in them, so it lands beside the drivers rather
-      than inside one. Anchors: `crates/nvs-db/src/lib.rs:110`.
+- [ ] **The extended-query state machine moves `State` through its four values** — ADR 0132 § 4 with
+      ADR 0067 § 1: `Parse`/`Bind`/`Describe`/`Execute`/`Sync` written over `Wire::read_message`,
+      `Executing` while a portal is in flight, `Streaming` until it drains, and `Poisoned` where a
+      `Sync` cannot restore a message boundary. Anchors: `crates/nvs-db/src/pg.rs:208`,
+      `crates/nvs-db/src/pg.rs:238`, `crates/nvs-db/src/conn.rs:111`.
+- [ ] **The `?`/`:name` rewriter and `inList` expansion** — ADR 0067 § 5, in a new
+      `crates/nvs-db/src/sql.rs`: `$1`…`$n` for PostgreSQL, the cache key that is SQL text *plus
+      expansion arity*, and the `::` cast and jsonb `?` operator left alone. Anchors:
+      `crates/nvs-db/src/pg.rs:348`, `crates/nvs-db/src/lib.rs:110`.
+- [ ] **ADR 0067 § 13's PostgreSQL reset** — roll back, `RESET ALL`, `CLOSE ALL`, `UNLISTEN *`,
+      `pg_advisory_unlock_all()`, drop the temp schema, and deliberately not `DISCARD ALL`; a
+      connection that cannot prove it is clean is closed. Anchors: `crates/nvs-db/src/pg.rs:238`,
+      `crates/nvs-db/src/conn.rs:165`.
 
 ## Backlog
 
-- `rusqlite` plus its `C_DEPENDENCIES` row, one commit — ADR 0132 § 2.
-- The statement cache keyed by SQL text plus expansion arity — ADR 0067 § 1.
-- The per-core pool and its reset-as-a-boundary — ADR 0067 § 13.
-- MySQL, MariaDB and the hand-written TDS 7.4 driver — ADR 0132 § 2's table.
-- `Core\Db`'s registry rows, cards and helper bodies in `nvs-stdlib` — ADR 0063's five edits.
-- The `[context] adrs` gap above, in `docs/agent/loop-goal.toml`.
+- A trust anchor a matrix case can verify against — `crates/nvs-host/src/tls.rs:270`, ADR 0132 § 3's
+  "future `nvs.toml` anchor bundle". Blocks every driver's first real connection.
+- `Core\Db`'s registry rows and helper bodies in `nvs-stdlib` — what the goal's three fixtures are
+  red at (`E0405`), loop-goal stage 3.
+- ADR 0067 § 9's type map, Novis side — `docs/adr/0067-core-db.md` § 9.
+- The per-core pool and its acquire path — ADR 0067 § 13.
+- The four remaining drivers, MySQL next — ADR 0132 § 2's table.
+- `[context] adrs` in `docs/agent/loop-goal.toml` still names no ADR 0132 section.

@@ -5715,6 +5715,14 @@ sibling in the same namespace unqualified.
   `nvs_stdlib::cldr::validate`, which `nvs_types::intrinsics` reads for the same reason — and that is
   what the house style wanted anyway: the pass holds no copy of a spelling. Reading the Cargo.toml
   comment costs one `sed`; learning it from `cargo build` costs a build.
+- **`ChannelBinding::unrequested()` cannot authenticate against a TLS-enabled PostgreSQL, and it is
+  the spelling that reads as correct.** `postgres-protocol`'s SCRAM client takes a `ChannelBinding`,
+  and `unrequested` is the gs2 header `y,,`, which asserts *the server does not offer channel
+  binding*. A server that does offer it — which is every server this driver reaches, since
+  PostgreSQL offers `SCRAM-SHA-256-PLUS` whenever the connection is SSL and ADR 0067 § 3 makes that
+  always — reads `y,,` as a stripped-`PLUS` downgrade and fails the exchange with "channel binding
+  check failed". `unsupported` (`n,,`) is the one that works without the peer certificate in hand.
+  The reasoning, and what it gives up, is `crates/nvs-db/src/pg.rs`'s module doc.
 
 ## Divergences and refusals already pinned
 

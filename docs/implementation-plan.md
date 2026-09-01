@@ -47,14 +47,17 @@
 > refuses a field no column reads back as at the declaration that wrote it (`E0756`) — `bytes` is a
 > column and a nested class is not, which is where the two formats' maps first disagree.
 > **`crates/nvs-db` exists**: § 5's `Connection` enum, § 4's four-state busy field and the
-> `NVS_DB_MATRIX_*` reader, over an `NvsTls` now generic in its transport. Its wire I/O, the
-> statement cache and the pool are Stages 2 to 7, and **ADR 0132 has claimed the goal's one ADR
-> slot**: a driver is a borrowed sans-IO codec plus a state machine written here, over the parking
-> stream with `nvs-host`'s one TLS client generalised over its transport, and the five are an enum
-> rather than a trait.  The goal's three fixtures are red at `E0405`, which is what lets the
-> acceptance sweep run at all. **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** —
-> `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
-> Conformance 1382, differential 250, its gate met, migration 90%/74%.
+> `NVS_DB_MATRIX_*` reader, over an `NvsTls` now generic in its transport. Its wire I/O opens with
+> PostgreSQL's own: § 3's `SSLRequest` upgrade and a SCRAM-SHA-256 exchange, asserted against a
+> SCRAM server in-crate because the compose servers' self-signed certificates cannot pass `NvsTls`'s
+> compiled-in anchors. The statement cache and the pool are Stages 2 to 7, and **ADR 0132 has
+> claimed the goal's one ADR slot**: a driver is a borrowed sans-IO codec plus a state machine
+> written here, over the parking stream with `nvs-host`'s one TLS client generalised over its
+> transport, and the five are an enum rather than a trait.  The goal's three fixtures are red at
+> `E0405`, which is what lets the acceptance sweep run at all. **Goals 1-4 and M4 are closed and are
+> this goal's Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring` the one C
+> dependency ADR 0051 § 4 records. Conformance 1382, differential 250, its gate met, migration
+> 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
