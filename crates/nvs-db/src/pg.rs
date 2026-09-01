@@ -168,7 +168,21 @@ pub struct PgTarget<'a> {
     /// and `0` — UTC — with neither set. It is sent to the server as well as
     /// read here, so `CURRENT_TIMESTAMP` and a decoded column agree about
     /// which zone they are in.
+    ///
+    /// [`crate::sql::time_zone_for`] is what turns the written field into this
+    /// number, and it is the same reader for all five drivers: what arrives
+    /// here is already seconds, so this path never sees a zone name.
     pub time_zone: i32,
+    /// How many prepared statements this connection may keep alive on the
+    /// server, [ADR 0067 § 1](../../../docs/adr/0067-core-db.md)'s
+    /// `statement_cache`.
+    ///
+    /// Resolved the same way the zone is, and by the same rule about who
+    /// decides: [`StatementCache::capacity_for`] reads the `[db.<name>]` block
+    /// and answers a number, so the connect path below never sees an absent
+    /// field. `0` is the cache off, which is a supported size and not a
+    /// caller that forgot to fill this in.
+    pub statement_cache: usize,
 }
 
 impl std::fmt::Debug for PgTarget<'_> {
@@ -180,6 +194,7 @@ impl std::fmt::Debug for PgTarget<'_> {
             .field("user", &self.user)
             .field("database", &self.database)
             .field("time_zone", &self.time_zone)
+            .field("statement_cache", &self.statement_cache)
             .finish_non_exhaustive()
     }
 }
@@ -335,10 +350,11 @@ impl PgConn {
             wire,
             state: Cell::new(State::Idle),
             cancel,
-            // ADR 0067 § 1 sizes this by `statement_cache` in the connection's
-            // config block; nothing opens a connection *from* config yet, so
-            // the driver's own default stands until the connect path reads one.
-            cache: StatementCache::new(StatementCache::DEFAULT_CAPACITY),
+            // ADR 0067 § 1's size, already read off the `[db.<name>]` block by
+            // `StatementCache::capacity_for` and carried here on the target —
+            // this path takes a number and has no opinion about where an
+            // unwritten field's default comes from.
+            cache: StatementCache::new(target.statement_cache),
         })
     }
 
@@ -2119,6 +2135,7 @@ mod tests {
             // startup message only when it is not the default of every field
             // around it.
             time_zone: 2 * 3600,
+            statement_cache: StatementCache::DEFAULT_CAPACITY,
         }
     }
 

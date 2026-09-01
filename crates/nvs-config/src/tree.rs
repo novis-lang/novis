@@ -503,7 +503,8 @@ pub struct StorageDisk {
 /// **Recorded gap: ADR 0067 states `Db\Settings` as a language type and never writes the config
 /// block out**, so this roster is every field that ADR names in prose (§ 2's "SQLite takes a `path`
 /// and has no `host`, `port`, `user` or `password`", § 4's `Settings.database` and `.user`,
-/// § 3a's `password_file`) plus the `driver` a discriminated union needs to be discriminated on.
+/// § 3a's `password_file`, § 1's `statement_cache`, § 9's `time_zone`) plus the `driver` a
+/// discriminated union needs to be discriminated on.
 /// A field the ADR turns out to have meant and this list omits is a boot refusal naming the line,
 /// which is loud and one edit to fix; the fix is to add the field here *and* the example to 0067.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
@@ -528,6 +529,23 @@ pub struct Database {
     pub password_file: Option<String>,
     /// The database name.
     pub database: Option<String>,
+    /// How many server-side prepared statements one connection keeps alive (ADR 0067 § 1).
+    ///
+    /// Unset is the driver's own default rather than a number written here, because the size that
+    /// suits a request is a property of the protocol and not of this file. A written `0` is not a
+    /// broken cache: it is the unnamed statement every time, which is what a connection did before
+    /// § 1's cache existed. The reader is `nvs_db::sql::StatementCache::capacity_for`, which is
+    /// also where the default lives — this crate names no driver's constant.
+    pub statement_cache: Option<u32>,
+    /// The zone this database's zone-less `DATETIME`/`TIMESTAMP` columns are written in
+    /// (ADR 0067 § 9), defaulting to UTC.
+    ///
+    /// An offset and never a zone name — `"+02:00"`, `"-05:30"`, `"UTC"` — because § 9 sends it to
+    /// the server as a numeric offset, and a named zone needs server-side tables that usually are
+    /// not populated. `nvs_db::sql::time_zone_for` is the reader and owns the accepted spellings
+    /// and the bound; it answers *no* offset for anything else, which is a value refused rather
+    /// than a zone read silently wrong.
+    pub time_zone: Option<String>,
 }
 
 /// `[deferred]` — ADR 0072 § 7's two bounds on after-response work.

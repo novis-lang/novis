@@ -1464,6 +1464,14 @@ is why" — is this file.
   the two windows were never read, and the `--locate` names were merged with what the shell had
   already parsed as targets. Nothing said which half was dropped. Give `--locate` a call of its
   own; it is cheap, because it returns anchors and no bodies.
+- **A `[db.<name>]` field has a second home in the reference chapter, and `docs/novis.md` is
+  generated from it.** `docs/reference/tools/20-config.md`'s block table lists every key each
+  block accepts, one row per block, and `verify.py`'s `reference` step regenerates `docs/novis.md`
+  from those chapters in place — so a field added to `nvs_config::tree` and nowhere else leaves the
+  user-facing list of accepted keys wrong with nothing failing. Nothing checks the two against each
+  other: `deny_unknown_fields` refuses a key the struct lacks, and no test refuses a struct field
+  the table lacks. Edit the chapter row in the same slice as the field, and let `verify.py` write
+  `docs/novis.md` rather than editing that file by hand.
 
 ## Running things
 

@@ -32,6 +32,14 @@
 //! decision on all five drivers, so it is plain data with no wire in it. Which
 //! messages the answer turns into is each driver's own.
 //!
+//! [`StatementCache::capacity_for`] and [`time_zone_for`] are here on that same
+//! test and no other: they read the two `[db.<name>]` fields whose meaning is a
+//! decision rather than a string — how large § 1's cache is, and what § 9's
+//! declared zone is in seconds — and they answer identically for every driver.
+//! A driver takes the *answer* on its target, so no connect path reaches into a
+//! config tree and every one of these is testable with neither a socket nor a
+//! configuration file.
+//!
 //! # What it skips, and what it does not diagnose
 //!
 //! A `?` inside a string literal, a comment or a quoted identifier is text, not
@@ -49,6 +57,8 @@
 //! server cannot see because it never receives the original spelling.
 
 use std::io;
+
+use nvs_config::tree::Database;
 
 use crate::conn::Driver;
 
@@ -213,13 +223,17 @@ impl Statement {
 ///
 /// # Its size, and why it is a parameter here
 ///
-/// § 1 sizes it by `statement_cache` in the connection's config block. That
-/// field has no reader yet — nothing in this crate opens a connection *from*
-/// config — so the capacity arrives at [`StatementCache::new`] and
-/// [`DEFAULT_CAPACITY`](StatementCache::DEFAULT_CAPACITY) is what the drivers
-/// pass until the connect path reads one. A capacity of `0` is not a broken
-/// cache: it is the unnamed statement every time, which is the behaviour
-/// PostgreSQL had before this type existed.
+/// § 1 sizes it by `statement_cache` in the connection's config block, and
+/// [`capacity_for`](StatementCache::capacity_for) is that field's reader:
+/// it answers the block's number, or
+/// [`DEFAULT_CAPACITY`](StatementCache::DEFAULT_CAPACITY) for a block that
+/// omits it. A driver takes the *answer* on its target — `PgTarget` carries
+/// it beside the zone, for the reason that type's doc gives — rather than
+/// reaching into a config tree from the connect path, so the capacity is
+/// still a plain parameter of [`StatementCache::new`] and a test can size one
+/// with no configuration at all. A capacity of `0` is not a broken cache: it
+/// is the unnamed statement every time, which is the behaviour PostgreSQL had
+/// before this type existed.
 #[derive(Debug)]
 pub struct StatementCache {
     /// Most recently used first. A `Vec` rather than a map because the capacity
@@ -276,12 +290,33 @@ impl Prepared {
 }
 
 impl StatementCache {
-    /// What a driver sizes itself with until `statement_cache` has a reader.
+    /// What a `[db.<name>]` block that names no `statement_cache` is sized by.
     ///
     /// A request runs a handful of distinct statements, and this holds them all
     /// without asking a server to keep a hundred plans alive for a connection
     /// that is idle in a pool.
     pub const DEFAULT_CAPACITY: usize = 16;
+
+    /// § 1's size for one connection, read from its `[db.<name>]` block.
+    ///
+    /// The whole of the field's meaning is here, so nothing else has to decide
+    /// what an absent one means: an unset `statement_cache` is
+    /// [`Self::DEFAULT_CAPACITY`], and a written `0` is honoured rather than
+    /// treated as unset — that is § 1's cache turned off, not a block that
+    /// forgot to size it. `nvs-config` deliberately names no driver's constant,
+    /// which is why the default lives on this side of the edge.
+    ///
+    /// A number too large for a `usize` saturates instead of wrapping. It is
+    /// not reachable on any target this runs on, and the cache holds what the
+    /// server accepts rather than what the number claims.
+    #[must_use]
+    pub fn capacity_for(block: &Database) -> usize {
+        block
+            .statement_cache
+            .map_or(Self::DEFAULT_CAPACITY, |size| {
+                usize::try_from(size).unwrap_or(usize::MAX)
+            })
+    }
 
     /// An empty cache holding at most `capacity` statements; `0` disables it.
     #[must_use]
@@ -684,9 +719,72 @@ fn skip_dollar(bytes: &[u8], start: usize) -> Option<usize> {
     Some(bytes.len())
 }
 
+/// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s declared zone for one
+/// connection, as whole seconds east of UTC.
+///
+/// The zone a zone-less `DATETIME`/`TIMESTAMP` column is read in, and the one
+/// sent to the server so `CURRENT_TIMESTAMP` agrees with it. It is here rather
+/// than in a driver because it is the same field on all five and has the same
+/// answer on all five: § 9 sends an offset and never a zone name, so nothing
+/// downstream needs a zone database to act on this number.
+///
+/// **`Some(0)` for a block that names none** — § 9's default is UTC — and
+/// `Some` of the offset for one that writes `UTC`, `Z`, `±HH`, `±HH:MM` or
+/// `±HH:MM:SS`, each field exactly two digits. **`None` is a value that is not
+/// an offset at all**: a zone name like `Europe/Vienna`, the compact `+0200`,
+/// a minutes or seconds field past 59, or a magnitude past 18 hours. That is a
+/// distinct answer from the default on purpose — a reader folding it into `0`
+/// would run a deployment two hours out on a typo, and an operator writes this
+/// field precisely because UTC is not what the columns mean. Turning the
+/// `None` into a refusal naming the line is the resolver's job, in the crate
+/// that owns every other boot error.
+#[must_use]
+pub fn time_zone_for(block: &Database) -> Option<i32> {
+    match block.time_zone.as_deref() {
+        None => Some(0),
+        Some(written) => offset_seconds(written.trim()),
+    }
+}
+
+/// One written zone as seconds east of UTC, or `None` for a spelling
+/// [`time_zone_for`] does not accept.
+fn offset_seconds(written: &str) -> Option<i32> {
+    if written.eq_ignore_ascii_case("utc") || written.eq_ignore_ascii_case("z") {
+        return Some(0);
+    }
+    let (sign, rest) = match written.as_bytes().first().copied()? {
+        b'+' => (1, &written[1..]),
+        b'-' => (-1, &written[1..]),
+        _ => return None,
+    };
+    let mut fields = rest.split(':');
+    let hours = two_digits(fields.next()?)?;
+    let minutes = fields.next().map_or(Some(0), two_digits)?;
+    let seconds = fields.next().map_or(Some(0), two_digits)?;
+    if fields.next().is_some() || minutes > 59 || seconds > 59 {
+        return None;
+    }
+    // 18 hours is the widest zone anyone keeps, and the bound is what makes a
+    // fat-fingered `+90:00` a refusal rather than a plausible number.
+    let offset = sign * (hours * 3600 + minutes * 60 + seconds);
+    (offset.abs() <= 18 * 3600).then_some(offset)
+}
+
+/// Exactly two ASCII digits as a number, which is what makes the compact
+/// `+0200` a refusal rather than two hundred hours.
+fn two_digits(field: &str) -> Option<i32> {
+    if field.len() != 2 || !field.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    field.parse().ok()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Binding, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite};
+    use super::{
+        Binding, Database, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite,
+        time_zone_for,
+    };
     use crate::conn::Driver;
 
     /// The rewritten text alone, for the cases that are about the scan.
@@ -1116,6 +1214,88 @@ mod tests {
         assert_eq!(cached(&mut cache, "select 1", 0), Prepared::Unnamed);
         assert_eq!(Prepared::Unnamed.name(), "");
         assert!(cache.is_empty());
+    }
+
+    /// § 1's three answers for one field, asserted together: a block that says
+    /// nothing is the default, a block that says a number is that number, and
+    /// a block that says `0` is the cache turned off rather than a block that
+    /// said nothing. The last is the one a `unwrap_or_default`-shaped reader
+    /// gets wrong while still looking right on the first two.
+    #[test]
+    fn an_unset_statement_cache_is_the_default_and_a_written_zero_is_not() {
+        let mut block = Database::default();
+        assert_eq!(
+            StatementCache::capacity_for(&block),
+            StatementCache::DEFAULT_CAPACITY
+        );
+
+        block.statement_cache = Some(4);
+        assert_eq!(StatementCache::capacity_for(&block), 4);
+
+        block.statement_cache = Some(0);
+        assert_eq!(StatementCache::capacity_for(&block), 0);
+        assert_ne!(
+            StatementCache::capacity_for(&block),
+            StatementCache::DEFAULT_CAPACITY
+        );
+        assert_eq!(
+            StatementCache::new(StatementCache::capacity_for(&block)).prepare("select 1", 0),
+            Prepared::Unnamed
+        );
+    }
+
+    /// § 9's zone in every spelling the field accepts, including both sides of
+    /// the 18-hour bound. The sweep is asserted as offsets rather than one
+    /// line per spelling because a parser that dropped a `:MM` field still
+    /// answers plausibly on `+02:00`.
+    #[test]
+    fn an_unwritten_zone_is_utc_and_every_accepted_spelling_is_its_offset() {
+        let mut block = Database::default();
+        assert_eq!(time_zone_for(&block), Some(0));
+
+        for (written, seconds) in [
+            ("UTC", 0),
+            ("utc", 0),
+            ("Z", 0),
+            ("+00:00", 0),
+            ("-00:00", 0),
+            ("+02", 2 * 3600),
+            ("+02:00", 2 * 3600),
+            ("-05:30", -(5 * 3600 + 30 * 60)),
+            ("+05:45", 5 * 3600 + 45 * 60),
+            ("  +02:00  ", 2 * 3600),
+            ("-03:30:15", -(3 * 3600 + 30 * 60 + 15)),
+            ("+18:00", 18 * 3600),
+        ] {
+            block.time_zone = Some(written.to_owned());
+            assert_eq!(time_zone_for(&block), Some(seconds), "{written}");
+        }
+    }
+
+    /// The other half of that bound, and the spellings that would otherwise be
+    /// read as UTC. `None` and not `Some(0)` is the whole assertion: folding
+    /// an unparseable zone into the default is the failure this reader exists
+    /// to make impossible.
+    #[test]
+    fn a_zone_that_is_not_an_offset_is_no_offset_rather_than_utc() {
+        let mut block = Database::default();
+        for written in [
+            "Europe/Vienna",
+            "CET",
+            "",
+            "+0200",
+            "+2:00",
+            "02:00",
+            "+02:60",
+            "+02:00:60",
+            "+18:00:01",
+            "-19:00",
+            "+02:00:00:00",
+            "+02:0a",
+        ] {
+            block.time_zone = Some(written.to_owned());
+            assert_eq!(time_zone_for(&block), None, "{written}");
+        }
     }
 
     #[test]

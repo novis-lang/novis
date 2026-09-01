@@ -50,18 +50,18 @@
 > because no compose server's certificate can pass `NvsTls`'s anchors. § 4's extended-query state
 > machine and § 13's reset are on disk over it: one flush per statement, one for the six reset
 > commands, and `reset` takes `self` so a failed one cannot be pooled. § 5's `?`/`:name` rewriter
-> and § 1's statement cache are `sql.rs`, plain data with no wire in it and keyed by SQL text plus
-> expansion arity: a hit drops the `Parse`, and an eviction's `Close` rides in the batch that
-> replaced it. § 9's whole type map decodes over it: a `Value` for the scalar rows and parsed
-> components — `PgScalar` — for the five that are a `Core\Time` or `Core\Uuid` instance only
-> `nvs-stdlib` can build, with `DateStyle` and a numeric `TimeZone` pinned at startup; § 4's
-> affected count is the `CommandComplete` tag's last field. The pool is Stages 3 to 7, and **ADR
-> 0132 has claimed the goal's one ADR slot**: a driver is a borrowed sans-IO codec plus a state
-> machine written here, over the parking stream with `nvs-host`'s one TLS client generalised over
-> its transport, and the five are an enum rather than a trait.   **Goals 1-4 and M4 are closed and
-> are this goal's Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring` the one C
-> dependency ADR 0051 § 4 records. Conformance 1382, differential 250, its gate met, migration
-> 90%/74%.
+> and § 1's statement cache are `sql.rs`, with the `[db.*]` readers for `statement_cache` and § 9's
+> `time_zone` beside them — plain data with no wire in it and keyed by SQL text plus expansion
+> arity: a hit drops the `Parse`, and an eviction's `Close` rides in the batch that replaced it. §
+> 9's whole type map decodes over it: a `Value` for the scalar rows and parsed components —
+> `PgScalar` — for the five that are a `Core\Time` or `Core\Uuid` instance only `nvs-stdlib` can
+> build, with `DateStyle` and a numeric `TimeZone` pinned at startup; § 4's affected count is the
+> `CommandComplete` tag's last field. The pool is Stages 3 to 7, and **ADR 0132 has claimed the
+> goal's one ADR slot**: a driver is a borrowed sans-IO codec plus a state machine written here,
+> over the parking stream with `nvs-host`'s one TLS client generalised over its transport, and the
+> five are an enum rather than a trait.   **Goals 1-4 and M4 are closed and are this goal's Stage 1
+> floor** — `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4
+> records. Conformance 1382, differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
