@@ -143,6 +143,8 @@
 use std::borrow::Cow;
 use std::io::{self, Write};
 
+use nvs_render::Level;
+
 use crate::object::{ClassDesc, ClassId, ClassTable, FieldDefault};
 use crate::throwable::{Thrown, ThrownClass};
 use crate::value::Value;
@@ -592,6 +594,15 @@ pub struct Ctx {
     /// unset, and one `LogFile` — a path, a descriptor and two counters — for a
     /// context that writes to a configured file. Nothing is O(records).
     log: LogTarget,
+    /// The quietest level `[log] level` writes — [`Self::write_log_record`]'s
+    /// floor, resolved beside [`Self::log`] on the same first use because one
+    /// call reads both directives and a second "have I read it yet" flag would
+    /// be a second thing to keep in step with it.
+    ///
+    /// **What it spends:** one discriminant per context, and nothing per
+    /// record beyond the comparison. [`Level::Debug`] is every level, so a
+    /// context whose configuration names none writes what it was handed.
+    log_minimum: Level,
     /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 6's configured origin: the scheme and authority
     /// `Core\Router::urlAbsolute` puts in front of a link, with no trailing
@@ -1296,6 +1307,7 @@ impl Ctx {
             output,
             diagnostic: OutputSink::Stderr,
             log: LogTarget::Unread,
+            log_minimum: Level::Debug,
             origin: None,
             commands: None,
             arguments: Vec::new(),
@@ -3555,17 +3567,40 @@ impl Ctx {
     /// target configured the record is still the program's output and both
     /// rules apply to it exactly as before.
     ///
-    /// The directive is read once — see [`Self::set_config`] — and the sink it
-    /// names is held for the life of the context, because a rotation bound
-    /// counted against a handle needs the handle to survive the record.
+    /// **`[log] level` is the floor, and it is read here for the same reason.**
+    /// ADR 0092 § 2's last paragraph makes the directive the minimum level
+    /// written, so a record quieter than it is dropped and answers `Ok`: it was
+    /// not written, and nothing failed. Asked at this one call rather than at
+    /// each writer, so the two of them cannot come to disagree about which
+    /// records a deployment collects — which is § 6's sameness a second time,
+    /// after the record's shape and its destination.
+    ///
+    /// The comparison is `<` over [`Level`]'s own ordering, which is § 2's
+    /// roster quietest-first, and so is that section's `<=` over the syslog
+    /// severities read the other way round — those run *downward*, `Debug` at 7
+    /// and `Critical` at 2. Written as the enum ordering because that is the
+    /// one of the two spellings a reader cannot get backwards.
+    ///
+    /// Both directives are read once — see [`Self::set_config`] — and the sink
+    /// `target` names is held for the life of the context, because a rotation
+    /// bound counted against a handle needs the handle to survive the record.
     ///
     /// # Errors
     ///
     /// Whatever the sink returns; a file target's failure is the caller's to
     /// swallow, which is ADR 0020 § 4's answer at the floor.
-    pub fn write_log_record(&mut self, unconfigured: LogChannel, line: &[u8]) -> io::Result<()> {
+    pub fn write_log_record(
+        &mut self,
+        level: Level,
+        unconfigured: LogChannel,
+        line: &[u8],
+    ) -> io::Result<()> {
         if matches!(self.log, LogTarget::Unread) {
             self.log = self.resolve_log_target();
+            self.log_minimum = self.resolve_log_minimum();
+        }
+        if level < self.log_minimum {
+            return Ok(());
         }
         if let LogTarget::Named(sink) = &mut self.log {
             return write_to(sink, line);
@@ -3610,6 +3645,25 @@ impl Ctx {
             )),
             Some(nvs_config::log::Target::Syslog) | None => LogTarget::Unnamed,
         }
+    }
+
+    /// What `[log] level` names, or [`Level::Debug`] where it names nothing —
+    /// [`Self::write_log_record`]'s floor, resolved with the target above.
+    ///
+    /// `Debug` for an unset directive rather than ADR 0091 § 3's per-mode
+    /// `Info`: that default is applied to the *tree*, so a resolved
+    /// configuration already carries it here, and a context configured by
+    /// something other than a resolved tree has said nothing about which
+    /// records it wants. The safe answer to that is all of them. A word the
+    /// grammar does not carry reads the same way and never boots — `E0614`
+    /// refuses it at the file, for the reason `nvs_config::log`'s module doc
+    /// gives about doing this at boot rather than at the first record.
+    fn resolve_log_minimum(&self) -> Level {
+        self.config
+            .as_ref()
+            .and_then(|config| config.get("log.level"))
+            .and_then(|written| Level::of(&written))
+            .unwrap_or(Level::Debug)
     }
 
     /// Points this context's diagnostic channel somewhere else — what a test

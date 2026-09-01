@@ -168,6 +168,47 @@ impl Level {
             Self::Critical => "critical",
         }
     }
+
+    /// The level's own case name, as ADR 0092 § 2's roster writes it —
+    /// `Log\Level::Debug` — and as [`Self::of`] reads `[log] level`.
+    ///
+    /// A third match over the roster rather than a case fold of [`Self::name`],
+    /// because there is no `const` fold and because these are two spellings of
+    /// one level rather than one spelling seen twice.
+    #[must_use]
+    pub const fn case_name(self) -> &'static str {
+        match self {
+            Self::Debug => "Debug",
+            Self::Info => "Info",
+            Self::Warn => "Warn",
+            Self::Error => "Error",
+            Self::Critical => "Critical",
+        }
+    }
+
+    /// The level `written` names, or `None` for a word ADR 0092 § 2's roster
+    /// does not carry.
+    ///
+    /// **Two spellings, and both of them the documentation's own.** § 2 writes
+    /// the roster as `Log\Level::Debug`, and so does
+    /// [ADR 0091](../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
+    /// § 3's per-mode default column for `[log] level`; a record renders the
+    /// same level as [`Self::name`]'s `debug`. An operator has read one of the
+    /// two and writes back what they read, so both resolve. Neither is a fold
+    /// of the other: `DEBUG` is refused like any other word, the way
+    /// `nvs_config::log::Target` refuses `STDERR`.
+    ///
+    /// The caller is `[log] level` — `nvs_config::log::validate` asks whether a
+    /// tree boots, and `nvs_runtime::Ctx::write_log_record` asks what the
+    /// quietest written level is — the two-reader split `[log] target`'s own
+    /// grammar is in `nvs-config` for. Searched over [`Self::ALL`] rather than
+    /// matched again, for [`Self::from_syslog_severity`]'s reason.
+    #[must_use]
+    pub fn of(written: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|level| level.case_name() == written || level.name() == written)
+    }
 }
 
 /// Text a record carries, with ADR 0092 § 5's control-byte and bidi

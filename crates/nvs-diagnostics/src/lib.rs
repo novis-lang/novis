@@ -1347,6 +1347,16 @@ pub mod code {
     /// spelling accepted here is a destination that opens.
     pub const E_UNSPELLED_LOG_TARGET: Code = Code::new("E0613");
 
+    /// A `[log] level` that is none of ADR 0092 § 2's five — refused at the
+    /// same boot and for the same reason as `E0613` beside it, but against the
+    /// opposite failure: an unspelled destination would route records nowhere,
+    /// while an unspelled level leaves the floor at `Debug` and writes
+    /// everything. An operator who wrote `level = "warning"` believes they
+    /// raised it and did not, and no record they collect afterwards says so.
+    /// The grammar is `nvs_render::Level::of`, which is also what
+    /// `nvs_runtime::Ctx::write_log_record` resolves the floor through.
+    pub const E_UNSPELLED_LOG_LEVEL: Code = Code::new("E0614");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

@@ -218,7 +218,7 @@ nvs_runtime::nvs_helper! {
         // still nothing the program said, and still a `FATAL` rather than a
         // throw, because a `catch` around a log write is not where a
         // deployment's unwritable log gets handled.
-        ctx.write_log_record(LogChannel::Output, line.as_bytes())
+        ctx.write_log_record(level, LogChannel::Output, line.as_bytes())
             .map_err(|why| Fault::fatal(format!("Core\\Log::write could not write: {why}")))?;
         Ok(Value::null())
     }
@@ -595,6 +595,70 @@ mod tests {
                 .iter()
                 .all(|line| line.starts_with("{\"level\":\"error\",")),
             "rendered by one serialiser at one destination: {written}"
+        );
+    }
+
+    /// ADR 0092 § 2's last paragraph, asked of both writers at once: `[log]
+    /// level` is the minimum level **written**, so a record quieter than it is
+    /// written by neither caller and one at or above it by both.
+    ///
+    /// A sweep over the whole roster, asserted by *counting* rather than by
+    /// reading one pair off: the failure this is written around is the floor
+    /// implemented with ADR 0092 § 2's syslog severities the wrong way round,
+    /// which inverts the entire table while still answering plausibly for the
+    /// configured level itself — `Warn` under a `Warn` minimum is written
+    /// either way. One row of this table cannot tell those apart and the table
+    /// can.
+    #[test]
+    fn the_configured_minimum_is_the_floor_both_writers_write_over() {
+        let path = scratch("minimum-level.log", 0);
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(&format!(
+            "[log]\ntarget = \"file:{}\"\nlevel = \"Warn\"\n",
+            path.display().to_string().replace('\\', "\\\\")
+        )));
+
+        for level in Level::ALL {
+            call(
+                nvs_core_log_write,
+                &mut ctx,
+                &[
+                    Value::int(level.syslog_severity().into()),
+                    Value::str(NvsStr::new(level.name().as_bytes())),
+                    Value::array(NvsArray::new()),
+                ],
+            )
+            .expect("a record the floor drops is not a failure either");
+            floor::report(&mut ctx, &floor::note(level, "the floor said so"));
+        }
+
+        // Dropping the context closes the handle, for the reason the test
+        // above gives.
+        drop(ctx);
+        let written = std::fs::read_to_string(&path)
+            .expect("the target the configuration named is the file on disk");
+        for level in Level::ALL {
+            let wanted = usize::from(level >= Level::Warn) * 2;
+            let landed = written
+                .lines()
+                .filter(|line| line.starts_with(&format!("{{\"level\":\"{}\",", level.name())))
+                .count();
+            assert_eq!(
+                landed,
+                wanted,
+                "under `level = \"Warn\"`, a `{}` record is written by {}: {written}",
+                level.name(),
+                if wanted == 0 {
+                    "neither writer"
+                } else {
+                    "both writers"
+                }
+            );
+        }
+        assert_eq!(
+            written.lines().count(),
+            6,
+            "three levels at or above the minimum, from two writers: {written}"
         );
     }
 

@@ -1626,6 +1626,7 @@ dependencies = [
  "blake3",
  "libc",
  "nvs-diagnostics",
+ "nvs-render",
  "serde",
  "toml",
  "windows-sys 0.61.2",

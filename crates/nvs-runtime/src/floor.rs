@@ -165,7 +165,10 @@ pub fn text(value: &str) -> Node {
 /// [`Ctx::write_log_record`] is the routing and the only reader of that
 /// directive; this is one of its two callers and `Core\Log::write` is the
 /// other, which is ADR 0020 § 6's sameness on the destination as well as on
-/// the record.
+/// the record. It reads `[log] level` in the same place, so a floor record
+/// quieter than the configured minimum is dropped there and not here — the
+/// coalescing above still counts it, because what that window bounds is how
+/// often *this* module builds a record at all.
 ///
 /// Infallible by construction: [`nvs_render::json::line`] answers a `String`
 /// rather than a `Result` for this caller's sake, and a sink that has already
@@ -181,7 +184,11 @@ pub fn report(ctx: &mut Ctx, record: &Record) {
         carried.envelope.count = Some(count);
         nvs_render::json::line(&carried)
     };
-    let _ = ctx.write_log_record(crate::LogChannel::Diagnostic, line.as_bytes());
+    let _ = ctx.write_log_record(
+        record.envelope.level,
+        crate::LogChannel::Diagnostic,
+        line.as_bytes(),
+    );
 }
 
 /// How long one record holds the window open — ADR 0106 § 10's rate limit,

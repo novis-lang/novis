@@ -1,11 +1,17 @@
-//! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 4's `[log] target`: the grammar
-//! of the three destinations it names, and the boot-time refusal of everything else.
+//! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 4's `[log] target` and
+//! [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md) § 2's `[log] level`:
+//! what each names, and the boot-time refusal of everything else.
 //!
 //! **The grammar is here and not at the sink, because two readers need it.** [`Target::of`] is the
 //! only place a written target is turned into a destination: [`validate`] asks it whether a tree
 //! boots, and `nvs_runtime::Ctx::write_log_record` asks it where a record goes. A parser at the sink
 //! with a checker beside it would be two spellings of one grammar, and the failure they drift into
 //! is the worst-shaped one available — a tree that boots green and routes its records nowhere.
+//!
+//! The level's grammar is [`nvs_render::Level::of`] and is read by that same pair, one crate down:
+//! `[log] level` names one of ADR 0092 § 2's five, and the roster's home is the enum a record
+//! already carries. Only the *refusal* is here — [`levelled`] — because only this crate has the
+//! tree and the origins to say which file the word was written in.
 //!
 //! **Refused where it is written, never where it is used.** The one moment the engine cannot afford
 //! to raise a diagnostic about its configuration is the moment it is already reporting a failure:
@@ -19,9 +25,10 @@
 use std::collections::BTreeMap;
 
 use nvs_diagnostics::{Diagnostic, code};
+use nvs_render::Level;
 
 use crate::resolve::{Origin, origin_note};
-use crate::tree::Config;
+use crate::tree::{Config, Log};
 
 /// One of ADR 0020 § 4's three destinations, as written.
 ///
@@ -68,13 +75,24 @@ impl<'a> Target<'a> {
 /// One [`Diagnostic`], `E0613`, for the first target that is none of the three — naming the value,
 /// the three spellings, and the file the value was written in.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
-    if let Some(written) = config.log.as_ref().and_then(|log| log.target.as_deref()) {
-        spelled(written, "log.target", origins)?;
+    if let Some(log) = config.log.as_ref() {
+        block(log, "log", origins)?;
     }
     for (index, app) in config.app.iter().enumerate() {
-        if let Some(written) = app.log.as_ref().and_then(|log| log.target.as_deref()) {
-            spelled(written, &format!("app.{index}.log.target"), origins)?;
+        if let Some(log) = app.log.as_ref() {
+            block(log, &format!("app.{index}.log"), origins)?;
         }
+    }
+    Ok(())
+}
+
+/// Both spelled values of one `[log]` block, under the prefix it was merged as.
+fn block(log: &Log, prefix: &str, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    if let Some(written) = log.target.as_deref() {
+        spelled(written, &format!("{prefix}.target"), origins)?;
+    }
+    if let Some(written) = log.level.as_deref() {
+        levelled(written, &format!("{prefix}.level"), origins)?;
     }
     Ok(())
 }
@@ -98,6 +116,36 @@ fn spelled(written: &str, key: &str, origins: &BTreeMap<String, Origin>) -> Resu
         origin_note(origins.get(key))
     ))
     .with_help(help.to_string()))
+}
+
+/// [`validate`]'s refusal for one written level, under the key it was merged as.
+///
+/// The grammar itself is [`nvs_render::Level::of`], for the reason this module's own doc gives
+/// about the target: one place turns a written value into the thing it names, and both readers ask
+/// it. What is different here is what an unspelled value costs — a level nobody can resolve leaves
+/// the floor at `Debug`, so the deployment collects *more* than it asked for rather than nothing,
+/// and the mistake is invisible in the records themselves. `E0614`'s own doc is the home of that.
+fn levelled(
+    written: &str,
+    key: &str,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    if Level::of(written).is_some() {
+        return Ok(());
+    }
+    Err(Diagnostic::error(
+        code::E_UNSPELLED_LOG_LEVEL,
+        format!("`[log] level = \"{written}\"` names no level"),
+    )
+    .with_note(format!(
+        "ADR 0092 § 2's roster is `Debug`, `Info`, `Warn`, `Error` and `Critical`{}",
+        origin_note(origins.get(key))
+    ))
+    .with_help(
+        "write the case as § 2 spells it — `level = \"Info\"` — or as a record renders it, \
+         `level = \"info\"`"
+            .to_owned(),
+    ))
 }
 
 #[cfg(test)]
@@ -143,11 +191,51 @@ mod tests {
     /// A tree whose global `[log]` block names `target` and nothing else.
     fn global(target: &str) -> Config {
         Config {
-            log: Some(crate::tree::Log {
+            log: Some(Log {
                 target: Some(target.to_string()),
-                ..crate::tree::Log::default()
+                ..Log::default()
             }),
             ..Config::default()
+        }
+    }
+
+    /// A tree whose global `[log]` block names `level` and nothing else.
+    fn levelled_tree(level: &str) -> Config {
+        Config {
+            log: Some(Log {
+                level: Some(level.to_string()),
+                ..Log::default()
+            }),
+            ..Config::default()
+        }
+    }
+
+    /// The level directive's grammar, asked through the same check the target's is: ADR 0092
+    /// § 2's five in both of the spellings the documentation uses, and one refusal for everything
+    /// else — including the near-miss a PSR-3 habit produces, which is the whole reason this is
+    /// checked at all.
+    ///
+    /// Asserted over the *whole roster* rather than on one case, so a level that stopped
+    /// resolving — the one failure that silently widens what a deployment collects — cannot pass
+    /// here while the case the test happened to name still does.
+    #[test]
+    fn every_level_resolves_in_both_of_its_spellings_and_nothing_else_does() {
+        for level in Level::ALL {
+            for written in [level.case_name(), level.name()] {
+                validate(&levelled_tree(written), &BTreeMap::new())
+                    .unwrap_or_else(|_| panic!("`{written}` is how ADR 0092 § 2 is read back"));
+            }
+        }
+        for written in ["warning", "notice", "DEBUG", "trace", ""] {
+            let Err(refused) = validate(&levelled_tree(written), &BTreeMap::new()) else {
+                panic!("`{written}` is not one of ADR 0092 § 2's five");
+            };
+            assert_eq!(refused.code, Some(code::E_UNSPELLED_LOG_LEVEL));
+            assert!(
+                refused.message.contains(written),
+                "the value is what the operator has to find: {}",
+                refused.message
+            );
         }
     }
 

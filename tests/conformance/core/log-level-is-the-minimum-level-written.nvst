@@ -1,0 +1,36 @@
+--TEST--
+`[log] level` is the minimum level written, with the bound named on both sides: the last level a deployment drops and the first one it keeps — ADR 0092 § 2
+--FILE--
+<?nvs
+// ADR 0092 § 2's last paragraph. The directive names a floor, not a filter for
+// one level, so the roster is walked past it in both directions: `Debug` and
+// `Info` are quieter than `Warn` and are written nowhere, `Warn` is the level
+// named and is written, and `Error` is louder and is written too. A floor
+// implemented with § 2's syslog severities the wrong way round — they run
+// downward, `Debug` at 7 and `Critical` at 2 — keeps the configured level and
+// inverts everything either side of it, which is what asking about all four
+// costs nothing and catches.
+//
+// The records are read back out of the target rather than off standard output,
+// because a deployment that names a destination gets one: with `[log] target`
+// set, `Core\Log::write` no longer writes the program's own stream. The hook
+// runs as the last user code of the script (ADR 0127 § 1), by which point every
+// record above has been written or dropped.
+Core\Script::onExit(fn (): void => {
+    echo Core\IO::readText("app.log");
+});
+
+Core\Log::write(Core\Log\Level::Debug, "quieter than the floor");
+Core\Log::write(Core\Log\Level::Info, "the last level dropped");
+Core\Log::write(Core\Log\Level::Warn, "the floor itself");
+Core\Log::write(Core\Log\Level::Error, "above the floor");
+--FILE nvs.toml--
+[log]
+target = "file:app.log"
+level = "Warn"
+
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+{"level":"warn","msg":"the floor itself"}
+{"level":"error","msg":"above the floor"}
