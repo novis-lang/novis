@@ -1011,9 +1011,12 @@ object (R14).
 - **Metadata:** `exists`, `isFile`, `isDir`, `isReadable`, `isWritable`, `size`, `modifiedAt`, `stat` —
   replacing `file_exists`, `is_file`, `is_dir`, `filesize`, `filemtime`, `fileperms`, `stat`, `lstat`.
 - **Manipulation:** `copy`, `move`, `remove`, `makeDir`, `removeDir`, `list(string $path): array<string>`,
-  `walk(string $path): Iterable<string>`, `temporaryFile`, `temporaryDir` — replacing `copy`, `rename`,
+  `walk(string $path): Iterable<string>`, `temporaryDir` — replacing `copy`, `rename`,
   `unlink`, `mkdir`, `rmdir`, `scandir`, `glob`, `opendir`/`readdir`/`closedir`, `tempnam`, `tmpfile`,
-  `sys_get_temp_dir`, and the `DirectoryIterator` family.
+  `sys_get_temp_dir`, and the `DirectoryIterator` family. There is no `temporaryFile` — a program that
+  needs one temporary file needs somewhere to put the second — and what `temporaryDir` creates is deleted
+  by the runtime when the script ends
+  ([ADR 0131](../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)).
 - **Resolution:** `canonicalize(string $path): string` (`realpath`), and `within(string $base, tainted
   string $path): string` — **the path-traversal launderer**: it resolves and then proves containment,
   which is the check `Core\Path::normalize` structurally cannot make.

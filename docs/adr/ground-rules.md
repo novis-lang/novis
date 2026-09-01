@@ -409,3 +409,8 @@ spellings rejected, and the reasoning.
   traffic — and last week's aggregate uploads at most weekly, riding a short-lived command with a
   3-second budget that can never fail it; a process serving traffic records but never uploads**
   ([0130](0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md)).
+- **A temporary directory dies with its script: the runtime deletes what `Core\IO::temporaryDir` handed
+  out when the script ends, without ever throwing, and reclaims a dead process's leftovers — keyed on
+  owner liveness, never age — only at `nvs serve` boot and under `nvs tmp clean`; there is no
+  `temporaryFile` and no per-call persist, only the reloadable operator key `[debug] keep_temporary`**
+  ([0131](0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)).

@@ -80,6 +80,7 @@ so you never have to open this file to route a topic.
 | Running Novis as a Windows service or a systemd unit — `nvs service install`, NSSM/WinSW, `sc create`, `ImagePath` quoting, which service account, a hardened unit file, `Type=notify`, `ExecReload`, why a bundle cannot install itself | [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) |
 | The built-in HTTP server — what `nvs serve` is for and what it is not, mount points and several entry points under one root, serving static files, why there is no TLS listener, h2c, FastCGI or compression, what a proxy in front is trusted to assert, `X-Forwarded-For` and the client IP, connection timeouts, the in-flight ceiling, a health endpoint | [0097](0097-development-server-and-proxied-origin.md) |
 | File uploads — `$_FILES`, `tmp_name`, `move_uploaded_file`, `upload_max_filesize`, streaming a large upload, how big an upload may be, where an uploaded file is stored, writing a stream to disk, `Core\IO::writeStream` | [0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) |
+| Temporary files and directories — `tmpfile`, `tempnam`, `sys_get_temp_dir`, `Core\IO::temporaryDir`, who deletes a temp dir and when, the orphan sweep, `nvs tmp clean`, `[io] temp_root`, `[debug] keep_temporary` | [0131](0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md) |
 | `spawn script`, isolates, the request boundary | [0006](0006-isolated-script-execution.md) |
 | Caching between requests, APCu, `Core\Cache`, why a cached value is copied | [0059](0059-cross-request-state-is-explicit.md) |
 | `include`/`require`, loading another file into the current frame | [0021](0021-single-file-inclusion-construct.md) |
@@ -359,6 +360,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md) | A PDF page is a decode source of the image component | Accepted |
 | [0129](0129-password-verify-reads-a-stored-bcrypt-hash.md) | `Core\Password::verify` reads a PHP-stored bcrypt hash, and `hash` never writes one | Accepted |
 | [0130](0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md) | Usage telemetry is opt-in, counts only operator actions, and a serving process never uploads | Accepted |
+| [0131](0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md) | A temporary directory dies with its script, and the runtime's sweep never throws | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
