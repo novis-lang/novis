@@ -3903,6 +3903,22 @@ is why" — is this file.
   `args:` — the inward copy has no receiving table to check against, so it adopts at refcount 1 and
   keeps the parent's descriptor — and have the child hand the same object back. Reading the
   `ScriptResult` needs `$done->error?->message` (the field is nullable) and `$done->value as Node`.
+- **A `.nvst` case whose program ends non-zero must carry an `--EXPECTF-ERROR--` section even when it
+  writes nothing to standard error.** `nvs_test::Case::expects_failure` is `self.expect_error.is_some()`
+  and nothing else, and `crates/nvs-test/src/run.rs:164` is the one rule for the exit status — "a case
+  that states an error expectation must fail, and every other case must succeed". So an `exit(42)` case
+  whose stdout matches byte for byte still fails, with `expected the run to succeed; it exited 42` and no
+  hint that a *section* is what is missing. `%A` matches an empty stderr, so the fix is two lines, and it
+  is also the case saying out loud that this program is meant to end non-zero.
+
+- **A spawned child never drains its `Core\Script::onExit` queue, so no `.nvst` case can put two of ADR
+  0127 § 2's endings in one file.** `nvs_stdlib::script::run_exit_hooks` has exactly one caller —
+  `crates/nvs-cli/src/main.rs:896`, the top-level script frame — so a `spawn script` child ends with
+  `ok=true` and a captured `output` holding only what its body echoed, with its hooks never run and no
+  diagnostic anywhere. Every *bound asserted on both sides* over that table needs two endings and a
+  script has exactly one, which makes children the obvious route and it is closed; whether it should be
+  is the open question the handoff's backlog carries, since § 2's own words are "at most once per script"
+  and a spawned child is a script.
 
 ## Splitting a file that got too big
 

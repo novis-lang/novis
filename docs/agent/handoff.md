@@ -2,72 +2,69 @@
 
 ## State
 
-**`Core\Ast\Node` is off `gaps.py`'s thinnest list.** Its three members went from three cases each to
-six, and the three added here are the three shapes the class had no case for: agreement under a second
-call, the leaf edge named on both sides, and a counting invariant over the whole walk. `python
-tools/gaps.py` no longer ranks the class in its first twenty-five; `Core\Crypto`,
-`Core\Process\Result` and `Core\Script\ExitReport` are the floor now.
+**`Core\Script\ExitReport` is off `gaps.py`'s list entirely** — its three members went from three cases
+each to five, and `Core\Crypto`, `Core\Process\Result` and `Core\Cli\Color` are the floor now. Two cases
+landed, not the three the group named, and the third is not the one that was written down.
 
-- **The second slice's premise as the handoff wrote it was wrong, and the case pins the corrected
-  thing.** The item asked for `nodes` on a leaf to answer "a list of exactly one"; `nodes` excludes the
-  receiver, so a leaf walks **zero**, and the landed
-  `core-ast-parse-answers-the-compilers-own-tree.nvst` already pins that leaf's `0`/`0` pair. So the
-  case names the bound *adjacently* instead — one descent by last child prints the last node that has
-  children immediately above the first that has none — and adds the claim no case had: "no children"
-  is not "not a node", asserted by identity, since the leaf is still one of its parent's children and
-  still in the file's walk.
-- **Identity is what makes the agreement case more than a re-read.** `children` hands back the very
-  instances `parse` built, so both calls' elements collapse into one entry of a
-  `Core\ObjectSet<Core\Ast\Node>`; `nodes` allocates a fresh array per call but fills it with those
-  same objects. Two `parse` calls are the mirror: every answer agrees and the two trees share no node
-  at all.
-- Nothing in `crates/nvs-stdlib/src/ast.rs` changed — three `.nvst` files and nothing else — so there
-  is no new refcount edge and no valgrind run behind them.
+- **The group's second and third items as written are unreachable, and the finding is why.** Both asked
+  for one case spanning two of ADR 0127 § 2's endings, and a script has exactly one ending. The obvious
+  route is a `spawn script` child per ending — and **a spawned child never drains its `onExit` queue**:
+  `nvs_stdlib::script::run_exit_hooks` has one caller, `crates/nvs-cli/src/main.rs:896`. A child ends
+  `ok=true` with a captured `output` holding only what its body echoed. That is recorded as a playbook
+  trap and as the backlog's open decision; § 2 says "at most once per script" and a `spawn script` child
+  is a script, so this is a gap rather than a scope.
+- **What landed in the second slot is the column no case read**: `exit($n)` puts the very `$n` on the
+  report. Both landed `exit` cases end at 0, which is also the `Normal` row's status, so nothing told
+  "the report carries the number the program chose" from "the report carries 0 unless something threw".
+  42 is not 0, not 1, and the case asserts the non-zero status arrives with `error` still `null` — half
+  the bound the item wanted, in the only form one ending admits.
+- **Identity is what makes the agreement case more than a re-read.** One report is built per ending and
+  handed to every hook, so two hooks' readings collapse into one entry of a `Core\ObjectSet<mixed>`, and
+  `error`'s two readings collapse the same way because § 2's third column is the live `Throwable`.
+- Nothing in `crates/nvs-stdlib/src/script.rs` changed — two `.nvst` files and nothing else — so there is
+  no new refcount edge and no valgrind run behind them.
 
 **The two `orient.py` warnings are still there**: the `[context] modules` patterns
-`crates/nvs-stdlib/src/fatal.rs` and `crates/nvs-stdlib/src/script.rs` are reported as matching no
-module and are then printed in the scoped map anyway. The manifest is right; the matcher is what to
-check.
+`crates/nvs-stdlib/src/fatal.rs` and `crates/nvs-stdlib/src/script.rs` are reported as matching no module
+and are then printed in the scoped map anyway. The manifest is right; the matcher is what to check.
 
-**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate over
-a *complete* Part II, which needs spec §§ 15-19. Those are goal 6's, so it cannot pass inside this
-goal and is not a regression.
+**The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate over a
+*complete* Part II, which needs spec §§ 15-19. Those are goal 6's, so it cannot pass inside this goal and
+is not a regression.
 
 ## Next group
 
-**`Core\Script\ExitReport` is the thinnest class left whose every member is on the floor — `reason`,
-`status` and `error`, three cases each — and all three are bound by one rule, ADR 0127's: the report
-*observes* the ending rather than changing it, and the ending is one fact every hook in the queue sees
-the same way. The file set is `crates/nvs-stdlib/src/script.rs` and `tests/conformance/core/`; the
-three helper bodies are within twenty lines of each other. The landed cases are
-`script-on-exit-runs-its-queue-fifo-after-the-last-statement.nvst`,
-`script-on-exit-sees-the-exit-no-finally-can-see.nvst` and
-`script-on-exit-carries-the-live-throwable-of-an-uncaught-throw.nvst` — read those first, both because
-the FIFO question is already asked and because the second of them is how a case reaches an ending
-other than the normal one.**
+**`Core\Crypto` is the thinnest class left — `open` 3, `seal` 3, `generateKey` 12 — and all three are
+bound by one rule, ADR 0051 § 3's "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string":
+the cipher, the mode, the padding and the nonce are all off the call, so what is left to assert is the
+key and the nonce. The file set is `crates/nvs-stdlib/src/crypto.rs` and `tests/conformance/core/`; the
+three helper bodies are within fifty lines of each other. The landed cases are
+`crypto-seals-and-opens-with-no-cipher-argument.nvst`,
+`crypto-round-trips-every-message-length-with-a-flat-overhead.nvst` and
+`crypto-open-refuses-every-forgery-with-one-message.nvst` — read those first, because the forgery
+refusal and the length sweep are both already asked.**
 
-- [ ] **A case that asks each member twice and asserts agreement** — `reason`, `status` and `error`
-      answered twice inside one hook must agree, and two hooks in one queue must see the same report,
-      since the ending is a fact recorded before the queue runs rather than something each hook
-      recomputes. `crates/nvs-stdlib/src/script.rs:684`, `crates/nvs-stdlib/src/script.rs:692` and
-      `crates/nvs-stdlib/src/script.rs:700`.
-- [ ] **A case that names the status bound on both sides** — the status of a normal ending beside the
-      first non-zero one an `exit` names, with `error` `null` on one side and a real `Throwable` on
-      the other, so a hook cannot read "no error" as "no report".
-      `crates/nvs-stdlib/src/script.rs:692` and `crates/nvs-stdlib/src/script.rs:700`.
-- [ ] **A case that asserts the roster invariant by counting** — over the endings ADR 0127 admits, the
-      `reason` is one of the closed `Core\Script\ExitReason` cases every time and `status`/`error`
-      agree with it, counted across the endings rather than read off one line.
-      `crates/nvs-stdlib/src/script.rs:684` and `crates/nvs-stdlib/src/script.rs:700`.
+- [ ] **A case that names the key-length bound on both sides** — `keyed` refuses any `$key` that is not
+      `KEY_LEN`, through one `wrong_key_length` both members share, so the case names the last accepted
+      length beside the first refused one on each side of it, and asserts `seal` and `open` refuse
+      identically rather than each on its own line. `crates/nvs-stdlib/src/crypto.rs:420`,
+      `crates/nvs-stdlib/src/crypto.rs:447` and `crates/nvs-stdlib/src/crypto.rs:463`.
+- [ ] **A case that asserts `generateKey`'s invariants by counting** — over a sweep of keys, every one is
+      distinct, every one is exactly the length `seal` accepts, and no message sealed under one opens
+      under another, counted rather than read off a line.
+      `crates/nvs-stdlib/src/crypto.rs:431`.
+- [ ] **An agreement case over the nonce** — `seal` called twice on one message and one key answers two
+      *different* sealed values, because the nonce is drawn per call and prefixed, and both open to the
+      one message: agreement about the plaintext and disagreement about the ciphertext, in one case.
+      `crates/nvs-stdlib/src/crypto.rs:444` and `crates/nvs-stdlib/src/crypto.rs:463`.
 
 ## Backlog
 
-- `Core\Crypto` has only the *agreement* shape left — one slice, not a group; its edges and its sweep
-  are landed (`crates/nvs-stdlib/src/crypto.rs:447`).
-- `Core\Process\Result` — `exitCode`, `stderr`, `stdout`, all three on the floor — is the next
-  three-member group after `ExitReport` (`crates/nvs-stdlib/src/process.rs`).
-- `Core\Task::afterResponse` is the last differential gap, and it needs `tests/differential/`, never
-  `tests/conformance/` (`docs/agent/conventions.md`).
-- `orient.py`'s `[context] modules` matcher reports `fatal.rs` and `script.rs` as matching nothing
-  while printing them — `tools/orient.py`.
-- 112 unasserted error paths, of which 5 are catchable throws — `python tools/gaps.py --errors`.
+- Decide and record whether a `spawn script` child drains its `onExit` queue — ADR 0127 § 2 against
+  `crates/nvs-cli/src/main.rs:896` being the only caller.
+- `Core\Script\ExitReport`'s roster sweep, reframed to one ending: the closed `Core\Script\ExitReason`
+  roster walked and exactly one case matching the report — `docs/adr/0127-…` § 2.
+- `orient.py`'s two `[context] modules` patterns that match no module — `docs/agent/loop-goal.toml`.
+- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case —
+  `crates/nvs-stdlib/src/task.rs:561`, `tests/differential/`.
+- `Core\Process\Result` and `Core\Cli\Color` are the floor after `Core\Crypto` — `python tools/gaps.py`.
