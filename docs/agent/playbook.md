@@ -1804,6 +1804,17 @@ is why" — is this file.
   passed never ran, and no regression anywhere else could have been reported for as long as it
   lasted. The failure message reads like the ordinary "an item is still open" state; the check
   count does not. Treat any iteration reporting fewer than a dozen checks as a stopped list.
+- **A `.nvst` case whose program branches on the platform is only half-run by
+  `target/debug/nvs.exe`, and the other half is one call away rather than a CI round trip.**
+  `/var/tmp/nvs-linux/debug/nvs` is a *built* Linux binary — the loop's own valgrind leg keeps it
+  current, `disk.py` reports it — so
+  `wsl.exe -- bash -lc "cd /mnt/<drive>/<repo> && /var/tmp/nvs-linux/debug/nvs test <case>.nvst"` runs the
+  same case on the Unix leg from a Windows shell, in one call and with no build. Reach for it
+  whenever a case's *answer* depends on the platform rather than only its spelling: the two
+  `Core\Process\Result` cases start `/bin/sh` on two of CI's three runners and
+  `C:\Windows\System32\cmd.exe` on the third, and a Windows-only run proves nothing about the branch
+  two thirds of CI takes. Check the binary's date first — it is as old as the last valgrind sweep,
+  so it does not carry Rust you changed this session.
 
 ## Writing a test case
 
