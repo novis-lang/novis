@@ -12,15 +12,19 @@
 //! # Known gaps
 //!
 //! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 3 gives
-//! this class three more things than it has: `sanitize`, the `Markup` value
-//! type § 5 makes the sink's only raw-write bypass, and
+//! this class two more things than it has: `sanitize` and
 //! [ADR 0122](../../../../docs/adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)'s
-//! WHATWG parser over `Core\Xml`'s tree. The parser waits on that tree
-//! existing at all. `Core\Html\Markup` waits on nothing in this module: the
-//! checker already refuses a `tainted` or `secret` conversion to it
-//! (`nvs_types::expr::quals`) and the runtime already renders it as a sink
-//! carrier (`nvs_runtime::is_carrier`), so what it owes is the registered
-//! class those two already speak for.
+//! WHATWG parser over `Core\Xml`'s tree, both of which wait on that tree
+//! existing at all.
+//!
+//! [`MARKUP`] is registered and § 5's third and last piece is not: **nothing
+//! yet lowers `"<b>" as Core\Html\Markup`**. The checker admits it — the
+//! conversion type-checks, `nvs_types::expr::quals` refuses a `tainted` or
+//! `secret` operand and `E0417` refuses a non-literal one — and then
+//! `nvs_ir::lower::convert` reaches the arm that has no row for it and panics
+//! naming this class, whose absence it had been waiting on. What that row
+//! needs is a way to build a one-slot instance of a registered `Core` class
+//! from the IR, which no conversion has needed before.
 //!
 //! # Why the escape set is fixed at five, with no argument
 //!
@@ -81,6 +85,44 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     }],
     instance: &[],
     slots: &[],
+    constants: &[],
+};
+
+/// `Core\Html\Markup`'s fully-qualified name, taken from the runtime constant
+/// that decides which classes the HTML sink renders raw.
+///
+/// Written this way rather than spelled again, for
+/// [`nvs_runtime::CARRIER_CLI_TEXT`]'s reason one carrier over: the class a
+/// program writes and the class [`nvs_runtime::value_to_string`] renders
+/// cannot drift apart if there is only one string.
+pub(crate) const MARKUP_NAME: &str = nvs_runtime::CARRIER_HTML_MARKUP;
+
+/// ADR 0024 § 5's `Core\Html\Markup` — the HTML sink's only raw-write bypass.
+///
+/// **Memberless, and that is the design rather than an unfinished roster.**
+/// § 5 gives three ways to obtain one and every one of them is a language
+/// construct: `as Markup` on a *source literal*, which is the trust level the
+/// literal already carried; `Markup + Markup`, which composes two trusted
+/// fragments; and the sink's own escape-and-lift of everything else, which
+/// runs [`CLASS`]'s `escape` and wraps the answer. A constructor member would
+/// be a fourth, and it would take a runtime `string` — which is exactly the
+/// bypass § 5's first bullet closes ("compute the escape-defeating payload at
+/// runtime, then cast it"). `Core\Cli\Text::plain` is the same shape one sink
+/// over and *does* have that member, because its argument is laundered on the
+/// way in; nothing here can launder markup, since raw markup is the whole
+/// point of the type.
+///
+/// So the class exists to be **named**, the way
+/// [`crate::script::HANDLE`] does: it gives the checker's target a registered
+/// layout, and its one slot is where the trusted bytes live.
+/// [`nvs_runtime::CARRIER_TEXT_SLOT`] is that index, shared with the other
+/// carrier so `value_to_string` renders either without asking this crate
+/// anything.
+pub(crate) const MARKUP: CoreClass = CoreClass {
+    name: MARKUP_NAME,
+    methods: &[],
+    instance: &[],
+    slots: &["text"],
     constants: &[],
 };
 
@@ -219,6 +261,34 @@ const REPLACEMENT: char = '\u{FFFD}';
 mod tests {
     use super::*;
     use crate::registry::CLASSES;
+
+    /// ADR 0024 § 5's carrier, in the two facts neither crate that acts on it
+    /// can check for itself: `nvs_runtime::CARRIER_TEXT_SLOT` is the index
+    /// this class's registered layout gives `text`, and this class's name is
+    /// one `nvs_runtime` renders raw. `Core\Cli\Text` asserts the same pair
+    /// one sink over, which is what makes a carrier a *set* rather than a
+    /// special case.
+    ///
+    /// The third assertion is § 5's own shape: the class is **memberless**,
+    /// because every way of obtaining a `Markup` is a language construct and a
+    /// constructor member would be a fourth that took a runtime string. The
+    /// const's doc comment is the home of that argument; this fails on the day
+    /// a member is added to it, which is the day the bypass is being widened.
+    #[test]
+    fn the_markup_carrier_is_named_slotted_and_memberless() {
+        assert_eq!(MARKUP.slot("text"), nvs_runtime::CARRIER_TEXT_SLOT);
+        assert!(nvs_runtime::is_carrier(MARKUP_NAME));
+        assert!(
+            crate::registry::class_renders(MARKUP_NAME),
+            "the HTML sink writes a `Markup` out as the bytes it already holds"
+        );
+        assert_eq!(
+            MARKUP.members().count(),
+            0,
+            "a `Markup` is obtained by `as` on a literal, by `+`, or by the sink's own \
+             escape-and-lift — never by a call"
+        );
+    }
 
     /// ADR 0024 § 3, asked of the registry rather than of the body: `escape`
     /// launders, its answer is unqualified, and the qualifier it removes is

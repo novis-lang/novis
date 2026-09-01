@@ -1272,6 +1272,12 @@ pub const CLASSES: &[CoreClass] = &[
     // No spec § of its own yet — § 20's roster row names the class, and
     // [`crate::html`] owns why `sanitize` and the WHATWG parser are not here.
     crate::html::CLASS,
+    // ADR 0024 § 5's carrier for that same sink, memberless: `nvs_runtime`
+    // already renders it and `nvs_types` already refuses a `tainted` or
+    // computed conversion to it, so what this row adds is the registered
+    // layout the slot lives in. [`crate::html`] owns why it has no
+    // constructor.
+    crate::html::MARKUP,
     // ADR 0058 § 2's launderer, which is where every outbound URL in the
     // language has to pass through — and the first ADR 0024 launderer whose
     // answer is a value rather than a plain string. [`crate::http`]'s own
@@ -3253,12 +3259,18 @@ mod tests {
     /// `Core\Cli\Color` and `Core\Cli\Style`, whose slots
     /// `Core\Cli\Text::styled` reads when it renders one: ADR 0086 § 2 writes
     /// two constructors and a shape of options and no member on either result,
-    /// because a style is built and worn rather than interrogated.
+    /// because a style is built and worn rather than interrogated. The eighth
+    /// is `Core\Html\Markup`, the other sink carrier and so `Core\Cli\Text`'s
+    /// entry for the same reason — `value_to_string` reads its one slot — with
+    /// ADR 0024 § 5 adding that it has no constructor either, a member taking
+    /// a runtime string being the bypass that section closes
+    /// ([`crate::html`]).
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
         const HANDLES: &[&str] = &[
             r"Core\Regex\Pattern",
             nvs_runtime::CARRIER_CLI_TEXT,
+            nvs_runtime::CARRIER_HTML_MARKUP,
             crate::script::HANDLE_NAME,
             crate::io::LINES_NAME,
             crate::http::TARGET_NAME,
