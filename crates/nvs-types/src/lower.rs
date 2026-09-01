@@ -206,7 +206,10 @@ fn lower_class_ref(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -
 /// **The set's own emptiness is not asked here.** ADR 0126 § 1 also refuses a
 /// class declaring no public property at all, and that needs the flattened
 /// public roster the `as` conversion is built around — so it lands with the
-/// conversion rather than being walked twice.
+/// conversion, as
+/// [`crate::expr::operators::reject_empty_property_key_set`], whose doc says
+/// why this pass cannot host it: this one runs during signature collection
+/// too, where every roster is still empty.
 fn lower_property_key(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     let before = env.diags.error_count();
     let arg = lower_type_at_depth(inner, depth + 1, ctx, env);

@@ -230,13 +230,16 @@ fn check_property_key_conversion(
         return;
     };
     let roster = super::members::public_property_names(&qname, env);
+    if roster.is_empty() {
+        reject_empty_property_key_set(&qname, ty.span, env);
+    }
     let ExprKind::Str(text) = &inner.kind else {
         // § 2's `string` and `property<U>` rows: the name arrives when the
         // statement runs, so the set it must be one of travels to the lowering
         // instead of being decided here. An empty roster is recorded like any
-        // other — `nvs-ir` builds a chain that always misses, which is the
-        // correct answer for a class no name can reach and matches the refusal
-        // the written-out operand below gets.
+        // other, refused above though it is: `nvs-ir` has no fallback for a
+        // conversion whose annotation carries no entry, and a type that cannot
+        // be reached at run time is not a type that is never lowered.
         env.exprs.record(
             ty.span,
             ExprInfo::PropertyKey {
@@ -246,26 +249,25 @@ fn check_property_key_conversion(
         );
         return;
     };
+    if roster.is_empty() {
+        // The *type* is the fault and it has been named; the operand handed to
+        // it is not a second mistake, and `E0799` plus an `E0405` about a name
+        // no spelling could have got right reads as two problems.
+        return;
+    }
     let name = crate::string_lit::cook_string_literal(env.src, *text);
     if roster.contains(&name) {
         return;
     }
-    let help = if roster.is_empty() {
-        format!(
-            "ADR 0126 § 2 decides a written-out operand where it is written, and `{qname}` \
-             declares no public property at all — so no name reaches a `property<{qname}>`"
-        )
-    } else {
-        let listed = roster
-            .iter()
-            .map(|property| format!("`${property}`"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!(
-            "ADR 0126 § 2 decides a written-out operand where it is written, and a key's values \
-             are `{qname}`'s public declared properties: {listed}"
-        )
-    };
+    let listed = roster
+        .iter()
+        .map(|property| format!("`${property}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let help = format!(
+        "ADR 0126 § 2 decides a written-out operand where it is written, and a key's values are \
+         `{qname}`'s public declared properties: {listed}"
+    );
     env.diags.report(
         Diagnostic::error(
             code::E_UNKNOWN_MEMBER,
@@ -273,6 +275,40 @@ fn check_property_key_conversion(
         )
         .with_primary(span, "converted here")
         .with_help(help),
+    );
+}
+
+/// ADR 0126 § 1's second refusal: `property<T>` where `T` declares no public
+/// property at all is `E0799` where it is written, "since no value of that type
+/// could ever exist".
+///
+/// **Reported here rather than beside the class-kind half in
+/// `crate::lower::lower_property_key`**, which is where the written type is
+/// lowered and where the rule obviously belongs. It cannot go there: that pass
+/// runs during signature *collection* as well as at check time, and
+/// `Env::signatures` points at an empty placeholder during collection — so a
+/// roster read from a lowering is empty for every class in the program, and the
+/// rule would refuse every annotation ever written. The conversion is the one
+/// place the table is real and the roster is already walked.
+///
+/// Siting it at the conversion loses nothing, because **`as` is this type's
+/// only source** — ADR 0126 § 2, and the ADR's own title. A `property<T>`
+/// annotation over an empty `T` that no conversion ever feeds declares a
+/// variable no value can reach, and every spelling that would reach one is
+/// refused here, with the annotation's own span underlined.
+fn reject_empty_property_key_set(qname: &QName, span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS,
+            format!("`property<{qname}>` names a class that declares no public property"),
+        )
+        .with_primary(span, "no name could ever reach this key")
+        .with_help(
+            "ADR 0126 § 1 makes a key's values the public declared property names of its \
+             argument — its own and its ancestors' — so a class declaring none has an empty set \
+             and no value of the type exists; a `private` property is not one of them, so name \
+             the class that declares the property publicly, or make it `public`",
+        ),
     );
 }
 

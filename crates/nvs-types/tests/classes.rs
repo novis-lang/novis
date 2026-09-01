@@ -951,6 +951,112 @@ fn a_read_through_a_property_key_types_as_the_union_of_the_set() {
     assert!(!subclass.has_errors(), "{subclass:?}");
 }
 
+/// ADR 0126 § 1's second refusal: `property<T>` over a `T` with no public
+/// property is `E0799`, since no value of it could exist -- asked of both
+/// spellings the `as` admits, because the written-out operand and the computed
+/// one take different paths to the same roster and only one of them was ever
+/// diagnosed.
+#[test]
+fn a_property_key_over_a_class_with_no_public_property_is_refused() {
+    const CLASSES: &str = "<?nvs\n\
+         class Opaque { private int $n = 0; }\n\
+         class User { public string $email = \"\"; }\n";
+
+    // A written-out operand: the fault is the type, so `E0799` is the whole
+    // report -- the name it was handed is not a second mistake.
+    let written = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(): void {{ \"n\" as property<Opaque>; }}\n\
+         }}\n"
+    ));
+    assert!(
+        written
+            .iter()
+            .any(|d| d.code == Some(code::E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS)),
+        "{written:?}"
+    );
+    assert!(
+        !written
+            .iter()
+            .any(|d| d.code == Some(code::E_UNKNOWN_MEMBER)),
+        "{written:?}"
+    );
+
+    // A computed operand reaches the same refusal, which is the half that used
+    // to lower a run-time test no name could pass.
+    let computed = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(string $s): void {{ $s as property<Opaque>; }}\n\
+         }}\n"
+    ));
+    assert!(
+        computed
+            .iter()
+            .any(|d| d.code == Some(code::E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS)),
+        "{computed:?}"
+    );
+
+    // The other side of the bound: one public property is a set, and neither
+    // spelling is refused over it.
+    let populated = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(string $s): void {{ \"email\" as property<User>; $s as property<User>; }}\n\
+         }}\n"
+    ));
+    assert!(!populated.has_errors(), "{populated:?}");
+}
+
+/// ADR 0126 § 5's last paragraph: a write through a key is refused where the
+/// key's public set holds a `readonly` property, naming it -- and the bound is
+/// asserted on both sides, since a refusal written over the *receiver* rather
+/// than over the set would look identical on the failing half alone. The read
+/// is asserted green in the same class, because § 5 refuses the write and not
+/// the key.
+#[test]
+fn a_write_through_a_key_whose_set_holds_a_readonly_property_is_refused() {
+    const CLASSES: &str = "<?nvs\n\
+         class User {\n\
+         \x20 public string $email = \"\";\n\
+         \x20 function constructor(public readonly int $id) {}\n\
+         }\n\
+         class Post {\n\
+         \x20 public string $title = \"\";\n\
+         \x20 public int $views = 0;\n\
+         }\n";
+
+    // The refusal itself, naming the `readonly` member the write might have
+    // meant rather than the one it was written with -- there is none.
+    let refused = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(User $u, property<User> $k): void {{ $u->$k = 1; }}\n\
+         }}\n"
+    ));
+    let readonly: Vec<_> = refused
+        .iter()
+        .filter(|d| d.code == Some(code::E_READONLY_WRITE_AFTER_CONSTRUCTION))
+        .collect();
+    assert_eq!(readonly.len(), 1, "{refused:?}");
+    assert!(readonly[0].message.contains("`User::$id`"), "{refused:?}");
+
+    // A read through the same key is untouched: § 5 refuses the write, and a
+    // key over a set holding a `readonly` property is still a key.
+    let read = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(User $u, property<User> $k): string|int {{ return $u->$k; }}\n\
+         }}\n"
+    ));
+    assert!(!read.has_errors(), "{read:?}");
+
+    // The other side of the bound: every member of this set is assignable, so
+    // the same write through a `property<Post>` is not refused at all.
+    let allowed = check_src(&format!(
+        "{CLASSES}class T {{\n\
+         \x20 function m(Post $p, property<Post> $k): void {{ $p->$k = 1; }}\n\
+         }}\n"
+    ));
+    assert!(!allowed.has_errors(), "{allowed:?}");
+}
+
 /// ADR 0126 § 4: the operand's *type* is what admits `$obj->$key`, so every
 /// other operand keeps `E0235` -- now reported by this crate, since a parser
 /// sees no types. § 4's own table of neighbours is the body: a call, a

@@ -2676,6 +2676,14 @@ pub mod code {
     /// argument lowered without a complaint of its own, so an unresolvable name
     /// stays [`E_UNDEFINED_CLASS`] alone.
     ///
+    /// **The name is the first of its two rows, not the whole code.** ADR 0126
+    /// § 1 refuses an argument that is not a class *and* a class whose public
+    /// property set is empty, "since no value of that type could ever exist" —
+    /// one rule about what `T` may be, so one code. The second row is reported
+    /// from `nvs_types::expr::operators::reject_empty_property_key_set`, at the
+    /// conversion rather than at the lowering, and that function's doc owns why
+    /// the two halves cannot share a site.
+    ///
     /// **The last code in the E07xx band, which is now full.** The types band
     /// has filled twice — at `E0499` and here — and the next types diagnostic
     /// opens a new band rather than taking `E0800`, whose digits read as no
