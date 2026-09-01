@@ -404,3 +404,8 @@ spellings rejected, and the reasoning.
   `needsRehash` answers `true` for every one — while `hash` writes only Argon2id, so a migrated user
   table upgrades itself one login at a time**
   ([0129](0129-password-verify-reads-a-stored-bcrypt-hash.md)).
+- **Usage telemetry is two independent opt-ins, both off by default: any `nvs` invocation records a
+  closed counter set locally — the subcommand that ran, never argv and never anything from request
+  traffic — and last week's aggregate uploads at most weekly, riding a short-lived command with a
+  3-second budget that can never fail it; a process serving traffic records but never uploads**
+  ([0130](0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md)).

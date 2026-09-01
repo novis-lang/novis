@@ -130,6 +130,7 @@ so you never have to open this file to route a topic.
 | Whether a route may omit an authorization check, `#[Access]`, roles and policies on a handler, CSRF enforcement defaults | [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) |
 | Rate limiting, throttling logins, per-tenant quotas, `Retry-After`, `429`, load shedding | [0075](0075-core-ratelimit.md) |
 | Metrics, Prometheus, OpenTelemetry, distributed tracing, `traceparent`, `Core\Metrics`, label cardinality | [0076](0076-observability-export.md) |
+| Measuring adoption — usage telemetry, analytics, phoning home, opt-in counters, `nvs telemetry`, `nvs update-check`, the version check, the upload endpoint, why there is no `X-Powered-By`/`expose_php` header | [0130](0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md) |
 | Regex, `preg_*`, `Core\Regex`, ReDoS, backreferences, lookaround | [0056](0056-regex-engine-policy.md) |
 | Why a literal regex/URI/format string is checked by `nvs check`, compile-time preparation | [0057](0057-intrinsic-literal-folding.md) |
 | `enum`, enum cases, backing type, anything enum-shaped | [0010](0010-enums-are-a-value-type.md) |
@@ -357,6 +358,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0127](0127-the-end-of-a-script-is-observable.md) | The end of a script is observable: `Core\Script::onExit` runs at every non-fatal ending | Accepted |
 | [0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md) | A PDF page is a decode source of the image component | Accepted |
 | [0129](0129-password-verify-reads-a-stored-bcrypt-hash.md) | `Core\Password::verify` reads a PHP-stored bcrypt hash, and `hash` never writes one | Accepted |
+| [0130](0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md) | Usage telemetry is opt-in, counts only operator actions, and a serving process never uploads | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
