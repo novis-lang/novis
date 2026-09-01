@@ -4230,6 +4230,13 @@ is why" — is this file.
   were the two `Core\Str::chunk` cannot express: an *empty* `update`, and the eleven algorithms the
   landed case does not stream. A handoff item is written by a session that had the module open and
   the neighbour case closed, so its summary of a landed file is the part most likely to be stale.
+- A `-p nvs-db` test cannot build a `PgConn`, because its `wire` field is `Wire` at the default type
+  parameter — `NvsTls<NvsTcp>` — so anything reachable only through an inherent method on `PgConn`
+  needs a socket and a certificate to reach at all, and there is neither in a unit test. Write the
+  sequencing as a **free function generic in the stream** (`start_statement(wire, state, …)`,
+  `reset_session(wire, state)`) and let `PgConn`'s method be the two-line delegation; `pg.rs`'s
+  `Peer` then scripts a server for it with no socket. The same wall is waiting for the statement
+  cache and the pool, and `authenticate` was already shaped this way for the same reason.
 
 ## Splitting a file that got too big
 
