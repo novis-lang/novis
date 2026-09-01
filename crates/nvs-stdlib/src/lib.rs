@@ -457,19 +457,56 @@ mod tests {
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }
 
-    /// A member's symbol is unique across the whole registry: it is what the
-    /// JIT resolves against, so two members sharing one would silently call
-    /// the same code.
+    /// A symbol names one *member*, and more than one row may carry it only
+    /// where they are that member declared on two classes.
+    ///
+    /// The symbol is what the JIT resolves against, so two unrelated members
+    /// sharing one would silently call the same code — which is what this
+    /// still refuses, and the whole of what it refused when it was written.
+    /// What it now admits is
+    /// [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+    /// `by` delegation, whose entire content is that the two rows *are* one
+    /// member: `Core\Db\Transaction implements Queryable by $connection`
+    /// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 7, and the first
+    /// `Core` type to use the construct) declares the interface once on the
+    /// connection and forwards it, so a second body under a second symbol
+    /// would be exactly the drift the delegation exists to prevent. The price
+    /// is that a shared symbol has to carry the same spelling and the same
+    /// signature at every row — so a paste error between two different
+    /// members fails here as it always did.
     #[test]
-    fn no_two_members_share_a_symbol() {
-        let mut seen: Vec<&str> = registry::CLASSES
+    fn a_shared_symbol_is_one_member_declared_more_than_once() {
+        let mut rows: Vec<&registry::CoreMethod> = registry::CLASSES
             .iter()
             .flat_map(CoreClass::members)
-            .map(|method| method.symbol)
             .collect();
-        let total = seen.len();
-        seen.sort_unstable();
-        seen.dedup();
-        assert_eq!(seen.len(), total);
+        rows.sort_unstable_by_key(|row| row.symbol);
+        for pair in rows.windows(2) {
+            let (left, right) = (pair[0], pair[1]);
+            if left.symbol != right.symbol {
+                continue;
+            }
+            assert_eq!(
+                left.name, right.name,
+                "`{}` is carried by two differently named members",
+                left.symbol
+            );
+            assert_eq!(
+                (
+                    left.names,
+                    format!("{:?}{:?}{:?}", left.params, left.defaults, left.return_ty)
+                ),
+                (
+                    right.names,
+                    format!(
+                        "{:?}{:?}{:?}",
+                        right.params, right.defaults, right.return_ty
+                    )
+                ),
+                "`{}` is carried by two different signatures of `{}`",
+                left.symbol,
+                left.name
+            );
+        }
     }
 }

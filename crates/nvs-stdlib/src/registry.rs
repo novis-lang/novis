@@ -1379,9 +1379,14 @@ pub const CLASSES: &[CoreClass] = &[
     crate::db::CLASS,
     // What `connect` answers with, and `Core\Db\Queryable`'s own home: ADR 0043
     // has `Transaction` delegate the interface to its connection, so the seven
-    // members are declared here once. `query` and `execute` are the two that
-    // have landed.
+    // members are declared here once. `query`, `execute`, `executeMany` and
+    // `transaction` are the four that have landed.
     crate::db::CONNECTION,
+    // What ADR 0067 § 7's closure is handed. It carries the same four rows
+    // under the same symbols — which is what the delegation above is at
+    // runtime — plus `rollBack`, the one member of the pair that is a
+    // transaction's alone.
+    crate::db::TRANSACTION,
     // What `query` answers with — ADR 0067 § 4's buffered result set, and five
     // of § 18's six readers over it. `columns()` is the one owed, and
     // [`crate::db`]'s known gaps own the three things it needs.

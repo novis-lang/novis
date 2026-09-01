@@ -165,6 +165,35 @@ const HANDLE_AT: usize = 0;
 /// Where [`CONNECTION_NAME_SLOT`] sits. See [`HANDLE_AT`].
 const BLOCK_AT: usize = 1;
 
+/// `Core\Db\Transaction`'s fully-qualified name, as [`CoreTy::Instance`] spells
+/// it.
+///
+/// `pub(crate)` for `registry`'s handle roster, for [`IN_LIST_NAME`]'s reason.
+pub(crate) const TRANSACTION_NAME: &str = r"Core\Db\Transaction";
+
+/// A [`TRANSACTION`]'s third slot: whether the `transaction()` call that built
+/// it is still running.
+///
+/// ADR 0067 § 7's first hazard, and the reason a [`TRANSACTION`] carries state
+/// at all — one is passable down a call stack, so a program can hold one past
+/// the call that owned it and every member has to say no.
+const SCOPE_SLOT: &str = "open";
+
+/// Its fourth: the reason `rollBack` was given, `null` until it is given one.
+///
+/// **§ 7's rollback-only flag and its message are one slot**, because they are
+/// one fact: `rollBack` never sets the flag without a reason, and the reason is
+/// what the `Core\Db\RolledBack` it throws carries. Two slots would be a state
+/// this class can hold and § 7 cannot describe.
+const REASON_SLOT: &str = "reason";
+
+/// Where [`SCOPE_SLOT`] sits, for the guard every member of that class runs
+/// first.
+const SCOPE_AT: usize = 2;
+
+/// Where [`REASON_SLOT`] sits. See [`SCOPE_AT`].
+const REASON_AT: usize = 3;
+
 /// `Core\Db\Rows`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
 const ROWS_NAME: &str = r"Core\Db\Rows";
 
@@ -282,11 +311,12 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// it was opened by, which is what a refusal can name without reaching for the
 /// connection it is refusing about.
 ///
-/// **`query`, `execute` and `executeMany` are `Core\Db\Queryable`'s landed
-/// members and the rest are owed**: `queryAs`, `stream`, `streamAs` and
-/// `transaction`, plus `close` and § 18's three readonly properties. ADR 0043 makes
-/// `Transaction` delegate the interface to its connection, so every one of them
-/// is declared once — here — and this class is where they land.
+/// **`query`, `execute`, `executeMany` and `transaction` are
+/// `Core\Db\Queryable`'s landed members and the rest are owed**: `queryAs`,
+/// `stream` and `streamAs`, plus `close` and § 18's three readonly properties.
+/// ADR 0043 makes `Transaction` delegate the interface to its connection, so
+/// every one of them is declared once — here — and [`TRANSACTION`] is where the
+/// forwarding lands.
 pub(crate) const CONNECTION: CoreClass = CoreClass {
     name: CONNECTION_NAME,
     methods: &[],
@@ -342,8 +372,115 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             symbol: "nvs_core_db_connection_execute_many",
             doc: Some(&EXECUTE_MANY_DOC),
         },
+        TRANSACTION_ROW,
     ],
     slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT],
+    constants: &[],
+};
+
+/// ADR 0067 § 7's `transaction`, written once because it is declared once: the
+/// row is `Core\Db\Queryable`'s and both [`CONNECTION`] and [`TRANSACTION`]
+/// carry it, a nested call on the second being the savepoint § 7 asks for.
+///
+/// **The options bag is owed and its absence is a subset, not a divergence.**
+/// § 7's `{isolation?, readOnly?, retries?}` needs a `Core\Db\Isolation` enum
+/// this registry has no row for and a retry that suspends the coroutine; what
+/// is here is the shape with all three at their § 7 defaults — the driver's own
+/// isolation, read-write, and no retries, which is the default § 7 argues for
+/// because re-running a closure that sends mail is worse than surfacing the
+/// conflict. This module's known gaps carry it.
+const TRANSACTION_ROW: CoreMethod = CoreMethod {
+    name: "transaction",
+    names: &["fn"],
+    // Opaque, as ADR 0031 § 4 keeps every `callable`: what this one is handed
+    // is a [`TRANSACTION`] and what it may declare is zero parameters or one,
+    // and neither is sayable here — `nvs_runtime::call_closure` trims to the
+    // arity the closure recorded, which is § 7's R9 allowance.
+    params: &[CoreTy::CallableTo("T")],
+    defaults: &[],
+    // § 7's `: T`. The member's answer *is* the closure's, so the transaction
+    // is scenery around a call that computes whatever it was going to compute
+    // — the same binding `Core\Cli::live` performs, and the reason a
+    // transaction can wrap an existing expression without retyping it.
+    return_ty: CoreTy::Var("T"),
+    symbol: "nvs_core_db_connection_transaction",
+    doc: Some(&TRANSACTION_DOC),
+};
+
+/// Spec § 18's `Core\Db\Transaction` — what § 7's closure is handed, and the
+/// only place a transaction is nameable.
+///
+/// **`implements Queryable by $connection` is spelled here as the same rows
+/// under the same symbols**, which is [ADR 0043](../../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+/// delegation with no second body to drift from the first: `query`, `execute`,
+/// `executeMany` and `transaction` resolve to [`CONNECTION`]'s helpers, which
+/// reach the connection through [`handle_of`] and so accept either receiver.
+/// The alternative — four forwarding bodies — is four places for a rule to be
+/// stated twice, and ADR 0063 R17 is the same objection to two spellings of one
+/// operation.
+///
+/// **The first two slots are [`CONNECTION`]'s, in the same positions and under
+/// the same names**, and that is load-bearing rather than tidy: it is what lets
+/// one statement path read either handle. The two after it are this class's own
+/// — § 7's two hazards, one slot each.
+///
+/// **What it does not hold is the connection object.** A transaction is a key
+/// into the request's own table exactly as a connection is, so an escaped
+/// `$tx` keeps nothing alive and cannot outlive the request that opened it;
+/// [`SCOPE_SLOT`] is what makes the escape a `LogicError` rather than a use of
+/// a connection that has moved on.
+pub(crate) const TRANSACTION: CoreClass = CoreClass {
+    name: TRANSACTION_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "query",
+            names: &["sql", "params"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(ROWS_NAME),
+            symbol: "nvs_core_db_connection_query",
+            doc: Some(&QUERY_DOC),
+        },
+        CoreMethod {
+            name: "execute",
+            names: &["sql", "params"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(WRITE_NAME),
+            symbol: "nvs_core_db_connection_execute",
+            doc: Some(&EXECUTE_DOC),
+        },
+        CoreMethod {
+            name: "executeMany",
+            names: &["sql", "sets"],
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Array(&CoreTy::Mixed)),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_db_connection_execute_many",
+            doc: Some(&EXECUTE_MANY_DOC),
+        },
+        TRANSACTION_ROW,
+        CoreMethod {
+            name: "rollBack",
+            names: &["reason"],
+            // Neutral: a reason is prose for a human and reaches no statement,
+            // so a `tainted` one — "the cart holds ${item}, which is gone" —
+            // is exactly the string a program has to hand and refusing it
+            // would push callers to launder text that is never a sink's.
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            // § 7: it always throws, so there is no value to answer with. The
+            // `void` is the honest half of "sets a flag *and* throws".
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_db_transaction_roll_back",
+            doc: Some(&ROLL_BACK_DOC),
+        },
+    ],
+    slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT, SCOPE_SLOT, REASON_SLOT],
     constants: &[],
 };
 
@@ -897,6 +1034,77 @@ const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Db\Queryable::transaction`'s reference card — ADR 0117.
+const TRANSACTION_DOC: MethodDoc = MethodDoc {
+    short: "Runs `$fn` inside a transaction and answers whatever it answered: returning commits, \
+            throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` \
+            and every savepoint member with the one shape that cannot be left open by an early \
+            return.",
+    params: &[ParamDoc {
+        name: "fn",
+        desc: "The work. It is handed a `Core\\Db\\Transaction`, which has the same query surface \
+               the connection has, and may declare that parameter or no parameter at all. Called \
+               once — retries are not on by default, because a closure with side effects should \
+               not be re-run without being asked for.",
+        shape: &[],
+    }],
+    ret: "What `$fn` returned, after the commit. A nested call on the same connection is a \
+          savepoint, so a function that wraps its own writes stays callable from inside a \
+          caller's transaction.",
+    errors: &[
+        ErrorDoc {
+            error: "Core\\Db\\RolledBack",
+            desc: "`$fn` called `rollBack`. It travels out of this call whether or not anything \
+                   inside caught it, because the decision is a flag on the transaction and not \
+                   the exception's own journey.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "A statement inside the closure was refused for the way it was written, or the \
+                   transaction was reached after the call that owned it returned.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The server refused the `BEGIN`, or refused the `COMMIT` after the closure \
+                   returned — a serialization failure or a deferred constraint. The work is not \
+                   committed either way.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the transaction was open, which leaves it unusable \
+                   for the rest of the request.",
+        },
+    ],
+};
+
+/// `Core\Db\Transaction::rollBack`'s reference card — ADR 0117.
+const ROLL_BACK_DOC: MethodDoc = MethodDoc {
+    short: "Gives up on this transaction: records `$reason`, and throws `Core\\Db\\RolledBack` \
+            carrying it. There is no way to ask for a rollback and carry on inside the same \
+            transaction, which is the difference from a `setRollbackOnly` every layer has to \
+            remember to check.",
+    params: &[ParamDoc {
+        name: "reason",
+        desc: "Why the work is being abandoned. It becomes the thrown `RolledBack`'s `reason` \
+               property and its message, so it is written for whoever reads the failure.",
+        shape: &[],
+    }],
+    ret: "Nothing — this member always throws.",
+    errors: &[
+        ErrorDoc {
+            error: "Core\\Db\\RolledBack",
+            desc: "Always. It propagates out of the owning `transaction()` call even if something \
+                   between here and there catches it, because the owning frame acts on the \
+                   recorded reason rather than on seeing the throw.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The transaction was reached after the `transaction()` call that owned it \
+                   returned, so there is no longer a scope to roll back.",
+        },
+    ],
+};
+
 /// `Core\Db\Rows::all`'s reference card — ADR 0117.
 const ROWS_ALL_DOC: MethodDoc = MethodDoc {
     short: "Every row of the result, in the server's order, each one a `Core\\Db\\Row` — \
@@ -1237,6 +1445,15 @@ const EXECUTE: &str = r"Core\Db\Connection::execute";
 /// [`EXECUTE`] for why both spellings travel together.
 const EXECUTE_MANY: &str = r"Core\Db\Connection::executeMany";
 
+/// `transaction`'s own name for a refusal, spelled on the connection because
+/// that is the class that declares the row — a nested call on a
+/// [`TRANSACTION`] reaches the same helper and so names the same member, which
+/// is what delegating rather than re-declaring means.
+const TRANSACTION_MEMBER: &str = r"Core\Db\Connection::transaction";
+
+/// `rollBack`'s, which is the one member of that class with a body of its own.
+const ROLL_BACK: &str = r"Core\Db\Transaction::rollBack";
+
 /// The ABI slot each of `connect`'s two options arrives in — the row's one
 /// positional parameter, then the bag flattened in declaration order.
 const SHARED_ARG: usize = 1;
@@ -1536,6 +1753,59 @@ fn connection_of(value: Value, member: &str) -> Result<(u64, Value), Fault> {
     Ok((key, crate::instance::slot(receiver, BLOCK_AT)))
 }
 
+/// The same pair off a [`TRANSACTION`], plus ADR 0067 § 7's first hazard.
+///
+/// The scope check is here rather than in each member because it is the
+/// interface's rule and not any one member's: a `$tx` that escaped its
+/// `transaction()` call still names a live connection, and running its
+/// statement outside the transaction — silently, on whatever the connection is
+/// doing now — is the failure § 7 closes by name.
+///
+/// # Errors
+///
+/// A thrown `LogicError` for a transaction whose call has returned. A
+/// [`Fault::fatal`] for a slot of the wrong tag, as [`connection_of`].
+fn transaction_of(value: Value, member: &str) -> Result<(u64, Value), Fault> {
+    let receiver = crate::instance::receiver(value, &TRANSACTION, member)?;
+    if crate::instance::slot(receiver, SCOPE_AT).as_bool() != Some(true) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{TRANSACTION_NAME}::{member}: transaction scope has ended"),
+        ));
+    }
+    let key = crate::instance::slot(receiver, HANDLE_AT)
+        .as_uint()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{TRANSACTION_NAME}::{member} expected {:?} in its `{}` slot",
+                Tag::Uint,
+                TRANSACTION.slots[HANDLE_AT]
+            ))
+        })?;
+    Ok((key, crate::instance::slot(receiver, BLOCK_AT)))
+}
+
+/// The connection a `Core\Db\Queryable` member runs on, off **either** receiver
+/// the interface has.
+///
+/// This is the whole of ADR 0043's delegation at runtime. `Transaction
+/// implements Queryable by $connection` gives the two classes one set of rows
+/// under one set of symbols ([`TRANSACTION`] says why), so the helper behind a
+/// row is handed whichever receiver the call site wrote and asks here which one
+/// it got — rather than four forwarding bodies that would each be a second
+/// place for the statement path to be written.
+///
+/// The order is deliberate: a [`TRANSACTION`] is asked about first because it
+/// is the receiver carrying an extra rule, and [`connection_of`] is the
+/// fallthrough that also produces the `Fault::fatal` for anything that is
+/// neither.
+fn handle_of(value: Value, member: &str) -> Result<(u64, Value), Fault> {
+    if crate::instance::is_instance(value, &TRANSACTION) {
+        return transaction_of(value, member);
+    }
+    connection_of(value, member)
+}
+
 /// One element of `$params`, as both halves of the statement path need it: what
 /// it does to the SQL text, and the values the bind reads out of it.
 ///
@@ -1675,7 +1945,7 @@ struct Statement {
 /// [`Fault::fatal`] for an argument of the wrong tag, which the registry row
 /// refuses first.
 fn statement_of(args: &[Value], member: &str, named: &str) -> Result<Statement, Fault> {
-    let (key, block) = connection_of(args[0], member)?;
+    let (key, block) = handle_of(args[0], member)?;
     // Unreachable from source: parameter 0 is a `string` in `CONNECTION`
     // above, so a non-text argument is refused at `E0401` first — the same
     // judgement `Core\Db::quoteIdentifier`'s guard states.
@@ -1810,7 +2080,7 @@ struct Batch {
 /// [`statement_of`] throws for any one of them. A [`Fault::fatal`] for an
 /// argument of the wrong tag, which the registry row refuses first.
 fn batch_of(args: &[Value], member: &str, named: &str) -> Result<Batch, Fault> {
-    let (key, block) = connection_of(args[0], member)?;
+    let (key, block) = handle_of(args[0], member)?;
     // Unreachable from source for both, as in `statement_of`: the row declares
     // a `string` and an `array<array<mixed>>`, so `E0401` refuses either tag
     // first.
@@ -2068,6 +2338,161 @@ nvs_runtime::nvs_helper! {
             .execute_many(&batch.sql, &sets)
             .map_err(|refused| statement_failure(EXECUTE_MANY, &batch.block, &refused))?;
         Ok(Value::uint(written))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Db\Queryable::transaction(callable $fn): T` — ADR 0067 § 7's whole
+    /// shape, and the only way to open a transaction on this surface.
+    ///
+    /// **The closure form is what removes the failure mode**, which § 7 argues
+    /// and this body implements: there is no point between the `BEGIN` and the
+    /// `COMMIT` at which a program can walk away, because the scope is a call
+    /// and an early `return` inside it is still a return *through* here. With
+    /// no destructors there is nothing an object-scoped transaction could hook
+    /// its rollback to, so the closure is not the tidier of two options — it is
+    /// the one that can be made to hold.
+    ///
+    /// **Committing is what returning does, and there is no member for it.**
+    /// The three outcomes are decided here rather than by the closure: it
+    /// returned and nothing asked for a rollback, so the work commits and its
+    /// answer is this call's; it threw, so the work rolls back and its
+    /// exception travels on unchanged; or it recorded a reason through
+    /// [`nvs_core_db_transaction_roll_back`], so the work rolls back and
+    /// `Core\Db\RolledBack` is raised here.
+    ///
+    /// **The third case is read off the transaction and not off the throw**,
+    /// which is the point of § 7's flag: an intervening `catch (Throwable)`
+    /// swallows the signal, the closure returns normally, and this frame still
+    /// refuses to commit. That is the guarantee Doctrine's `setRollbackOnly`
+    /// asks every layer to cooperate on.
+    ///
+    /// **A nested call is a savepoint**, and nothing here says so: the depth
+    /// lives on the connection and [`nvs_db::PgConn::begin`] picks the command
+    /// from it, so a library that wraps its own writes composes with a caller's
+    /// transaction without either of them knowing.
+    ///
+    /// **Rolling back after a throw discards its own failure.** The exception
+    /// the closure raised is what the request is about, and a connection whose
+    /// `ROLLBACK` was refused is one § 13's reset destroys rather than pools —
+    /// so replacing the program's exception with the driver's would lose the
+    /// only half a caller can act on.
+    fn nvs_core_db_connection_transaction(ctx, args: [2]) {
+        let (key, block) = handle_of(args[0], "transaction")?;
+        postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?
+            .begin(None, false)
+            .map_err(|refused| statement_failure(TRANSACTION_MEMBER, &block, &refused))?;
+
+        // The block name is handed on rather than looked up again: a
+        // transaction refuses under the same `[db.<name>]` its connection does,
+        // and the slot is the only place that name lives.
+        let scope = crate::instance::build(
+            &TRANSACTION,
+            [
+                Value::uint(key),
+                owned(block),
+                Value::bool(true),
+                Value::null(),
+            ],
+        );
+        let outcome = nvs_runtime::call_closure(ctx, args[1], &[scope]);
+
+        // Closed before the outcome is acted on, so that a `$tx` the closure
+        // stored somewhere is already refusing by the time this call returns —
+        // and closed on every path, which is why it is not inside a branch.
+        let receiver = crate::instance::receiver(scope, &TRANSACTION, "transaction")?;
+        crate::instance::set_slot(receiver, SCOPE_AT, Value::bool(false));
+        let held = crate::instance::slot(receiver, REASON_AT);
+        let abandoned = held.as_text().map(str::to_owned);
+        discard(scope);
+
+        let answered = match outcome {
+            Ok(value) => value,
+            Err(fault) => {
+                if let Ok(postgres) = postgres_of(ctx, key, &block, TRANSACTION_MEMBER) {
+                    let _ = postgres.roll_back();
+                }
+                return Err(fault);
+            }
+        };
+
+        let closed = postgres_of(ctx, key, &block, TRANSACTION_MEMBER).and_then(|postgres| {
+            let ended = if abandoned.is_some() {
+                postgres.roll_back()
+            } else {
+                postgres.commit()
+            };
+            ended.map_err(|refused| statement_failure(TRANSACTION_MEMBER, &block, &refused))
+        });
+
+        // On two of the three paths the closure's answer is not this call's, and
+        // this frame owns the only reference to it.
+        match (abandoned, closed) {
+            (_, Err(fault)) => {
+                discard(answered);
+                Err(fault)
+            }
+            (Some(reason), Ok(())) => {
+                discard(answered);
+                Err(Fault::thrown_as(ThrownClass::DbRolledBack, reason))
+            }
+            (None, Ok(())) => Ok(answered),
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Db\Transaction::rollBack(string $reason): void` — ADR 0067 § 7's
+    /// second hazard, closed by doing both things at once.
+    ///
+    /// **The flag is what the owning frame acts on and the throw is what the
+    /// program sees**, and neither alone is enough. A throw on its own is
+    /// catchable, so a `catch (Throwable)` between here and
+    /// [`nvs_core_db_connection_transaction`] could leave the work committed;
+    /// a flag on its own is `setRollbackOnly`, which every layer has to
+    /// remember to check and one of them will not. Recording the reason in the
+    /// receiver's own slot is what makes the decision survive the catch.
+    ///
+    /// **There is deliberately no way to roll back and carry on.** § 7 gives
+    /// the member a `void` return because it always throws: a program that
+    /// wants the writes it has made kept has not asked for a transaction, and
+    /// one that wants to try again puts the retry outside the closure, where
+    /// the second attempt gets its own `BEGIN`.
+    fn nvs_core_db_transaction_roll_back(_ctx, args: [2]) {
+        // Through the same guard every delegated member runs, and for the same
+        // reason: a `$tx` that outlived its call has no scope to abandon.
+        transaction_of(args[0], "rollBack")?;
+        let receiver = crate::instance::receiver(args[0], &TRANSACTION, "rollBack")?;
+        // Unreachable from source: parameter 0 is a `string` in [`TRANSACTION`]
+        // above, so `E0401` refuses anything else before this runs.
+        let reason = args[1]
+            .as_text()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{ROLL_BACK} expected a `string` reason, got tag {}",
+                    args[1].tag_byte()
+                ))
+            })?
+            .to_owned();
+        crate::instance::set_slot(receiver, REASON_AT, owned(args[1]));
+        Err(Fault::thrown_as(ThrownClass::DbRolledBack, reason))
+    }
+}
+
+/// Drops a reference this frame owns, for a value it is not handing back.
+///
+/// The mirror of [`owned`], and it exists for one member: `transaction` builds
+/// the scope object and receives the closure's answer, and on the paths where
+/// the transaction did not commit neither of them reaches Novis code at all.
+fn discard(value: Value) {
+    #[expect(
+        unsafe_code,
+        reason = "the reference released here is one this frame took — from \
+                  `instance::build`, or from `call_closure`, which hands back a \
+                  value the caller owns"
+    )]
+    unsafe {
+        value.release();
     }
 }
 
@@ -2653,6 +3078,15 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_connection_execute" => (nvs_core_db_connection_execute as *const ()).cast(),
         "nvs_core_db_connection_execute_many" => {
             (nvs_core_db_connection_execute_many as *const ()).cast()
+        }
+        // One arm for both classes' rows: `Core\Db\Transaction` declares
+        // `transaction` under this symbol too, which is what ADR 0043's
+        // delegation is here — see [`TRANSACTION`].
+        "nvs_core_db_connection_transaction" => {
+            (nvs_core_db_connection_transaction as *const ()).cast()
+        }
+        "nvs_core_db_transaction_roll_back" => {
+            (nvs_core_db_transaction_roll_back as *const ()).cast()
         }
         "nvs_core_db_rows_all" => (nvs_core_db_rows_all as *const ()).cast(),
         "nvs_core_db_rows_first" => (nvs_core_db_rows_first as *const ()).cast(),

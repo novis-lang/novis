@@ -60,4 +60,3 @@
 §18 queryAs
 §18 stream
 §18 streamAs
-§18 transaction
