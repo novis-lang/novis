@@ -1,0 +1,48 @@
+--TEST--
+`Core\IO\File::truncate` moves the file's end and not the handle, so a write after one that shortened the file lands past the new end — spec § 14
+--FILE--
+<?nvs
+// Every other member of this class leaves the handle just past what it
+// touched. `truncate` touches the file's *length*, so the rule it obeys is
+// that the position is untouched — and the two are then independent enough
+// that a handle can sit at an offset the file no longer reaches.
+Core\IO\File $f = Core\IO::open("hole.txt", Core\IO\FileMode::ReadWrite);
+$f->write("abcdefghij");
+echo "at: ", $f->tell() as string, "\n";
+
+$f->truncate(4);
+// Ten and four: `tell` answers the handle, `size` answers the file, and this
+// is the one moment the two disagree by design.
+echo "after: ", $f->tell() as string, "\n";
+echo "length: ", Core\IO::size("hole.txt") as string, "\n";
+
+// So the next write lands at 10, not at 4, and the file becomes eleven bytes
+// with a hole between them. This is the state `seek` past the end already
+// produces, reached without a `seek` — one rule, not two.
+$f->write("Z");
+echo "written: ", Core\IO::size("hole.txt") as string, "\n";
+
+$f->seek(0);
+echo "front: ", $f->read(4), "\n";
+$f->seek(10);
+echo "landed: ", $f->read(1), "\n";
+
+// A truncate back below the position leaves it there again, so the disagreement
+// is stable rather than something the next call quietly repairs.
+$f->truncate(2);
+echo "held: ", $f->tell() as string, "\n";
+echo "final: ", Core\IO::size("hole.txt") as string, "\n";
+$f->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+at: 10
+after: 10
+length: 4
+written: 11
+front: abcd
+landed: Z
+held: 11
+final: 2

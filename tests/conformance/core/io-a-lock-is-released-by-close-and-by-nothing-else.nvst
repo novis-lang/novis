@@ -1,0 +1,44 @@
+--TEST--
+`Core\IO\File::lock` has no `unlock`, because the lock's lifetime is the handle's — `close` frees it, and a closed handle can no longer ask for one — spec § 14, ADR 0020 § 2
+--FILE--
+<?nvs
+// `flock`'s third mode, `LOCK_UN`, is not a member of this class. The lock
+// belongs to the descriptor, so it goes when the descriptor goes: `close`, or
+// the end of the request for a handle a program never closes, since the
+// request is what owns the table the descriptor sits in.
+Core\IO\File $held = Core\IO::open("turns.txt", Core\IO\FileMode::ReadWrite);
+$held->lock();
+
+Core\IO\File $next = Core\IO::open("turns.txt", Core\IO\FileMode::ReadWrite);
+try {
+    $next->lock();
+    echo "took a lock that was held", "\n";
+} catch (IOError $busy) {
+    echo "refused while held", "\n";
+}
+
+// The same call, after the holder closes. Nothing had to be told the lock was
+// free and nothing was waiting to be woken — the second handle simply asks
+// again and this time the answer is yes.
+$held->close();
+$next->lock();
+echo "taken after close", "\n";
+$next->close();
+
+// A closed handle is a `RuntimeError` and not an `IOError`, for every other
+// member's reason: the file is not busy, the program is asking something of a
+// handle it has already given up.
+try {
+    $next->lock();
+    echo "locked a closed handle", "\n";
+} catch (RuntimeError $closed) {
+    echo "closed: lock", "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+refused while held
+taken after close
+closed: lock

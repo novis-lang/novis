@@ -1,0 +1,40 @@
+--TEST--
+`Core\IO\File::lock` is one lock whatever `FileMode` opened the handle, and asks for no capability of its own — spec § 14, ADR 0118 § 2
+--FILE--
+<?nvs
+// A lock changes nothing about the file's contents, so a handle opened `Read`
+// may take one — and the capability question was answered at `open` either
+// way, which `registry::CAPABILITIES` states as a `None` row for every member
+// of this class rather than leaving it to be inferred.
+Core\IO\File $seed = Core\IO::open("mode.txt", Core\IO\FileMode::Write);
+$seed->write("body");
+$seed->close();
+
+Core\IO\File $reader = Core\IO::open("mode.txt", Core\IO\FileMode::Read);
+$reader->lock();
+echo "a read handle holds it", "\n";
+
+// And because it is the same lock, the mode does not decide who wins: a handle
+// opened for writing is refused by one opened for reading. What the mode
+// decides is what a handle may do to the file, which is a different question
+// from who is holding it.
+Core\IO\File $writer = Core\IO::open("mode.txt", Core\IO\FileMode::ReadWrite);
+try {
+    $writer->lock();
+    echo "the writer won", "\n";
+} catch (IOError $busy) {
+    echo "refused: the reader holds it", "\n";
+}
+
+$reader->close();
+$writer->lock();
+echo "and then the writer holds it", "\n";
+$writer->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+a read handle holds it
+refused: the reader holds it
+and then the writer holds it

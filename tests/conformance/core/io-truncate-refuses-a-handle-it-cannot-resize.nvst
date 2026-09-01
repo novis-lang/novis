@@ -1,0 +1,49 @@
+--TEST--
+`Core\IO\File::truncate` asks for no capability of its own — the handle is the grant — and the two ways it can still fail land on either side of ADR 0020 § 2's split — spec § 14, ADR 0118 § 2
+--FILE--
+<?nvs
+// The capability question was settled at `open`: `fs.write` was shown then, and
+// a handle is the proof it was granted. So `truncate` checks nothing itself,
+// and what is left is the mode the descriptor actually carries — which is the
+// operating system's answer rather than a slot this class keeps.
+Core\IO\File $seed = Core\IO::open("kept.txt", Core\IO\FileMode::Write);
+$seed->write("abcdefghij");
+$seed->close();
+
+Core\IO\File $in = Core\IO::open("kept.txt", Core\IO\FileMode::Read);
+try {
+    $in->truncate(0);
+    echo "resized a read-only handle", "\n";
+} catch (IOError $refused) {
+    echo "refused: read-only", "\n";
+}
+// The half that matters: the refusal happened before anything reached the
+// file, so the ten bytes are still ten bytes.
+echo "intact: ", Core\IO::size("kept.txt") as string, "\n";
+$in->close();
+
+// A closed handle is a `RuntimeError` and not an `IOError`, for every other
+// member's reason: nothing about the file went wrong, the program asked a
+// question of something it had already given up.
+try {
+    $in->truncate(0);
+    echo "resized a closed handle", "\n";
+} catch (RuntimeError $closed) {
+    echo "closed: truncate", "\n";
+}
+
+// And the same file, opened for writing, resizes — so what the first refusal
+// named was the mode and not the path.
+Core\IO\File $rw = Core\IO::open("kept.txt", Core\IO\FileMode::ReadWrite);
+$rw->truncate(3);
+$rw->close();
+echo "resized: ", Core\IO::size("kept.txt") as string, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+refused: read-only
+intact: 10
+closed: truncate
+resized: 3

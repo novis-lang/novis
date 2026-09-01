@@ -1,0 +1,45 @@
+--TEST--
+`Core\IO\File::truncate` sets the file's length in either direction — a smaller size drops the tail, a larger one extends with zeroes, and zero is not a special case — spec § 14
+--FILE--
+<?nvs
+// `truncate` is the length half of a random-access handle: `seek` says where
+// the next byte goes and this says how many bytes there are. Both are measured
+// from the start of the file, and neither takes an origin argument (ADR 0063
+// R3) because there is no other origin a length could have.
+Core\IO\File $out = Core\IO::open("cut.txt", Core\IO\FileMode::Write);
+$out->write("abcdefghij");
+$out->truncate(4);
+$out->close();
+echo "short: ", Core\IO::readText("cut.txt"), "\n";
+echo "size: ", Core\IO::size("cut.txt") as string, "\n";
+
+// Growing is the same member and not a second one. `ReadWrite` keeps what is
+// already there (`fopen`'s `c+`), so what this asks is whether `truncate`
+// itself extends — and it does, with the same zero hole a write past the end
+// of a file leaves behind it.
+Core\IO\File $grow = Core\IO::open("cut.txt", Core\IO\FileMode::ReadWrite);
+$grow->truncate(9);
+$grow->close();
+echo "grown: ", Core\IO::size("cut.txt") as string, "\n";
+
+// The bytes that were there are still there, in front of the hole.
+Core\IO\File $back = Core\IO::open("cut.txt", Core\IO\FileMode::Read);
+echo "kept: ", $back->read(4), "\n";
+$back->close();
+
+// Zero is the smallest length rather than a separate operation, so emptying a
+// file is spelled out of the member that already sets one.
+Core\IO\File $empty = Core\IO::open("cut.txt", Core\IO\FileMode::ReadWrite);
+$empty->truncate(0);
+$empty->close();
+echo "empty: ", Core\IO::size("cut.txt") as string, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+short: abcd
+size: 4
+grown: 9
+kept: abcd
+empty: 0
