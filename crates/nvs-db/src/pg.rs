@@ -111,6 +111,7 @@
 //! cache, and it is the only thing this driver spends on a value it is not
 //! otherwise parsing.
 
+use std::borrow::Cow;
 use std::cell::Cell;
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
@@ -120,7 +121,7 @@ use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
-use nvs_runtime::{Decimal, NvsStr, Value};
+use nvs_runtime::{Decimal, NvsArray, NvsStr, Value};
 use postgres_protocol::authentication::sasl::{ChannelBinding, ScramSha256};
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
@@ -767,6 +768,10 @@ impl PgRow {
 /// everything without a Novis type to `tainted string` as the server rendered
 /// it, and `text`, `varchar`, `json`, `inet`, `interval` and the rest arrive
 /// there by simply not being in this list.
+///
+/// The array types are the one place a text type is named anyway, in
+/// [`element`]: `text[]` is `array<string>`, so the element OID has to be
+/// answerable even where the element itself reaches that last row.
 mod oid {
     use postgres_protocol::Oid;
 
@@ -805,6 +810,71 @@ mod oid {
     pub(super) const NUMERIC: Oid = 1700;
     /// `UUID`.
     pub(super) const UUID: Oid = 2950;
+
+    /// The element type of the array type `oid` names, or `None` for an OID
+    /// that is not an array this driver knows.
+    ///
+    /// An array's element OID is `pg_type.typelem` — catalog data, and a row
+    /// description carries only the array's own OID — so the choice is this
+    /// table or a `SELECT` against the catalog at connect time, and the
+    /// bootstrap argument the module doc makes for the list above decides it
+    /// the same way.
+    ///
+    /// Every type § 9 has a row for is here as its array, and so are the
+    /// text-ish ones whose elements reach the table's last row: `text[]` is
+    /// `array<string>`, which is the array a query is most likely to select.
+    /// An array this does not name — `point[]`, and every array of a type an
+    /// extension added — stays whole at that last row as the server rendered
+    /// it, because a body split into elements this driver has no type for
+    /// would be a worse answer than the rendering itself.
+    pub(super) fn element(oid: Oid) -> Option<Oid> {
+        Some(match oid {
+            // `xml[]`. An element OID written as a literal is one this module
+            // has no constant for, because § 9 sends the type itself to
+            // `tainted string`.
+            143 => 142,
+            // `json[]`.
+            199 => 114,
+            // `cidr[]`.
+            651 => 650,
+            791 => MONEY,
+            1000 => BOOL,
+            1001 => BYTEA,
+            // `"char"[]` and `name[]`, the two internal text types a query
+            // against the catalog selects without meaning to.
+            1002 => 18,
+            1003 => 19,
+            1005 => INT2,
+            1007 => INT4,
+            // `text[]`.
+            1009 => 25,
+            // `bpchar[]` and `varchar[]`.
+            1014 => 1042,
+            1015 => 1043,
+            1016 => INT8,
+            1021 => FLOAT4,
+            1022 => FLOAT8,
+            1028 => OID,
+            // `inet[]`.
+            1041 => 869,
+            1115 => TIMESTAMP,
+            1182 => DATE,
+            1183 => TIME,
+            1185 => TIMESTAMPTZ,
+            // `interval[]`, which § 9 keeps at text deliberately: an interval
+            // carries months and is not a `Duration`.
+            1187 => 1186,
+            1231 => NUMERIC,
+            // `timetz[]`, text for the reason `timetz` itself is.
+            1270 => 1266,
+            1561 => BIT,
+            1563 => VARBIT,
+            2951 => UUID,
+            // `jsonb[]`.
+            3807 => 3802,
+            _ => return None,
+        })
+    }
 }
 
 /// A calendar date, in the fields the server rendered and no further.
@@ -879,7 +949,8 @@ impl std::fmt::Debug for PgTime {
 /// § 9's rows are not values at all: a `DATE` is a `Core\Time\Date`, an
 /// *instance* of an `nvs-stdlib` class, and that crate is the only one that
 /// can allocate one. Those five arrive here as parsed components — see
-/// [`PgDate`] — and `into_value` answers `None` for them.
+/// [`PgDate`] — and `into_value` answers `None` for them, as it does for an
+/// array holding one of them at any depth.
 pub enum PgScalar<'a> {
     /// SQL `NULL`: the row of § 9's table that makes every column `?T`.
     Null,
@@ -894,7 +965,12 @@ pub enum PgScalar<'a> {
     /// `NUMERIC` and `money`.
     Decimal(Decimal),
     /// A `tainted string`'s text, already proven well-formed UTF-8.
-    Text(&'a str),
+    ///
+    /// Borrowed out of the row body, except for an element of an array whose
+    /// quoting carried a backslash escape: unescaping cannot happen in place,
+    /// so that one element owns its text instead — [`Self::into_owned`] is
+    /// where the second case is made, and it is the only place it is made.
+    Text(Cow<'a, str>),
     /// A `tainted bytes`'s octets, which had to be decoded out of a text
     /// rendering and so are the driver's own rather than a borrow of the row.
     Bytes(NvsStr),
@@ -923,6 +999,16 @@ pub enum PgScalar<'a> {
     },
     /// `UUID`, as its sixteen octets in the order the text spells them.
     Uuid([u8; 16]),
+    /// A PostgreSQL array, as its elements — each one a row of § 9's table in
+    /// its own right, so a multi-dimensional array is elements that are
+    /// themselves arrays and needs nothing else.
+    ///
+    /// The elements are decoded and the array is *not* built: a [`Value`] is
+    /// minted in [`Self::into_value`] and nowhere else, which is also what
+    /// leaves this variant usable by the caller `into_value` cannot serve —
+    /// an `array<Core\Time\Date>` arrives here as components, exactly as the
+    /// bare `DATE` beside it does.
+    Array(Vec<PgScalar<'a>>),
 }
 
 impl std::fmt::Debug for PgScalar<'_> {
@@ -944,6 +1030,7 @@ impl std::fmt::Debug for PgScalar<'_> {
             PgScalar::Timestamp { .. } => "timestamp",
             PgScalar::Instant { .. } => "instant",
             PgScalar::Uuid(_) => "uuid",
+            PgScalar::Array(_) => "array",
         })
     }
 }
@@ -953,9 +1040,12 @@ impl PgScalar<'_> {
     /// costs and nothing at all for the rest.
     ///
     /// `None` for § 9's five structured rows, whose Novis type is a class
-    /// instance this crate cannot allocate at all — [`PgDate`] owns why. A
-    /// caller that wants the whole table matches those five variants first and
-    /// reaches this for everything left.
+    /// instance this crate cannot allocate at all — [`PgDate`] owns why — and
+    /// for an array holding one of them at any depth, which is as much
+    /// `nvs-stdlib`'s to finish as a bare one is. A caller that wants the
+    /// whole table matches those five variants first, and an [`Self::Array`]
+    /// whose elements it has finished itself, and reaches this for everything
+    /// left.
     pub fn into_value(self) -> Option<Value> {
         Some(match self {
             PgScalar::Null => Value::null(),
@@ -971,7 +1061,70 @@ impl PgScalar<'_> {
             | PgScalar::Timestamp { .. }
             | PgScalar::Instant { .. }
             | PgScalar::Uuid(_) => return None,
+            PgScalar::Array(items) => {
+                // Asked before anything is allocated, and that is the whole
+                // reason it is a pass of its own: a `?` on the fourth element
+                // would abandon three built values and the array holding
+                // them, and this crate cannot free one — `Value::release` is
+                // `unsafe` and forbidden here.
+                if !items.iter().all(PgScalar::is_value) {
+                    return None;
+                }
+
+                let mut array = NvsArray::new();
+                for item in items {
+                    array.append(item.into_value()?);
+                }
+                Value::array(array)
+            }
         })
+    }
+
+    /// Whether [`Self::into_value`] has a value for this row, asked without
+    /// allocating anything.
+    ///
+    /// The recursion is an array's, and it is the point: an
+    /// `array<array<Core\Uuid>>` has no `Value` either, and finding that out
+    /// after two levels of it were built is what this exists to prevent.
+    fn is_value(&self) -> bool {
+        match self {
+            PgScalar::Date(_)
+            | PgScalar::Time(_)
+            | PgScalar::Timestamp { .. }
+            | PgScalar::Instant { .. }
+            | PgScalar::Uuid(_) => false,
+            PgScalar::Array(items) => items.iter().all(PgScalar::is_value),
+            _ => true,
+        }
+    }
+
+    /// The same row with nothing borrowed from the body it was decoded out
+    /// of, so that it can outlive one.
+    ///
+    /// The single caller is an array element whose quoting had to be
+    /// unescaped into a buffer of the decoder's own — see [`PgColumn::array`]
+    /// — and [`Self::Text`] is the only variant that borrows at all. The match
+    /// is exhaustive rather than a wildcard so that a variant added later
+    /// cannot quietly keep a borrow this promises it does not have.
+    fn into_owned(self) -> PgScalar<'static> {
+        match self {
+            PgScalar::Null => PgScalar::Null,
+            PgScalar::Bool(value) => PgScalar::Bool(value),
+            PgScalar::Int(value) => PgScalar::Int(value),
+            PgScalar::UInt(value) => PgScalar::UInt(value),
+            PgScalar::Float(value) => PgScalar::Float(value),
+            PgScalar::Decimal(value) => PgScalar::Decimal(value),
+            PgScalar::Text(text) => PgScalar::Text(Cow::Owned(text.into_owned())),
+            PgScalar::Bytes(bytes) => PgScalar::Bytes(bytes),
+            PgScalar::Date(date) => PgScalar::Date(date),
+            PgScalar::Time(time) => PgScalar::Time(time),
+            PgScalar::Timestamp { date, time } => PgScalar::Timestamp { date, time },
+            PgScalar::Instant { date, time, offset } => PgScalar::Instant { date, time, offset },
+            PgScalar::Uuid(octets) => PgScalar::Uuid(octets),
+            PgScalar::Array(items) => {
+                PgScalar::Array(items.into_iter().map(PgScalar::into_owned).collect())
+            }
+        }
     }
 }
 
@@ -987,9 +1140,10 @@ impl PgColumn {
     /// the column is one of § 9's structured rows — `DATE`, `TIME`,
     /// `TIMESTAMP`, `TIMESTAMPTZ`, `UUID` — whose Novis type is a class
     /// instance no driver can allocate. [`Self::scalar`] is what reads those,
-    /// and this is the scalar half in full. PostgreSQL's array types are not
-    /// decoded at all yet and still fall to the table's last row, arriving as
-    /// the server's own rendering.
+    /// and this is the scalar half in full — plus § 9's array row, which is a
+    /// `Value` like any other once its elements are. An array whose elements
+    /// are one of those five is the same `Ok(None)` as a single one, whole and
+    /// at any nesting.
     ///
     /// The `tainted` half of `tainted string` is nowhere in this signature and
     /// is not missing.
@@ -1076,7 +1230,12 @@ impl PgColumn {
                 PgScalar::Instant { date, time, offset }
             }
             oid::UUID => PgScalar::Uuid(self.uuid(self.text(body)?)?),
-            _ => PgScalar::Text(self.text(body)?),
+            _ => match oid::element(self.type_oid) {
+                Some(element) => PgScalar::Array(self.array(element, self.text(body)?)?),
+                // § 9's last row: every type this driver has no arm for, and
+                // every array whose element type it cannot name.
+                None => PgScalar::Text(Cow::Borrowed(self.text(body)?)),
+            },
         })
     }
 
@@ -1086,6 +1245,203 @@ impl PgColumn {
     /// the check is here rather than trusted from `client_encoding`.
     fn text<'a>(&self, body: &'a [u8]) -> io::Result<&'a str> {
         std::str::from_utf8(body).map_err(|_| self.malformed("well-formed UTF-8"))
+    }
+
+    /// § 9's array row: the elements `array_out` wrote between braces, each
+    /// decoded through this same table.
+    ///
+    /// `{1,2,3}`, `{}` for the empty one, and `{{1,2},{3,4}}` for a
+    /// multi-dimensional one — which is nested [`PgScalar::Array`]s here,
+    /// because Novis has no rectangular array type and § 9's `array<T>` with
+    /// an array for `T` is what that shape means. A lower bound other than 1
+    /// is written as a `[0:1]=` prefix and is dropped: a Novis array is a
+    /// list, and a base has nowhere to go in one.
+    ///
+    /// An unquoted `NULL` is the SQL null and a quoted `"NULL"` is the four
+    /// characters — that distinction is what the quoting exists for, and
+    /// `array_out` quotes every element that would otherwise read back as
+    /// something else: an empty one, or one holding a brace, a comma, a quote
+    /// or whitespace. Inside the quotes only `"` and `\` are escaped.
+    ///
+    /// `element` is the OID [`oid::element`] answered, and the element column
+    /// carries **this** column's modifier: PostgreSQL stores an array's typmod
+    /// as its element's, so a `BIT(1)[]` reaches § 9's `bool` row the same way
+    /// a `BIT(1)` does. It costs one clone of the column's name per array
+    /// cell, so that a refusal still names the column the operator sees.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` for a body that is not that rendering — an unclosed brace
+    /// or quote, an empty unquoted element, a stray brace after the outer one
+    /// closed, or nesting past the six dimensions PostgreSQL itself allows —
+    /// and for any element its own type refuses, which is the refusal that
+    /// element would have been given as a column of its own.
+    fn array<'a>(&self, element: Oid, text: &'a str) -> io::Result<Vec<PgScalar<'a>>> {
+        let body = match text.split_once('=') {
+            Some((bounds, rest)) if bounds.starts_with('[') => rest,
+            _ => text,
+        };
+
+        let column = PgColumn {
+            name: self.name.clone(),
+            type_oid: element,
+            type_modifier: self.type_modifier,
+        };
+        let mut at = 0;
+        let items = column.elements(body, &mut at, 1)?;
+        if at != body.len() {
+            return Err(self.malformed("an array"));
+        }
+
+        Ok(items)
+    }
+
+    /// One brace-delimited run of [`Self::array`]'s elements, starting at
+    /// `at`, which is left just past the closing brace. `self` is the element
+    /// column, so every refusal here names the element's own type.
+    ///
+    /// `depth` is the nesting this call sits at and the bound is PostgreSQL's
+    /// own `MAXDIM`. The body comes from a server this connection has already
+    /// authenticated, but "authenticated" is not "may drive this process's
+    /// stack": the recursion stops where the sender's own limit is rather than
+    /// wherever the stack happens to end.
+    fn elements<'a>(
+        &self,
+        text: &'a str,
+        at: &mut usize,
+        depth: usize,
+    ) -> io::Result<Vec<PgScalar<'a>>> {
+        /// PostgreSQL's `MAXDIM`, which is the widest array it will build.
+        const MAX_DIMENSIONS: usize = 6;
+
+        /// Whitespace between elements, which `array_out` never writes and
+        /// `array_in` accepts: a reader strictly narrower than the writer it
+        /// pairs with refuses a body somebody typed into a `SELECT` by hand.
+        fn skip_space(bytes: &[u8], at: &mut usize) {
+            while matches!(bytes.get(*at), Some(byte) if byte.is_ascii_whitespace()) {
+                *at += 1;
+            }
+        }
+
+        if depth > MAX_DIMENSIONS {
+            return Err(self.malformed("an array"));
+        }
+
+        let bytes = text.as_bytes();
+        if bytes.get(*at) != Some(&b'{') {
+            return Err(self.malformed("an array"));
+        }
+        *at += 1;
+
+        let mut items = Vec::new();
+        if bytes.get(*at) == Some(&b'}') {
+            *at += 1;
+            return Ok(items);
+        }
+
+        loop {
+            skip_space(bytes, at);
+            let item = match bytes.get(*at) {
+                Some(b'{') => PgScalar::Array(self.elements(text, at, depth + 1)?),
+                Some(b'"') => match self.quoted(text, at)? {
+                    Cow::Borrowed(body) => self.scalar(Some(body.as_bytes()))?,
+                    // The unescaped body is this call's own buffer, so the one
+                    // row that would borrow it takes it over instead.
+                    Cow::Owned(body) => self.scalar(Some(body.as_bytes()))?.into_owned(),
+                },
+                _ => self.unquoted(text, at)?,
+            };
+            items.push(item);
+            skip_space(bytes, at);
+
+            match bytes.get(*at) {
+                Some(b',') => *at += 1,
+                Some(b'}') => {
+                    *at += 1;
+                    return Ok(items);
+                }
+                _ => return Err(self.malformed("an array")),
+            }
+        }
+    }
+
+    /// A quoted array element, from the opening quote at `at`, which is left
+    /// just past the closing one.
+    ///
+    /// Borrowed wherever the quotes hold no escape at all, which is every
+    /// element but those carrying a `"` or a `\` — and a `bytea`, whose whole
+    /// rendering starts `\x`, is the common one of those rather than an exotic
+    /// one.
+    fn quoted<'a>(&self, text: &'a str, at: &mut usize) -> io::Result<Cow<'a, str>> {
+        let bytes = text.as_bytes();
+        let open = *at + 1;
+        let mut start = open;
+        let mut cursor = open;
+        let mut owned: Option<String> = None;
+
+        loop {
+            match bytes.get(cursor) {
+                None => return Err(self.malformed("an array")),
+                Some(b'"') => {
+                    *at = cursor + 1;
+                    return Ok(match owned {
+                        Some(mut buffer) => {
+                            buffer.push_str(&text[start..cursor]);
+                            Cow::Owned(buffer)
+                        }
+                        None => Cow::Borrowed(&text[open..cursor]),
+                    });
+                }
+                Some(b'\\') => {
+                    // Whatever follows the backslash is that character
+                    // literally, taken as a `char` rather than a byte so that
+                    // an escaped multi-byte one cannot be cut in half.
+                    let Some(escaped) = text[cursor + 1..].chars().next() else {
+                        return Err(self.malformed("an array"));
+                    };
+                    let buffer = owned.get_or_insert_with(String::new);
+                    buffer.push_str(&text[start..cursor]);
+                    buffer.push(escaped);
+                    cursor += 1 + escaped.len_utf8();
+                    start = cursor;
+                }
+                Some(_) => cursor += 1,
+            }
+        }
+    }
+
+    /// An unquoted array element, from `at`, which is left at the delimiter
+    /// that ended it.
+    ///
+    /// `NULL` here is the SQL null, compared without case because `array_in`
+    /// reads it that way — which is also why `array_out` quotes a text element
+    /// that spells it in any case, and why a quoted one is four characters.
+    fn unquoted<'a>(&self, text: &'a str, at: &mut usize) -> io::Result<PgScalar<'a>> {
+        let bytes = text.as_bytes();
+        let start = *at;
+
+        while let Some(&byte) = bytes.get(*at) {
+            if matches!(byte, b',' | b'}') {
+                break;
+            }
+            // A brace, a quote or a backslash outside quoting is a body no
+            // `array_out` wrote, and guessing at what it meant is how a
+            // decoder starts accepting two spellings of one array.
+            if matches!(byte, b'{' | b'"' | b'\\') {
+                return Err(self.malformed("an array"));
+            }
+            *at += 1;
+        }
+
+        let body = text[start..*at].trim_end();
+        if body.is_empty() {
+            return Err(self.malformed("an array"));
+        }
+        if body.eq_ignore_ascii_case("null") {
+            return Ok(PgScalar::Null);
+        }
+
+        self.scalar(Some(body.as_bytes()))
     }
 
     /// One numeric field of a date, a time or a zone offset: ASCII digits
@@ -1464,6 +1820,7 @@ pub struct PgRows<'a, S: Read + Write = NvsTls<NvsTcp>> {
     state: &'a Cell<State>,
     columns: Vec<PgColumn>,
     tag: Option<String>,
+    last_id: Option<u64>,
 }
 
 impl<S: Read + Write> std::fmt::Debug for PgRows<'_, S> {
@@ -1507,6 +1864,24 @@ fn affected_rows(tag: &str) -> Option<u64> {
     rest.rsplit(' ').next()?.parse().ok()
 }
 
+/// The identifier the row just read carries, for [`PgRows::last_id`]: its first
+/// column, where the statement declared that column as an integer.
+///
+/// The type check is what keeps this off the ordinary query path. A statement
+/// whose first column is text — every `SELECT` of a name, and every statement
+/// with no `RETURNING` clause at all — pays one comparison per row and never
+/// looks at the body; one that really does hand back a key pays a parse of the
+/// twenty bytes a `BIGINT` can spell.
+fn returned_id(columns: &[PgColumn], row: &PgRow) -> Option<u64> {
+    let first = columns.first()?;
+    if !matches!(first.type_oid, oid::INT2 | oid::INT4 | oid::INT8 | oid::OID) {
+        return None;
+    }
+
+    let body = row.column(0).ok()??;
+    std::str::from_utf8(body).ok()?.parse().ok()
+}
+
 impl<S: Read + Write> PgRows<'_, S> {
     /// What the portal said its rows look like, empty for a statement that
     /// returns none.
@@ -1545,6 +1920,29 @@ impl<S: Read + Write> PgRows<'_, S> {
         affected_rows(self.tag.as_deref()?)
     }
 
+    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s `lastId`: the first
+    /// column of the **last** row this statement returned, where the statement
+    /// declared that column as an integer.
+    ///
+    /// PostgreSQL has no last-insert-id in its protocol at all. An `INSERT`'s
+    /// tag is `INSERT 0 3`, whose first number is the inserted row's OID and is
+    /// `0` on every server since PostgreSQL 12 — never a key, and never the one
+    /// of a table declared the ordinary way. The id is therefore whatever a
+    /// `RETURNING` clause handed back, and reading it here is also what makes it
+    /// belong to the write that produced it rather than to the connection:
+    /// there is no connection-level state for `mysqli_insert_id`'s
+    /// stale-after-an-unrelated-statement hazard to live in, which is the
+    /// refusal `docs/spec/02-php-migration.md` records against that function.
+    ///
+    /// `None`, then, for a statement with no `RETURNING` clause — it returned no
+    /// rows — for one whose first returned column is not an integer, and while
+    /// rows may still arrive. The spec's `lastId` is a `?uint`, so a negative
+    /// value is not an id either and is `None` with them.
+    #[must_use]
+    pub fn last_id(&self) -> Option<u64> {
+        self.last_id
+    }
+
     /// The next row, or `None` once the stream has ended.
     ///
     /// Ending it is what returns the connection to [`State::Idle`]: the
@@ -1566,7 +1964,16 @@ impl<S: Read + Write> PgRows<'_, S> {
 
         loop {
             match read_or_poison(self.wire, self.state)? {
-                backend::Message::DataRow(body) => return Ok(Some(PgRow { body })),
+                backend::Message::DataRow(body) => {
+                    let row = PgRow { body };
+                    // § 4's `lastId`, taken as the row goes past: the last row
+                    // is the answer, and a row borrows the wire's buffer, so
+                    // once the next one has arrived there is nothing left to
+                    // read it out of.
+                    let id = returned_id(&self.columns, &row);
+                    self.last_id = id;
+                    return Ok(Some(row));
+                }
                 backend::Message::CommandComplete(body) => {
                     let tag = body
                         .tag()
@@ -1748,6 +2155,7 @@ fn start_statement<'a, S: Read + Write>(
         state,
         columns,
         tag: None,
+        last_id: None,
     })
 }
 
@@ -2848,6 +3256,10 @@ mod tests {
                 format!("instant {} {} {offset:+}", civil(date), clock(time))
             }
             PgScalar::Uuid(octets) => format!("uuid {octets:02x?}"),
+            PgScalar::Array(items) => format!(
+                "array [{}]",
+                items.iter().map(rendered).collect::<Vec<_>>().join(", ")
+            ),
         }
     }
 
@@ -3005,6 +3417,132 @@ mod tests {
         }
     }
 
+    /// § 4's `lastId` on PostgreSQL is the id a `RETURNING` clause handed back:
+    /// the last returned row's first column, and never the tag.
+    ///
+    /// The `INSERT 0 2` here is the trap in full — a driver reading the tag's
+    /// first number would answer `0`, plausibly, on every server since
+    /// PostgreSQL 12, and on the statement whose id is asked for most often.
+    /// The two rows are the other half: `RETURNING` on a multi-row insert
+    /// hands back one row each, and the *last* is the id.
+    #[test]
+    fn the_last_id_is_the_returning_rows_and_never_the_insert_tag() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out = message(b'1', b""); // ParseComplete
+            out.extend_from_slice(&message(b'2', b"")); // BindComplete
+            out.extend_from_slice(&row_description(b"id", 20));
+            out.extend_from_slice(&data_row(&[Some(b"7")]));
+            out.extend_from_slice(&data_row(&[Some(b"8")]));
+            out.extend_from_slice(&message(b'C', b"INSERT 0 2\0"));
+            out.extend_from_slice(&message(b'Z', b"I"));
+            out
+        }));
+
+        let mut rows = start_statement(
+            &mut wire,
+            &state,
+            &mut no_cache(),
+            "insert into t default values returning id",
+            &[],
+        )
+        .expect("the portal opened");
+        assert_eq!(rows.last_id(), None, "an id was reported before a row was");
+
+        while rows.next_row().expect("the stream drained").is_some() {}
+
+        assert_eq!(rows.affected(), Some(2));
+        assert_eq!(rows.last_id(), Some(8));
+    }
+
+    /// A statement that returned no key has no `lastId`, and the two ways of
+    /// having none are both here: no rows at all, which is every write without
+    /// a `RETURNING` clause, and rows whose first column is not an integer.
+    ///
+    /// The second is the one worth a case. A `text` column holding `12` reads
+    /// as a number by every test a body can be given, so a driver that looked
+    /// at the body rather than at the column's declared type would answer an id
+    /// for `select name from …` and be right often enough to ship.
+    #[test]
+    fn a_statement_that_returned_no_key_has_no_last_id() {
+        for sent in [Vec::new(), vec![data_row(&[Some(b"12")])]] {
+            let state = Cell::new(State::Idle);
+            let mut wire = Wire::new(Peer::new(move |_: &[u8]| one_statement(sent.clone())));
+
+            let mut rows =
+                start_statement(&mut wire, &state, &mut no_cache(), "select greeting", &[])
+                    .expect("the portal opened");
+            while rows.next_row().expect("the stream drained").is_some() {}
+
+            assert_eq!(rows.last_id(), None, "a text column was read as an id");
+        }
+    }
+
+    /// § 9's array row is every other row again, one element at a time: what a
+    /// `text[]` holds is what a `text` column holds, and a driver that grew a
+    /// second decoder for elements would be the thing this asserts against.
+    ///
+    /// The cases are the shapes `array_out` writes: the empty array, a quoted
+    /// element, an escaped one, the unquoted `NULL` that is SQL null beside
+    /// the quoted `"NULL"` that is four characters, a nested array, and the
+    /// `[0:1]=` prefix a lower bound other than one produces. The last three
+    /// are the seams rather than the syntax — a `bytea` element is escaped
+    /// because its own rendering starts with a backslash, a `BIT(1)[]` reads
+    /// its width off the array column because PostgreSQL stores an array's
+    /// modifier as its element's, and `point[]` is an array this driver cannot
+    /// name the element type of, so it stays whole at the table's last row.
+    #[test]
+    fn an_array_decodes_element_by_element_through_the_same_table() {
+        let cases: &[(Oid, i32, &[u8], &str)] = &[
+            (1007, -1, b"{1,2,3}", "array [int 1, int 2, int 3]"),
+            (1007, -1, b"{}", "array []"),
+            (1007, -1, b"{NULL,1}", "array [null, int 1]"),
+            (1009, -1, br#"{a,"b,c"}"#, "array [text a, text b,c]"),
+            (1009, -1, br#"{"","NULL"}"#, "array [text , text NULL]"),
+            (1009, -1, br#"{"a\"b\\c"}"#, r#"array [text a"b\c]"#),
+            (
+                1007,
+                -1,
+                b"{{1,2},{3,4}}",
+                "array [array [int 1, int 2], array [int 3, int 4]]",
+            ),
+            (1007, -1, b"[0:1]={1,2}", "array [int 1, int 2]"),
+            (1001, -1, br#"{"\\x00ff"}"#, "array [bytes [0, 255]]"),
+            (1561, 1, b"{1,0}", "array [bool true, bool false]"),
+            (1182, -1, b"{2024-01-02}", "array [date 2024-01-02]"),
+            (1017, -1, br#"{"(1,2)"}"#, r#"text {"(1,2)"}"#),
+        ];
+
+        for &(type_oid, type_modifier, body, expected) in cases {
+            let subject = column(type_oid, type_modifier);
+            let decoded = subject
+                .scalar(Some(body))
+                .unwrap_or_else(|error| panic!("OID {type_oid} did not decode: {error}"));
+
+            assert_eq!(rendered(&decoded), expected, "OID {type_oid}");
+        }
+    }
+
+    /// An array of § 9's structured rows is `nvs-stdlib`'s to finish whole:
+    /// `decode` answers `None` for it exactly as it does for a single one.
+    ///
+    /// The nested case is the one that matters. The answer is decided before
+    /// anything is allocated, so a two-dimensional `date[]` cannot leave a
+    /// half-built inner array behind — and this crate could not free one, for
+    /// the reason `PgScalar`'s own doc gives.
+    #[test]
+    fn an_array_of_structured_rows_has_no_value_either() {
+        for body in [b"{2024-01-02}".as_slice(), b"{{2024-01-02}}".as_slice()] {
+            assert!(
+                column(1182, -1)
+                    .decode(Some(body))
+                    .expect("a date array the server could render")
+                    .is_none(),
+                "an array of a structured row was allocated by the driver"
+            );
+        }
+    }
+
     /// A structured row has no `Value` a driver can build, and `decode` says
     /// so rather than approximating one.
     ///
@@ -3103,6 +3641,16 @@ mod tests {
             (oid::UUID, -1, b"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a1"),
             (oid::UUID, -1, b"a0eebc999c0b4ef8bb6d6bb9bd380a11xxxx"),
             (25, -1, b"\xff\xfe"),
+            // § 9's array row, whose refusals are the rendering's own: an
+            // unclosed brace or quote, an empty element, anything after the
+            // outer brace closed, an element its element type refuses, and a
+            // nesting past PostgreSQL's own six dimensions.
+            (1007, -1, b"{1,2"),
+            (1007, -1, b"{1,2}}"),
+            (1007, -1, b"{,}"),
+            (1007, -1, b"{x}"),
+            (1009, -1, b"{\"a}"),
+            (1007, -1, b"{{{{{{{{1}}}}}}}}"),
         ];
 
         for &(type_oid, type_modifier, body) in cases {
