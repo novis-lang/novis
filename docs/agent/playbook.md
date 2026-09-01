@@ -5172,7 +5172,7 @@ sibling in the same namespace unqualified.
   loop, which is where the two spellings were being held together anyway. `#[allow(dead_code)]`
   passes the scan and is the wrong trade: it ships the code.
 - **`nvs-stdlib`'s OS gate is a *spelling* scan, so a `std::fs` type name fails it while the
-  effect on the line above passes.** `tests/capability.rs`'s
+  effect on the line above passes.** `crates/nvs-stdlib/tests/capability.rs`'s
   `nvs_stdlib_reaches_the_os_only_through_the_gate` greps every shipped line for `std::fs`, and
   `Core\IO\File`'s members reach the operating system through method calls on a handle the door
   already opened — `file.read()`, `file.write_all()`, `file.try_lock()` — which the scan cannot
