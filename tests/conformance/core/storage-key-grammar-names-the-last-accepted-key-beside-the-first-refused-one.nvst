@@ -1,0 +1,85 @@
+--TEST--
+Core\Storage's key grammar is bounded on both sides — every refusal is named beside the nearest spelling that is accepted, including the byte at the length bound — ADR 0082 § 2, ADR 0095
+--FILE--
+<?nvs
+// The case beside this one asks whether a path-shaped key is refused, and
+// answers with the refusal's own sentence. This one asks the harder question:
+// *where* the grammar stops. A predicate that turned down one spelling too many
+// — no dot anywhere rather than no leading dot, ASCII letters but not digits,
+// 254 bytes rather than 255 — prints exactly as plausibly against the refusals
+// alone, so the accepted neighbour is what pins the boundary.
+//
+// The rule is `crates/nvs-stdlib/src/storage.rs`'s module doc § *A key is not a
+// path*: one to 255 bytes of ASCII letters, digits, `.`, `-` and `_`, not
+// beginning with a `.`.
+final class Key {
+    // The accepted half is asserted through the door rather than by the absence
+    // of a throw: a key the grammar admits has to name an object that comes
+    // back, or "accepted" would be true of a key that stored nothing.
+    public static function verdict(string $key): string {
+        try {
+            Core\Storage::put("uploads", $key, "x" as bytes);
+        } catch (RuntimeError $error) {
+            return "refused";
+        }
+        bool $held = Core\Storage::get("uploads", $key) == ("x" as bytes);
+        Core\Storage::delete("uploads", $key);
+        if ($held) {
+            return "accepted";
+        }
+        return "accepted but empty";
+    }
+
+    // The length bound is asked through `list`'s `prefix`, which is `key_of`'s
+    // own grammar for anything non-empty and builds no path at all. That keeps
+    // the assertion about the rule rather than about the host's own limit on
+    // how long a filename may be.
+    public static function prefix(string $prefix): string {
+        try {
+            Core\Storage::list("uploads", {prefix: $prefix});
+        } catch (RuntimeError $error) {
+            return "refused";
+        }
+        return "accepted";
+    }
+}
+
+// One byte is a name; none is not.
+echo "a: ", Key::verdict("a"), " / empty: ", Key::verdict(""), "\n";
+
+// A dot is admitted inside a key and refused at the front of one, and that is
+// one rule rather than two: what a leading dot names on a POSIX disk is an
+// entry the listing would not have shown.
+echo "a.hidden: ", Key::verdict("a.hidden"), " / .hidden: ", Key::verdict(".hidden"), "\n";
+
+// A dot separates nothing; a slash does. The pair says the grammar turns down
+// the separator and not the extension.
+echo "note.txt: ", Key::verdict("note.txt"), " / note/txt: ", Key::verdict("note/txt"), "\n";
+
+// Digits and the two admitted punctuation bytes are in; a space is out, which
+// is where "ASCII" stops being the whole rule.
+echo "receipt-2026_09.pdf: ", Key::verdict("receipt-2026_09.pdf"), " / receipt 2026.pdf: ", Key::verdict("receipt 2026.pdf"), "\n";
+
+// ASCII is meant literally, and the length below is counted in bytes for the
+// same reason: `café` is five bytes of four characters and neither half of it
+// makes the last one a letter here.
+echo "cafe: ", Key::verdict("cafe"), " / café: ", Key::verdict("café"), "\n";
+
+// The length bound itself, both sides of it, one byte apart.
+echo "255 bytes: ", Key::prefix(Core\Str::repeat("a", 255)), " / 256 bytes: ", Key::prefix(Core\Str::repeat("a", 256)), "\n";
+--FILE nvs.toml--
+[storage.uploads]
+root = "./objects"
+
+[capabilities.fs]
+read = ["./objects"]
+write = ["./objects"]
+--FILE objects/keep.txt--
+the disk's root has to exist; this is what makes it
+--EXPECT--
+a: accepted / empty: refused
+a.hidden: accepted / .hidden: refused
+note.txt: accepted / note/txt: refused
+receipt-2026_09.pdf: accepted / receipt 2026.pdf: refused
+cafe: accepted / café: refused
+255 bytes: accepted / 256 bytes: refused
