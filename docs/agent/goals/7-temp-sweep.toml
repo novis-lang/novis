@@ -1,0 +1,161 @@
+# Goal 7 -- ADR 0131's temporary-directory sweep. The acceptance test, as data.
+#
+# `7-temp-sweep.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/tempdir.nvs",
+]
+
+[context]
+
+modules = [
+  # The owned root and the fs.write check: `temp_dir` moves off `std::env::temp_dir()` here.
+  "crates/nvs-runtime/src/capability.rs",
+  # `temporaryDir`'s helper and its registry card, rewritten per 0117 when the sweep lands.
+  "crates/nvs-stdlib/src/io.rs",
+  "crates/nvs-stdlib/src/registry.rs",
+  # Script teardown (the end-of-script sweep) and the worker's post-request path.
+  "crates/nvs-host/src/isolate.rs",
+  # `[io] temp_root` (Boot) and `[debug] keep_temporary` (reloadable).
+  "crates/nvs-config/src/*.rs",
+  # The boot orphan sweep and the post-`afterResponse` sweep.
+  "crates/nvs-server/src/*.rs",
+  # `nvs tmp clean`.
+  "crates/nvs-cli/src/*.rs",
+]
+
+rules = ["0131", "0004", "0106", "0127", "0072", "0078", "0117", "0064", "0079"]
+
+# 0131 whole: it is this goal's entire design, and every stage implements one of its sections.
+adrs = ["0131"]
+
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goal 4's Redis tier, goal 5's drivers and goal 6's session store, all of which need
+# containers. Same compose file, same memoization.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the owned root, the tracked list, the end-of-script sweep. 0131 §§ 2-3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 root and sweep"
+name = "nvs-runtime (the owned root)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "temporary_dir_creates_under_the_configured_temp_root_not_the_platform_default",
+  "the_owned_root_is_created_private_on_first_use",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 root and sweep"
+name = "nvs-host (the end-of-script sweep)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_temporary_dir_still_standing_at_script_end_is_removed",
+  "a_temporary_dir_the_program_already_removed_is_not_an_error",
+  "a_refused_deletion_logs_and_never_throws",
+  "the_sweep_runs_after_the_on_exit_queue",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the server: the post-response sweep, and the boot orphan sweep. 0131 §§ 3-4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 server sweeps"
+name = "nvs-server (post-response and boot)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_requests_temporary_dirs_are_swept_after_its_after_response_work",
+  "an_aborted_requests_dirs_are_swept_by_the_surviving_worker",
+  "serve_boot_removes_a_dead_owners_entry_and_skips_a_live_one",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- `nvs tmp clean`. 0131 § 4: liveness, never age; no force flag; dry-run deletes nothing.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 tmp clean"
+name = "nvs-cli (the manual door)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "tmp_clean_removes_a_dead_owners_entry_and_skips_a_live_one",
+  "tmp_clean_dry_run_prints_and_deletes_nothing",
+  "an_old_entry_with_a_live_owner_survives_every_sweep",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- keep_temporary, the fixture, the suites. 0131 § 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 keep and prove"
+name = "nvs-host (keep_temporary)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "keep_temporary_logs_each_kept_path_and_deletes_none",
+]
+
+[[check]]
+kind = "exact"
+stage = "5 keep and prove"
+file = "examples/tempdir.nvs"
+want = ["wrote and read: hello from a temporary"]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 keep and prove"
+name = "nvs-cli (the fixture's directory is gone)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_finished_scripts_temporary_dir_is_gone_from_the_owned_root",
+]

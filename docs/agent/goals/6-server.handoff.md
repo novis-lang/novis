@@ -49,5 +49,5 @@ One file set: `crates/nvs-server/src/`, `crates/nvs-host/src/stream.rs`,
   `Core\Request`'s module doc if it comes up — not a new ADR and not a `BLOCKED`.
 - No TLS listener and no h2c: ADR 0097 § 1 dropped both and a proxy terminates TLS.
 - When Stage 9's last check goes green — `check-migration.py` at 100% — **the parity program is finished**
-  and the chain has no next goal. The milestone table's order 6 is M4B, whose staged goal is
-  `docs/agent/next-goal-m4b.md`.
+  and the driver switches to goal 7, the post-parity temp sweep (ADR 0131), the chain's last entry. The
+  milestone table's order 6 is M4B, whose staged goal is `docs/agent/next-goal-m4b.md`.

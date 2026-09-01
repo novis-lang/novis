@@ -2,7 +2,10 @@
 
 Orders 1–5 of [the plan](../../implementation-plan.md) are one continuous unattended run: **PHP core
 feature parity, all five SQL drivers, concurrency, governance and the server.** This directory holds it,
-cut into six goals, and [chain.toml](chain.toml) is the order the driver walks them in.
+cut into six goals, and [chain.toml](chain.toml) is the order the driver walks them in. A seventh,
+post-parity goal — [ADR 0131](../../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)'s
+temporary-directory sweep — rides the same chain after the program's gate, because its server half needs
+the `nvs-server` goal 6 creates.
 
 [loop-authoring.md](../loop-authoring.md) owns how a goal is *written* and [coordinator.md](../coordinator.md)
 owns how one is *driven*. This file owns only what is specific to running six of them back to back, and it
@@ -27,6 +30,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [4 core-part-ii](4-core-part-ii.md) | M8, non-database | `nvs-stdlib`, `nvs-host` |
 | [5 database](5-database.md) | M8, database | **`nvs-db`** (new), `nvs-stdlib`, `nvs-types` |
 | [6 server](6-server.md) | M7 | **`nvs-server`** (new), `nvs-stdlib`, `nvs-host` |
+| [7 temp-sweep](7-temp-sweep.md) | post-parity, ADR 0131 | `nvs-runtime`, `nvs-host`, `nvs-stdlib`, `nvs-config`, `nvs-server`, `nvs-cli` |
 
 ## The chain contract
 
@@ -81,12 +85,12 @@ TOML for a doubled floor before restarting.
 
 ## What stops the run
 
-- **The last goal goes green.** That is the parity program finished, and the check that says so is
+- **The last goal goes green.** The parity program's own gate is goal 6's final check —
   `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's **1151
   functions and 253 types** accounted for, every `member` row registered, every one of them cased. The
   inventory grew from 925 on 2026-08-29, when the oracle build gained `mysqli`, `pgsql` and `sqlite3`:
   the three APIs [ADR 0067](../../adr/0067-core-db.md) replaces are now inside the audit rather than a
-  named hole beside it.
+  named hole beside it. Goal 7's list going green is then what ends the run.
 - **A goal reports `BLOCKED`.** Reserved for a decision that is expensive to reverse *and* has no safe
   default. Every goal's standing decisions exist to make this rare.
 - **`--max-stalls` consecutive sessions move `HEAD` nowhere.**

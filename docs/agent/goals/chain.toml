@@ -60,3 +60,14 @@ md = "docs/agent/goals/6-server.md"
 toml = "docs/agent/goals/6-server.toml"
 handoff = "docs/agent/goals/6-server.handoff.md"
 milestone = "M7"
+
+# Post-parity: ADR 0131's temporary-directory sweep. It rides the same chain after the program's gate
+# because its server half — the post-response sweep and the boot orphan sweep — needs the `nvs-server`
+# goal 6 creates. Docker preflight because its floor carries goals 4-6's container-backed checks.
+[[goal]]
+name = "7 temp-sweep"
+md = "docs/agent/goals/7-temp-sweep.md"
+toml = "docs/agent/goals/7-temp-sweep.toml"
+handoff = "docs/agent/goals/7-temp-sweep.handoff.md"
+milestone = "post-parity"
+preflight = "docker"

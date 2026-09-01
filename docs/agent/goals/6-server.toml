@@ -3,7 +3,8 @@
 # `6-server.md` is the prose. One home each.
 #
 # The last check in this file is the parity program's stop condition: check-migration.py at 100%
-# classified. When it goes green the chain has no next goal and the driver stops, GOAL REACHED.
+# classified. When it goes green the parity claim is made; the driver then switches to goal 7, the
+# post-parity temp sweep (ADR 0131), which is the chain's last entry.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
