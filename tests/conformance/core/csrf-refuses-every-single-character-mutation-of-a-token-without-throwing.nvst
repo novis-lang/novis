@@ -1,0 +1,68 @@
+--TEST--
+Core\Csrf::verify refuses every single-character mutation of a token — substituted inside base64's alphabet, substituted outside it, or deleted — at every position of every region, and none of the three sweeps throws — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// Invariance over a sweep, counted. A token is a nonce, a sealed binding and a
+// tag in one string, and a `verify` that compared a prefix, or a decode that
+// stopped at the last whole group and ignored what followed, answers correctly
+// for every mutation that lands in the region it does read. So the question is
+// asked at *every* position rather than at a chosen one, and the count is what
+// says the tail was covered. `crates/nvs-stdlib/src/csrf.rs` owns why a
+// forgery is `false` rather than a throw; the token's width is the sibling
+// case `csrf-binds-every-shape-of-session-and-its-length-is-stated`'s.
+secret bytes $key = Core\Crypto::generateKey();
+string $session = "sid-ada";
+string $token = Core\Csrf::issue($session, $key);
+int $width = Core\Str::length($token) as int;
+
+// Three mutations at each position: one that keeps the string decodable, one
+// that does not, and one that shortens it. The first is the tag check's
+// question, the second is the decode's, and ADR 0060 § 1 wants one answer to
+// both — a member that distinguished them would tell a forger which half of
+// the guess landed.
+int $inAlphabet = 0;
+int $outsideIt = 0;
+int $deleted = 0;
+int $threw = 0;
+int $i = 0;
+while ($i < $width) {
+    string $head = Core\Str::slice($token, 0, $i);
+    string $tail = Core\Str::slice($token, $i + 1);
+    string $swap = "A";
+    if (Core\Str::at($token, $i) == "A") {
+        $swap = "B";
+    }
+    try {
+        if (Core\Csrf::verify($head . $swap . $tail, $session, $key) == false) {
+            $inAlphabet = $inAlphabet + 1;
+        }
+        if (Core\Csrf::verify($head . "!" . $tail, $session, $key) == false) {
+            $outsideIt = $outsideIt + 1;
+        }
+        if (Core\Csrf::verify($head . $tail, $session, $key) == false) {
+            $deleted = $deleted + 1;
+        }
+    } catch (Throwable $e) {
+        $threw = $threw + 1;
+    }
+    $i = $i + 1;
+}
+
+echo "substituted ", $inAlphabet, " of ", $width, " refused", "\n";
+echo "unspellable ", $outsideIt, " of ", $width, " refused", "\n";
+echo "shortened ", $deleted, " of ", $width, " refused", "\n";
+echo "threw ", $threw, "\n";
+
+// And the sweep is not vacuous in either direction. A `verify` answering
+// `false` to everything would pass all four lines above, so the unmutated
+// token is asked last: it is the same string the sweep was built from, and it
+// still verifies.
+if (Core\Csrf::verify($token, $session, $key)) {
+    echo "and the token it was built from still verifies", "\n";
+}
+--EXPECT--
+substituted 79 of 79 refused
+unspellable 79 of 79 refused
+shortened 79 of 79 refused
+threw 0
+and the token it was built from still verifies
