@@ -4341,6 +4341,13 @@ is why" — is this file.
   `Core\Db\RolledBack` — and never `Throwable` or `LogicError`, whose short name *is* their
   label. Write the class out in a `catch`; the `use` still earns its keep for a `new` and for
   a parameter type, both of which resolve through `nvs_hir::resolve_ref`.
+- A unit test that disables the feature under test can make two distinct names *identical*, and then
+  every assertion over the wire passes while the real path is broken. `pg.rs`'s statement tests run
+  on a `no_cache()` `StatementCache`, where a `Bind`'s portal and its statement are both the empty
+  string — so `frontend::bind`, whose first name is the **portal** and second the statement, called
+  with the two swapped sent a `PBDES` that looked exactly right in every case, and drew SQLSTATE
+  26000 on the first statement of every connection with a cache of any size. Assert the *names* a
+  message carries and not only its tag, and give the enabled path a case at a non-zero capacity.
 
 ## Splitting a file that got too big
 
