@@ -907,6 +907,7 @@ pub struct ExprTypeTable {
     types: FxHashMap<Span, TypeId>,
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
+    db_codecs: FxHashMap<String, crate::derive::DerivedCodec>,
     tests: FxHashMap<String, Vec<crate::testing::TestCase>>,
     fixtures: FxHashMap<String, Vec<crate::testing::Fixture>>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
@@ -1050,11 +1051,24 @@ impl ExprTypeTable {
         self.methods.get(&span).map(String::as_str)
     }
 
-    /// Records the class labelled `label` as carrying ADR 0071's
-    /// `#[Json\Derive]`, with the field list [`crate::derive`] read off its
-    /// declaration.
-    pub(crate) fn record_codec(&mut self, label: String, codec: crate::derive::DerivedCodec) {
-        self.codecs.insert(label, codec);
+    /// Records the class labelled `label` as carrying ADR 0071's derive
+    /// attribute for `format`, with the field list [`crate::derive`] read off
+    /// its declaration.
+    ///
+    /// One table per format rather than one keyed by both, because the two are
+    /// read by different consumers for different reasons — the JSON half by
+    /// `nvs_ir::lower::lower_file`, the row half by the driver work — and a
+    /// class carrying both attributes has two independent contracts (§ 3).
+    pub(crate) fn record_codec(
+        &mut self,
+        format: crate::derive::Format,
+        label: String,
+        codec: crate::derive::DerivedCodec,
+    ) {
+        match format {
+            crate::derive::Format::Json => self.codecs.insert(label, codec),
+            crate::derive::Format::Db => self.db_codecs.insert(label, codec),
+        };
     }
 
     /// The derived JSON codec of the class labelled `label`, or `None` when it
@@ -1067,6 +1081,17 @@ impl ExprTypeTable {
     #[must_use]
     pub fn codec(&self, label: &str) -> Option<&crate::derive::DerivedCodec> {
         self.codecs.get(label)
+    }
+
+    /// The derived row mapping of the class labelled `label`, or `None` when
+    /// it carries no `#[Db\Derive]` — [`Self::codec`]'s counterpart, keyed the
+    /// same way and for the same reason.
+    ///
+    /// Nothing generates `fromRow` from it yet; `crate::derive`'s gap 2 owns
+    /// that half.
+    #[must_use]
+    pub fn db_codec(&self, label: &str) -> Option<&crate::derive::DerivedCodec> {
+        self.db_codecs.get(label)
     }
 
     /// Records ADR 0079 § 1's `#[Test]` table for the class labelled `label`,

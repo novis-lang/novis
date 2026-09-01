@@ -2213,26 +2213,31 @@ pub mod code {
     /// nothing of a computed one.
     pub const E_ROUTE_LINK_MISSING_PARAM: Code = Code::new("E0755");
 
-    /// A `#[Json\Derive]` field's declared type has no wire form at all.
+    /// A derived field's declared type is not in its format's type map.
     ///
-    /// ADR 0071 § 2's codec-reachable set, refused at the *declaration* that
-    /// wrote it rather than at the `decodeAs<T>` that later runs. It is the
-    /// genuinely unreachable types this names — a `callable`, an `object`, a
-    /// `bytes`, a non-`null` union, a class that declares no codec — and not
-    /// the reachable ones `nvs_stdlib::json` still owes a decoder; the two
-    /// are told apart in `nvs_types::derive`, which owns that split.
+    /// ADR 0071 § 2's codec-reachable set for `#[Json\Derive]` and ADR 0067
+    /// § 9's type map for `#[Db\Derive]`, refused at the *declaration* that
+    /// wrote it rather than at the `decodeAs<T>` or `queryAs<T>` that later
+    /// runs. The two maps disagree — `bytes` is a `BLOB` column and has no
+    /// JSON spelling, a nested class is a JSON object and no column at all —
+    /// so the message names which one answered. It is the genuinely
+    /// unmapped types this names and not the reachable ones `nvs_stdlib::json`
+    /// still owes a decoder; the two are told apart in `nvs_types::derive`,
+    /// which owns that split.
     pub const E_DERIVE_FIELD_NOT_CODEC_REACHABLE: Code = Code::new("E0756");
 
-    /// A class carrying `#[Json\Derive]` hand-writes both codec halves.
+    /// A class carrying a derive attribute hand-writes every codec half that
+    /// attribute would generate.
     ///
     /// ADR 0071 § 7: the derive generates only what the class does not
     /// declare itself, so a class writing both `toJson` and `fromJson` gets
-    /// nothing from the attribute — and an attribute with no effect is a
-    /// mistake rather than a no-op. Reported at the attribute, which is the
-    /// thing to delete.
+    /// nothing from `#[Json\Derive]` — and an attribute with no effect is a
+    /// mistake rather than a no-op. `Core\Db\Codec` declares `fromRow` alone,
+    /// so for `#[Db\Derive]` one written member reaches the same conclusion.
+    /// Reported at the attribute, which is the thing to delete.
     pub const E_DERIVE_BOTH_HALVES: Code = Code::new("E0757");
 
-    /// A class carrying `#[Json\Derive]` contributes no field to the codec.
+    /// A class carrying a derive attribute contributes no field to the codec.
     ///
     /// ADR 0071 § 2's field list is the declared property list, so a class
     /// that declares no instance property — or skips every one it declares —

@@ -12,8 +12,9 @@
 
 mod common;
 
-use common::check_src;
+use common::{check_src, check_src_table};
 use nvs_diagnostics::{Code, Diagnostics, code};
+use nvs_types::derive;
 
 /// Whether `diags` reported `want`. By code rather than by `has_errors`, for
 /// `routes.rs`'s reason: a fixture written to trip one rule routinely trips a
@@ -241,4 +242,228 @@ class Row {
     // ADR 0071 § 8's "a program with no derive attribute pays nothing at all".
     let diags = check_src("<?nvs\nclass Marker {}\n");
     assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn db_derive_and_db_field_are_on_the_attribute_roster() {
+    // ADR 0071 § 1's table is `ATTRIBUTES`' one home, and these are the two
+    // rows it has always carried that the compiler did not.
+    assert!(
+        derive::ATTRIBUTES.contains(&derive::DB_DERIVE),
+        "no `Db\\Derive`"
+    );
+    assert!(
+        derive::ATTRIBUTES.contains(&derive::DB_FIELD),
+        "no `Db\\Field`"
+    );
+
+    // Matched *nominally* after `nvs_hir::resolve_ref`, so the `use`d short
+    // form and the qualified spelling are one attribute reached two ways —
+    // and `#[Db\Field]` is read on the property under either. Neither name is
+    // a declared shape alias, which is what § 1's carve-out is for.
+    let diags = check_src(
+        "<?nvs
+use Core\\Db\\Derive;
+use Core\\Db\\Field;
+
+#[Derive]
+class Row {
+    #[Field(name: \"email_address\")]
+    public tainted string $email;
+    public function constructor(tainted string $email) { $this->email = $email; }
+}
+
+#[Core\\Db\\Derive]
+class Qualified {
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // The refusals of §§ 2 and 7 reach the second format unchanged: a class
+    // with no declared property derives an empty row mapping.
+    let diags = check_src("<?nvs\n#[Core\\Db\\Derive]\nclass Marker {}\n");
+    assert!(reported(&diags, code::E_DERIVE_NO_FIELDS), "{diags:?}");
+
+    // A userland alias that happens to be spelled `Derive` resolves to a
+    // different `QName` and is not this attribute — the same class is silent.
+    let diags = check_src("<?nvs\ntype Derive = {};\n#[Derive]\nclass Marker {}\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // § 7 one-directionally: `Core\\Db\\Codec` declares `fromRow` alone, so a
+    // class that writes it has left the attribute nothing to generate.
+    let diags = check_src(
+        "<?nvs
+#[Core\\Db\\Derive]
+class Own {
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+    public static function fromRow(mixed $row): static { return new Own(1); }
+}
+",
+    );
+    assert!(reported(&diags, code::E_DERIVE_BOTH_HALVES), "{diags:?}");
+}
+
+#[test]
+fn a_db_derive_field_whose_type_has_no_column_mapping_is_refused_where_declared() {
+    // ADR 0067 § 9's type map has no row for an object: a row is a flat list
+    // of columns, so a nested class is refused at the property that declared
+    // it even when that class carries a `#[Db\Derive]` of its own. This is
+    // where the two formats' maps first disagree — § 2 admits exactly this
+    // field for JSON.
+    let nested = "<?nvs
+#[Core\\{0}\\Derive]
+class Row {
+    public Handle $h;
+    public function constructor(Handle $h) { $this->h = $h; }
+}
+#[Core\\{0}\\Derive]
+class Handle {
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+}
+";
+    let diags = check_src(&nested.replace("{0}", "Db"));
+    assert!(
+        reported(&diags, code::E_DERIVE_FIELD_NOT_CODEC_REACHABLE),
+        "{diags:?}"
+    );
+    let diags = check_src(&nested.replace("{0}", "Json"));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // And they disagree the other way round on `bytes`, which is a `BLOB`
+    // column and has no JSON spelling at all (ADR 0009). `decimal` and § 9's
+    // date and time classes are columns too.
+    let scalars = "<?nvs
+#[Core\\{0}\\Derive]
+class Row {
+    public bytes $blob;
+    public decimal $total;
+    public Core\\Time\\Instant $at;
+    public function constructor(bytes $blob, decimal $total, Core\\Time\\Instant $at)
+    {
+        $this->blob = $blob;
+        $this->total = $total;
+        $this->at = $at;
+    }
+}
+";
+    let diags = check_src(&scalars.replace("{0}", "Db"));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let diags = check_src(&scalars.replace("{0}", "Json"));
+    assert!(
+        reported(&diags, code::E_DERIVE_FIELD_NOT_CODEC_REACHABLE),
+        "{diags:?}"
+    );
+
+    // The refusal is at the declaration and not at the `queryAs<T>` that would
+    // later run, so § 3's escape hatch takes the same property off the mapping
+    // and the file compiles — with the *row* attribute, not the JSON one.
+    let diags = check_src(
+        "<?nvs
+#[Core\\Db\\Derive]
+class Row {
+    #[Core\\Db\\Field(skip: true)]
+    public Handle $cache;
+    public int $n;
+    public function constructor(Handle $cache, int $n)
+    {
+        $this->cache = $cache;
+        $this->n = $n;
+    }
+}
+class Handle {
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn the_json_and_db_derives_share_one_pass() {
+    // One class carrying both attributes has two contracts, read off one walk
+    // of its members — § 3's two `Field` spellings are independent overrides
+    // of the same property, which is why they are two attributes at all.
+    let (diags, exprs) = check_src_table(
+        "<?nvs
+#[Core\\Json\\Derive]
+#[Core\\Db\\Derive]
+class Row {
+    #[Core\\Json\\Field(name: \"email_address\")]
+    #[Core\\Db\\Field(name: \"email\")]
+    public tainted string $address;
+    public int $n;
+    public function constructor(tainted string $address, int $n)
+    {
+        $this->address = $address;
+        $this->n = $n;
+    }
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let keys = |codec: Option<&derive::DerivedCodec>| {
+        codec
+            .expect("the class derives this format")
+            .fields
+            .iter()
+            .map(|field| field.key.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(keys(exprs.codec("Row")), ["email_address", "n"]);
+    assert_eq!(keys(exprs.db_codec("Row")), ["email", "n"]);
+
+    // Every rule is stated once and asked of both, so one broken property is
+    // reported once per contract — each naming the attribute that is wrong
+    // about it. A second pass agreeing with the first is what this pins
+    // against.
+    let diags = check_src(
+        "<?nvs
+#[Core\\Json\\Derive]
+#[Core\\Db\\Derive]
+class Late {
+    public lateinit int $n;
+    public function constructor() {}
+}
+",
+    );
+    let named: Vec<&str> = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_DERIVE_LATEINIT_FIELD))
+        .map(|d| d.message.as_str())
+        .collect();
+    assert_eq!(named.len(), 2, "{diags:?}");
+    assert!(
+        named.iter().any(|m| m.contains(r"#[Json\Derive]")),
+        "{named:?}"
+    );
+    assert!(
+        named.iter().any(|m| m.contains(r"#[Db\Derive]")),
+        "{named:?}"
+    );
+
+    // § 3's option roster reaches the second format too, and the message names
+    // the attribute the reader wrote.
+    let diags = check_src(
+        "<?nvs
+#[Core\\Db\\Derive]
+class Row {
+    #[Core\\Db\\Field(rename: \"n\")]
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+}
+",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_DERIVE_FIELD_ATTRIBUTE)
+                && d.message.contains(r"#[Db\Field]")),
+        "{diags:?}"
+    );
 }

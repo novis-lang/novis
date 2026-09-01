@@ -1,6 +1,17 @@
 //! [ADR 0071](../../../../docs/adr/0071-derived-codecs.md)'s derive pass:
-//! which classes carry `#[Json\Derive]`, which of their properties are fields,
-//! and what wire key each field has.
+//! which classes carry `#[Json\Derive]` or `#[Db\Derive]`, which of their
+//! properties are fields, and what wire key each field has.
+//!
+//! # One pass, two formats
+//!
+//! [`Format`] is the only thing anything below branches on, and it is checked
+//! for each of its two values over the same class. ADR 0071 states §§ 2, 3, 5
+//! and 7 once, for "a derived codec", so they are written here once and asked
+//! of both: the two formats differ in their **type map** — JSON's is § 2's
+//! reachable set, a row's is [ADR 0067](../../../../docs/adr/0067-core-db.md)
+//! § 9's — in the attribute pair that names them, and in nothing else. Two
+//! passes that agreed today would be two passes that disagree the first time
+//! one of those sections is amended.
 //!
 //! # The nominal match, and why it lives here
 //!
@@ -60,10 +71,15 @@
 //!    document; the document is untrusted and the checker has already named
 //!    the class, so asking it again would let the input choose which
 //!    constructor runs.
-//! 2. **`#[Db\Derive]`/`#[Db\Field]` resolve to nothing.** `Core\Db` is M8's,
-//!    so the two names are deliberately not in [`ATTRIBUTES`] yet: a closed
-//!    list that names something with no pass behind it is worse than a short
-//!    one.
+//! 2. **A [`Format::Db`] codec is recorded and nothing generates `fromRow`
+//!    from it yet.** The checking half is whole — the roster, the nominal
+//!    match, §§ 2, 3, 5 and 7's rules and ADR 0067 § 9's type map are all
+//!    asked of a `#[Db\Derive]` class — and [`crate::ExprTypeTable::db_codec`]
+//!    holds the answer for the driver work to read back. What is missing is
+//!    the generated decoder itself, which needs `Core\Db\Row` to exist; the
+//!    erasure to [`CodecTy`] is shared with JSON meanwhile, so a `bytes` or a
+//!    `Core\Time\Instant` field is *accepted* by the type map above and still
+//!    lands on [`CodecTy::Opaque`] for gap 1's reason.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
@@ -93,7 +109,8 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// [`crate::commands`]', `#[Route]`/`#[Query]`/`#[Access]` are
 /// [`crate::routes`]'.
 pub const ATTRIBUTES: &[&str] = [
-    DERIVE, FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE, QUERY, ACCESS, API,
+    DERIVE, FIELD, DB_DERIVE, DB_FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE, QUERY,
+    ACCESS, API,
 ]
 .as_slice();
 
@@ -103,6 +120,20 @@ pub const DERIVE: &str = r"Core\Json\Derive";
 /// `#[Json\Field(name?: string, skip?: bool)]` — ADR 0071 § 3's per-field
 /// override, on a property.
 pub const FIELD: &str = r"Core\Json\Field";
+
+/// `#[Db\Derive]` — ADR 0071 § 1's opt-in again, on a class, for the row half
+/// of the same table. It generates `Core\Db\Codec`'s `fromRow` and nothing
+/// else: § 7 makes this format one-directional, because a write is
+/// [ADR 0067](../../../../docs/adr/0067-core-db.md)'s explicit statement plus
+/// bound parameters and a generated `INSERT` is the ORM that ADR settled
+/// against.
+pub const DB_DERIVE: &str = r"Core\Db\Derive";
+
+/// `#[Db\Field(name?: string, skip?: bool)]` — ADR 0071 § 3's per-field
+/// override, on a property, and a *second* attribute rather than a spelling
+/// shared with [`FIELD`]: a JSON key and a column name are independently
+/// chosen, so forcing them equal would need an escape hatch immediately.
+pub const DB_FIELD: &str = r"Core\Db\Field";
 
 /// `#[Test(skip?: string, …)]` — ADR 0079 § 1's marker, on a method. It is
 /// the class the assertions are members of, so the `use Core\Test;` that lets
@@ -185,7 +216,142 @@ pub const ACCESS: &str = r"Core\Access";
 /// contradictions.
 pub const API: &str = r"Core\Api";
 
-/// One derived class's JSON field list, in declaration order — ADR 0071 § 2's
+/// One of ADR 0071 § 1's two derived formats — the only thing this pass
+/// branches on.
+///
+/// Every rule of §§ 2, 3, 5 and 7 is stated once and asked of both; what a
+/// format supplies is its attribute pair, the codec members a class may
+/// hand-write instead, and its **type map**. A third format would be a third
+/// variant and no new pass.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum Format {
+    /// `#[Json\Derive]` — spec § 6's `Core\Json\Codec`, both halves.
+    Json,
+    /// `#[Db\Derive]` — spec § 6's `Core\Db\Codec`, which declares `fromRow`
+    /// alone (§ 7).
+    Db,
+}
+
+impl Format {
+    /// Both formats, in the order a class is asked about them.
+    ///
+    /// A loop rather than a choice, because a class may carry both attributes:
+    /// a row read into an object that is then encoded is the ordinary case,
+    /// and the two contracts are independent — § 3's own reason for two
+    /// `Field` attributes rather than one.
+    const ALL: [Self; 2] = [Self::Json, Self::Db];
+
+    /// The class attribute that opts in, fully qualified as [`ATTRIBUTES`]
+    /// holds it.
+    const fn derive(self) -> &'static str {
+        match self {
+            Self::Json => DERIVE,
+            Self::Db => DB_DERIVE,
+        }
+    }
+
+    /// The per-property override attribute, fully qualified.
+    const fn field(self) -> &'static str {
+        match self {
+            Self::Json => FIELD,
+            Self::Db => DB_FIELD,
+        }
+    }
+
+    /// How [`Self::derive`] is *written* in a diagnostic — the short form
+    /// ADR 0071 § 1's own example writes, since a message naming the fully
+    /// qualified spelling would name the one form the reader did not use.
+    const fn attribute(self) -> &'static str {
+        match self {
+            Self::Json => r"#[Json\Derive]",
+            Self::Db => r"#[Db\Derive]",
+        }
+    }
+
+    /// How [`Self::field`] is written in a diagnostic.
+    const fn field_attribute(self) -> &'static str {
+        match self {
+            Self::Json => r"#[Json\Field]",
+            Self::Db => r"#[Db\Field]",
+        }
+    }
+
+    /// § 3's escape hatch, spelled for this format — the fix half of every
+    /// refusal below.
+    const fn skip_hint(self) -> &'static str {
+        match self {
+            Self::Json => r"#[Json\Field(skip: true)]",
+            Self::Db => r"#[Db\Field(skip: true)]",
+        }
+    }
+
+    /// § 3's signature, spelled for this format.
+    const fn field_signature(self) -> &'static str {
+        match self {
+            Self::Json => r"#[Json\Field(name?: string, skip?: bool)]",
+            Self::Db => r"#[Db\Field(name?: string, skip?: bool)]",
+        }
+    }
+
+    /// The codec members a class may hand-write itself, all of which it has to
+    /// write for § 7's "the attribute generates nothing" to apply.
+    ///
+    /// Two for JSON and one for a row, which is what makes § 7's
+    /// one-directional rule a row in this table rather than a branch: a class
+    /// that writes `fromRow` has left the `#[Db\Derive]` on it nothing to do.
+    const fn halves(self) -> &'static [&'static str] {
+        match self {
+            Self::Json => &[ENCODE, DECODE],
+            Self::Db => &[DB_DECODE],
+        }
+    }
+
+    /// What the derived thing is called in a message — the contract a class
+    /// with no field would have derived.
+    const fn contract(self) -> &'static str {
+        match self {
+            Self::Json => "a JSON codec",
+            Self::Db => "a row mapping",
+        }
+    }
+
+    /// The clause naming what a field's declared type does not have, for the
+    /// type-map refusal.
+    const fn no_mapping(self) -> &'static str {
+        match self {
+            Self::Json => "which has no JSON representation",
+            Self::Db => "which has no column mapping",
+        }
+    }
+
+    /// That refusal's primary label, at the property's own name.
+    const fn no_mapping_label(self) -> &'static str {
+        match self {
+            Self::Json => "this type cannot be encoded or decoded",
+            Self::Db => "no column reads back as this",
+        }
+    }
+
+    /// That refusal's help — the format's type map, named where it is
+    /// specified.
+    const fn no_mapping_help(self) -> &'static str {
+        match self {
+            Self::Json => {
+                "ADR 0071 § 2: a field is a scalar, an enum, an inline shape, an `array<T>` or \
+                 `?T` of one of those, or another class that itself carries a codec — write \
+                 `#[Json\\Field(skip: true)]` to leave it off the contract"
+            }
+            Self::Db => {
+                "ADR 0067 § 9: a column reads back as a scalar, a `decimal`, `bytes`, an enum, a \
+                 `Core\\Time` date or time, a `Core\\Uuid`, or an `array<T>` or `?T` of one of \
+                 those — a row is flat, so a nested object is not a column type; write \
+                 `#[Db\\Field(skip: true)]` to leave it off the mapping"
+            }
+        }
+    }
+}
+
+/// One derived class's field list, in declaration order — ADR 0071 § 2's
 /// "declaration order fixes encode order, so output is byte-deterministic".
 #[derive(Clone, Debug, Default)]
 pub struct DerivedCodec {
@@ -209,8 +375,8 @@ pub struct DerivedField {
     /// The declaring property's own name, `$`-sigil stripped — the key into
     /// [`crate::layout::ClassLayout::slot_of`].
     pub property: String,
-    /// The JSON key this field is written under: the property's own name, or
-    /// `#[Json\Field(name: "...")]`'s override.
+    /// The JSON key or the column this field is read under: the property's own
+    /// name, or the format's `Field(name: "...")` override.
     pub key: String,
     /// What a decode has to produce for this field — the declared property
     /// type, erased to the closed roster a native decoder branches on.
@@ -341,6 +507,9 @@ pub struct CodecFieldSite {
     span: Span,
     /// The declared type, with `?`'s `null` arm already removed.
     declared: TypeId,
+    /// Which format's type map answers for it — the two disagree, and a class
+    /// carrying both attributes records the same property twice.
+    format: Format,
 }
 
 /// ADR 0071 § 2's "a field's type must be codec-reachable", once every
@@ -366,34 +535,116 @@ pub(crate) fn resolve_field_types(
     diags: &mut Diagnostics,
 ) {
     for site in sites {
-        if reachable(site.declared, interner, signatures, exprs) {
+        let format = site.format;
+        if reachable(format, site.declared, interner, signatures, exprs) {
             continue;
         }
         let spelling = interner.describe(site.declared);
         let class = &site.class;
         let property = &site.property;
+        let missing = format.no_mapping();
         diags.report(
             Diagnostic::error(
                 code::E_DERIVE_FIELD_NOT_CODEC_REACHABLE,
-                format!(
-                    "`{class}::${property}` is declared `{spelling}`, which has no JSON \
-                     representation"
-                ),
+                format!("`{class}::${property}` is declared `{spelling}`, {missing}"),
             )
-            .with_primary(site.span, "this type cannot be encoded or decoded")
-            .with_help(
-                "ADR 0071 § 2: a field is a scalar, an enum, an inline shape, an `array<T>` or \
-                 `?T` of one of those, or another class that itself carries a codec — write \
-                 `#[Json\\Field(skip: true)]` to leave it off the contract",
-            ),
+            .with_primary(site.span, format.no_mapping_label())
+            .with_help(format.no_mapping_help()),
         );
     }
 }
 
-/// § 2's reachable set, over the interned type rather than over
-/// [`CodecTy`]'s erasure — see [`resolve_field_types`] for why the two are
-/// not the same question.
+/// The format's type map, over the interned type rather than over [`CodecTy`]'s
+/// erasure — see [`resolve_field_types`] for why the two are not the same
+/// question.
 fn reachable(
+    format: Format,
+    ty: TypeId,
+    interner: &crate::ty::TypeInterner,
+    signatures: &crate::signatures::SignatureTable,
+    exprs: &crate::expr_table::ExprTypeTable,
+) -> bool {
+    match format {
+        Format::Json => json_reachable(ty, interner, signatures, exprs),
+        Format::Db => db_reachable(ty, interner),
+    }
+}
+
+/// ADR 0067 § 9's type map, read as a predicate over the declared type.
+///
+/// Wider than [`json_reachable`] in one place and narrower in another, which
+/// is the whole reason the two formats are not one map. `bytes` is a column
+/// type — `BLOB`/`BYTEA` — where ADR 0009 leaves it no JSON spelling at all;
+/// and a **nested class is not**, because a row is a flat list of columns and
+/// § 9 maps none of them to an object. The classes it does map are that
+/// section's own value types, [`DB_COLUMN_CLASSES`].
+///
+/// Takes no signature or codec table for that second reason: nothing here is
+/// a question about the rest of the program, so the answer cannot depend on
+/// which file declared what first.
+fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
+    match interner.get(ty) {
+        // § 9's scalar rows, plus ADR 0047's three singleton refinements of
+        // them. `tainted` is not a distinction a column makes — § 6 makes
+        // every text column tainted on the way out.
+        Ty::Null
+        | Ty::Bool
+        | Ty::Int
+        | Ty::Uint
+        | Ty::Float
+        | Ty::Decimal
+        | Ty::String
+        | Ty::TaintedString
+        | Ty::Bytes
+        | Ty::TaintedBytes
+        | Ty::Mixed
+        | Ty::True
+        | Ty::False
+        | Ty::StringLiteral(_)
+        | Ty::IntLiteral(_) => true,
+        // ADR 0071 § 2's enum, unchanged by the format: what travels is the
+        // backing value, range-checked on the way back in.
+        Ty::Enum(..) | Ty::EnumCase(..) => true,
+        // § 9's `array<T>` rows — a PostgreSQL array and a MySQL `SET`. One
+        // dimension only: `array<array<T>>` is a column type no driver of the
+        // five reads back, and `nvs_stdlib::CodecField::element` has no room
+        // to describe it either.
+        Ty::Array(elem) => {
+            !matches!(interner.get(*elem), Ty::Array(_)) && db_reachable(*elem, interner)
+        }
+        Ty::Class(class, _) => {
+            let label = class.to_string();
+            DB_COLUMN_CLASSES.contains(&label.as_str())
+        }
+        // Everything else: an inline shape and a nested class are objects a
+        // row has no column for, `object`, `callable` and `iterable` name no
+        // contract, and a union of two non-`null` arms gives a reader nothing
+        // to pick between.
+        _ => false,
+    }
+}
+
+/// The class half of ADR 0067 § 9's type map: the `Core` value types a column
+/// reads back as.
+///
+/// A closed list rather than a `Core\` prefix test, because the point of the
+/// map is that a type absent from it is absent *on purpose* — § 9 says so of
+/// `interval`, which is deliberately not a `Duration` since it carries months.
+/// A `Core` class that gains a column form gains a row here and an entry in
+/// the driver's reader in the same change.
+/// Each name is taken from the module that declares the class rather than
+/// respelled here, so the map cannot drift from the registry.
+const DB_COLUMN_CLASSES: &[&str] = &[
+    nvs_stdlib::time::DATE_NAME,
+    nvs_stdlib::time::TIME_OF_DAY_NAME,
+    nvs_stdlib::time::INSTANT_NAME,
+    nvs_stdlib::time::DATETIME_NAME,
+    nvs_stdlib::uuid::NAME,
+];
+
+/// ADR 0071 § 2's reachable set, over the interned type — JSON's half of
+/// [`reachable`].
+fn json_reachable(
     ty: TypeId,
     interner: &crate::ty::TypeInterner,
     signatures: &crate::signatures::SignatureTable,
@@ -422,8 +673,8 @@ fn reachable(
         // reachable exactly when what they hold is.
         Ty::Shape(fields) => fields
             .iter()
-            .all(|(_, held)| reachable(*held, interner, signatures, exprs)),
-        Ty::Array(elem) => reachable(*elem, interner, signatures, exprs),
+            .all(|(_, held)| json_reachable(*held, interner, signatures, exprs)),
+        Ty::Array(elem) => json_reachable(*elem, interner, signatures, exprs),
         Ty::Class(class, _) => class_has_codec(class, signatures, exprs),
         // Everything else: `bytes` has no JSON spelling (ADR 0009 makes it a
         // separate type for that reason), `object`, `callable` and `iterable`
@@ -465,39 +716,68 @@ fn class_has_codec(
     }
 }
 
-/// Records `decl`'s [`DerivedCodec`] if it carries `#[Json\Derive]`, reporting
-/// every ADR 0071 § 2/§ 3/§ 6 rule it breaks.
+/// Records `decl`'s [`DerivedCodec`] for each of [`Format`]'s two values it
+/// opts into, reporting every ADR 0071 § 2/§ 3/§ 6 rule it breaks.
 ///
 /// A no-op — not even a walk of the members — for a class with no recognized
 /// attribute, which ADR 0071 § 8 requires: "a program with no derive attribute
-/// pays nothing at all, including no pass".
+/// pays nothing at all, including no pass". The two formats cost two scans of
+/// the attribute groups written on the class and nothing else.
 pub(crate) fn check_class_derive(
     decl: &ClassDecl,
     class: &QName,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    let Some(attribute) = attribute_span(&decl.attributes, DERIVE, ctx, env) else {
+    for format in Format::ALL {
+        check_class_format(decl, class, format, ctx, env);
+    }
+}
+
+/// [`check_class_derive`] for one format. Every rule below is ADR 0071's,
+/// stated for "a derived codec" and therefore asked of both.
+fn check_class_format(
+    decl: &ClassDecl,
+    class: &QName,
+    format: Format,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let Some(attribute) = attribute_span(&decl.attributes, format.derive(), ctx, env) else {
         return;
     };
+    let derive = format.attribute();
     // ADR 0071 § 7: the derive generates only what the class does not write
-    // itself, so a class writing both halves gets nothing from it. Reported
+    // itself, so a class writing every half gets nothing from it. Reported
     // before anything is collected and returning without a codec, because
     // "generates nothing" is the rule rather than a description of the error.
-    if declares_method(decl, ENCODE, env) && declares_method(decl, DECODE, env) {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_DERIVE_BOTH_HALVES,
-                format!(
-                    "`{class}` declares both `{ENCODE}` and `{DECODE}`, so `#[Json\\Derive]` \
-                     generates nothing"
-                ),
-            )
-            .with_primary(attribute, "this attribute has no effect")
-            .with_help(
+    // For a row that is one member, § 7's one-directional rule reaching the
+    // same conclusion one step earlier.
+    if format
+        .halves()
+        .iter()
+        .all(|half| declares_method(decl, half, env))
+    {
+        let (declared, help) = match format {
+            Format::Json => (
+                format!("both `{ENCODE}` and `{DECODE}`"),
                 "ADR 0071 § 7: the derive fills in the half a class does not write — keep one \
                  of the two and the attribute generates the other, or delete the attribute",
             ),
+            Format::Db => (
+                format!("`{DB_DECODE}`"),
+                "ADR 0071 § 7: `Core\\Db\\Codec` declares `fromRow` and nothing else, so a \
+                 class that writes it has left the attribute nothing to generate — delete one \
+                 of the two",
+            ),
+        };
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DERIVE_BOTH_HALVES,
+                format!("`{class}` declares {declared}, so `{derive}` generates nothing"),
+            )
+            .with_primary(attribute, "this attribute has no effect")
+            .with_help(help),
         );
         return;
     }
@@ -529,7 +809,7 @@ pub(crate) fn check_class_derive(
             _ => continue,
         };
         for field in fields {
-            match codec_field(&field, class, params, ctx, env) {
+            match codec_field(&field, class, format, params, ctx, env) {
                 FieldOutcome::Kept(field) => codec.fields.push(field),
                 FieldOutcome::Skipped => {}
                 FieldOutcome::Refused => refused = true,
@@ -547,10 +827,11 @@ pub(crate) fn check_class_derive(
     // empty" is the same mistake counted a second time. A class that skipped
     // them all in writing is not excluded — that is a contract it chose.
     if codec.fields.is_empty() && !refused {
+        let contract = format.contract();
         env.diags.report(
             Diagnostic::error(
                 code::E_DERIVE_NO_FIELDS,
-                format!("`{class}` derives a JSON codec with no fields in it"),
+                format!("`{class}` derives {contract} with no fields in it"),
             )
             .with_primary(attribute, "no declared property reaches the wire contract")
             .with_help(
@@ -560,7 +841,7 @@ pub(crate) fn check_class_derive(
             ),
         );
     }
-    env.exprs.record_codec(class.to_string(), codec);
+    env.exprs.record_codec(format, class.to_string(), codec);
 }
 
 /// The two members [`docs/spec/01-core-library.md`] § 6's `Core\Json\Codec`
@@ -568,6 +849,12 @@ pub(crate) fn check_class_derive(
 const ENCODE: &str = "toJson";
 /// The decoding half of [`ENCODE`] — `static fromJson(mixed $value): static`.
 const DECODE: &str = "fromJson";
+/// The one member § 6's `Core\Db\Codec` declares —
+/// `static fromRow(Db\Row $row): static`. There is no encoding half at all:
+/// ADR 0071 § 7 makes the row format one-directional, so this is the whole of
+/// what a `#[Db\Derive]` generates and the whole of what a class can write
+/// instead.
+const DB_DECODE: &str = "fromRow";
 
 /// Whether `decl` writes a method named `want` **itself**.
 ///
@@ -671,15 +958,18 @@ impl<'a> FieldDecl<'a> {
 fn codec_field(
     p: &FieldDecl<'_>,
     class: &QName,
+    format: Format,
     params: Option<&[Param]>,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> FieldOutcome {
     let name = strip_sigil(span_text(env.src, p.name)).to_owned();
-    let overrides = field_overrides(p.attributes, ctx, env);
+    let overrides = field_overrides(p.attributes, format, ctx, env);
     if overrides.skip {
         return FieldOutcome::Skipped;
     }
+    let derive = format.attribute();
+    let skip = format.skip_hint();
     // ADR 0071 § 2: `lateinit` is by definition not constructor-assigned, so
     // it can never be a field — reported before the parameter check, which
     // would otherwise report the same declaration twice.
@@ -687,14 +977,13 @@ fn codec_field(
         env.diags.report(
             Diagnostic::error(
                 code::E_DERIVE_LATEINIT_FIELD,
-                format!("`${name}` is `lateinit`, so it cannot be a `#[Json\\Derive]` field"),
+                format!("`${name}` is `lateinit`, so it cannot be a `{derive}` field"),
             )
             .with_primary(p.name, "assigned after the constructor, not by it")
-            .with_help(
+            .with_help(format!(
                 "ADR 0071 § 2: a decode is an ordinary `new`, and ADR 0038 makes a `lateinit` \
-                 property one the constructor does not assign — write \
-                 `#[Json\\Field(skip: true)]` on it",
-            ),
+                 property one the constructor does not assign — write `{skip}` on it"
+            )),
         );
         return FieldOutcome::Refused;
     }
@@ -705,17 +994,17 @@ fn codec_field(
         env.diags.report(
             Diagnostic::error(
                 code::E_DERIVE_SECRET_FIELD,
-                format!("`${name}` is `secret`, so it cannot be a `#[Json\\Derive]` field"),
+                format!("`${name}` is `secret`, so it cannot be a `{derive}` field"),
             )
             .with_primary(p.name, "a `secret` value has no wire form")
-            .with_help(
-                "ADR 0071 § 6: encoding was already an ADR 0033 sink — write \
-                 `#[Json\\Field(skip: true)]` to leave it off the contract in writing",
-            ),
+            .with_help(format!(
+                "ADR 0071 § 6: encoding was already an ADR 0033 sink — write `{skip}` to leave \
+                 it off the contract in writing"
+            )),
         );
         return FieldOutcome::Refused;
     }
-    let param = check_constructor_parameter(p.name, &name, declared, params, ctx, env);
+    let param = check_constructor_parameter(p.name, &name, declared, format, params, ctx, env);
     let nullable = env.interner.is_nullable(declared);
     // The `null` arm is what nullability *is*, so the decode target is the
     // rest of the union — `?int` decodes an `int` or a JSON null, never a
@@ -733,6 +1022,7 @@ fn codec_field(
         property: name.clone(),
         span: p.name,
         declared: carried,
+        format,
     });
     let (ty, element, class, cases) = codec_ty(carried, env);
     FieldOutcome::Kept(DerivedField {
@@ -764,6 +1054,7 @@ fn check_constructor_parameter(
     at: Span,
     name: &str,
     declared: TypeId,
+    format: Format,
     params: Option<&[Param]>,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -778,17 +1069,18 @@ fn check_constructor_parameter(
         .enumerate()
         .find(|(_, param)| strip_sigil(span_text(env.src, param.name)) == name)
     else {
+        let derive = format.attribute();
+        let skip = format.skip_hint();
         env.diags.report(
             Diagnostic::error(
                 code::E_DERIVE_FIELD_NOT_A_PARAMETER,
-                format!("`${name}` is a `#[Json\\Derive]` field with no constructor parameter"),
+                format!("`${name}` is a `{derive}` field with no constructor parameter"),
             )
             .with_primary(at, "nothing decodes into this")
-            .with_help(
+            .with_help(format!(
                 "ADR 0071 § 2: a decode is an ordinary `new`, so every field needs a \
-                 same-named constructor parameter — add one, or write \
-                 `#[Json\\Field(skip: true)]`",
-            ),
+                 same-named constructor parameter — add one, or write `{skip}`"
+            )),
         );
         return None;
     };
@@ -846,9 +1138,15 @@ struct Overrides {
 
 /// Reads `#[Json\Field(...)]` off one property, reporting anything that is not
 /// ADR 0071 § 3's two options with a literal of the right type.
-fn field_overrides(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) -> Overrides {
+fn field_overrides(
+    groups: &[AttributeGroup],
+    format: Format,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Overrides {
     let mut out = Overrides::default();
-    for field in attribute_fields(groups, FIELD, ctx, env) {
+    let attribute = format.field_attribute();
+    for field in attribute_fields(groups, format.field(), ctx, env) {
         match (span_text(env.src, field.name), &field.value.kind) {
             ("name", ExprKind::Str(span)) => {
                 out.name = Some(crate::string_lit::cook_string_literal(env.src, *span));
@@ -856,12 +1154,14 @@ fn field_overrides(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) 
             ("skip", ExprKind::Bool(value)) => out.skip = *value,
             ("name" | "skip", _) => report_field_arg(
                 field,
-                "`name` takes a `string` literal and `skip` a `bool` literal",
+                "`name` takes a `string` literal and `skip` a `bool` literal".to_owned(),
+                format,
                 env,
             ),
             _ => report_field_arg(
                 field,
-                "`#[Json\\Field]` has exactly two options, `name` and `skip`",
+                format!("`{attribute}` has exactly two options, `name` and `skip`"),
+                format,
                 env,
             ),
         }
@@ -870,14 +1170,15 @@ fn field_overrides(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) 
 }
 
 /// One `E_DERIVE_FIELD_ATTRIBUTE`, at the offending field.
-fn report_field_arg(field: &ObjectLiteralField, why: &str, env: &mut Env<'_>) {
+fn report_field_arg(field: &ObjectLiteralField, why: String, format: Format, env: &mut Env<'_>) {
+    let signature = format.field_signature();
     env.diags.report(
-        Diagnostic::error(code::E_DERIVE_FIELD_ATTRIBUTE, why.to_owned())
+        Diagnostic::error(code::E_DERIVE_FIELD_ATTRIBUTE, why)
             .with_primary(field.span, "not an option this attribute declares")
-            .with_help(
-                "ADR 0071 § 3: `#[Json\\Field(name?: string, skip?: bool)]` — there is no \
-                 whole-class naming policy and no third option",
-            ),
+            .with_help(format!(
+                "ADR 0071 § 3: `{signature}` — there is no whole-class naming policy and no \
+                 third option"
+            )),
     );
 }
 
