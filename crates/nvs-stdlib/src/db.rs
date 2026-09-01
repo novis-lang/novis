@@ -126,7 +126,8 @@ use std::net::{SocketAddr, ToSocketAddrs as _};
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
+    MethodDoc, ParamDoc, Qual,
 };
 
 /// The class name, once, for the messages and the rows that all name it —
@@ -482,6 +483,73 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
     ],
     slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT, SCOPE_SLOT, REASON_SLOT],
     constants: &[],
+};
+
+/// [`ISOLATION`]'s fully-qualified name, written once so the row, the option
+/// that will take it and every message quoting it cannot drift apart.
+pub(crate) const ISOLATION_NAME: &str = r"Core\Db\Isolation";
+
+/// Spec § 18's `Isolation` — ADR 0067 § 7's five levels, as the registry half
+/// of [`nvs_db::Isolation`].
+///
+/// **The two halves are one enum and the wire one is authoritative.** This
+/// table is what a program writes; `nvs_db::Isolation` is what a driver renders,
+/// and its doc comment owns both the rule that a driver lacking a level throws
+/// rather than running the closure at a weaker one, and the reason a driver may
+/// render a level as a *stronger* guarantee without throwing. Nothing about a
+/// level is decided here — there is no second place for it to be decided
+/// differently.
+///
+/// **The values are declaration ordinals and mean nothing else.** They are § 7's
+/// own order, so `ReadUncommitted` is 0, but they are not a rank a program may
+/// compare: `Snapshot` and the two levels either side of it are not one chain on
+/// every backend, which is why `nvs_db::Isolation` derives no `Ord` either.
+/// Writing them out rather than leaning on ADR 0010 § 1's auto-increment is
+/// [`CoreEnum::cases`]' rule for every enum here.
+pub(crate) const ISOLATION: CoreEnum = CoreEnum {
+    name: ISOLATION_NAME,
+    cases: &[
+        ("ReadUncommitted", 0),
+        ("ReadCommitted", 1),
+        ("RepeatableRead", 2),
+        ("Snapshot", 3),
+        ("Serializable", 4),
+    ],
+    doc: Some(&ISOLATION_DOC),
+};
+
+/// [`ISOLATION`]'s reference card — ADR 0117.
+const ISOLATION_DOC: EnumDoc = EnumDoc {
+    short: "What a transaction is allowed to see of the work running beside it — the `isolation` \
+            option `transaction` takes, and the connection's own level when it is absent. A driver \
+            that cannot offer the level asked for throws rather than running the closure at a \
+            weaker one.",
+    cases: &[
+        CaseDoc {
+            name: "ReadUncommitted",
+            desc: "A statement may read rows another transaction has written and not committed, \
+                   on a backend that implements the level at all.",
+        },
+        CaseDoc {
+            name: "ReadCommitted",
+            desc: "A statement sees the rows committed before that statement began.",
+        },
+        CaseDoc {
+            name: "RepeatableRead",
+            desc: "Every statement in the transaction sees one snapshot of committed rows.",
+        },
+        CaseDoc {
+            name: "Snapshot",
+            desc: "The transaction reads from one snapshot taken when it began, and writes \
+                   conflict rather than block — SQL Server's own level, and what the \
+                   row-versioning backends call `REPEATABLE READ`.",
+        },
+        CaseDoc {
+            name: "Serializable",
+            desc: "Concurrent transactions produce a result some serial order of them would have \
+                   produced, and a transaction that cannot is rolled back for the caller to retry.",
+        },
+    ],
 };
 
 /// Spec § 18's `Core\Db\Rows` — what a buffered statement answers with.
