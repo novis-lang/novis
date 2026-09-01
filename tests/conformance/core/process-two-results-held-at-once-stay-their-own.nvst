@@ -1,0 +1,98 @@
+--TEST--
+Two `Core\Process\Result`s held at once each keep their own run's status and output — the same program started twice with different arguments, and both results read only after both children have exited — ADR 0044 § 1
+--FILE--
+<?nvs
+// `Core\Process::run` builds its result out of the `Output` the wait handed
+// back, so every landed case reads a result while it is the only one alive and
+// could not tell that apart from a member reading a buffer the *next* run
+// overwrites. This case keeps two results alive across each other: both
+// children are started and both have exited before either result is asked
+// anything, so a member answering out of anything the second run touched
+// answers the second run's marker to the first result's question.
+//
+// The two runs differ in both directions a result carries — a different marker
+// on stdout and a different status — because the failure has two shapes and
+// only one of them is about bytes. A result sharing a capture fails the marker
+// half; a result sharing the status word fails the exit half; each looks
+// entirely correct against the other's assertions.
+//
+// Both halves of each marker are named, as in
+// `process-a-completed-runs-two-streams-stay-apart.nvst`: the marker that must
+// be there and the other run's marker that must not. `FIRST` and `SECOND` are
+// compared as `bytes` and never converted, since what a child writes is not
+// this program's to assume anything about (ADR 0009).
+//
+// The child is the platform's own shell, named absolutely, for the reason
+// `process-a-completed-run-answers-the-status-the-child-chose.nvst` states:
+// § 1 makes a `PATH` lookup the caller's own, so the candidate that is not
+// this platform's has nothing at its path and answers `IOError`.
+
+// `-2` and not `-1`, again because a signalled child answers `-1`; the byte
+// sentinels are non-empty so that a run in which nothing started cannot print
+// a plausible line.
+bytes $firstOut = "sentinel" as bytes;
+bytes $secondOut = "sentinel" as bytes;
+int $firstStatus = -2;
+int $secondStatus = -2;
+int $started = 0;
+
+try {
+    var $unixFirst = Core\Process::run("/bin/sh", ["-c", "printf FIRST; exit 1"]);
+    var $unixSecond = Core\Process::run("/bin/sh", ["-c", "printf SECOND; exit 2"]);
+    $started = $started + 1;
+    $firstOut = $unixFirst->stdout();
+    $secondOut = $unixSecond->stdout();
+    $firstStatus = $unixFirst->exitCode();
+    $secondStatus = $unixSecond->exitCode();
+} catch (IOError $notAUnix) {
+}
+
+try {
+    var $windowsFirst = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo FIRST& exit 1"]);
+    var $windowsSecond = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo SECOND& exit 2"]);
+    $started = $started + 1;
+    $firstOut = $windowsFirst->stdout();
+    $secondOut = $windowsSecond->stdout();
+    $firstStatus = $windowsFirst->exitCode();
+    $secondStatus = $windowsSecond->exitCode();
+} catch (IOError $notWindows) {
+}
+
+echo "started=", $started, "\n";
+echo "first exit=", $firstStatus, "\n";
+echo "second exit=", $secondStatus, "\n";
+
+if (Core\Bytes::contains($firstOut, "FIRST" as bytes)) {
+    echo "the first result kept its own output\n";
+} else {
+    echo "the first result lost its output\n";
+}
+if (Core\Bytes::contains($firstOut, "SECOND" as bytes)) {
+    echo "the first result took the second run's output\n";
+} else {
+    echo "the first result has nothing of the second run\n";
+}
+if (Core\Bytes::contains($secondOut, "SECOND" as bytes)) {
+    echo "the second result kept its own output\n";
+} else {
+    echo "the second result lost its output\n";
+}
+if (Core\Bytes::contains($secondOut, "FIRST" as bytes)) {
+    echo "the second result took the first run's output\n";
+} else {
+    echo "the second result has nothing of the first run\n";
+}
+--FILE nvs.toml--
+# `true` for the reason the exit-code case gives: the door's own scoping is
+# pinned by `process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst`,
+# and this case is about what two completed runs kept apart.
+[capabilities.process]
+exec = true
+--EXPECT--
+started=1
+first exit=1
+second exit=2
+the first result kept its own output
+the first result has nothing of the second run
+the second result kept its own output
+the second result has nothing of the first run
