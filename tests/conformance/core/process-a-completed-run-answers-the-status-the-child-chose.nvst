@@ -1,0 +1,72 @@
+--TEST--
+`Core\Process\Result::exitCode` answers the status the child exited with, named on both sides of the bound — one program started twice, once to succeed and once to fail — ADR 0044 § 1
+--FILE--
+<?nvs
+// ADR 0044 § 1 writes `$result->exitCode()`, and this is the only case in which
+// a run *completes*: every other `Core\Process` case is refused before a child
+// starts, so a member that answered `0` always — or that widened a boolean, or
+// that answered "did it run" rather than "what did it say" — reads as correct
+// against all of them.
+//
+// Both sides are asserted together for that reason. `0` is the answer an
+// unwritten member gives; `3` is a number nothing but the child can have
+// chosen, so the pair pins that the status comes back from the operating system
+// rather than out of the shape of the result object.
+//
+// The child is this platform's own shell, named absolutely and started as an
+// ordinary program with a split argv. § 1 says a `PATH` lookup is the caller's
+// own to make, so there is no name here to look up, and § 4's refusal tells a
+// caller who wants an interpreter to "start that interpreter yourself if it is
+// what you mean" — what the ADR closes is a command line *Novis* builds, and
+// nothing here builds one. The two candidates are the two families CI runs on;
+// the one that is not this platform's has nothing at its path, so the operating
+// system answers `IOError` and that block starts nothing.
+
+// `-2` and not `-1`: a signalled child answers `-1`, so a sentinel spelled that
+// way could not be told apart from a real status.
+int $started = 0;
+int $absent = 0;
+int $success = -2;
+int $failure = -2;
+
+try {
+    var $good = Core\Process::run("/bin/sh", ["-c", "exit 0"]);
+    var $bad = Core\Process::run("/bin/sh", ["-c", "exit 3"]);
+    $started = $started + 1;
+    $success = $good->exitCode();
+    $failure = $bad->exitCode();
+} catch (IOError $notAUnix) {
+    $absent = $absent + 1;
+}
+
+try {
+    var $goodOnWindows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "exit 0"]);
+    var $badOnWindows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "exit 3"]);
+    $started = $started + 1;
+    $success = $goodOnWindows->exitCode();
+    $failure = $badOnWindows->exitCode();
+} catch (IOError $notWindows) {
+    $absent = $absent + 1;
+}
+
+// The two counts come first because they are what make the two statuses mean
+// anything: on every platform exactly one candidate is there and exactly one is
+// not, so a run where nothing started would print the sentinels below and read
+// like a platform difference rather than like a broken member.
+echo "started=", $started, "\n";
+echo "absent=", $absent, "\n";
+echo "success=", $success, "\n";
+echo "failure=", $failure, "\n";
+--FILE nvs.toml--
+# `true`, not a list of roots: what this case asserts is the status a completed
+# child exited with, and the door's own scoping is already pinned by
+# `process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst`. A
+# root list would have to survive canonicalisation on three platforms as well,
+# which is a second claim this case does not make.
+[capabilities.process]
+exec = true
+--EXPECT--
+started=1
+absent=1
+success=0
+failure=3
