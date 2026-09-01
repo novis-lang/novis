@@ -1,0 +1,121 @@
+--TEST--
+Each Core\Ast\Node member answers the same thing twice and hands back the same node objects, and two parses of one source agree everywhere but identity — ADR 0019 § 3
+--FILE--
+<?nvs
+// The *agreement* shape, over the rule § 3's three members share: the tree is
+// **inert**, so a node holds its answer rather than recomputing one. `kind` and
+// `children` read a slot built once by `Core\Ast::parse`, and `nodes` walks
+// those slots — none of them re-enters the parser, and none of them may consume
+// what it hands back.
+//
+// What that rules out is a member that quietly carried state: a slot moved out
+// of on the way through, a walk that memoised against the wrong node, an array
+// rebuilt per call whose elements were rebuilt with it. A case that asks once
+// sees none of it, which is every other case in this class.
+//
+// Each first answer is pinned as well as compared, because two identical wrong
+// answers agree exactly as well as two right ones — a `nodes` that always
+// answered the empty array would be perfectly self-consistent.
+var $tree = Core\Ast::parse('<?nvs if (1) { echo 2; }');
+
+int $agreed = 0;
+
+string $kind = $tree->kind();
+string $kindAgain = $tree->kind();
+if ($kind == $kindAgain) {
+    $agreed = $agreed + 1;
+}
+echo $kind, "\n";
+
+var $children = $tree->children();
+var $childrenAgain = $tree->children();
+if (Core\Arr::count($children) == Core\Arr::count($childrenAgain)) {
+    $agreed = $agreed + 1;
+}
+
+// Agreement here is *identity*, not equality: `children` hands back the very
+// nodes `parse` built, so both calls' elements collapse into one entry of an
+// identity-keyed set. A member that rebuilt an equal node per call would answer
+// plausibly on every other line in this file and double this count.
+Core\ObjectSet<Core\Ast\Node> $seen = new Core\ObjectSet<Core\Ast\Node>();
+foreach ($children as Core\Ast\Node $node) {
+    $seen->add($node);
+}
+foreach ($childrenAgain as Core\Ast\Node $node) {
+    $seen->add($node);
+}
+echo Core\Arr::count($children), " ", $seen->count(), "\n";
+if ($seen->count() == Core\Arr::count($children)) {
+    $agreed = $agreed + 1;
+}
+
+// `nodes` allocates a fresh array per call — its module doc says why it is a
+// walk rather than a third slot — so the array is the one thing here that is
+// new each time. Its *contents* are not: the same kinds in the same order, and
+// the same objects.
+string $walk = "";
+foreach ($tree->nodes() as Core\Ast\Node $node) {
+    $walk = $walk . $node->kind() . "|";
+}
+string $walkAgain = "";
+foreach ($tree->nodes() as Core\Ast\Node $node) {
+    $walkAgain = $walkAgain . $node->kind() . "|";
+}
+if ($walk == $walkAgain) {
+    $agreed = $agreed + 1;
+}
+echo $walk, "\n";
+
+Core\ObjectSet<Core\Ast\Node> $walked = new Core\ObjectSet<Core\Ast\Node>();
+foreach ($tree->nodes() as Core\Ast\Node $node) {
+    $walked->add($node);
+}
+foreach ($tree->nodes() as Core\Ast\Node $node) {
+    $walked->add($node);
+}
+echo Core\Arr::count($tree->nodes()), " ", $walked->count(), "\n";
+if ($walked->count() == Core\Arr::count($tree->nodes())) {
+    $agreed = $agreed + 1;
+}
+
+// One grammar and no state between calls, so a second `parse` of one source
+// answers the same tree — the same root kind and the same walk, asserted as a
+// whole string rather than read off a line.
+var $second = Core\Ast::parse('<?nvs if (1) { echo 2; }');
+string $secondWalk = "";
+foreach ($second->nodes() as Core\Ast\Node $node) {
+    $secondWalk = $secondWalk . $node->kind() . "|";
+}
+if ($secondWalk == $walk) {
+    $agreed = $agreed + 1;
+}
+if ($second->kind() == $tree->kind()) {
+    $agreed = $agreed + 1;
+}
+
+// Identity is where the two parses are *meant* to disagree, and it is the whole
+// disagreement: a tree is objects charged to the request that asked for it, so
+// two calls build two trees that share no node at all. A `parse` that had begun
+// caching its answer shows up on both of these lines while every agreement
+// above it stays green.
+Core\ObjectSet<Core\Ast\Node> $roots = new Core\ObjectSet<Core\Ast\Node>();
+$roots->add($tree);
+$roots->add($second);
+echo $roots->count() == 2 ? "two parses are two trees" : "two parses answered one tree", "\n";
+
+int $shared = 0;
+foreach ($second->nodes() as Core\Ast\Node $node) {
+    if ($walked->has($node)) {
+        $shared = $shared + 1;
+    }
+}
+echo "shared=", $shared, "\n";
+echo "agreed=", $agreed, " of 7\n";
+--EXPECT--
+File
+1 1
+If|Int|Block|Echo|Int|
+5 5
+two parses are two trees
+shared=0
+agreed=7 of 7
