@@ -99,6 +99,17 @@
 //! `extra_float_digits` has defaulted to 3 since PostgreSQL 12, so a `float`
 //! round-trips bit for bit. What it costs is parsing an integer out of ASCII
 //! per column, which is nanoseconds against the syscall that carried it.
+//!
+//! **A text body is checked to be UTF-8 before it becomes a `string`**, and the
+//! `client_encoding` in the startup message is not what makes that safe.
+//! [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s promise is read
+//! *unchecked* downstream — `nvs_runtime::NvsStr::text_of` is that crate's one
+//! unchecked read — and a database server is a network peer rather than a part
+//! of this process: an ill-formed body from a compromised or simply
+//! misconfigured server would be undefined behaviour several calls later, in a
+//! crate that never saw a wire. The check is one pass over bytes already in
+//! cache, and it is the only thing this driver spends on a value it is not
+//! otherwise parsing.
 
 use std::cell::Cell;
 use std::io::{self, Read, Write};
@@ -109,6 +120,7 @@ use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
+use nvs_runtime::{Decimal, NvsStr, Value};
 use postgres_protocol::authentication::sasl::{ChannelBinding, ScramSha256};
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
@@ -608,16 +620,24 @@ const UNNAMED: &str = "";
 
 /// One column of a portal's row description.
 ///
-/// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s type map reads
-/// [`PgColumn::type_oid`] to decide which Novis type a column's bytes become,
-/// so this is deliberately the server's own OID and not a Novis type yet: the
-/// mapping is one table in one place, and it is not this module's.
+/// The fields are the server's own — an OID and a type modifier, never a Novis
+/// type — because a row description is what the server said rather than what
+/// this driver made of it. [`PgColumn::decode`] is where [ADR 0067
+/// § 9](../../../docs/adr/0067-core-db.md)'s type map turns the pair into a
+/// value, and it is the only place in this driver that knows a `pg_type` OID
+/// means anything at all.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PgColumn {
     /// The column's label, as the server wrote it in the row description.
     pub name: String,
     /// The PostgreSQL type OID of the column's values.
     pub type_oid: Oid,
+    /// The type's modifier, or `-1` where the type takes none.
+    ///
+    /// Only § 9's `BIT(1)` row reads it: `bit` and `bit varying` share one OID
+    /// and carry their width here, so this is the only signal separating the
+    /// row that is a `bool` from the row that is a `tainted string`.
+    pub type_modifier: i32,
 }
 
 /// One row, still in the bytes the wire framed it out of.
@@ -660,6 +680,326 @@ impl PgRow {
             io::ErrorKind::InvalidInput,
             format!("column {index} was asked for in a row that has {at}"),
         ))
+    }
+}
+
+/// The `pg_type` OIDs [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s table
+/// names, spelled as PostgreSQL numbers them.
+///
+/// A built-in type's OID is bootstrap data — fixed in `pg_type.dat` and the
+/// same on every server of every version — which is what makes a literal table
+/// legitimate here rather than a `SELECT` against the catalog at connect time.
+/// `postgres-protocol` is framing and vends none of them.
+///
+/// Only the types that are **not** text are named. § 9's last row sends
+/// everything without a Novis type to `tainted string` as the server rendered
+/// it, and `text`, `varchar`, `json`, `inet`, `interval` and the rest arrive
+/// there by simply not being in this list.
+mod oid {
+    use postgres_protocol::Oid;
+
+    /// `BOOLEAN`.
+    pub(super) const BOOL: Oid = 16;
+    /// `BYTEA`.
+    pub(super) const BYTEA: Oid = 17;
+    /// `BIGINT`.
+    pub(super) const INT8: Oid = 20;
+    /// `SMALLINT`.
+    pub(super) const INT2: Oid = 21;
+    /// `INTEGER`.
+    pub(super) const INT4: Oid = 23;
+    /// `oid`, the only unsigned integer a query is likely to select.
+    pub(super) const OID: Oid = 26;
+    /// `REAL`.
+    pub(super) const FLOAT4: Oid = 700;
+    /// `DOUBLE PRECISION`.
+    pub(super) const FLOAT8: Oid = 701;
+    /// `money`.
+    pub(super) const MONEY: Oid = 790;
+    /// `BIT(n)`, whose `n` is the type modifier.
+    pub(super) const BIT: Oid = 1560;
+    /// `BIT VARYING(n)`, sharing `BIT`'s rendering and its modifier.
+    pub(super) const VARBIT: Oid = 1562;
+    /// `NUMERIC`/`DECIMAL`.
+    pub(super) const NUMERIC: Oid = 1700;
+}
+
+/// One column's value, decoded but not yet allocated as a [`Value`].
+///
+/// The decode and the allocation are two steps for one reason: everything that
+/// can go wrong with a column happens in the first, and none of it needs an
+/// allocator, so § 9's whole table is assertable in a `-p nvs-db` test that
+/// leaks nothing. This crate forbids `unsafe` and [`Value::release`] is unsafe,
+/// so a `Value` a test built here could never be freed by one — a reference is
+/// minted in [`PgScalar::into_value`] and nowhere else, and that function is
+/// one arm per variant with nothing left to get wrong.
+enum PgScalar<'a> {
+    /// SQL `NULL`: the row of § 9's table that makes every column `?T`.
+    Null,
+    /// `BOOLEAN`, and `BIT(1)`.
+    Bool(bool),
+    /// `SMALLINT`/`INTEGER`/`BIGINT`.
+    Int(i64),
+    /// `oid`.
+    UInt(u64),
+    /// `REAL`/`DOUBLE PRECISION`.
+    Float(f64),
+    /// `NUMERIC` and `money`.
+    Decimal(Decimal),
+    /// A `tainted string`'s text, already proven well-formed UTF-8.
+    Text(&'a str),
+    /// A `tainted bytes`'s octets, which had to be decoded out of a text
+    /// rendering and so are the driver's own rather than a borrow of the row.
+    Bytes(NvsStr),
+}
+
+impl PgScalar<'_> {
+    /// The Novis value, taking on the one reference a `string` or a `bytes`
+    /// costs and nothing at all for the rest.
+    fn into_value(self) -> Value {
+        match self {
+            PgScalar::Null => Value::null(),
+            PgScalar::Bool(value) => Value::bool(value),
+            PgScalar::Int(value) => Value::int(value),
+            PgScalar::UInt(value) => Value::uint(value),
+            PgScalar::Float(value) => Value::float(value),
+            PgScalar::Decimal(value) => Value::decimal(value),
+            PgScalar::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
+            PgScalar::Bytes(bytes) => Value::bytes(bytes),
+        }
+    }
+}
+
+impl PgColumn {
+    /// This column's `body` as the Novis value [ADR 0067
+    /// § 9](../../../docs/adr/0067-core-db.md)'s table names, with `None` — SQL
+    /// `NULL` — as `null`, which is why every column reads back as `?T`.
+    ///
+    /// `body` is what [`PgRow::column`] handed back, still in the text format
+    /// the module doc chose. § 9's *structured* rows are not arms yet: `DATE`,
+    /// `TIME`, `TIMESTAMP`, `TIMESTAMPTZ`, `UUID` and the array types fall to
+    /// the table's last row and arrive as the server's own rendering, which is
+    /// a shallower answer rather than a wrong one.
+    ///
+    /// The `tainted` half of `tainted string` is nowhere in this signature and
+    /// is not missing.
+    /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+    /// qualifier is a property of the *type* a row is read at, declared in
+    /// `nvs-stdlib`'s registry rows; there is no runtime bit for it, and a
+    /// driver could not set one if there were.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` for a body the column's own type cannot be read out of: a
+    /// `NUMERIC` past what
+    /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s `decimal`
+    /// holds or a `NaN` in one, which that type has no representation for; a
+    /// text body that is not UTF-8; a malformed `bytea`. Every such message
+    /// names the column and its OID and **never the body**, for the reason
+    /// [`Self::malformed`] gives.
+    pub fn decode(&self, body: Option<&[u8]>) -> io::Result<Value> {
+        Ok(self.scalar(body)?.into_value())
+    }
+
+    /// [`PgColumn::decode`]'s whole decision, before anything is allocated.
+    fn scalar<'a>(&self, body: Option<&'a [u8]>) -> io::Result<PgScalar<'a>> {
+        let Some(body) = body else {
+            return Ok(PgScalar::Null);
+        };
+
+        Ok(match self.type_oid {
+            oid::BOOL => PgScalar::Bool(match body {
+                b"t" => true,
+                b"f" => false,
+                _ => return Err(self.malformed("a bool")),
+            }),
+            // § 9's `BIT(1)` row, and the width is the only thing that says so.
+            // A one-bit string renders as `0`/`1` rather than `f`/`t`: on the
+            // wire a `bit` is not a `boolean`, only in the table.
+            oid::BIT | oid::VARBIT if self.type_modifier == 1 => PgScalar::Bool(match body {
+                b"1" => true,
+                b"0" => false,
+                _ => return Err(self.malformed("a one-bit string")),
+            }),
+            oid::INT2 | oid::INT4 | oid::INT8 => PgScalar::Int(
+                self.text(body)?
+                    .parse()
+                    .map_err(|_| self.malformed("an int"))?,
+            ),
+            oid::OID => PgScalar::UInt(
+                self.text(body)?
+                    .parse()
+                    .map_err(|_| self.malformed("a uint"))?,
+            ),
+            // `NaN` and `±Infinity` are what the server writes and what Rust's
+            // parser reads, so the three values a `float` has beyond the finite
+            // ones need no arm of their own.
+            oid::FLOAT4 | oid::FLOAT8 => PgScalar::Float(
+                self.text(body)?
+                    .parse()
+                    .map_err(|_| self.malformed("a float"))?,
+            ),
+            oid::NUMERIC => PgScalar::Decimal(
+                Decimal::parse(self.text(body)?).ok_or_else(|| self.malformed("a decimal"))?,
+            ),
+            oid::MONEY => PgScalar::Decimal(self.money(self.text(body)?)?),
+            oid::BYTEA => PgScalar::Bytes(NvsStr::new(&self.bytea(body)?)),
+            _ => PgScalar::Text(self.text(body)?),
+        })
+    }
+
+    /// The body as text, **checked**.
+    ///
+    /// The module doc's § *Parameters and results are in text format* owns why
+    /// the check is here rather than trusted from `client_encoding`.
+    fn text<'a>(&self, body: &'a [u8]) -> io::Result<&'a str> {
+        std::str::from_utf8(body).map_err(|_| self.malformed("well-formed UTF-8"))
+    }
+
+    /// PostgreSQL's `money`, out of whatever rendering `lc_monetary` chose.
+    ///
+    /// `cash_out` writes the server's locale: a currency symbol, a group
+    /// separator and a decimal separator that are all the locale's, and a
+    /// negative that is either a sign or the accounting parentheses. Two of
+    /// those read unambiguously — the symbol is whatever is neither a digit nor
+    /// a separator, and both negative forms are visible — so the rule is
+    /// positional and about the separators alone: **the last separator is the
+    /// decimal point when one or two digits follow it, and every other
+    /// separator is grouping.**
+    ///
+    /// That is exact for every locale whose currency has two fractional digits
+    /// and for every locale whose currency has none, which between them is
+    /// every locale a server is realistically running: `$1,234.56`,
+    /// `1.234,56 €` and `¥1,234` all decode to what they mean. It is wrong for
+    /// the three-digit currencies (`KWD`, `BHD`, `OMR`), where a grouped
+    /// `1,234` and a fractional `1.234` are the same shape and the text carries
+    /// no second signal to break the tie. A deployment on one of those casts
+    /// the column — `amount::numeric` is § 9's `NUMERIC` row and has no locale
+    /// in it at all — and that is cheaper than the alternative, which is a
+    /// round trip per connection to read `lc_monetary` out of the server.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` when what is left after the separators is not a decimal
+    /// this type can hold.
+    fn money(&self, text: &str) -> io::Result<Decimal> {
+        let negative = text.starts_with('(') || text.contains('-');
+        let point = text.rfind(['.', ',']).filter(|&at| {
+            let fraction = text[at + 1..]
+                .bytes()
+                .take_while(u8::is_ascii_digit)
+                .count();
+            (1..=2).contains(&fraction)
+        });
+
+        let mut digits = String::with_capacity(text.len() + 2);
+        if negative {
+            digits.push('-');
+        }
+        for (at, ch) in text.char_indices() {
+            if ch.is_ascii_digit() {
+                digits.push(ch);
+            } else if Some(at) == point {
+                if !digits.contains(|ch: char| ch.is_ascii_digit()) {
+                    digits.push('0');
+                }
+                digits.push('.');
+            }
+        }
+
+        Decimal::parse(&digits).ok_or_else(|| self.malformed("a decimal"))
+    }
+
+    /// A `bytea`'s octets, out of either of the two text renderings.
+    ///
+    /// `bytea_output` decides which one arrives and both are legal, so both are
+    /// read here rather than one being pinned by a startup parameter: `hex` is
+    /// the default, `escape` is what an older application's server is often
+    /// still set to, and a `SET` this driver did not write is not something it
+    /// can rule out of a session.
+    ///
+    /// The octets land in a `Vec` and are copied once more into the string
+    /// allocation. The hex form's length is exactly known and could fill one
+    /// directly; the escape form's is not, and one path for two renderings is
+    /// worth a `memcpy` on the one column type where nothing else in the row
+    /// is bigger.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` for a hex body of odd length or with a non-hex digit in
+    /// it, and for an escape body whose backslash is not followed by another
+    /// backslash or by three octal digits.
+    fn bytea(&self, body: &[u8]) -> io::Result<Vec<u8>> {
+        let mut out = Vec::with_capacity(body.len());
+
+        if let Some(hex) = body.strip_prefix(br"\x") {
+            if hex.len() % 2 != 0 {
+                return Err(self.malformed("a hex-format bytea"));
+            }
+            for pair in hex.chunks_exact(2) {
+                let (Some(high), Some(low)) = (hex_digit(pair[0]), hex_digit(pair[1])) else {
+                    return Err(self.malformed("a hex-format bytea"));
+                };
+                out.push(high * 16 + low);
+            }
+            return Ok(out);
+        }
+
+        let mut at = 0;
+        while at < body.len() {
+            if body[at] != b'\\' {
+                out.push(body[at]);
+                at += 1;
+                continue;
+            }
+            match body.get(at + 1) {
+                Some(b'\\') => {
+                    out.push(b'\\');
+                    at += 2;
+                }
+                Some(&first @ b'0'..=b'3') => {
+                    let (Some(&second), Some(&third)) = (body.get(at + 2), body.get(at + 3)) else {
+                        return Err(self.malformed("an escape-format bytea"));
+                    };
+                    if !matches!(second, b'0'..=b'7') || !matches!(third, b'0'..=b'7') {
+                        return Err(self.malformed("an escape-format bytea"));
+                    }
+                    out.push((first - b'0') * 64 + (second - b'0') * 8 + (third - b'0'));
+                    at += 4;
+                }
+                _ => return Err(self.malformed("an escape-format bytea")),
+            }
+        }
+
+        Ok(out)
+    }
+
+    /// The error a body that will not decode carries.
+    ///
+    /// **The body is not in it.** A decode failure is exactly the case where
+    /// the value is most likely to be the thing that must not be written down,
+    /// and this module's `Debug` implementations hold the same line for the
+    /// same reason: an operator reads the offending value out of the database,
+    /// where it is already access-controlled, rather than out of a log where it
+    /// is not.
+    fn malformed(&self, wanted: &str) -> io::Error {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "column {:?} of type OID {} did not decode as {wanted}",
+                self.name, self.type_oid
+            ),
+        )
+    }
+}
+
+/// One hexadecimal digit's value, in either case, or `None` for anything else.
+fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
     }
 }
 
@@ -1059,6 +1399,7 @@ fn columns_of(body: &backend::RowDescriptionBody) -> io::Result<Vec<PgColumn>> {
         columns.push(PgColumn {
             name: field.name().to_owned(),
             type_oid: field.type_oid(),
+            type_modifier: field.type_modifier(),
         });
     }
     Ok(columns)
@@ -1090,7 +1431,12 @@ mod tests {
 
     use std::cell::Cell;
 
-    use super::{CancelKey, PgTarget, State, Wire, authenticate, request_tls, start_statement};
+    use postgres_protocol::Oid;
+
+    use super::{
+        CancelKey, PgColumn, PgScalar, PgTarget, State, Wire, authenticate, oid, request_tls,
+        start_statement,
+    };
     use crate::sql::StatementCache;
 
     /// A cache that never caches, so a test about the wire asserts the unnamed
@@ -1932,5 +2278,198 @@ mod tests {
             assert!(wire.peer().sent.is_empty(), "{busy:?} reached the wire");
             assert_eq!(state.get(), busy, "{busy:?} was changed by a refusal");
         }
+    }
+
+    /// A column of one type and width, which is all a decode reads.
+    fn column(type_oid: Oid, type_modifier: i32) -> PgColumn {
+        PgColumn {
+            name: "c".to_owned(),
+            type_oid,
+            type_modifier,
+        }
+    }
+
+    /// What a decoded column is, rendered so a whole table of § 9's rows fits
+    /// in a line each.
+    ///
+    /// Deliberately not a `Debug` derive on `PgScalar`: a row's data is not
+    /// something this module renders — `PgRow`'s own `Debug` is that rule — so
+    /// a test that wants to read one says so here, where it is a test's own
+    /// decision over data it wrote itself.
+    fn rendered(scalar: &PgScalar<'_>) -> String {
+        match scalar {
+            PgScalar::Null => "null".to_owned(),
+            PgScalar::Bool(value) => format!("bool {value}"),
+            PgScalar::Int(value) => format!("int {value}"),
+            PgScalar::UInt(value) => format!("uint {value}"),
+            PgScalar::Float(value) => format!("float {value}"),
+            PgScalar::Decimal(value) => format!("decimal {value}"),
+            PgScalar::Text(value) => format!("text {value}"),
+            PgScalar::Bytes(value) => format!("bytes {:?}", value.as_bytes()),
+        }
+    }
+
+    /// ADR 0067 § 9's scalar rows, PostgreSQL's half of them: the whole table
+    /// asserted a row at a time, including the rows that reach it by *not*
+    /// being in the OID list — 25 is `text` and 114 is `json`, and both arrive
+    /// at the last row's `tainted string` along with every type this driver
+    /// has no arm for.
+    #[test]
+    fn every_scalar_row_of_the_type_map_decodes_to_its_novis_type() {
+        let cases: &[(Oid, i32, &[u8], &str)] = &[
+            (oid::BOOL, -1, b"t", "bool true"),
+            (oid::BOOL, -1, b"f", "bool false"),
+            (oid::BIT, 1, b"1", "bool true"),
+            (oid::VARBIT, 1, b"0", "bool false"),
+            (oid::BIT, 8, b"10110000", "text 10110000"),
+            (oid::INT2, -1, b"-32768", "int -32768"),
+            (oid::INT4, -1, b"2147483647", "int 2147483647"),
+            (
+                oid::INT8,
+                -1,
+                b"-9223372036854775808",
+                "int -9223372036854775808",
+            ),
+            (oid::OID, -1, b"4294967295", "uint 4294967295"),
+            (oid::FLOAT4, -1, b"1.5", "float 1.5"),
+            (oid::FLOAT8, -1, b"-Infinity", "float -inf"),
+            (oid::FLOAT8, -1, b"NaN", "float NaN"),
+            (oid::NUMERIC, -1, b"0.000001", "decimal 0.000001"),
+            (
+                oid::NUMERIC,
+                -1,
+                b"-12345678901234567890.12",
+                "decimal -12345678901234567890.12",
+            ),
+            (oid::MONEY, -1, b"$1,234.56", "decimal 1234.56"),
+            (oid::MONEY, -1, b"-$1,234.56", "decimal -1234.56"),
+            (oid::MONEY, -1, b"($1,234.56)", "decimal -1234.56"),
+            (
+                oid::MONEY,
+                -1,
+                "1.234,56 \u{20ac}".as_bytes(),
+                "decimal 1234.56",
+            ),
+            (oid::MONEY, -1, "\u{a5}1,234".as_bytes(), "decimal 1234"),
+            (oid::BYTEA, -1, br"\x00ff", "bytes [0, 255]"),
+            (oid::BYTEA, -1, br"a\\b\001", "bytes [97, 92, 98, 1]"),
+            (25, -1, b"hi", "text hi"),
+            (114, -1, b"{\"a\":1}", "text {\"a\":1}"),
+        ];
+
+        for &(type_oid, type_modifier, body, expected) in cases {
+            let subject = column(type_oid, type_modifier);
+            let decoded = subject
+                .scalar(Some(body))
+                .unwrap_or_else(|error| panic!("OID {type_oid} did not decode: {error}"));
+
+            assert_eq!(rendered(&decoded), expected, "OID {type_oid}");
+        }
+    }
+
+    /// § 9's `NULL` row does not depend on the column, which is what makes
+    /// every column `?T`. A `0` for an integer column is the one wrong answer
+    /// that would still look right on the line that printed it.
+    #[test]
+    fn an_absent_body_is_null_whatever_the_column_holds() {
+        for (type_oid, type_modifier) in [
+            (oid::BOOL, -1),
+            (oid::INT8, -1),
+            (oid::NUMERIC, -1),
+            (oid::BYTEA, -1),
+            (oid::BIT, 1),
+            (25, -1),
+        ] {
+            let subject = column(type_oid, type_modifier);
+
+            let scalar = subject.scalar(None).expect("a null body was refused");
+            assert_eq!(rendered(&scalar), "null", "OID {type_oid}");
+            assert_eq!(
+                subject
+                    .decode(None)
+                    .expect("a null body was refused")
+                    .as_int(),
+                None,
+                "OID {type_oid}"
+            );
+        }
+    }
+
+    /// A body its column cannot hold is refused rather than approximated, and
+    /// the refusal does not quote it.
+    ///
+    /// Both halves matter. The first is § 9 read strictly: a `NUMERIC` past
+    /// what ADR 0054's `decimal` holds, or a `NaN` in one, has no value to
+    /// answer with and inventing the nearest one would be a wrong number that
+    /// nothing downstream could detect. The second is `PgColumn::malformed`'s
+    /// rule — the value stays out of the message — and a test is the only
+    /// thing that can hold it.
+    #[test]
+    fn a_body_its_column_cannot_hold_is_refused_without_quoting_it() {
+        let cases: &[(Oid, i32, &[u8])] = &[
+            (oid::BOOL, -1, b"true"),
+            (oid::BIT, 1, b"9"),
+            (oid::INT4, -1, b"1.5"),
+            (oid::INT8, -1, b"99999999999999999999"),
+            (oid::OID, -1, b"-1"),
+            (oid::FLOAT8, -1, b"one"),
+            (
+                oid::NUMERIC,
+                -1,
+                b"123456789012345678901234567890123456789.9",
+            ),
+            (oid::NUMERIC, -1, b"NaN"),
+            (oid::MONEY, -1, b"$"),
+            (oid::BYTEA, -1, br"\xzz"),
+            (oid::BYTEA, -1, br"\x0"),
+            (oid::BYTEA, -1, br"\9"),
+            (25, -1, b"\xff\xfe"),
+        ];
+
+        for &(type_oid, type_modifier, body) in cases {
+            let subject = column(type_oid, type_modifier);
+
+            let refused = subject
+                .scalar(Some(body))
+                .err()
+                .unwrap_or_else(|| panic!("OID {type_oid} decoded {body:?}"));
+
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidData, "OID {type_oid}");
+            let said = refused.to_string();
+            let quoted = String::from_utf8_lossy(body).into_owned();
+            assert!(
+                !said.contains(&quoted),
+                "OID {type_oid} quoted the body: {said}"
+            );
+        }
+    }
+
+    /// The map through the constructor its callers use, for every row that
+    /// allocates nothing.
+    ///
+    /// The `string` and `bytes` rows are asserted above through `scalar`
+    /// instead: `Value::release` is `unsafe` and this crate forbids it, so a
+    /// test that built one of those here could not free it, and all it would
+    /// be asserting past what `scalar` already says is `NvsStr::new`.
+    #[test]
+    fn a_decoded_value_carries_the_scalar_the_table_names() {
+        let int = column(oid::INT4, -1).decode(Some(b"7")).expect("int");
+        let uint = column(oid::OID, -1).decode(Some(b"7")).expect("uint");
+        let boolean = column(oid::BOOL, -1).decode(Some(b"t")).expect("bool");
+        let float = column(oid::FLOAT8, -1).decode(Some(b"0.5")).expect("float");
+        let decimal = column(oid::NUMERIC, -1)
+            .decode(Some(b"1.25"))
+            .expect("decimal");
+        let absent = column(oid::INT4, -1).decode(None).expect("null");
+
+        assert_eq!(int.as_int(), Some(7));
+        assert_eq!(uint.as_uint(), Some(7));
+        assert_eq!(boolean.as_bool(), Some(true));
+        assert_eq!(float.as_float(), Some(0.5));
+        assert_eq!(
+            decimal.as_decimal().map(|value| value.to_string()),
+            Some("1.25".to_owned())
+        );
+        assert_eq!(absent.as_int(), None);
     }
 }
