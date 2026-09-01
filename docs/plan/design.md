@@ -272,11 +272,12 @@ carried on the array header. `decimal` is the one tag whose value does not fit t
 mantissa spends the padding bytes too, so it is the whole sixteen — and `nvs_runtime::decimal`'s own module
 doc is the home for that layout.
 
-Memory: refcounting + copy-on-write arrays/strings (PHP semantics). Reference cycles are bounded by the
-request lifetime — the whole request heap is dropped wholesale at request end, which makes cycle leaks
-structurally impossible to accumulate in the server. Long-running CLI scripts additionally get an optional
-mark-sweep cycle collector running at safepoints; whichever milestone implements its run routine also gives
-it a `gc`-kind trace event, at no cost to the safepoint poll itself
+Memory: refcounting + copy-on-write arrays/strings (PHP semantics). Reference cycles — objects only: a
+string is immutable and an array copies on write, so neither can close one — are reclaimed by the teardown
+sweep of [ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md) § 2, which is what bounds a
+cycle by the request or isolate that built it. Long-running CLI scripts additionally get an optional
+mark-sweep cycle collector running at safepoints — a decision still open; whichever milestone implements
+its run routine also gives it a `gc`-kind trace event, at no cost to the safepoint poll itself
 ([ADR 0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md)).
 
 Both choices here — 16 bytes per value instead of 8, and peak-not-average retention inside a request — cost

@@ -14,9 +14,10 @@
 > not a region of address space. Allocation keeps going through the process allocator, so entering an
 > isolate maps no memory and leaving one unmaps none; what an isolate owns is reachability, and the
 > boundary is enforced at the single place a value can move, ADR 0023 § 2's graph copy. "Released
-> wholesale" is therefore one drain of `crate::release`'s worklist over that root, which runs the native
-> teardown a region free would skip, and a **move at refcount 1 across the boundary is a pointer handoff
-> that costs nothing** — sound only because both sides allocate from the same place.
+> wholesale" is therefore one drain of `crate::release`'s worklist over that root, followed by § 2's sweep
+> of the objects the refcounts could not free — together they run the native teardown a region free would
+> skip — and a **move at refcount 1 across the boundary is a pointer handoff that costs nothing** — sound
+> only because both sides allocate from the same place.
 
 ## Context
 
@@ -91,6 +92,17 @@ second teardown to keep correct.
 The one thing this costs against a region is honest and worth naming: reclamation is **O(live values)**
 rather than O(1). A region's `munmap` does not care how many objects were in it. In exchange the drain is
 the only reclamation path in the runtime, so it is the only one that can be wrong.
+
+The drain alone is not the whole of reclamation, because it frees only what the refcounts say is dead and
+a cycle's members hold each other above zero. An object is the one shape that can close a cycle — a string
+is immutable and an array copies on write (`graph.rs`'s identity decision) — so the drain is followed by a
+**sweep**: every object links into its context's intrusive live list when it is allocated and out when it
+is dismantled, and whatever the drain leaves on that list is exactly the cyclic garbage, dismantled through
+the same worklist so native teardown runs there too. What the sweep spends, per
+[ADR 0004](0004-memory-for-simplicity.md): two pointers per live object, and a few non-atomic stores at
+each object's allocation and death. Decided 2026-09-01, after review found the drain-only teardown retained
+a cycle for the life of the process; it lands as goal 4's stage 11, and until it does that retention is the
+tree's behaviour.
 
 ### 3. What an isolate spends
 
@@ -182,10 +194,11 @@ decides only what the crossing may do once it is.
 - **A limit breach is reported at a call, not at a fault**, per § 3 — which is the shape
   [ADR 0020](0020-error-escalation-ladder.md)'s ladder already wants, since a page fault has no directive
   to name.
-- **A cycle inside an isolate is still retained.** There is no cycle collector, and § 2's drain frees only
-  what the refcounts say is dead. A region arena would have reclaimed cycles for free at teardown; here
-  they are held for the life of the *isolate* rather than of the process, which is a strict improvement on
-  a long-running CLI script and is why the collector stays optional.
+- **A cycle inside an isolate outlives the drain, and § 2's sweep is what reclaims it.** The drain frees
+  only what the refcounts say is dead, so without the sweep a cyclic object graph is retained for the life
+  of the *process* — in the server, a leak growing with requests served, which is what made the sweep an
+  obligation rather than an option. The optional in-flight collector for a long-running CLI script that
+  builds cycles *between* teardowns is a separate decision and remains open.
 
 ## Alternatives rejected
 
@@ -218,6 +231,9 @@ decides only what the crossing may do once it is.
 - The WSL valgrind leg over `examples/isolate.nvs`: § 2's claim is that the drain frees everything an
   isolate held, and a debug build is deliberately on the platform heap so the checker can see it
   (`docs/agent/playbook.md`).
+- The WSL valgrind leg over `examples/cycles.nvs`: § 2's sweep claim — a cyclic object graph is reclaimed
+  when its context drops, not at process exit. Goal 6 item 31 is the same claim under the server: live
+  bytes stay flat across a soak of requests that build cycles.
 - ADR 0006's own M5 figure — spawn-to-result for a trivial child on a warm cache, in single-digit
   microseconds, next to the process baseline in `benches/isolation.rs` — is the measurement that holds
   this ADR's central claim against the region it rejected.

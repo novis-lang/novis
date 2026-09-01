@@ -373,7 +373,8 @@ spellings rejected, and the reasoning.
   pays nothing, and a denial is a catchable `RuntimeError` naming the capability
   ([0118](0118-a-capability-is-checked-at-the-door-to-the-effect.md)).
 - **An isolate's arena is an ownership root, not an address range: entering one maps nothing, releasing one
-  wholesale is a drain of the refcount worklist that runs native teardown, its statics base is its own, and
+  wholesale is a drain of the refcount worklist plus a sweep of the cyclic objects the refcounts could not
+  free — both run native teardown — its statics base is its own, and
   a crossing at refcount 1 is a pointer handoff** ([0116](0116-an-isolates-arena-is-an-ownership-root.md)).
 - **The image component is a Novis builder over a handful of coarse sandboxed entry points, one crossing
   per terminal, with one pixel model, a header-read pixel cap, upright colour-correct decoding and
