@@ -1,0 +1,20 @@
+--TEST--
+what `Core\IO::stdin` answers is `tainted`, so it reaches this class's own path sink only through a launderer that names it — spec § 14, ADR 0024 §§ 1 and 3
+--FILE--
+<?nvs
+// The bytes are whatever the invoker attached to the program, so they are as
+// far outside its own text as a command-line word is. ADR 0088 § 1 classifies
+// a path component as an instruction, which makes every path in this class a
+// sink -- and a sink is shut to this member's answer.
+Core\IO::write(Core\IO::stdin(), "never written\n");
+
+// The qualifier is the one thing about this member no runtime assertion can
+// show: a plain `string` is assignable into a `tainted` target, so a case that
+// only declared one would pass over a member that had dropped the mark. What
+// pins it is the refusal above.
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+%A
+error: aborting due to 1 error

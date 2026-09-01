@@ -1,0 +1,21 @@
+--TEST--
+§ 14's standard streams are `Core\IO::stdin` alone — there is no `stdout` half, because writing to that stream is `Core\Cli::write`'s sink — spec § 14, ADR 0086 §§ 1 and 7
+--FILE--
+<?nvs
+// The reading half is here, and it is a value rather than a handle: a
+// descriptor the process was handed has no position to seek and no length to
+// truncate, and a `close` on it would take the stream from the whole process.
+tainted string $input = Core\IO::stdin();
+echo "read=", Core\Str::length($input), "\n";
+
+// The writing half is not here at all. ADR 0086 § 1's substitution is uniform
+// -- not tty-dependent, not qualifier-dependent -- so a raw descriptor onto
+// standard output would be the way around the sink rather than a second
+// convenience beside it, and `Core\Cli::write` already is that operation.
+Core\IO::stdout();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\IO` has no member named `stdout`
+%A
+error: aborting due to 1 error
