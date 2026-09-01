@@ -98,6 +98,8 @@ pub struct Config {
     pub db: BTreeMap<String, Database>,
     /// `[mail.<name>]` — one named SMTP endpoint per sub-table (ADR 0082 § 2).
     pub mail: BTreeMap<String, MailEndpoint>,
+    /// `[storage.<name>]` — one named object-storage disk per sub-table (ADR 0082 § 2).
+    pub storage: BTreeMap<String, StorageDisk>,
     /// `[deferred]` — the after-response executor's bounds (ADR 0072 § 7).
     pub deferred: Option<Deferred>,
     /// `[[schedule]]` — scheduled work, which is configuration and not an API (ADR 0073).
@@ -477,6 +479,22 @@ pub struct MailEndpoint {
     pub password: Option<String>,
     /// How long the whole exchange may take, 30s where the block names none.
     pub timeout: Option<String>,
+}
+
+/// One `[storage.<name>]` block — ADR 0082 § 2's object-storage disk, whose shape is
+/// [`MailEndpoint`]'s minus everything an endpoint needs and a directory does not.
+///
+/// **One field, and there is deliberately no `capabilities.storage` beside it.** The grant over a
+/// disk is the `fs.read`/`fs.write` the operator already writes about `root`, which is what ADR
+/// 0082 § 2's "over ADR 0051's existing `fs.*` capabilities" means and what
+/// `nvs_stdlib::storage`'s module doc argues at length: a second grant over one door is the shape
+/// where a deployment is tightened in one of them and stays open through the other.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct StorageDisk {
+    /// The directory the disk's objects are files in. Every object is one entry directly under
+    /// it, because a key is one segment and never a path — `nvs_stdlib::storage` owns why.
+    pub root: Option<String>,
 }
 
 /// One `[db.<name>]` block — ADR 0067 § 2, where the name and not the settings is the key.
