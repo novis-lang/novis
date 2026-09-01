@@ -5801,6 +5801,19 @@ sibling in the same namespace unqualified.
   reads its slot back. `Core\Db\InList declares 1 slot(s) and 0 instance member(s)` reads as "you
   forgot the members", which for a class the spec calls *opaque* is exactly backwards. The
   constant naming the class has to be `pub(crate)` for the test to name it.
+- **A `Core` member's registry row has two gates that `conventions.md`'s five edits do not name, and
+  both fire only under `cargo test -p nvs-stdlib --lib`.** `CoreTy::Str` reads as the sanctioned
+  parameter spelling — its own doc comment says "in parameter position is not a default but a state:
+  ADR 0088 § 2 makes it refuse a `tainted` argument", which is exactly what a column name or a key
+  wants — and `every_member_parameter_carries_a_qualifier_classification` refuses it anyway: a
+  `string`/`bytes` *parameter* is `CoreTy::Text(Qual::…)`/`Blob(Qual::…)` or the member goes on that
+  test's `UNCLASSIFIED` roster. For a name that is only ever a lookup key the mark is
+  `Qual::Neutral`, not `Qual::Sink` — `Sink` means the content becomes an instruction something
+  executes, and `Core\Regex\Match::group`'s row is the precedent. The second gate is
+  `no_registry_card_cites_an_adr`: a `MethodDoc`'s `short`/`ret`/`desc` may not say "ADR 0067 § 9",
+  because `nvs meta --json` ships the card verbatim to a reader with no ADR tree — state the fact
+  and leave the citation to the doc comment above the row. Nineteen rows written to the shape in
+  `conventions.md` failed on these two and on nothing else.
 
 ## Divergences and refusals already pinned
 

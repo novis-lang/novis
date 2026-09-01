@@ -140,6 +140,7 @@ Conventions the whole file uses:
 | [`Core\Db`](#core-core-db) |  |
 | [`Core\Db\Connection`](#core-core-db-connection) |  |
 | [`Core\Db\Rows`](#core-core-db-rows) |  |
+| [`Core\Db\Row`](#core-core-db-row) |  |
 | [`Core\Db\InList`](#core-core-db-inlist) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
@@ -17229,10 +17230,328 @@ Runs one statement with its values bound, and reads every row it answers into me
 <a id="core-core-db-rows"></a>
 ### `Core\Db\Rows`
 
-Keywords: 
+Keywords: all, first, value, column, count
 
 | Member | Signature |
 |---|---|
+| [`Core\Db\Rows->all`](#core-core-db-rows-all) | `all(): array<Core\Db\Row>` |
+| [`Core\Db\Rows->first`](#core-core-db-rows-first) | `first(): ?Core\Db\Row` |
+| [`Core\Db\Rows->value`](#core-core-db-rows-value) | `value(): mixed` |
+| [`Core\Db\Rows->column`](#core-core-db-rows-column) | `column(int\|string $key): array<mixed>` |
+| [`Core\Db\Rows->count`](#core-core-db-rows-count) | `count(): uint` |
+
+<a id="core-core-db-rows-all"></a>
+#### `Core\Db\Rows->all`
+
+```nvs skip
+$rows->all(): array<Core\Db\Row>
+```
+
+Every row of the result, in the server's order, each one a `Core\Db\Row` — `PDO::fetchAll` without a fetch-mode argument to choose the shape with.
+
+**Returns** `array<Core\Db\Row>` — An `array<Core\Db\Row>`, empty for a statement that answered no rows. The rows are the ones already read, so this costs one object each and no second decode.
+
+<a id="core-core-db-rows-first"></a>
+#### `Core\Db\Rows->first`
+
+```nvs skip
+$rows->first(): ?Core\Db\Row
+```
+
+The first row, or `null` where there is none — `PDO::fetch`, without its `false` and without a cursor that a second call would move.
+
+**Returns** `?Core\Db\Row` — A `Core\Db\Row`, or `null` for an empty result — `?T` is the absence spelling everywhere in `Core`, and a query that matched nothing is an answer rather than a failure to throw about.
+
+<a id="core-core-db-rows-value"></a>
+#### `Core\Db\Rows->value`
+
+```nvs skip
+$rows->value(): mixed
+```
+
+The first column of the first row — `PDO::fetchColumn`, and the shape a `select count(*)` is read with.
+
+**Returns** `mixed` — That column's value, or `null` where the result has no rows at all — which is the same `null` a NULL column reads as, since the declared type is `mixed`. A caller that must tell the two apart asks `count()` first.
+
+<a id="core-core-db-rows-column"></a>
+#### `Core\Db\Rows->column`
+
+```nvs skip
+$rows->column(int|string $key): array<mixed>
+```
+
+One column's value from every row, in the server's order — `PDO::fetchAll` under `FETCH_COLUMN`, with the column named rather than a mode flag.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `int\|string` | The column: an `int` is its position in the server's own description, counted from zero, and a `string` is its label. |
+
+**Returns** `array<mixed>` — An `array<mixed>` with one entry per row, empty for a result with no rows.
+
+**Throws** `LogicError` — No column has that name, or the position is negative or past the last column. An empty result answers an empty array instead, since it describes no columns to be wrong about.
+
+<a id="core-core-db-rows-count"></a>
+#### `Core\Db\Rows->count`
+
+```nvs skip
+$rows->count(): uint
+```
+
+How many rows the statement answered — `PDOStatement::rowCount` on a select, which is the use of that member this replaces. A write's count is `Core\Db\Write::affected`.
+
+**Returns** `uint` — The number of rows held, which is exact because § 4's default read all of them before `query` returned.
+
+<a id="core-core-db-row"></a>
+### `Core\Db\Row`
+
+Keywords: has, get, toArray, string, bytes, int, uint, float, bool, decimal, instant, date, time, uuid
+
+| Member | Signature |
+|---|---|
+| [`Core\Db\Row->has`](#core-core-db-row-has) | `has(string $name): bool` |
+| [`Core\Db\Row->get`](#core-core-db-row-get) | `get(string $name): mixed` |
+| [`Core\Db\Row->toArray`](#core-core-db-row-toarray) | `toArray(): array<mixed>` |
+| [`Core\Db\Row->string`](#core-core-db-row-string) | `string(string $name): ?string` |
+| [`Core\Db\Row->bytes`](#core-core-db-row-bytes) | `bytes(string $name): ?bytes` |
+| [`Core\Db\Row->int`](#core-core-db-row-int) | `int(string $name): ?int` |
+| [`Core\Db\Row->uint`](#core-core-db-row-uint) | `uint(string $name): ?uint` |
+| [`Core\Db\Row->float`](#core-core-db-row-float) | `float(string $name): ?float` |
+| [`Core\Db\Row->bool`](#core-core-db-row-bool) | `bool(string $name): ?bool` |
+| [`Core\Db\Row->decimal`](#core-core-db-row-decimal) | `decimal(string $name): ?decimal` |
+| [`Core\Db\Row->instant`](#core-core-db-row-instant) | `instant(string $name): ?Core\Time\Instant` |
+| [`Core\Db\Row->date`](#core-core-db-row-date) | `date(string $name): ?Core\Time\Date` |
+| [`Core\Db\Row->time`](#core-core-db-row-time) | `time(string $name): ?Core\Time\TimeOfDay` |
+| [`Core\Db\Row->uuid`](#core-core-db-row-uuid) | `uuid(string $name): ?Core\Uuid` |
+
+<a id="core-core-db-row-has"></a>
+#### `Core\Db\Row->has`
+
+```nvs skip
+$row->has(string $name): bool
+```
+
+Reports whether the row has a column with this name, so that a reader that would throw on an unknown one can be asked first.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. Accepted `tainted`, because this answers rather than throws. |
+
+**Returns** `bool` — `true` for a column the row carries, whatever its value — a NULL column is present. `false` otherwise.
+
+<a id="core-core-db-row-get"></a>
+#### `Core\Db\Row->get`
+
+```nvs skip
+$row->get(string $name): mixed
+```
+
+One column's value, whatever the SQL-to-Novis type map made of it — the universal read, which a program narrows with `as` where the typed readers do not fit.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `mixed` — The value, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name.
+
+<a id="core-core-db-row-toarray"></a>
+#### `Core\Db\Row->toArray`
+
+```nvs skip
+$row->toArray(): array<mixed>
+```
+
+The whole row as a string-keyed array, in the server's column order — `FETCH_ASSOC`, which is the only one of PHP's three fetch shapes that survives.
+
+**Returns** `array<mixed>` — An `array<mixed>` keyed by column label, a NULL column being a `null` entry that is present rather than absent.
+
+<a id="core-core-db-row-string"></a>
+#### `Core\Db\Row->string`
+
+```nvs skip
+$row->string(string $name): ?string
+```
+
+One column as `string`, for the text family alone — `CHAR`, `VARCHAR`, `TEXT`, `ENUM` and `JSON`, each of which reads back as a `tainted string`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?string` — The text, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, or the column is not text — a `BYTEA` is `bytes` and is read by `->bytes`, and a number is not re-rendered here.
+
+<a id="core-core-db-row-bytes"></a>
+#### `Core\Db\Row->bytes`
+
+```nvs skip
+$row->bytes(string $name): ?bytes
+```
+
+One column as `bytes` — `BINARY`, `BLOB` and `BYTEA`, which have no text form at all and are a separate type from `string`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?bytes` — The octets, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, or the column is text rather than `bytes` — the two are separate types and this reader does not span them.
+
+<a id="core-core-db-row-int"></a>
+#### `Core\Db\Row->int`
+
+```nvs skip
+$row->int(string $name): ?int
+```
+
+One column as `int` — `SMALLINT`, `INT` and `BIGINT`, and an unsigned column whose value fits.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?int` — The integer, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, the column is not an integer at all, or it is an unsigned value past `int`'s ceiling — which PHP would hand back as a `float` that no longer equals it.
+
+<a id="core-core-db-row-uint"></a>
+#### `Core\Db\Row->uint`
+
+```nvs skip
+$row->uint(string $name): ?uint
+```
+
+One column as `uint` — MySQL's and MariaDB's `… UNSIGNED`, and a signed column that is not negative.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?uint` — The integer, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, the column is not an integer at all, or its value is negative — which would wrap rather than convert.
+
+<a id="core-core-db-row-float"></a>
+#### `Core\Db\Row->float`
+
+```nvs skip
+$row->float(string $name): ?float
+```
+
+One column as `float` — `FLOAT`, `REAL` and `DOUBLE`, and nothing else.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?float` — The number, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, or the column is not a floating-point one — a `DECIMAL` is exact and is read by `->decimal`, since binary floating point is where money stops adding up.
+
+<a id="core-core-db-row-bool"></a>
+#### `Core\Db\Row->bool`
+
+```nvs skip
+$row->bool(string $name): ?bool
+```
+
+One column as `bool` — `BOOLEAN` and `BIT(1)`. MySQL's and MariaDB's `TINYINT(1)` is naturally an `int` and is read by `->int`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?bool` — The truth value, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, or the column is not boolean — a `0`/`1` integer is not silently one.
+
+<a id="core-core-db-row-decimal"></a>
+#### `Core\Db\Row->decimal`
+
+```nvs skip
+$row->decimal(string $name): ?decimal
+```
+
+One column as `decimal` — `DECIMAL`, `NUMERIC` and `MONEY`, exact, where PHP hands back a string to parse.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?decimal` — The exact number, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, or the column is not an exact numeric one.
+
+<a id="core-core-db-row-instant"></a>
+#### `Core\Db\Row->instant`
+
+```nvs skip
+$row->instant(string $name): ?Core\Time\Instant
+```
+
+One column as a `Core\Time\Instant` — `TIMESTAMPTZ` and `datetimeoffset`, the two that carry their own zone.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?Core\Time\Instant` — The instant, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, or the column is not a zone-carrying timestamp — a zone-less one is a `Core\Time\DateTime` in the connection's declared zone.
+
+<a id="core-core-db-row-date"></a>
+#### `Core\Db\Row->date`
+
+```nvs skip
+$row->date(string $name): ?Core\Time\Date
+```
+
+One column as a `Core\Time\Date` — a `DATE`, which is a calendar day and carries no time at all.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?Core\Time\Date` — The day, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, or the column is not a `DATE`.
+
+<a id="core-core-db-row-time"></a>
+#### `Core\Db\Row->time`
+
+```nvs skip
+$row->time(string $name): ?Core\Time\TimeOfDay
+```
+
+One column as a `Core\Time\TimeOfDay` — a `TIME`, which is a clock reading with no day behind it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?Core\Time\TimeOfDay` — The time of day, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, or the column is not a `TIME`.
+
+<a id="core-core-db-row-uuid"></a>
+#### `Core\Db\Row->uuid`
+
+```nvs skip
+$row->uuid(string $name): ?Core\Uuid
+```
+
+One column as a `Core\Uuid` — PostgreSQL's `UUID`, SQL Server's `uniqueidentifier` and MariaDB 10.7+'s `UUID`. MySQL stores one as `BINARY(16)`, which stays `bytes`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The column label, as the server described it. |
+
+**Returns** `?Core\Uuid` — The identifier, or `null` for a NULL column.
+
+**Throws** `LogicError` — The row has no column with that name, or the column is not a native UUID one — a `BINARY(16)` is `bytes` and a text rendering is a `string`.
 
 <a id="core-core-db-inlist"></a>
 ### `Core\Db\InList`

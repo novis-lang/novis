@@ -2,56 +2,59 @@
 
 ## State
 
-**ADR 0067 § 4's `query` is on `Core\Db\Connection`, and it is `Core\Db\Queryable`'s first
-member** — `crates/nvs-stdlib/src/db.rs:858`. The order is: § 5's `rewrite` is handed one
-`Binding` per element of `$params` (an `inList` contributing its width), and what comes back is
-one `Source` per marker, so the values go out in the *statement's* order and nothing here counts
-placeholders. Each is rendered by `nvs_db::encode` (`crates/nvs-db/src/pg.rs:1529`), the text-format
-twin of `PgColumn::decode`, and every row is read before the member answers, which is § 4's
-buffered default.
+**§ 18's Results surface is on disk: `Core\Db\Rows` has five of its six members and
+`Core\Db\Row` has all fourteen** — `crates/nvs-stdlib/src/db.rs:304` and `:392`. `Rows`
+reads the one slot `query` filled and never decodes a second time; a `Row` is one object over
+*that row's own array* under a second reference, so `all()` over a thousand rows allocates a
+thousand objects and no second thousand arrays. `Rows` has left `registry.rs`'s `HANDLES`.
 
-**`Core\Db\Rows` is a one-slot handle until its readers land** — `crates/nvs-stdlib/src/db.rs:277`,
-and it is the temporary entry on `registry.rs:3476`'s `HANDLES`, which `Core\Db\Connection` left.
-Its slot holds every row already decoded, each a string-keyed array of its columns — `Row::toArray`'s
-own shape, so § 18's six members are readers over it and never a second decoder.
+**`columns(): array<Column>` is the one member owed**, and it is a slice rather than a body:
+it needs a `Core\Db\Column`, a `Core\ColumnType` enum for spec § 18's fourteen cases, a second
+`ROWS` slot for the description, and a classification of a `PgColumn`'s type OID that `nvs-db`
+does not expose — `PgColumn::decode` maps an OID to a *value*, which is a different question.
+`crates/nvs-stdlib/src/db.rs`'s known gap 5 is that list; gap 5 also owns why `Rows` is not
+`Iterable<Row>` (no registry row spells an iterable return).
 
-**§ 9's five structured columns refuse rather than decode.** A `DATE`, `TIME`, `TIMESTAMP`,
-`TIMESTAMPTZ` or `UUID` is a `Core\Time`/`Core\Uuid` *instance* only `nvs-stdlib` can allocate;
-`PgColumn::scalar` hands back the parsed components (`crates/nvs-db/src/pg.rs:1322`) and
-`structured_column` throws until something builds them. `crates/nvs-stdlib/src/db.rs`'s known gaps
-1 and 5-7 own that, `open`, and why the row declares no `{timeout?: Duration}`.
+**The eleven typed readers convert losslessly or throw, and the rule is one sentence**: a reader
+answers its own tag, and `int`/`uint` are the single crossing. `instant`, `date`, `time` and
+`uuid` are written as the lookups they will always be, and refuse everything today because
+`structured_column` (`crates/nvs-stdlib/src/db.rs:1364`) still throws before such a column
+reaches a slot — the next group's second item.
 
-**The acceptance check is still red, one member further along**: `examples/transaction.nvs` reaches
-`->first()` on the `Rows` it now gets, which is the next group's first item.
+**The acceptance check moved one member further**: `examples/transaction.nvs` no longer stops at
+`->first()` or `->int()`; it stops at `->execute`, which is the next group's first item.
 
 ## Next group
 
-**The result set's own surface — the file set is `crates/nvs-stdlib/src/db.rs`,
-`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-db/src/pg.rs` and `crates/nvs-stdlib/src/time.rs`.**
+**The write side and the two columns questions — the file set is `crates/nvs-stdlib/src/db.rs`,
+`crates/nvs-db/src/pg.rs`, `crates/nvs-stdlib/src/time.rs` and `crates/nvs-stdlib/src/uuid.rs`.**
 
-- [ ] **`Core\Db\Rows`' six members and the `Core\Db\Row` they yield** — `docs/spec/01-core-library.md:1190`
-      for the table, ADR 0067 § 6 for the readers. The rows go on `crates/nvs-stdlib/src/db.rs:277`
-      (`ROWS`, which then leaves `crates/nvs-stdlib/src/registry.rs:3487`'s `HANDLES`) and a `ROW`
-      class beside it over one string-keyed slot; `all`, `first`, `value`, `column`, `count`,
-      `columns` read the slot `query` filled at `crates/nvs-stdlib/src/db.rs:858`, and `Row`'s
-      `has`/`get`/`toArray` plus the eleven typed readers are lookups in it, each `?T`. The floor
-      is three `.nvst` cases a member and they can run without a server — the receiver is built by
-      the case's own `query` call only in the error legs, so pin the compile-time shape.
-- [ ] **§ 9's five structured columns, which is what `date`/`time`/`instant`/`uuid` need** —
-      `crates/nvs-db/src/pg.rs:1322`'s `PgScalar` already parses the components; build the
-      instances in `nvs-stdlib` (`crates/nvs-stdlib/src/time.rs:1112` is `INSTANT_NAME` and its
-      class) and delete `crates/nvs-stdlib/src/db.rs:829`'s `structured_column` with its known gap.
-- [ ] **§ 4's `execute` and the `Db\Write` it answers** — ADR 0067 § 4, `docs/spec/01-core-library.md:1158`.
-      `nvs_db::PgRows::affected` and `last_id` are already on the wire half, so this is the same
-      bind path as `query` with a different answer: a three-slot readonly carrier at
-      `crates/nvs-stdlib/src/db.rs:277`'s neighbours.
+- [ ] **§ 4's `execute` and the `Db\Write` it answers** — `docs/spec/01-core-library.md:1158` for
+      the row, `:1193` for `Write`'s three fields, ADR 0067 § 4. The member joins `query` on
+      `crates/nvs-stdlib/src/db.rs:260`'s instance roster and a `WRITE` class goes beside `ROW` at
+      `crates/nvs-stdlib/src/db.rs:392`; `Write`'s `affected`/`changed`/`lastId` are **readers and
+      not properties** (a `Core` instance has no property a program can reach), filled from
+      `crates/nvs-db/src/pg.rs:2379`'s `affected` and `:2402`'s `last_id`. This is what the failing
+      acceptance check reaches next.
+- [ ] **§ 9's five structured columns, which is what `date`/`time`/`instant`/`uuid` need** — ADR
+      0067 § 9. `crates/nvs-db/src/pg.rs:1322`'s `PgScalar` already hands back the parsed
+      components; what is missing is building a `Core\Time\Instant`/`Date`/`TimeOfDay` and a
+      `Core\Uuid` from them in `nvs-stdlib` and deleting `crates/nvs-stdlib/src/db.rs:1364`'s
+      refusal. The instance builders are in `crates/nvs-stdlib/src/time.rs:1123`, `:2445`, `:2741`
+      and `crates/nvs-stdlib/src/uuid.rs:117`.
+- [ ] **`Rows::columns()` and the `Column`/`ColumnType` it needs** —
+      `docs/spec/01-core-library.md:1194` for `Column`, `:1213` for the enum's fourteen cases.
+      `crates/nvs-stdlib/src/db.rs:304`'s `ROWS` gains a second slot that
+      `crates/nvs-stdlib/src/db.rs:1075`'s `query` fills from `crates/nvs-db/src/pg.rs:1069`'s
+      `PgColumn`, which needs a public OID classification there. PostgreSQL's `RowDescription`
+      carries **no** nullability, so `Column::nullable` has to decide what it says on a driver that
+      cannot know — record it rather than guessing twice.
 
 ## Backlog
 
-- `Core\Db::open` waits on a `CoreTy` for a shape *parameter* — `crates/nvs-stdlib/src/db.rs`, gap 1.
-- `query` declares no `{timeout?: Duration}`: a statement deadline needs a socket seam — gap 7.
-- `Db\DbError`/`Db\RolledBack` are not in spec § 10's tree, so a server refusal is a bare
-  `RuntimeError` — gap 4, and `examples/transaction.nvs` catches `RolledBack` by name.
-- `transaction`, `stream`, `queryAs`, `executeMany` — ADR 0067 §§ 4 and 7, the rest of `Queryable`.
-- The pool and its reset are Stages 3 to 7 — ADR 0067 § 13, `nvs_runtime::Ctx::hold_open_connection`.
-- Only PostgreSQL connects; the other four have no connect path — `crates/nvs-stdlib/src/db.rs`, gap 2.
+- `stream`/`streamAs`, `queryAs` and `transaction` — `crates/nvs-stdlib/src/db.rs` known gap 5.
+- `open` waits on a shape-*parameter* `CoreTy` — that module's known gap 1, a language-surface call.
+- ADR 0067 § 13's per-core pool, Stages 3 to 7 — `docs/plan/m8.md`.
+- `Db\DbError`/`Db\RolledBack` are not in spec § 10's tree — known gap 4.
+- The four drivers past PostgreSQL — known gap 2, and ADR 0132 has the shape.
+- `query` declares no `{timeout?: Duration}` — known gap 7, blocked on a statement-path deadline.
