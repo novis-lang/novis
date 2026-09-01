@@ -1,0 +1,75 @@
+--TEST--
+`Core\IO\File::lock`'s bound is one file and it is named on both sides — three handles on three files hold three locks at once, while a second spelling of a path already held is refused, and a `close` frees the file it named and no other — spec § 14
+--FILE--
+<?nvs
+// The cases already on disk all ask about one file, so each of them passes
+// unchanged against an implementation whose lock was a single flag on the
+// program: one handle takes it, the next is refused, `close` puts it back.
+// What that implementation cannot do is the line below, and what tells the
+// two apart is naming the bound from *outside* as well as from inside.
+Core\IO\File $a = Core\IO::open("lock-a.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $b = Core\IO::open("lock-b.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $c = Core\IO::open("lock-c.txt", Core\IO\FileMode::ReadWrite);
+$a->lock();
+$b->lock();
+$c->lock();
+echo "three files, three locks", "\n";
+
+// The other side of the same bound, so that the three grants above are a
+// statement about files rather than a member that stopped refusing.
+Core\IO\File $again = Core\IO::open("lock-a.txt", Core\IO\FileMode::ReadWrite);
+try {
+    $again->lock();
+    echo "one file, two locks", "\n";
+} catch (IOError $busy) {
+    echo "same file: refused", "\n";
+}
+
+// And the file is the file, not the string that reached it. A lock keyed on
+// the path as spelled would hand this one out, and every case in this tree
+// would still be green — the refusal comes from the operating system, which
+// was never looking at the argument.
+Core\IO\File $spelled = Core\IO::open("./lock-b.txt", Core\IO\FileMode::ReadWrite);
+try {
+    $spelled->lock();
+    echo "a second spelling won its own lock", "\n";
+} catch (IOError $busy) {
+    echo "another spelling: refused", "\n";
+}
+
+// Releasing is bounded the same way. `close` frees the file that handle
+// named; the two it did not name are still held, which is the half a
+// single-file case has no second file to ask about.
+$b->close();
+$spelled->lock();
+echo "freed, the other spelling takes it", "\n";
+try {
+    $again->lock();
+    echo "the close freed a file it did not name", "\n";
+} catch (IOError $stillA) {
+    echo "a: still held", "\n";
+}
+Core\IO\File $onC = Core\IO::open("lock-c.txt", Core\IO\FileMode::ReadWrite);
+try {
+    $onC->lock();
+    echo "c went free as well", "\n";
+} catch (IOError $stillC) {
+    echo "c: still held", "\n";
+}
+
+$a->close();
+$c->close();
+$again->close();
+$spelled->close();
+$onC->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+three files, three locks
+same file: refused
+another spelling: refused
+freed, the other spelling takes it
+a: still held
+c: still held
