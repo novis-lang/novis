@@ -1444,6 +1444,14 @@ is why" — is this file.
   from *that* list. Read your own stage's `tests = [...]` for a path-looking entry on the first session of
   a new goal, and fix `docs/agent/goals/<goal>.toml` alongside the live copy.
 
+- **A session that adds a crate or a dependency leaves `Cargo.lock` dirty after `session.py --wrap`, and
+  the wrap's sweep will not catch it.** The sweep is over files the *wrap* wrote — the handoff, the plan,
+  the playbook — so a file `cargo` wrote during the work is only committed if a `## commit:` names it. The
+  session that created `crates/nvs-db` verified green, wrapped three commits, and still ended with
+  `M Cargo.lock` in the tool's own "uncommitted after the wrap" line, which is the only place it shows.
+  Name `Cargo.lock` in the `## commit:` of whichever slice touched a manifest, and expect the same for any
+  other generated file a build step rewrites.
+
 ## Running things
 
 - **Verification is one call:** `python tools/verify.py` — build, fmt, test, the two `.nvst` trees and
