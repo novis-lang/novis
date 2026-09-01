@@ -347,6 +347,14 @@ stopped does not exist here, so stopping would be cargo-culting its shape rather
 - **A TUI widget layer** — panes, focus, event loops. That is an application framework, not a language
   surface, and it would be the largest single thing in `Core` by a wide margin.
 - **Cursor primitives**, per § 5.
+- **A raw handle onto standard output or standard error.** § 1's substitution is uniform, so a
+  `Core\IO\File` over descriptor 1 or 2 would not be a convenience beside the sink — it would be the way
+  around it, available to exactly the computed-escape case § 1 exists to catch. `Cli::write` already *is*
+  writing to those streams, which [0063](0063-core-api-conventions.md)'s "no operation is reachable two
+  ways" settles on its own. So [the spec](../spec/01-core-library.md) § 14's standard-stream line is
+  `Core\IO::stdin()` alone, the reading half being neither a sink nor a second spelling of anything. The
+  price, recorded rather than hidden: a program cannot emit byte-exact binary on its standard output, and
+  one whose output is bytes names a file.
 - **Bidirectional-Unicode spoofing** (Trojan Source, CVE-2021-42574) is **covered**, but the rule is not
   this ADR's: [ADR 0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) owns it, because the same
   predicate binds the lexer and `Core\Html::escape` as well as this sink. § 1's table gains its one row

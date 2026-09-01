@@ -748,8 +748,12 @@ mod tests {
     /// spec § 15's raw word list came off a command line somebody else wrote,
     /// so a path or a URL built out of one passes its own launderer first, and
     /// the qualifier sits on the *element* because the array itself is the
-    /// program's own.
-    /// All six belong in this set for the reason the claims do: a member that
+    /// program's own. `Core\IO::stdin` is the eighth, and the one member of its
+    /// class whose answer is marked: every other read in `Core\IO` names a path
+    /// the program chose, while standard input is a descriptor somebody else
+    /// attached, so what comes back is as much the invoker's as a command-line
+    /// word is.
+    /// All eight belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
     #[test]
@@ -786,12 +790,14 @@ mod tests {
                 (r"Core\Env", "all", "array<tainted string>".to_owned()),
                 (r"Core\Env", "get", "null|tainted string".to_owned()),
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
+                (r"Core\IO", "stdin", "tainted string".to_owned()),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at seven — a \
+            "the roster of members whose *answer* is qualified `tainted` is closed at eight — a \
              verified claim, an outbound reply's body, the two environment reads, the two \
-             prompts that answer what a person typed and the words the program was started \
-             with — and where the answer is a collection the \
+             prompts that answer what a person typed, the words the program was started \
+             with and everything attached to its standard input — and where the answer is a \
+             collection the \
              element type is what carries it, since `nvs_types` has no tainted array and a member \
              answering `array<mixed>` would have laundered every entry silently"
         );

@@ -1021,7 +1021,13 @@ object (R14).
   `->seek`, `->tell`, `->truncate`, `->flush`, `->lock`, `->close`. `FileMode` is an enum, never a
   mode string (R11) — replacing `fopen`'s `"r+b"` grammar and the whole `fread`/`fgets`/`fwrite`/`fseek`/
   `ftell`/`feof`/`flock`/`fstat` family plus `SplFileObject`.
-- **Standard streams:** `IO::stdin()`, `IO::stdout()`, `IO::stderr()`.
+- **Standard input:** `stdin(): tainted string` — everything the invoker attached to the program,
+  read to end of input in one call. It is
+  a value and not a `File`: a descriptor the process was handed has no position to seek, no length to
+  truncate, and a `close` on it would take the stream away from the whole process. There is **no**
+  `stdout()` or `stderr()` — standard output and standard error are
+  [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) § 1's sink, whose one door is
+  `Core\Cli::write`, and a raw handle onto either would be a hole in it.
 
 No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
 ([ADR 0052](../adr/0052-closed-doors.md)).

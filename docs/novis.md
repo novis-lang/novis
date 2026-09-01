@@ -10131,7 +10131,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, writeStream, exists, size, remove, removeDir, temporaryDir, within, readText, lines, open
+Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, writeStream, exists, size, remove, removeDir, temporaryDir, within, readText, lines, open, stdin
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -10192,6 +10192,7 @@ outside: refused
 | [`Core\IO::readText`](#core-core-io-readtext) | `readText(string $path, {charset?: Core\Charset}): string` |
 | [`Core\IO::lines`](#core-core-io-lines) | `lines(string $path): Core\IO\Lines` |
 | [`Core\IO::open`](#core-core-io-open) | `open(string $path, Core\IO\FileMode $mode): Core\IO\File` |
+| [`Core\IO::stdin`](#core-core-io-stdin) | `stdin(): tainted string` |
 
 <a id="core-core-io-read"></a>
 #### `Core\IO::read`
@@ -10399,6 +10400,19 @@ Opens a file and answers the handle every later read and write goes through — 
 **Returns** `Core\IO\File` — An open `Core\IO\File`. It is closed by `close`, and by the end of the request if the program never calls it.
 
 **Throws** `RuntimeError` — The configuration does not grant a capability this mode needs for this path.; `IOError` — The capability allowed it and the operating system did not — `Read` on a path that is not there, a directory, or a path this process may not open.
+
+<a id="core-core-io-stdin"></a>
+#### `Core\IO::stdin`
+
+```nvs skip
+Core\IO::stdin(): tainted string
+```
+
+Reads everything the program's standard input will produce, in one call — the `fgets(STDIN)` loop and every wrapper spelling of the same stream, with no wrapper grammar in front of either. The result is `tainted`: the bytes are the invoker's, not the program's. Needs no capability, because the descriptor is a grant the program was started with.
+
+**Returns** `tainted string` — Every byte until end of input, as one `tainted string` — the empty string when input is already closed, which is what a program started with no input sees. Input ends when its writer ends it, so at a terminal this waits for the person there; a program that means to ask someone a question uses `Core\Cli`'s prompts, which have a deadline.
+
+**Throws** `IOError` — The operating system failed the read — the pipe's writer died, or the descriptor was not open for reading.
 
 <a id="core-core-io-lines"></a>
 ### `Core\IO\Lines`

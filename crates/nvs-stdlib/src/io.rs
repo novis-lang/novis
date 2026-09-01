@@ -226,6 +226,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_io_open",
             doc: Some(&OPEN_DOC),
         },
+        CoreMethod {
+            name: "stdin",
+            names: &[],
+            params: &[],
+            // The one member of this class whose answer is `tainted`, and the
+            // only one whose bytes the program did not name a source for: they
+            // are whatever the invoker piped in. [`nvs_core_io_stdin`] is the
+            // home of that reading and of why the writing half is not here.
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_io_stdin",
+            doc: Some(&STDIN_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -647,6 +660,25 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO::stdin`'s reference card — ADR 0117.
+const STDIN_DOC: MethodDoc = MethodDoc {
+    short: "Reads everything the program's standard input will produce, in one call — \
+            the `fgets(STDIN)` loop and every wrapper spelling of the same stream, with no wrapper \
+            grammar in front of either. The result is `tainted`: the bytes are the invoker's, not \
+            the program's. Needs no capability, because the descriptor is a grant the program \
+            was started with.",
+    params: &[],
+    ret: "Every byte until end of input, as one `tainted string` — the empty string when input \
+          is already closed, which is what a program started with no input sees. Input ends when \
+          its writer ends it, so at a terminal this waits for the person there; a program that \
+          means to ask someone a question uses `Core\\Cli`'s prompts, which have a deadline.",
+    errors: &[ErrorDoc {
+        error: "IOError",
+        desc: "The operating system failed the read — the pipe's writer died, or the \
+                   descriptor was not open for reading.",
+    }],
+};
+
 /// `Core\IO\FileMode`'s fully-qualified name, in one place for the same reason
 /// [`NAME`] is.
 pub(crate) const FILE_MODE_NAME: &str = r"Core\IO\FileMode";
@@ -745,7 +777,7 @@ const LINE_CHUNK: usize = 8 * 1024;
 /// open — which is one question, answered in [`open_file`], and is the one thing
 /// a static type genuinely cannot know.
 ///
-/// # § 14's handle roster is complete, and the standard streams are owed
+/// # § 14's handle roster is complete, and the standard streams are not on it
 ///
 /// `read`, `readLine`, `write`, `seek`, `tell`, `truncate`, `flush`, `lock`
 /// and `close`. `seek` and `tell` arrived when the handle became
@@ -754,10 +786,12 @@ const LINE_CHUNK: usize = 8 * 1024;
 /// and the only way a program shortens a file it is already holding open.
 /// `lock` is the one member here that is not about this program's own view of
 /// the file at all, and [`nvs_core_io_file_lock`] is the home of what it does
-/// and does not promise. `Core\IO::stdin`/`stdout`/`stderr` answer this class
-/// too and are owed still.
-/// `Core\IO::stdin`/`stdout`/`stderr` answer this class too and are owed with
-/// them.
+/// and does not promise.
+///
+/// **No instance of this class is ever a standard stream.** § 14's last line is
+/// [`nvs_core_io_stdin`] alone — a member answering a `tainted string` rather
+/// than a handle — and that member's doc comment is the home of why the writing
+/// half does not exist and why the reading half is not one of these.
 pub(crate) const FILE: CoreClass = CoreClass {
     name: FILE_NAME,
     methods: &[],
@@ -1123,6 +1157,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_within" => (nvs_core_io_within as *const ()).cast(),
         "nvs_core_io_lines" => (nvs_core_io_lines as *const ()).cast(),
         "nvs_core_io_open" => (nvs_core_io_open as *const ()).cast(),
+        "nvs_core_io_stdin" => (nvs_core_io_stdin as *const ()).cast(),
         "nvs_core_io_file_read" => (nvs_core_io_file_read as *const ()).cast(),
         "nvs_core_io_file_read_line" => (nvs_core_io_file_read_line as *const ()).cast(),
         "nvs_core_io_file_write" => (nvs_core_io_file_write as *const ()).cast(),
@@ -1246,6 +1281,64 @@ fn held_lines(value: Value, member: &str) -> Result<NvsArray, Fault> {
     })?;
     let borrowed = crate::arr::borrowed(ptr);
     Ok((*borrowed).clone())
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::stdin(): tainted string` — spec § 14's standard streams, which
+    /// are one member and not three.
+    ///
+    /// # Decision: the reading half is a value, and there is no writing half
+    ///
+    /// **Standard output and standard error are not here at all.**
+    /// [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1
+    /// makes both a sink whose substitution is uniform — not qualifier-dependent
+    /// and, in that section's own words, not tty-dependent either, because a CI
+    /// log is written to a pipe and read by a human afterwards. A
+    /// `Core\IO\File` over descriptor 1 whose `write` is a `write_all` would be
+    /// a raw door onto that stream, so the sink would hold only for the program
+    /// that did not take the other door; and it would be a second spelling of
+    /// `Core\Cli::write`, which
+    /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)'s "no
+    /// operation is reachable two ways" refuses on its own. The consequence is
+    /// recorded rather than hidden: a program cannot emit byte-exact binary on
+    /// its standard output, and one that must emit bytes names a file.
+    ///
+    /// **The reading half is a `string` and not a handle**, unlike everything
+    /// else this class opens. Six of [`FILE`]'s nine members are meaningless or
+    /// destructive on a descriptor the process was handed rather than opened:
+    /// `seek` and `tell` want a position a pipe does not have, `truncate` and
+    /// `lock` want a file, and `close` would shut the *process's* standard
+    /// input — which the request-scoped table
+    /// ([`Ctx::hold_open_file`](nvs_runtime::Ctx::hold_open_file)) would then do
+    /// again at the end of every request that read one, taking descriptor 0
+    /// away from every later request sharing the process. A member that answers
+    /// the bytes owns none of that.
+    ///
+    /// **A terminal is waited on, and this member does not pretend otherwise.**
+    /// Input ends when the writer ends it, and at a terminal the writer is a
+    /// person pressing Ctrl-D — the platform's contract, which a member that
+    /// reads to end of input does not get to overrule. A refusal was written and
+    /// taken back out: the condition can only be met by a program run at a
+    /// terminal, so no conformance case could ever reach it, and
+    /// `conformance_coverage`'s error-path gate is right that a message no case
+    /// can provoke is the state to avoid. What that refusal was reaching for is
+    /// a real hazard and belongs where it can be asserted: a *served request*
+    /// calling this member parks its core on a descriptor the request never
+    /// opened. Goal 6 is where a case can serve a request, and so where that
+    /// decision is answerable rather than guessed at. The interactive half is
+    /// `Core\Cli`'s prompts, which ask a question under a deadline
+    /// (ADR 0086 § 4) and are what a program at a terminal actually wants.
+    ///
+    /// **What it spends:** one buffer the size of the input, charged to the
+    /// request's memory limit like [`nvs_core_io_read`]'s and bounded by the
+    /// same number rather than by a second one.
+    fn nvs_core_io_stdin(_ctx, _args: [0]) {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut std::io::stdin().lock(), &mut bytes).map_err(|err| {
+            nvs_runtime::capability::io_failure("Core\\IO::stdin", Path::new("<stdin>"), &err)
+        })?;
+        Ok(Value::str(NvsStr::new(&bytes)))
+    }
 }
 
 nvs_runtime::nvs_helper! {
