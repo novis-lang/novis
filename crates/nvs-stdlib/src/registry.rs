@@ -1168,6 +1168,7 @@ pub const CLASSES: &[CoreClass] = &[
     // — the read half of `spawn script`'s `args:` option, and a class beside
     // the handle for the same reason `Core\Time` sits beside `Core\Time\Instant`.
     crate::script::CLASS,
+    crate::script::EXIT_REPORT,
     // § 13, and the second row after `Core\Attributes` whose members never
     // run: ADR 0061 § 3 expands `implementing<T>()` while checking, so
     // [`crate::program`] registers a signature and an aborting body.
@@ -1715,6 +1716,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::reflect::TYPE_KIND,
     crate::io::FILE_MODE,
     crate::cldr::PLURAL_CATEGORY,
+    crate::script::EXIT_REASON,
 ];
 
 /// Looks a class up by its fully-qualified name.
@@ -3258,6 +3260,19 @@ mod tests {
         assert!(math.constant("Pi").is_none());
     }
 
+    /// The classes a [`CoreTy::Instance`] may name that [`CLASSES`] does not
+    /// hold — spec § 10's exception tree, which `nvs_hir::errors::TREE`
+    /// declares and `nvs_types::error_lib` seeds into the same class table a
+    /// `Core` instance type is interned against.
+    ///
+    /// **`Core` is two rosters here exactly as it is for a `catch` name**, and
+    /// this is the second one. It stays a written list rather than a reach into
+    /// `nvs-hir` — which this crate does not depend on — because a row naming
+    /// an exception class is a rare thing and a wrong name in one is caught by
+    /// the conformance case that calls the member.
+    /// `Core\Script\ExitReport::error` is the row that wanted it first.
+    const EXCEPTION_TREE: &[&str] = &["Throwable"];
+
     /// A [`CoreTy::Instance`] names a class this crate registers, in every
     /// position a type can appear — the same check
     /// `every_enum_typed_option_names_a_registered_enum` performs for an enum,
@@ -3268,7 +3283,7 @@ mod tests {
         fn check(ty: &CoreTy, what: &str) {
             match ty {
                 CoreTy::Instance(name) => assert!(
-                    class(name).is_some(),
+                    class(name).is_some() || EXCEPTION_TREE.contains(name),
                     "{what} names the unregistered class `{name}`"
                 ),
                 CoreTy::Array(elem)
