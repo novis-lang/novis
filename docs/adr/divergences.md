@@ -23,6 +23,10 @@ Three things read this register and each is a reason to keep it complete:
 A divergence that is a *removed function name* is not here — [docs/spec/02-php-migration.md](../spec/02-php-migration.md)
 carries one row per PHP built-in and is the home for those.
 
+The reader-facing rendering of this register — limited to what ships, and without the ADR column —
+is [docs/reference/tools/30-php-differences.md](../reference/tools/30-php-differences.md) § *What
+parses but behaves differently*. A new row here earns one there once the behaviour is on disk.
+
 ## The type system
 
 | PHP | Novis | Owner |

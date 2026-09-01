@@ -1,20 +1,48 @@
 ---
 id: php-differences
-title: "Coming from PHP: what does not parse, and what to write instead"
-summary: every PHP spelling the compiler refuses, grouped by theme, each with the Novis spelling that replaces it and the diagnostic code it reports
-keywords: PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, instanceof, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc
+title: "Coming from PHP: every difference, and what to write instead"
+summary: the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in
+keywords: PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, instanceof, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP
 ---
 
-Novis is the PHP you already know with one spelling for each thing. This chapter is the list of
-PHP spellings the compiler **refuses**, each with what to write instead and the diagnostic code the
-refusal reports, so a PHP program can be moved across one diagnostic at a time. Built-in functions
-(`strlen`, `array_map`, `json_encode`, …) are not here: none of them exists as a free function, and
-the PHP-to-`Core` crosswalk in Part D maps each one to its member.
+Novis is the PHP you already know with one spelling for each thing. This chapter is the
+coming-from-PHP tour, in three parts: the short list first, then every PHP spelling the compiler
+**refuses** — each with what to write instead and the diagnostic code the refusal reports, so a
+program can be moved across one diagnostic at a time — then what still parses but **behaves
+differently**. Built-in functions (`strlen`, `array_map`, `json_encode`, …) are not here: none of
+them exists as a free function, and the PHP-to-`Core` crosswalk in Part D maps each one to its
+member.
 
-Two rules explain most of the table. **Every binding declares a type once** — a parameter, a
-property, a local, a closure parameter — and no value ever changes type. **Every function is a
-method and every constant is a class constant**, so there is no global scope for anything to live
-in and nothing the host populates.
+# The short list
+
+Ten changes carry most of the distance between the two languages:
+
+- **Every binding declares a type once** — parameter, property, local, closure parameter — and no
+  value ever changes type. `mixed` exists for when you mean it.
+- **Every function is a method and every constant is a class constant**, built-ins included. There
+  is no global scope and nothing the host populates — no `$_GET`, no `$GLOBALS`, no `global`.
+- **Around 450 `Core` members replace PHP's ~1,900 built-ins**, all with one argument order, named
+  arguments, and one failure story: a `Throwable`, never `false`.
+- **One equality.** `==` never converts, `===` does not parse, and comparing two disjoint types
+  does not compile.
+- **`string` is UTF-8 and counts graphemes**; binary data is the separate `bytes` type. The whole
+  `mb_*` split is gone.
+- **An array is one insertion-ordered, copy-on-write type whose keys are always `string`**, with a
+  declared element type.
+- **No `eval`, no references, no magic methods.** The constructor is `constructor`, interception
+  does not exist, and `inout` is the one by-reference spelling.
+- **Concurrency is built in**: `Core\Task` and channels on one core, and `spawn script` isolates
+  that share nothing — in place of `pcntl`, `curl_multi` patterns and shared memory.
+- **Security is explicit**: reaching the OS needs a capability grant in `nvs.toml` (`fs.read`,
+  `net.connect`), and `tainted`/`secret` are type qualifiers the checker enforces.
+- **Testing is a language feature**: `#[Test]` methods and `nvs test`, with no framework to
+  install — see `the tools you do not install` below.
+
+Everything below is the same list at full resolution. Two rules explain most of the refusal
+tables. **Every binding declares a type once** — a parameter, a property, a local, a closure
+parameter — and no value ever changes type. **Every function is a method and every constant is a
+class constant**, so there is no global scope for anything to live in and nothing the host
+populates.
 
 # Files, tags and names
 
@@ -156,6 +184,72 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 | `print_r($v)`, `var_dump($v)`, `var_export($v)` | `Core\Debug::dump($v)` — writes to standard error, never to the output | `E0320` |
 | `"$name"`, `"$a[0]"`, `"{$a[0]}"`, `"$o->x"`, `"{$o->x}"` | all interpolate as in PHP | — |
 | `<<<EOT … EOT;`, `<<<'EOT' … EOT;` | both work, with PHP's interpolation rule for each | — |
+
+# What parses but behaves differently
+
+Moving a spelling across without a diagnostic does not yet mean it behaves the same. These are the
+changes that survive the parser. <!-- src: docs/adr/divergences.md is the register; the ADR each row cites there is the rule -->
+
+Values and comparison:
+
+| PHP | Novis |
+|---|---|
+| `"1" == "01"` is `true` — strings juggle to numbers | `==` on two strings compares text: `"01" == "1"` is `false` |
+| `==` on arrays ignores key order; on objects it walks properties | arrays compare element by element, in order; objects compare by identity |
+| `<`/`>` on two objects walks declared properties | ordering an object needs its class to implement `Comparable`; otherwise it does not compile |
+| `PHP_INT_MAX + 1` quietly becomes a `float` | integer overflow throws `ArithmeticError` |
+| one integer type; a leading zero is octal, so `017` is fifteen | `int` and `uint` are distinct, and `017` is decimal seventeen — octal is spelled `0o17` |
+| `(int)9.9` is `9` | `9.9 as int` throws — rounding is written out: `Core\Math::floor(9.9) as int` |
+| `strlen("héllo")` is `6` — bytes; character work needs `mb_*` | `Core\Str::length("héllo")` is `5` — grapheme clusters; raw bytes live in `bytes` |
+| array keys are `int` or `string`, and `$a[1]` juggles into `$a["1"]` | keys are always `string`: `$a[1]` *means* `$a["1"]`, and the element type is declared once |
+| an enum case is a singleton object with methods and `::cases()` | an enum is a closed set of named integers; a case is a compile-time constant |
+| money is `float`, `bcmath` strings or `gmp` | `decimal` is a built-in scalar; `bcmath` and `gmp` are gone |
+
+The library:
+
+| PHP | Novis |
+|---|---|
+| `require_once` bookkeeping decides whether a file runs | `require` throws on a missing file and runs it every time control reaches it |
+| a `preg_*` pattern may backtrack exponentially (ReDoS) | patterns run on a linear-time engine by default; backtracking is opt-in per pattern and budgeted |
+| `password_hash` takes an algorithm and cost at the call site | no algorithm argument exists — `Core\Password` owns the choice, `verify` still reads a PHP-stored bcrypt hash, and `needsRehash` answers *weaker*, never *different* |
+| control bytes written to a terminal pass through | every control byte reaching the terminal is substituted with a visible glyph |
+
+Four of those rows, run:
+
+```nvs
+<?nvs
+echo "01" == "1" ? "eq" : "ne", "\n";
+echo Core\Str::length("héllo"), "\n";
+echo 017, "\n";
+try {
+    int $n = 9223372036854775807;
+    $n = $n + 1;
+    echo "wrapped", "\n";
+} catch (ArithmeticError $e) {
+    echo "overflow throws", "\n";
+}
+```
+```output
+ne
+5
+17
+overflow throws
+```
+
+# The tools you do not install
+
+A PHP project of consequence carries a second `composer.json` worth of dev tooling. The jobs those
+packages do are built into this toolchain or into the language itself:
+
+- **PHPUnit** → `#[Test]` methods, `Core\Test` assertions and `nvs test` are the framework — data
+  rows, fixtures, skip-with-reason, retries, JUnit and JSON output. See [testing](#lang-testing).
+- **PHPStan / Psalm** → `nvs check` is the compiler, and it already checks what their strictest
+  levels check: every binding typed, every member resolved at compile time, every path returning,
+  every property initialized — plus `tainted`/`secret` flow, which is Psalm's taint mode as a type
+  rule. There are no levels and no baseline file, because there is no untyped code to bridge.
+- **PHP CS Fixer / PHP_CodeSniffer** → the style rules that catch bugs are compile errors here —
+  identifier casing, a written visibility on every member, one spelling per construct — with no
+  suppression and nothing to configure.
 
 # Two spellings side by side
 
