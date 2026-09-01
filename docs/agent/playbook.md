@@ -1838,6 +1838,15 @@ is why" — is this file.
   given), but the shape recurs: a timing assertion must measure from the instant the clock was set,
   never from one taken after a scheduler hop. Before diagnosing a timing failure as a regression,
   re-run that one test alone — it costs one call and tells the two apart.
+- **`python tools/try.py` cannot run a case that has a second `--FILE <name>--` section, and the
+  failure looks like a language error rather than a tool one.** A `.nvst` case carrying
+  `--FILE nvs.toml--` — which is how a configuration-dependent case is written, and the only way to
+  exercise `[cache.local] max_size` — is concatenated into the program by `try.py`, so the TOML is
+  parsed as Novis and you get a dozen diagnostics pointing at `[cache.local]` and `max_size = "1K"`
+  (`E0105` not a valid assignment target, `E0319` no global constant has this name). Nothing is wrong
+  with the case. `./target/debug/nvs.exe test <case.nvst>` is the runner that honours every section,
+  it takes as many paths as you like in one call, and it is already built at the commit the session
+  opens on.
 
 ## Writing a test case
 
@@ -4007,6 +4016,15 @@ is why" — is this file.
   whole renderings rather than reading a slot's value wherever the representation is the module's
   own business: `cli.rs` packs five booleans into one integer and three channels into one `uint`,
   and neither is a fact the language owes anyone.
+- **An assertion resting on `[cache.local] max_size` has to be sized against a probe, because the
+  arithmetic is not the sum of the writes.** The tier prices an incoming entry *before* it removes
+  the one it replaces (`crates/nvs-stdlib/src/cache.rs`'s `Local::put` says so), so a rewrite needs
+  room for the largest two entries side by side — but `held` falls straight back after each write, so
+  a sweep alternating long and short values never approaches its own total and a cap set at twice
+  that total evicts nothing at all. Both halves of a "a rewrite replaces rather than accumulates"
+  case are therefore empirical: run it at the cap you chose, then run a copy that writes the same
+  values under *distinct* keys, which is the accumulating store — if that copy does not forget the
+  key written first, the cap is too high and the case is vacuous.
 
 ## Splitting a file that got too big
 
