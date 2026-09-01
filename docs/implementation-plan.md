@@ -61,7 +61,7 @@
 > ADR 0086's whole terminal surface is on `Core\Cli`. **Stages 10, 11 and 12 have closed**: §§ 14-19
 > over a 41-key ratchet, §§ 16-17's classes over a 9-key one, and `ring` the one C dependency ADR
 > 0051 § 4 records. **Stage 13 has closed**: ADR 0129's roster — `verify` reads a PHP-stored bcrypt
-> hash and `needsRehash` marks every one. Conformance 1380, differential 231 of a 250 gate,
+> hash and `needsRehash` marks every one. Conformance 1380, differential 238 of a 250 gate,
 > migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized

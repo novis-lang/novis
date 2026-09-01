@@ -4176,10 +4176,13 @@ is why" — is this file.
   `Core\Validate::isEmail`'s refusal of `user@[127.0.0.1]` were each found this way and each became its
   own file. Two spellings to have ready before the first run, because they are what the compiler stops
   on rather than the oracle: `var $x` is function-scoped, so two `foreach` bodies in one case cannot both
-  declare it (`E0406: $x is already declared`, pointing at the first loop); and a captured or parsed
-  field can hold a CR or an LF, which the terminal sink renders itself (ADR 0086) — put
+  declare it (`E0406: $x is already declared`, pointing at the first loop); and anything echoed can hold
+  a byte the terminal sink renders itself (ADR 0086) — put
   `Core\Str::replaceAll($s, ["\r" => "<CR>", "\n" => "<LF>"])` against PHP's `strtr` with the same map on
-  both sides rather than comparing raw control bytes.
+  both sides rather than comparing raw control bytes. That is not only about a *parsed* field: the
+  substituted band is wider than CR and LF, and `Core\Json::encode` writes DEL (0x7f) bare because JSON
+  requires an escape only below 0x20, so a sweep over an encoder's own output prints `␡` on the Novis
+  side against PHP's raw byte and fails on a row that has nothing to do with the encoder.
 
 ## Splitting a file that got too big
 
