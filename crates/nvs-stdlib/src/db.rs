@@ -63,25 +63,48 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`connect` and `open` are not here yet**, so nothing in this module
-//!    reaches a database and the class carries no capability row in
-//!    [`crate::registry::CAPABILITIES`]. The two members that are here need
-//!    neither: they are pure functions of their arguments, which is why they
-//!    could land before anything resolves a `[db.<name>]` block.
-//! 2. **Nothing consumes an [`IN_LIST`] yet.** The carrier is built and held;
+//! 1. **`open` is not here, and what is missing is a type rather than a body.**
+//!    § 18 writes `open(Db\Settings $settings, {shared?: bool})`, and
+//!    `Db\Settings` is a *discriminated union of two shapes* over ADR 0047's
+//!    enum-case types — the SQLite arm has a `path` and no `host`. The registry
+//!    has no [`CoreTy`] for a shape **parameter** at all: `CoreTy::Options` is
+//!    a trailing bag, flattened to one ABI argument per option and optional by
+//!    construction, and no row in this crate has ever declared a fixed-key
+//!    shape argument. So `open` is blocked on a registry type rather than on
+//!    anything about databases, and adding one decides how every future shape
+//!    parameter is passed — which is a language-surface question and not this
+//!    module's to answer in passing.
+//! 2. **Only PostgreSQL opens.** A block naming another driver is refused by
+//!    `nvs_db::PgTarget::resolve` with the message that names the driver it is,
+//!    which is the honest answer while `nvs_db::Connection`'s other four
+//!    variants have no connect path behind them.
+//! 3. **A connection is never reused across requests.** ADR 0067 § 13's
+//!    per-core pool is what would change that, and it may only do so behind
+//!    that section's reset; [`nvs_runtime::Ctx::hold_open_connection`] is where
+//!    that is written down.
+//! 4. **`Db\DbError` and `Db\RolledBack` are not in spec § 10's tree yet**, so
+//!    a refusal here is a plain `RuntimeError` or an `IOError` and carries no
+//!    `kind`, `sqlState` or `constraint`. Nothing about the messages changes
+//!    when they land; what changes is what a `catch` can name.
+//! 5. **Nothing consumes an [`IN_LIST`] yet.** The carrier is built and held;
 //!    the bind that reads its slot back arrives with `Core\Db\Queryable`, and
 //!    the arity it produces is `nvs_db::sql`'s `Binding::List`.
-//! 3. **A delimiting quoter, if one is ever wanted, belongs on `Connection`**
+//! 6. **A delimiting quoter, if one is ever wanted, belongs on `Connection`**
 //!    and not here — that is the only place a dialect exists. § 18 does not ask
 //!    for one, and this module's second decision above is why adding it to
 //!    `Core\Db` cannot be the answer.
 
+use std::net::{SocketAddr, ToSocketAddrs as _};
+
 use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
-/// The class name, once, for the messages and the rows that all name it.
-const NAME: &str = r"Core\Db";
+/// The class name, once, for the messages and the rows that all name it —
+/// including `registry::CAPABILITIES`', which is why it is `pub(crate)`.
+pub(crate) const NAME: &str = r"Core\Db";
 
 /// The carrier class's fully-qualified name, as
 /// [`CoreTy::Instance`] spells it.
@@ -95,12 +118,54 @@ pub(crate) const IN_LIST_NAME: &str = r"Core\Db\InList";
 /// so the bind that expands it counts the same elements the caller passed.
 const VALUES_SLOT: &str = "values";
 
-/// Spec § 18's `Core\Db` — its two connectionless entry points. `connect` and
-/// `open` join this roster above them, in the spec's own order, once a
-/// `[db.<name>]` block resolves into a target.
+/// `Core\Db\Connection`'s fully-qualified name, as [`CoreTy::Instance`] spells
+/// it.
+///
+/// `pub(crate)` for `registry`'s handle roster, for [`IN_LIST_NAME`]'s reason.
+pub(crate) const CONNECTION_NAME: &str = r"Core\Db\Connection";
+
+/// A [`CONNECTION`]'s first slot: the key its connection is filed under in the
+/// request's own table.
+const HANDLE_SLOT: &str = "handle";
+
+/// Its second: the `[db.<name>]` block it was opened by, so a refusal can name
+/// the connection without holding it.
+const CONNECTION_NAME_SLOT: &str = "name";
+
+/// Spec § 18's `Core\Db` — `connect` and the two connectionless entry points,
+/// in the spec's own order. `open` joins them once a shape *parameter* is
+/// expressible in this registry; this module's known gaps own that.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
+        CoreMethod {
+            name: "connect",
+            names: &["name"],
+            params: &[
+                // § 18's Q column: the name is a **sink**, because it selects
+                // which operator-written credential this program opens with,
+                // and a `tainted` one would let a request pick the database.
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Options(&[
+                    CoreOption {
+                        name: "shared",
+                        ty: CoreTy::Bool,
+                        // Memoized is the default and the option only turns it
+                        // off, which is ADR 0067 § 2's `{shared: false}`.
+                        default: Const::Bool(true),
+                    },
+                    CoreOption {
+                        name: "timeout",
+                        ty: CoreTy::Instance(crate::time::DURATION_NAME),
+                        default: Const::Null,
+                    },
+                ]),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(CONNECTION_NAME),
+            symbol: "nvs_core_db_connect",
+            doc: Some(&CONNECT_DOC),
+        },
         CoreMethod {
             name: "inList",
             names: &["values"],
@@ -125,6 +190,23 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// Spec § 18's `Core\Db\Connection` — the object `connect` answers with.
+///
+/// Two slots and no members **yet**: `Queryable`'s seven and `close` are the
+/// next slice, and until one of them lands this is a handle in
+/// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
+/// sense. The slots are the pair every handle in this crate carries — the key
+/// into the request's own table ([`nvs_runtime::Ctx::hold_open_connection`])
+/// and the name it was opened by, which is what a refusal can name without
+/// reaching for the connection it is refusing about.
+pub(crate) const CONNECTION: CoreClass = CoreClass {
+    name: CONNECTION_NAME,
+    methods: &[],
+    instance: &[],
+    slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT],
+    constants: &[],
+};
+
 /// Spec § 18's `Core\Db\InList` — opaque, produced by one member and read by
 /// the bind. No members at all, which is that table's own "accepted only as a
 /// bound parameter".
@@ -134,6 +216,52 @@ pub(crate) const IN_LIST: CoreClass = CoreClass {
     instance: &[],
     slots: &[VALUES_SLOT],
     constants: &[],
+};
+
+/// `Core\Db::connect`'s reference card — ADR 0117.
+const CONNECT_DOC: MethodDoc = MethodDoc {
+    short: "Opens the connection an operator named in a `[db.<name>]` block of `nvs.toml`, and \
+            answers the same one again for the rest of the request — `new PDO`, `pg_connect` and \
+            `mysqli_connect`, with the credential out of the program and in root-owned \
+            configuration. Needs the `db.connect` capability for that name.",
+    params: &[
+        ParamDoc {
+            name: "name",
+            desc: "The block to open, matched exactly: `\"main\"` is `[db.main]`. Two blocks that \
+                   configure the same server are two connections, because an operator who wrote \
+                   two meant two.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "shared",
+            desc: "Whether this call may answer with the connection an earlier one already \
+                   opened. `false` opens a dedicated connection instead — what a write that must \
+                   survive a rollback, a session-scoped lock or a second statement alongside a \
+                   `stream` needs.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "timeout",
+            desc: "How long the handshake may take, including name resolution and TLS. Left out, \
+                   the connection is bounded by the server and the network alone.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Db\\Connection`. The same call twice in one request answers the same object \
+          unless `shared` is `false`, and the connection is closed when the request ends.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`db.connect` does not grant `$name`, no `[db.<name>]` block of that name \
+                   exists, or the block cannot be read as a connection — a missing `driver`, a \
+                   field belonging to another driver, or a `time_zone` that is not an offset.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The host does not resolve, or the connection, the TLS handshake or the login \
+                   itself failed. A refusal the server worded carries its own message.",
+        },
+    ],
 };
 
 /// `Core\Db::inList`'s reference card — ADR 0117.
@@ -180,6 +308,186 @@ const QUOTE_IDENTIFIER_DOC: MethodDoc = MethodDoc {
                digits and `_` — including a name that would need delimiting to be legal.",
     }],
 };
+
+/// `Core\Db::connect`, as its own refusals spell it.
+const CONNECT: &str = r"Core\Db::connect";
+
+/// The ABI slot each of `connect`'s two options arrives in — the row's one
+/// positional parameter, then the bag flattened in declaration order.
+const SHARED_ARG: usize = 1;
+/// See [`SHARED_ARG`].
+const TIMEOUT_ARG: usize = 2;
+
+/// The instant the handshake must be done by, or `None` for a call that named
+/// no `timeout`.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a duration that is zero or negative, on
+/// `Core\Http`'s reading: ADR 0074 § 5 has no spelling for an unbounded wait,
+/// and a zero one is that spelling said quietly. A [`Fault::fatal`] for a slot
+/// that is neither a `Duration` nor `Tag::Null`, which the row's type rules out.
+fn deadline_of(args: &[Value]) -> Result<Option<std::time::Instant>, Fault> {
+    if matches!(args[TIMEOUT_ARG].tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    let nanos = crate::time::nanos_of(args, TIMEOUT_ARG, "timeout")?;
+    if nanos <= 0 {
+        return Err(Fault::thrown(format!(
+            "{CONNECT}: `timeout` must be a positive duration, and this one is {nanos}ns"
+        )));
+    }
+    Ok(Some(
+        std::time::Instant::now() + std::time::Duration::from_nanos(nanos.unsigned_abs()),
+    ))
+}
+
+/// Where a block's `host` and `port` are, as one address.
+///
+/// **Pinned here and asked nothing else**, which is ADR 0067 § 3: the endpoint
+/// was written into root-owned configuration by the same authority that granted
+/// `db.connect`, so it is pre-approved and is *not* additionally checked against
+/// [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 3's denied
+/// ranges — where every database on a container network or a `10/8` estate
+/// lives. `Core\Db::open`'s host is program-supplied and stays subject to that
+/// policy in full, which is the whole difference between the two members.
+///
+/// The name is resolved once and the resolved address is what the socket is
+/// opened to, so nothing re-resolves between the check and the connection. What
+/// the certificate is checked against stays the written host, which is
+/// `PgTarget::host` and not this.
+///
+/// # Errors
+///
+/// A thrown `IOError` for a host that resolves to nothing.
+fn address_of(host: &str, port: Option<u16>, name: &str) -> Result<SocketAddr, Fault> {
+    let port = port.unwrap_or(nvs_db::pg::DEFAULT_PORT);
+    let bare = host
+        .strip_prefix('[')
+        .and_then(|held| held.strip_suffix(']'))
+        .unwrap_or(host);
+    if let Ok(literal) = bare.parse::<std::net::IpAddr>() {
+        return Ok(SocketAddr::new(literal, port));
+    }
+    (host, port)
+        .to_socket_addrs()
+        .ok()
+        .and_then(|mut found| found.next())
+        .ok_or_else(|| {
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{CONNECT}: `[db.{name}]` names the host `{host}`, which resolves to no \
+                         address"
+                ),
+            )
+        })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Db::connect(string $name, {shared?: bool, timeout?: Duration}): Db\Connection`
+    /// — ADR 0067 § 2's named connection, memoized for the request.
+    ///
+    /// **The grant is asked first**, before the configuration is read at all,
+    /// which is `Core\Mail::send`'s ordering and is the same property: a
+    /// program with no grant learns nothing about which blocks a deployment
+    /// wrote. A name outside the grant and a name with no block behind it are
+    /// two different sentences, and only the second is reachable by a program
+    /// the operator already trusted with that name.
+    ///
+    /// **The block is read from the boot snapshot and never through
+    /// `Request::get`.** Every other reader of a `[…]` block in this crate goes
+    /// through the per-request view, because a directive an operator marked
+    /// `Runtime` can be moved by `Core\Config::set`; a credential is not one of
+    /// those, and reading one through a table a program can write to would let
+    /// a request choose the server its own query is answered by.
+    ///
+    /// **What it spends:** one connection — a socket, a TLS session and § 1's
+    /// statement cache — per distinct name a request opens, held by the request
+    /// and closed with it. A second `connect("main")` spends nothing at all,
+    /// which is what § 2's memoization is for; `{shared: false}` opts out of
+    /// that and is charged again.
+    fn nvs_core_db_connect(ctx, args: [3]) {
+        // Unreachable from source: parameter 0 is a `string` in `CLASS` above,
+        // so a non-text argument is refused at `E0401` first — the same
+        // judgement `quoteIdentifier`'s guard states. Owned, because the
+        // capability check and the table below both want `ctx` back.
+        let name = args[0]
+            .as_text()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Db::connect expected a `string` name, got tag {}",
+                    args[0].tag_byte()
+                ))
+            })?
+            .to_owned();
+        // Unreachable from source for the same reason: the option is declared
+        // `bool` and defaults to one, so the slot is never anything else.
+        let shared = args[SHARED_ARG].as_bool().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Db::connect expected a `bool` for `shared`, got tag {}",
+                args[SHARED_ARG].tag_byte()
+            ))
+        })?;
+        let deadline = deadline_of(args)?;
+
+        nvs_runtime::capability::require(
+            ctx,
+            nvs_config::Cap::DbConnect,
+            nvs_config::capability::Scope::Name(&name),
+            CONNECT,
+        )?;
+
+        let held = if shared {
+            ctx.memoized_connection(&name)
+        } else {
+            None
+        };
+        if let Some(key) = held {
+            return Ok(crate::instance::build(
+                &CONNECTION,
+                [Value::uint(key), Value::str(NvsStr::new(name.as_bytes()))],
+            ));
+        }
+
+        // The snapshot is cloned rather than borrowed because the block, the
+        // target that borrows it and the `ctx` that files the connection are
+        // all live at once. It is an `Arc` and a boot generation is shared by
+        // every request on the core, so the clone is one refcount.
+        let snapshot = ctx
+            .config()
+            .map(|config| std::sync::Arc::clone(config.snapshot()))
+            .ok_or_else(|| {
+                Fault::thrown(format!(
+                    "{CONNECT}: this program is running with no configuration at all, so there is \
+                     no `[db.{name}]` block to open"
+                ))
+            })?;
+        let block = snapshot.config.db.get(&name).ok_or_else(|| {
+            Fault::thrown(format!(
+                "{CONNECT}: `db.connect` grants `{name}`, and no `[db.{name}]` block sets the \
+                 connection up — the grant names a block an operator has not written yet"
+            ))
+        })?;
+        let target = nvs_db::PgTarget::resolve(block)
+            .map_err(|refused| Fault::thrown(format!("{CONNECT}: {}", refused.refusal(&name))))?;
+        let address = address_of(target.host, block.port, &name)?;
+        let opened = nvs_db::PgConn::connect(address, &target, deadline).map_err(|err| {
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!("{CONNECT}: `[db.{name}]` at {address} did not open: {err}"),
+            )
+        })?;
+        let key = ctx.hold_open_connection(
+            shared.then(|| name.clone()),
+            Box::new(nvs_db::Connection::Postgres(opened)),
+        );
+        Ok(crate::instance::build(
+            &CONNECTION,
+            [Value::uint(key), Value::str(NvsStr::new(name.as_bytes()))],
+        ))
+    }
+}
 
 nvs_runtime::nvs_helper! {
     /// `Core\Db::inList(array<mixed> $values): Db\InList` — ADR 0067 § 5's
@@ -284,6 +592,7 @@ fn is_bare_identifier(name: &str) -> bool {
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "nvs_core_db_connect" => (nvs_core_db_connect as *const ()).cast(),
         "nvs_core_db_in_list" => (nvs_core_db_in_list as *const ()).cast(),
         "nvs_core_db_quote_identifier" => (nvs_core_db_quote_identifier as *const ()).cast(),
         _ => return None,

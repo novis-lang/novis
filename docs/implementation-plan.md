@@ -49,16 +49,16 @@
 > SCRAM-SHA-256 exchange, asserted in-crate for want of a usable certificate. § 4's extended-query
 > state machine and § 13's reset are over it: one flush per statement, one for the six reset
 > commands, and `reset` takes `self`. § 5's `?`/`:name` rewriter and § 1's statement cache are
-> `sql.rs`, and a `[db.*]` block resolves into a `PgTarget`, an unreadable § 9 zone refused — keyed
-> by SQL text plus expansion arity: a hit drops the `Parse` and an eviction's `Close` rides in the
-> batch that replaced it. § 9's whole type map decodes over it: a `Value` for the scalar rows and
-> parsed components — `PgScalar` — for the five that are a `Core\Time` or `Core\Uuid` instance only
-> `nvs-stdlib` can build; § 4's count, `lastId` and `executeMany` too. § 7 is on it too —
-> `BEGIN`/`COMMIT`/`ROLLBACK`, a nested one a `SAVEPOINT` the depth names, and § 8's kind inside
-> every refusal. **`Core\Db` has opened in `nvs-stdlib`**: § 18's two connectionless entry points,
-> `inList`'s carrier and `quoteIdentifier`, which validates rather than delimits for want of a
-> dialect. The pool is Stages 3 to 7, and **ADR 0132 has claimed the goal's one ADR slot**: a driver
-> is a borrowed sans-IO codec plus a state machine over the parking stream, and the five are an enum
+> `sql.rs`— keyed by SQL text plus expansion arity: a hit drops the `Parse` and an eviction's
+> `Close` rides in the batch that replaced it. § 9's whole type map decodes over it: a `Value` for
+> the scalar rows and parsed components — `PgScalar` — for the five that are a `Core\Time` or
+> `Core\Uuid` instance only `nvs-stdlib` can build; § 4's count, `lastId` and `executeMany` too. § 7
+> is on it too — `BEGIN`/`COMMIT`/`ROLLBACK`, a nested one a `SAVEPOINT` the depth names, and § 8's
+> kind inside every refusal. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect` — the grant,
+> then the block, then a socket at the endpoint § 3 pre-approves — over a connection the request
+> holds and drops with it, beside `inList` and `quoteIdentifier`. `open` waits on a shape-parameter
+> type. The pool is Stages 3 to 7, and **ADR 0132 has claimed the goal's one ADR slot**: a driver is
+> a borrowed sans-IO codec plus a state machine over the parking stream, and the five are an enum
 > rather than a trait.   **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** —
 > `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
 > Conformance 1388, differential 250, its gate met, migration 90%/74%.

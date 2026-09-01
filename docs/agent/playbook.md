@@ -4265,6 +4265,14 @@ is why" — is this file.
   assert the enum. `NvsStr` has a safe `Drop`, so even the owned half of such an enum frees itself; it
   is only the retag into a `Value` that is one-way. `crates/nvs-db/src/pg.rs`'s `PgScalar` is the
   worked example, and its doc comment says the same thing from the other side.
+- **A `.nvst` case that configures anything is a multi-file case, and `python tools/try.py` cannot
+  run one — use `target/debug/nvs.exe test <case>.nvst` instead.** A `--FILE nvs.toml--` section is
+  the only way to grant a capability or write a `[db.*]` block to a case, and `try.py` concatenates
+  the sections into one `.nvs`, so the TOML arrives as Novis source and the run dies in 65 parse
+  errors about `database = "novis"` not being an assignment target. The runner takes a list of
+  paths and prints the same expected/actual diff, so nothing is lost by going straight to it. The
+  playbook already says `try.py` does not reproduce a multi-file case's *working directory*; this is
+  the louder half of the same fact.
 
 ## Splitting a file that got too big
 

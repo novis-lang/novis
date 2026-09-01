@@ -1,0 +1,55 @@
+--TEST--
+Core\Db::connect names the field that makes a `[db.<name>]` block unopenable, and a granted name with no block at all is its own answer — ADR 0067 §§ 2-3, 9
+--FILE--
+<?nvs
+// Every name below is granted, so every refusal here is about the file rather
+// than about the grant. The four blocks are the four ways one can fail before
+// a socket is ever opened, and each one names the field that is wrong -- an
+// operator reading these lines edits one line of `nvs.toml` and no more.
+array<string> $names = ["absent", "mysql", "unusable", "zone"];
+foreach ($names as string $name) {
+    try {
+        var $db = Core\Db::connect($name);
+        echo $name, ": opened", "\n";
+    } catch (RuntimeError $refused) {
+        echo $refused->message, "\n";
+    }
+}
+--FILE nvs.toml--
+# `absent` is granted and has no block: the grant names a block an operator has
+# not written, which is a different mistake from an unwritten grant and gets a
+# different sentence.
+[capabilities.db]
+connect = ["absent", "mysql", "unusable", "zone"]
+
+# A driver this build has no connect path for. The refusal names the driver it
+# *is*, so the block reads as configured-for-something-else rather than broken.
+[db.mysql]
+driver = "mysql"
+host = "127.0.0.1"
+
+# `path` is SQLite's field. A PostgreSQL connection reads nothing from it, and
+# a field silently ignored is how a block comes to mean something nobody wrote.
+[db.unusable]
+driver = "postgres"
+host = "127.0.0.1"
+user = "novis"
+password = "novis"
+database = "novis"
+path = "/var/lib/novis.db"
+
+# ADR 0067 § 9 sends the declared zone to the server as a numeric offset, so a
+# zone *name* is refused rather than read as UTC -- silently reading it as UTC
+# would put every zone-less `TIMESTAMP` an hour or more out.
+[db.zone]
+driver = "postgres"
+host = "127.0.0.1"
+user = "novis"
+password = "novis"
+database = "novis"
+time_zone = "Europe/Vienna"
+--EXPECT--
+Core\Db::connect: `db.connect` grants `absent`, and no `[db.absent]` block sets the connection up — the grant names a block an operator has not written yet
+Core\Db::connect: [db.mysql]: `driver` is `mysql`, which is the mysql driver and not PostgreSQL
+Core\Db::connect: [db.unusable]: `path` belongs to another driver, and a PostgreSQL connection reads nothing from it
+Core\Db::connect: [db.zone]: `time_zone` is `Europe/Vienna`, which is not an offset: write `+02:00`, `-05:30` or `UTC`, or leave it unset for UTC

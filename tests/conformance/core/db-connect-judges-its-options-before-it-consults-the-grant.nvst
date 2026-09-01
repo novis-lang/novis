@@ -1,0 +1,39 @@
+--TEST--
+Core\Db::connect refuses a zero `timeout` before it asks `db.connect` anything, and `{shared: false}` opens nothing the grant does not already cover — ADR 0067 § 2, ADR 0074 § 5, ADR 0118 § 2
+--FILE--
+<?nvs
+// Nothing is configured in this run, so `db.connect` grants nothing and every
+// name is ungranted. That is what makes the first line interesting: the option
+// is judged anyway, so the sentence a caller gets is about the argument they
+// wrote rather than about a capability they would have had to fix first.
+try {
+    var $db = Core\Db::connect("main", {timeout: 0s});
+    echo "opened", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// ADR 0074 § 5 has no spelling for an unbounded wait, and `0s` is that
+// spelling said quietly -- so it is refused rather than read as "no deadline",
+// which is the reading that would hang a request on a server that never
+// answers.
+try {
+    var $bounded = Core\Db::connect("main", {timeout: 250ms, shared: false});
+    echo "opened", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// § 2's `{shared: false}` bypasses memoization inside one request. It is not a
+// second door: what it changes is whether an earlier connection may be handed
+// back, and the grant answers the same question either way.
+try {
+    var $dedicated = Core\Db::connect("main", {shared: false});
+    echo "opened", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--EXPECT--
+Core\Db::connect: `timeout` must be a positive duration, and this one is 0ns
+Core\Db::connect needs the capability `db.connect` for main, which is not granted
+Core\Db::connect needs the capability `db.connect` for main, which is not granted

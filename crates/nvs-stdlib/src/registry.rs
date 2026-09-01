@@ -1373,11 +1373,13 @@ pub const CLASSES: &[CoreClass] = &[
     // nothing that reaches back into execution, which is what makes § 3's
     // inertness structural rather than promised.
     crate::ast::NODE,
-    // § 18, and ADR 0067 for every semantic behind it. Only the two entry
-    // points that need no connection are on the roster so far — `connect` and
-    // `open` join them once a `[db.<name>]` block resolves into a target, which
-    // is why this class carries no capability row below yet.
+    // § 18, and ADR 0067 for every semantic behind it. `open` is the one entry
+    // point still missing, and [`crate::db`]'s known gaps own why: what it
+    // needs is a `CoreTy` for a shape parameter, not a body.
     crate::db::CLASS,
+    // What `connect` answers with. Two slots and no members until
+    // `Core\Db\Queryable`'s land, so it is on the handle roster below.
+    crate::db::CONNECTION,
     // What `inList` answers with: ADR 0067 § 5's explicit expansion marker,
     // memberless because § 18's own table accepts it nowhere but a bound
     // parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.
@@ -1642,6 +1644,17 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // no host a program can name. [`crate::mail`]'s module doc is the home of
     // why the address is not additionally pinned.
     (crate::mail::NAME, "send", Some(nvs_config::Cap::MailSend)),
+    // ADR 0067 § 3's split. `db.connect` names *blocks* and not hosts, for
+    // `mail.send`'s reason and by the same authority: the endpoint is one an
+    // operator wrote into root-owned configuration. `db.open`'s targets are
+    // program-supplied and reach ADR 0058's address policy in full, which is
+    // the whole difference between the two grants — and why they are two.
+    (crate::db::NAME, "connect", Some(nvs_config::Cap::DbConnect)),
+    // The two connectionless members reach no effect at all: they are pure
+    // functions of their arguments, and the `None` rows are what make this
+    // table's claim total rather than "all but a list".
+    (crate::db::NAME, "inList", None),
+    (crate::db::NAME, "quoteIdentifier", None),
     // ADR 0082 § 2's storage half, and the rows that make its "over ADR 0051's
     // existing `fs.*` capabilities" true: the same two grants `Core\IO` above
     // declares, asked about the path the disk's root and the object's key
@@ -3462,6 +3475,7 @@ mod tests {
             crate::cli::COLOR_NAME,
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,
+            crate::db::CONNECTION_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {
