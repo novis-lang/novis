@@ -1,0 +1,60 @@
+--TEST--
+ADR 0054 § 3: `Core\Decimal::divExact` names the last quotient it answers and the first it refuses over one sweep of divisors
+--FILE--
+<?nvs
+// Exactness is a bound on the quotient's *scale*: a `decimal` carries 28
+// fractional digits, and 1 / 2^k needs exactly k of them. Sweeping k past that
+// bound names both sides of it -- the last quotient the member answers and the
+// first division it refuses -- and counts them, so a member that tested the
+// wrong remainder and stopped one step early prints plausibly against either
+// half alone.
+decimal $one = 1;
+decimal $two = 2;
+decimal $five = 5;
+decimal $divisor = 1;
+decimal $last = 1;
+string $refusal = "";
+int $answered = 0;
+int $refused = 0;
+int $k = 0;
+while ($k < 32) {
+    $k = $k + 1;
+    $divisor = $divisor * $two;
+    try {
+        $last = Core\Decimal::divExact($one, $divisor);
+        $answered = $answered + 1;
+    } catch (ArithmeticError $tooWide) {
+        $refused = $refused + 1;
+        if ($refused == 1) {
+            $refusal = $tooWide->message;
+        }
+    }
+}
+echo "halvings answered ", $answered, " and refused ", $refused, " of ", $k, "\n";
+echo "last answered: ", $last, "\n";
+echo "first refused: ", $refusal, "\n";
+
+// The same bound reached from the other prime. 1 / 5^k also needs exactly k
+// fractional digits, but 5^29 is a divisor eleven digits wider than 2^29 -- so
+// two sweeps stopping at the same k is what says the bound is the quotient's
+// scale rather than the magnitude of either operand.
+decimal $fifths = 1;
+int $answeredFive = 0;
+$divisor = $one;
+$k = 0;
+while ($k < 32) {
+    $k = $k + 1;
+    $divisor = $divisor * $five;
+    try {
+        $fifths = Core\Decimal::divExact($one, $divisor);
+        $answeredFive = $answeredFive + 1;
+    } catch (ArithmeticError $alsoTooWide) {
+        $answeredFive = $answeredFive + 0;
+    }
+}
+echo "fifths answered ", $answeredFive, ", last ", $fifths, "\n";
+--EXPECT--
+halvings answered 28 and refused 4 of 32
+last answered: 0.0000000037252902984619140625
+first refused: Core\Decimal::divExact cannot answer 1 / 536870912 exactly: the quotient repeats or is wider than a `decimal` holds
+fifths answered 28, last 0.0000000000000000000268435456
