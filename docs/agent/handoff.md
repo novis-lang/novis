@@ -2,63 +2,59 @@
 
 ## State
 
-**Goal 4, M8.** The driver's one failing acceptance check is still the last gate the goal has open:
-`differential`'s `min_passing = 250` (`docs/agent/loop-goal.toml:2630`). It is **not a regression** —
-nothing fails, the count is the item.
+**Goal 4, M8.** The differential suite's `min_passing = 250` gate
+(`docs/agent/loop-goal.toml:2630`) — the driver's one failing acceptance check for the last two
+sessions — **is met: `python tools/gaps.py` reports the suite holds 250**, up from 246, with this
+session's four new `tests/differential/core/hash-*` cases. Nothing is blocked, and no other
+acceptance check has been seen to fail; the driver stops at the first failure, so whether a check
+*after* this one has ever run is only answerable from the next iteration's ledger line. If one
+fails, it outranks the group below.
 
-**The suite is now 246 passing, 0 failing — 4 short.** This session took all four slices of the
-previous group, two cases each. `Core\Uri::resolve` is measured against RFC 3986 § 5.2's transform
-written out in PHP over the RFC's own Appendix B splitter, and § 5.3's verbatim recomposition is
-asked beside `compareTo`'s normal form so that which member normalizes is one question with one
-answer. `Core\Task::afterResponse`'s twin is **`register_shutdown_function`, not
-`fastcgi_finish_request`** — the member with the name takes no closure and exists under no SAPI a
-case can run.
+`python tools/gaps.py`'s **differential gap list is still empty** — every member with a PHP twin has
+an oracle case — so remaining differential work is depth, and the four cases this session added are
+that: `equals` against `hash_equals` over one-octet and length differences; `hmac` across all six
+block widths in the strong subset, with RFC 2104's zero-extension collision asserted on both sides
+of the boundary; `of` across every padding and length-field boundary; and `Stream` given an empty
+`update` before, between and after every real one, for all fourteen algorithms PHP can compute. All
+four agree with PHP exactly — no `--ORACLE-DIVERGES--` finding in the class.
 
-Three of the eight are `--ORACLE-DIVERGES--` findings: `Core\Validate::isPrintable` asks Unicode's
-`Cc` question where `ctype_print` asks the C locale's byte question, so `café`, a non-breaking space
-and a bidi override are printable here and the empty string is too; `Core\Csv::format` quotes the
-four bytes that change a parse where `fputcsv` also quotes a space and a tab; and the deferred queue
-is sealed by its own drain where PHP's shutdown list may be appended to while it runs.
-
-**`python tools/gaps.py`'s *differential gap* list is now empty** — every member with a PHP twin has
-an oracle case. The remaining four are therefore **depth**: a second question of a pair that already
-has one, and the group below is the class where that is cheapest.
+**A `Core\Digest` case is a first-class value in a `.nvst` case**: `array<Core\Digest> $algos = […]`,
+`foreach ($algos as Core\Digest $algo)` and `Core\Hash::of($s, $algo)` all compile, so a roster sweep
+no longer needs the one-branch-per-algorithm shape the older hash cases use.
 
 ## Next group
 
-**All four are new files under `tests/differential/core/`**, sharing one module —
-`crates/nvs-stdlib/src/hash.rs` — and spec § 11's first table. Every twin here is exact and
-deterministic, so each is an `--ORACLE--` case with nothing to freeze by hand. Run one with
-`target/debug/nvs.exe test <file>`; the runner prints both sides aligned, which is also how a
-divergence is found rather than predicted.
+**Conformance depth, not differential** — the gate above is closed. `python tools/gaps.py` ranks
+`Core\IO\Metadata` thinnest of all 67 classes (depth 1.0, floor 1: `isDir` 1, `isFile` 1,
+`modifiedAt` 1). All three slices share one module — `crates/nvs-stdlib/src/io.rs` — and one file
+set under `tests/conformance/core/io-*.nvst`; read a landed `io-` case first for how a case creates
+and cleans up a file it can then stat.
 
-- [ ] **`Core\Hash::equals` against `hash_equals`** (~1 case). The one member of the class with no
-      oracle file: both are constant-time comparisons that answer `bool`, so the corpus is equal
-      digests, digests differing in the first byte and in the last, and two of different lengths.
-      `crates/nvs-stdlib/src/hash.rs:856`, `crates/nvs-stdlib/src/hash.rs:328`.
-- [ ] **`Core\Hash::hmac` over the key-length boundary against `hash_hmac`** (~1 case). The landed
-      `hash-hmac-matches-hash_hmac-over-every-strong-digest` sweeps the algorithms with one key;
-      what no case asks is RFC 2104's own boundary — a key shorter than the block size, one exactly
-      at it and one past it, where the key is hashed instead of padded (64 bytes for the SHA-2
-      family, 128 for SHA-512 and its truncations). `crates/nvs-stdlib/src/hash.rs:818`.
-- [ ] **`Core\Hash::of` over the empty subject and a multi-block one against `hash()`** (~1 case).
-      `hash-of-matches-the-hash-family` asks every algorithm one subject; the block boundary is
-      where a digest implementation's padding is, so the sweep is the empty string, one byte under
-      a block, exactly a block and one over, for every `Core\Hash\Algorithm` case.
-      `crates/nvs-stdlib/src/hash.rs:802`, `crates/nvs-stdlib/src/hash.rs:183`.
-- [ ] **`Core\Hash\Stream` fed one byte at a time agrees with a single `hash_update`** (~1 case).
-      Chunking invariance: the landed stream case feeds two chunks, and what matters is that *no*
-      chunking changes the digest — one byte at a time, one whole subject, and an empty `update`
-      between two real ones. `crates/nvs-stdlib/src/hash.rs:928`,
-      `crates/nvs-stdlib/src/hash.rs:450`.
+- [ ] **`Core\IO\Metadata`'s four accessors agree with `Core\IO`'s three free members** (~1 case).
+      The *agreement* shape: one `stat` handed a regular file and a directory, `size`, `modifiedAt`,
+      `isFile` and `isDir` read off it, and each compared to the free member answering the same
+      question about the same path — a class that grew its own answer fails here while every line
+      still reads plausibly. `crates/nvs-stdlib/src/io.rs:1806`,
+      `crates/nvs-stdlib/src/io.rs:3053`, `crates/nvs-stdlib/src/io.rs:3096`,
+      `crates/nvs-stdlib/src/io.rs:3115`.
+- [ ] **`Core\IO\Metadata::size` and `::modifiedAt` at their edges** (~1 case). An empty file is
+      `size` 0 rather than absent; a rewritten file's `size` follows the rewrite; a directory has a
+      `size` at all. `modifiedAt` is an `Instant`, so what a case can pin without a clock is that
+      re-statting an untouched file answers the same one.
+      `crates/nvs-stdlib/src/io.rs:3053`, `crates/nvs-stdlib/src/io.rs:3061`,
+      `crates/nvs-stdlib/src/io.rs:2987`.
+- [ ] **`Core\IO::isFile` and `::isDir` over a path that is neither** (~1 case). The *edges* shape:
+      a name that does not exist, and a path whose parent component is a regular file — both answer
+      `false` rather than throwing, which is the claim one existing case each cannot make.
+      `crates/nvs-stdlib/src/io.rs:152`, `crates/nvs-stdlib/src/io.rs:161`,
+      `crates/nvs-stdlib/src/io.rs:3096`, `crates/nvs-stdlib/src/io.rs:3115`.
 
 ## Backlog
 
-- `Core\Env`, `Core\Random` and `Core\Uuid` have PHP twins that `gaps.py` does not count (no
-  deterministic expectation); a differential case for `Core\Env::get` against `getenv` would need
-  the runner to set an environment — docs/agent/commands.md owns whether it can.
-- `[context] modules` in `docs/agent/loop-goal.toml` carries no `nvs-runtime/src/deferred.rs`
-  pattern; the `afterResponse` slice needed its sealing rule. Add it if a `Core\Task` slice returns.
-- `Core\IO\Metadata` is the thinnest class at 1 case per member (`python tools/gaps.py`), which is a
-  conformance gap rather than a differential one — spec § 14 owns the roster.
-- The conformance suite stands at 1380 and its gate is met; nothing there is blocking.
+- `Core\Http\Response::status` and `::text`, 3 cases each — `gaps.py`'s second-thinnest class.
+- `Core\Mail::send` at 3 cases, its floor — `docs/adr/0082-the-first-party-framework.md` § 2.
+- `Core\Env::mode` 3 and `::all` 4, and `Core\Cldr::pluralCategory` 4 — `gaps.py`, thinnest members.
+- Five unasserted `thrown` paths a case could catch: `crates/nvs-stdlib/src/csv.rs:610`,
+  `crates/nvs-stdlib/src/env.rs:379`, `crates/nvs-stdlib/src/command.rs:390` — `gaps.py --errors`.
+- `Core\Hash\Stream` is now 5 cases per member; the class's remaining depth is `update` over `bytes`
+  rather than `string`, if the row admits it — `crates/nvs-stdlib/src/hash.rs:928`.

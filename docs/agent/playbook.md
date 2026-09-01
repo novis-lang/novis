@@ -4191,6 +4191,21 @@ is why" — is this file.
   writer against `fputcsv`'s fifth argument therefore has nothing to turn — what it can measure is
   that PHP's `""` dialect is the one this writer has, so a backslash is an ordinary field byte on
   both sides. The `{escape:}` reading recorded as a gap elsewhere in this file is the reader's alone.
+- **A `.nvst` case's locals are script-scoped, and `Core\Str::repeat`'s count is `uint`.** Two
+  refusals arrive together the first time a case sweeps a length list: `bytes $key = …` inside one
+  `foreach` body collides with a `bytes $key` inside a *sibling* `foreach` body further down
+  (`E0406: `$key` is already declared`, pointing at both), and `foreach ($lengths as int $n)` over an
+  `array<int>` then fails `Core\Str::repeat("0b", $n)` with `E0401: expected `uint`, found `int``.
+  The loop *variable* may be reused freely — the landed cases do — it is the body's own declarations
+  that share one scope. Declare the length list as `array<uint>` and bind `as uint $n`, and give each
+  loop body's local its own name.
+- **Before writing a depth case, read the landed neighbour's whole `--FILE--`, not the handoff's
+  summary of it.** The item that named `Core\Hash\Stream` said the landed case "feeds two chunks",
+  and it in fact sweeps five chunk widths — one octet at a time included — across four subjects and
+  three algorithms, which is the whole of what the item asked for. The genuinely uncovered claims
+  were the two `Core\Str::chunk` cannot express: an *empty* `update`, and the eleven algorithms the
+  landed case does not stream. A handoff item is written by a session that had the module open and
+  the neighbour case closed, so its summary of a landed file is the part most likely to be stale.
 
 ## Splitting a file that got too big
 
