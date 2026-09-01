@@ -126,10 +126,11 @@ pub enum State {
 impl State {
     /// Whether a new statement may be written on a connection in this state.
     ///
-    /// Only [`State::Idle`] permits one. `nvs-stdlib` turns a `false` into ADR
-    /// 0067 § 4's `LogicError` naming both fixes — this crate does not build
-    /// that fault, because the message names the Novis-level call and only the
-    /// standard library knows its spelling.
+    /// Only [`State::Idle`] permits one. The driver builds the refusal itself,
+    /// in one place per driver and naming both of ADR 0067 § 4's fixes —
+    /// `pg.rs`'s `second_statement` owns that wording. `nvs-stdlib` re-words it
+    /// as § 4's `LogicError`, because the fault class is its own and so is the
+    /// call site's spelling, which only the standard library knows.
     #[must_use]
     pub fn may_start_statement(self) -> bool {
         matches!(self, State::Idle)

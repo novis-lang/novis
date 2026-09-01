@@ -387,6 +387,28 @@ impl PgConn {
         start_statement(&mut self.wire, &self.state, &mut self.cache, sql, params)
     }
 
+    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s `executeMany`: one
+    /// prepare, one execution per member of `sets`, and their affected counts
+    /// summed.
+    ///
+    /// Each member of `sets` is one execution's parameters in [`Self::query`]'s
+    /// shape, and they must all be the same length — the prepare is one
+    /// prepare. Nothing streams: the connection is [`State::Idle`] again by the
+    /// time this answers, so there is no handle to drain and no second
+    /// statement to refuse.
+    ///
+    /// [`execute_many`] owns the two rules a caller can be surprised by: an
+    /// execution is its own transaction, so a failure part way through does not
+    /// undo the writes before it, and an empty `sets` is § 4's no-op answering
+    /// `0`.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_many`].
+    pub fn execute_many(&mut self, sql: &str, sets: &[&[Option<&[u8]>]]) -> io::Result<u64> {
+        execute_many(&mut self.wire, &self.state, &mut self.cache, sql, sets)
+    }
+
     /// ADR 0067 § 13's reset, and the connection back only if it worked.
     ///
     /// **`self` by value is the enforcement**, not a convenience. § 13 makes the
@@ -2049,14 +2071,7 @@ fn start_statement<'a, S: Read + Write>(
     params: &[Option<&[u8]>],
 ) -> io::Result<PgRows<'a, S>> {
     if !state.get().may_start_statement() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!(
-                "a statement was written to a connection that is {:?}, and ADR 0067 § 4 allows one \
-                 at a time: read the previous statement's rows or drop its handle first",
-                state.get()
-            ),
-        ));
+        return Err(second_statement(state));
     }
 
     // The arity is the parameter count, which ADR 0067 § 5's `inList` expansion
@@ -2157,6 +2172,180 @@ fn start_statement<'a, S: Read + Write>(
         tag: None,
         last_id: None,
     })
+}
+
+/// ADR 0067 § 4's `executeMany`: one `Parse`, N `Bind`/`Execute` pairs, and the
+/// affected counts summed.
+///
+/// All of it goes out in **one flush**, which is the whole reason § 4 has a
+/// member for this rather than leaving it to a loop over [`start_statement`]: a
+/// thousand writes cost the round trip one statement costs, and the `Parse` is
+/// in the buffer at most once — [`StatementCache`] answers whether it is there
+/// at all, exactly as it does for a single statement.
+///
+/// **Each execution carries its own `Sync`, and that is a semantic choice
+/// rather than a spelling.** One `Sync` for the whole batch would cost nothing
+/// less — the messages are in the same buffer either way — but it would make
+/// the batch a single implicit transaction, so a failure at set 900 would roll
+/// back the 899 writes before it and would have held their locks from the
+/// first. That is the hidden `BEGIN` § 4 refuses in as many words: a caller who
+/// wants all-or-nothing writes `transaction(fn ($tx) => $tx->executeMany(…))`,
+/// and one who did not ask for it gets what an autocommitting MySQL would give
+/// — each execution independent, and the ones after a failure still attempted,
+/// because the server resumes at the next `Sync`.
+///
+/// The answer is the sum of what each `CommandComplete` reports, and a tag
+/// carrying no count contributes nothing rather than failing the batch;
+/// [`affected_rows`] owns which commands those are. A `DataRow` a `RETURNING`
+/// clause produced is discarded: § 4 gives this member a `uint` return and no
+/// second one to hand rows back through.
+///
+/// An empty `sets` is § 4's no-op answering `0` — nothing is written, and
+/// nothing is prepared for executions that will not happen. The state check
+/// still runs ahead of it, because § 4's refusal is a property of the
+/// connection rather than of the payload: a statement written to a streaming
+/// connection is the same bug whether or not its parameter list was empty, and
+/// a rule that fired only for some inputs would surface in production on the
+/// batch that happened not to be empty.
+///
+/// # Errors
+///
+/// `InvalidInput` when the connection is not [`State::Idle`], as
+/// [`PgConn::query`], and for a `sets` whose members do not all bind the same
+/// number of parameters — one prepare has one parameter count, and it is what
+/// § 1's cache is keyed on beside the SQL. Otherwise the **first** error any
+/// execution drew, reported only once every `Sync` has been accounted for so
+/// that the connection is left idle and poolable, or a wire failure, which
+/// poisons it.
+fn execute_many<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    cache: &mut StatementCache,
+    sql: &str,
+    sets: &[&[Option<&[u8]>]],
+) -> io::Result<u64> {
+    if !state.get().may_start_statement() {
+        return Err(second_statement(state));
+    }
+
+    let Some(first) = sets.first() else {
+        return Ok(0);
+    };
+    let arity = first.len();
+    if let Some(odd) = sets.iter().find(|set| set.len() != arity) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "one executeMany bound {arity} parameters in its first set and {} in another, and \
+                 ADR 0067 § 4's one prepare has one parameter count",
+                odd.len()
+            ),
+        ));
+    }
+
+    let prepared = cache.prepare(sql, arity);
+
+    let mut out = BytesMut::new();
+    match &prepared {
+        Prepared::Hit(_) => {}
+        Prepared::Miss { name, evicted } => {
+            if let Some(closing) = evicted {
+                frontend::close(b'S', closing, &mut out)?;
+            }
+            frontend::parse(name, sql, [], &mut out)?;
+        }
+        Prepared::Unnamed => frontend::parse(UNNAMED, sql, [], &mut out)?,
+    }
+    for set in sets {
+        frontend::bind(
+            prepared.name(),
+            // The same unnamed portal every time, which the protocol destroys
+            // at the next `Bind` — and by then this one's `Execute` has run.
+            // A name per set would be N `Close` messages for no gain.
+            UNNAMED,
+            [],
+            set.iter().copied(),
+            |param, buf| match param {
+                Some(bytes) => {
+                    buf.extend_from_slice(bytes);
+                    Ok(IsNull::No)
+                }
+                None => Ok(IsNull::Yes),
+            },
+            [],
+            &mut out,
+        )
+        .map_err(|e| match e {
+            frontend::BindError::Conversion(e) => io::Error::new(io::ErrorKind::InvalidInput, e),
+            frontend::BindError::Serialization(e) => e,
+        })?;
+        // No `Describe`: nothing here reads a row description, and the count
+        // comes from the completion tag.
+        frontend::execute(UNNAMED, 0, &mut out)?;
+        frontend::sync(&mut out);
+    }
+
+    state.set(State::Executing);
+    if let Err(e) = wire.send(&mut out) {
+        state.set(State::Poisoned);
+        return Err(e);
+    }
+
+    let mut affected = 0u64;
+    let mut parsed = false;
+    let mut refused: Option<io::Error> = None;
+    // One `ReadyForQuery` per `Sync`, which is one per execution: reading them
+    // by count is what keeps the answers from skewing against the requests
+    // after the server has skipped an execution it refused.
+    for _ in sets {
+        loop {
+            match read_or_poison(wire, state)? {
+                backend::Message::ReadyForQuery(_) => break,
+                backend::Message::ParseComplete => parsed = true,
+                // `CloseComplete` is the evicted statement's, `BindComplete`
+                // this execution's, and a `DataRow` is a `RETURNING` clause's.
+                backend::Message::CloseComplete
+                | backend::Message::BindComplete
+                | backend::Message::DataRow(_)
+                | backend::Message::EmptyQueryResponse => {}
+                backend::Message::CommandComplete(body) => {
+                    let tag = body.tag().inspect_err(|_| state.set(State::Poisoned))?;
+                    affected = affected.saturating_add(affected_rows(tag).unwrap_or(0));
+                }
+                backend::Message::ErrorResponse(body) => {
+                    let error = server_error(&body);
+                    // The first one is the one with a cause, as § 13's reset
+                    // reports it: the executions after it may only be that
+                    // execution's consequences.
+                    if refused.is_none() {
+                        refused = Some(error);
+                    }
+                }
+                backend::Message::NoticeResponse(_)
+                | backend::Message::ParameterStatus(_)
+                | backend::Message::NotificationResponse(_) => {}
+                _ => return Err(out_of_sequence(state)),
+            }
+        }
+    }
+
+    state.set(State::Idle);
+    if let Some(error) = refused {
+        return Err(error);
+    }
+
+    // As [`start_statement`], and with one more thing to be sure of: a `Parse`
+    // is undone with the implicit transaction it ran in, so the proof a name is
+    // cacheable is a `ParseComplete` *and* a batch that drew no error at all.
+    // Caching one the server rolled back is a `26000` on the next hit, on a
+    // connection that is otherwise fine.
+    if let Prepared::Miss { name, .. } = prepared
+        && parsed
+    {
+        cache.commit(sql, arity, name);
+    }
+
+    Ok(affected)
 }
 
 /// ADR 0067 § 13's PostgreSQL reset, in the order that section lists it.
@@ -2309,6 +2498,37 @@ fn columns_of(body: &backend::RowDescriptionBody) -> io::Result<Vec<PgColumn>> {
     Ok(columns)
 }
 
+/// ADR 0067 § 4's refusal of a second statement, and the one place its wording
+/// lives.
+///
+/// **It names both fixes, always**, because § 4 requires the refusal to: the
+/// buffered read that frees the connection, and the `{shared: false}`
+/// connection that gives this statement one of its own. Those are the only two
+/// answers, they fix different programs — one loop wants its rows in memory,
+/// one genuinely wants two connections — and a message saying only that the
+/// connection is busy leaves the caller to guess which of them their code
+/// needs.
+///
+/// `nvs-stdlib` re-words this as § 4's `LogicError`: the fault class is its own
+/// and so is the call site's spelling, per [`State::may_start_statement`].
+/// What it re-words is this sentence, which is also the one a log carries
+/// wherever nothing has — so it is the whole answer rather than a hint.
+///
+/// The state is quoted because it is the difference between the two bugs this
+/// catches: `Streaming` is § 4's unread stream, and `Poisoned` is a connection
+/// that is not going to work again whatever the caller does next.
+fn second_statement(state: &Cell<State>) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!(
+            "a statement was written to a connection that is {:?}, and ADR 0067 § 4 allows one at \
+             a time: read the first statement's rows into memory (`->all()`), or open a \
+             `{{shared: false}}` connection so this statement has one of its own",
+            state.get()
+        ),
+    )
+}
+
 /// Poisons the connection over a message the extended-query sequence does not
 /// put where it arrived.
 ///
@@ -2339,7 +2559,7 @@ mod tests {
 
     use super::{
         CancelKey, PgColumn, PgDate, PgScalar, PgTarget, PgTime, State, Wire, affected_rows,
-        authenticate, oid, posix_time_zone, request_tls, start_statement,
+        authenticate, execute_many, oid, posix_time_zone, request_tls, start_statement,
     };
     use crate::sql::StatementCache;
 
@@ -2915,6 +3135,138 @@ mod tests {
         assert_eq!(tags(&wire.peer().sent[0]), b"PBDES".to_vec());
     }
 
+    /// A server answering one `executeMany`: a `ParseComplete` for the single
+    /// parse, then a `BindComplete`, a completion and a `ReadyForQuery` for
+    /// every execution — one boundary per `Sync`, which is what the driver
+    /// counts. `None` is an execution the server refused instead.
+    fn many_answer(completions: &[Option<&str>]) -> Vec<u8> {
+        let mut out = message(b'1', b""); // ParseComplete
+        for completion in completions {
+            match completion {
+                Some(tag) => {
+                    out.extend_from_slice(&message(b'2', b"")); // BindComplete
+                    let mut body = tag.as_bytes().to_vec();
+                    body.push(0);
+                    out.extend_from_slice(&message(b'C', &body));
+                }
+                None => out.extend_from_slice(&error_response(
+                    "23505",
+                    "duplicate key value violates unique constraint",
+                )),
+            }
+            out.extend_from_slice(&message(b'Z', b"I"));
+        }
+        out
+    }
+
+    /// ADR 0067 § 4's fourth row on the wire: **one** `Parse` for N executions,
+    /// all of it in one flush, and the counts summed. The `Sync` per execution
+    /// is the section's "no transaction of its own" — one for the whole batch
+    /// would make a failure at the last set roll back every set before it.
+    #[test]
+    fn an_execute_many_is_one_parse_and_a_bind_execute_sync_per_set() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            many_answer(&[Some("INSERT 0 1"), Some("INSERT 0 2"), Some("INSERT 0 3")])
+        }));
+
+        let affected = execute_many(
+            &mut wire,
+            &state,
+            &mut no_cache(),
+            "insert into t values ($1)",
+            &[&[Some(b"a")], &[Some(b"b")], &[Some(b"c")]],
+        )
+        .expect("the batch ran");
+
+        assert_eq!(affected, 6, "the affected counts were not summed");
+        assert_eq!(wire.peer().sent.len(), 1, "the batch was not one flush");
+        assert_eq!(tags(&wire.peer().sent[0]), b"PBESBESBES".to_vec());
+        assert_eq!(state.get(), State::Idle);
+        assert!(state.get().is_poolable());
+    }
+
+    /// § 4's "an empty set list is a no-op returning `0`", and the half worth
+    /// pinning is that nothing reaches the wire: there is no statement to
+    /// prepare for executions that are not going to happen.
+    #[test]
+    fn an_empty_execute_many_writes_nothing_and_answers_zero() {
+        let state = Cell::new(State::Idle);
+        let mut cache = StatementCache::new(2);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            panic!("an empty batch reached the server")
+        }));
+
+        let affected = execute_many(
+            &mut wire,
+            &state,
+            &mut cache,
+            "insert into t values ($1)",
+            &[],
+        )
+        .expect("the no-op ran");
+
+        assert_eq!(affected, 0);
+        assert!(wire.peer().sent.is_empty(), "the no-op was not a no-op");
+        assert!(cache.is_empty(), "an unexecuted statement was prepared");
+        assert_eq!(state.get(), State::Idle);
+    }
+
+    /// One prepare has one parameter count, which is also what § 1's cache is
+    /// keyed on: a set list that disagrees with itself is refused before
+    /// anything is written, rather than drawing the server's bind error on
+    /// whichever set was odd.
+    #[test]
+    fn an_execute_many_whose_sets_bind_different_arities_is_refused_unsent() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| panic!("a refused batch was sent")));
+
+        let refused = execute_many(
+            &mut wire,
+            &state,
+            &mut no_cache(),
+            "insert into t values ($1)",
+            &[&[Some(b"a")], &[Some(b"b"), Some(b"c")]],
+        )
+        .expect_err("a ragged set list was accepted");
+
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert!(wire.peer().sent.is_empty());
+        assert_eq!(state.get(), State::Idle);
+    }
+
+    /// An execution the server refused ends its own `Sync` and no more: the
+    /// driver still reads the boundary of every execution after it, so the
+    /// connection comes back idle rather than holding answers the next
+    /// statement would read as its own. The first error is the reported one,
+    /// and the statement is not cached — a `Parse` is undone with the implicit
+    /// transaction it ran in.
+    #[test]
+    fn an_execute_many_that_one_set_failed_reads_every_sync_and_reports_the_first() {
+        let state = Cell::new(State::Idle);
+        let mut cache = StatementCache::new(2);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            many_answer(&[Some("INSERT 0 1"), None, None])
+        }));
+
+        let refused = execute_many(
+            &mut wire,
+            &state,
+            &mut cache,
+            "insert into t values ($1)",
+            &[&[Some(b"a")], &[Some(b"b")], &[Some(b"c")]],
+        )
+        .expect_err("a batch with a refused execution was reported as success");
+
+        assert!(
+            refused.to_string().contains("23505"),
+            "the reported error was not the first one: {refused}"
+        );
+        assert!(cache.is_empty(), "a rolled-back parse was cached");
+        assert_eq!(state.get(), State::Idle);
+        assert!(state.get().is_poolable());
+    }
+
     /// The four values of ADR 0132 § 4, walked by one statement: `Idle` before,
     /// `Streaming` while rows are unread, and `Idle` again once the
     /// `ReadyForQuery` the `Sync` guaranteed has been read. A `NULL` column is
@@ -2973,6 +3325,43 @@ mod tests {
             assert_eq!(refused.kind(), io::ErrorKind::InvalidInput, "{busy:?}");
             assert!(wire.peer().sent.is_empty(), "{busy:?} reached the wire");
             assert_eq!(state.get(), busy, "{busy:?} was changed by a refusal");
+        }
+    }
+
+    /// § 4 does not only require the refusal — it requires it to name **both**
+    /// fixes, `->all()` *or* a `{shared: false}` connection, because they fix
+    /// different programs. Asserted for every entry point that can refuse, so a
+    /// member added later with a message of its own fails here rather than
+    /// shipping half the answer.
+    #[test]
+    fn a_refused_statement_names_both_of_the_fixes_section_4_gives() {
+        let state = Cell::new(State::Streaming);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| Vec::new()));
+
+        let refusals = [
+            start_statement(&mut wire, &state, &mut no_cache(), "select 1", &[])
+                .expect_err("a second statement was accepted")
+                .to_string(),
+            execute_many(
+                &mut wire,
+                &state,
+                &mut no_cache(),
+                "insert into t values ($1)",
+                &[&[Some(b"a")]],
+            )
+            .expect_err("a second batch was accepted")
+            .to_string(),
+        ];
+
+        for said in refusals {
+            assert!(
+                said.contains("->all()"),
+                "the buffered read is unnamed: {said}"
+            );
+            assert!(
+                said.contains("{shared: false}"),
+                "the dedicated connection is unnamed: {said}"
+            );
         }
     }
 
