@@ -5567,6 +5567,17 @@ sibling in the same namespace unqualified.
   The rule: a door that resolves goes through `nvs_config::capability::resolved` and asks any other
   question — existence, in `resolve_existing`'s case — separately. The two doors' own doc comments
   are the home of the difference.
+- **`nvs-stdlib` may not write the string `std::fs` anywhere, a type annotation included, and the
+  door's return type had no other spelling.** `nvs_stdlib_reaches_the_os_only_through_the_gate` is a
+  literal substring scan over every non-comment line under `crates/nvs-stdlib/src`, so a private
+  helper taking a `&std::fs::Metadata` — a parameter that performs nothing, over a value a door
+  already asked for — fails it exactly as a `std::fs::read_to_string` would, and the message says
+  "reaches the operating system directly" about a line that reaches nothing. Inference hides this for
+  as long as every use is a `let` straight off the door; the moment two members share one helper over
+  one `stat`, the type has to be named. The fix is on the *runtime* side and is now on disk:
+  `nvs_runtime::capability` re-exports `Metadata`, so the spelling is
+  `&nvs_runtime::capability::Metadata`. Reach for that rather than re-deriving each field at the two
+  call sites.
 
 ## Divergences and refusals already pinned
 

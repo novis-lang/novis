@@ -2,58 +2,60 @@
 
 ## State
 
-**Spec § 14's four remaining writers are registered and cased.** `Core\IO::append`, `::copy`,
-`::move` and `::makeDir` are on disk over twelve new conformance cases, and the ratchet
-`crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` is down from 55 keys to 51. What is
-left of § 14 is `modifiedAt`, `stat`, `isReadable`, `isWritable` and `walk`.
+**Spec § 14 is one member from complete.** `Core\IO::modifiedAt`, `::stat`, `::isReadable` and
+`::isWritable` are on disk over six new conformance cases, together with the class `stat` answers
+with, and the ratchet `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` is down from 51
+keys to 47. `walk` is all that is left of § 14.
 
-`append` needed no door — `nvs_runtime::capability::open` already takes `Access::Append`, so the
-member is the row, the card, the body and the cases. **Three doors are new, and each owns its
-decision in its own doc comment**: `capability::copy` asks `fs.read` for the source and `fs.write`
-for the destination and checks both before it uses either, replacing a destination that is taken
-exactly as `write` replaces; `capability::rename` asks `fs.write` for **both** ends, because taking
-the source away is destroying it, and refuses a cross-filesystem move rather than becoming a copy
-and a delete; `capability::create_dir` creates every missing parent and treats an existing directory
-as success, which is the mirror image of `remove_dir`'s refusal to recurse — a recursive creation
-makes empty directories under the path just checked, a recursive removal is one check standing in
-for a tree of destructions. `capability::pair` is the `from -> to` spelling a two-path `IOError`
-names, since either end can be the one at fault.
+**`Core\IO\Metadata` is a new registry class, and its own doc comment owns every decision in it**: an
+instance rather than an ADR 0036 shape because `CoreTy` has no spelling for a shape *return*; four
+members — `size`, `modifiedAt`, `isFile`, `isDir` — that duplicate `Core\IO` statics without being
+ADR 0063 R17's two spellings, because a static's subject is a path and a syscall while a member's is
+a snapshot and a slot read; and no permission member, since `fileperms` has no portable content and
+the question a program asks is `isReadable`/`isWritable`'s. `crate::time::instant_at_system_time` is
+the seam that keeps `Instant`'s two-slot representation inside `time.rs`.
 
-**Stage 10's remaining open check is still the goal's own measure**: `check-migration --min 74`
-reads 37%, unmoved by these four.
+**The access pair is two gates and they answer differently on purpose.** The capability *refuses* a
+path outside the grant where the operating system answers `false`; folding the first into the second
+would hand any program a boolean to map its own configuration with.
+`nvs_runtime::capability::readable`/`::writable` own that, and own the `access(2)`-on-unix /
+read-only-attribute-on-Windows split. `isWritable` declares **`fs.write`**, which is this table's one
+row decided by what a question is *about* rather than by what its member does.
+
+**Stage 10's remaining open check is still the goal's own measure**: `check-migration --min 74` reads
+37%, unmoved by these six.
 
 Nothing was missing from this session's pack.
 
 ## Next group
 
-**Finish § 14. The same file set: `crates/nvs-stdlib/src/io.rs`,
-`crates/nvs-runtime/src/capability.rs`, `crates/nvs-stdlib/src/registry.rs` and
-`tests/conformance/core/`.**
+**`walk` closes § 14, then § 15's `Core\Env` half opens. All four share
+`crates/nvs-stdlib/src/registry.rs` and `tests/conformance/core/`; the first adds `io.rs` and
+`cursor.rs`, the rest are one file, `env.rs`.**
 
-- [ ] **Register `modifiedAt` and `stat`, and decide what each answers with.** `modifiedAt` wants
-      `Core\Time\Instant`, which is `pub` already and needs a constructor reachable from `io.rs`;
-      `stat` needs either a `Core\IO\Stat` instance or a fixed-key shape, and the ADR 0063 R-rules
-      plus `instance.rs` decide which. One `capability::metadata` call answers both, which is that
-      door's own stated reason for handing back the whole `Metadata`.
-      `crates/nvs-stdlib/src/time.rs:1111`, `crates/nvs-stdlib/src/io.rs:169`,
-      `crates/nvs-runtime/src/capability.rs:405`.
-- [ ] **Register `isReadable` and `isWritable`, and record what they measure.** Rust's std has no
-      `access(2)`, so the honest answers are *effective access measured by attempting the open* or
-      *the permission bits*, and the two differ for a directory and for a process running as root.
-      Decide it in the door's doc comment and case the boundary; `metadata_if_present`'s `None` is
-      the shape for "nothing is there", which both members have to answer `false` for.
-      `crates/nvs-runtime/src/capability.rs:430`, `crates/nvs-stdlib/src/io.rs:160`.
-- [ ] **Register `walk`, § 14's streaming listing.** The `Iterable<string>` half of `list`, over
-      `capability::read_dir` recursively — `LINES` and `nvs_core_io_lines` are the shape a lazily
-      answered `Core` iterable takes, including its `LINES_ITERATE_SYMBOL` arm in `address`.
-      `crates/nvs-stdlib/src/io.rs:1587`, `crates/nvs-stdlib/src/io.rs:229`,
-      `crates/nvs-runtime/src/capability.rs:557`.
+- [ ] **Register `walk`, § 14's streaming listing and its last outstanding key.** The
+      `Iterable<string>` half of `list`, over the same `capability::read_dir` door. `Core\IO\Lines`
+      is the shape to copy — a slotted class with no members whose `iterate` is dispatched by name —
+      and its own docs argue why it holds rather than streams, which is the decision `walk` has to
+      make again over a directory rather than a file.
+      `crates/nvs-stdlib/src/io.rs:1610`, `crates/nvs-stdlib/src/io.rs:3001`,
+      `crates/nvs-stdlib/src/cursor.rs:102`.
+- [ ] **Register `Core\Env`'s `EOL`, `OS` and `VERSION` constants.** That module's own gap 1 is the
+      home of the decision each carries — `EOL` in particular, which is fixed by the machine that
+      *compiled* the program in PHP and must not be here.
+      `crates/nvs-stdlib/src/env.rs:96`, `crates/nvs-stdlib/src/env.rs:79`.
+- [ ] **Register `Core\Env::mode`, the run mode.** The same module's gap 1 names what it reads;
+      a `CoreEnum` beside it is the shape, since R11 forbids a mode string.
+      `crates/nvs-stdlib/src/env.rs:96`.
 
 ## Backlog
 
-- `check-migration --min 74` reads 37% and is stage 10's last open check — the goal's own measure,
-  and no single slice moves it.
-- § 15's request-facing half and § 18's driver surface stay goal 6's and goal 5's, per the ratchet
-  file's own header.
-- `Core\IO::copy` is file-only, as `std::fs::copy` is; a directory copy is a walk the program
-  writes, and nothing yet says so where a developer would look.
+- `§15 Cap::has` — the last non-request § 15 key; `docs/spec/01-core-library.md` § 15.
+- § 15's `Request`, `Response` and `Session` rosters need a request: goal 6's, per the ratchet's own
+  section comment.
+- § 18's `Core\Db` needs a driver and a server: goal 5's, and blocked on a Docker daemon.
+- `check-migration --min 74` reads 37% and is the goal's own remaining gate —
+  `docs/agent/loop-goal.toml`.
+- ADR 0063 R18's M4S check ("no static member's name collides with an instance method on a type its
+  own class constructs") would flag `Core\IO::size` today; `crates/nvs-stdlib/src/io.rs`'s
+  `METADATA` doc is the argument for why that wording is narrower than the ADR body's rule.
