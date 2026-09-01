@@ -53,9 +53,9 @@
 > is owed. **Stage 8 has opened**: `Core\Reflect` is `forObject`, `forClass`, `typeOf` and
 > `ClassInfo`'s get, set and call — the set runs ADR 0014 § 3's observer — and `Core\Ast::parse`
 > answers the compiler's own tree, and `Core\Decimal` is § 3's two rounding members; ADR 0046 § 4's
-> `$member` is checked at the retrieval (`E0798`). ADR 0126's `property<T>` lowers whole:
-> `$obj->$key` reads and writes over ADR 0036 § 4's erased access; `E0782` through a key and
-> empty-set `E0799` are owed. **Stage 2's handle half has opened**: `Core\IO::open` answers a
+> `$member` is checked at the retrieval (`E0798`). ADR 0126's `property<T>` is closed: `$obj->$key`
+> reads and writes over ADR 0036 § 4's erased access, `E0782` refuses a keyed `readonly` write and
+> `E0799` an empty set. **Stage 2's handle half has opened**: `Core\IO::open` answers a
 > `Core\IO\File` whose slot keys the request's own descriptor table, `Core\IO\FileMode` is R11's
 > enum, and `read`, `readLine`, `write`, `seek`, `tell`, `flush` and `close` are its members;
 > `truncate` and `lock` are owed. **Stage 3's terminal is a sink **: `write` performs § 1's table
