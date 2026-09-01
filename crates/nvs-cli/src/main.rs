@@ -889,6 +889,11 @@ fn run_run(
             // other and a child of one is spawned off the caller the scheduler
             // is holding.
             if outcome.is_ok() {
+                // ADR 0127 § 4: the last statement, then the queue, then
+                // teardown — and *before* the deferred work below, because
+                // ADR 0072 § 6's `afterResponse` is what runs after the
+                // response and this queue is what delays the end of one.
+                nvs_stdlib::script::run_exit_hooks(ctx, outcome, None);
                 nvs_runtime::deferred::run_deferred(ctx);
             } else if outcome == Err(nvs_runtime::THROWN) {
                 // ADR 0020 §§ 3 and 6: nothing below caught this, so the ladder
@@ -918,6 +923,19 @@ fn run_run(
                 if !nvs_host::ladder::escalate(ctx, &record) {
                     nvs_runtime::floor::report(ctx, &record);
                 }
+                // ADR 0127 § 4's throw path, at its strongest reading: the
+                // failure hooks run first "so a misbehaving queue cannot starve
+                // the failure report", and the record above *is* that report —
+                // so the queue runs after tier 3 and the floor as well as after
+                // tier 2, and still before native teardown. It is handed the
+                // same live `Throwable` tier 2 was.
+                nvs_stdlib::script::run_exit_hooks(ctx, outcome, Some(&thrown));
+            } else {
+                // `exit` drains the queue and a `FATAL` runs none of it —
+                // `nvs_stdlib::script::run_exit_hooks` is the one place that
+                // decides which, per ADR 0127 §§ 2 and 3, so this arm asks
+                // nothing about the status it is passing on.
+                nvs_stdlib::script::run_exit_hooks(ctx, outcome, None);
             }
             status.set(Some(outcome));
         }
