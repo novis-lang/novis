@@ -1379,7 +1379,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::db::CLASS,
     // What `connect` answers with, and `Core\Db\Queryable`'s own home: ADR 0043
     // has `Transaction` delegate the interface to its connection, so the seven
-    // members are declared here once. `query` is the one that has landed.
+    // members are declared here once. `query` and `execute` are the two that
+    // have landed.
     crate::db::CONNECTION,
     // What `query` answers with — ADR 0067 § 4's buffered result set, and five
     // of § 18's six readers over it. `columns()` is the one owed, and
@@ -1389,6 +1390,11 @@ pub const CLASSES: &[CoreClass] = &[
     // readers ADR 0067 § 6 puts in place of PHP's three fetch modes. Four of
     // the eleven answer only their refusal until § 9's structured columns land.
     crate::db::ROW,
+    // What `execute` answers with: § 4's two counts and the id a `RETURNING`
+    // clause handed back, as three readers rather than § 18's three readonly
+    // properties — for the reason [`CoreTy::Instance`] states, that a `Core`
+    // instance has no property a program can reach.
+    crate::db::WRITE,
     // What `inList` answers with: ADR 0067 § 5's explicit expansion marker,
     // memberless because § 18's own table accepts it nowhere but a bound
     // parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.
@@ -3470,11 +3476,9 @@ mod tests {
     /// bind reads: ADR 0067 § 5's expansion marker is accepted at exactly one
     /// position and nowhere else, so a member answering the values back would
     /// be a surface on a thing whose whole content is where it may appear
-    /// ([`crate::db`]). The tenth is `Core\Db\Rows`, and it is the one entry
-    /// here that is **temporary**: spec § 18 writes six members on it, and it
-    /// is listed only for as long as the result set it holds has arrived and
-    /// the readers over it have not. `Core\Db\Connection` left this list the
-    /// same way, when `query` landed on it.
+    /// ([`crate::db`]). It is the last entry, and the two that have left this
+    /// list left it the same way: `Core\Db\Connection` when `query` landed on
+    /// it, and `Core\Db\Rows` when its readers did.
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
         const HANDLES: &[&str] = &[

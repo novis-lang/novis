@@ -86,8 +86,8 @@
 //!    a refusal here is a plain `RuntimeError` or an `IOError` and carries no
 //!    `kind`, `sqlState` or `constraint`. Nothing about the messages changes
 //!    when they land; what changes is what a `catch` can name.
-//! 5. **`query` is the whole of `Core\Db\Queryable` so far.** `queryAs`,
-//!    `execute`, `executeMany`, `stream`, `streamAs` and `transaction` are
+//! 5. **`query` and `execute` are the whole of `Core\Db\Queryable` so far.**
+//!    `queryAs`, `executeMany`, `stream`, `streamAs` and `transaction` are
 //!    owed, and so are `close` and § 18's three readonly properties on
 //!    `Connection`. On the result side [`ROWS`] owes one member of six —
 //!    `columns(): array<Column>`, which needs three things at once: a
@@ -105,8 +105,9 @@
 //!    members landed, so what is left is building the instance from
 //!    [`nvs_db::PgScalar`]'s parsed components. Every other row of that table
 //!    decodes now.
-//! 7. **`query` declares no `{timeout?: Duration}`.** § 4's option is in the
-//!    spec's signature and is deliberately not in the registry row: a deadline
+//! 7. **Neither `query` nor `execute` declares a `{timeout?: Duration}`.**
+//!    § 4's option is in both spec signatures and is deliberately in neither
+//!    registry row, for one reason on both: a deadline
 //!    on a statement has to reach the socket the way
 //!    [`nvs_db::PgConn::connect`]'s does, and there is no seam for one on the
 //!    statement path yet. An option that parsed and did nothing would be worse
@@ -183,6 +184,31 @@ const COLUMNS_SLOT: &str = "columns";
 /// Where [`COLUMNS_SLOT`] sits. See [`ROWS_AT`].
 const COLUMNS_AT: usize = 0;
 
+/// `Core\Db\Write`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
+const WRITE_NAME: &str = r"Core\Db\Write";
+
+/// A [`WRITE`]'s first slot: how many rows the statement affected, as a `uint`
+/// and never absent — [`CHANGED_SLOT`] is where the absence is kept.
+const AFFECTED_SLOT: &str = "affected";
+
+/// Its second: the same count as the server actually reported it, `null` for a
+/// command whose tag carries no count at all.
+const CHANGED_SLOT: &str = "changed";
+
+/// Its third: ADR 0067 § 4's `lastId`, `null` for a statement that returned no
+/// integer first column — which is every statement without a `RETURNING`
+/// clause.
+const LAST_ID_SLOT: &str = "lastId";
+
+/// Where [`AFFECTED_SLOT`] sits, for the reader that answers it.
+const AFFECTED_AT: usize = 0;
+
+/// Where [`CHANGED_SLOT`] sits. See [`AFFECTED_AT`].
+const CHANGED_AT: usize = 1;
+
+/// Where [`LAST_ID_SLOT`] sits. See [`AFFECTED_AT`].
+const LAST_ID_AT: usize = 2;
+
 /// Where [`VALUES_SLOT`] sits inside an [`IN_LIST`], for the bind that expands
 /// it.
 const VALUES_AT: usize = 0;
@@ -252,29 +278,44 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// it was opened by, which is what a refusal can name without reaching for the
 /// connection it is refusing about.
 ///
-/// **`query` is `Core\Db\Queryable`'s first member and the rest are owed**:
-/// `queryAs`, `execute`, `executeMany`, `stream`, `streamAs` and `transaction`,
-/// plus `close` and § 18's three readonly properties. ADR 0043 makes
+/// **`query` and `execute` are `Core\Db\Queryable`'s two landed members and the
+/// rest are owed**: `queryAs`, `executeMany`, `stream`, `streamAs` and
+/// `transaction`, plus `close` and § 18's three readonly properties. ADR 0043 makes
 /// `Transaction` delegate the interface to its connection, so every one of them
 /// is declared once — here — and this class is where they land.
 pub(crate) const CONNECTION: CoreClass = CoreClass {
     name: CONNECTION_NAME,
     methods: &[],
-    instance: &[CoreMethod {
-        name: "query",
-        names: &["sql", "params"],
-        params: &[
-            // § 4's Q column, and ADR 0024 § 4's whole injection story: the
-            // statement text is the sink, so a `tainted` value cannot reach
-            // it at all and the bound parameters below accept one freely.
-            CoreTy::Text(Qual::Sink),
-            CoreTy::Array(&CoreTy::Mixed),
-        ],
-        defaults: &[],
-        return_ty: CoreTy::Instance(ROWS_NAME),
-        symbol: "nvs_core_db_connection_query",
-        doc: Some(&QUERY_DOC),
-    }],
+    instance: &[
+        CoreMethod {
+            name: "query",
+            names: &["sql", "params"],
+            params: &[
+                // § 4's Q column, and ADR 0024 § 4's whole injection story: the
+                // statement text is the sink, so a `tainted` value cannot reach
+                // it at all and the bound parameters below accept one freely.
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Mixed),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(ROWS_NAME),
+            symbol: "nvs_core_db_connection_query",
+            doc: Some(&QUERY_DOC),
+        },
+        CoreMethod {
+            name: "execute",
+            names: &["sql", "params"],
+            // The same two [`CoreTy`]s `query` above declares, for the same
+            // reasons — § 4's Q column marks both members' statement text a sink,
+            // and a write is exactly where a `tainted` value most wants to reach
+            // one.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(WRITE_NAME),
+            symbol: "nvs_core_db_connection_execute",
+            doc: Some(&EXECUTE_DOC),
+        },
+    ],
     slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT],
     constants: &[],
 };
@@ -529,6 +570,64 @@ pub(crate) const ROW: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// Spec § 18's `Core\Db\Write` — what a statement that answers no rows answers
+/// with, and the whole of what ADR 0067 § 4 puts in place of `rowCount` on a
+/// write, `lastInsertId` and `mysqli_info`.
+///
+/// **Three readers rather than § 18's three readonly properties**, which is
+/// where this departs from that table and has to: a `Core`-owned instance has
+/// no property a program can reach ([`CoreTy::Instance`] is the home of that
+/// rule), so `$w->affected` would resolve a class, find no member and reach
+/// `nvs-ir` with nothing to call. `Core\RateLimit\Decision` is the same shape
+/// for the same reason and `Core\Http\Response::status` is the precedent.
+///
+/// **`lastId` belongs to the write and not to the connection**, which is the
+/// one design difference worth the class existing: `mysqli_insert_id` reads a
+/// *session* value, so an unrelated statement in between makes it stale, and
+/// there is no session state here for that hazard to live in.
+/// [`nvs_db::PgRows::last_id`] owns what PostgreSQL reads it out of — a
+/// `RETURNING` clause, since that protocol has no last-insert-id at all.
+///
+/// The three slots are filled once, by
+/// [`nvs_core_db_connection_execute`], from a stream that has already ended:
+/// both counts are `CommandComplete`'s and neither exists until it has
+/// arrived.
+pub(crate) const WRITE: CoreClass = CoreClass {
+    name: WRITE_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "affected",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_db_write_affected",
+            doc: Some(&WRITE_AFFECTED_DOC),
+        },
+        CoreMethod {
+            name: "changed",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Uint),
+            symbol: "nvs_core_db_write_changed",
+            doc: Some(&WRITE_CHANGED_DOC),
+        },
+        CoreMethod {
+            name: "lastId",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Uint),
+            symbol: "nvs_core_db_write_last_id",
+            doc: Some(&WRITE_LAST_ID_DOC),
+        },
+    ],
+    slots: &[AFFECTED_SLOT, CHANGED_SLOT, LAST_ID_SLOT],
+    constants: &[],
+};
+
 /// Spec § 18's `Core\Db\InList` — opaque, produced by one member and read by
 /// the bind. No members at all, which is that table's own "accepted only as a
 /// bound parameter".
@@ -669,6 +768,53 @@ const QUERY_DOC: MethodDoc = MethodDoc {
             desc: "The server refused the statement — a syntax error, a constraint, a permission \
                    — carrying its own `SQLSTATE` and message, or a column came back in a type \
                    this driver does not read back yet.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the statement was in flight, which leaves it \
+                   unusable for the rest of the request.",
+        },
+    ],
+};
+
+/// `Core\Db\Connection::execute`'s reference card — ADR 0117.
+const EXECUTE_DOC: MethodDoc = MethodDoc {
+    short: "Runs one statement that answers counts rather than rows — an `insert`, an `update`, a \
+            `delete`, a `create table` — and answers what it did: `PDO::exec`, \
+            `PDOStatement::execute` and `lastInsertId` in one call, with the values bound the same \
+            way `query` binds them.",
+    params: &[
+        ParamDoc {
+            name: "sql",
+            desc: "The statement, with a `?` for each value or a `:name` for each — never a value \
+                   written into the text. It is a sink, so a `tainted` string is refused while \
+                   compiling and there is no escaper to launder one with.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "params",
+            desc: "The values to bind: list-keyed for `?` and string-keyed for `:name`, one array \
+                   and never both spellings — `query`'s rule exactly, since both members bind \
+                   through the same rewriter.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Db\\Write` carrying how many rows were affected, that count as the server \
+          reported it, and the id a `RETURNING` clause handed back. Rows the statement did answer \
+          are read to the end and discarded, so the connection is free when this returns; `query` \
+          is the member that keeps them.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The call is wrong rather than the database: the placeholders and the array \
+                   disagree in spelling or in number, a `:name` names no element, an element is a \
+                   value with no bound form — an array, an object that is not an `inList` — or a \
+                   statement is already streaming on this connection.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The server refused the statement — a syntax error, a constraint, a permission \
+                   — carrying its own `SQLSTATE` and message.",
         },
         ErrorDoc {
             error: "IOError",
@@ -966,11 +1112,53 @@ const ROW_UUID_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Db\Write::affected`'s reference card — ADR 0117.
+const WRITE_AFFECTED_DOC: MethodDoc = MethodDoc {
+    short: "How many rows the statement affected — `PDOStatement::rowCount` on a write, without \
+            its documented unreliability on a select, because a select does not answer with one \
+            of these at all.",
+    params: &[],
+    ret: "A `uint`, and `0` for a statement that affected none as well as for one whose kind has \
+          no count to report — a `create table`. `changed` is where those two are told apart.",
+    errors: &[],
+};
+
+/// `Core\Db\Write::changed`'s reference card — ADR 0117.
+const WRITE_CHANGED_DOC: MethodDoc = MethodDoc {
+    short: "The same count as the server itself reported it, whose `null` is the one thing \
+            `affected` cannot say: this statement's kind carries no row count at all.",
+    params: &[],
+    ret: "A `?uint`, equal to `affected` wherever it is not `null`. On PostgreSQL the distinction \
+          MySQL draws between rows matched and rows altered has nothing in the protocol to read \
+          it out of, so inventing a second count that always equalled the first would be a \
+          difference callers wrote code against.",
+    errors: &[],
+};
+
+/// `Core\Db\Write::lastId`'s reference card — ADR 0117.
+const WRITE_LAST_ID_DOC: MethodDoc = MethodDoc {
+    short: "The key the statement handed back, read off the write that produced it rather than \
+            off the connection — `lastInsertId` and `mysqli_insert_id` without their \
+            stale-after-an-unrelated-statement hazard.",
+    params: &[],
+    ret: "A `?uint`: the first column of the last row the statement returned, where that column \
+          was declared an integer, and `null` otherwise. On PostgreSQL that means a `RETURNING` \
+          clause — the protocol has no last-insert-id of its own, and an `insert`'s tag carries \
+          an OID that is `0` on every supported server.",
+    errors: &[],
+};
+
 /// `Core\Db::connect`, as its own refusals spell it.
 const CONNECT: &str = r"Core\Db::connect";
 
 /// `Core\Db\Connection::query`, as its own refusals spell it.
 const QUERY: &str = r"Core\Db\Connection::query";
+
+/// `Core\Db\Connection::execute`, as its own refusals spell it. Both halves are
+/// passed together to everything on the statement path — the short name for
+/// [`connection_of`], which builds `Class::member` itself, and this one for the
+/// messages that already hold a class.
+const EXECUTE: &str = r"Core\Db\Connection::execute";
 
 /// The ABI slot each of `connect`'s two options arrives in — the row's one
 /// positional parameter, then the bag flattened in declaration order.
@@ -1343,18 +1531,18 @@ fn bound_of(value: Value) -> Bound {
 /// is not in spec § 10's tree yet, so a server refusal arrives as a plain
 /// `RuntimeError` and a program cannot yet catch it by kind or read its
 /// `sqlState` off the object. Nothing about the message changes when it lands.
-fn statement_failure(block: &Value, refused: &std::io::Error) -> Fault {
+fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fault {
     let name = block.as_text().unwrap_or("?");
     match refused.kind() {
         std::io::ErrorKind::InvalidInput => {
-            Fault::thrown_as(ThrownClass::Logic, format!("{QUERY}: {refused}"))
+            Fault::thrown_as(ThrownClass::Logic, format!("{named}: {refused}"))
         }
         std::io::ErrorKind::Other => Fault::thrown(format!(
-            "{QUERY}: `[db.{name}]` refused the statement: {refused}"
+            "{named}: `[db.{name}]` refused the statement: {refused}"
         )),
         _ => Fault::thrown_as(
             ThrownClass::Io,
-            format!("{QUERY}: `[db.{name}]` failed while the statement was running: {refused}"),
+            format!("{named}: `[db.{name}]` failed while the statement was running: {refused}"),
         ),
     }
 }
@@ -1370,6 +1558,172 @@ fn structured_column(column: &str) -> Fault {
          Every other row of § 9's table reads back now, and a `::text` cast in the statement is \
          the way to have one of these until then"
     ))
+}
+
+/// A statement the wire is ready for: which connection it goes to, § 5's
+/// rewritten text, and its values encoded in the order that text asks for them.
+///
+/// The two members that send one differ **only in what they do with the
+/// answer**. ADR 0067 § 4 gives `query` and `execute` one signature and one
+/// binding rule, so everything up to the send is [`statement_of`] and the
+/// members are the two ways of reading a stream that has already started —
+/// which is also why a write's values are checked exactly as a read's are, with
+/// no second path for a caller to find a difference in.
+struct Statement {
+    /// The key its connection is filed under in the request's own table.
+    key: u64,
+    /// The `[db.<name>]` block it was opened by, so a refusal can name the
+    /// connection without holding it.
+    block: Value,
+    /// § 5's rewritten text, in the driver's own placeholder spelling.
+    sql: String,
+    /// One entry per marker that text holds, in the **statement's** order and
+    /// never the array's — `None` where the bound value is `null`.
+    binds: Vec<Option<Vec<u8>>>,
+}
+
+/// Everything ADR 0067 §§ 4 and 5 do to a call before it reaches the socket:
+/// § 18's `$params` rule, the rewrite, and the encoding.
+///
+/// Both spellings of the member's name are passed because two things want
+/// different ones: `member` is the bare name [`connection_of`] builds
+/// `Class::member` out of, and `named` is the whole spelling the messages here
+/// already hold a class in. The argument slots are read the same way for each
+/// member, since § 18 gives both the identical two parameters.
+///
+/// # Errors
+///
+/// A thrown `LogicError` for a `$params` keyed both ways at once, and whatever
+/// [`statement_failure`] makes of the rewriter's and the encoder's refusals. A
+/// [`Fault::fatal`] for an argument of the wrong tag, which the registry row
+/// refuses first.
+fn statement_of(args: &[Value], member: &str, named: &str) -> Result<Statement, Fault> {
+    let (key, block) = connection_of(args[0], member)?;
+    // Unreachable from source: parameter 0 is a `string` in `CONNECTION`
+    // above, so a non-text argument is refused at `E0401` first — the same
+    // judgement `Core\Db::quoteIdentifier`'s guard states.
+    let sql = args[1].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{named} expected a `string` statement, got tag {}",
+            args[1].tag_byte()
+        ))
+    })?;
+    // Unreachable for that reason too: the row declares `array<mixed>`.
+    let params = args[2].array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{named} expected {:?} for its parameters, got tag {}",
+            Tag::Array,
+            args[2].tag_byte()
+        ))
+    })?;
+
+    // § 18: "list-keyed for `?`, string-keyed for `:name`, mixing throws".
+    // The refusal is here rather than in the rewriter because an array is
+    // the only thing that can be both, and the rewriter is handed one form.
+    let held = crate::arr::borrowed(params);
+    let mut positional: Vec<Bound> = Vec::new();
+    let mut keys: Vec<(String, Bound)> = Vec::new();
+    let mut from = 0usize;
+    while let Some(slot) = held.next_slot(from) {
+        from = slot + 1;
+        let value = held
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        let bound = bound_of(value);
+        match held
+            .slot_key(slot)
+            .expect("next_slot only names live entries")
+        {
+            nvs_runtime::SlotKey::Index(_) if keys.is_empty() => positional.push(bound),
+            nvs_runtime::SlotKey::Str(name) if positional.is_empty() => {
+                // A key is a Novis `string` and so is UTF-8 by ADR 0009;
+                // the lossy read is the spelling that needs no unreachable
+                // arm to say so.
+                keys.push((String::from_utf8_lossy(name.as_bytes()).into_owned(), bound));
+            }
+            _ => {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!(
+                        "{named}: `$params` is keyed both ways at once, and a statement is \
+                         written one way or the other — a list-keyed array binds `?` in \
+                         order, a string-keyed one binds `:name`"
+                    ),
+                ));
+            }
+        }
+    }
+
+    let arities: Vec<nvs_db::Binding> = positional.iter().map(|bound| bound.binding).collect();
+    let keyed: Vec<(&str, nvs_db::Binding)> = keys
+        .iter()
+        .map(|(name, bound)| (name.as_str(), bound.binding))
+        .collect();
+    let spelling = if keys.is_empty() {
+        nvs_db::Params::Positional(&arities)
+    } else {
+        nvs_db::Params::Named(&keyed)
+    };
+    let rewritten = nvs_db::rewrite(sql, spelling, nvs_db::Dialect::PostgreSql)
+        .map_err(|refused| statement_failure(named, &block, &refused))?;
+
+    let bounds: Vec<&Bound> = if keys.is_empty() {
+        positional.iter().collect()
+    } else {
+        keys.iter().map(|(_, bound)| bound).collect()
+    };
+    let mut rendered: Vec<Option<Vec<u8>>> = Vec::with_capacity(rewritten.binds.len());
+    for source in &rewritten.binds {
+        rendered.push(
+            nvs_db::encode(bounds[source.arg].values[source.element])
+                .map_err(|refused| statement_failure(named, &block, &refused))?,
+        );
+    }
+
+    Ok(Statement {
+        key,
+        block,
+        sql: rewritten.sql,
+        binds: rendered,
+    })
+}
+
+/// The connection a [`Statement`] names, as the one driver that runs a
+/// statement so far.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a block naming another driver — this module's
+/// known gap 2 — and a [`Fault::fatal`] for a key the request's own table does
+/// not hold, which is this crate's paste error rather than a program's.
+fn postgres_of<'a>(
+    ctx: &'a mut nvs_runtime::Ctx,
+    statement: &Statement,
+    named: &str,
+) -> Result<&'a mut nvs_db::PgConn, Fault> {
+    let key = statement.key;
+    let filed = ctx.open_connection_mut(key).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{named}: no connection is filed under the key {key}"
+        ))
+    })?;
+    let connection = filed
+        .as_any_mut()
+        .downcast_mut::<nvs_db::Connection>()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{named}: the connection filed under the key {key} is not `nvs-db`'s"
+            ))
+        })?;
+    let driver = connection.driver();
+    let nvs_db::Connection::Postgres(postgres) = connection else {
+        return Err(Fault::thrown(format!(
+            "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL runs a \
+             statement so far — this module's known gap 2 is the list",
+            statement.block.as_text().unwrap_or("?")
+        )));
+    };
+    Ok(postgres)
 }
 
 nvs_runtime::nvs_helper! {
@@ -1392,111 +1746,13 @@ nvs_runtime::nvs_helper! {
     /// placeholders itself and why an `inList`'s expansion needs no second
     /// pass.
     fn nvs_core_db_connection_query(ctx, args: [3]) {
-        let (key, block) = connection_of(args[0], "query")?;
-        // Unreachable from source: parameter 0 is a `string` in `CONNECTION`
-        // above, so a non-text argument is refused at `E0401` first — the same
-        // judgement `Core\Db::quoteIdentifier`'s guard states.
-        let sql = args[1].as_text().ok_or_else(|| {
-            Fault::fatal(format!(
-                "{QUERY} expected a `string` statement, got tag {}",
-                args[1].tag_byte()
-            ))
-        })?;
-        // Unreachable for that reason too: the row declares `array<mixed>`.
-        let params = args[2].array_ptr().ok_or_else(|| {
-            Fault::fatal(format!(
-                "{QUERY} expected {:?} for its parameters, got tag {}",
-                Tag::Array,
-                args[2].tag_byte()
-            ))
-        })?;
-
-        // § 18: "list-keyed for `?`, string-keyed for `:name`, mixing throws".
-        // The refusal is here rather than in the rewriter because an array is
-        // the only thing that can be both, and the rewriter is handed one form.
-        let held = crate::arr::borrowed(params);
-        let mut positional: Vec<Bound> = Vec::new();
-        let mut named: Vec<(String, Bound)> = Vec::new();
-        let mut from = 0usize;
-        while let Some(slot) = held.next_slot(from) {
-            from = slot + 1;
-            let value = held
-                .value_at(slot)
-                .expect("next_slot only names live entries");
-            let bound = bound_of(value);
-            match held
-                .slot_key(slot)
-                .expect("next_slot only names live entries")
-            {
-                nvs_runtime::SlotKey::Index(_) if named.is_empty() => positional.push(bound),
-                nvs_runtime::SlotKey::Str(name) if positional.is_empty() => {
-                    // A key is a Novis `string` and so is UTF-8 by ADR 0009;
-                    // the lossy read is the spelling that needs no unreachable
-                    // arm to say so.
-                    named.push((String::from_utf8_lossy(name.as_bytes()).into_owned(), bound));
-                }
-                _ => {
-                    return Err(Fault::thrown_as(
-                        ThrownClass::Logic,
-                        format!(
-                            "{QUERY}: `$params` is keyed both ways at once, and a statement is \
-                             written one way or the other — a list-keyed array binds `?` in \
-                             order, a string-keyed one binds `:name`"
-                        ),
-                    ));
-                }
-            }
-        }
-
-        let arities: Vec<nvs_db::Binding> = positional.iter().map(|bound| bound.binding).collect();
-        let keyed: Vec<(&str, nvs_db::Binding)> = named
-            .iter()
-            .map(|(name, bound)| (name.as_str(), bound.binding))
-            .collect();
-        let spelling = if named.is_empty() {
-            nvs_db::Params::Positional(&arities)
-        } else {
-            nvs_db::Params::Named(&keyed)
-        };
-        let statement = nvs_db::rewrite(sql, spelling, nvs_db::Dialect::PostgreSql)
-            .map_err(|refused| statement_failure(&block, &refused))?;
-
-        let bounds: Vec<&Bound> = if named.is_empty() {
-            positional.iter().collect()
-        } else {
-            named.iter().map(|(_, bound)| bound).collect()
-        };
-        let mut rendered: Vec<Option<Vec<u8>>> = Vec::with_capacity(statement.binds.len());
-        for source in &statement.binds {
-            rendered.push(
-                nvs_db::encode(bounds[source.arg].values[source.element])
-                    .map_err(|refused| statement_failure(&block, &refused))?,
-            );
-        }
-        let sending: Vec<Option<&[u8]>> = rendered.iter().map(|one| one.as_deref()).collect();
-
-        let filed = ctx.open_connection_mut(key).ok_or_else(|| {
-            Fault::fatal(format!("{QUERY}: no connection is filed under the key {key}"))
-        })?;
-        let connection = filed
-            .as_any_mut()
-            .downcast_mut::<nvs_db::Connection>()
-            .ok_or_else(|| {
-                Fault::fatal(format!(
-                    "{QUERY}: the connection filed under the key {key} is not `nvs-db`'s"
-                ))
-            })?;
-        let driver = connection.driver();
-        let nvs_db::Connection::Postgres(postgres) = connection else {
-            return Err(Fault::thrown(format!(
-                "{QUERY}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL runs a \
-                 statement so far — this module's known gap 2 is the list",
-                block.as_text().unwrap_or("?")
-            )));
-        };
+        let statement = statement_of(args, "query", QUERY)?;
+        let sending: Vec<Option<&[u8]>> =
+            statement.binds.iter().map(|one| one.as_deref()).collect();
+        let postgres = postgres_of(ctx, &statement, QUERY)?;
         let mut answered = postgres
             .query(&statement.sql, &sending)
-            .map_err(|refused| statement_failure(&block, &refused))?;
+            .map_err(|refused| statement_failure(QUERY, &statement.block, &refused))?;
         // Taken before the first row: a `PgRows` lends its columns and its rows
         // out of one borrow, and the rows are read with it held mutably.
         let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
@@ -1505,7 +1761,7 @@ nvs_runtime::nvs_helper! {
         loop {
             let Some(row) = answered
                 .next_row()
-                .map_err(|refused| statement_failure(&block, &refused))?
+                .map_err(|refused| statement_failure(QUERY, &statement.block, &refused))?
             else {
                 break;
             };
@@ -1516,10 +1772,10 @@ nvs_runtime::nvs_helper! {
             for (index, column) in columns.iter().enumerate() {
                 let body = row
                     .column(index)
-                    .map_err(|refused| statement_failure(&block, &refused))?;
+                    .map_err(|refused| statement_failure(QUERY, &statement.block, &refused))?;
                 let value = column
                     .decode(body)
-                    .map_err(|refused| statement_failure(&block, &refused))?
+                    .map_err(|refused| statement_failure(QUERY, &statement.block, &refused))?
                     .ok_or_else(|| structured_column(&column.name))?;
                 one.set(NvsStr::new(column.name.as_bytes()), value);
             }
@@ -1527,6 +1783,56 @@ nvs_runtime::nvs_helper! {
         }
 
         Ok(crate::instance::build(&ROWS, [Value::array(rows)]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Db\Connection::execute(string $sql, array<mixed> $params):
+    /// Db\Write` — ADR 0067 § 4's counting half of the same statement path.
+    ///
+    /// **The difference from [`nvs_core_db_connection_query`] is what becomes
+    /// of the rows, and nothing else.** The statement goes out the same way,
+    /// through the same [`statement_of`], because § 4 gives the two members one
+    /// signature and one binding rule — so `execute` is not a second, weaker
+    /// path a caller could reach a difference through.
+    ///
+    /// **The rows are read to the end and dropped**, which is not a waste: a
+    /// PostgreSQL statement is a stream either way, ending it is what returns
+    /// the connection to idle, and `lastId` is taken as each row goes past
+    /// ([`nvs_db::PgRows::last_id`]) — so the drain is also what finds it.
+    /// Nothing is decoded, which is why an `insert … returning` of a `UUID`
+    /// column answers here while the same column refuses in `query`
+    /// ([`structured_column`]).
+    ///
+    /// **Both counts come off `CommandComplete`**, so neither exists until that
+    /// stream has ended, and the pair is § 4's own: `affected` folds a command
+    /// whose tag carries no count at all — a `create table` — to `0`, and
+    /// `changed` keeps the absence, which is the only thing the two say
+    /// differently on this driver.
+    fn nvs_core_db_connection_execute(ctx, args: [3]) {
+        let statement = statement_of(args, "execute", EXECUTE)?;
+        let sending: Vec<Option<&[u8]>> =
+            statement.binds.iter().map(|one| one.as_deref()).collect();
+        let postgres = postgres_of(ctx, &statement, EXECUTE)?;
+        let mut answered = postgres
+            .query(&statement.sql, &sending)
+            .map_err(|refused| statement_failure(EXECUTE, &statement.block, &refused))?;
+        while answered
+            .next_row()
+            .map_err(|refused| statement_failure(EXECUTE, &statement.block, &refused))?
+            .is_some()
+        {}
+
+        let changed = answered.affected();
+        let last_id = answered.last_id();
+        Ok(crate::instance::build(
+            &WRITE,
+            [
+                Value::uint(changed.unwrap_or(0)),
+                changed.map_or_else(Value::null, Value::uint),
+                last_id.map_or_else(Value::null, Value::uint),
+            ],
+        ))
     }
 }
 
@@ -2053,6 +2359,54 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// One of a [`WRITE`]'s three counts, read back out of its slot.
+///
+/// No reference is taken, unlike [`owned`]'s readers: every one of these slots
+/// holds a `uint` or a `null`, and neither owns anything to retain.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot holding any other tag. All three are written
+/// by [`nvs_core_db_connection_execute`] and by nothing else, so that is a
+/// paste error in this crate rather than anything a program can cause.
+fn write_count(args: &[Value], member: &str, at: usize) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], &WRITE, member)?;
+    let held = crate::instance::slot(receiver, at);
+    if held.as_uint().is_none() && held.tag() != Some(Tag::Null) {
+        return Err(Fault::fatal(format!(
+            "{WRITE_NAME}::{member} found tag {} in its `{}` slot",
+            held.tag_byte(),
+            WRITE.slots[at]
+        )));
+    }
+    Ok(held)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$write->affected(): uint` — how many rows the statement affected, and
+    /// `0` where its kind reports no count at all.
+    fn nvs_core_db_write_affected(_ctx, args: [1]) {
+        write_count(args, "affected", AFFECTED_AT)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$write->changed(): ?uint` — the same count as the server reported it,
+    /// whose `null` is what [`nvs_core_db_write_affected`] folds to `0`.
+    fn nvs_core_db_write_changed(_ctx, args: [1]) {
+        write_count(args, "changed", CHANGED_AT)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$write->lastId(): ?uint` — ADR 0067 § 4's id, which on PostgreSQL is
+    /// whatever a `RETURNING` clause handed back and belongs to this write
+    /// rather than to the connection.
+    fn nvs_core_db_write_last_id(_ctx, args: [1]) {
+        write_count(args, "lastId", LAST_ID_AT)
+    }
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -2061,6 +2415,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_in_list" => (nvs_core_db_in_list as *const ()).cast(),
         "nvs_core_db_quote_identifier" => (nvs_core_db_quote_identifier as *const ()).cast(),
         "nvs_core_db_connection_query" => (nvs_core_db_connection_query as *const ()).cast(),
+        "nvs_core_db_connection_execute" => (nvs_core_db_connection_execute as *const ()).cast(),
         "nvs_core_db_rows_all" => (nvs_core_db_rows_all as *const ()).cast(),
         "nvs_core_db_rows_first" => (nvs_core_db_rows_first as *const ()).cast(),
         "nvs_core_db_rows_value" => (nvs_core_db_rows_value as *const ()).cast(),
@@ -2080,6 +2435,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_row_date" => (nvs_core_db_row_date as *const ()).cast(),
         "nvs_core_db_row_time" => (nvs_core_db_row_time as *const ()).cast(),
         "nvs_core_db_row_uuid" => (nvs_core_db_row_uuid as *const ()).cast(),
+        "nvs_core_db_write_affected" => (nvs_core_db_write_affected as *const ()).cast(),
+        "nvs_core_db_write_changed" => (nvs_core_db_write_changed as *const ()).cast(),
+        "nvs_core_db_write_last_id" => (nvs_core_db_write_last_id as *const ()).cast(),
         _ => return None,
     })
 }
