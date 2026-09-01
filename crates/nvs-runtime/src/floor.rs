@@ -157,9 +157,15 @@ pub fn text(value: &str) -> Node {
     })
 }
 
-/// Renders `record` as ADR 0092 § 3's JSON Lines line and writes it to `ctx`'s
-/// diagnostic channel, unless [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// Renders `record` as ADR 0092 § 3's JSON Lines line and writes it where
+/// `[log] target` says — `ctx`'s diagnostic channel where it says nothing —
+/// unless [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 10's window has already written it.
+///
+/// [`Ctx::write_log_record`] is the routing and the only reader of that
+/// directive; this is one of its two callers and `Core\Log::write` is the
+/// other, which is ADR 0020 § 6's sameness on the destination as well as on
+/// the record.
 ///
 /// Infallible by construction: [`nvs_render::json::line`] answers a `String`
 /// rather than a `Result` for this caller's sake, and a sink that has already
@@ -175,7 +181,7 @@ pub fn report(ctx: &mut Ctx, record: &Record) {
         carried.envelope.count = Some(count);
         nvs_render::json::line(&carried)
     };
-    let _ = ctx.write_diagnostic(line.as_bytes());
+    let _ = ctx.write_log_record(crate::LogChannel::Diagnostic, line.as_bytes());
 }
 
 /// How long one record holds the window open — ADR 0106 § 10's rate limit,

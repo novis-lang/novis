@@ -52,19 +52,26 @@
 //!
 //! # Where the bytes go
 //!
-//! [`Ctx::write_output`](nvs_runtime::Ctx::write_output) — the program's own
-//! output stream, not [`Ctx::write_diagnostic`](nvs_runtime::Ctx::write_diagnostic),
-//! which is where [`crate::debug`] sends a dump. The split is by *whose*
-//! record it is. A `Core\Log::write` is something the program chose to say, so
-//! it is output and ADR 0088 § 5's sink rules apply to it — `Core\Out::capture`
-//! around one captures it, which is exactly what ADR 0092 § 3 asks of every
-//! rendering. A record the engine writes about a program that has already
-//! stopped is not the program's output and lands on the diagnostic channel
-//! instead; `[log] target`'s `stderr`/`file:`/`syslog` routing is that side's,
-//! and it arrives with the floor.
+//! [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record), which is the
+//! one reader of `[log] target` and takes the channel to use when that
+//! directive names nothing. **Both of ADR 0092 § 6's writers call it**, so a
+//! deployment naming a destination gets one destination and not two —
+//! § 6's sameness is about the record, and a per-caller destination is the
+//! other half of the same claim. That method's doc comment owns the routing,
+//! including why a named target is not captured by `Core\Out::capture`.
+//!
+//! With no target configured the two callers keep the split they have always
+//! had, and it is by *whose* record it is. A `Core\Log::write` is something the
+//! program chose to say, so it is output —
+//! [`Ctx::write_output`](nvs_runtime::Ctx::write_output), where ADR 0088 § 5's
+//! sink rules apply and `Core\Out::capture` around one captures it, which is
+//! exactly what ADR 0092 § 3 asks of every rendering. A record the engine
+//! writes about a program that has already stopped is not the program's output
+//! and lands on [`Ctx::write_diagnostic`](nvs_runtime::Ctx::write_diagnostic)
+//! instead, beside where [`crate::debug`] sends a dump.
 
 use nvs_render::{Level, Node, Record, Rendered};
-use nvs_runtime::{Fault, Value};
+use nvs_runtime::{Fault, LogChannel, Value};
 
 use crate::registry::{
     CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, Qual,
@@ -193,19 +200,25 @@ nvs_runtime::nvs_helper! {
     /// `Core\Log::write(Core\Log\Level $level, string $message, array<string, mixed> $fields = []): void`
     /// — ADR 0020 § 6.
     ///
-    /// One `write_output` call per record rather than one per field: JSON
-    /// Lines' whole contract is that a record is a line, and a partial write
-    /// interleaved with another core's is the one way to break it.
+    /// One write call per record rather than one per field: JSON Lines' whole
+    /// contract is that a record is a line, and a partial write interleaved
+    /// with another core's is the one way to break it.
+    ///
+    /// Where that one call lands is
+    /// [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record)'s, not
+    /// this member's — the module doc's § *Where the bytes go* owns the split.
     fn nvs_core_log_write(ctx, args: [3]) {
         let level = level_of(&args[0])?;
         let message = message_of(&args[1])?;
         let line = nvs_render::json::line(&record(level, message, args[2]));
-        // Unreachable from source, for the reason `Core\Debug::dump`'s own
-        // write is: the only output sink that can fail is the process's
-        // stdout, and nothing in the language moves the channel or closes the
-        // descriptor. A program that logs cannot make this happen; only the
-        // host can, by handing the process an output stream it then breaks.
-        ctx.write_output(line.as_bytes())
+        // Unreachable from source. Absent a `[log] target` the destination is
+        // the process's own output stream, which nothing in the language moves
+        // or closes — the reason `Core\Debug::dump`'s own write gives. With one
+        // configured it is the operator's file, which a full disk can fail:
+        // still nothing the program said, and still a `FATAL` rather than a
+        // throw, because a `catch` around a log write is not where a
+        // deployment's unwritable log gets handled.
+        ctx.write_log_record(LogChannel::Output, line.as_bytes())
             .map_err(|why| Fault::fatal(format!("Core\\Log::write could not write: {why}")))?;
         Ok(Value::null())
     }
@@ -513,6 +526,75 @@ mod tests {
             held <= (KEEP as u64 + 1) * MAX_BYTES && held < produced,
             "the target holds at most `(keep + 1) * max_bytes` however much is \
              written through it: {held} of {produced} produced"
+        );
+    }
+
+    /// ADR 0020 § 4's directive, asked of both of ADR 0092 § 6's writers at
+    /// once: a deployment that names a destination gets **one** destination,
+    /// and neither caller keeps a channel of its own beside it.
+    ///
+    /// Asserted as a destination the two of them *share* rather than as two
+    /// readings of the directive, which is § 6's sameness one step past the
+    /// record's shape. The two channels a target displaces are checked as well
+    /// as the file that replaced them, because a writer that wrote to both
+    /// would satisfy every assertion about the file alone while doubling every
+    /// record a deployment collects.
+    #[test]
+    fn both_writers_land_in_the_target_the_deployment_named() {
+        let path = scratch("named-target.log", 0);
+        let mut ctx = Ctx::buffered();
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
+        ctx.set_config(crate::tests::granting(&format!(
+            "[log]\ntarget = \"file:{}\"\n",
+            path.display().to_string().replace('\\', "\\\\")
+        )));
+
+        call(
+            nvs_core_log_write,
+            &mut ctx,
+            &[
+                Value::int(error_severity()),
+                Value::str(NvsStr::new(b"the application said so")),
+                Value::array(NvsArray::new()),
+            ],
+        )
+        .expect("a configured file target is not a failure a program can cause");
+        floor::report(&mut ctx, &floor::note(Level::Error, "the floor said so"));
+
+        assert!(
+            ctx.take_buffered_output()
+                .expect("a buffered context hands its bytes back")
+                .is_empty(),
+            "a named target is where the record goes, not a second copy beside \
+             the program's own output"
+        );
+        assert!(
+            diagnostic(&mut ctx).is_empty(),
+            "and the floor's own channel is displaced by it in the same way"
+        );
+
+        // Dropping the context closes the handle, so the assertions below read
+        // what the sink actually committed rather than what it may still hold.
+        drop(ctx);
+        let written = std::fs::read_to_string(&path)
+            .expect("the target the configuration named is the file on disk");
+        let lines: Vec<&str> = written.lines().collect();
+        assert_eq!(
+            lines.len(),
+            2,
+            "one line per record, from both writers, in the order they wrote: \
+             {written}"
+        );
+        assert!(
+            lines[0].contains("\"msg\":\"the application said so\"")
+                && lines[1].contains("\"msg\":\"the floor said so\""),
+            "and each is the record its own caller built: {written}"
+        );
+        assert!(
+            lines
+                .iter()
+                .all(|line| line.starts_with("{\"level\":\"error\",")),
+            "rendered by one serialiser at one destination: {written}"
         );
     }
 

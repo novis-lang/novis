@@ -247,13 +247,46 @@ pub enum OutputSink {
     /// A file on disk, under [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 10's rotation and retention bound.
     ///
-    /// What `[log] target = "file:…"` selects once something reads that
-    /// directive at run time; until then it is reachable only through
-    /// [`Ctx::set_diagnostic_sink`], which is also the whole of how the floor's
-    /// own bound is asserted.
+    /// What `[log] target = "file:…"` selects, built by
+    /// [`Ctx::write_log_record`]'s reader and reachable directly through
+    /// [`Ctx::set_diagnostic_sink`], which is how the floor's own bound is
+    /// asserted without a configuration in front of it.
     File(crate::logfile::LogFile),
     /// Discarded.
     Sink,
+}
+
+/// Where a record goes when `[log] target` names no destination — which is a
+/// different channel for each of [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// § 6's two writers, and the same one for both as soon as it does name one.
+///
+/// [`Ctx::write_log_record`] is the whole of the routing and its doc comment is
+/// the home of why the unconfigured default is a split rather than a single
+/// channel.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LogChannel {
+    /// The program's own output, through [`Ctx::write_output`] and so through
+    /// ADR 0088 § 5's capture stack — `Core\Log::write`'s, because a record a
+    /// program chose to write is something it said.
+    Output,
+    /// The diagnostic channel, through [`Ctx::write_diagnostic`] — the engine
+    /// floor's, because a record about a program that has already stopped is
+    /// not that program's output.
+    Diagnostic,
+}
+
+/// What `[log] target` resolved to, read once per context.
+#[derive(Debug)]
+enum LogTarget {
+    /// The directive has not been read yet. Every context starts here and
+    /// returns here at [`Ctx::set_config`], so the read happens after the
+    /// configuration is in place and never twice.
+    Unread,
+    /// Read, and the configuration names no destination this build can open.
+    /// Each writer keeps [`LogChannel`]'s own channel.
+    Unnamed,
+    /// Read: both writers land here.
+    Named(OutputSink),
 }
 
 /// Per-request state, passed to every compiled Novis function and every helper.
@@ -549,6 +582,16 @@ pub struct Ctx {
     /// [`Self::set_diagnostic_sink`] explicitly, so a test that does not is
     /// never quietly swallowing one.
     diagnostic: OutputSink,
+    /// Where `[log] target` sends a record — [`Self::write_log_record`]'s
+    /// destination, resolved from the directive on first use and held here
+    /// because [`OutputSink::File`] is stateful: the rotation bound is counted
+    /// against a handle, so re-deriving the sink per record would re-open the
+    /// file per record and count nothing.
+    ///
+    /// **What it spends:** one discriminant per context while the directive is
+    /// unset, and one `LogFile` — a path, a descriptor and two counters — for a
+    /// context that writes to a configured file. Nothing is O(records).
+    log: LogTarget,
     /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 6's configured origin: the scheme and authority
     /// `Core\Router::urlAbsolute` puts in front of a link, with no trailing
@@ -1252,6 +1295,7 @@ impl Ctx {
             runtime_error_class: None,
             output,
             diagnostic: OutputSink::Stderr,
+            log: LogTarget::Unread,
             origin: None,
             commands: None,
             arguments: Vec::new(),
@@ -1334,6 +1378,12 @@ impl Ctx {
     pub fn set_config(&mut self, snapshot: std::sync::Arc<nvs_config::Snapshot>) {
         self.config = Some(nvs_config::Request::new(snapshot));
         self.refresh_limits();
+        // The log target is read out of the snapshot that just arrived, not out
+        // of the one this context was built with. Dropping whatever was
+        // resolved is what makes the read happen once *after* configuration
+        // rather than once per context, and it closes the sink a previous
+        // snapshot opened.
+        self.log = LogTarget::Unread;
     }
 
     /// This request's place in a distributed trace — ADR 0076 § 2, and never
@@ -3483,6 +3533,83 @@ impl Ctx {
     /// [`OutputSink::Sink`] never fail.
     pub fn write_diagnostic(&mut self, bytes: &[u8]) -> io::Result<()> {
         write_to(&mut self.diagnostic, bytes)
+    }
+
+    /// Writes one rendered record where `[log] target` says, and where
+    /// `unconfigured` says when the directive names nothing.
+    ///
+    /// **This is the only reader of that directive**, and both of
+    /// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// § 6's writers reach it: `Core\Log::write` with [`LogChannel::Output`]
+    /// and [`crate::floor::report`] with [`LogChannel::Diagnostic`]. § 6's
+    /// claim is about *sameness* — one serialiser, two callers — and a
+    /// destination each caller resolved for itself is the second way that
+    /// sameness could be lost after the record's shape.
+    ///
+    /// **A named target wins over `Core\Out::capture`.** The record leaves
+    /// through the sink rather than through [`Self::write_output`], so ADR 0088
+    /// § 5's capture stack does not see it and `[limits] max_output` is not
+    /// charged for it. Both follow from what the directive means: an operator
+    /// naming a destination is saying where the deployment's records go, and a
+    /// program capturing its own output has said nothing about that. With no
+    /// target configured the record is still the program's output and both
+    /// rules apply to it exactly as before.
+    ///
+    /// The directive is read once — see [`Self::set_config`] — and the sink it
+    /// names is held for the life of the context, because a rotation bound
+    /// counted against a handle needs the handle to survive the record.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the sink returns; a file target's failure is the caller's to
+    /// swallow, which is ADR 0020 § 4's answer at the floor.
+    pub fn write_log_record(&mut self, unconfigured: LogChannel, line: &[u8]) -> io::Result<()> {
+        if matches!(self.log, LogTarget::Unread) {
+            self.log = self.resolve_log_target();
+        }
+        if let LogTarget::Named(sink) = &mut self.log {
+            return write_to(sink, line);
+        }
+        match unconfigured {
+            LogChannel::Output => self.write_output(line),
+            LogChannel::Diagnostic => self.write_diagnostic(line),
+        }
+    }
+
+    /// `[log] target` as the sink it names, through ADR 0020 § 4's grammar and
+    /// not through a second reading of it.
+    ///
+    /// [`nvs_config::log::Target`] is that grammar and it has two readers:
+    /// this one, and the boot check that refuses a tree naming a target § 4
+    /// does not spell. So a value that reached here is one of three, and
+    /// [`LogTarget::Unnamed`] covers two facts rather than one:
+    ///
+    /// - **`syslog` is spelled and not yet transported.** A syslog sink is a
+    ///   datagram to a platform endpoint carrying ADR 0092 § 2's severity in a
+    ///   priority field — a transport, a framing and an argument the
+    ///   byte-oriented sinks here do not take. Routing it to `stderr` instead
+    ///   would be this module claiming a destination it does not reach, so it
+    ///   routes nowhere new and each writer's own channel still carries the
+    ///   record.
+    /// - **A target nobody spelled** never boots, so reaching it here means a
+    ///   context was configured by something other than a resolved tree — a
+    ///   test, in practice. It is not a diagnostic at the one moment the
+    ///   engine has a failure to report; it is the unconfigured routing.
+    fn resolve_log_target(&self) -> LogTarget {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("log.target"))
+        else {
+            return LogTarget::Unnamed;
+        };
+        match nvs_config::log::Target::of(&written) {
+            Some(nvs_config::log::Target::Stderr) => LogTarget::Named(OutputSink::Stderr),
+            Some(nvs_config::log::Target::File(path)) => LogTarget::Named(OutputSink::File(
+                crate::logfile::LogFile::new(std::path::PathBuf::from(path)),
+            )),
+            Some(nvs_config::log::Target::Syslog) | None => LogTarget::Unnamed,
+        }
     }
 
     /// Points this context's diagnostic channel somewhere else — what a test
