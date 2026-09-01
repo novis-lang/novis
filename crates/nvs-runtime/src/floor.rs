@@ -170,25 +170,24 @@ pub fn text(value: &str) -> Node {
 /// coalescing above still counts it, because what that window bounds is how
 /// often *this* module builds a record at all.
 ///
-/// Infallible by construction: [`nvs_render::json::line`] answers a `String`
-/// rather than a `Result` for this caller's sake, and a sink that has already
-/// gone is ignored for the reason this module's docs give.
+/// It does not render, either: `[log] format` picks between ADR 0092 § 3's two
+/// renderings at that same call, so this module hands over the *record* and a
+/// floor line and an application's are the same shape in whichever of the two
+/// the deployment configured.
+///
+/// Infallible by construction: nothing here can fail, and a sink that has
+/// already gone is ignored for the reason this module's docs give.
 pub fn report(ctx: &mut Ctx, record: &Record) {
     let Some(count) = admit(key(record), Instant::now()) else {
         return;
     };
-    let line = if count == 1 {
-        nvs_render::json::line(record)
-    } else {
-        let mut carried = record.clone();
-        carried.envelope.count = Some(count);
-        nvs_render::json::line(&carried)
-    };
-    let _ = ctx.write_log_record(
-        record.envelope.level,
-        crate::LogChannel::Diagnostic,
-        line.as_bytes(),
-    );
+    if count == 1 {
+        let _ = ctx.write_log_record(record, crate::LogChannel::Diagnostic);
+        return;
+    }
+    let mut carried = record.clone();
+    carried.envelope.count = Some(count);
+    let _ = ctx.write_log_record(&carried, crate::LogChannel::Diagnostic);
 }
 
 /// How long one record holds the window open — ADR 0106 § 10's rate limit,

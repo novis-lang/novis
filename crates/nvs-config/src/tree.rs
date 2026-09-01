@@ -351,7 +351,8 @@ pub struct Log {
     /// Tier 4, the floor: `stderr`, `file:<path>` or `syslog`, hardcoded in Rust and bounded
     /// against the disk it writes to.
     pub target: Option<String>,
-    /// Which of ADR 0092 § 3's three renderings the sink emits.
+    /// Which rendering the target emits — ADR 0092 § 3 gives this one **two** of its three, since
+    /// the HTML one is a response's and never a destination's.
     pub format: Option<String>,
     /// The minimum level written; its per-mode default is ADR 0091 § 3's.
     pub level: Option<String>,

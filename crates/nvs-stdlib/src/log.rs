@@ -53,8 +53,8 @@
 //! # Where the bytes go
 //!
 //! [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record), which is the
-//! one reader of `[log] target` and takes the channel to use when that
-//! directive names nothing. **Both of ADR 0092 § 6's writers call it**, so a
+//! one reader of `[log] target`, `level` and `format`, and takes the channel to
+//! use when the first of those names nothing. **Both of ADR 0092 § 6's writers call it**, so a
 //! deployment naming a destination gets one destination and not two —
 //! § 6's sameness is about the record, and a per-caller destination is the
 //! other half of the same claim. That method's doc comment owns the routing,
@@ -210,7 +210,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_log_write(ctx, args: [3]) {
         let level = level_of(&args[0])?;
         let message = message_of(&args[1])?;
-        let line = nvs_render::json::line(&record(level, message, args[2]));
+        let record = record(level, message, args[2]);
         // Unreachable from source. Absent a `[log] target` the destination is
         // the process's own output stream, which nothing in the language moves
         // or closes — the reason `Core\Debug::dump`'s own write gives. With one
@@ -218,7 +218,7 @@ nvs_runtime::nvs_helper! {
         // still nothing the program said, and still a `FATAL` rather than a
         // throw, because a `catch` around a log write is not where a
         // deployment's unwritable log gets handled.
-        ctx.write_log_record(level, LogChannel::Output, line.as_bytes())
+        ctx.write_log_record(&record, LogChannel::Output)
             .map_err(|why| Fault::fatal(format!("Core\\Log::write could not write: {why}")))?;
         Ok(Value::null())
     }
@@ -269,10 +269,13 @@ fn message_of(value: &Value) -> Result<&str, Fault> {
 /// This call as ADR 0092 § 1's record — the envelope fields this crate has a
 /// source for, and the bag as named nodes.
 ///
-/// Everything past building it belongs to `nvs-render`: which keys a rendering
-/// writes, that an absent one is omitted rather than empty, and the JSON Lines
-/// line itself. That is ADR 0020 § 6's *one implementation, two callers* — the
-/// engine floor builds the same `Record` and calls the same [`nvs_render::json::line`].
+/// Everything past building it belongs elsewhere: which keys a rendering
+/// writes and that an absent one is omitted rather than empty are
+/// `nvs-render`'s, and *which* rendering is
+/// [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record)'s, under
+/// `[log] format`. That is ADR 0020 § 6's *one implementation, two callers* —
+/// the engine floor builds the same `Record` and hands it to the same method,
+/// so neither this member nor the floor has a rendering to choose.
 fn record(level: Level, message: &str, fields: Value) -> Record {
     let mut record = Record::at(level);
     record.envelope.message = Some(Rendered::new(message));
@@ -659,6 +662,57 @@ mod tests {
             written.lines().count(),
             6,
             "three levels at or above the minimum, from two writers: {written}"
+        );
+    }
+
+    /// ADR 0092 § 3's second rendering, asked of both writers at once: under
+    /// `[log] format = "text"` the target carries plaintext records and no JSON
+    /// Lines at all, from the application's writer and from the floor alike.
+    ///
+    /// The *agreement* is the claim, not the layout — `nvs_render::plain`'s own
+    /// tests own what a plaintext record looks like. What could break here is
+    /// one writer rendering for itself: a producer that still called
+    /// `nvs_render::json::line` would leave a file with one of each and pass
+    /// every assertion made about the other one alone.
+    #[test]
+    fn both_writers_emit_the_rendering_the_deployment_configured() {
+        let path = scratch("text-format.log", 0);
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(&format!(
+            "[log]\ntarget = \"file:{}\"\nformat = \"text\"\n",
+            path.display().to_string().replace('\\', "\\\\")
+        )));
+
+        call(
+            nvs_core_log_write,
+            &mut ctx,
+            &[
+                Value::int(Level::Error.syslog_severity().into()),
+                Value::str(NvsStr::new(b"the application said so")),
+                Value::array(NvsArray::new()),
+            ],
+        )
+        .expect("a configured target is where the record goes");
+        floor::report(&mut ctx, &floor::note(Level::Error, "the floor said so"));
+
+        drop(ctx);
+        let written = std::fs::read_to_string(&path)
+            .expect("the target the configuration named is the file on disk");
+        assert!(
+            !written.contains("{\"level\""),
+            "`format = \"text\"` selects one rendering for every writer: {written}"
+        );
+        let headers: Vec<&str> = written
+            .lines()
+            .filter(|line| line.starts_with('['))
+            .collect();
+        assert_eq!(
+            headers,
+            vec![
+                "[error] the application said so",
+                "[error] the floor said so"
+            ],
+            "both writers render through `nvs_render::plain`: {written}"
         );
     }
 

@@ -1,6 +1,6 @@
 //! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 4's `[log] target` and
-//! [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md) § 2's `[log] level`:
-//! what each names, and the boot-time refusal of everything else.
+//! [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md) §§ 2-3's
+//! `[log] level` and `[log] format`: what each names, and the boot-time refusal of everything else.
 //!
 //! **The grammar is here and not at the sink, because two readers need it.** [`Target::of`] is the
 //! only place a written target is turned into a destination: [`validate`] asks it whether a tree
@@ -12,6 +12,12 @@
 //! `[log] level` names one of ADR 0092 § 2's five, and the roster's home is the enum a record
 //! already carries. Only the *refusal* is here — [`levelled`] — because only this crate has the
 //! tree and the origins to say which file the word was written in.
+//!
+//! The format's grammar is [`Format::of`], and it is here rather than one crate down for the
+//! target's reason and not the level's: § 3 names a *rendering to select*, and `nvs-render` carries
+//! one function per rendering with no enum over them. A third one added there — the HTML rendering
+//! the response sink picks — is deliberately not a value of this directive, which § 3 states
+//! outright, so the two rosters are not the same roster and must not become one type.
 //!
 //! **Refused where it is written, never where it is used.** The one moment the engine cannot afford
 //! to raise a diagnostic about its configuration is the moment it is already reporting a failure:
@@ -65,6 +71,43 @@ impl<'a> Target<'a> {
     }
 }
 
+/// One of ADR 0092 § 3's two log-target renderings, as written.
+///
+/// Owned by nothing and borrowing nothing, unlike [`Target`] above: a rendering is a choice
+/// between two functions rather than a value carried into a sink, so both readers keep the answer
+/// and neither keeps the word.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum Format {
+    /// `json` — JSON Lines, `nvs_render::json::line`, and the default with nothing written.
+    ///
+    /// The default is here as well as in ADR 0091 § 3's mode table because a context configured by
+    /// something other than a resolved tree has said nothing about the shape it wants, and one
+    /// record per line is the shape a log pipeline can read without being told.
+    #[default]
+    Json,
+    /// `text` — § 3's plaintext rendering, `nvs_render::plain::render`, uncoloured.
+    ///
+    /// Colour is a property of the terminal sink and not of this directive: § 3 makes plaintext
+    /// coloured *iff* `Cli::colorDepth() != None`, and a file or a redirected `stderr` answers
+    /// `None`, so a target's plaintext is the same bytes either way.
+    Text,
+}
+
+impl Format {
+    /// What `written` names, or `None` for a rendering § 3 does not put on this directive.
+    ///
+    /// `html` is the near miss worth naming: it is a real rendering of the same record, reached
+    /// through the response sink, and it is refused here rather than accepted and ignored.
+    #[must_use]
+    pub fn of(written: &str) -> Option<Self> {
+        match written {
+            "json" => Some(Self::Json),
+            "text" => Some(Self::Text),
+            _ => None,
+        }
+    }
+}
+
 /// § 4's target, asked of every `[log]` block the merged tree holds.
 ///
 /// The global block and each `[[app]]`'s own, because ADR 0104 § 1 lets an application carry its
@@ -72,8 +115,9 @@ impl<'a> Target<'a> {
 ///
 /// # Errors
 ///
-/// One [`Diagnostic`], `E0613`, for the first target that is none of the three — naming the value,
-/// the three spellings, and the file the value was written in.
+/// One [`Diagnostic`] for the first value of the first block that names nothing — `E0613` for a
+/// target, `E0614` for a level, `E0615` for a format — naming the value, the spellings that would
+/// have worked, and the file the value was written in.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     if let Some(log) = config.log.as_ref() {
         block(log, "log", origins)?;
@@ -93,6 +137,9 @@ fn block(log: &Log, prefix: &str, origins: &BTreeMap<String, Origin>) -> Result<
     }
     if let Some(written) = log.level.as_deref() {
         levelled(written, &format!("{prefix}.level"), origins)?;
+    }
+    if let Some(written) = log.format.as_deref() {
+        formatted(written, &format!("{prefix}.format"), origins)?;
     }
     Ok(())
 }
@@ -144,6 +191,37 @@ fn levelled(
     .with_help(
         "write the case as § 2 spells it — `level = \"Info\"` — or as a record renders it, \
          `level = \"info\"`"
+            .to_owned(),
+    ))
+}
+
+/// [`validate`]'s refusal for one written format, under the key it was merged as.
+///
+/// The third of this block's three, and the one whose unspelled value costs the least at the sink
+/// and the most downstream: the records are the right records, written in the rendering the
+/// deployment asked not to have. `E0615`'s own doc is the home of that, and of why `html` — a real
+/// rendering of the same record, and not one of this directive's two — is refused here rather than
+/// quietly answered with JSON.
+fn formatted(
+    written: &str,
+    key: &str,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    if Format::of(written).is_some() {
+        return Ok(());
+    }
+    Err(Diagnostic::error(
+        code::E_UNSPELLED_LOG_FORMAT,
+        format!("`[log] format = \"{written}\"` names no rendering a log target emits"),
+    )
+    .with_note(format!(
+        "ADR 0092 § 3 gives this directive two values, `json` and `text`{}",
+        origin_note(origins.get(key))
+    ))
+    .with_help(
+        "write `format = \"json\"` for JSON Lines or `format = \"text\"` for the plaintext \
+         rendering; the HTML one is what an HTTP response renders a record as, and is not a \
+         destination's"
             .to_owned(),
     ))
 }
@@ -231,6 +309,42 @@ mod tests {
                 panic!("`{written}` is not one of ADR 0092 § 2's five");
             };
             assert_eq!(refused.code, Some(code::E_UNSPELLED_LOG_LEVEL));
+            assert!(
+                refused.message.contains(written),
+                "the value is what the operator has to find: {}",
+                refused.message
+            );
+        }
+    }
+
+    /// A tree whose global `[log]` block names `format` and nothing else.
+    fn formatted_tree(format: &str) -> Config {
+        Config {
+            log: Some(Log {
+                format: Some(format.to_string()),
+                ..Log::default()
+            }),
+            ..Config::default()
+        }
+    }
+
+    /// ADR 0092 § 3's two values, and the refusal of everything else — including `html`, which is a
+    /// rendering of the same record and is not one of this directive's two.
+    ///
+    /// The bound is named on both sides in one test because the roster is two long: a check that
+    /// only accepted would pass on a directive that accepts anything, and one that only refused
+    /// would pass on a directive that accepts nothing and never boots.
+    #[test]
+    fn the_two_renderings_a_target_emits_resolve_and_the_third_one_does_not() {
+        for written in ["json", "text"] {
+            validate(&formatted_tree(written), &BTreeMap::new())
+                .unwrap_or_else(|_| panic!("`{written}` is one of ADR 0092 § 3's two"));
+        }
+        for written in ["html", "JSON", "plain", "jsonl", ""] {
+            let Err(refused) = validate(&formatted_tree(written), &BTreeMap::new()) else {
+                panic!("`{written}` is not a rendering a log target emits");
+            };
+            assert_eq!(refused.code, Some(code::E_UNSPELLED_LOG_FORMAT));
             assert!(
                 refused.message.contains(written),
                 "the value is what the operator has to find: {}",

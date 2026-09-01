@@ -1357,6 +1357,20 @@ pub mod code {
     /// `nvs_runtime::Ctx::write_log_record` resolves the floor through.
     pub const E_UNSPELLED_LOG_LEVEL: Code = Code::new("E0614");
 
+    /// A `[log] format` that is neither of ADR 0092 § 3's two — the third
+    /// refusal of the same block and for the third reason. An unspelled
+    /// destination routes records nowhere and an unspelled level widens what is
+    /// collected; an unspelled *rendering* leaves them as JSON Lines, so the
+    /// deployment collects exactly the right records in the shape it asked not
+    /// to have, and the pipeline reading them is the thing that breaks.
+    ///
+    /// § 3's own paragraph is why the near miss is worth a diagnostic rather
+    /// than a fallback: the directive has **two** values and not three, because
+    /// HTML is a rendering the response sink selects and never a log target's.
+    /// An operator who writes `format = "html"` has asked for something that
+    /// exists, somewhere this is not.
+    pub const E_UNSPELLED_LOG_FORMAT: Code = Code::new("E0615");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

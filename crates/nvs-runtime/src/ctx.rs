@@ -143,7 +143,8 @@
 use std::borrow::Cow;
 use std::io::{self, Write};
 
-use nvs_render::Level;
+use nvs_config::log::Format as LogFormat;
+use nvs_render::{Level, Record};
 
 use crate::object::{ClassDesc, ClassId, ClassTable, FieldDefault};
 use crate::throwable::{Thrown, ThrownClass};
@@ -603,6 +604,14 @@ pub struct Ctx {
     /// record beyond the comparison. [`Level::Debug`] is every level, so a
     /// context whose configuration names none writes what it was handed.
     log_minimum: Level,
+    /// Which of ADR 0092 § 3's two renderings the target emits — resolved on
+    /// the same first use as the two above, for the same reason, and read at
+    /// every record [`Self::write_log_record`] does not drop.
+    ///
+    /// **What it spends:** one discriminant per context, and one `String` per
+    /// written record, which is the allocation the caller made when it rendered
+    /// for itself.
+    log_format: LogFormat,
     /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 6's configured origin: the scheme and authority
     /// `Core\Router::urlAbsolute` puts in front of a link, with no trailing
@@ -1308,6 +1317,7 @@ impl Ctx {
             diagnostic: OutputSink::Stderr,
             log: LogTarget::Unread,
             log_minimum: Level::Debug,
+            log_format: LogFormat::Json,
             origin: None,
             commands: None,
             arguments: Vec::new(),
@@ -3581,9 +3591,20 @@ impl Ctx {
     /// and `Critical` at 2. Written as the enum ordering because that is the
     /// one of the two spellings a reader cannot get backwards.
     ///
-    /// Both directives are read once — see [`Self::set_config`] — and the sink
-    /// `target` names is held for the life of the context, because a rotation
-    /// bound counted against a handle needs the handle to survive the record.
+    /// **`[log] format` picks the rendering, which is why this takes a
+    /// [`Record`] and not bytes.** ADR 0092 § 3 gives a log target two of its
+    /// three renderings — JSON Lines and plaintext — and § 6's producers name
+    /// none of them, so the choice belongs at the sink and nowhere else. A
+    /// caller that rendered first would be a caller that had chosen, and the
+    /// two of them would have chosen separately: the same drift the record's
+    /// shape, its destination and its floor are each held here to avoid. The
+    /// price is one `String` per written record, which is what the caller
+    /// allocated before.
+    ///
+    /// The three directives are read once — see [`Self::set_config`] — and the
+    /// sink `target` names is held for the life of the context, because a
+    /// rotation bound counted against a handle needs the handle to survive the
+    /// record.
     ///
     /// # Errors
     ///
@@ -3591,17 +3612,22 @@ impl Ctx {
     /// swallow, which is ADR 0020 § 4's answer at the floor.
     pub fn write_log_record(
         &mut self,
-        level: Level,
+        record: &Record,
         unconfigured: LogChannel,
-        line: &[u8],
     ) -> io::Result<()> {
         if matches!(self.log, LogTarget::Unread) {
             self.log = self.resolve_log_target();
             self.log_minimum = self.resolve_log_minimum();
+            self.log_format = self.resolve_log_format();
         }
-        if level < self.log_minimum {
+        if record.envelope.level < self.log_minimum {
             return Ok(());
         }
+        let rendered = match self.log_format {
+            LogFormat::Json => nvs_render::json::line(record),
+            LogFormat::Text => nvs_render::plain::render(record),
+        };
+        let line = rendered.as_bytes();
         if let LogTarget::Named(sink) = &mut self.log {
             return write_to(sink, line);
         }
@@ -3664,6 +3690,24 @@ impl Ctx {
             .and_then(|config| config.get("log.level"))
             .and_then(|written| Level::of(&written))
             .unwrap_or(Level::Debug)
+    }
+
+    /// What `[log] format` names, or [`LogFormat::Json`] where it names
+    /// nothing — [`Self::write_log_record`]'s rendering, resolved with the two
+    /// directives above.
+    ///
+    /// One record per line for an unset directive, which is both ADR 0091 § 3's
+    /// per-mode default and [`LogFormat`]'s own: a pipeline reading a target
+    /// nobody configured can find the record boundaries without being told, and
+    /// the plaintext rendering's are a blank-line-free block. A word the grammar
+    /// does not carry reads the same way and never boots — `E0615` refuses it at
+    /// the file.
+    fn resolve_log_format(&self) -> LogFormat {
+        self.config
+            .as_ref()
+            .and_then(|config| config.get("log.format"))
+            .and_then(|written| LogFormat::of(&written))
+            .unwrap_or(LogFormat::Json)
     }
 
     /// Points this context's diagnostic channel somewhere else — what a test
