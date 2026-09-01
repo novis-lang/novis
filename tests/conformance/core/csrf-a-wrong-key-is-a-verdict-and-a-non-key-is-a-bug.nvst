@@ -1,0 +1,83 @@
+--TEST--
+Core\Csrf answers `false` for a token under another key and throws a LogicError for a `bytes` that was never a key — the 32-octet bound named on both sides and on both members — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// A bound asserted on both sides, over the two error rows both reference cards
+// carry. The distinction is the class's whole failure policy: a forgery is the
+// ordinary answer to the question `verify` asks, and only a program bug throws.
+// A member that threw for the wrong key would put every CSRF check inside a
+// `try` whose `catch` is the interesting branch, which is the code
+// `crates/nvs-stdlib/src/csrf.rs` exists to make unnecessary.
+secret bytes $key = Core\Crypto::generateKey();
+string $session = "sid-ada";
+string $token = Core\Csrf::issue($session, $key);
+
+// Rotating the key refuses every outstanding token, and tells the holder
+// nothing about why — the same `false` an altered token gets.
+secret bytes $rotated = Core\Crypto::generateKey();
+if (Core\Csrf::verify($token, $session, $rotated) == false) {
+    echo "a rotated key refuses without throwing", "\n";
+}
+
+// The accepted side of the bound, drawn rather than generated: any 32 octets
+// are a key, so nothing here depends on `Core\Crypto::generateKey()` being the
+// only source of one.
+secret bytes $exact = Core\Random::bytes(32);
+if (Core\Csrf::verify(Core\Csrf::issue($session, $exact), $session, $exact)) {
+    echo "32 octets issues and verifies", "\n";
+}
+
+// And the refused side, one below and one above. Unlike `Core\Jwt`'s minimum
+// this is a window exactly one value wide, because the key is
+// XChaCha20Poly1305's and that cipher has no "at least" — so the value *above*
+// the bound is the load-bearing one: a member that truncated a longer key
+// would pass every line an under-length sweep could write.
+secret bytes $short = Core\Random::bytes(31);
+secret bytes $long = Core\Random::bytes(33);
+try {
+    string $issuedShort = Core\Csrf::issue($session, $short);
+    echo "31 octets issued", "\n";
+} catch (LogicError $e1) {
+    echo $e1->message, "\n";
+}
+try {
+    string $issuedLong = Core\Csrf::issue($session, $long);
+    echo "33 octets issued", "\n";
+} catch (LogicError $e2) {
+    echo $e2->message, "\n";
+}
+try {
+    bool $readShort = Core\Csrf::verify($token, $session, $short);
+    echo "31 octets verified", "\n";
+} catch (LogicError $e3) {
+    echo $e3->message, "\n";
+}
+
+// Every other width refuses on both members alike, counted — the two rows are
+// one check reached twice, and a member that grew its own would fail here
+// while the four messages above still read correctly.
+array<int> $widths = [1, 8, 16, 24, 31, 33, 48, 64];
+int $asked = 0;
+int $refused = 0;
+foreach ($widths as int $w) {
+    secret bytes $notAKey = Core\Random::bytes($w as uint);
+    $asked = $asked + 2;
+    try {
+        string $unissued = Core\Csrf::issue($session, $notAKey);
+    } catch (LogicError $sweptIssue) {
+        $refused = $refused + 1;
+    }
+    try {
+        bool $unverified = Core\Csrf::verify($token, $session, $notAKey);
+    } catch (LogicError $sweptVerify) {
+        $refused = $refused + 1;
+    }
+}
+echo "widths ", $refused, " of ", $asked, " refused", "\n";
+--EXPECT--
+a rotated key refuses without throwing
+32 octets issues and verifies
+Core\Csrf::issue(): $key is 31 octets, and a key is 32 — Core\Crypto::generateKey() answers one of the right length. The value is not quoted here, because a key does not belong in a log.
+Core\Csrf::issue(): $key is 33 octets, and a key is 32 — Core\Crypto::generateKey() answers one of the right length. The value is not quoted here, because a key does not belong in a log.
+Core\Csrf::verify(): $key is 31 octets, and a key is 32 — Core\Crypto::generateKey() answers one of the right length. The value is not quoted here, because a key does not belong in a log.
+widths 16 of 16 refused
