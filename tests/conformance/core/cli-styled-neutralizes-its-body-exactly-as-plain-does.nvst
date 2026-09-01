@@ -1,0 +1,109 @@
+--TEST--
+`Core\Cli\Text::styled` neutralizes its body exactly as `Core\Cli\Text::plain` does, over the whole control range and counted — the constructor that emits control bytes on purpose is the one a program's own bytes could hide in — ADR 0086 §§ 1-2
+--FILE--
+<?nvs
+// § 2: both constructors *"apply § 1's substitution to their input"*. `plain`
+// is the one a case reaches for, and `styled` is the one that matters: it is
+// the only thing in the language that puts an `ESC` in front of a program's
+// text, so an escape it failed to substitute in the body would arrive in the
+// company of ones it emitted itself. The invariant is that the control bytes
+// in a `Cli\Text` all came from the `Cli\Style` — and this asks it of every
+// C0, of `DEL` and of every C1 rather than of one hand-picked `\e[31m`.
+class Styled {
+    // § 1's table: the U+2400 block for a C0, U+2421 for `DEL`, and U+FFFD for
+    // a C1, which has no glyph of its own.
+    public static function glyph(uint $point): string {
+        if ($point < 32) {
+            return Core\Str::fromCodePoint((9216 as uint) + $point);
+        }
+        if ($point == 127) {
+            return Core\Str::fromCodePoint(9249 as uint);
+        }
+        return Core\Str::fromCodePoint(65533 as uint);
+    }
+
+    // Read back with `as string` rather than echoed: ADR 0088 § 5 renders a
+    // carrier as the bytes it already holds, so this is what the constructor
+    // stored and not what a sink made of it.
+    public static function counts(Core\Cli\Style $style, bool $bare): string {
+        int $rows = 0;
+        int $idempotent = 0;
+        int $plain = 0;
+        int $commands = 0;
+        int $shown = 0;
+        uint $point = 0;
+        while ($point < 160) {
+            if ($point < 32 || $point > 126) {
+                string $byte = Core\Str::fromCodePoint($point);
+                string $raw = "a" . $byte . "b";
+                $rows = $rows + 1;
+
+                // Idempotence through the styled path, which holds at any
+                // colour depth: the opening sequence is the style's and is the
+                // same both times, so a body that escaped twice — the second
+                // escape ADR 0088 § 5 exists to prevent — shows up as a
+                // difference here whether or not the run has a terminal.
+                string $once = Core\Cli\Text::styled($raw, $style) as string;
+                string $again = Core\Cli\Text::styled(Core\Cli::escape($raw), $style) as string;
+                if ($once == $again) {
+                    $idempotent = $idempotent + 1;
+                }
+
+                if ($bare) {
+                    // § 3 left this stream at `ColorDepth::None`, so the style
+                    // contributes nothing and the two constructors must answer
+                    // the same bytes for the same input — the whole difference
+                    // between them is the styling that was dropped.
+                    string $flat = Core\Cli\Text::plain($raw) as string;
+                    if ($once == $flat) {
+                        $plain = $plain + 1;
+                    }
+                    if ($point != 9 && $point != 10) {
+                        $commands = $commands + 1;
+                        // Both halves, because § 1 is a substitution: the byte
+                        // is gone and its own glyph is there.
+                        if (!Core\Str::contains($once, $byte)
+                            && Core\Str::contains($once, Styled::glyph($point))) {
+                            $shown = $shown + 1;
+                        }
+                    }
+                }
+            }
+            $point = $point + (1 as uint);
+        }
+
+        string $lines = "styling is idempotent over the control range "
+            . $idempotent as string . " of " . $rows as string;
+        if ($bare) {
+            return $lines . "\n"
+                . "a styled body is a plain body " . $plain as string . " of " . $rows as string . "\n"
+                . "a styled body shows every command glyph " . $shown as string . " of " . $commands as string;
+        }
+        return $lines . "\n"
+            . "held (a terminal would style these)" . "\n"
+            . "held (a terminal would style these)";
+    }
+}
+
+// Four axes and both colour slots, so the opening sequence is a long one: a
+// body byte that survived would have plenty of company to hide in.
+var $style = Core\Cli\Style::of({
+    color: Core\Cli\Color::RED,
+    background: Core\Cli\Color::index(17),
+    bold: true,
+    underline: true
+});
+bool $bare = Core\Cli::colorDepth() == Core\Cli\ColorDepth::None;
+echo Styled::counts($style, $bare), "\n";
+
+// The empty style is the same constructor with nothing to emit, and it is
+// still `styled`: the neutralization is not something the styling does on the
+// way past.
+echo Styled::counts(Core\Cli\Style::of({}), $bare), "\n";
+--EXPECT--
+styling is idempotent over the control range 65 of 65
+a styled body is a plain body 65 of 65
+a styled body shows every command glyph 63 of 63
+styling is idempotent over the control range 65 of 65
+a styled body is a plain body 65 of 65
+a styled body shows every command glyph 63 of 63
