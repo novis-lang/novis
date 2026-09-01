@@ -4244,6 +4244,13 @@ is why" — is this file.
   `reset_session(wire, state)`) and let `PgConn`'s method be the two-line delegation; `pg.rs`'s
   `Peer` then scripts a server for it with no socket. The same wall is waiting for the statement
   cache and the pool, and `authenticate` was already shaped this way for the same reason.
+- A crate whose lints are the workspace's cannot free a `nvs_runtime::Value`, so a test in one leaks
+  every `string` or `bytes` it builds: `Value::release` is `unsafe`, `unsafe_code` is `forbid` at the
+  workspace root, and `forbid` is the one level no `#[expect]` can lift. Split the decision from the
+  allocation — a private enum holding the parsed scalar, plus one `into_value` arm per variant — and
+  assert the enum. `NvsStr` has a safe `Drop`, so even the owned half of such an enum frees itself; it
+  is only the retag into a `Value` that is one-way. `crates/nvs-db/src/pg.rs`'s `PgScalar` is the
+  worked example, and its doc comment says the same thing from the other side.
 
 ## Splitting a file that got too big
 
