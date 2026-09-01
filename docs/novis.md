@@ -15638,12 +15638,13 @@ Every directive in force for this request, keyed by dotted name, with what this 
 <a id="core-core-env"></a>
 ### `Core\Env`
 
-Keywords: get, all
+Keywords: get, all, mode
 
 | Member | Signature |
 |---|---|
 | [`Core\Env::get`](#core-core-env-get) | `get(string $name): ?tainted string` |
 | [`Core\Env::all`](#core-core-env-all) | `all(): array<tainted string>` |
+| [`Core\Env::mode`](#core-core-env-mode) | `mode(): Core\Env\Mode` |
 | `Core\Env::EOL` | `string` = `"\r\n"` — The line ending this platform writes — `\r\n` on Windows and `\n` everywhere else, as `PHP_EOL` is. It is for *emitting* platform-native text and nothing reads it: `Core\Str::lines` and `Core\IO::lines` split on all three terminators and never consult it, which is spec § 1's own note. |
 | `Core\Env::OS` | `string` = `"Windows"` — The operating system **family**, spelled as `PHP_OS_FAMILY` spells it — `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. A closed set a program can compare against, and never `uname`'s free text, which is what PHP's other spelling `PHP_OS` hands over. |
 | `Core\Env::VERSION` | `string` = `"0.0.1"` — This runtime's version, replacing `PHP_VERSION` — three dot-separated numbers, and the same string `nvs info` reports. There is no `PHP_VERSION_ID` beside it: a second spelling of one fact is what R6 closes, and comparing versions is `Core\Str::split` plus arithmetic on what this already says. |
@@ -15675,6 +15676,17 @@ Core\Env::all(): array<tainted string>
 Every environment variable, keyed by name — the whole of `$_ENV`, and `getenv` with no argument.
 
 **Returns** `array<tainted string>` — An `array<string, tainted string>` in name order, so two calls in one run and two runs on two platforms agree. A variable whose name or value is not valid UTF-8 is omitted rather than allowed to fail the sweep; `get` on that name reports it.
+
+<a id="core-core-env-mode"></a>
+#### `Core\Env::mode`
+
+```nvs skip
+Core\Env::mode(): Core\Env\Mode
+```
+
+Which deployment this program is running in. The mode is written in `nvs.toml` and read back through `Core\Config` like every other directive: **no environment variable is consulted for it**, so there is no `APP_ENV` convention to get wrong and no way for a request to select one.
+
+**Returns** `Core\Env\Mode` — The mode as a `Core\Env\Mode` case. `Production` for a host that configured nothing, so a deployment is the restrictive one until an operator has said otherwise.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
@@ -17211,6 +17223,16 @@ How loud a log record is — five cases, each valued by its own syslog severity 
 | `Core\Log\Level::Warn` | Something recoverable that nobody chose — a retry, a fallback, a deprecated path still in use. |
 | `Core\Log\Level::Error` | An operation failed. An uncaught `Throwable` is reported at this level. |
 | `Core\Log\Level::Critical` | The escalation ladder's own level: a resource limit stopped the request, or the engine floor is reporting for a program that can no longer report for itself. |
+
+<a id="enum-core-env-mode"></a>
+#### `Core\Env\Mode`
+
+Which deployment a program is running in — two modes, and there is no third. A mode is a shorthand for the defaults of five directives, each of which stays settable on its own.
+
+| Case | Meaning |
+|---|---|
+| `Core\Env\Mode::Production` | The restrictive end of the two, and what a host that wrote no configuration is in — a deployment is the safe one before anyone has said so. Which defaults it selects is fixed by the mode, and is not a table a program should re-derive. |
+| `Core\Env\Mode::Development` | The permissive end, selected in `nvs.toml` and never inferred from a variable, a hostname or a build. A request may flip into it with `Core\Config::set` only where `[mode] ceiling` reaches this far. |
 
 <a id="enum-core-http-method"></a>
 #### `Core\Http\Method`
