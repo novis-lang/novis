@@ -3849,6 +3849,21 @@ is why" — is this file.
   wrong or the rule belongs where it *can* be asserted. Check what a case's environment can actually
   present before writing a guard on it — closed standard input, no terminal on any stream, no
   command line beyond `--ARGS--`.
+- **`python tools/try.py` cannot run a case with more than one `--FILE--` section, and what it
+  prints is 36 syntax errors rather than a refusal.** It concatenates every section into one `.nvs`
+  and compiles that, so a case carrying `--FILE nvs.toml--` or a fixture file arrives with its TOML
+  and its prose as Novis source — `error[E0319]: `disk` is not a constant that exists`, pointing at
+  a line of English inside a `--FILE objects/keep.txt--` block. The runner that reads the sections
+  is the shipped binary: `./target/debug/nvs.exe test tests/conformance/core/<case>.nvst` takes one
+  path and answers `1 passed, 0 failed, 0 skipped`, and it is already built at the commit the
+  session opens on. `try.py` is for a scratch snippet with no configuration around it.
+
+- **Two `catch` clauses in one function may not bind the same variable name.** `catch (RuntimeError
+  $error)` in one `try` and `catch (IOError $error)` in the next is `E0406: `$error` is already
+  declared`, naming the first as "first declared here" — a catch binding is scoped to the function
+  and not to its block, exactly as an ordinary local is. The diagnostic is clear, but the shape is
+  the natural one to write when a case asks two questions of two error classes, so name the second
+  one something else.
 
 ## Splitting a file that got too big
 

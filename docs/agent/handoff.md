@@ -2,56 +2,52 @@
 
 ## State
 
-**`Core\Mail` authenticates.** A `[mail.<name>]` block that sets `user` and `password` is sent
-through `STARTTLS` and `AUTH PLAIN`; one that sets neither stays in the clear exactly as before.
-The three decisions behind that are in `crates/nvs-stdlib/src/mail.rs`'s module doc § *A credential
-asks for TLS*, which is their only home:
+**`Core\Storage` is cased to the depth its module doc argues for.** Three conformance cases
+landed over `crates/nvs-stdlib/src/storage.rs`, and no Rust changed: every rule they pin was
+already on disk, and what was missing was the case that would notice it breaking.
 
-- **TLS is asked for by configuring the credential that needs it**, and where it is asked for it is
-  *required and verified*. Opportunistic TLS was rejected in both its spellings: verified, it
-  breaks the sidecar relay presenting an internal certificate an operator has no `nvs.toml` key to
-  name yet; unverified, `nvs_host::tls` has no spelling for it and will not grow one. Encryption
-  *without* authentication therefore has no key today — it belongs beside that unlanded anchor
-  bundle, and the two are one configuration slice.
-- **Half a credential is refused at `endpoint_of`**, before a socket opens, as a `RuntimeError`.
-- **The upgrade refuses a non-empty read buffer**, which is the `STARTTLS` command-injection
-  defence; see the playbook bullet.
+- **The key grammar, bounded on both sides.** Every refusal is named beside the nearest accepted
+  spelling — `a.hidden` beside `.hidden`, `note.txt` beside `note/txt`, `cafe` beside `café`, and
+  255 bytes beside 256. The length bound is asked through `list`'s `prefix`, which is `key_of`'s
+  own grammar for anything non-empty and builds no path, so the case does not depend on the host's
+  own limit on a filename's length.
+- **The four rows agree about a missing object**, each in its own vocabulary: `get` answers `null`,
+  `delete` fails, `list` omits, and `put` under `overwrite: false` succeeds. The two mutating rows
+  put back what they took, so the eight questions are eight readings of two disk states.
+- **The two configuration refusals.** No block, a block with no `root` and `root = ""` are one
+  sentence, because the difference between them is invisible to a program. A `root` that is there
+  and is not a directory is an `IOError` instead, and the case names the class rather than the
+  wording — the sentence inside it is the host's own.
 
-`Session` now holds a `Wire` — `Plain(NvsTcp)` or `Secured(NvsTls)` — and `expect`/`command` answer
-with the reply's lines, because `EHLO`'s lines *are* the extension list. `advertised` reads them,
-skipping the greeting line, which is the one line that is not a keyword.
-
-**No `.nvst` case covers any of this and none can**: every new path is past the `mail.send` grant
-and needs a live endpoint, so the three Rust cases in `mail.rs` carry it — the same shape
-`nvs_host::tls` already uses. `Core\Mail::send`'s three conformance cases are unchanged and still
-meet the coverage floor.
+The rules themselves live in that module's doc §§ *A key is not a path*, *What `list` answers over*
+and *Known gaps*, which stay their only home.
 
 **The acceptance check still names `every_part_two_spec_member_is_registered`** — stage 10's gate
-over a *complete* Part II, which needs §§ 15-19. Those are `Core\Request` and its neighbours and
-are goal 6's, so this check cannot pass inside this goal and is not a regression.
+over a *complete* Part II, which needs spec §§ 15-19. Those are `Core\Request` and its neighbours
+and are goal 6's, so this check cannot pass inside this goal and is not a regression.
 
-**`cargo deny check`'s `advisories` leg is red on a yanked `chacha20` that predates this goal** and
+**`cargo deny check`'s `advisories` leg is red on a yanked `chacha20`** that predates this goal and
 arrives through `rand`; `licenses`, `bans` and `sources` are green. See the playbook bullet.
-
-**Two pack gaps, both still open.** `[context] modules` does not select
-`nvs-runtime/src/terminal.rs`. And `[context] playbook` filters to the *item's* anchor paths, so a
-group that also writes `.nvst` cases never sees the case-authoring bullets.
 
 ## Next group
 
-**`Core\Storage`'s owed depth, over `crates/nvs-stdlib/src/storage.rs` and its conformance cases —
-the file set is that module plus `tests/conformance/core/storage-*.nvst`. The module's own doc
-§ *known gaps* and ADR 0082 § 2 specify all three.**
+**`[log] target` is the last owed piece of stage 7 — the floor and `Core\Log::write` are already
+one serialiser and are still two destinations. The file set is `crates/nvs-runtime/src/ctx.rs`,
+`crates/nvs-runtime/src/floor.rs`, `crates/nvs-stdlib/src/log.rs` and
+`crates/nvs-config/src/tree.rs`; ADR 0092 § 2 and ADR 0020 § 6 specify it.**
 
-- [ ] **A key is one segment, asserted on both sides.** The bound that admits the last accepted key
-      and refuses the first rejected one — `a/b`, a leading dot, an empty key — named together in
-      one case, which is `conventions.md`'s *bound asserted on both sides* shape.
-      `crates/nvs-stdlib/src/storage.rs:1` is the module doc that states the rule.
-- [ ] **The four rows agree about a missing object.** One question asked of `get`, `delete` and
-      `list` over a disk that has none, asserting they **agree** rather than what each answered.
-      `crates/nvs-stdlib/src/storage.rs:1`.
-- [ ] **`[storage.<name>]` with no `root`, and a `root` that is not a directory.** Two refusals with
-      no case between them; `crates/nvs-config/src/tree.rs:484` is the block they read.
+- [ ] **One place reads `[log] target`, and both writers reach it.** `Core\Log::write` writes
+      through `ctx.write_output` and the floor writes its own way; the destination the config names
+      — `stderr`, `file:<path>` or `syslog` — is read nowhere. `crates/nvs-runtime/src/ctx.rs:250`
+      is the doc comment that already says what `file:…` selects "once something reads that";
+      `crates/nvs-stdlib/src/log.rs:202` and `crates/nvs-runtime/src/floor.rs:172` are the two
+      call sites.
+- [ ] **An unspelled target is refused where it is written, not where it is used.**
+      `crates/nvs-config/src/tree.rs:353` is the `Option<String>` today, so a typo reaches the sink
+      as a filename. ADR 0095's direction, and the same shape `[mail.<name>]` uses.
+- [ ] **A case that both writers land in the target the deployment named**, which is § 6's "two
+      writers are one serialiser" asserted about *where* rather than about the record's shape.
+      `crates/nvs-stdlib/src/log.rs:365` is where the floor's line is built beside the member's.
 
 ## Backlog
 
