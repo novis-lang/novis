@@ -25,15 +25,17 @@ core_affinity.workspace = true
 # workspace `Cargo.toml`'s comment above this dependency answers ADR 0051 § 4's
 # two questions, and ADR 0115 § 1 says why a poller is not a `tokio`.
 mio.workspace = true
+# TLS, as a wrapper over the stream above rather than a transport beside it —
+# `src/tls.rs` is the whole of it and its module doc owns the trust anchor
+# decision. The workspace `Cargo.toml`'s comment above these two answers
+# ADR 0051 § 4, including the part that is spent rather than met.
+rustls.workspace = true
+webpki-roots.workspace = true
 
 [dev-dependencies]
-# One test's worth: `a_rustls_session_streams_over_it_unmodified` in `net.rs`
-# runs a real TLS session over `NvsStream` with nothing about this crate visible
-# to it, which is what makes ADR 0115 § 3's "a plain `Read` and `Write`" a
-# checked claim rather than a described one. The workspace `Cargo.toml`'s
-# comment above these two answers ADR 0051 § 4 for them, including the part that
-# is spent rather than met.
-rustls.workspace = true
+# The certificate a handshake test needs: `src/tls.rs`'s cases and `net.rs`'s
+# `a_rustls_session_streams_over_it_unmodified` each stand up a real peer, and
+# no shipped path issues a certificate.
 rcgen.workspace = true
 # `tests/limits.rs`'s capability case builds the snapshot a request reads and hands it to
 # `Ctx::set_config`, which is `nvs-config`'s type on `nvs-runtime`'s surface — the crate is already

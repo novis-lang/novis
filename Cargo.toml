@@ -104,32 +104,35 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_Threading",
 ] }
 
-# --- TLS over that stream, for one test and nothing else (ADR 0115 § 3) ---
-# `nvs-host`'s stream is a plain `Read`/`Write`, and the claim that buys is that
-# an *unmodified* protocol implementation runs over it. TLS is the hardest
-# witness for that claim available: a handshake reads and writes inside one
-# call, a record is a length-prefixed frame that a short read corrupts, and a
-# peer answering late leaves the park exactly mid-record. So these are
-# `[dev-dependencies]` of `crates/nvs-host` alone — no Novis binary links
-# either, `cargo tree -e normal` never reaches them, and what a shipped TLS
-# client is built on is goal 4's `Core\Http\Client` question rather than this
-# one.
-# ADR 0051 § 4 is answered for that scope and no wider one. `rustls` itself is
-# pure Rust; its default `aws-lc-rs` provider is a C library, so it is off, and
-# `ring` — pregenerated BoringSSL assembly behind a Rust API — is the provider.
-# `ring` is therefore the one place in this file where ground-rules.md
-# § *Pure-Rust dependencies by default* is spent rather than met, and what it is
-# spent on is a test binary: nothing it compiles reaches a request, a release
-# artifact or a user's machine. The alternative was a hand-rolled framing peer
-# pretending to be a protocol, which would have tested this crate against our
-# own idea of one.
-# `rcgen` is the certificate that handshake needs, on the same provider, so the
-# two share one crypto implementation instead of pulling a second.
+# --- TLS over the parking stream (ADR 0051 § 3's "TLS via `rustls`") ---
+# `nvs-host`'s stream is a plain `Read`/`Write`, so a TLS client over it is a
+# wrapper and not a transport: `crates/nvs-host/src/tls.rs` is that wrapper and
+# owns everything below in argued form. `Core\Http\Client`'s `https` and
+# `Core\Mail`'s `STARTTLS` are both it.
+# ADR 0051 § 4's first question is **yes** — a record layer is exactly where
+# attacker-controlled bytes land — so this is accepted under its second, on the
+# same footing as that section's SQLite. `rustls` and `rustls-webpki`, which are
+# where TLS's historical failures actually live (state machine, framing, path
+# building, name verification), are pure Rust. The primitives are not: the
+# default `aws-lc-rs` provider is a C library built by `cmake` and is off, and
+# `ring` — BoringSSL's pregenerated assembly behind a Rust API — is the provider
+# instead. BoringSSL is continuously fuzzed under OSS-Fuzz and carries formally
+# verified field arithmetic, which is the "demonstrable, exceptional
+# verification record" that question asks for; its standing fallback of
+# confining the code to wasm is not available, because a TLS client owns the
+# socket it reads.
+# `webpki-roots` is the trust anchor set, compiled in rather than read from the
+# host: the same binary then trusts the same certificates everywhere, and a
+# distroless image that ships no `ca-certificates` still verifies. `tls.rs`'s
+# module doc is the home of that decision and of what an operator adds to it.
+# `rcgen` stays a `[dev-dependencies]` line: it is the certificate the handshake
+# tests need, on the same provider so the two share one crypto implementation.
 rustls = { version = "0.23", default-features = false, features = [
     "std",
     "ring",
     "tls12",
 ] }
+webpki-roots = "1"
 rcgen = { version = "0.14", default-features = false, features = [
     "crypto",
     "ring",

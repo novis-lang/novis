@@ -96,6 +96,7 @@ pub mod reactor;
 pub mod scheduler;
 pub mod stack;
 pub mod timer;
+pub mod tls;
 pub mod watchdog;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};

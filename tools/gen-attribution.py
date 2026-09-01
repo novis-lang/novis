@@ -79,6 +79,11 @@ PREFERENCE = [
     "Zlib",
     "Unicode-3.0",
     "CC0-1.0",
+    # The Community Data License Agreement's permissive variant, which is what
+    # `webpki-roots` offers Mozilla's CA set under. A *data* license and not a
+    # code one: 2.0 drops even the notice requirement 1.0 had, so this is here
+    # to be reproduced rather than because it demands to be.
+    "CDLA-Permissive-2.0",
     "MPL-2.0",
     # Last on purpose. `Unlicense OR MIT` is how the `regex` family and its
     # dependencies are offered, and a public-domain dedication imposes nothing
@@ -104,6 +109,7 @@ FINGERPRINTS = [
     ("Zlib", ("altered source versions must be plainly marked as such",)),
     ("MPL-2.0", ("mozilla public license version 2.0",)),
     ("CC0-1.0", ("creative commons legal code", "cc0 1.0 universal")),
+    ("CDLA-Permissive-2.0", ("community data license agreement", "permissive")),
     # BSD-3 before BSD-2: the 3-clause text contains the 2-clause text.
     ("BSD-3-Clause", ("redistribution and use in source and binary forms", "endorse or promote")),
     ("BSD-2-Clause", ("redistribution and use in source and binary forms",)),

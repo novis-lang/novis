@@ -46,6 +46,7 @@ allow = [
     "Zlib",
     "Unicode-3.0",
     "CC0-1.0",
+    "CDLA-Permissive-2.0", # a *data* license; `webpki-roots` carries Mozilla's CA set under it
     "MPL-2.0",          # file-level copyleft only; acceptable for unmodified deps
     "Unlicense",        # public-domain dedication; the `regex` family's other half
 ]
