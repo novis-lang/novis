@@ -129,6 +129,13 @@ pub const DIRECTIVES: &[Directive] = &[
     // failure reaches the ladder, so a new value is in force at the next one.
     Directive { key: "log.handler_reserve_memory", class: Class::System, apply: Apply::Reload },
     Directive { key: "log.handler_reserve_time", class: Class::System, apply: Apply::Reload },
+    // The floor's destination, `System` because ADR 0020 § 4 says so in as many words: tier 4
+    // "writes to an operator-owned, `System`-class sink". A request that could move it could send
+    // the record of its own failure somewhere nobody reads, which is the same authority
+    // `log.handler` withholds one rung up. `Reload` for that row's reason as well — the target is
+    // resolved when a record is first written, so a new value is in force for the next context and
+    // nothing is re-created. `nvs_runtime::Ctx::write_log_record` is its only reader.
+    Directive { key: "log.target", class: Class::System, apply: Apply::Reload },
     // The four `Boot` rows ADR 0078 § 2 names, less the thread-per-core count the module doc
     // records as unspelled. `[server]`'s whole block is `Boot` per ADR 0097 § 5, which is more than
     // 0078's "the server's listen addresses" and includes them.

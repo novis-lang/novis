@@ -273,7 +273,8 @@ pub fn roots(flags: &[PathBuf], cwd: &Path, files: &dyn Files) -> Roots {
 /// than [`MAX_INCLUDE_DEPTH`] (`E0606`), a file outside § 6's trust boundary (`E0607`), a secret
 /// file § 7 will not take a value from (`E0608`), an `[[app]]` block ADR 0104 § 1 cannot key
 /// (`E0609`), a `[[schedule]]` entry ADR 0073 cannot arm (`E0611`), an `[http]` pair ADR 0074
-/// refuses (`E0612`), or anything either of ADR 0064 § 3's per-file
+/// refuses (`E0612`), a `[log] target` ADR 0020 § 4 does not spell (`E0613`), or anything either
+/// of ADR 0064 § 3's per-file
 /// refusals catches (`E0601`/`E0604`), which arrives already carrying its own file's line.
 pub fn resolve(
     roots: &Roots,
@@ -310,6 +311,10 @@ pub fn resolve(
     // `[http.cookies] secure` are in force is a question only the whole stream has answered, and a
     // per-file check would refuse a base file an include was about to correct.
     crate::http::validate(&resolved.config, &origins)?;
+    // ADR 0020 § 4's target, over the merged tree for the http check's reason and for one of its
+    // own: the floor is the rung that reports when nothing else can, so the last place to discover
+    // that its destination does not parse is the failure it was configured to report.
+    crate::log::validate(&resolved.config, &origins)?;
     resolved.origins = origins;
     Ok(resolved)
 }

@@ -48,12 +48,13 @@
 > `local()` the `None` row; § 1's limiters are rows over them. **Stage 7 has opened**: § 6's two
 > writers are one serialiser, § 3's tier 3 is `[app.log] handler` on `Ctx::handler_isolate`'s
 > reserve, § 2's `onUncaughtThrow` hands both roots the real `Throwable`, and ADR 0106 § 10's two
-> bounds are on the floor's sink; reading `[log] target` is owed. **Stage 8 has opened**:
-> `Core\Reflect`, `Core\Ast::parse` and `Core\Decimal`'s rounding are on disk under ADR 0014 § 3's
-> observer; ADR 0046 § 4's `$member` is checked at the retrieval (`E0798`). ADR 0126's `property<T>`
-> is closed. **Stage 9**: `Core\Html::escape` launders and § 5's `as Markup` and `Markup + Markup`
-> both lower; `Core\Mail::send` sends through an operator-named `[mail.<name>]` under `mail.send`,
-> and `Core\Storage`'s four rows reach a `[storage.<name>]` disk over `fs.*` alone, and
+> bounds are on the floor's sink; `[log] target` has one reader both writers reach, and an unspelled
+> one refuses the tree (`E0613`). **Stage 8 has opened**: `Core\Reflect`, `Core\Ast::parse` and
+> `Core\Decimal`'s rounding are on disk under ADR 0014 § 3's observer; ADR 0046 § 4's `$member` is
+> checked at the retrieval (`E0798`). ADR 0126's `property<T>` is closed. **Stage 9**:
+> `Core\Html::escape` launders and § 5's `as Markup` and `Markup + Markup` both lower;
+> `Core\Mail::send` sends through an operator-named `[mail.<name>]` under `mail.send`, and
+> `Core\Storage`'s four rows reach a `[storage.<name>]` disk over `fs.*` alone, and
 > `Core\Cldr::pluralCategory` reads a closed CLDR roster; `https` and mail's `AUTH` run over
 > verified TLS. **Stages 2 and 3 are closed**: spec § 14's handle roster is on `Core\IO\File` and
 > ADR 0086's whole terminal surface is on `Core\Cli`. **Stage 12 has closed**: `Core\Script::onExit`

@@ -1335,6 +1335,18 @@ pub mod code {
     /// there is no refusal here for a single key.
     pub const E_MEANINGLESS_HTTP_PAIR: Code = Code::new("E0612");
 
+    /// A `[log] target` that is none of ADR 0020 § 4's three destinations —
+    /// `stderr`, `file:<path>` or `syslog` — including a `file:` with no path
+    /// behind it. Refused at the boot that reads the tree rather than at the
+    /// first record written through it, because the one moment the engine
+    /// cannot report a configuration mistake is the moment it is already
+    /// reporting a failure: tier 4 is the floor, and a diagnostic raised there
+    /// would displace the record it exists to write. The grammar behind this
+    /// refusal is `nvs_config::log::Target`, which is also what
+    /// `nvs_runtime::Ctx::write_log_record` resolves a target through, so a
+    /// spelling accepted here is a destination that opens.
+    pub const E_UNSPELLED_LOG_TARGET: Code = Code::new("E0613");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose
