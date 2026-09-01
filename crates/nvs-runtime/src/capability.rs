@@ -3,8 +3,9 @@
 //!
 //! [`require`] is deliberately the only *decision* here. The decision procedure is
 //! [`nvs_config::capability`] and is pure; this is the half that knows about a request — where the
-//! snapshot comes from, and what a denial looks like to the program that hit it. Ten below are
-//! § 2's filesystem doors — [`open_read`], [`metadata`], [`exists`], [`canonicalize`] and
+//! snapshot comes from, and what a denial looks like to the program that hit it. Twelve below are
+//! § 2's filesystem doors — [`open_read`], [`metadata`], [`metadata_if_present`], [`exists`],
+//! [`canonicalize`], [`resolve_existing`] and
 //! [`read_dir`] behind `fs.read`, [`write()`],
 //! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write`, and [`open`] behind whichever
 //! of the two its [`Access`] names — [`exec`] is the process
@@ -314,6 +315,77 @@ pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), F
 pub fn metadata(ctx: &Ctx, path: &Path, member: &str) -> Result<Metadata, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
     std::fs::metadata(path).map_err(|err| io_failure(member, path, &err))
+}
+
+/// § 2's kind door: the [`Metadata`] at `path` if there is anything there, once [`Cap::FsRead`] has
+/// been shown to cover it, and `None` if there is not.
+///
+/// Separate from [`metadata`] for the same reason [`exists`] is: **absence is an answer here, not a
+/// failure**, because the members over this door — `Core\IO::isFile` and `Core\IO::isDir` — ask what
+/// kind of thing is at a name, and *nothing* is a complete answer to that. It is one door rather
+/// than an [`exists`] followed by a [`metadata`] so that the two questions are one `stat`: the pair
+/// answers the wrong thing for a name something else removes between them, and a member whose
+/// falsity depends on losing that race is not one this class will ship.
+///
+/// Only [`std::io::ErrorKind::NotFound`] becomes `None`. Every other failure stays a failure, so a
+/// parent directory the process may not traverse throws here rather than reporting the name as
+/// absent — which is the same line [`exists`] draws, and for the same reason: a `false` that can
+/// mean *not allowed* tells a program nothing.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
+/// `path`, or [`io_failure`]'s `IOError` when the `stat` failed for any reason other than the path
+/// not being there.
+pub fn metadata_if_present(
+    ctx: &Ctx,
+    path: &Path,
+    member: &str,
+) -> Result<Option<Metadata>, Fault> {
+    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    match std::fs::metadata(path) {
+        Ok(found) => Ok(Some(found)),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(io_failure(member, path, &err)),
+    }
+}
+
+/// § 2's `realpath` door: what `path` resolves to **when every component of it already exists**,
+/// once [`Cap::FsRead`] has been shown to cover it.
+///
+/// The second resolution door, and the difference from [`canonicalize`] is **only** what it does
+/// about a path that is not there: that one answers by pinning the deepest existing ancestor,
+/// because `Core\IO::within` has to prove containment for a name about to be created, and this one
+/// refuses, because `Core\IO::canonicalize` is `realpath` and `realpath` has no answer for a name
+/// with nothing at it.
+///
+/// **The walk is the same walk**, and that is the load-bearing part rather than an implementation
+/// detail: a class whose two resolving members answered different *spellings* of one file — a
+/// verbatim `\\?\C:\…` from [`std::fs::canonicalize`] against a plain path from
+/// [`nvs_config::capability::resolved`] — would hand a program comparing them a wrong answer on one
+/// platform and a right one on the next. So existence is asked here as its own question and the
+/// resolution is delegated, rather than reaching for the standard library's resolver and getting a
+/// second spelling with it.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
+/// `path`, or [`io_failure`]'s `IOError` when there is nothing at `path` — including a symbolic
+/// link that leads nowhere, since the `stat` follows it — or when nothing about the path could be
+/// resolved.
+pub fn resolve_existing(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
+    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    std::fs::metadata(path).map_err(|err| io_failure(member, path, &err))?;
+    nvs_config::capability::resolved(path, &nvs_config::resolve::Disk).ok_or_else(|| {
+        io_failure(
+            member,
+            path,
+            &std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "no ancestor of this path could be resolved",
+            ),
+        )
+    })
 }
 
 /// § 2's existence door: whether anything is at `path`, once [`Cap::FsRead`] has been shown to cover

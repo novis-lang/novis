@@ -1,0 +1,88 @@
+--TEST--
+`Core\IO::list` answers one bare name per entry — never a path, and never `.` or `..` — asserted by counting the whole listing from both ends rather than by reading a line off it — spec § 14 *Manipulation*, ADR 0118 § 2
+--FILE--
+<?nvs
+// The listing's order is the operating system's, so nothing here may depend on
+// it: every assertion below is a count or a sorted rendering. A case that
+// printed the raw listing would pass on one filesystem and fail on the next,
+// which is the failure mode this shape exists to avoid.
+array<string> $entries = Core\IO::list("tree");
+echo "entries: ", Core\Arr::count($entries) as string, "\n";
+
+// Sorted here and not by the member: `list` promises nothing about order, so
+// the case does the sorting it needs rather than pinning a guarantee the
+// member does not make.
+foreach (Core\Arr::sort($entries) as string $name) {
+    echo "  ", $name, "\n";
+}
+
+// The two names every `scandir` caller filters out are not entries at all. A
+// count over the whole listing rather than a look at the first two, because a
+// member that emitted them somewhere other than the front would still pass the
+// obvious check.
+int $dots = 0;
+foreach ($entries as string $name) {
+    if ($name == "." || $name == "..") {
+        $dots = $dots + 1;
+    }
+}
+echo "dot entries: ", $dots as string, "\n";
+
+// A bare name and not a path, asserted from both ends at once: an entry
+// resolves to nothing on its own, and resolves to something once it is joined
+// onto the directory it came from. A member handing back `tree/one.txt` would
+// make the first count 0 and the second 0 as well, so neither half alone says
+// what the pair says.
+int $bare = 0;
+int $joined = 0;
+foreach ($entries as string $name) {
+    if (!Core\IO::exists($name)) {
+        $bare = $bare + 1;
+    }
+    if (Core\IO::exists("tree/" . $name)) {
+        $joined = $joined + 1;
+    }
+}
+echo "names that are not paths: ", $bare as string, "\n";
+echo "names that resolve under the directory: ", $joined as string, "\n";
+
+// An entry is a name, and the kind of thing it names is a separate question —
+// which is exactly the split `isFile`/`isDir` are for. The listing does not say
+// which of its entries is a directory and does not have to, and the two counts
+// summing to the whole listing is what says the directory entry is in it.
+int $files = 0;
+int $dirs = 0;
+foreach ($entries as string $name) {
+    if (Core\IO::isFile("tree/" . $name)) {
+        $files = $files + 1;
+    }
+    if (Core\IO::isDir("tree/" . $name)) {
+        $dirs = $dirs + 1;
+    }
+}
+echo "files: ", $files as string, ", directories: ", $dirs as string, "\n";
+
+// A directory listing is one read of one path and never a walk: `nested` is an
+// entry of `tree` and what is inside it is a second listing, asked for
+// separately. A member that recursed would answer 4 above and this one would
+// still print 1.
+echo "nested: ", Core\Arr::count(Core\IO::list("tree/nested")) as string, "\n";
+--FILE tree/one.txt--
+one
+--FILE tree/two.txt--
+two
+--FILE tree/nested/three.txt--
+three
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+entries: 3
+  nested
+  one.txt
+  two.txt
+dot entries: 0
+names that are not paths: 3
+names that resolve under the directory: 3
+files: 2, directories: 1
+nested: 1

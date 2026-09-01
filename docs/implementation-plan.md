@@ -60,8 +60,8 @@
 > verified TLS. **Stages 2, 3 and 5 are closed**: spec § 14's handle roster is on `Core\IO\File` and
 > ADR 0086's whole terminal surface is on `Core\Cli`. **Stages 11 and 12 have closed**, with
 > `examples/cycles.nvs` and `examples/onexit.nvs`; **stage 10's gates are closed**: §§ 14-19
-> registered and cased over a 59-key ratchet, §§ 16-17's classes over a 9-key one, and `ring` the
-> one C dependency ADR 0051 § 4 records. Conformance 1346, differential 210 of 210, migration 37%
+> registered and cased over a 55-key ratchet, §§ 16-17's classes over a 9-key one, and `ring` the
+> one C dependency ADR 0051 § 4 records. Conformance 1351, differential 210 of 210, migration 37%
 > over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized

@@ -1,0 +1,74 @@
+--TEST--
+Every name `Core\IO::list` hands back is one `Core\IO::within` admits against the directory it was listed from, and each resolves under that directory's own `Core\IO::canonicalize` — the three members agreeing over a whole listing rather than each answering plausibly on its own line — spec § 14 *Manipulation* and *Resolution*, ADR 0024 § 3
+--FILE--
+<?nvs
+// An agreement case: one question asked of every member that shares a rule. On
+// its own, `list` looks right for any listing at all, and `within` looks right
+// for the one path a case hands it. What neither can show alone is that the
+// names one produces are names the other accepts -- which is the property a
+// program relies on when it lists a directory and then opens what it found.
+string $root = Core\IO::canonicalize("tree");
+array<string> $entries = Core\IO::list("tree");
+int $total = Core\Arr::count($entries) as int;
+
+int $admitted = 0;
+int $under = 0;
+int $sameAsJoining = 0;
+
+foreach ($entries as string $name) {
+    // `within` resolves and then proves. A listing that had handed back a path
+    // rather than a name -- `tree/one.txt` -- would still be admitted here,
+    // which is why the third count below is the one that tells them apart.
+    try {
+        string $proved = Core\IO::within("tree", $name);
+        $admitted = $admitted + 1;
+        if (Core\Str::startsWith($proved, $root)) {
+            $under = $under + 1;
+        }
+        if ($proved == Core\IO::canonicalize("tree/" . $name)) {
+            $sameAsJoining = $sameAsJoining + 1;
+        }
+    } catch (RuntimeError $left) {
+        echo "refused: ", $name, "\n";
+    }
+}
+
+echo "entries: ", $total as string, "\n";
+echo "admitted by within: ", $admitted as string, "\n";
+echo "resolving under the directory: ", $under as string, "\n";
+echo "agreeing with the plain join: ", $sameAsJoining as string, "\n";
+
+// The other side of the same bound: a name the directory does not hold is not a
+// name `within` invents an answer for, and a name that leaves the directory is
+// refused however it is spelled. Without this half every count above is
+// satisfied by a `within` that admits everything.
+array<string> $notEntries = [
+    "../outside.txt",
+    "nested/../../outside.txt",
+];
+int $rejected = 0;
+foreach ($notEntries as string $escape) {
+    try {
+        string $reached = Core\IO::within("tree", $escape);
+    } catch (RuntimeError $left) {
+        $rejected = $rejected + 1;
+    }
+}
+echo "escapes refused: ", $rejected as string, " of ", Core\Arr::count($notEntries) as string, "\n";
+--FILE tree/one.txt--
+one
+--FILE tree/two.txt--
+two
+--FILE tree/nested/three.txt--
+three
+--FILE outside.txt--
+outside
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+entries: 3
+admitted by within: 3
+resolving under the directory: 3
+agreeing with the plain join: 3
+escapes refused: 2 of 2

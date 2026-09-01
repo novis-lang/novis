@@ -1,0 +1,65 @@
+--TEST--
+`Core\IO::isFile` and `::isDir` are asked of every name `::exists` is, so the three answers are read as a table: the pair splits what `exists` finds and does not cover it, and a name that is not there answers `false` to both rather than throwing — spec § 14 *Metadata*, ADR 0118 § 2
+--FILE--
+<?nvs
+// One sweep over every kind of name rather than one assertion per member. Asked
+// separately, each of `isFile` and `isDir` looks right for the two cases anyone
+// checks; what only a table can catch is a member written as the negation of
+// the other, which answers `true` for the name that is neither and disagrees
+// with `exists` about the name that is nothing at all.
+array<string> $names = [
+    "note.txt",
+    "sub",
+    "sub/keep.txt",
+    "gone.txt",
+    "sub/gone.txt",
+];
+
+foreach ($names as string $name) {
+    echo $name, ":";
+    // `exists` first, because the other two are a question about what it found
+    // and the reading of a `false` from them depends on which side of it we are
+    // on: absent means "no such kind" for a name that is there and "no such
+    // name" for one that is not.
+    if (Core\IO::exists($name)) {
+        echo " exists";
+    } else {
+        echo " absent";
+    }
+    if (Core\IO::isFile($name)) {
+        echo " file";
+    }
+    if (Core\IO::isDir($name)) {
+        echo " dir";
+    }
+    echo "\n";
+}
+
+// The pair over a missing name is the half that has to be said out loud: these
+// are the two members of § 14's metadata group whose answer for absence is
+// `false` and not a throw, unlike `size` and `canonicalize`, which have no
+// answer for a name that is not there. A count rather than a line each, so a
+// member that threw for one of them fails here even though the loop above
+// already printed its `absent`.
+array<string> $absent = ["gone.txt", "sub/gone.txt", "sub/deeper/gone.txt"];
+int $answered = 0;
+foreach ($absent as string $missing) {
+    if (!Core\IO::isFile($missing) && !Core\IO::isDir($missing)) {
+        $answered = $answered + 1;
+    }
+}
+echo "absent names answered false to both: ", $answered as string, "\n";
+--FILE note.txt--
+hello
+--FILE sub/keep.txt--
+keep
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+note.txt: exists file
+sub: exists dir
+sub/keep.txt: exists file
+gone.txt: absent
+sub/gone.txt: absent
+absent names answered false to both: 3

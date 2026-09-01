@@ -1419,7 +1419,22 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         Some(nvs_config::Cap::FsWrite),
     ),
     (crate::io::NAME, "exists", Some(nvs_config::Cap::FsRead)),
+    (crate::io::NAME, "isFile", Some(nvs_config::Cap::FsRead)),
+    (crate::io::NAME, "isDir", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "size", Some(nvs_config::Cap::FsRead)),
+    // Enumeration is a read of one path — the directory itself — and never a
+    // grant over what the listing names. `capability::read_dir`'s own doc is
+    // the home of that reading, and of why it is a door rather than a widening
+    // of `exists`.
+    (crate::io::NAME, "list", Some(nvs_config::Cap::FsRead)),
+    // Resolving a name reads the directories above it, so `fs.read` and not
+    // nothing: a program that can resolve a path it was never granted can
+    // learn which of that path's components exist.
+    (
+        crate::io::NAME,
+        "canonicalize",
+        Some(nvs_config::Cap::FsRead),
+    ),
     (crate::io::NAME, "remove", Some(nvs_config::Cap::FsWrite)),
     (crate::io::NAME, "removeDir", Some(nvs_config::Cap::FsWrite)),
     (

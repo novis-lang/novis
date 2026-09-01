@@ -1,0 +1,83 @@
+--TEST--
+With nothing granted, `Core\IO::isFile`, `::isDir`, `::list` and `::canonicalize` throw naming `fs.read` rather than answering the empty answer each of them has — `false`, `false`, no entries and no resolution — counted over a sweep of spellings so that a door letting one form through moves a number here — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// Three of these four members have a *plausible negative answer*, which is what
+// makes them the ones worth asking this of: a member that answered `false` for
+// an ungranted name, or handed back an empty listing for it, would look exactly
+// like one answering honestly about a name that is not there. The refusal has
+// to be distinguishable from the negative, and the only way to see that from
+// source is that it throws.
+//
+// The forms are the ones a path arrives in: bare, dot-prefixed, nested, and one
+// walking out through `..`, so a door that resolved a single spelling into an
+// allowance fails here whatever it printed for the others.
+array<string> $paths = [
+    "notes.txt",
+    "./notes.txt",
+    "docs/notes.txt",
+    "../notes.txt",
+];
+int $total = Core\Arr::count($paths) as int;
+
+int $refused = 0;
+int $named = 0;
+int $answered = 0;
+
+int $i = 0;
+for (; $i < $total; $i = $i + 1) {
+    string $path = $paths[$i];
+
+    try {
+        // Assigning the answer, not discarding it: the failure this counts is a
+        // member that produced one at all.
+        bool $file = Core\IO::isFile($path);
+        $answered = $answered + 1;
+    } catch (RuntimeError $shut) {
+        $refused = $refused + 1;
+        // The capability's own name, in the spelling `nvs.toml` grants it
+        // under, is what an operator pastes into a file -- so it is counted
+        // rather than assumed from the fact that something threw.
+        if ($shut->message == "Core\\IO::isFile needs the capability `fs.read` for " . $path . ", which is not granted") {
+            $named = $named + 1;
+        }
+    }
+
+    try {
+        bool $dir = Core\IO::isDir($path);
+        $answered = $answered + 1;
+    } catch (RuntimeError $shut) {
+        $refused = $refused + 1;
+        if ($shut->message == "Core\\IO::isDir needs the capability `fs.read` for " . $path . ", which is not granted") {
+            $named = $named + 1;
+        }
+    }
+
+    try {
+        array<string> $entries = Core\IO::list($path);
+        $answered = $answered + 1;
+    } catch (RuntimeError $shut) {
+        $refused = $refused + 1;
+        if ($shut->message == "Core\\IO::list needs the capability `fs.read` for " . $path . ", which is not granted") {
+            $named = $named + 1;
+        }
+    }
+
+    try {
+        string $resolved = Core\IO::canonicalize($path);
+        $answered = $answered + 1;
+    } catch (RuntimeError $shut) {
+        $refused = $refused + 1;
+        if ($shut->message == "Core\\IO::canonicalize needs the capability `fs.read` for " . $path . ", which is not granted") {
+            $named = $named + 1;
+        }
+    }
+}
+
+echo "asked: ", ($total * 4) as string, "\n";
+echo "refused: ", $refused as string, ", naming fs.read: ", $named as string, "\n";
+echo "answered anyway: ", $answered as string, "\n";
+--EXPECT--
+asked: 16
+refused: 16, naming fs.read: 16
+answered anyway: 0

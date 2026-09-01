@@ -1375,6 +1375,17 @@ is why" — is this file.
   feature has to name that feature, which is what `C_DEPENDENCIES`'s `requires` column checks
   against the node's active features. Reading the crate's `Cargo.toml` comment settles each in
   one look; guessing from the crate name does not.
+- **A `loop-goal.toml` `nvs-suite` check's `cases` list can name `.nvst` paths in a *directory
+  layout the corpus never adopted*, and the failure reads exactly like unwritten work.** Stage 10's
+  conformance check named `tests/conformance/io/…` and `tests/conformance/cli/…`; neither directory
+  exists, because the corpus is flat directories with a subsystem prefix on the file name
+  (`tests/conformance/core/io-…`). Twelve of the thirteen names had a landed counterpart pinning the
+  same claim, and the thirteenth —
+  `a-live-region-restores-the-terminal-on-a-panic` — was realised as an `nvs-stdlib` `#[test]`
+  already named by an earlier `cargo-named` check in the same file, because an internal panic is not
+  something a `.nvst` case can survive to assert. So before writing a case to satisfy a name in
+  `cases`, `sed -n 2p` the plausible neighbours: the drafted name describes the *claim*, and the
+  file that pins it is usually already there under the name the corpus actually took.
 
 ## Running things
 
@@ -5545,6 +5556,17 @@ sibling in the same namespace unqualified.
   `{reason: …, status: …}` cannot be built that way at all, because a `Core`-owned instance has no
   property a program can reach; three accessors is the shape, and `Core\RateLimit\Decision` is the
   precedent to copy rather than re-derive.
+- **`nvs_runtime::capability` has two path resolvers and they answer different *spellings* of the
+  same file, which on Windows is a `\\?\C:\…` against a plain `C:\…`.** `capability::canonicalize`
+  goes through `nvs_config::capability::resolved` — the walk that pins a not-yet-existing path's
+  deepest existing ancestor, because `Core\IO::within` has to prove containment for a name about to
+  be created — while `std::fs::canonicalize` is the standard library's and returns the verbatim
+  form. A member written over the second looks right, compiles, and passes every case that prints
+  its answer; what fails is the first case comparing it against `within`'s, which is how
+  `Core\IO::canonicalize` was caught answering a path no other member of its own class agreed with.
+  The rule: a door that resolves goes through `nvs_config::capability::resolved` and asks any other
+  question — existence, in `resolve_existing`'s case — separately. The two doors' own doc comments
+  are the home of the difference.
 
 ## Divergences and refusals already pinned
 

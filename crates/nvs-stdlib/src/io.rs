@@ -136,6 +136,24 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&EXISTS_DOC),
         },
         CoreMethod {
+            name: "isFile",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_io_is_file",
+            doc: Some(&IS_FILE_DOC),
+        },
+        CoreMethod {
+            name: "isDir",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_io_is_dir",
+            doc: Some(&IS_DIR_DOC),
+        },
+        CoreMethod {
             name: "size",
             names: &["path"],
             params: &[CoreTy::Text(Qual::Sink)],
@@ -166,6 +184,22 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&REMOVE_DIR_DOC),
         },
         CoreMethod {
+            name: "list",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            // `array<string>` and not `array<tainted string>`, which is spec
+            // § 14's own spelling and agrees with `stdin`'s row comment below
+            // that standard input is this class's one tainted answer. An entry
+            // name is what the operating system reports for a directory this
+            // program named and was granted; it did not cross a request
+            // boundary, and the question a caller has about composing one back
+            // into a path is containment, which is `within`'s.
+            return_ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+            symbol: "nvs_core_io_list",
+            doc: Some(&LIST_DOC),
+        },
+        CoreMethod {
             name: "temporaryDir",
             names: &[],
             params: &[],
@@ -173,6 +207,22 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Text(Qual::Neutral),
             symbol: "nvs_core_io_temporary_dir",
             doc: Some(&TEMPORARY_DIR_DOC),
+        },
+        CoreMethod {
+            name: "canonicalize",
+            names: &["path"],
+            // A sink like every other path here, and its answer is
+            // `CoreTy::Text(Qual::Neutral)` rather than `CoreTy::Str`: this
+            // member resolves and does not *prove*, so it launders nothing.
+            // `within` below is the row that removes a qualifier, and the two
+            // sitting next to each other is the whole reason this comment is
+            // here — reaching for the resolver when the question was
+            // containment is the mistake ADR 0024 § 3 exists to prevent.
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Text(Qual::Neutral),
+            symbol: "nvs_core_io_canonicalize",
+            doc: Some(&CANONICALIZE_DOC),
         },
         CoreMethod {
             name: "within",
@@ -422,6 +472,59 @@ const EXISTS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO::isFile`'s reference card — ADR 0117.
+const IS_FILE_DOC: MethodDoc = MethodDoc {
+    short: "Reports whether `$path` names a regular file — `is_file`. Symbolic links are followed, \
+            so a link to a file answers `true`. Needs the `fs.read` capability, which is asked \
+            before the path is touched.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The name to ask about, absolute or relative to the working directory.",
+        shape: &[],
+    }],
+    ret: "`true` for a regular file, `false` for a directory, for anything else the operating \
+          system holds at that name, and for a name that is not there at all. Absence answers \
+          `false` here rather than throwing, because the question is what kind of thing is at the \
+          name and *nothing* is a complete answer to it.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for this path. A refusal and a \
+                   `false` stay distinguishable, exactly as they do for `exists`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system could answer neither yes nor no — a parent directory it \
+                   will not traverse, which is not the same as the name naming no file.",
+        },
+    ],
+};
+
+/// `Core\IO::isDir`'s reference card — ADR 0117.
+const IS_DIR_DOC: MethodDoc = MethodDoc {
+    short: "Reports whether `$path` names a directory — `is_dir`. Symbolic links are followed, so \
+            a link to a directory answers `true`. Needs the `fs.read` capability.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The name to ask about, absolute or relative to the working directory.",
+        shape: &[],
+    }],
+    ret: "`true` for a directory, `false` for a file, for anything else, and for a name that is \
+          not there. With `isFile` it partitions what `exists` answers `true` for into the two \
+          kinds this class has separate members for, and a name can satisfy neither.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for this path.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system could answer neither yes nor no — a parent directory it \
+                   will not traverse.",
+        },
+    ],
+};
+
 /// `Core\IO::size`'s reference card — ADR 0117.
 const SIZE_DOC: MethodDoc = MethodDoc {
     short: "The size of the file at `$path` in bytes, as the operating system reports it — \
@@ -498,6 +601,38 @@ const REMOVE_DIR_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO::list`'s reference card — ADR 0117.
+const LIST_DOC: MethodDoc = MethodDoc {
+    short: "The entries of the directory at `$path`, as an `array<string>` of bare names — \
+            replacing `scandir`, `glob` and the whole `opendir`/`readdir`/`closedir` sequence. \
+            `.` and `..` are not entries: they are the two names every `scandir` caller filters \
+            out, so they are never handed over. Needs the `fs.read` capability. The order is the \
+            operating system's own and nothing here sorts it — `Core\\Arr::sort` is one call and \
+            a member that sorted by default would charge every caller for a guarantee most do not \
+            need.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The directory to read. A file throws rather than answering a one-element array.",
+        shape: &[],
+    }],
+    ret: "One `string` per entry, each a name and not a path: joining it back onto `$path` is the \
+          caller's own step, and `within` is what makes that join safe when the name reached this \
+          program from outside. The whole directory is held at once, which is what makes this a \
+          member for a directory a program expects to fit in memory; `walk` is the streaming half.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for this path.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and the operating system did not — nothing is at the \
+                   path, it is not a directory, or an entry could not be read partway through the \
+                   walk.",
+        },
+    ],
+};
+
 /// `Core\IO::temporaryDir`'s reference card — ADR 0117.
 const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
     short: "Creates a new, empty, private directory under the system temporary root and answers its \
@@ -520,6 +655,38 @@ const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
             error: "IOError",
             desc: "The capability allowed it and no directory could be created — the root is full, \
                    read-only, or absent.",
+        },
+    ],
+};
+
+/// `Core\IO::canonicalize`'s reference card — ADR 0117.
+const CANONICALIZE_DOC: MethodDoc = MethodDoc {
+    short: "The absolute path `$path` resolves to, with every `.`, `..` and symbolic link followed \
+            by the operating system — `realpath`. Needs the `fs.read` capability: resolving a name \
+            reads the directories on the way to it. **This is not the traversal check.** It \
+            resolves and stops there; `within` is the member that resolves and then proves \
+            containment, and it is the one an untrusted path has to pass through.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The name to resolve, absolute or relative to the working directory. Every \
+               component must exist, including the last one.",
+        shape: &[],
+    }],
+    ret: "The resolved absolute path. Passing the answer back in resolves to itself, so the result \
+          is a fixed point and a program may compare two of them for equality — which is the one \
+          use this member has that `Core\\Path::normalize` cannot serve, since two different \
+          spellings of one file normalize differently and canonicalize the same.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for this path.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The capability allowed it and the operating system did not — a component of \
+                   the path is not there, or is not a directory, or a symbolic link loops. A name \
+                   that does not exist has no resolution, so it throws here where `exists` \
+                   answers `false`.",
         },
     ],
 };
@@ -1150,6 +1317,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_write" => (nvs_core_io_write as *const ()).cast(),
         "nvs_core_io_write_stream" => (nvs_core_io_write_stream as *const ()).cast(),
         "nvs_core_io_exists" => (nvs_core_io_exists as *const ()).cast(),
+        "nvs_core_io_is_file" => (nvs_core_io_is_file as *const ()).cast(),
+        "nvs_core_io_is_dir" => (nvs_core_io_is_dir as *const ()).cast(),
+        "nvs_core_io_list" => (nvs_core_io_list as *const ()).cast(),
+        "nvs_core_io_canonicalize" => (nvs_core_io_canonicalize as *const ()).cast(),
         "nvs_core_io_size" => (nvs_core_io_size as *const ()).cast(),
         "nvs_core_io_remove" => (nvs_core_io_remove as *const ()).cast(),
         "nvs_core_io_remove_dir" => (nvs_core_io_remove_dir as *const ()).cast(),
@@ -2047,6 +2218,117 @@ nvs_runtime::nvs_helper! {
         let path = Path::new(text(&args[0], "size", "path")?);
         let stat = nvs_runtime::capability::metadata(ctx, path, "Core\\IO::size")?;
         Ok(Value::uint(stat.len()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::isFile(string $path): bool` — replacing `is_file`.
+    ///
+    /// One `stat` and one question of it. The pair `isFile`/`isDir` partitions
+    /// what [`nvs_core_io_exists`] answers `true` for — and does not cover it,
+    /// because a socket, a device node and a named pipe are all names that
+    /// exist and are neither. That is why this is not spelled as the negation
+    /// of `isDir` anywhere: two members that each answer `false` for the same
+    /// path is the honest shape, and one derived from the other would have to
+    /// invent an answer for the third kind.
+    ///
+    /// Absence answers `false` rather than throwing, which is the door's
+    /// choice and not this body's: `metadata_if_present` is the door precisely
+    /// so that a missing name and an ungranted one stay distinguishable, the
+    /// second still throwing.
+    fn nvs_core_io_is_file(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "isFile", "path")?);
+        let found = nvs_runtime::capability::metadata_if_present(ctx, path, "Core\\IO::isFile")?;
+        Ok(Value::bool(found.is_some_and(|stat| stat.is_file())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::isDir(string $path): bool` — replacing `is_dir`.
+    ///
+    /// The other half of [`nvs_core_io_is_file`]'s partition, over the same
+    /// door and the same `stat`; that member's doc comment owns why the two are
+    /// written separately rather than one as the negation of the other.
+    ///
+    /// Symbolic links are followed, because `std::fs::metadata` follows them
+    /// and this class has no member that does not: a program asking whether it
+    /// may `list` a name wants the answer about what the name leads to, and the
+    /// one member that cares where a link points is `within`, whose whole job
+    /// is that it resolves first.
+    fn nvs_core_io_is_dir(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "isDir", "path")?);
+        let found = nvs_runtime::capability::metadata_if_present(ctx, path, "Core\\IO::isDir")?;
+        Ok(Value::bool(found.is_some_and(|stat| stat.is_dir())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::list(string $path): array<string>` — replacing `scandir`,
+    /// `glob` and the `opendir`/`readdir`/`closedir` sequence.
+    ///
+    /// **`.` and `..` are not entries.** Every `scandir` caller in every PHP
+    /// codebase filters those two out, and a member that hands them over is
+    /// handing over the one thing nobody wanted: `std::fs::read_dir` omits
+    /// them already, so what this body does is decline to add them back.
+    ///
+    /// **A bare name per entry, not a path.** Joining it onto `$path` is the
+    /// caller's step, and it is the caller's step on purpose — the join is
+    /// where an entry name that arrived from outside becomes a path this
+    /// program is about to open, and `within` is the member for that. A
+    /// listing that answered whole paths would read as though the composition
+    /// had already been checked.
+    ///
+    /// Nothing is sorted. The operating system's order is what a directory
+    /// has, and `Core\Arr::sort` is one call for the caller who needs another.
+    fn nvs_core_io_list(ctx, args: [1]) {
+        const MEMBER: &str = "Core\\IO::list";
+
+        let path = Path::new(text(&args[0], "list", "path")?);
+        let entries = nvs_runtime::capability::read_dir(ctx, path, MEMBER)?;
+        let mut names = NvsArray::new();
+        for entry in entries {
+            // A failure partway through the walk is this member's and not the
+            // caller's, unlike the door's own reading: `list` promised the
+            // whole directory, so half of it is not an answer.
+            let entry =
+                entry.map_err(|err| nvs_runtime::capability::io_failure(MEMBER, path, &err))?;
+            // Lossy only where a name is not UTF-8, which a Novis `string`
+            // cannot hold at all (ADR 0009) — the same reading as
+            // [`nvs_core_io_temporary_dir`]'s.
+            names.append(Value::str(NvsStr::new(
+                entry.file_name().to_string_lossy().as_bytes(),
+            )));
+        }
+        Ok(Value::array(names))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::canonicalize(string $path): string` — replacing `realpath`.
+    ///
+    /// **It resolves and it does not prove.** `within` is the launderer and
+    /// this is not, which is why the row's parameter is a sink and its answer
+    /// is an ordinary `string` rather than ADR 0024 § 3's plain one. Reaching
+    /// for this member when the question was containment is the mistake that
+    /// ADR exists to prevent, and the two rows sit next to each other in the
+    /// registry so that the difference is read rather than remembered.
+    ///
+    /// The door is [`nvs_runtime::capability::resolve_existing`] rather than
+    /// the `capability::canonicalize` [`nvs_core_io_within`] uses, and the two
+    /// differ in exactly one thing: this one refuses a path that is not there,
+    /// where that one answers by pinning the deepest existing ancestor. The
+    /// *walk* is the same walk on purpose — this class would otherwise have two
+    /// resolving members answering two different spellings of one file, which
+    /// is the wrong answer for the one use this member has that
+    /// `Core\Path::normalize` cannot serve: comparing two resolutions for
+    /// equality. The door's own doc comment is the home of that reasoning.
+    fn nvs_core_io_canonicalize(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "canonicalize", "path")?);
+        let resolved =
+            nvs_runtime::capability::resolve_existing(ctx, path, "Core\\IO::canonicalize")?;
+        Ok(Value::str(NvsStr::new(
+            resolved.to_string_lossy().as_bytes(),
+        )))
     }
 }
 
