@@ -5587,6 +5587,15 @@ sibling in the same namespace unqualified.
   and module docs for its name: what turns up is a prediction made by someone who did not have to
   implement it, and the spec row plus the ADR outrank it. Fix the stale sentence in the same slice
   — a card is reference documentation and ships.
+- **`nvs-types` reaches `nvs-config` only in its tests, so a checker rule about a capability name has
+  to read the roster through `nvs-stdlib`.** The obvious spelling for `Core\Cap::has`'s compile-time
+  refusal is `nvs_config::capability::Cap::parse`, and `crates/nvs-types/Cargo.toml` puts that crate
+  under `[dev-dependencies]` deliberately, with the reason in a comment above it: "the checker
+  resolves signatures and asks nothing of the configuration". The way through is a `pub` predicate on
+  the stdlib module that owns the class — `nvs_stdlib::cap::is_capability`, beside
+  `nvs_stdlib::cldr::validate`, which `nvs_types::intrinsics` reads for the same reason — and that is
+  what the house style wanted anyway: the pass holds no copy of a spelling. Reading the Cargo.toml
+  comment costs one `sed`; learning it from `cargo build` costs a build.
 
 ## Divergences and refusals already pinned
 

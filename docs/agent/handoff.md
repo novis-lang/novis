@@ -2,62 +2,57 @@
 
 ## State
 
-**Spec § 15's `Core\Env` is complete** — `get`, `all`, `mode` and the three constants. `mode`
-answers ADR 0091's run mode as a `Core\Env\Mode` case, `Production` or `Development`, and that
-enum is now in `registry::ENUMS`. Three conformance cases cover it.
+**Spec § 15's half that needs no request is complete.** `Core\Env` was already whole;
+`Core\Cap::has` landed this session, so what is left of § 15 is the three request classes.
+`crates/nvs-stdlib/src/cap.rs`'s module doc owns the member: it reports and never widens, its
+`registry::CAPABILITIES` row is `None` for `Core\Cache::local`'s reason, and a written name outside
+ADR 0112 § 8's roster is `E0616` from `crates/nvs-types/src/capability.rs`.
 
-**Where the mode comes from is `nvs_config::Request::mode`**, added this session, and its own doc
-owns the four-step order — a flip this request made, the `[[app]]` block's mode, the global
-`mode.default`, then `production`. It is deliberately not `Core\Config::get("mode.default")`,
-which knows nothing about the `[[app]]` block. `started_ceiling` now shares its last two steps
-through one private `started` rather than restating them. The two edges that reader has no
-opinion about — an unconfigured context, and a mode nobody defined — are settled in `env.rs` on
-`mode_ordinal`'s doc, and both are `Production`.
+**The compile-time half of ADR 0112 is still absent**, and `cap.rs`'s doc says what that costs:
+§ 1's per-namespace `[grants]` table has no representation in `nvs_config`, so `has` answers the
+request's whole grant table — the outer bound of what any namespace inside it can hold — and § 4's
+`E0604` is not on disk either. ADR 0112's Diagnostics table now says out loud that its first four
+codes were claims the band has since issued elsewhere.
 
-**`crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` is 42 keys, and only one of them
-is this goal's**: `§15 Cap::has`. The other 41 are the thirty § 15 request-class members (goal 6's)
-and § 18's eleven `Core\Db` members (goal 5's). **So the ratchet stops being this goal's measure
-after the next slice**, and `check-migration --min 74` — the stage-10 gate, reading 37% — becomes
-the only open one. `python tools/check-migration.py --report` lists 724 unclassified PHP names;
-each one is a *row* in `docs/spec/02-php-migration.md`, not a member, so that gate is now doc work
-and the next group is sized for it.
+**`crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` is 41 keys and none of them is
+this goal's**: 30 are § 15's request classes (goal 6's) and 11 are § 18's `Core\Db` (goal 5's).
 
-**Two pack gaps.** `[context] adrs` needs ADR `0112` §§ 6 and 8 for the next slice. And
-`[context] playbook` did not select the bullet *"A reference card may not cite an ADR"* —
-`playbook.md:5312` — although the item named `registry.rs` and `env.rs`; it cost this session a
-verify run, and the playbook already says it five times over.
+**So `check-migration --min 74` is the goal's only open gate, and it is long.** It reads 37% — 428
+of 1,152 inventory names classified, 724 open — and 74% needs roughly 425 more *rows* in
+`docs/spec/02-php-migration.md`. That is many sessions of doc work, not one group; the group below
+is the first three families of it, sized one family per slice.
 
 ## Next group
 
-**The first slice is `crates/nvs-stdlib` plus `tests/conformance/core/`; the other three are
-`docs/spec/02-php-migration.md` alone, one family per slice, and they share every anchor.**
+**Every slice is `docs/spec/02-php-migration.md` alone, and they share all three anchors**: new
+family sections go in before `## Not yet classified`, whose closing paragraph names the domains
+still to do and shrinks as they land. `python tools/check-migration.py --report` prints the open
+names; `--min` is what the driver's gate reads.
 
-- [ ] **Register `Core\Cap::has`, § 15's last member that needs no request and the last key this
-      goal owns in the ratchet.** ADR 0112 §§ 6 and 8: it reports whether the *calling namespace*
-      holds a capability at this point in the request, the argument is a roster name and an unknown
-      one is a compile error. It grants nothing and needs no capability of its own, so it takes a
-      `None` row like `Core\Cache::local` does. A new module beside `env.rs`, then the roster and
-      the two registry rosters. `crates/nvs-stdlib/src/registry.rs:1079`,
-      `crates/nvs-stdlib/src/registry.rs:1424`, `crates/nvs-stdlib/src/lib.rs:226`,
-      `docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md:184`,
-      `docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md:249`.
-- [ ] **Migration rows: the filesystem, directories and streams families.** `fopen`/`fread`/
-      `fwrite`/`fgets`, the `file_*` and `is_*` file predicates, `scandir`/`opendir`, `mkdir`,
-      `copy`, `chmod`/`chown`, `clearstatcache`. Every one is answered by § 14's landed `Core\IO`
-      and `Core\Path`, so this is transcription against members already on disk. A new section
-      after *Paths*: `docs/spec/02-php-migration.md:518`,
+- [ ] **Migration rows: the filesystem, directories and streams family.** `fopen`/`fread`/`fwrite`
+      and the handle family against § 14's `Core\IO\File`, the `dir`/`scandir`/`glob` half against
+      `Core\IO`, and every `stream_*` against ADR 0052 § 2's closed door — a wrapper is *dropped*
+      with no replacement, which is a verdict the section has not had to write before.
+      `docs/spec/02-php-migration.md:599`, `docs/spec/02-php-migration.md:13`,
       `docs/spec/02-php-migration.md:551`.
-- [ ] **Migration rows: hashing, crypto and randomness.** `hash*`, `crc32`, `crypt`, `md5`/`sha1`,
-      `random_*`, `uniqid` — against `Core\Hash`, `Core\Crypto`, `Core\Random` and `Core\Uuid`,
-      all landed. Same file, same shape. `docs/spec/02-php-migration.md:551`.
+- [ ] **Migration rows: hashing, crypto and randomness.** `hash*`, `crc32`, `crypt`, `md5`/`sha1`
+      and the `random_*`/`mt_rand` family against `Core\Hash`, `Core\Digest`, `Core\Password` and
+      `Core\Random`, all four of which are landed and cased, so every row here names a member that
+      exists. `docs/spec/02-php-migration.md:599`, `docs/spec/02-php-migration.md:13`,
+      `docs/spec/02-php-migration.md:551`.
 - [ ] **Migration rows: output buffering, processes and reflection.** The `ob_*` family against
-      `Core\Out`, `proc_*`/`exec`/`shell_exec` against ADR 0044's `Core\Process`, and the
-      `get_class*`/`class_exists`/`method_exists`/`debug_backtrace` family against `Core\Reflect`.
-      `docs/spec/02-php-migration.md:551`, `docs/spec/02-php-migration.md:599`.
+      `Core\Out`, `proc_*`/`exec`/`shell_exec` against ADR 0044's argv-only `Core\Process` — the
+      shell spellings are dropped, not mapped — and the `Reflection*` classes against ADR 0019's
+      `Core\Reflect`. `docs/spec/02-php-migration.md:599`, `docs/spec/02-php-migration.md:13`,
+      `docs/spec/02-php-migration.md:551`.
 
 ## Backlog
 
-- `differential` at `min_passing = 250` is stage 10's other open gate, at 210 — `docs/agent/loop-goal.toml:2624`.
-- § 15's thirty request-class members and § 18's eleven `Core\Db` ones are goals 6 and 5, not this one — the ratchet's own comments say so.
-- ADR 0091 § 3's defaults are applied only by the runtime flip and not at boot — `crates/nvs-config/src/mode.rs:25` states the gap.
-- `docs/agent/doc-cleanup.md`'s rationale-bloat pass is user-fired and has not run this goal.
+- ADR 0112 § 1's per-namespace `[grants]` table and § 4's `E0604`: unowned by any goal — `cap.rs`.
+- `[context]` printed no `docs/spec/` section, and the three slices above are all spec prose:
+  `docs/spec/02-php-migration.md:"## How to read a row"` is the shape they need — `loop-goal.toml`.
+- `[context] adrs` still lacks ADR `0112` §§ 6 and 8; this session read them only because the item's
+  own anchors inlined them — `loop-goal.toml`.
+- § 15's three request classes and § 18's `Core\Db`: goals 6 and 5, not this one — the ratchet file.
+- `Core\Cap::has` answers `false` for a computed name that is not a capability; if a case ever wants
+  to assert that, it needs a string the folder cannot fold — `cap.rs`'s helper doc.
