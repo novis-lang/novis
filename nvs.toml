@@ -135,6 +135,28 @@ entry = "examples/logging.nvs"
 [app.log]
 handler = "examples/logging/handler.nvs"
 
+# ADR 0067 § 3's `db.connect` is granted by *name* and never by host: the endpoint lives in
+# `[db.main]` at the foot of this file, written by the operator, so what a program asks for
+# is permission to open that block and not permission to reach an address. That is also why
+# neither block below says anything about `net` — an operator-written endpoint is
+# pre-approved against ADR 0058 § 3's denied ranges, which `examples/cache.nvs`'s block
+# above has to ask for explicitly because a program names that store's URL itself.
+#
+# Two entry blocks rather than one `root = "examples"`: every other fixture in this
+# repository runs with no database grant at all, and that is what makes these two evidence
+# that the check is asked rather than assumed.
+[[app]]
+entry = "examples/db.nvs"
+
+[app.capabilities.db]
+connect = ["main"]
+
+[[app]]
+entry = "examples/transaction.nvs"
+
+[app.capabilities.db]
+connect = ["main"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
@@ -158,3 +180,28 @@ memory = "512M"
 # index either.
 [cache.shared]
 url = "redis://127.0.0.1:16379"
+
+# ADR 0067 § 3's root-owned connection, and the block `Core\Db::connect("main")` opens —
+# `examples/db.nvs` and `examples/transaction.nvs` are the two fixtures that read it, and
+# both say in their own headers that this file owes it. The server is
+# `tests/db/compose.yaml`'s `postgres` service, whose comments own the credentials and the
+# reason the published port is 15432 rather than 5432: a fixture that drops and recreates an
+# `accounts` table must never find a developer's own PostgreSQL on the other end.
+#
+# `driver` is written out even though PostgreSQL is the only one implemented.
+# `nvs_db::PgTarget::resolve` refuses a block that names no driver rather than assuming the
+# one it can speak, so the key is what makes the block openable at all — and when the other
+# four land, this block does not change meaning under them.
+#
+# **What this does not yet buy is a green fixture, and the wall is TLS.** § 3's upgrade has
+# no spelling for turning it off, and `nvs_host::tls` verifies against anchors compiled into
+# the binary; the compose PostgreSQL presents the self-signed certificate its `certs` service
+# makes. That module's own docs say a configured anchor bundle is an `nvs.toml` slice that
+# has not landed, so until it does, these two fixtures reach the handshake and stop there.
+[db.main]
+driver = "postgres"
+host = "127.0.0.1"
+port = 15432
+user = "novis"
+password = "Novis-Test-Pw1"
+database = "novis_test"
