@@ -54,22 +54,21 @@
 > § 5's rewriter's order — and § 18's readers: five of `Rows`' six, all fourteen of `Row`, `Write`'s
 > three, with `columns()` owed on a `ColumnType` enum. `open` waits on a shape-parameter type. **§
 > 7's `transaction` is on both classes** and `Core\Db\Isolation` is registered; `nvs.toml` now opens
-> `[db.main]` and grants `db.connect` to the two fixtures, which reach a real PostgreSQL and stop at
-> its certificate. The pool is Stages 3 to 7, and **ADR 0132 has claimed the goal's one ADR slot**:
-> a driver is a sans-IO codec plus a state machine over the parking stream, the five an enum not a
-> trait. **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** — `Core`'s
-> capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
-> Conformance 1408, differential 250, its gate met, migration 90%/74%.
+> `[db.main]` and grants `db.connect` to the two fixtures, which verify the compose CA through the
+> new `tls_ca_file` and stop inside the protocol. The pool is Stages 3 to 7, and **ADR 0132 has
+> claimed the goal's one ADR slot**: a driver is a sans-IO codec plus a state machine over the
+> parking stream, the five an enum not a trait. **Goals 1-4 and M4 are closed and are this goal's
+> Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR
+> 0051 § 4 records. Conformance 1408, differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
 > others. One external dependency, two goals wide: **goals 4 and 5 need a reachable Docker daemon**,
 > and on this machine it is up — `examples/transaction.nvs` got an answer from
-> `tests/db/compose.yaml`'s PostgreSQL. What stops there instead is in-tree and blocks stages 5, 6
-> and 9 alike: `nvs_host::tls` verifies against anchors compiled into the binary, the compose
-> servers present self-signed certificates, and a configured anchor bundle is an `nvs.toml` slice
-> nobody has written. Picking every dependency but the two the user named is pre-authorized under
-> ADR 0051 § 4.
+> `tests/db/compose.yaml`'s PostgreSQL. That wall is down: a `[db.<name>] tls_ca_file` names a PEM
+> bundle, `nvs_config::db` resolves and trust-checks it at boot, and the handshake verifies against
+> it alone. What stops `examples/transaction.nvs` now is inside the extended-query protocol. Picking
+> every dependency but the two the user named is pre-authorized under ADR 0051 § 4.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in

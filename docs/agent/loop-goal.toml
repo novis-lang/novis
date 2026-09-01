@@ -140,6 +140,13 @@ compose = "tests/db/compose.yaml"
 services = ["mysql", "mariadb", "postgres", "mssql", "redis"]
 memoize_on = ["crates/nvs-db", "tests/db"]
 
+# The `certs` service's CA, out of its volume and onto disk where `nvs.toml`'s `[db.main]
+# tls_ca_file` names it. Destination on the left because it is the thing that has to be true; the
+# right is where it comes from. It is regenerated whenever that volume is, so it is gitignored and
+# copied here rather than committed.
+[docker.copy]
+"tests/db/ca.crt" = "postgres:/certs/ca.crt"
+
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- ADR 0071's pass over a second format. It goes first because § 6's `queryAs<T>` is written

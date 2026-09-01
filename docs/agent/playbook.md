@@ -1490,6 +1490,12 @@ is why" — is this file.
   calls rediscovering it. Name `docs/novis.md` in the member's own `## commit:` line up front —
   the page is part of the slice that registers the member, exactly as
   `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`'s struck line is.
+- **`peek.py` takes every target *before* any option, and a target after one is an argparse
+  refusal rather than a miss.** `python tools/peek.py a.rs:1-5 --window 20 .gitignore` dies with
+  `unrecognized arguments: .gitignore` — the positional list is `nargs="*"` and closes at the first
+  flag, so anything after `--window`/`--in` is orphaned. It reads as a rejected *path* (a
+  dotfile, a glob the shell ate) and the second guess is wrong too. Put all targets first, then the
+  options.
 
 ## Running things
 
@@ -2015,6 +2021,12 @@ is why" — is this file.
   `ca.crt` and the leaf is therefore a CA certificate no trust store may accept as end-entity. The general
   shape: a fixture that talks to a server has three preconditions in three files nobody edits together, and
   running it once is cheaper than reasoning about any of them. `target/debug/nvs.exe` is already built.
+- **`docker` under Git Bash needs `MSYS_NO_PATHCONV=1`, and the error names a path you never
+  wrote.** `docker run --entrypoint /bin/sh …` fails with `stat C:/Program Files/Git/usr/bin/sh: no
+  such file or directory` — MSYS rewrote the *container's* `/bin/sh` into a Windows path before
+  `docker` saw it. Every argument that starts with `/` is affected, so a `docker compose exec`, a
+  `cp` of `/certs/ca.crt` and an `--entrypoint` all need the prefix; a relative `-f
+  tests/db/compose.yaml` does not.
 
 ## Writing a test case
 

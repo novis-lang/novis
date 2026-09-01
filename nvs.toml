@@ -193,11 +193,13 @@ url = "redis://127.0.0.1:16379"
 # one it can speak, so the key is what makes the block openable at all — and when the other
 # four land, this block does not change meaning under them.
 #
-# **What this does not yet buy is a green fixture, and the wall is TLS.** § 3's upgrade has
-# no spelling for turning it off, and `nvs_host::tls` verifies against anchors compiled into
-# the binary; the compose PostgreSQL presents the self-signed certificate its `certs` service
-# makes. That module's own docs say a configured anchor bundle is an `nvs.toml` slice that
-# has not landed, so until it does, these two fixtures reach the handshake and stop there.
+# **`tls_ca_file` is why the fixtures can reach it.** § 3's upgrade has no spelling for turning
+# TLS off, and `nvs_host::tls` verifies against anchors compiled into the binary; the compose
+# PostgreSQL presents a certificate its own `certs` service issued, so this block names that
+# service's CA and nothing else vouches for the server. The file is not in git — it belongs to
+# a Docker volume and is remade whenever that volume is — and `tools/loop.py` copies it out as
+# part of bringing the servers up. By hand, it is the one command
+# `tests/db/compose.yaml`'s header names.
 [db.main]
 driver = "postgres"
 host = "127.0.0.1"
@@ -205,3 +207,4 @@ port = 15432
 user = "novis"
 password = "Novis-Test-Pw1"
 database = "novis_test"
+tls_ca_file = "tests/db/ca.crt"

@@ -2346,6 +2346,15 @@ class Chain:
         if r.code != 0:
             return (f"chain: `docker compose -f {compose} up` failed -- {r.first_err_line}. "
                     f"The live goal's checks need those services.")
+        # `[docker.copy]`: a file a check needs on disk that only exists inside a container. The CA
+        # the compose `certs` service issues is the case it was written for -- `nvs.toml`'s
+        # `[db.main] tls_ca_file` names it, it belongs to a Docker volume rather than to git, and a
+        # fixture that reached the server without it would be one verifying nothing.
+        for dest, source in (docker.get("copy") or {}).items():
+            r = capture("docker", ["compose", "-f", compose, "cp", source, dest], timeout=120)
+            if r.code != 0:
+                return (f"chain: `docker compose cp {source} {dest}` failed -- {r.first_err_line}. "
+                        f"The live goal's checks need that file on disk.")
         return ""
 
 
