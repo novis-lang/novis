@@ -197,6 +197,18 @@ it writes `Text`, and the styling degrades truecolor → 256 → 16 → none aga
 terminal, styling is dropped entirely**, so `myprog | grep` and a CI log are plain — while § 1's
 substitution still applies, because that is a safety rule and not a presentation one.
 
+**`displayWidth` measures the string this sink will write, not the one it was handed**, and that
+settles the three questions UAX #11 does not answer on its own. § 1's substitution is applied first, so
+**a control byte costs what its Control Picture costs** — one column, never zero — and a value cannot
+shrink its own measured width by carrying an escape sequence, which is what makes the answer safe to
+lay a box out against. The count is over **grapheme clusters**, so a combining mark is no column of its
+own and an emoji ZWJ sequence is one pair however many code points built it; summing code points
+answers a number that misaligns exactly the table this member is asked for. And the two rows § 1 passes
+through are the two that are not columns: **`TAB` advances to the next multiple of eight**, so what it
+costs depends on where it stands, and **`LF` ends the row**, so a value spanning several rows answers
+the width of its *widest* one — the number a box is padded to, where a sum is a number no renderer
+would draw.
+
 **`displayWidth` is sited here, not on `Core\Str`, deliberately.** A terminal column count is a third
 measure beside the two [ADR 0009](0009-string-and-bytes.md) already fixed — bytes for `bytes`, grapheme
 clusters for `string` — and it is a property of the *renderer*, not of the string. Putting it on `Core\Str`

@@ -23,7 +23,7 @@
 //! That module's own docs own the caching, what it spends, and why no
 //! capability gates it.
 //!
-//! What is left here is the surface: five rows, three enums, and the mapping
+//! What is left here is the surface: six rows, three enums, and the mapping
 //! between the runtime's Rust `ColorDepth` and the ordinals
 //! [`crate::registry::ENUMS`] gives `Core\Cli\ColorDepth`. The mapping is the
 //! one thing this file can get wrong on its own, so
@@ -122,15 +122,12 @@
 //!
 //! # Known gaps
 //!
-//! 1. **§ 3's `displayWidth` is not here.** It is a question about how a
-//!    renderer would lay a string out, belongs beside `Cli\Style`, and owes a
-//!    UAX #11 table this tree does not carry yet.
-//! 2. **A served request has no words to read.** [`nvs_core_cli_arguments`]
+//! 1. **A served request has no words to read.** [`nvs_core_cli_arguments`]
 //!    answers whatever the launcher wrote with `Ctx::set_command_line`, and
 //!    only `nvs-cli` writes one — so the member is empty rather than wrong
 //!    inside a request, which is the answer ADR 0118 § 2 wants and not a gap
 //!    this module can close from here.
-//! 3. **A `Text` cannot be plain on one stream and styled on another in the
+//! 2. **A `Text` cannot be plain on one stream and styled on another in the
 //!    same run.** It holds bytes, and the styling is rendered into them once —
 //!    so a program writing the same `Text` to a terminal standard output and a
 //!    redirected standard error sends both the same thing. [`nvs_core_cli_write`]
@@ -156,8 +153,9 @@ pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 /// ADR 0086 § 3's profile, § 1's launderer and § 4's prompts, as registry
 /// rows. See [`crate::registry::CLASSES`].
 ///
-/// Fourteen members: `arguments` and `write` have landed, and `displayWidth`
-/// is the one row of § 15 still owed, which the module docs' gap 1 owns.
+/// Fifteen members, which is the whole of § 3's table and § 4's prompts:
+/// `displayWidth` was the last row owed and is here, over the UAX #11 table
+/// `nvs_runtime::terminal` now carries.
 ///
 /// In the spec's own order (§ 15), which is why `arguments` is first, `write`
 /// second and `escape`
@@ -235,6 +233,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Enum(COLOR_DEPTH_NAME),
             symbol: "nvs_core_cli_color_depth",
             doc: Some(&COLOR_DEPTH_MEMBER_DOC),
+        },
+        CoreMethod {
+            name: "displayWidth",
+            names: &["value"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_cli_display_width",
+            doc: Some(&DISPLAY_WIDTH_DOC),
         },
         CoreMethod {
             name: "ask",
@@ -388,6 +395,24 @@ const COLOR_DEPTH_MEMBER_DOC: MethodDoc = MethodDoc {
     ret: "The depth as a `Core\\Cli\\ColorDepth` case — `None` whenever standard output is not \
           a terminal and nothing forced colour on, which is what makes `myprog | grep` and a CI \
           log plain.",
+    errors: &[],
+};
+
+/// `Core\Cli::displayWidth`'s reference card — ADR 0117.
+const DISPLAY_WIDTH_DOC: MethodDoc = MethodDoc {
+    short: "How many terminal columns `$value` will occupy when it is written — UAX #11 widths \
+            over grapheme clusters, replacing `mb_strwidth`. A CJK ideograph and a fullwidth \
+            Latin letter are two columns, a combining mark is none, and a control byte is the \
+            one its Control Picture costs, because that is what the terminal sink shows.",
+    params: &[ParamDoc {
+        name: "value",
+        desc: "The text to measure. A `tainted` one is accepted: a column count carries nothing \
+               back out of it.",
+        shape: &[],
+    }],
+    ret: "The column count. A tab advances to the next multiple of eight, and a newline ends the \
+          row — so a value spanning several rows answers the width of its widest one, which is \
+          what a box is padded to.",
     errors: &[],
 };
 
@@ -1026,6 +1051,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cli_width" => (nvs_core_cli_width as *const ()).cast(),
         "nvs_core_cli_height" => (nvs_core_cli_height as *const ()).cast(),
         "nvs_core_cli_color_depth" => (nvs_core_cli_color_depth as *const ()).cast(),
+        "nvs_core_cli_display_width" => (nvs_core_cli_display_width as *const ()).cast(),
         "nvs_core_cli_text_plain" => (nvs_core_cli_text_plain as *const ()).cast(),
         "nvs_core_cli_text_styled" => (nvs_core_cli_text_styled as *const ()).cast(),
         "nvs_core_cli_color_index" => (nvs_core_cli_color_index as *const ()).cast(),
@@ -1293,6 +1319,44 @@ nvs_runtime::nvs_helper! {
     /// width was.
     fn nvs_core_cli_height(_ctx, _args: [0]) {
         Ok(Value::uint(u64::from(nvs_runtime::terminal::profile().height())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli::displayWidth(string $value): uint` — replacing `mb_strwidth`,
+    /// which counts `mbstring`'s idea of a wide character and has no answer at
+    /// all for a combining mark.
+    ///
+    /// The count is `nvs_runtime::terminal::display_width` and every decision
+    /// inside it is that function's doc comment — what a control byte costs,
+    /// why a newline answers the widest row and why a tab lands on a stop.
+    /// This body is the surface: a `string` in, a `uint` out.
+    ///
+    /// It reads no profile. A column is the same width whether or not anything
+    /// is watching, so this is the one member of this class that answers the
+    /// same number with every standard stream redirected — which is what makes
+    /// it assertable in a `.nvst` case at all.
+    fn nvs_core_cli_display_width(_ctx, args: [1]) {
+        // `escape`'s arm, for `escape`'s reason, and unreachable from source
+        // for the same one: the row's parameter is `CoreTy::Text`, so `E0401`
+        // refuses anything that is not a `string` before a single instruction
+        // of this body runs.
+        let text = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Cli::displayWidth expected a `string`, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        // `try_from` rather than `as`, for the reason `Core\Str::length`'s body
+        // states at length: `usize` is no wider than `u64` on any target
+        // `deny.toml` builds for, so this conversion is total and the arm
+        // below is unreachable from source — no diagnostic states that one,
+        // because it is a property of the target rather than of the call. It
+        // is the price of not writing a cast the lints this crate denies would
+        // need a silence for, not a boundary a program can reach.
+        let columns = u64::try_from(nvs_runtime::terminal::display_width(text))
+            .map_err(|_| Fault::fatal("Core\\Cli::displayWidth counted past `uint`"))?;
+        Ok(Value::uint(columns))
     }
 }
 
