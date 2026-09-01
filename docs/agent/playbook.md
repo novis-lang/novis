@@ -305,6 +305,15 @@ is why" — is this file.
   must match exactly once, and the refusal says whether it matched none or several. A deliberate
   *trim* is exempt — cutting a field to under 60% of its size is all-verbatim by definition and
   goes through as a `## plan:` — and so is a real rewrite, which overlaps less than 70%.
+- **One field gets one `## plan-edit:` section, however many fragments it moves in.** "Repeat the
+  pair per place the field moved" in the template means repeat `--- old`/`--- new` *inside* the
+  section; a second `## plan-edit: Open now` further down the wrap file is not merged with the
+  first and its fragments are silently not applied. What that looks like is the size refusal
+  repeating with the **byte count unchanged** after you added three more cuts to buy the space —
+  which reads as if the fragments failed to match the field, so the next thing you do is go and
+  check the field's line wrapping, and that is not it either (the matcher single-spaces the field
+  first, so a fragment crossing a wrapped line is fine). Two wrap cycles. If a rejection's numbers
+  do not move after an edit, check that the section it names appears once.
 - **`gaps.py --differential` reads a `Core\X::member` spelling *inside a comment* as a call**, so a
   case whose prose names a neighbouring member silences that member's own row. `called_members`
   (`tools/gaps.py:159`) is one regex over the whole case text and never looks for a `(`. One
