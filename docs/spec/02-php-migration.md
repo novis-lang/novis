@@ -826,11 +826,80 @@ of the known hole named above rather than rows this section is missing. What is 
 | `mhash_get_hash_name` | dropped | same; a case has a name because it is an enum |
 | `mhash_keygen_s2k` | dropped | S2K is OpenPGP's key derivation. Deriving a key is `Core\Crypto` |
 
+## Output buffering and the process
+
+Two families that look unrelated and fail the same way. PHP's `ob_*` stack is **global**: a buffer started
+in one function is ended in another, its depth is a number to query, and the handler that transforms it is
+a callback the engine calls invisibly. PHP's process family is **a shell string**: four functions that
+differ only in what they do with the output, all of them concatenating a command line and two more whose
+job is to escape what was concatenated.
+
+`Core\Out::capture` ([01 § 12](01-core-library.md)) answers the first with a buffer scoped to a closure,
+nesting by call nesting, always swallowing. [ADR 0044](../adr/0044-core-process-argv-only-no-shell.md)
+answers the second by never accepting a shell string at all, which is why `escapeshellarg` and
+`escapeshellcmd` are dropped with nothing to point at: there is no string to escape.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `ob_start` | member | `Core\Out::capture`, which takes the closure whose output is captured — a buffer's extent is a call, not a pair of statements someone must remember to match |
+| `ob_get_clean` | member | `Core\Out::capture` is exactly this pair: it captures and returns, and there is no state left behind to clean |
+| `ob_get_contents` | member | `Core\Out::capture`'s return value. There is no way to read a buffer somebody else started, because there is no buffer somebody else started |
+| `ob_end_clean` | dropped | a buffer ends when its closure returns |
+| `ob_end_flush` | dropped | `capture` always swallows. Re-emitting is a visible `echo Core\Out::capture(…)` rather than the engine passing bytes through on a program's behalf |
+| `ob_flush` | dropped | same |
+| `ob_get_flush` | dropped | same |
+| `ob_get_length` | dropped | the captured value is in hand, so its length is a question about a value and not about the engine |
+| `ob_get_level` | dropped | nesting is call nesting; there is no global stack whose depth could be asked for |
+| `ob_get_status` | dropped | same |
+| `ob_list_handlers` | dropped | same. A `{through:}` filter belongs to the one `capture` that declares it, so there is no list of handlers installed elsewhere |
+| `ob_implicit_flush` | dropped | there is no implicit flushing ([01 § 12](01-core-library.md)) |
+| `ob_gzhandler` | dropped | response compression is configured at the edge, never installed as a callback that rewrites the body — the built-in server compresses nothing itself ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 1). `Core\Compress` is for data the program compresses on purpose |
+| `flush` | dropped | a response is written by the runtime when the handler returns. Streaming one is `Core\Response`'s body, which is a value the program produces rather than a global buffer it pushes |
+| `output_add_rewrite_var` | dropped | it edits every URL in the response body on the way out. `Core\Router::url` builds URLs and nothing rewrites them afterwards |
+| `output_reset_rewrite_vars` | dropped | same |
+| `exec` | member | `Core\Process::run`, which takes a program and an `array<string>` of arguments — never a command line ([ADR 0044](../adr/0044-core-process-argv-only-no-shell.md)) — and needs `process.exec` |
+| `system` | member | `Core\Process::run`. PHP's four spawning functions differ only in what they do with the output, which is a property of the result and not a reason for four names (R17) |
+| `passthru` | member | `Core\Process::run`, then `Core\Cli::write` |
+| `shell_exec` | member | `Core\Process::run`. The backtick operator goes with it: there is no shell |
+| `escapeshellarg` | dropped | **nothing to escape.** A command is a program plus an argument vector, so the quoting rules this function encodes — different on Windows, different again inside `cmd.exe` — have no input |
+| `escapeshellcmd` | dropped | same, and worse: it escapes a whole command line, which is the construct ADR 0044 exists to remove |
+| `proc_open` | member | `Core\Process::spawn`, which answers with a handle rather than an array of pipes indexed by a descriptor spec |
+| `proc_get_status` | member | that handle's own members — a process describes itself, rather than being described by a second function that takes it |
+| `proc_terminate` | member | the same handle |
+| `proc_close` | member | the same handle; waiting for the exit status is part of it |
+| `popen` | member | `Core\Process::spawn`, whose pipes are on the handle. `popen`'s argument is a shell command line, which is the half that does not survive |
+| `pclose` | member | the same handle |
+| `proc_nice` | dropped | scheduling priority is the operator's, set where the process is started. A request that can renice its own runtime can starve every other request on the core |
+| `getmypid` | member | `Core\Os::pid` |
+| `getmyuid` | dropped | the account the process runs as is a deployment fact, and a program that branches on it is configuring itself from the environment instead of from `nvs.toml` |
+| `getmygid` | dropped | same |
+| `get_current_user` | dropped | same |
+| `getmyinode` | dropped | the inode of the running script, which has no meaning here: there is no script file being interpreted at run time |
+| `getrusage` | member | `Core\Os` — `memoryUsage`, `loadAverage` and `cpuCount`, one member per fact rather than one array whose keys differ by platform (R11) |
+| `getopt` | member | `Core\Command`, whose option table is built while compiling from `#[Command]`, `#[Option]` and `#[Argument]` ([ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md)). `Core\Cli::arguments` is the raw vector where a program insists on reading it itself |
+| `exit` | language | `exit` is a statement, not a function. `Core\Script::onExit` hooks still run, because the end of a script is observable ([ADR 0127](../adr/0127-the-end-of-a-script-is-observable.md)) |
+| `die` | language | the same statement; `die` is PHP's second spelling of it |
+| `register_shutdown_function` | member | `Core\Script::onExit`, FIFO, run as the last user code at every non-fatal ending. What PHP used it for on a *fatal* is [ADR 0020](../adr/0020-error-escalation-ladder.md)'s handler ladder, which is a different mechanism on a reserved budget |
+| `ignore_user_abort` | dropped | work that must outlive the response is `Core\Task::afterResponse` ([01 § 19](01-core-library.md)), which the runtime owns and bounds — not a flag asking the engine not to notice that the client has gone |
+| `connection_aborted` | dropped | a client that disappears cancels the request and the runtime unwinds it. There is no state to poll, because polling only ever told a program what had already been decided |
+| `connection_status` | dropped | same |
+| `register_tick_function` | dropped | `declare(ticks=…)` does not exist. Sampling a running program is [ADR 0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s safepoint-shaped probes, which cost nothing when they are off |
+| `unregister_tick_function` | dropped | same |
+| `cli_set_process_title` | dropped | it mutates process-global state, and one process serves many requests: the title one of them set is a label on all the others |
+| `cli_get_process_title` | dropped | same |
+| `sapi_windows_cp_get` | dropped | a `string` is UTF-8 ([ADR 0009](../adr/0009-string-and-bytes.md)), so there is no console code page to read or set; conversion at the `bytes` boundary is `Core\Encoding` |
+| `sapi_windows_cp_set` | dropped | same, and it is process-global besides |
+| `sapi_windows_cp_is_utf8` | dropped | same; the answer is fixed |
+| `sapi_windows_cp_conv` | dropped | same — converting between encodings is `Core\Encoding`, on every platform alike |
+| `sapi_windows_vt100_support` | dropped | `Core\Cli` answers what the terminal supports rather than which console API the platform has, and it does so identically on every platform ([ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) § 1) |
+| `sapi_windows_set_ctrl_handler` | dropped | signals are `Core\Signal`, graceful shutdown only ([ADR 0051](../adr/0051-standard-library-tiers.md) § 3) |
+| `sapi_windows_generate_ctrl_event` | dropped | sending one is `Core\Process::spawn`'s handle where the target is a child, and not offered at all where it is not |
+
 ---
 
 ## Not yet classified
 
 Everything else the inventory lists. `python tools/check-migration.py --report` prints the current list;
 it is not duplicated here, because a copy would go stale the moment a row lands. The domains still to do,
-each roughly one pass: output and buffering, sessions and requests, reflection and the class API, XML,
-compression, the four database extensions, processes, networking, and PHP's own introspection.
+each roughly one pass: sessions and requests, reflection and the class API, XML, compression, the four
+database extensions, networking, and PHP's own introspection.
