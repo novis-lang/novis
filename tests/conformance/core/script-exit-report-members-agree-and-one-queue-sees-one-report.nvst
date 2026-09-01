@@ -1,0 +1,116 @@
+--TEST--
+Every `Core\Script\ExitReport` member answers the same thing on a second call, and both hooks of one queue are handed the one report object with the one live error on it — ADR 0127 §§ 1-2
+--FILE--
+<?nvs
+// The *agreement* shape, over the rule ADR 0127 § 1 states once for the whole
+// class: the report **observes** the ending rather than changing it, and the
+// ending is one fact fixed before the first hook ran. So each of the three
+// members reads a slot that was filled once, none of them recomputes anything,
+// and every hook in the queue reads the same slots of the same object.
+//
+// What that rules out is a report a hook could consume or move the engine on
+// with: a `status` recomputed from wherever the process had got to by the time
+// a hook asked, an `error` handed on as a copy per reader, a report rebuilt for
+// each hook so that two hooks could disagree about one ending. A case that asks
+// once, from one hook, sees none of it — which is every other case in this
+// class.
+//
+// The ending is an uncaught throw because it is the only one of § 2's three
+// rows whose `error` is not null, and agreement about `null` is agreement two
+// broken members would also reach.
+
+// Both sets are captured by the two hooks below. Capture is by value (ADR 0031
+// § 2), and an object handle copied is still the one object — which is what
+// lets the second hook count what the first one saw. The comparison is
+// `Core\ObjectSet`'s own, and for an object that is identity (ADR 0090 § 3),
+// so these counts are claims about *which* object each reading was and not
+// about what it said.
+Core\ObjectSet<mixed> $reports = new Core\ObjectSet<mixed>();
+Core\ObjectSet<mixed> $errors = new Core\ObjectSet<mixed>();
+Core\ObjectSet<mixed> $statuses = new Core\ObjectSet<mixed>();
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    $reports->add($report);
+
+    // Each member twice with nothing in between, which is the only way a member
+    // that answered off something other than its slot is observable at all.
+    var $reason = $report->reason();
+    var $reasonAgain = $report->reason();
+    int $status = $report->status();
+    int $statusAgain = $report->status();
+    ?Throwable $error = $report->error();
+    ?Throwable $errorAgain = $report->error();
+    $errors->add($error);
+    $errors->add($errorAgain);
+    $statuses->add($status);
+
+    int $agreed = 0;
+    if ($reason == $reasonAgain) {
+        $agreed = $agreed + 1;
+    }
+    if ($status == $statusAgain) {
+        $agreed = $agreed + 1;
+    }
+    // `error` agrees by *identity*: § 2's third column is the live `Throwable`
+    // rather than a report built from it, so the two readings collapse into one
+    // member. A member that handed each caller its own copy would print the
+    // same message on both lines and fail here.
+    if ($errors->count() == 1) {
+        $agreed = $agreed + 1;
+    }
+
+    string $named = match ($reason) {
+        Core\Script\ExitReason::Normal => "Normal",
+        Core\Script\ExitReason::ExitCall => "ExitCall",
+        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+    };
+    // The first answer is pinned as well as compared: two identical wrong
+    // answers agree exactly as well as two right ones, and a `status` that was
+    // always 0 would be perfectly self-consistent.
+    string $message = "no error";
+    if ($error != null) {
+        $message = $error->message;
+    }
+    echo "first: ", $named, " ", $status, " ", $message, "\n";
+    echo "first agreed: ", $agreed, " of 3\n";
+});
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    // The second hook of the same queue, reading the same three members. It
+    // adds to the same three sets, so every count below is a claim about both
+    // hooks rather than about this one.
+    $reports->add($report);
+    $errors->add($report->error());
+    $statuses->add($report->status());
+
+    string $named = match ($report->reason()) {
+        Core\Script\ExitReason::Normal => "Normal",
+        Core\Script\ExitReason::ExitCall => "ExitCall",
+        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+    };
+    echo "second: ", $named, " ", $report->status(), "\n";
+
+    // One report, one error object and one status across five readings from two
+    // hooks. `reports=2` would be a report built per hook; `errors=2` a copied
+    // `Throwable`; `statuses=2` a status the second hook was told something
+    // else about — and each of those is a queue whose hooks disagree about the
+    // one ending they were all called for.
+    echo "reports=", $reports->count(), " errors=", $errors->count(),
+        " statuses=", $statuses->count(), "\n";
+});
+
+try {
+    echo "about to fail\n";
+    throw new RuntimeError("the store said no");
+} finally {
+    echo "the finally ran\n";
+}
+--EXPECT--
+about to fail
+the finally ran
+first: UncaughtThrow 1 the store said no
+first agreed: 3 of 3
+second: UncaughtThrow 1
+reports=1 errors=1 statuses=1
+--EXPECTF-ERROR--
+%A
