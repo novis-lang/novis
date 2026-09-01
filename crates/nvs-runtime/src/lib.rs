@@ -225,13 +225,17 @@
 //!    `previous` cannot be set *at all* yet is a different gap, owned by
 //!    `nvs_types::error_lib`, which explains why the synthesized constructor
 //!    takes only a message.
-//! 7. **There is no cycle collector, by decision rather than by omission.** A
-//!    cyclic object or array graph is retained until the process exits. The wholesale
-//!    request-heap drop makes cycles structurally unable to accumulate in the
-//!    server (`docs/implementation-plan.md` § *Architecture*), so the optional
-//!    mark-sweep collector belongs with M5/M6, where the stop-the-world path
-//!    and the request arena exist. A long-running CLI script that builds
-//!    cycles is the one shape that pays.
+//! 7. **A cycle is reclaimed at teardown, not while the request runs.** Every
+//!    object links into its context's live list, and dropping the context
+//!    sweeps whatever the root drain left there — ADR 0116 § 2, with
+//!    [`object::sweep`] as the mechanism and that module's docs as its home.
+//!    Two shapes are still owed a collector. **A long-running CLI script that
+//!    builds cycles between teardowns** holds them until its context ends,
+//!    which is the shape a stop-the-world pass would serve and the one M5/M6
+//!    still owns. **A cycle whose only closing edge is inside an `array<T>`**
+//!    survives the sweep too: the tally that decides what is unreachable reads
+//!    field slots and not array elements, which errs towards leaving memory
+//!    alone rather than towards freeing what somebody holds.
 
 mod abi;
 // Compiled where it is used: by the `#[global_allocator]` below in an

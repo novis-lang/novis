@@ -1,4 +1,4 @@
-//! Novis's class instance: one heap allocation, a two-word header, and the
+//! Novis's class instance: one heap allocation, a four-word header, and the
 //! object's fields inline behind it — plus the [`ClassDesc`] every instance
 //! points back at.
 //!
@@ -11,11 +11,16 @@
 //! # Layout
 //!
 //! ```text
-//! offset 0        offset 8         offset FIELDS_OFFSET
-//! +-------------+ +--------------+ +------------------------------+
-//! | refcount    | | *ClassDesc   | | field_count * 16-byte Values |
-//! +-------------+ +--------------+ +------------------------------+
+//! offset 0     offset 8      offset 16  offset 24  offset FIELDS_OFFSET
+//! +----------+ +-----------+ +--------+ +--------+ +------------------------------+
+//! | refcount | | *ClassDesc| | next   | | prev   | | field_count * 16-byte Values |
+//! +----------+ +-----------+ +--------+ +--------+ +------------------------------+
 //! ```
+//!
+//! Only the first two words are compiled code's: [`OBJ_REFCOUNT_OFFSET`] and
+//! [`OBJ_CLASS_OFFSET`] are unchanged by the two behind them, and the field
+//! slots move because [`FIELDS_OFFSET`] is the header's size rather than a
+//! literal.
 //!
 //! ## Decision: a field slot is a whole 16-byte [`Value`]
 //!
@@ -182,11 +187,29 @@
 //!    `field_slots` joins every layout's slots against the declared property
 //!    types the checker recorded.
 //!
-//! # Decision: no cycle collector
+//! # Decision: every object is on its context's live list
 //!
-//! Refcounting only, per `docs/agent/loop-goal.md`. A cyclic object graph is
-//! retained until the process exits; see [`crate`]'s own known gaps for the
-//! boundary and where the eventual collector belongs.
+//! Refcounting alone frees only what the counts say is dead, and a cycle's
+//! members hold each other above zero. An object is the one shape that can
+//! close one — a string is immutable and an array copies on write
+//! ([`crate::graph`]'s identity decision) — so every object links into its
+//! context's [`LiveList`] in [`NvsObj::alloc`] and out again in [`dismantle`],
+//! and whatever the root drain leaves on that list at teardown is exactly the
+//! cyclic garbage. [`sweep`] dismantles it through the same worklist, so
+//! native teardown runs there too rather than the memory being abandoned.
+//! [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+//! § 2 is the decision; this module is the mechanism.
+//!
+//! What it spends, as [AGENTS.md](../../../AGENTS.md) requires: **two pointers
+//! per live object** — 16 bytes, charged to the request that allocated it —
+//! plus a thread-local read and three non-atomic stores at each object's
+//! birth, and two more at its death. Nothing on the read path pays, and no
+//! decrement pays: [`unlink`] reaches its neighbours through the object's own
+//! links and never through the context.
+//!
+//! **A collector is still owed for the shape this does not reach**: a
+//! long-running CLI script that builds cycles *between* teardowns holds them
+//! until its context ends. See [`crate`]'s own known gaps.
 
 use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::cell::Cell;
@@ -1203,6 +1226,343 @@ pub struct ObjHeader {
     refcount: Cell<usize>,
     /// The class this is an instance of. Immutable for the allocation's life.
     class: *const ClassDesc,
+    /// The next object on the owning context's [`LiveList`], or null at its
+    /// end — see this module's *Decision: every object is on its context's
+    /// live list*.
+    next: Cell<*mut ObjHeader>,
+    /// The link that points *at* this object: either the [`LiveList`]'s own
+    /// head cell or the predecessor's [`next`](Self::next). Null while the
+    /// object is on no list, which is what an object allocated with no context
+    /// current stays for its whole life.
+    ///
+    /// A pointer to the *link* rather than to the predecessor, so that
+    /// unlinking needs no access to the head and therefore no way back to the
+    /// context — a decrement carries none, which is
+    /// [`crate::ctx::CurrentCtx`]'s own decision.
+    prev: Cell<*const Cell<*mut ObjHeader>>,
+}
+
+/// Every object one [`Ctx`] has allocated and not yet dismantled, as the
+/// intrusive doubly-linked list
+/// [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+/// § 2's teardown sweep walks.
+///
+/// **Its own allocation, held by the context through an `Rc`**, rather than a
+/// field of [`Ctx`]: an object links itself in from [`nvs_object_new`] while a
+/// helper above it may be holding `&mut Ctx`, and reaching into that
+/// reference's allocation behind its back is exactly the aliasing a `&mut`
+/// promises does not happen. A second allocation per context is the cheapest
+/// thing that makes the write land somewhere no `&mut Ctx` claims.
+#[derive(Debug, Default)]
+pub struct LiveList {
+    /// The most recently allocated object, or null when nothing is live.
+    head: Cell<*mut ObjHeader>,
+}
+
+impl LiveList {
+    /// Puts `object` at the front of the list.
+    ///
+    /// # Safety
+    ///
+    /// `object` must refer to a live allocation that is on no list, and must
+    /// leave through [`unlink`] before it is freed.
+    #[expect(
+        unsafe_code,
+        reason = "the allocation's liveness and its absence from any other \
+                  list are the caller's obligations to state"
+    )]
+    unsafe fn link(&self, object: *mut ObjHeader) {
+        let head = self.head.get();
+        #[expect(
+            unsafe_code,
+            reason = "`object` is a live allocation the caller just made, and \
+                      `head` was linked by this same routine and has not been \
+                      unlinked, since unlinking is what takes it off this list"
+        )]
+        unsafe {
+            (*object).next.set(head);
+            (*object).prev.set(&self.head);
+            if !head.is_null() {
+                (*head).prev.set(&(*object).next);
+            }
+        }
+        self.head.set(object);
+    }
+
+    /// Every object on the list, head first — [`sweep`]'s snapshot, taken
+    /// before anything it does can free one.
+    fn members(&self) -> Vec<*mut ObjHeader> {
+        let mut members = Vec::new();
+        let mut member = self.head.get();
+        while !member.is_null() {
+            members.push(member);
+            #[expect(
+                unsafe_code,
+                reason = "every member was linked from a live allocation and \
+                          leaves the list in `unlink` before it is freed"
+            )]
+            unsafe {
+                member = (*member).next.get();
+            }
+        }
+        members
+    }
+
+    /// How many objects are on the list — what [`sweep`] would have to
+    /// consider if the context ended now.
+    #[cfg(test)]
+    pub(crate) fn count(&self) -> usize {
+        self.members().len()
+    }
+}
+
+/// Takes `object` off whatever [`LiveList`] holds it, if any.
+///
+/// Idempotent, and a no-op for an object that was never linked — which is
+/// every object allocated with no context current, the shape a Rust test that
+/// builds one by hand takes.
+///
+/// # Safety
+///
+/// `object` must refer to a live allocation, as must the neighbours its own
+/// links name.
+#[expect(
+    unsafe_code,
+    reason = "the allocation's liveness is the caller's obligation to state"
+)]
+unsafe fn unlink(object: *mut ObjHeader) {
+    #[expect(
+        unsafe_code,
+        reason = "`object` is live by the caller's contract, and its links name \
+                  either the list head or a neighbour that has not been freed, \
+                  because freeing one is what runs this routine on it"
+    )]
+    unsafe {
+        let prev = (*object).prev.get();
+        if prev.is_null() {
+            return;
+        }
+        let next = (*object).next.get();
+        (*prev).set(next);
+        if !next.is_null() {
+            (*next).prev.set(prev);
+        }
+        (*object).prev.set(std::ptr::null());
+        (*object).next.set(std::ptr::null_mut());
+    }
+}
+
+/// Dismantles what the root drain left on `list` and could not free —
+/// [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+/// § 2's cyclic garbage.
+///
+/// # Why this is not simply "everything still on the list"
+///
+/// That reading is the one the ADR's sentence invites, and it frees memory
+/// somebody is still holding. A `Value` **does** leave a context: `crate::abi`'s
+/// `call` answers one to its Rust caller, and a `Core` member that builds an
+/// instance answers one to the helper that asked for it. Neither has released
+/// it by the time the context goes down. Freeing those would be a
+/// use-after-free at [AGENTS.md](../../../AGENTS.md)'s priority 1, which is
+/// never traded, so the sweep frees only what it can *show* is unreachable and
+/// leaves anything it cannot.
+///
+/// # The five walks
+///
+/// 1. **Snapshot the list**, so the tallies below can be indexed rather than
+///    hashed twice.
+/// 2. **Tally, per member, how many of its references come from another
+///    member's field slot.** A member whose count that tally does not
+///    *exactly* account for is reachable from something outside the list — or
+///    is held in a way this walk does not model, which is the same answer.
+/// 3. **Mark** those members live, and everything reachable from them: an
+///    object a live member points at is live however its own tally reads.
+/// 4. **Every unmarked member gains one reference**, the sweep's own, so that
+///    walk 5's decrements cannot free a member out from under the walk
+///    standing on it — and then drops every reference it holds, through
+///    [`crate::release`]'s one worklist. An array or a string a cycle was
+///    keeping alive is freed there, by the ordinary path, rather than
+///    abandoned.
+/// 5. **Every unmarked member is released once**, which is now its last
+///    reference. Its slots are already null, so each dismantle is the header
+///    alone — but it is a dismantle, so a member's own teardown runs.
+///
+/// **A reference held through an array is not tallied**, only one held
+/// directly in a field slot. That is deliberate and it errs the safe way: an
+/// object reachable only through an array reads as externally held and is left
+/// alone. Walk 4 usually frees it anyway, because releasing the garbage
+/// member's field releases the array, which steps the object down to zero
+/// through the ordinary path. What survives is a cycle whose only closing edge
+/// is *inside* an array — see [`crate`]'s known gaps.
+///
+/// **No user code runs.** A suspended generator's unwind entry point reaches
+/// its context through [`crate::ctx::with_current`], and at a context's own
+/// teardown there is none — which is what makes the order within a dead cycle
+/// unobservable, as the ADR says.
+///
+/// **What it spends:** one `Vec` and one `HashMap` sized by the number of live
+/// objects, at teardown only, plus one pass over their field slots per walk.
+/// Teardown is already O(live values) by ADR 0116 § 2, and nothing on the
+/// request path pays any of this.
+pub(crate) fn sweep(list: &LiveList) {
+    let members = list.members();
+    if members.is_empty() {
+        return;
+    }
+    // Survivors are detached before this returns, whichever way it leaves.
+    let _detach = Detach(list);
+    let mut seat = std::collections::HashMap::with_capacity(members.len());
+    for (at, &member) in members.iter().enumerate() {
+        seat.insert(member, at);
+    }
+
+    let mut held = vec![0_usize; members.len()];
+    for &member in &members {
+        for target in object_fields(member) {
+            if let Some(&at) = seat.get(&target) {
+                held[at] += 1;
+            }
+        }
+    }
+
+    let mut live = vec![false; members.len()];
+    let mut reachable: Vec<usize> = (0..members.len())
+        .filter(|&at| refcount(members[at]) != held[at])
+        .collect();
+    while let Some(at) = reachable.pop() {
+        if std::mem::replace(&mut live[at], true) {
+            continue;
+        }
+        for target in object_fields(members[at]) {
+            if let Some(&next) = seat.get(&target)
+                && !live[next]
+            {
+                reachable.push(next);
+            }
+        }
+    }
+
+    let garbage: Vec<*mut ObjHeader> = members
+        .into_iter()
+        .enumerate()
+        .filter_map(|(at, member)| (!live[at]).then_some(member))
+        .collect();
+    if garbage.is_empty() {
+        return;
+    }
+    for &member in &garbage {
+        bump(member);
+    }
+    for &member in &garbage {
+        #[expect(
+            unsafe_code,
+            reason = "the walk above holds one reference to every member of \
+                      `garbage`, so none can be freed here; each slot was \
+                      initialized by `new` and holds exactly the one reference \
+                      being dropped"
+        )]
+        unsafe {
+            for index in 0..field_count(member) {
+                crate::release::release_value(field_ptr(member, index).replace(Value::null()));
+            }
+        }
+    }
+    for member in garbage {
+        #[expect(
+            unsafe_code,
+            reason = "nothing outside `garbage` referred to this member, and \
+                      every reference from inside it was dropped above, so the \
+                      walk's own reference is the last one"
+        )]
+        unsafe {
+            crate::release::release_value(Value::from_obj_ptr(member));
+        }
+    }
+}
+
+/// Empties `list` of whatever [`sweep`] did not free, taking each survivor off
+/// it rather than leaving it pointing at a list that is about to go.
+///
+/// **This is not tidying — it is the whole of why an object may outlive its
+/// context at all.** A member's `prev` names the link that points *at* it,
+/// which for the first member is the [`LiveList`]'s own head cell; that cell
+/// lives in the `Rc` the context holds and dies with the context. A survivor
+/// left linked would write eight bytes into that freed allocation the next time
+/// its reference count reached zero, which is a heap corruption whose symptom
+/// surfaces in whatever allocation the block was reused for.
+///
+/// A guard rather than a call at the end, so that it also runs on the panicking
+/// path out of a sweep — a detached survivor is freed by its own refcount, so
+/// the worst this leaves is what the ordinary rules already leave.
+struct Detach<'list>(&'list LiveList);
+
+impl Drop for Detach<'_> {
+    fn drop(&mut self) {
+        let mut member = self.0.head.get();
+        while !member.is_null() {
+            #[expect(
+                unsafe_code,
+                reason = "every member of the list is a live allocation: it \
+                          leaves the list in `unlink` before it is freed"
+            )]
+            unsafe {
+                let next = (*member).next.get();
+                (*member).prev.set(std::ptr::null());
+                (*member).next.set(std::ptr::null_mut());
+                member = next;
+            }
+        }
+        self.0.head.set(std::ptr::null_mut());
+    }
+}
+
+/// How many field slots the object at `ptr` has.
+///
+/// Not `unsafe` to call from this module for [`bump`]'s reason: every caller
+/// here already holds a live handle.
+fn field_count(ptr: *mut ObjHeader) -> usize {
+    #[expect(
+        unsafe_code,
+        reason = "every caller in this module holds a live reference to `ptr`, \
+                  so its descriptor is live too"
+    )]
+    unsafe {
+        (*NvsObj::class_of(ptr)).fields.len()
+    }
+}
+
+/// This object's current reference count — [`sweep`]'s one reader, which needs
+/// it beside a tally rather than as a `bool`.
+fn refcount(ptr: *mut ObjHeader) -> usize {
+    #[expect(
+        unsafe_code,
+        reason = "every caller in this module holds a live reference to `ptr`"
+    )]
+    unsafe {
+        (*ptr).refcount.get()
+    }
+}
+
+/// Every object one field slot of `ptr` points at, in slot order.
+///
+/// Collected rather than borrowed so that [`sweep`]'s tally may be written
+/// while this is being read; a class's slot count is small and this runs at
+/// teardown alone.
+fn object_fields(ptr: *mut ObjHeader) -> Vec<*mut ObjHeader> {
+    (0..field_count(ptr))
+        .filter_map(|index| {
+            #[expect(
+                unsafe_code,
+                reason = "every caller in this module holds a live reference to \
+                          `ptr`, and every slot was initialized by `new`"
+            )]
+            let value = unsafe { *field_ptr(ptr, index) };
+            match value.tag() {
+                Some(Tag::Object) => value.obj_ptr().filter(|target| !target.is_null()),
+                _ => None,
+            }
+        })
+        .collect()
 }
 
 /// Byte offset of the reference count within [`ObjHeader`].
@@ -1341,10 +1701,29 @@ impl NvsObj {
             ptr.as_ptr().write(ObjHeader {
                 refcount: Cell::new(1),
                 class,
+                next: Cell::new(std::ptr::null_mut()),
+                prev: Cell::new(std::ptr::null()),
             });
             let slots = raw.add(FIELDS_OFFSET).cast::<Value>();
             for index in 0..field_count {
                 slots.add(index).write(Value::null());
+            }
+        }
+        // The live list this object belongs to, if a context is running at all
+        // — see this module's *Decision: every object is on its context's live
+        // list*. A Rust caller with none stays unlinked and is freed by its
+        // refcount alone, exactly as before this list existed.
+        let list = crate::ctx::current_live_list();
+        if !list.is_null() {
+            #[expect(
+                unsafe_code,
+                reason = "the pointer names the `LiveList` allocation the \
+                          current context holds an `Rc` to, and that context \
+                          outlives this call; the object is fresh, so it is on \
+                          no other list"
+            )]
+            unsafe {
+                (*list).link(ptr.as_ptr());
             }
         }
         Self { ptr }
@@ -1759,6 +2138,10 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
                   allocated with, before the header is freed"
     )]
     unsafe {
+        // The other end of the pair `NvsObj::alloc` opened: an object leaves
+        // its context's live list exactly when it stops existing, so what the
+        // list still holds at teardown is what nothing freed.
+        unlink(ptr);
         let class = NvsObj::class_of(ptr);
         if let Some(target) = (*class).unwind_entry() {
             unwind_abandoned(ptr, target);
@@ -2729,7 +3112,9 @@ mod tests {
     fn the_layout_constants_describe_the_real_header() {
         assert_eq!(OBJ_REFCOUNT_OFFSET, 0);
         assert_eq!(OBJ_CLASS_OFFSET, std::mem::size_of::<usize>());
-        assert_eq!(FIELDS_OFFSET, 2 * std::mem::size_of::<usize>());
+        // Four words: the two compiled code reads, and the two the live list
+        // threads through — see this module's *Layout*.
+        assert_eq!(FIELDS_OFFSET, 4 * std::mem::size_of::<usize>());
         assert_eq!(FIELD_STRIDE, 16);
         assert_eq!(field_offset(0), FIELDS_OFFSET);
         assert_eq!(field_offset(3), FIELDS_OFFSET + 48);
@@ -3117,6 +3502,83 @@ mod tests {
         // A hint past the end is not an index error.
         assert_eq!(desc.field_slot("x", 9), Some(0));
         assert_eq!(desc.field_slot("z", 0), None);
+    }
+
+    #[test]
+    fn an_object_that_dies_by_refcount_leaves_the_live_list() {
+        // Item 36's whole claim: the list is maintained at *both* ends, so an
+        // object that the refcounts already freed is not still on it waiting
+        // for a sweep to free it a second time.
+        let (table, animal, _dog, _greets) = hierarchy();
+        let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        assert_eq!(ctx.live_objects(), 0);
+        {
+            #[expect(unsafe_code, reason = "the table outlives the object")]
+            let object = unsafe { NvsObj::new(table.desc(animal)) };
+            assert_eq!(ctx.live_objects(), 1);
+            drop(object);
+        }
+        assert_eq!(ctx.live_objects(), 0);
+        drop(current);
+    }
+
+    #[test]
+    fn a_cyclic_object_graph_is_reclaimed_when_its_context_drops() {
+        // Measured by the allocator, the way `crate::array`'s acyclic guard
+        // is, and for a sharper reason: here no reference count ever reaches
+        // zero, so agreeing with itself is exactly what the bookkeeping does
+        // while the memory stays out.
+        let (table, animal, dog, _greets) = hierarchy();
+        // A context built and dropped before the baseline is taken, because
+        // the first one on a thread warms per-thread state the counter sees
+        // and nothing frees — measuring from a cold thread would charge that
+        // to the sweep.
+        drop(Ctx::new(crate::ctx::OutputSink::Sink));
+        let before = counting_alloc::live_bytes();
+        {
+            let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+            let current = crate::ctx::CurrentCtx::install(&mut ctx);
+            for _ in 0..64 {
+                #[expect(unsafe_code, reason = "the table outlives the objects")]
+                unsafe {
+                    let left = NvsObj::new(table.desc(animal));
+                    let right = NvsObj::new(table.desc(dog));
+                    left.set_field(0, Value::object(right.clone()));
+                    right.set_field(0, Value::object(left.clone()));
+                }
+            }
+            // Nothing was freed on the way: both handles went out of scope
+            // holding each other at one.
+            assert_eq!(ctx.live_objects(), 128);
+            drop(current);
+        }
+        assert_eq!(counting_alloc::live_bytes(), before);
+    }
+
+    #[test]
+    fn a_swept_cycles_native_teardown_runs() {
+        // The difference between dismantling a cycle and abandoning the pages
+        // it sat on: a swept member's own fields go through `crate::release`,
+        // so what it was holding is released rather than leaked with it. The
+        // string is named from outside the cycle so that the assertion is
+        // about the member's teardown rather than about the header's bytes.
+        let (table, animal, dog, _greets) = hierarchy();
+        let held = NvsStr::new(b"a string only the cycle holds");
+        let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        #[expect(unsafe_code, reason = "the table outlives the objects")]
+        unsafe {
+            let left = NvsObj::new(table.desc(animal));
+            let right = NvsObj::new(table.desc(dog));
+            left.set_field(0, Value::object(right.clone()));
+            right.set_field(0, Value::object(left.clone()));
+            right.set_field(1, Value::str(held.clone()));
+        }
+        assert_eq!(held.refcount(), 2);
+        drop(current);
+        drop(ctx);
+        assert_eq!(held.refcount(), 1);
     }
 
     #[test]

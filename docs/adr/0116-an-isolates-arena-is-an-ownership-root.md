@@ -97,12 +97,20 @@ The drain alone is not the whole of reclamation, because it frees only what the 
 a cycle's members hold each other above zero. An object is the one shape that can close a cycle — a string
 is immutable and an array copies on write (`graph.rs`'s identity decision) — so the drain is followed by a
 **sweep**: every object links into its context's intrusive live list when it is allocated and out when it
-is dismantled, and whatever the drain leaves on that list is exactly the cyclic garbage, dismantled through
-the same worklist so native teardown runs there too. What the sweep spends, per
-[ADR 0004](0004-memory-for-simplicity.md): two pointers per live object, and a few non-atomic stores at
-each object's allocation and death. Decided 2026-09-01, after review found the drain-only teardown retained
-a cycle for the life of the process; it lands as goal 4's stage 11, and until it does that retention is the
-tree's behaviour.
+is dismantled, and what the drain leaves on that list is dismantled through the same worklist, so native
+teardown runs there too. What the sweep spends, per [ADR 0004](0004-memory-for-simplicity.md): two pointers
+per live object, and a few non-atomic stores at each object's allocation and death. Decided 2026-09-01,
+after review found the drain-only teardown retained a cycle for the life of the process.
+
+**What is left on the list is not by itself proof that it is garbage**, and the sweep does not treat it as
+such. A `Value` does leave a context — `crate::abi`'s `call` answers one to its Rust caller — so the sweep
+first tallies, per member, how many of its references come from another member's field slot; a member
+whose count that tally does not exactly account for is reachable from outside, as is everything under it,
+and is left alone. A survivor is then taken off the list, because the list dies with the context and the
+object does not. Only the remainder is dismantled. That is priority 1 deciding a question priority 5 would have
+answered the other way: freeing memory somebody still holds is a use-after-free, and leaving a cycle whose
+only closing edge is inside an `array<T>` — the case the tally deliberately does not read — is a leak the
+crate's own known gaps name. `crates/nvs-runtime/src/object.rs` is the mechanism's one home.
 
 ### 3. What an isolate spends
 

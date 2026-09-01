@@ -812,6 +812,16 @@ pub struct Ctx {
     /// The files this request has opened and not yet closed, by the key its
     /// `Core\IO\File` carries — see [`Ctx::hold_open_file`].
     open_files: Vec<Option<std::fs::File>>,
+    /// Every object this context has allocated and not yet dismantled — ADR
+    /// 0116 § 2's live list, whose sweep in [`Drop`] reclaims the cyclic graph
+    /// the root drain could not. [`crate::object`]'s own docs are the home of
+    /// the mechanism and of what it spends, including why the list is a
+    /// separate allocation rather than a word of this struct.
+    ///
+    /// Last, and never in the hot line: nothing on the request path reads it,
+    /// and the one write per object allocation reaches it through
+    /// [`current_live_list`] rather than through the context at all.
+    live: std::rc::Rc<crate::object::LiveList>,
 }
 
 /// One entry of [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
@@ -1039,6 +1049,17 @@ impl Drop for Ctx {
                 work.closure.release();
             }
         }
+        // A failure that ended the request still owns its exception object,
+        // and `Thrown`'s own `Drop` is what releases it. Taken here rather
+        // than left to the field drop below, because a field is dropped
+        // *after* this body: the sweep would otherwise reach an object that is
+        // about to be released a second time.
+        drop(self.pending.take());
+        // Last, and only once every root above is gone: what is still on the
+        // live list is then exactly the cyclic garbage the refcounts could not
+        // free. ADR 0116 § 2 is the decision and `crate::object::sweep` the
+        // mechanism.
+        crate::object::sweep(&self.live);
     }
 }
 
@@ -1142,6 +1163,14 @@ impl Limit {
 }
 
 impl Ctx {
+    /// How many objects this context has allocated and not yet dismantled —
+    /// what [`crate::object::sweep`] would have to take apart if the context
+    /// ended now.
+    #[cfg(test)]
+    pub(crate) fn live_objects(&self) -> usize {
+        self.live.count()
+    }
+
     /// A context writing to the given sink, with nothing pending and every
     /// flag clear.
     #[must_use]
@@ -1197,6 +1226,7 @@ impl Ctx {
             assertions: Vec::new(),
             started_scripts: Vec::new(),
             open_files: Vec::new(),
+            live: std::rc::Rc::new(crate::object::LiveList::default()),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
         ctx
@@ -3414,6 +3444,23 @@ thread_local! {
     /// destructor, which is what `crate::alloc`'s own thread-local requires of
     /// every one in this crate and costs nothing here.
     static CURRENT: std::cell::Cell<*mut Ctx> = const { std::cell::Cell::new(std::ptr::null_mut()) };
+
+    /// The live list of that same context, or null — see [`CurrentCtx`].
+    ///
+    /// A second word rather than a hop through [`CURRENT`], because the two
+    /// readers want different things: the release path wants the context, and
+    /// [`crate::object::NvsObj::alloc`] wants a list it may write to while a
+    /// helper above it holds `&mut Ctx`. Reaching the list *through* the
+    /// context would make every object allocation write into an allocation
+    /// that reference claims exclusively; the `Rc` it names does not.
+    static CURRENT_LIVE: std::cell::Cell<*const crate::object::LiveList> =
+        const { std::cell::Cell::new(std::ptr::null()) };
+}
+
+/// The live list of this thread's current context, or null when no compiled
+/// frame is running — [`crate::object::NvsObj::alloc`]'s one reader.
+pub(crate) fn current_live_list() -> *const crate::object::LiveList {
+    CURRENT_LIVE.get()
 }
 
 /// Installs a context as this thread's current one for as long as the guard
@@ -3436,17 +3483,19 @@ thread_local! {
 /// it, so the reborrow [`with_current`] hands out is the only live one.
 /// **Cost:** two thread-local word stores per Rust-to-compiled call boundary —
 /// not per compiled call, which passes the context in a register.
-pub(crate) struct CurrentCtx(*mut Ctx);
+pub(crate) struct CurrentCtx(*mut Ctx, *const crate::object::LiveList);
 
 impl CurrentCtx {
     /// Makes `ctx` this thread's current context until the guard drops.
     pub(crate) fn install(ctx: &mut Ctx) -> Self {
-        Self(CURRENT.replace(&raw mut *ctx))
+        let live = std::rc::Rc::as_ptr(&ctx.live);
+        Self(CURRENT.replace(&raw mut *ctx), CURRENT_LIVE.replace(live))
     }
 }
 
 impl Drop for CurrentCtx {
     fn drop(&mut self) {
+        CURRENT_LIVE.set(self.1);
         CURRENT.set(self.0);
     }
 }
