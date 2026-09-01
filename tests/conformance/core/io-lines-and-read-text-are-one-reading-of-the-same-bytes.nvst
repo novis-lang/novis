@@ -1,0 +1,99 @@
+--TEST--
+Core\IO::lines' pieces rebuild the file Core\IO::readText answers whole, over a final terminator, a file without one, a lone terminator and an empty file — and the one place the two members part is the decode, where a second charset changes every row and no line boundary — spec § 14, ADR 0009 § 1
+--FILE--
+<?nvs
+// The two members are `slurp` reached twice: the same door, the same buffer,
+// and then a split in one and a decode in the other. The existing agreement
+// case checks `lines` against `Core\Str::lines`, which is the *same splitter*
+// -- so a splitter wrong about a trailing terminator is wrong on both sides of
+// it and still agrees. `readText` is the independent oracle: it answers the
+// file undivided, so re-joining the pieces has to reproduce it exactly, and an
+// invented or dropped final empty line cannot cancel out.
+//
+// The four bodies are the four ways a file can end, which is where a splitter
+// is off by one if it is off at all.
+array<string> $bodies = [
+    "one\ntwo\nthree\n",
+    "no terminator at all",
+    "\n",
+    "",
+];
+int $total = Core\Arr::count($bodies) as int;
+int $rebuilt = 0;
+int $pieces = 0;
+
+int $i = 0;
+for (; $i < $total; $i = $i + 1) {
+    Core\IO::write("subject.txt", $bodies[$i]);
+    string $text = Core\IO::readText("subject.txt");
+
+    array<string> $walked = [];
+    foreach (Core\IO::lines("subject.txt") as string $line) {
+        $walked[] = $line;
+        $pieces = $pieces + 1;
+    }
+
+    // The reconstruction rule, which is the whole claim: the pieces joined by
+    // the terminator, plus the terminator itself exactly when the file ended
+    // with one. A trailing terminator closes the last line rather than opening
+    // an empty one, so it is spelled here and not counted as a piece.
+    string $joined = Core\Str::join($walked, "\n");
+    if (Core\Str::endsWith($text, "\n")) {
+        $joined = $joined . "\n";
+    }
+    if ($joined == $text) {
+        $rebuilt = $rebuilt + 1;
+    }
+}
+
+echo "bodies: ", $total as string,
+     ", rebuilt from their own lines: ", $rebuilt as string,
+     ", pieces: ", $pieces as string, "\n";
+
+// And the divergence, which is one thing and not several: `lines` is `read`'s
+// treatment of the octets, so it agrees with the reading `readText` makes
+// under the charset the file was written in and with no other. The three
+// terminators are ASCII, so the second charset moves every row's *content*
+// and no row's *boundary* -- a member that decoded on its own would agree
+// where this counts a disagreement, and one that split on a high byte would
+// move the count.
+Core\IO::write("subject.txt", "café\nnaïve\n");
+array<string> $asWritten = Core\Str::lines(Core\IO::readText("subject.txt"));
+array<string> $asLatin1 = Core\Str::lines(Core\IO::readText("subject.txt", {charset: Core\Charset::Latin1}));
+
+int $rows = Core\Arr::count($asWritten) as int;
+int $sameRows = 0;
+int $changed = 0;
+int $at = 0;
+
+foreach (Core\IO::lines("subject.txt") as string $line) {
+    if ($at < $rows) {
+        if ($line == $asWritten[$at]) {
+            $sameRows = $sameRows + 1;
+        }
+        if ($line != $asLatin1[$at]) {
+            $changed = $changed + 1;
+        }
+    }
+    $at = $at + 1;
+}
+
+echo "accented rows: ", $rows as string,
+     ", walked: ", $at as string,
+     ", agreeing with the reading it was written under: ", $sameRows as string,
+     ", changed by the second charset: ", $changed as string, "\n";
+
+// Both charsets found the same number of rows, which is the boundary half of
+// the same claim said as one line rather than left to be read off two.
+int $moved = (Core\Arr::count($asLatin1) as int) - $rows;
+echo "boundaries the charset moved: ", $moved as string, "\n";
+
+Core\IO::remove("subject.txt");
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+bodies: 4, rebuilt from their own lines: 4, pieces: 5
+accented rows: 2, walked: 2, agreeing with the reading it was written under: 2, changed by the second charset: 2
+boundaries the charset moved: 0
