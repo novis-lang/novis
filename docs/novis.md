@@ -116,6 +116,7 @@ Conventions the whole file uses:
 | [`Core\Csrf`](#core-core-csrf) |  |
 | [`Core\Totp`](#core-core-totp) |  |
 | [`Core\Jwt`](#core-core-jwt) |  |
+| [`Core\Html`](#core-core-html) |  |
 | [`Core\Http`](#core-core-http) |  |
 | [`Core\Http\Target`](#core-core-http-target) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
@@ -15865,6 +15866,30 @@ Answers the claims `$token` carries, having checked that this key signed it and 
 
 **Throws** `LogicError` — `$key` is shorter than 32 octets — a value that was never a signing key.; `RuntimeError` — The token is not one this key signed, which is one sentence for every way of not being one; or it is, and has expired, carries no `exp`, or carries a claim that is not text.
 
+<a id="core-core-html"></a>
+### `Core\Html`
+
+Keywords: escape
+
+| Member | Signature |
+|---|---|
+| [`Core\Html::escape`](#core-core-html-escape) | `escape(string $text): string` |
+
+<a id="core-core-html-escape"></a>
+#### `Core\Html::escape`
+
+```nvs skip
+Core\Html::escape(string $text): string
+```
+
+Writes `&`, `<`, `>`, `"` and `'` in `$text` as character references, and replaces every unterminated bidirectional control with `�` — the launderer for the HTML sink, so its result is accepted where a `tainted` string is not.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (launder) | The text to write into an HTML document, as text rather than as markup. |
+
+**Returns** `string` — The escaped text, safe in element content and in an attribute value quoted either way. Text with none of the five characters and no unterminated control comes back unchanged. The five are escaped unconditionally: there is no flag, and an input that already reads as a reference is escaped again, since `&amp;` in the input is text that said `&amp;`.
+
 <a id="core-core-http"></a>
 ### `Core\Http`
 
@@ -17769,6 +17794,8 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `fprintf` | member | `Core\Str::format` into `$file->write` |
 | `get_html_translation_table` | dropped | the entity table is `Core\Html::escape`'s business, not a program's |
 | `hex2bin` | member | `Core\Encoding::fromHex` |
+| `htmlentities` | member | `Core\Html::escape` — which is applied automatically at the HTML sink ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)) |
+| `htmlspecialchars` | member | `Core\Html::escape` |
 | `iconv` | member | `Core\Encoding::decodeText` / `Core\Encoding::encodeText` |
 | `iconv_get_encoding` | dropped | there is no ambient encoding to read; `string` is UTF-8 by type |
 | `iconv_set_encoding` | dropped | ambient process state, unsound per core ([ADR 0051](adr/0051-standard-library-tiers.md)) |
