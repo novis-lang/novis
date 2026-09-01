@@ -1345,6 +1345,14 @@ is why" — is this file.
   case. It falls on the session *writing* the handoff as much as the one reading it: a group's claim
   is about the tree, and the tree moves under a handoff that was true when it was written. Read the
   four existing `--TEST--` lines before proposing a fifth case, never the file names alone.
+- **`tools/try.py` runs the `--FILE--` body and the `--FILE nvs.toml--` body as one program**, so
+  any `.nvst` case carrying a capability grant fails there with a dozen invented diagnostics —
+  `error[E0319]: read is not a constant that exists` pointing at `read = ["."]`, which reads exactly
+  like a real name-resolution bug in the case you just wrote. Nothing is wrong with the case. Every
+  `Core\IO` case has that section, so this is the whole class rather than a corner of it. The runner
+  that does understand the format is `target/debug/nvs.exe test <path.nvst>`, it takes a single file
+  as happily as a tree, and it is the same binary and the same harness `verify.py` uses — so reach
+  for it directly and keep `try.py` for a snippet with no config block.
 
 ## Running things
 

@@ -60,7 +60,7 @@
 > `Core\Cldr::pluralCategory` reads a closed CLDR roster; `https` and mail's `AUTH` run over
 > verified TLS. **Stages 2 and 3 are closed**: spec § 14's handle roster is on `Core\IO\File` and
 > ADR 0086's whole terminal surface is on `Core\Cli`. **Stages 11 and 12 have closed**, with
-> `examples/cycles.nvs` and `examples/onexit.nvs`. Conformance 1336, differential 210 of 210,
+> `examples/cycles.nvs` and `examples/onexit.nvs`. Conformance 1339, differential 210 of 210,
 > migration 37% over its 36% floor.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
