@@ -96,7 +96,15 @@ def sections(text: str) -> dict[str, str]:
 def run(cmd: list[str], cwd: Path) -> tuple[str, int]:
     try:
         proc = subprocess.run(
+            # UTF-8 explicitly, because `text=True` decodes with the console's
+            # own code page and Windows hands back cp1252 — under which a case
+            # echoing one of ADR 0086 § 1's Control Pictures (`␛` is
+            # `E2 90 9B`) raises `UnicodeDecodeError` in the reader thread
+            # rather than failing the comparison. `replace` for the same
+            # reason: a program under test may write bytes that are not UTF-8
+            # at all, and that is a difference to show, not a crash.
             cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT,
+            encoding="utf-8", errors="replace",
         )
     except FileNotFoundError:
         return (f"<{cmd[0]} not found on PATH>", 127)
