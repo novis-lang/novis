@@ -1,0 +1,90 @@
+--TEST--
+Core\Csrf::issue seals under its own nonce, so a token is not a function of its arguments: twelve issues of one session under one key are twelve different strings and every one of them verifies — ADR 0060 §§ 1, 4
+--FILE--
+<?nvs
+// Invariance over a sweep, counted. One round trip reads exactly the same
+// whether `issue` seals under a fresh nonce or hashes its two arguments, and
+// the deterministic member is the dangerous one: its token would be a stable
+// secret that every response reprints, so one leaked page hands over every
+// future form for that session. So the question is asked of a sweep of issues
+// rather than of a pair, and answered by counting — a member that went
+// deterministic fails the count while each individual line still looks right.
+// `crates/nvs-stdlib/src/csrf.rs` owns the construction and its nonce.
+secret bytes $key = Core\Crypto::generateKey();
+string $session = "sid-ada";
+
+array<string> $tokens = [];
+int $issues = 0;
+while ($issues < 12) {
+    $tokens[] = Core\Csrf::issue($session, $key);
+    $issues = $issues + 1;
+}
+int $n = Core\Arr::count($tokens) as int;
+
+// Every one of them verifies against the session it was issued for. A nonce
+// that was sealed but not rebuilt on the read side would fail here while still
+// producing twelve different strings, so this half and the next are the two
+// that only hold together.
+int $verified = 0;
+foreach ($tokens as string $token) {
+    if (Core\Csrf::verify($token, $session, $key)) {
+        $verified = $verified + 1;
+    }
+}
+echo "verified ", $verified, " of ", $n, "\n";
+
+// And no two of them are the same string, over every unordered pair. A
+// deterministic `issue` answers 0 of 66 here. This is also what makes ADR 0060
+// § 4's "the comparison is the only exposed operation" more than a missing
+// accessor: a caller who compares one token with another is holding two valid
+// tokens that are not equal, so writing `==` visibly does not work rather than
+// working until somebody attacks it.
+int $pairs = 0;
+int $differ = 0;
+int $i = 0;
+int $j = 0;
+while ($i < $n) {
+    $j = $i + 1;
+    while ($j < $n) {
+        $pairs = $pairs + 1;
+        if ($tokens[$i] != $tokens[$j]) {
+            $differ = $differ + 1;
+        }
+        $j = $j + 1;
+    }
+    $i = $i + 1;
+}
+echo "distinct ", $differ, " of ", $pairs, "\n";
+
+// They differ in content and not in width. The nonce is a fixed-width part of
+// the sealed value, so a counter or a timestamp folded into the token — which
+// would also produce twelve different strings — is what this line refuses.
+int $sameWidth = 0;
+foreach ($tokens as string $sized) {
+    if (Core\Str::length($sized) == Core\Str::length($tokens[0])) {
+        $sameWidth = $sameWidth + 1;
+    }
+}
+echo "one width ", $sameWidth, " of ", $n, "\n";
+
+// None of the counts above is satisfied by a `verify` that answers `true` for
+// whatever it is handed: not one of the twelve verifies against another
+// session, and not one under another key. The binding survives the nonce.
+secret bytes $other = Core\Crypto::generateKey();
+int $asked = 0;
+int $accepted = 0;
+foreach ($tokens as string $probe) {
+    $asked = $asked + 2;
+    if (Core\Csrf::verify($probe, "sid-bob", $key)) {
+        $accepted = $accepted + 1;
+    }
+    if (Core\Csrf::verify($probe, $session, $other)) {
+        $accepted = $accepted + 1;
+    }
+}
+echo "strangers ", $accepted, " accepted of ", $asked, "\n";
+--EXPECT--
+verified 12 of 12
+distinct 66 of 66
+one width 12 of 12
+strangers 0 accepted of 24
