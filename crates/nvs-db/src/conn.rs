@@ -41,9 +41,9 @@ use crate::sql::StatementCache;
 ///
 /// MariaDB is its own driver and not a MySQL flag: the two have diverged in
 /// auth plugins, error tables and bulk protocol, and ADR 0067 argues that at
-/// length. The spellings here are also the ones `NVS_DB_MATRIX_DRIVER` and
-/// `tools/db-matrix.py --driver` use, so that roster has one home — see
-/// [`Driver::matrix_name`].
+/// length. The spellings here are also the ones `NVS_DB_MATRIX_DRIVER`,
+/// `tools/db-matrix.py --driver` and a `[db.<name>]` block's own `driver` field
+/// use, so that roster has one home — see [`Driver::matrix_name`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Driver {
     /// PostgreSQL, over `postgres-protocol` and the extended-query protocol.
@@ -91,13 +91,34 @@ impl Driver {
     /// The driver a `NVS_DB_MATRIX_DRIVER` value names, or `None` for a value
     /// no driver answers to.
     ///
-    /// Deliberately not `FromStr`: this parses one harness-supplied identifier
-    /// and is not the general question of how a driver is named in
-    /// configuration, which ADR 0067 § 2 answers with a `[db.*]` block's own
-    /// key and not with a string at all.
+    /// Deliberately not `FromStr`: this parses one harness-supplied identifier,
+    /// exactly, and a configuration file's own `driver` field goes through
+    /// [`Driver::from_config_name`] instead — same roster, one spelling rule
+    /// looser.
     #[must_use]
     pub fn from_matrix_name(name: &str) -> Option<Driver> {
         Driver::ALL.into_iter().find(|d| d.matrix_name() == name)
+    }
+
+    /// The driver a `[db.<name>]` block's `driver` field names, or `None` for a
+    /// value no driver answers to.
+    ///
+    /// **The same roster as [`Driver::matrix_name`], deliberately**: an
+    /// operator's `driver = "postgres"` and the harness's
+    /// `NVS_DB_MATRIX_DRIVER=postgres` name one backend, and a second roster is
+    /// how one of them gains a spelling the other refuses — a deployment that
+    /// boots and a matrix that skips it.
+    ///
+    /// The comparison is ASCII-case-insensitive where
+    /// [`from_matrix_name`](Driver::from_matrix_name)'s is exact, and that is
+    /// the whole difference: this value is typed by hand into a file, where
+    /// `Postgres` is a capital letter rather than a different backend, and that
+    /// one is set by a script that can spell it the one way.
+    #[must_use]
+    pub fn from_config_name(written: &str) -> Option<Driver> {
+        Driver::ALL
+            .into_iter()
+            .find(|d| written.eq_ignore_ascii_case(d.matrix_name()))
     }
 }
 
@@ -522,6 +543,26 @@ mod tests {
         }
         assert_eq!(seen.len(), 5, "ADR 0067 § 12 closes the set at five");
         assert_eq!(Driver::from_matrix_name("oracle"), None);
+    }
+
+    /// The two readers agree about every driver, which is the property one
+    /// roster buys: a `[db.<name>]` block's `driver` and the harness's
+    /// `NVS_DB_MATRIX_DRIVER` name the same backend, and the only difference
+    /// between them is the case a hand-written file is allowed.
+    #[test]
+    fn a_config_blocks_driver_names_the_same_backend_the_matrix_does() {
+        for driver in Driver::ALL {
+            let name = driver.matrix_name();
+            assert_eq!(Driver::from_config_name(name), Some(driver));
+            assert_eq!(
+                Driver::from_config_name(&name.to_uppercase()),
+                Some(driver),
+                "{name} written in capitals is the same backend"
+            );
+            assert_eq!(Driver::from_matrix_name(&name.to_uppercase()), None);
+        }
+        assert_eq!(Driver::from_config_name("oracle"), None);
+        assert_eq!(Driver::from_config_name(""), None);
     }
 
     /// § 4's rule, asserted on both sides: `Idle` is the only state that

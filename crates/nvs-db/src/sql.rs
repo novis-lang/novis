@@ -736,8 +736,10 @@ fn skip_dollar(bytes: &[u8], start: usize) -> Option<usize> {
 /// distinct answer from the default on purpose — a reader folding it into `0`
 /// would run a deployment two hours out on a typo, and an operator writes this
 /// field precisely because UTC is not what the columns mean. Turning the
-/// `None` into a refusal naming the line is the resolver's job, in the crate
-/// that owns every other boot error.
+/// `None` into a refusal naming the block is the resolver's job:
+/// [`PgTarget::resolve`](crate::pg::PgTarget::resolve) answers
+/// [`BlockError::TimeZone`](crate::pg::BlockError::TimeZone) for it, and every
+/// driver added later owes the same refusal rather than a default.
 #[must_use]
 pub fn time_zone_for(block: &Database) -> Option<i32> {
     match block.time_zone.as_deref() {

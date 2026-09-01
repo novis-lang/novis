@@ -119,6 +119,7 @@ use std::time::Instant;
 
 use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
+use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 use nvs_runtime::{Decimal, NvsArray, NvsStr, Value};
@@ -126,8 +127,8 @@ use postgres_protocol::authentication::sasl::{ChannelBinding, ScramSha256};
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
 
-use crate::conn::{DbErrorKind, Isolation, PgConn, ServerError, State};
-use crate::sql::{Prepared, StatementCache};
+use crate::conn::{DbErrorKind, Driver, Isolation, PgConn, ServerError, State};
+use crate::sql::{Prepared, StatementCache, time_zone_for};
 
 /// The one mechanism this driver authenticates with.
 const SCRAM_SHA_256: &str = "SCRAM-SHA-256";
@@ -197,6 +198,232 @@ impl std::fmt::Debug for PgTarget<'_> {
             .field("time_zone", &self.time_zone)
             .field("statement_cache", &self.statement_cache)
             .finish_non_exhaustive()
+    }
+}
+
+/// Why a `[db.<name>]` block is not a PostgreSQL connection —
+/// [`PgTarget::resolve`]'s refusal.
+///
+/// **A value, not a rendered message**: it names the *field* that is wrong and
+/// borrows what the block wrote, so the caller composing the operator-facing
+/// text decides the wording around it. [`BlockError::refusal`] is that text for
+/// a caller that has nothing better to say, and it is the one place a block's
+/// name is joined to a field's fault.
+///
+/// A block is read once, when a connection is opened, so a refusal here is a
+/// boot-shaped error arriving at the first `Core\Db::connect` rather than a
+/// per-request condition: nothing about it depends on the request, and the same
+/// block refuses the same way every time until an operator edits the file.
+///
+/// A second driver either shares this type — moved to
+/// [`mod@crate::conn`] beside [`Driver`] — or is refusing something PostgreSQL
+/// has no field for. It is deliberately not copied.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BlockError<'a> {
+    /// The block names no `driver` at all, so nothing decides which of ADR
+    /// 0067 § 12's five backends it is.
+    NoDriver,
+    /// `driver` names one of the five, and it is not this one.
+    OtherDriver {
+        /// What the block wrote.
+        written: &'a str,
+        /// The driver that spelling names.
+        driver: Driver,
+    },
+    /// `driver` names no driver Novis has.
+    UnknownDriver {
+        /// What the block wrote.
+        written: &'a str,
+    },
+    /// A field the startup exchange sends, absent from the block.
+    Missing {
+        /// The block's key, as an operator wrote it.
+        field: &'static str,
+    },
+    /// The same field, written with no value in it.
+    Blank {
+        /// The block's key, as an operator wrote it.
+        field: &'static str,
+    },
+    /// `password_file` is set and no password was materialized from it — the
+    /// block was read without `nvs_config::secret`'s pass over the tree, which
+    /// is a caller's bug rather than an operator's.
+    SecretUnread,
+    /// A field belonging to another driver, written on this one. Silently
+    /// ignoring it is ADR 0067 § 2's discriminated union giving way.
+    Unusable {
+        /// The block's key, as an operator wrote it.
+        field: &'static str,
+    },
+    /// `time_zone` is written and is not one of § 9's offsets — the `None`
+    /// [`crate::sql::time_zone_for`] answers with, turned into a refusal here
+    /// rather than folded into UTC.
+    TimeZone {
+        /// What the block wrote.
+        written: &'a str,
+    },
+}
+
+impl BlockError<'_> {
+    /// The refusal as an operator reads it, naming the block it is about.
+    ///
+    /// `name` is the `[db.<name>]` key, which the block itself does not carry:
+    /// a `Database` is the block's *fields*, and which name they were written
+    /// under is the map's key in `nvs_config`.
+    #[must_use]
+    pub fn refusal(&self, name: &str) -> String {
+        format!("[db.{name}]: {self}")
+    }
+}
+
+impl std::fmt::Display for BlockError<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BlockError::NoDriver => {
+                write!(
+                    f,
+                    "the block names no `driver`, so nothing says which database it is"
+                )
+            }
+            BlockError::OtherDriver { written, driver } => write!(
+                f,
+                "`driver` is `{written}`, which is the {} driver and not PostgreSQL",
+                driver.matrix_name()
+            ),
+            BlockError::UnknownDriver { written } => write!(
+                f,
+                "`driver` is `{written}`, which is none of `postgres`, `mysql`, `mariadb`, \
+                 `mssql` or `sqlite`"
+            ),
+            BlockError::Missing { field } => write!(
+                f,
+                "the block names no `{field}`, which a PostgreSQL connection cannot be opened \
+                 without"
+            ),
+            BlockError::Blank { field } => {
+                write!(
+                    f,
+                    "`{field}` is written empty, which is not a value to open a connection with"
+                )
+            }
+            BlockError::SecretUnread => write!(
+                f,
+                "`password_file` is set and no password was read from it, so this tree was never \
+                 handed to `nvs_config::secret`"
+            ),
+            BlockError::Unusable { field } => write!(
+                f,
+                "`{field}` belongs to another driver, and a PostgreSQL connection reads nothing \
+                 from it"
+            ),
+            BlockError::TimeZone { written } => write!(
+                f,
+                "`time_zone` is `{written}`, which is not an offset: write `+02:00`, `-05:30` or \
+                 `UTC`, or leave it unset for UTC"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BlockError<'_> {}
+
+impl<'a> PgTarget<'a> {
+    /// One `[db.<name>]` block as this driver's target, or why it is not one.
+    ///
+    /// **The target borrows the block and copies nothing**, which is what the
+    /// `'a` is for: a resolved target has to outlive the [`PgConn::connect`]
+    /// call that opens with it, and the thing that already does is the
+    /// configuration snapshot the block lives in. Owning the four strings
+    /// instead would mean a second copy of the password — a `secret` at the
+    /// language level ([ADR 0067 § 3](../../../docs/adr/0067-core-db.md)) — in
+    /// a struct nothing zeroes, for no gain: `nvs_config`'s snapshot is held
+    /// for the whole of a boot generation and a connection is opened inside
+    /// one.
+    ///
+    /// **Every field is decided here and none of it in the connect path.**
+    /// [`StatementCache::capacity_for`] and [`crate::sql::time_zone_for`] are
+    /// the two readers that own what an absent field means, and this is where
+    /// their answers become a number; § 9's `None` — a zone that is not an
+    /// offset — becomes [`BlockError::TimeZone`] rather than UTC, which is the
+    /// refusal that reader's doc comment promises somebody makes.
+    ///
+    /// The address is not here. § 3 pre-approves an operator-written endpoint
+    /// and [ADR 0058](../../../docs/adr/0058-outbound-request-policy.md) pins
+    /// it, so `host`'s resolution to a [`SocketAddr`] belongs to whoever
+    /// checked the `db.connect` capability, and [`PgConn::connect`] takes that
+    /// address beside this target. What is here is the name the certificate is
+    /// checked against, which is the written `host` and never a reverse lookup.
+    ///
+    /// # Errors
+    ///
+    /// [`BlockError`], in the order the checks run: the `driver` first, since a
+    /// MySQL block resolved as PostgreSQL would send this handshake to a server
+    /// that cannot answer it; then a field belonging to another driver; then
+    /// the four the startup exchange sends, each by its own key; then § 9's
+    /// zone.
+    pub fn resolve(block: &'a Database) -> Result<PgTarget<'a>, BlockError<'a>> {
+        let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
+        match Driver::from_config_name(written) {
+            Some(Driver::Postgres) => {}
+            Some(driver) => return Err(BlockError::OtherDriver { written, driver }),
+            None => return Err(BlockError::UnknownDriver { written }),
+        }
+
+        if block.path.is_some() {
+            return Err(BlockError::Unusable { field: "path" });
+        }
+
+        let password = match (block.password.as_deref(), block.password_file.is_some()) {
+            // `nvs_config::secret` materializes the file's content into
+            // `password` and leaves `password_file` set, so a block with the
+            // file and no value is one that never went through that pass.
+            (None, true) => return Err(BlockError::SecretUnread),
+            // A password may legitimately be spaces — `nvs_config::secret`
+            // trims nothing off a secret file for exactly that reason — so this
+            // one field is empty only when it is *empty*.
+            (Some(""), _) => return Err(BlockError::Blank { field: "password" }),
+            (Some(password), _) => password,
+            (None, false) => return Err(BlockError::Missing { field: "password" }),
+        };
+
+        let host = written_value(block.host.as_deref(), "host")?;
+        let user = written_value(block.user.as_deref(), "user")?;
+        let database = written_value(block.database.as_deref(), "database")?;
+
+        let Some(time_zone) = time_zone_for(block) else {
+            return Err(BlockError::TimeZone {
+                // `time_zone_for` answers `Some(0)` for an absent field, so
+                // reaching here means the block wrote one.
+                written: block.time_zone.as_deref().unwrap_or_default(),
+            });
+        };
+
+        Ok(PgTarget {
+            host,
+            user,
+            password,
+            database,
+            time_zone,
+            statement_cache: StatementCache::capacity_for(block),
+        })
+    }
+}
+
+/// One written field of a `[db.<name>]` block, refused by its own key when it
+/// is absent or holds nothing.
+///
+/// Whitespace-only counts as nothing here — a hostname or a role of two spaces
+/// is a field an editor left half-written, and sending it would fail against
+/// the server with a message about neither. The password does not come through
+/// this function, for the opposite reason.
+fn written_value<'a>(
+    value: Option<&'a str>,
+    field: &'static str,
+) -> Result<&'a str, BlockError<'a>> {
+    match value {
+        None => Err(BlockError::Missing { field }),
+        Some(value) if value.trim().is_empty() => Err(BlockError::Blank { field }),
+        Some(value) => Ok(value),
     }
 }
 
@@ -2913,11 +3140,14 @@ mod tests {
 
     use postgres_protocol::Oid;
 
+    use nvs_config::tree::Database;
+
     use super::{
-        CancelKey, PgColumn, PgDate, PgScalar, PgTarget, PgTime, State, Wire, affected_rows,
-        authenticate, execute_many, oid, posix_time_zone, request_tls, start_statement,
+        BlockError, CancelKey, PgColumn, PgDate, PgScalar, PgTarget, PgTime, State, Wire,
+        affected_rows, authenticate, execute_many, oid, posix_time_zone, request_tls,
+        start_statement,
     };
-    use crate::conn::{DbErrorKind, Isolation, ServerError};
+    use crate::conn::{DbErrorKind, Driver, Isolation, ServerError};
     use crate::sql::StatementCache;
 
     /// A cache that never caches, so a test about the wire asserts the unnamed
@@ -3122,6 +3352,169 @@ mod tests {
             time_zone: 2 * 3600,
             statement_cache: StatementCache::DEFAULT_CAPACITY,
         }
+    }
+
+    /// A `[db.<name>]` block with every field a PostgreSQL connection reads,
+    /// as an operator writes it and as `nvs_config` hands it over.
+    fn block() -> Database {
+        Database {
+            driver: Some("postgres".to_owned()),
+            host: Some("postgres.test".to_owned()),
+            user: Some("novis".to_owned()),
+            password: Some("hunter2".to_owned()),
+            database: Some("novis_test".to_owned()),
+            time_zone: Some("+02:00".to_owned()),
+            ..Database::default()
+        }
+    }
+
+    /// A complete block resolves to exactly what the handshake sends, and the
+    /// two fields with readers of their own are asserted through them: an
+    /// unwritten `statement_cache` is § 1's default and a written `0` is the
+    /// cache off, which is the answer a `unwrap_or_default` reader loses.
+    #[test]
+    fn a_complete_block_resolves_to_the_target_the_handshake_sends() {
+        let mut block = block();
+        let target = PgTarget::resolve(&block).expect("a complete block resolves");
+        assert_eq!(target.host, "postgres.test");
+        assert_eq!(target.user, "novis");
+        assert_eq!(target.password, "hunter2");
+        assert_eq!(target.database, "novis_test");
+        assert_eq!(target.time_zone, 2 * 3600);
+        assert_eq!(target.statement_cache, StatementCache::DEFAULT_CAPACITY);
+
+        block.statement_cache = Some(0);
+        let sized = PgTarget::resolve(&block).expect("a block that turns the cache off resolves");
+        assert_eq!(sized.statement_cache, 0);
+    }
+
+    /// One row of the sweep below: a block's key, and how a test writes that
+    /// key's value.
+    type Field = (&'static str, fn(&mut Database, Option<String>));
+
+    /// Every field the startup exchange sends, refused by its own key when it
+    /// is absent and again when it is written empty — asserted by sweeping the
+    /// roster and counting, because a resolver that named one field in every
+    /// message still answers plausibly on any single line.
+    #[test]
+    fn every_field_the_handshake_needs_is_refused_by_its_own_name() {
+        let fields: [Field; 4] = [
+            ("host", |block, value| block.host = value),
+            ("user", |block, value| block.user = value),
+            ("password", |block, value| block.password = value),
+            ("database", |block, value| block.database = value),
+        ];
+
+        let mut swept = 0;
+        for (field, write) in fields {
+            let mut absent = block();
+            write(&mut absent, None);
+            assert_eq!(
+                PgTarget::resolve(&absent).unwrap_err(),
+                BlockError::Missing { field }
+            );
+
+            let mut empty = block();
+            write(&mut empty, Some(String::new()));
+            assert_eq!(
+                PgTarget::resolve(&empty).unwrap_err(),
+                BlockError::Blank { field }
+            );
+            swept += 1;
+        }
+        assert_eq!(swept, fields.len());
+    }
+
+    /// § 3's `password_file`, on both sides. `nvs_config::secret` materializes
+    /// the file's content into `password` and *leaves `password_file` set*, so
+    /// a resolver refusing on the field's presence would refuse every
+    /// deployment that keeps its credential out of the config file — and one
+    /// reading `password` alone would report a missing password to an operator
+    /// who wrote one.
+    #[test]
+    fn a_password_file_is_a_password_once_it_has_been_read_and_a_refusal_before() {
+        let mut block = block();
+        block.password_file = Some("/run/secrets/db-password".to_owned());
+        assert_eq!(
+            PgTarget::resolve(&block)
+                .expect("a materialized secret resolves")
+                .password,
+            "hunter2"
+        );
+
+        block.password = None;
+        assert_eq!(
+            PgTarget::resolve(&block).unwrap_err(),
+            BlockError::SecretUnread
+        );
+    }
+
+    /// § 9's zone, on both sides of the reader's own answer: an unwritten field
+    /// is UTC and a value that is not an offset refuses the block instead of
+    /// being folded into UTC, which would run a deployment two hours out on a
+    /// typo. The message names the block and quotes what was written, since
+    /// the operator's next act is to find that line.
+    #[test]
+    fn a_zone_that_is_not_an_offset_refuses_the_block_rather_than_resolving_to_utc() {
+        let mut block = block();
+        block.time_zone = None;
+        assert_eq!(
+            PgTarget::resolve(&block)
+                .expect("an unwritten zone is UTC")
+                .time_zone,
+            0
+        );
+
+        block.time_zone = Some("Europe/Vienna".to_owned());
+        let refused = PgTarget::resolve(&block).unwrap_err();
+        assert_eq!(
+            refused,
+            BlockError::TimeZone {
+                written: "Europe/Vienna"
+            }
+        );
+        let message = refused.refusal("main");
+        assert!(message.starts_with("[db.main]: "), "{message}");
+        assert!(message.contains("Europe/Vienna"), "{message}");
+    }
+
+    /// The discriminant, and what a block belonging to another driver does
+    /// here: it is refused rather than opened as PostgreSQL, whether the name
+    /// is another of the five or none of them. The case a silent resolver
+    /// loses is `path` — a valid field on the struct, and one this handshake
+    /// has nothing to do with, so ignoring it would open a *server*
+    /// connection for a block that named a file.
+    #[test]
+    fn a_block_that_is_not_postgresqls_is_refused_rather_than_opened() {
+        let mut block = block();
+        block.driver = None;
+        assert_eq!(PgTarget::resolve(&block).unwrap_err(), BlockError::NoDriver);
+
+        block.driver = Some("mysql".to_owned());
+        assert_eq!(
+            PgTarget::resolve(&block).unwrap_err(),
+            BlockError::OtherDriver {
+                written: "mysql",
+                driver: Driver::MySql
+            }
+        );
+
+        block.driver = Some("pgsql".to_owned());
+        assert_eq!(
+            PgTarget::resolve(&block).unwrap_err(),
+            BlockError::UnknownDriver { written: "pgsql" }
+        );
+
+        // A file is written by a human, so the capital is a spelling and not a
+        // sixth backend.
+        block.driver = Some("Postgres".to_owned());
+        assert!(PgTarget::resolve(&block).is_ok());
+
+        block.path = Some("app.db".to_owned());
+        assert_eq!(
+            PgTarget::resolve(&block).unwrap_err(),
+            BlockError::Unusable { field: "path" }
+        );
     }
 
     /// § 9's declared zone reaches the server as PostgreSQL's own numeric
