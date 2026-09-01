@@ -418,7 +418,10 @@ def run_check(text: str, every: list[dict]) -> int:
         gone = []
         for raw in re.findall(r"`([^`]+)`", b["body"]):
             cand = PATH_TRIM.sub("", raw.strip().split()[0] if raw.strip() else "")
-            if not cand.startswith(TREE_DIRS) or "*" in cand or "<" in cand:
+            # `*` and `<` are the spellings of a path a bullet never claimed exists; an elision
+            # -- `tests/conformance/io/…` -- is a third, and the bullet that spells one is often
+            # the trap that the layout it names is the one the tree did NOT take.
+            if not cand.startswith(TREE_DIRS) or any(m in cand for m in ("*", "<", "…", "...")):
                 continue
             if not (ROOT / cand).exists():
                 gone.append(cand)
