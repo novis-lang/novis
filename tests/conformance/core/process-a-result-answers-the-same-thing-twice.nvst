@@ -1,0 +1,105 @@
+--TEST--
+Every `Core\Process\Result` member answers the same thing on a second call — a captured stream is a value the result holds, not a pipe that drains, and all three members are asserted to agree with themselves — ADR 0044 § 1
+--FILE--
+<?nvs
+// One question asked of all three members, so that a member which grew its own
+// answer fails here while still reading correctly on its own line — the
+// *agreement* shape, over the rule ADR 0044 § 1 states once for the whole
+// class: `run` waits for the child, drains both pipes and builds a result out
+// of what it read, so nothing the child owned is still open by the time a
+// program has a result at all.
+//
+// What that rules out is the shape every previous generation of this API had.
+// `exec` filled an array once, `popen` handed back a handle that emptied as it
+// was read, and a second read of either answered something different from the
+// first — so "read it once and keep it yourself" was a rule callers carried
+// rather than a property the value had. Each member here is called twice with
+// nothing in between and the two answers compared, which is the only way that
+// difference is observable from a program.
+//
+// The first answer is pinned as well as compared. Two empty captures agree
+// perfectly, and so do two zeroes: a member that drained on first read would
+// pass an agreement test that only asked whether the answers matched. So each
+// half asserts the marker is there *and* that the second call still says so,
+// and the status is a number nothing but the child can have chosen.
+//
+// The sentinels differ from each other on purpose — a run in which no child
+// started reports every member as disagreeing rather than as silently absent.
+//
+// The child is the platform's own shell, named absolutely, for the reason
+// `process-a-completed-run-answers-the-status-the-child-chose.nvst` states.
+
+bytes $firstOut = "sentinel one" as bytes;
+bytes $secondOut = "sentinel two" as bytes;
+bytes $firstErr = "sentinel one" as bytes;
+bytes $secondErr = "sentinel two" as bytes;
+int $firstCode = -2;
+int $secondCode = -3;
+int $started = 0;
+
+try {
+    var $unix = Core\Process::run("/bin/sh", ["-c", "printf OUTPUT; printf DIAGNOSTIC 1>&2; exit 7"]);
+    $started = $started + 1;
+    $firstOut = $unix->stdout();
+    $secondOut = $unix->stdout();
+    $firstErr = $unix->stderr();
+    $secondErr = $unix->stderr();
+    $firstCode = $unix->exitCode();
+    $secondCode = $unix->exitCode();
+} catch (IOError $notAUnix) {
+}
+
+try {
+    var $windows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo OUTPUT& echo DIAGNOSTIC 1>&2& exit 7"]);
+    $started = $started + 1;
+    $firstOut = $windows->stdout();
+    $secondOut = $windows->stdout();
+    $firstErr = $windows->stderr();
+    $secondErr = $windows->stderr();
+    $firstCode = $windows->exitCode();
+    $secondCode = $windows->exitCode();
+} catch (IOError $notWindows) {
+}
+
+echo "started=", $started, "\n";
+echo "exit=", $firstCode, "\n";
+
+if ($firstCode == $secondCode) {
+    echo "exitCode agrees with itself\n";
+} else {
+    echo "exitCode changed on a second call\n";
+}
+if (Core\Bytes::contains($firstOut, "OUTPUT" as bytes)) {
+    echo "stdout carries the marker\n";
+} else {
+    echo "stdout lost the marker\n";
+}
+if (Core\Bytes::compare($firstOut, $secondOut) == 0) {
+    echo "stdout agrees with itself\n";
+} else {
+    echo "stdout changed on a second call\n";
+}
+if (Core\Bytes::contains($firstErr, "DIAGNOSTIC" as bytes)) {
+    echo "stderr carries the marker\n";
+} else {
+    echo "stderr lost the marker\n";
+}
+if (Core\Bytes::compare($firstErr, $secondErr) == 0) {
+    echo "stderr agrees with itself\n";
+} else {
+    echo "stderr changed on a second call\n";
+}
+--FILE nvs.toml--
+# `true` for the reason the exit-code case gives: the door's own scoping is
+# pinned by `process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst`,
+# and this case is about what a result keeps after the child is gone.
+[capabilities.process]
+exec = true
+--EXPECT--
+started=1
+exit=7
+exitCode agrees with itself
+stdout carries the marker
+stdout agrees with itself
+stderr carries the marker
+stderr agrees with itself
