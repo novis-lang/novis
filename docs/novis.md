@@ -137,6 +137,8 @@ Conventions the whole file uses:
 | [`Core\Reflect\ClassInfo`](#core-core-reflect-classinfo) |  |
 | [`Core\Ast`](#core-core-ast) |  |
 | [`Core\Ast\Node`](#core-core-ast-node) |  |
+| [`Core\Db`](#core-core-db) |  |
+| [`Core\Db\InList`](#core-core-db-inlist) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -17130,6 +17132,58 @@ $node->nodes(): array<Core\Ast\Node>
 Every node this one contains, however deeply — `children` closed transitively, which is the whole walk when the receiver is the file.
 
 **Returns** `array<Core\Ast\Node>` — The subtree in source order, the receiver excluded: both this and `children` answer what the node *contains*, and a node does not contain itself.
+
+<a id="core-core-db"></a>
+### `Core\Db`
+
+Keywords: inList, quoteIdentifier
+
+| Member | Signature |
+|---|---|
+| [`Core\Db::inList`](#core-core-db-inlist) | `inList(array<mixed> $values): Core\Db\InList` |
+| [`Core\Db::quoteIdentifier`](#core-core-db-quoteidentifier) | `quoteIdentifier(string $name): string` |
+
+<a id="core-core-db-inlist"></a>
+#### `Core\Db::inList`
+
+```nvs skip
+Core\Db::inList(array<mixed> $values): Core\Db\InList
+```
+
+Marks `$values` as a run of bound values rather than one, so the placeholder it is bound to expands into a parenthesised list of that many — the `IN (?, ?, ?)` every PHP program builds with `implode` and `array_fill`. Nothing else in a statement expands, which is what keeps the SQL text independent of what a value turned out to be.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$values` | `array<mixed>` | The values to bind, one placeholder each, in the array's own order. Keys are not read: a marker binds positions inside one placeholder, not names. |
+
+**Returns** `Core\Db\InList` — A `Core\Db\InList` to bind to a single placeholder. It has no members and is accepted nowhere else; two lists of different lengths bound to the same SQL are two entries in the statement cache, because expansion changes the statement's arity.
+
+**Throws** `LogicError` — `$values` is empty, which means "match nothing" inside `IN` and "match everything" inside `NOT IN` — the caller branches instead.
+
+<a id="core-core-db-quoteidentifier"></a>
+#### `Core\Db::quoteIdentifier`
+
+```nvs skip
+Core\Db::quoteIdentifier(string $name): string
+```
+
+Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, digits or `_` — and answers it unchanged and no longer `tainted`, so it can be written into the text of a statement. Replaces escaping a table or column name by hand, which is what `mysqli_real_escape_string` was doing there.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (launder) | The identifier to check. It is answered exactly as given: nothing is escaped, truncated or lower-cased, because a name this accepts needs none of it. |
+
+**Returns** `string` — The same text, without the `tainted` qualifier. It carries no delimiter — `Core\Db` has no connection and so no dialect, and the five backends disagree on what a delimiter is.
+
+**Throws** `LogicError` — `$name` is empty, starts with a digit, or holds any character outside letters, digits and `_` — including a name that would need delimiting to be legal.
+
+<a id="core-core-db-inlist"></a>
+### `Core\Db\InList`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
 
 <a id="core-enums"></a>
 ### `Core` enums

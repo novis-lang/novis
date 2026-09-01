@@ -58,3 +58,6 @@ group needs.
   `nvs_host::tls` — `docs/agent/handoff.md`'s predecessors have carried this since the handshake
   landed.
 - The four remaining drivers, each its own `nvs_db::conn::Connection` arm — ADR 0132.
+- `docs/novis.md`'s anchors collide when a class and a member differ only in case: `Core\Db\InList`
+  and `Core\Db::inList` both render `#core-core-db-inlist`. The generator's, not the registry's —
+  ADR 0117 and whatever in `nvs-cli` builds the page.
