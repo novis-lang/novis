@@ -1,8 +1,12 @@
+//! The two pieces of CLDR Novis carries, which are one module because they
+//! are one body of data:
 //! [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
 //! § 4's date pattern grammar — the one `Core\Time\DateTime::format` emits
 //! from and `Core\Time::parse` reads with, in **CLDR** letters
 //! (`yyyy-MM-dd HH:mm:ss`, `EEEE, d MMMM yyyy`) rather than PHP's `date()`
-//! ones.
+//! ones — and [ADR 0082](../../../../docs/adr/0082-the-first-party-framework.md)
+//! § 2's `Core\Cldr::pluralCategory`, the cardinal plural rules a message
+//! catalog selects a form with.
 //!
 //! # Why this is written here rather than taken from a crate
 //!
@@ -50,6 +54,44 @@
 //!
 //! A `'…'` run is a literal, and `''` is one apostrophe — CLDR's own quoting.
 //!
+//! # The plural rules, and why they are a closed roster
+//!
+//! ADR 0082 § 2's row reads "one member exposing the CLDR data
+//! `nvs_stdlib::cldr` already holds". That was never true of this module: what
+//! it held was the pattern grammar above and no plural data at all, so the row
+//! is a member *and* the table behind it. The row's reason survives unchanged —
+//! § 3's `Web\I18n` formats messages over this rather than shipping a second
+//! copy of CLDR — and it is why the member is `Core` at all.
+//!
+//! What is carried is CLDR's **cardinal** rules, as [`RuleSet`]'s arms and the
+//! language-subtag table [`RULES`] maps onto them. Ordinal rules (`1st`,
+//! `2nd`) are a second table and are not here; nothing asks for one yet.
+//!
+//! **A language whose rules are not carried throws rather than falling back.**
+//! There is an obvious cheaper design — answer English's `one`/`other` for
+//! anything unrecognized — and it is the wrong one twice over: it is
+//! [ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//! repair-instead-of-refuse, and it is silently wrong in the direction that
+//! matters, since a Russian catalog written against `one`/`other` reads
+//! correctly for 1 and wrongly for 2, 5 and 11 alike. The refusal names the
+//! subtag, so the gap is a message rather than a mistranslation. Widening the
+//! roster is data: one arm if the rule shape is new, otherwise one row in
+//! [`RULES`].
+//!
+//! **The operands come from what the count shows, which is why `decimal` is
+//! the exact one.** CLDR's `v` and `f` are the *visible* fraction digits, so
+//! English puts `1` in `One` and `1.0` in `Other`. A `decimal` carries its
+//! scale ([ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md)) and so
+//! answers that distinction exactly; an `int` has no fraction; a `float` has no
+//! scale, so its digits are read off the shortest representation that
+//! round-trips — which is what `echo` writes for the same value, and therefore
+//! is what a reader sees.
+//!
+//! CLDR's `e` operand — the compact-decimal exponent behind `1,2M` — is 0
+//! everywhere here, because Novis has no compact notation to produce one. The
+//! `many` arms that read it in the published rules are written at `e = 0`,
+//! which is the millions rule `ca`, `es`, `fr`, `it` and `pt` share.
+//!
 //! # Known gaps
 //!
 //! 1. **A pattern is compiled per call.** [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)
@@ -64,10 +106,27 @@
 //!    additions to the table above rather than a different design; `Q` is the
 //!    only one § 4 names elsewhere, as a `Unit` case rather than a pattern
 //!    letter.
+//! 3. **[`RULES`] is a roster, not all of CLDR.** It carries the languages
+//!    whose published cardinal rules are transcribed here; every other one
+//!    throws, per the section above. `be`, `he`, `mt`, `dsb`, `hsb`, `gd`,
+//!    `br`, `kw`, `gv`, `is`, `mk`, `tzm`, `shi`, `si`, `ak`, `bh`, `guw`,
+//!    `nso`, `wa` and `naq` are the named absences — each has a rule shape no
+//!    arm here already has, so each is an arm rather than a row.
+//! 4. **Ordinal rules are absent**, and `Core\Cldr` has no member for them.
+//!    They are a separate CLDR table with its own categories per language, and
+//!    nothing in the framework's § 3 half asks for one.
+
+use std::cmp::Ordering;
+use std::ops::RangeInclusive;
 
 use jiff::Zoned;
 use jiff::civil;
 use jiff::tz::{Offset, TimeZone};
+use nvs_runtime::{Fault, ThrownClass, Value};
+
+use crate::registry::{
+    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// One field a pattern letter names, already resolved from the letter so
 /// nothing downstream matches on a `u8` a second time.
@@ -808,6 +867,797 @@ fn name_index(
     Ok(index + usize::from(what == "month"))
 }
 
+// ============================================================================
+// The plural rules — ADR 0082 § 2's `Core\Cldr` row
+// ============================================================================
+
+/// `Core\Cldr`'s name, spelled once.
+pub(crate) const NAME: &str = r"Core\Cldr";
+
+/// [`PLURAL_CATEGORY`]'s name, spelled once.
+pub(crate) const PLURAL_CATEGORY_NAME: &str = r"Core\Cldr\PluralCategory";
+
+/// ADR 0082 § 2's row, and the whole of the class: one member, no capability,
+/// no instance and no constant.
+///
+/// It declares no capability for the reason [`crate::storage`] declares none
+/// and a stronger one: nothing here reaches outside the process at all. The
+/// answer is a function of two arguments and a table compiled into the binary,
+/// so [ADR 0118](../../../../docs/adr/0118-capabilities-are-checked-at-one-door.md)
+/// § 1 has no door to put a check at.
+pub(crate) const CLASS: CoreClass = CoreClass {
+    name: NAME,
+    methods: &[CoreMethod {
+        name: "pluralCategory",
+        names: &["count", "locale"],
+        params: &[
+            CoreTy::Union(crate::math::NUMBER),
+            CoreTy::Text(Qual::Neutral),
+        ],
+        defaults: &[],
+        return_ty: CoreTy::Enum(PLURAL_CATEGORY_NAME),
+        symbol: "nvs_core_cldr_plural_category",
+        doc: Some(&PLURAL_CATEGORY_MEMBER_DOC),
+    }],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\Cldr::pluralCategory`'s reference card — ADR 0117.
+const PLURAL_CATEGORY_MEMBER_DOC: MethodDoc = MethodDoc {
+    short: "Answers which of CLDR's plural forms `$count` selects in `$locale`, so a message \
+            catalog keys its variants on the locale's own rule rather than on `== 1`.",
+    params: &[
+        ParamDoc {
+            name: "count",
+            desc: "The number the message is about. A `decimal` carries its scale, so `1.0` and \
+                   `1` can select different forms where a locale reads the fraction; an `int` has \
+                   none, and a `float` is read at the digits it prints.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "locale",
+            desc: "A BCP 47 tag. Only the language subtag is read and case is ignored, so `en-GB`, \
+                   `en_US` and `EN` all answer as `en`.",
+            shape: &[],
+        },
+    ],
+    ret: "The category the language's rules put `$count` in — `Other` for every count in a \
+          language that makes no plural distinction.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The tag carries no language subtag, or names a language whose rules are not \
+                   among those compiled in — a locale is never given another language's rules.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$count` is a `float` that is not finite, or one that prints more digits than \
+                   the rules can be evaluated over.",
+        },
+    ],
+};
+
+/// CLDR's six plural categories, in CLDR's own order.
+///
+/// Registered rather than left to a `string` because the roster is closed and
+/// the names mean nothing on their own: `One` is whatever form a language uses
+/// for the counts its rules put there, which in Russian includes 21 and
+/// excludes 11.
+pub(crate) const PLURAL_CATEGORY: CoreEnum = CoreEnum {
+    name: PLURAL_CATEGORY_NAME,
+    cases: &[
+        ("Zero", 0),
+        ("One", 1),
+        ("Two", 2),
+        ("Few", 3),
+        ("Many", 4),
+        ("Other", 5),
+    ],
+    doc: Some(&PLURAL_CATEGORY_DOC),
+};
+
+/// [`PLURAL_CATEGORY`]'s reference card — ADR 0117.
+const PLURAL_CATEGORY_DOC: EnumDoc = EnumDoc {
+    short: "Which of CLDR's six plural forms a count selects. The names are CLDR's own labels for \
+            a language's forms, not counts: only `Other` means the same thing everywhere, and a \
+            language uses as few of the six as its grammar needs.",
+    cases: &[
+        CaseDoc {
+            name: "Zero",
+            desc: "The form a language keeps for none of something — Arabic and Welsh have one; \
+                   most languages do not.",
+        },
+        CaseDoc {
+            name: "One",
+            desc: "The singular, as that language draws it: English's 1, Russian's 1, 21 and 31, \
+                   French's 0 and 1.",
+        },
+        CaseDoc {
+            name: "Two",
+            desc: "The dual — Arabic, Welsh, Slovenian and Irish among the languages carried.",
+        },
+        CaseDoc {
+            name: "Few",
+            desc: "The paucal, for the small counts a language groups: Russian's 2 to 4, Arabic's \
+                   3 to 10, Welsh's 3 alone.",
+        },
+        CaseDoc {
+            name: "Many",
+            desc: "The form above `Few` where a language has both — Russian's 5 to 20, and the \
+                   whole millions in Romance languages that mark them.",
+        },
+        CaseDoc {
+            name: "Other",
+            desc: "The form every language has, and in a language with no plural distinction the \
+                   only one any count selects.",
+        },
+    ],
+};
+
+/// One of CLDR's six plural categories — [`PLURAL_CATEGORY`]'s cases, as the
+/// rules below answer with them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Category {
+    Zero,
+    One,
+    Two,
+    Few,
+    Many,
+    Other,
+}
+
+impl Category {
+    /// The constant an enum value *is* at run time (ADR 0010), which is what
+    /// the member hands back.
+    ///
+    /// Written here and checked against [`PLURAL_CATEGORY`] by
+    /// `an_ordinal_is_its_case_in_the_registered_enum` rather than looked up
+    /// per call: the roster is six wide and closed, so a scan would buy
+    /// nothing a test does not already buy once.
+    fn ordinal(self) -> i64 {
+        match self {
+            Self::Zero => 0,
+            Self::One => 1,
+            Self::Two => 2,
+            Self::Few => 3,
+            Self::Many => 4,
+            Self::Other => 5,
+        }
+    }
+}
+
+/// CLDR's plural operands for one count, holding the three the carried rules
+/// read.
+///
+/// `n` is derived rather than stored ([`Operands::n`]), and `t` — `f` without
+/// its trailing zeros — is never needed as a number: every rule here asks only
+/// whether it is zero, which is `f == 0`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Operands {
+    /// `i` — the integer part of the absolute value.
+    i: u128,
+    /// `v` — how many fraction digits the count *shows*, trailing zeros
+    /// included.
+    v: u32,
+    /// `f` — those digits read as an integer, trailing zeros included.
+    f: u128,
+}
+
+impl Operands {
+    /// `n` — the absolute value — but only when it is a whole number.
+    ///
+    /// CLDR matches `n` against integers and integer ranges, so a count with a
+    /// non-zero fraction is outside every one of them rather than rounded into
+    /// one: `n = 1` is false for `1.5` and `n = 3..10` is false for `3.5`.
+    /// Answering `None` for those is what lets each predicate below read like
+    /// its published rule.
+    fn n(self) -> Option<u128> {
+        (self.f == 0).then_some(self.i)
+    }
+
+    /// CLDR's `n = value`.
+    fn n_is(self, value: u128) -> bool {
+        self.n() == Some(value)
+    }
+
+    /// CLDR's `n = low..high`.
+    fn n_in(self, range: RangeInclusive<u128>) -> bool {
+        self.n().is_some_and(|n| range.contains(&n))
+    }
+
+    /// CLDR's `n % modulus = value`.
+    fn n_mod_is(self, modulus: u128, value: u128) -> bool {
+        self.n().is_some_and(|n| n % modulus == value)
+    }
+
+    /// CLDR's `n % modulus = low..high`.
+    fn n_mod_in(self, modulus: u128, range: RangeInclusive<u128>) -> bool {
+        self.n().is_some_and(|n| range.contains(&(n % modulus)))
+    }
+
+    /// The `many` arm `ca`, `es`, `fr`, `it` and `pt` share: a whole number of
+    /// millions, and not zero.
+    ///
+    /// The published rule reads `e = 0 and i != 0 and i % 1000000 = 0 and
+    /// v = 0 or e != 0..5`; `e` is 0 here always (the module doc says why), so
+    /// what is left is the first half.
+    fn is_whole_millions(self) -> bool {
+        self.i != 0 && self.i.is_multiple_of(1_000_000) && self.v == 0
+    }
+}
+
+/// One CLDR cardinal rule set, named for a language that uses it or for the
+/// shape it has.
+///
+/// A rule set rather than a locale is the unit because CLDR's own data is
+/// shaped that way: the languages in [`RULES`] share a few dozen sets between
+/// them, so every language on a set shares one implementation of it and a new
+/// language is usually a row rather than an arm.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuleSet {
+    /// No plural distinction at all: every count is `Other`.
+    NoDistinction,
+    /// `one: i = 1 and v = 0` — English, and the set with the most languages.
+    Unit,
+    /// [`Self::Unit`] plus the millions `many`.
+    UnitAndMillions,
+    /// `one: n = 1` — [`Self::Unit`]'s neighbour, and the difference is `1.0`.
+    ExactlyOne,
+    /// [`Self::ExactlyOne`] plus the millions `many` — Spanish.
+    ExactlyOneAndMillions,
+    /// `one: i = 0 or n = 1` — Hindi, Bengali, Persian, Zulu.
+    ZeroOrExactlyOne,
+    /// `one: i = 0,1` — Armenian, Fulah, Kabyle. Unlike
+    /// [`Self::ZeroOrExactlyOne`] this puts `1.5` in `One`, since it reads `i`
+    /// and not `n`.
+    IntegerZeroOrOne,
+    /// [`Self::IntegerZeroOrOne`] plus the millions `many` — French,
+    /// Portuguese.
+    IntegerZeroOrOneAndMillions,
+    /// Russian and Ukrainian: `one`/`few`/`many` off `i`, and every count with
+    /// a fraction is `Other`.
+    EastSlavic,
+    /// Polish, whose `many` differs from [`Self::EastSlavic`]'s at 1 and at
+    /// 12–14.
+    Polish,
+    /// Czech and Slovak, whose `many` is the fraction itself.
+    Czech,
+    /// Bosnian, Croatian, Serbian: [`Self::EastSlavic`]'s shape with no
+    /// `many`, and with the same test applied to the fraction digits.
+    SerboCroatian,
+    /// Arabic, the language that uses all six.
+    Arabic,
+    /// Welsh, which uses all six off bare counts — the clearest statement that
+    /// these names are labels and not amounts.
+    Welsh,
+    /// Lithuanian, whose `many` is the fraction.
+    Lithuanian,
+    /// Latvian, the one carried set with a `zero` that is not `n = 0`.
+    Latvian,
+    /// Romanian, whose `few` swallows the fraction, zero and 2–19 alike.
+    Romanian,
+    /// Slovenian, which reads `i % 100` where the Slavic sets read `i % 10`.
+    Slovenian,
+    /// Irish, whose categories are four contiguous bands.
+    Irish,
+}
+
+impl RuleSet {
+    /// CLDR's own rule for this set, one arm each, in the order the categories
+    /// are published in: the first match wins, and `Other` is the
+    /// fallthrough every set has.
+    #[allow(clippy::match_same_arms)]
+    fn select(self, at: Operands) -> Category {
+        use Category::{Few, Many, One, Other, Two, Zero};
+        match self {
+            Self::NoDistinction => Other,
+
+            Self::Unit if at.i == 1 && at.v == 0 => One,
+            Self::Unit => Other,
+
+            Self::UnitAndMillions if at.i == 1 && at.v == 0 => One,
+            Self::UnitAndMillions if at.is_whole_millions() => Many,
+            Self::UnitAndMillions => Other,
+
+            Self::ExactlyOne if at.n_is(1) => One,
+            Self::ExactlyOne => Other,
+
+            Self::ExactlyOneAndMillions if at.n_is(1) => One,
+            Self::ExactlyOneAndMillions if at.is_whole_millions() => Many,
+            Self::ExactlyOneAndMillions => Other,
+
+            Self::ZeroOrExactlyOne if at.i == 0 || at.n_is(1) => One,
+            Self::ZeroOrExactlyOne => Other,
+
+            Self::IntegerZeroOrOne if at.i <= 1 => One,
+            Self::IntegerZeroOrOne => Other,
+
+            Self::IntegerZeroOrOneAndMillions if at.i <= 1 => One,
+            Self::IntegerZeroOrOneAndMillions if at.is_whole_millions() => Many,
+            Self::IntegerZeroOrOneAndMillions => Other,
+
+            // one:  v = 0 and i % 10 = 1 and i % 100 != 11
+            // few:  v = 0 and i % 10 = 2..4 and i % 100 != 12..14
+            // many: v = 0 and i % 10 = 0 or v = 0 and i % 10 = 5..9
+            //       or v = 0 and i % 100 = 11..14
+            Self::EastSlavic if at.v != 0 => Other,
+            Self::EastSlavic if at.i % 10 == 1 && at.i % 100 != 11 => One,
+            Self::EastSlavic
+                if (2..=4).contains(&(at.i % 10)) && !(12..=14).contains(&(at.i % 100)) =>
+            {
+                Few
+            }
+            Self::EastSlavic
+                if at.i.is_multiple_of(10)
+                    || (5..=9).contains(&(at.i % 10))
+                    || (11..=14).contains(&(at.i % 100)) =>
+            {
+                Many
+            }
+            Self::EastSlavic => Other,
+
+            // one:  i = 1 and v = 0
+            // few:  v = 0 and i % 10 = 2..4 and i % 100 != 12..14
+            // many: v = 0 and i != 1 and i % 10 = 0..1 or v = 0 and i % 10 = 5..9
+            //       or v = 0 and i % 100 = 12..14
+            Self::Polish if at.i == 1 && at.v == 0 => One,
+            Self::Polish if at.v != 0 => Other,
+            Self::Polish
+                if (2..=4).contains(&(at.i % 10)) && !(12..=14).contains(&(at.i % 100)) =>
+            {
+                Few
+            }
+            Self::Polish
+                if (at.i != 1 && (0..=1).contains(&(at.i % 10)))
+                    || (5..=9).contains(&(at.i % 10))
+                    || (12..=14).contains(&(at.i % 100)) =>
+            {
+                Many
+            }
+            Self::Polish => Other,
+
+            // one: i = 1 and v = 0 / few: i = 2..4 and v = 0 / many: v != 0
+            Self::Czech if at.v == 0 && at.i == 1 => One,
+            Self::Czech if at.v == 0 && (2..=4).contains(&at.i) => Few,
+            Self::Czech if at.v != 0 => Many,
+            Self::Czech => Other,
+
+            // one: v = 0 and i % 10 = 1 and i % 100 != 11 or f % 10 = 1 and f % 100 != 11
+            // few: v = 0 and i % 10 = 2..4 and i % 100 != 12..14
+            //      or f % 10 = 2..4 and f % 100 != 12..14
+            Self::SerboCroatian
+                if (at.v == 0 && at.i % 10 == 1 && at.i % 100 != 11)
+                    || (at.f % 10 == 1 && at.f % 100 != 11) =>
+            {
+                One
+            }
+            Self::SerboCroatian
+                if (at.v == 0
+                    && (2..=4).contains(&(at.i % 10))
+                    && !(12..=14).contains(&(at.i % 100)))
+                    || ((2..=4).contains(&(at.f % 10)) && !(12..=14).contains(&(at.f % 100))) =>
+            {
+                Few
+            }
+            Self::SerboCroatian => Other,
+
+            // zero: n = 0 / one: n = 1 / two: n = 2
+            // few: n % 100 = 3..10 / many: n % 100 = 11..99
+            Self::Arabic if at.n_is(0) => Zero,
+            Self::Arabic if at.n_is(1) => One,
+            Self::Arabic if at.n_is(2) => Two,
+            Self::Arabic if at.n_mod_in(100, 3..=10) => Few,
+            Self::Arabic if at.n_mod_in(100, 11..=99) => Many,
+            Self::Arabic => Other,
+
+            // zero: n = 0 / one: n = 1 / two: n = 2 / few: n = 3 / many: n = 6
+            Self::Welsh if at.n_is(0) => Zero,
+            Self::Welsh if at.n_is(1) => One,
+            Self::Welsh if at.n_is(2) => Two,
+            Self::Welsh if at.n_is(3) => Few,
+            Self::Welsh if at.n_is(6) => Many,
+            Self::Welsh => Other,
+
+            // one:  n % 10 = 1 and n % 100 != 11..19
+            // few:  n % 10 = 2..9 and n % 100 != 11..19
+            // many: f != 0
+            Self::Lithuanian if at.n_mod_is(10, 1) && !at.n_mod_in(100, 11..=19) => One,
+            Self::Lithuanian if at.n_mod_in(10, 2..=9) && !at.n_mod_in(100, 11..=19) => Few,
+            Self::Lithuanian if at.f != 0 => Many,
+            Self::Lithuanian => Other,
+
+            // zero: n % 10 = 0 or n % 100 = 11..19 or v = 2 and f % 100 = 11..19
+            // one:  n % 10 = 1 and n % 100 != 11 or v = 2 and f % 10 = 1 and f % 100 != 11
+            //       or v != 2 and f % 10 = 1
+            Self::Latvian
+                if at.n_mod_is(10, 0)
+                    || at.n_mod_in(100, 11..=19)
+                    || (at.v == 2 && (11..=19).contains(&(at.f % 100))) =>
+            {
+                Zero
+            }
+            Self::Latvian
+                if (at.n_mod_is(10, 1) && !at.n_mod_is(100, 11))
+                    || (at.v == 2 && at.f % 10 == 1 && at.f % 100 != 11)
+                    || (at.v != 2 && at.f % 10 == 1) =>
+            {
+                One
+            }
+            Self::Latvian => Other,
+
+            // one: i = 1 and v = 0 / few: v != 0 or n = 0 or n % 100 = 2..19
+            Self::Romanian if at.i == 1 && at.v == 0 => One,
+            Self::Romanian if at.v != 0 || at.n_is(0) || at.n_mod_in(100, 2..=19) => Few,
+            Self::Romanian => Other,
+
+            // one: v = 0 and i % 100 = 1 / two: v = 0 and i % 100 = 2
+            // few: v = 0 and i % 100 = 3..4 or v != 0
+            Self::Slovenian if at.v == 0 && at.i % 100 == 1 => One,
+            Self::Slovenian if at.v == 0 && at.i % 100 == 2 => Two,
+            Self::Slovenian if (at.v == 0 && (3..=4).contains(&(at.i % 100))) || at.v != 0 => Few,
+            Self::Slovenian => Other,
+
+            // one: n = 1 / two: n = 2 / few: n = 3..6 / many: n = 7..10
+            Self::Irish if at.n_is(1) => One,
+            Self::Irish if at.n_is(2) => Two,
+            Self::Irish if at.n_in(3..=6) => Few,
+            Self::Irish if at.n_in(7..=10) => Many,
+            Self::Irish => Other,
+        }
+    }
+}
+
+/// Every language whose cardinal rules are carried, by its language subtag,
+/// **sorted** so [`rules_for`] can bisect it.
+///
+/// Lower case throughout, because a tag's case is not significant and folding
+/// the caller's copy costs nothing while folding this one would cost a second
+/// table. `the_locale_table_is_sorted_and_lower_case` is what keeps both true.
+///
+/// Adding a language is a row here, and an arm above only when its published
+/// rule is a shape no arm has. The module doc's gap 3 names the absences that
+/// are the second kind.
+static RULES: &[(&str, RuleSet)] = &[
+    ("af", RuleSet::ExactlyOne),
+    ("am", RuleSet::ZeroOrExactlyOne),
+    ("ar", RuleSet::Arabic),
+    ("ars", RuleSet::Arabic),
+    ("as", RuleSet::ZeroOrExactlyOne),
+    ("asa", RuleSet::ExactlyOne),
+    ("ast", RuleSet::Unit),
+    ("az", RuleSet::ExactlyOne),
+    ("bem", RuleSet::ExactlyOne),
+    ("bez", RuleSet::ExactlyOne),
+    ("bg", RuleSet::ExactlyOne),
+    ("bn", RuleSet::ZeroOrExactlyOne),
+    ("bo", RuleSet::NoDistinction),
+    ("brx", RuleSet::ExactlyOne),
+    ("bs", RuleSet::SerboCroatian),
+    ("ca", RuleSet::UnitAndMillions),
+    ("ce", RuleSet::ExactlyOne),
+    ("cgg", RuleSet::ExactlyOne),
+    ("chr", RuleSet::ExactlyOne),
+    ("ckb", RuleSet::ExactlyOne),
+    ("cs", RuleSet::Czech),
+    ("cy", RuleSet::Welsh),
+    ("de", RuleSet::Unit),
+    ("doi", RuleSet::ZeroOrExactlyOne),
+    ("dv", RuleSet::ExactlyOne),
+    ("dz", RuleSet::NoDistinction),
+    ("ee", RuleSet::ExactlyOne),
+    ("el", RuleSet::ExactlyOne),
+    ("en", RuleSet::Unit),
+    ("eo", RuleSet::ExactlyOne),
+    ("es", RuleSet::ExactlyOneAndMillions),
+    ("et", RuleSet::Unit),
+    ("eu", RuleSet::ExactlyOne),
+    ("fa", RuleSet::ZeroOrExactlyOne),
+    ("ff", RuleSet::IntegerZeroOrOne),
+    ("fi", RuleSet::Unit),
+    ("fo", RuleSet::ExactlyOne),
+    ("fr", RuleSet::IntegerZeroOrOneAndMillions),
+    ("fur", RuleSet::ExactlyOne),
+    ("fy", RuleSet::Unit),
+    ("ga", RuleSet::Irish),
+    ("gl", RuleSet::Unit),
+    ("gsw", RuleSet::ExactlyOne),
+    ("gu", RuleSet::ZeroOrExactlyOne),
+    ("ha", RuleSet::ExactlyOne),
+    ("haw", RuleSet::ExactlyOne),
+    ("hi", RuleSet::ZeroOrExactlyOne),
+    ("hr", RuleSet::SerboCroatian),
+    ("hu", RuleSet::ExactlyOne),
+    ("hy", RuleSet::IntegerZeroOrOne),
+    ("ia", RuleSet::Unit),
+    ("id", RuleSet::NoDistinction),
+    ("ig", RuleSet::NoDistinction),
+    ("ii", RuleSet::NoDistinction),
+    ("io", RuleSet::Unit),
+    ("it", RuleSet::UnitAndMillions),
+    ("ja", RuleSet::NoDistinction),
+    ("jbo", RuleSet::NoDistinction),
+    ("jgo", RuleSet::ExactlyOne),
+    ("jmc", RuleSet::ExactlyOne),
+    ("jv", RuleSet::NoDistinction),
+    ("jw", RuleSet::NoDistinction),
+    ("ka", RuleSet::ExactlyOne),
+    ("kab", RuleSet::IntegerZeroOrOne),
+    ("kaj", RuleSet::ExactlyOne),
+    ("kcg", RuleSet::ExactlyOne),
+    ("kde", RuleSet::NoDistinction),
+    ("kea", RuleSet::NoDistinction),
+    ("kk", RuleSet::ExactlyOne),
+    ("kkj", RuleSet::ExactlyOne),
+    ("kl", RuleSet::ExactlyOne),
+    ("km", RuleSet::NoDistinction),
+    ("kn", RuleSet::ZeroOrExactlyOne),
+    ("ko", RuleSet::NoDistinction),
+    ("ks", RuleSet::ExactlyOne),
+    ("ksb", RuleSet::ExactlyOne),
+    ("ku", RuleSet::ExactlyOne),
+    ("ky", RuleSet::ExactlyOne),
+    ("lb", RuleSet::ExactlyOne),
+    ("lg", RuleSet::ExactlyOne),
+    ("lij", RuleSet::Unit),
+    ("lkt", RuleSet::NoDistinction),
+    ("lo", RuleSet::NoDistinction),
+    ("lt", RuleSet::Lithuanian),
+    ("lv", RuleSet::Latvian),
+    ("mas", RuleSet::ExactlyOne),
+    ("mgo", RuleSet::ExactlyOne),
+    ("ml", RuleSet::ExactlyOne),
+    ("mn", RuleSet::ExactlyOne),
+    ("mo", RuleSet::Romanian),
+    ("mr", RuleSet::ExactlyOne),
+    ("ms", RuleSet::NoDistinction),
+    ("my", RuleSet::NoDistinction),
+    ("nah", RuleSet::ExactlyOne),
+    ("nb", RuleSet::ExactlyOne),
+    ("nd", RuleSet::ExactlyOne),
+    ("ne", RuleSet::ExactlyOne),
+    ("nl", RuleSet::Unit),
+    ("nn", RuleSet::ExactlyOne),
+    ("nnh", RuleSet::ExactlyOne),
+    ("no", RuleSet::ExactlyOne),
+    ("nqo", RuleSet::NoDistinction),
+    ("nr", RuleSet::ExactlyOne),
+    ("ny", RuleSet::ExactlyOne),
+    ("nyn", RuleSet::ExactlyOne),
+    ("om", RuleSet::ExactlyOne),
+    ("or", RuleSet::ExactlyOne),
+    ("os", RuleSet::ExactlyOne),
+    ("pap", RuleSet::ExactlyOne),
+    ("pcm", RuleSet::ZeroOrExactlyOne),
+    ("pl", RuleSet::Polish),
+    ("prg", RuleSet::Latvian),
+    ("ps", RuleSet::ExactlyOne),
+    ("pt", RuleSet::IntegerZeroOrOneAndMillions),
+    ("rm", RuleSet::ExactlyOne),
+    ("ro", RuleSet::Romanian),
+    ("rof", RuleSet::ExactlyOne),
+    ("ru", RuleSet::EastSlavic),
+    ("rwk", RuleSet::ExactlyOne),
+    ("sah", RuleSet::NoDistinction),
+    ("saq", RuleSet::ExactlyOne),
+    ("sc", RuleSet::Unit),
+    ("scn", RuleSet::Unit),
+    ("sd", RuleSet::ExactlyOne),
+    ("sdh", RuleSet::ExactlyOne),
+    ("seh", RuleSet::ExactlyOne),
+    ("ses", RuleSet::NoDistinction),
+    ("sg", RuleSet::NoDistinction),
+    ("sh", RuleSet::SerboCroatian),
+    ("sk", RuleSet::Czech),
+    ("sl", RuleSet::Slovenian),
+    ("sn", RuleSet::ExactlyOne),
+    ("so", RuleSet::ExactlyOne),
+    ("sq", RuleSet::ExactlyOne),
+    ("sr", RuleSet::SerboCroatian),
+    ("ss", RuleSet::ExactlyOne),
+    ("ssy", RuleSet::ExactlyOne),
+    ("st", RuleSet::ExactlyOne),
+    ("su", RuleSet::NoDistinction),
+    ("sv", RuleSet::Unit),
+    ("sw", RuleSet::Unit),
+    ("syr", RuleSet::ExactlyOne),
+    ("ta", RuleSet::ExactlyOne),
+    ("te", RuleSet::ExactlyOne),
+    ("teo", RuleSet::ExactlyOne),
+    ("th", RuleSet::NoDistinction),
+    ("tig", RuleSet::ExactlyOne),
+    ("tk", RuleSet::ExactlyOne),
+    ("tn", RuleSet::ExactlyOne),
+    ("to", RuleSet::NoDistinction),
+    ("tr", RuleSet::ExactlyOne),
+    ("ts", RuleSet::ExactlyOne),
+    ("ug", RuleSet::ExactlyOne),
+    ("uk", RuleSet::EastSlavic),
+    ("ur", RuleSet::Unit),
+    ("uz", RuleSet::ExactlyOne),
+    ("ve", RuleSet::ExactlyOne),
+    ("vi", RuleSet::NoDistinction),
+    ("vo", RuleSet::ExactlyOne),
+    ("vun", RuleSet::ExactlyOne),
+    ("wae", RuleSet::ExactlyOne),
+    ("wo", RuleSet::NoDistinction),
+    ("xh", RuleSet::ExactlyOne),
+    ("xog", RuleSet::ExactlyOne),
+    ("yi", RuleSet::Unit),
+    ("yo", RuleSet::NoDistinction),
+    ("yue", RuleSet::NoDistinction),
+    ("zh", RuleSet::NoDistinction),
+    ("zu", RuleSet::ZeroOrExactlyOne),
+];
+
+/// The language subtag of a BCP 47 tag — everything before the first separator.
+///
+/// A tag's other subtags are deliberately dropped rather than tried first:
+/// CLDR's cardinal rules are language-level data, so `pt-BR` and `pt-PT` share
+/// one rule set and looking for a region-specific one would be a lookup that
+/// can never hit.
+fn subtag_of(tag: &str) -> Result<&str, Fault> {
+    let subtag = tag.split(['-', '_']).next().unwrap_or("");
+    if subtag.is_empty() || !subtag.bytes().all(|byte| byte.is_ascii_alphabetic()) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "Core\\Cldr::pluralCategory read no language subtag from the locale `{tag}`: a \
+                 tag begins with letters"
+            ),
+        ));
+    }
+    Ok(subtag)
+}
+
+/// `carried.cmp(given)` with `given`'s ASCII letters folded down, so [`RULES`]
+/// can stay lower case and `EN` still find `en` without an allocation per
+/// probe.
+fn compare_folded(carried: &str, given: &str) -> Ordering {
+    carried
+        .bytes()
+        .cmp(given.bytes().map(|byte| byte.to_ascii_lowercase()))
+}
+
+/// The rules for a language subtag, or the refusal the module doc argues for.
+fn rules_for(subtag: &str) -> Result<RuleSet, Fault> {
+    RULES
+        .binary_search_by(|(carried, _)| compare_folded(carried, subtag))
+        .map(|index| RULES[index].1)
+        .map_err(|_| {
+            Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "Core\\Cldr::pluralCategory carries no plural rules for the language \
+                     `{subtag}`: a language is never given another one's rules, because a \
+                     catalog written against the wrong forms reads correctly for one count and \
+                     wrongly for the rest"
+                ),
+            )
+        })
+}
+
+/// The operands of a `float`, read off the digits it prints.
+///
+/// The module doc owns why that is the right reading. `Display` for `f64` is
+/// the shortest representation that round-trips and never uses an exponent, so
+/// splitting it at the point is the whole of the parse — and the two counts it
+/// refuses are the two it cannot hold: an integer part past `u128`, and a
+/// denormal's several hundred fraction digits.
+fn operands_of_float(value: f64) -> Result<Operands, Fault> {
+    if !value.is_finite() {
+        return Err(Fault::thrown(format!(
+            "Core\\Cldr::pluralCategory has no category for the count `{value}`: it is not a \
+             finite number"
+        )));
+    }
+    let printed = format!("{}", value.abs());
+    let (whole, fraction) = printed.split_once('.').unwrap_or((printed.as_str(), ""));
+    let too_wide = || {
+        Fault::thrown(format!(
+            "Core\\Cldr::pluralCategory cannot classify the count `{value}`: it prints more \
+             digits than the plural rules are evaluated over"
+        ))
+    };
+    Ok(Operands {
+        i: whole.parse().map_err(|_| too_wide())?,
+        v: u32::try_from(fraction.len()).map_err(|_| too_wide())?,
+        f: if fraction.is_empty() {
+            0
+        } else {
+            fraction.parse().map_err(|_| too_wide())?
+        },
+    })
+}
+
+/// Reads argument `slot` as a count of the spec's `int|float|decimal` union
+/// and derives CLDR's operands from it.
+///
+/// A `uint` is accepted for [`crate::math`]'s reason: it reaches a union
+/// parameter through the same tagged slot, and refusing it would be a `FATAL`
+/// for a value with an exact answer.
+fn operands_at(args: &[Value], slot: usize) -> Result<Operands, Fault> {
+    if let Some(int) = args[slot].as_int() {
+        return Ok(Operands {
+            i: u128::from(int.unsigned_abs()),
+            v: 0,
+            f: 0,
+        });
+    }
+    if let Some(uint) = args[slot].as_uint() {
+        return Ok(Operands {
+            i: u128::from(uint),
+            v: 0,
+            f: 0,
+        });
+    }
+    if let Some(exact) = args[slot].as_decimal() {
+        let (i, f) = match 10u128.checked_pow(u32::from(exact.scale())) {
+            Some(divisor) => (exact.mantissa() / divisor, exact.mantissa() % divisor),
+            // A scale past `u128`'s reach puts every digit in the fraction,
+            // which is the same answer the division would have given.
+            None => (0, exact.mantissa()),
+        };
+        return Ok(Operands {
+            i,
+            v: u32::from(exact.scale()),
+            f,
+        });
+    }
+    if let Some(float) = args[slot].as_float() {
+        return operands_of_float(float);
+    }
+    // A fatal rather than a throw, because nothing may catch a broken ABI: the
+    // row's parameter is `CoreTy::Union(NUMBER)`, so `E0401` refuses anything
+    // outside `int|uint|float|decimal` before a single instruction of this
+    // body runs, which makes the message below unreachable from source.
+    Err(Fault::fatal(format!(
+        "Core\\Cldr::pluralCategory expected a number at argument {slot}, got tag {}",
+        args[slot].tag_byte()
+    )))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cldr::pluralCategory(int|float|decimal $count, string $locale):
+    /// Cldr\PluralCategory` — ADR 0082 § 2's row, and the whole of the class.
+    ///
+    /// The count is parameter 1 because it is what the member classifies and
+    /// the locale is the rule it is classified under — the same order
+    /// `Core\Time::parse(string $text, string $pattern)` writes, where the
+    /// text is what is read and the pattern says how (ADR 0063 R1).
+    ///
+    /// The locale is `Qual::Neutral` rather than a sink: it is a lookup key,
+    /// nothing it names is executed, and the answer is an ordinal that carries
+    /// no qualifier at all. So a tag negotiated out of an `Accept-Language`
+    /// header arrives here still `tainted` and is fine, which is the point —
+    /// requiring a launderer for it would be a ceremony with no sink behind it.
+    ///
+    /// An enum answers as its ordinal, exactly as a user-declared enum does
+    /// (ADR 0010).
+    fn nvs_core_cldr_plural_category(_ctx, args: [2]) {
+        let operands = operands_at(args, 0)?;
+        // Unreachable from source for the reason `operands_at`'s own fatal
+        // states: the row's second parameter is `CoreTy::Text`, so `E0401`
+        // refuses anything that is not a `string` before this body runs.
+        let tag = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Cldr::pluralCategory expected a `string` locale, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        let rules = rules_for(subtag_of(tag)?)?;
+        Ok(Value::int(rules.select(operands).ordinal()))
+    }
+}
+
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_cldr_plural_category" => (nvs_core_cldr_plural_category as *const ()).cast(),
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -973,5 +1823,158 @@ mod tests {
         let zone = utc();
         assert_eq!(read(&pieces, "68-01-01", &zone).unwrap().year(), 2068);
         assert_eq!(read(&pieces, "69-01-01", &zone).unwrap().year(), 1969);
+    }
+
+    // ---------------------------------------------------- the plural rules
+
+    use nvs_runtime::Decimal;
+
+    /// The category a language puts a count in, through the member's own path
+    /// from argument value to answer.
+    fn category(count: Value, locale: &str) -> Category {
+        let operands = operands_at(&[count], 0).unwrap();
+        rules_for(subtag_of(locale).unwrap())
+            .unwrap()
+            .select(operands)
+    }
+
+    /// [`category`] over an `int`, which is what most of the assertions below
+    /// hand it.
+    fn whole(count: i64, locale: &str) -> Category {
+        category(Value::int(count), locale)
+    }
+
+    /// ADR 0082 § 2's row, over the table this module carries: the six
+    /// categories are all reachable, a language is answered from its own rules
+    /// rather than from English's, the operands come from what the count
+    /// shows, and a language the table does not carry is refused.
+    #[test]
+    fn plural_category_answers_from_the_carried_cldr_data() {
+        use Category::{Few, Many, One, Other, Two, Zero};
+
+        // Counted rather than read off a line: a table that answered `Other`
+        // everywhere would still satisfy any single assertion about English.
+        let reached: std::collections::BTreeSet<Category> = RULES
+            .iter()
+            .flat_map(|(_, rules)| {
+                (0..=120u128).map(move |i| rules.select(Operands { i, v: 0, f: 0 }))
+            })
+            .collect();
+        assert_eq!(
+            reached.len(),
+            6,
+            "the carried rules reach only {reached:?}, so a `PluralCategory` case exists that \
+             nothing can answer with"
+        );
+
+        // Russian reads the same five counts differently from English at four
+        // of them, which is what a fallback to English would get wrong.
+        let counts = [1, 2, 5, 11, 21];
+        assert_eq!(
+            counts.map(|n| whole(n, "ru")),
+            [One, Few, Many, Many, One],
+            "Russian's `one` is 1 and 21 but not 11, and its `few` is 2 to 4"
+        );
+        assert_eq!(
+            counts.map(|n| whole(n, "en")),
+            [One, Other, Other, Other, Other],
+            "English draws the line at 1 and nowhere else"
+        );
+
+        // Welsh is the language that uses all six, and it is why the enum has
+        // six cases rather than the two English needs.
+        assert_eq!(
+            [0, 1, 2, 3, 6, 4].map(|n| whole(n, "cy")),
+            [Zero, One, Two, Few, Many, Other]
+        );
+
+        // Arabic's `few` and `many` are moduli rather than counts, so they
+        // catch 103 and 111 as well as 3 and 11.
+        assert_eq!([3, 103].map(|n| whole(n, "ar")), [Few, Few]);
+        assert_eq!([11, 111].map(|n| whole(n, "ar")), [Many, Many]);
+
+        // The visible fraction is an operand. English's `one` is
+        // `i = 1 and v = 0`, so a `decimal` carrying a scale is not it, while
+        // the `int` and the `float` both show `1` and are.
+        assert_eq!(category(Value::int(1), "en"), One);
+        assert_eq!(category(Value::float(1.0), "en"), One);
+        assert_eq!(
+            category(Value::decimal(Decimal::parse("1.0").unwrap()), "en"),
+            Other,
+            "`1.0` shows a fraction digit, and English's singular does not"
+        );
+        // Czech reads the same fact the other way: any fraction at all is
+        // `many` there, whatever the integer part is.
+        assert_eq!(
+            category(Value::decimal(Decimal::parse("1.5").unwrap()), "cs"),
+            Many
+        );
+
+        // Only the language subtag is read, and its case is not significant.
+        assert_eq!(whole(2, "en-GB"), Other);
+        assert_eq!(whole(2, "en_US"), Other);
+        assert_eq!(whole(2, "RU"), Few);
+        assert_eq!(whole(2, "pt-BR"), Other);
+
+        // A language whose rules are not carried is refused rather than given
+        // another language's — the module doc argues why, and the message
+        // names the subtag so the gap reads as one.
+        let refused = rules_for(subtag_of("tlh-Piqd").unwrap()).unwrap_err();
+        assert!(
+            format!("{refused:?}").contains("tlh"),
+            "the refusal has to name the language it could not answer for"
+        );
+        assert!(subtag_of("").is_err());
+        assert!(subtag_of("-GB").is_err());
+
+        // A count that is not finite has no category, and neither does one
+        // whose digits outrun the operands.
+        assert!(operands_at(&[Value::float(f64::NAN)], 0).is_err());
+        assert!(operands_at(&[Value::float(1e300)], 0).is_err());
+    }
+
+    /// [`RULES`] is bisected and folded against, so both properties it is read
+    /// under are asserted rather than assumed — a row out of order makes
+    /// [`rules_for`] miss a language it carries, which no assertion about a
+    /// language already tested would catch.
+    #[test]
+    fn the_locale_table_is_sorted_and_lower_case() {
+        assert!(
+            RULES.windows(2).all(|pair| pair[0].0 < pair[1].0),
+            "{:?} is out of order",
+            RULES
+                .windows(2)
+                .find(|pair| pair[0].0 >= pair[1].0)
+                .map(|pair| (pair[0].0, pair[1].0))
+        );
+        assert!(
+            RULES
+                .iter()
+                .all(|(name, _)| name.bytes().all(|byte| byte.is_ascii_lowercase())),
+            "a row that is not lower case can never be found, since the needle is folded down"
+        );
+        // Every row is reachable through the member's own lookup, folded.
+        for (name, rules) in RULES {
+            assert_eq!(rules_for(&name.to_ascii_uppercase()).unwrap(), *rules);
+        }
+    }
+
+    /// The ordinal a helper hands back is the case a program compares against,
+    /// and the two are written in different places.
+    #[test]
+    fn an_ordinal_is_its_case_in_the_registered_enum() {
+        for (category, case) in [
+            (Category::Zero, "Zero"),
+            (Category::One, "One"),
+            (Category::Two, "Two"),
+            (Category::Few, "Few"),
+            (Category::Many, "Many"),
+            (Category::Other, "Other"),
+        ] {
+            let index = usize::try_from(category.ordinal()).unwrap();
+            assert_eq!(PLURAL_CATEGORY.cases[index].0, case);
+            assert_eq!(PLURAL_CATEGORY.cases[index].1, category.ordinal());
+        }
+        assert_eq!(PLURAL_CATEGORY.cases.len(), 6);
     }
 }

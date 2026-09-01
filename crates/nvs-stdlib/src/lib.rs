@@ -338,6 +338,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| bytes::address(symbol))
         .or_else(|| cache::address(symbol))
         .or_else(|| channel::address(symbol))
+        .or_else(|| cldr::address(symbol))
         .or_else(|| cli::address(symbol))
         .or_else(|| command::address(symbol))
         .or_else(|| config::address(symbol))

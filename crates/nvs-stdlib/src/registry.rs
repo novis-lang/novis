@@ -1236,6 +1236,13 @@ pub const CLASSES: &[CoreClass] = &[
     // capability of its own — [`crate::storage`] owns why `fs.*` answering
     // twice would be the bug.
     crate::storage::CLASS,
+    // ADR 0082 § 2's last row, and the third of the three this stage adds to
+    // `Core`. Beside the two above because it completes them and not because
+    // it shares anything else: it is the one entry in that table placed by
+    // test 4 — data the language already had to carry — rather than by an
+    // outside world it waits on. [`crate::cldr`] owns why the rules are a
+    // closed roster and why a language outside it is refused.
+    crate::cldr::CLASS,
     // § 16, and beside `Core\Secret` rather than in section order because the
     // two are one mechanism: ADR 0033 § 3 has exactly two operations that take
     // a `secret` and answer something that is not one, and these are the rows
@@ -1684,6 +1691,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::cli::SHELL,
     crate::reflect::TYPE_KIND,
     crate::io::FILE_MODE,
+    crate::cldr::PLURAL_CATEGORY,
 ];
 
 /// Looks a class up by its fully-qualified name.
