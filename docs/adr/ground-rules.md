@@ -201,7 +201,8 @@ spellings rejected, and the reasoning.
 - **Nothing a request can send terminates or wedges a worker** — containment extends past the helper to the
   worker task, no path reaches `abort()`, every depth and duration a request drives is bounded on the
   engine's stack and inside a single helper, a core never blocks on a syscall, and admission is arithmetic
-  against the memory budget; the residue is one named class — a memory-safety fault or a miscompile — that
+  against the memory budget; a request the client abandons is cancelled at the connection's drop, never
+  waited out; the residue is one named class — a memory-safety fault or a miscompile — that
   the process boundary was examined for and rejected
   ([0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)).
 - **Every platform reports readiness, never completion, and a stream tries the syscall before it parks** —

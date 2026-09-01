@@ -215,6 +215,27 @@ without a kill is still worth its cost, because a wedged core that is reported d
 measurably while a wedged core that is silent looks like a capacity problem for as long as anyone is
 willing to add capacity.
 
+### 7a. An abandoned request is cancelled, not waited out
+
+The scenario every FastCGI operator knows: a request hangs on something slow, the user closes the tab,
+and PHP-FPM neither notices — FastCGI pushes no abort, so the script learns of the disconnect only at its
+next write, which a request blocked on an upstream never makes — nor lets go: the request holds an entire
+worker process until `max_execution_time`, and a handful of them empties the pool for every user at once.
+
+Neither half exists here, and this section's job is to say so explicitly, because the guarantee is
+composed from pieces that each live elsewhere. The hang itself never held anything a neighbour wanted: a
+request waiting on readiness is a parked coroutine (§ 6,
+[0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)) costing a pooled stack
+rather than a worker, and § 13's admission prices exactly what is genuinely in flight. And the
+abandonment is an event, not a discovery: the connection lives on the reactor, so its drop is delivered
+like any other readiness, and **the server cancels the request tree at the drop** —
+[0072](0072-core-task-structured-concurrency.md) § 5's cancellation, delivered at the next safepoint
+(`docs/plan/design.md` § *Safepoints*), running native teardown and no user code, with a task inside a
+driver statement drained under [0072](0072-core-task-structured-concurrency.md) § 4's bound. M7's
+acceptance holds the composite end to end: a disconnect leaves no task of the request behind. After the
+response is on the wire, the connection's end stops meaning abandonment — the tree outlives it for
+exactly the work [0072](0072-core-task-structured-concurrency.md) § 6 admits, and nothing else.
+
 ### 8. The accept loop backs off
 
 An `accept` that fails with `EMFILE`/`ENFILE` returns immediately and will fail again immediately, which

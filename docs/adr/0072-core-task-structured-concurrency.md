@@ -167,8 +167,11 @@ drop, an open file is closed — because none of that is script code.
 
 This is deliberate and it is the same reasoning [ADR 0020](0020-error-escalation-ladder.md) applies at every
 tier of its ladder. There are exactly three ways to be cancelled — a sibling threw, the deadline expired, or
-the parent died — and all three mean the request is already failing. Running arbitrary user cleanup at that
-point means running unbudgeted code inside a failure, which is how a timeout becomes a hang.
+the parent died, which for the root task includes its client disconnecting: the connection is the root's
+parent, and [ADR 0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 7a cancels the
+whole request tree when it drops — and all three mean the request is already failing. Running arbitrary
+user cleanup at that point means running unbudgeted code inside a failure, which is how a timeout becomes
+a hang.
 
 Cancellation is therefore **not a `Throwable`** and cannot be caught, exactly as a resource-limit report is
 not one ([ADR 0020](0020-error-escalation-ladder.md) § 0). The consequence a developer has to learn: work
