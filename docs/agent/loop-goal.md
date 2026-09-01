@@ -215,7 +215,11 @@ decision and is **not** this stage.
     list at allocation and out at dismantle — objects only, since an object is the one shape that can
     close a cycle (`graph.rs`'s identity decision). What it spends, said in the module doc as ADR 0004
     requires: two pointers per live object, and a few non-atomic stores at each object's birth and death.
-    `crates/nvs-runtime/src/object.rs`, `ctx.rs`, `release.rs`.
+    **The crossing relinks:** `graph.rs`'s `Live` adopt at refcount 1 hands an allocation to the other
+    context, so an adopted object moves to the destination's list in the same step — an object left on
+    the source list is swept by the child's teardown while the parent still holds it, a use-after-free.
+    A guard test pins the relink. `crates/nvs-runtime/src/object.rs`, `ctx.rs`, `release.rs`,
+    `graph.rs`.
 37. **The sweep at `Ctx::drop`.** After the root drain, whatever is still on the list is exactly the
     cyclic garbage; dismantle it through `crate::release`'s one worklist so native teardown runs — order
     inside a dead cycle is unobservable, because teardown runs no user code. The slice that lands this

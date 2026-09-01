@@ -2644,6 +2644,9 @@ args = ["test", "-p", "nvs-runtime"]
 tests = [
   # Item 36 -- the list is maintained at both ends, so an ordinary refcount death leaves it.
   "an_object_that_dies_by_refcount_leaves_the_live_list",
+  # Item 36 -- the crossing relinks: an adopt at refcount 1 moves the object to the destination's
+  # list, or the child's sweep dismantles what the parent still holds.
+  "an_adopted_object_moves_to_the_destinations_live_list",
   # Item 37 -- the claim itself, measured by the allocator the way the acyclic guard already is.
   "a_cyclic_object_graph_is_reclaimed_when_its_context_drops",
   # Item 37 -- the sweep dismantles rather than unmapping: a swept member's native drop runs.
