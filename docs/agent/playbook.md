@@ -1386,6 +1386,15 @@ is why" — is this file.
   something a `.nvst` case can survive to assert. So before writing a case to satisfy a name in
   `cases`, `sed -n 2p` the plausible neighbours: the drafted name describes the *claim*, and the
   file that pins it is usually already there under the name the corpus actually took.
+- **`check-migration.py` checks a `Core\X::y` spelling in a Novis cell against `01-core-library.md`'s
+  backticked words, not against the stdlib registry — and § 14's handle methods are not in that set.**
+  The spec writes them as `` `$file->read` ``, `` `->readLine` ``, `` `->seek` ``, and only the first
+  form matches the tool's `\$\w+->(name)` pattern, so `Core\IO\File::readLine` in a cell fails with
+  "which 01-core-library.md does not" while `$file->readLine` passes — and reads better, since a handle
+  is reached through the object `Core\IO::open` returns. The same hole swallows `Core\Storage` and
+  `Core\Socket`, which are ADR-only classes with no entry in that spec file at all. Ten lines of
+  `importlib` over the tool's own `core_surface()` answer "is this spelling legal" for a whole table
+  before it is written, which beats discovering it one row at a time.
 
 ## Running things
 
