@@ -1,0 +1,102 @@
+--TEST--
+`Core\IO\File::truncate` assigns the file's length and touches nothing else: over every relation between the new size and both the old length and the handle's position — below it, at it, above it — the position is unchanged and the file measures exactly the size asked for, counted over the whole table — spec § 14
+--FILE--
+<?nvs
+// Two other cases pin `truncate` one line at a time: that it shortens and
+// grows, and that a shortening one leaves the position past the new end. Both
+// ask only about a size *below* the position, so a member that repaired the
+// position on a grow, or skipped the call when the size already matched,
+// prints correctly on every line either of them has.
+//
+// So the question here is the invariant rather than a row of it: the size is
+// assigned, the position is not, and neither statement has a case in it. The
+// table is every relation the two can stand in, and what is asserted is a
+// count over all of them — a member that is right for eleven rows and quietly
+// different for the twelfth fails here while still reading plausibly there.
+array<int> $positions = [0, 4, 10];
+array<int> $sizes = [0, 4, 10, 16];
+
+int $rows = 0;
+int $held = 0;   // `tell` answers what it answered before the call
+int $set = 0;    // and the file measures the size that was asked for
+int $whole = 0;  // read back through the handle, which is a second measurement
+
+// The two partitions, counted rather than asserted, because a table that has
+// gone lopsided is the way this shape fails silently: three counts that all
+// read 12/12 over twelve rows of one relation prove nothing at all.
+int $shorter = 0;
+int $sameLength = 0;
+int $longer = 0;
+int $below = 0;
+int $at = 0;
+int $above = 0;
+
+foreach ($positions as int $p) {
+    foreach ($sizes as int $n) {
+        // Each row starts from the same ten bytes. `ReadWrite` keeps what is
+        // already on disk (`fopen`'s `c+`), so the reset is the member itself
+        // followed by a write, not a second mode.
+        Core\IO\File $f = Core\IO::open("sweep.bin", Core\IO\FileMode::ReadWrite);
+        $f->truncate(0);
+        $f->seek(0);
+        $f->write("abcdefghij");
+        $f->seek($p as uint);
+
+        int $before = $f->tell() as int;
+        $f->truncate($n as uint);
+        int $after = $f->tell() as int;
+
+        $rows = $rows + 1;
+        if ($after == $before) { $held = $held + 1; }
+        if ((Core\IO::size("sweep.bin") as int) == $n) { $set = $set + 1; }
+
+        // Reading from the front asks the handle what the file measures,
+        // where `Core\IO::size` asked the directory entry. A member that moved
+        // the end without the bytes following it disagrees between the two.
+        $f->seek(0);
+        string $seen = $f->read(20);
+        if ((Core\Str::length($seen) as int) == $n) { $whole = $whole + 1; }
+        $f->close();
+
+        if ($n < 10) { $shorter = $shorter + 1; }
+        if ($n == 10) { $sameLength = $sameLength + 1; }
+        if ($n > 10) { $longer = $longer + 1; }
+        if ($n < $p) { $below = $below + 1; }
+        if ($n == $p) { $at = $at + 1; }
+        if ($n > $p) { $above = $above + 1; }
+    }
+}
+echo "rows: ", $rows, "\n";
+echo "held: ", $held, "/", $rows, "\n";
+echo "set: ", $set, "/", $rows, "\n";
+echo "whole: ", $whole, "/", $rows, "\n";
+echo "against the length: ", $shorter, " shorter, ", $sameLength, " equal, ", $longer, " longer", "\n";
+echo "against the position: ", $below, " below, ", $at, " at, ", $above, " above", "\n";
+
+// The row a single-line case never reaches, spelled out because a count does
+// not say what it answered: a size the file already has. It is not a no-op the
+// member is free to skip and not a second spelling of `flush` — it is the same
+// assignment, and every byte and the position are where they were.
+Core\IO\File $same = Core\IO::open("sweep.bin", Core\IO\FileMode::ReadWrite);
+$same->truncate(0);
+$same->seek(0);
+$same->write("abcdefghij");
+$same->seek(4);
+$same->truncate(10);
+echo "equal: at ", $same->tell() as string, ", length ", Core\IO::size("sweep.bin") as string, "\n";
+$same->seek(0);
+echo "bytes: ", $same->read(10), "\n";
+$same->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+rows: 12
+held: 12/12
+set: 12/12
+whole: 12/12
+against the length: 6 shorter, 3 equal, 3 longer
+against the position: 3 below, 3 at, 6 above
+equal: at 4, length 10
+bytes: abcdefghij
