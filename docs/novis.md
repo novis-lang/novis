@@ -97,6 +97,7 @@ Conventions the whole file uses:
 | [`Core\Task\Channel<T>`](#core-core-task-channel) | a bounded queue between two tasks whose `send` waits at the bound — backpressure instead of a growing buffer |
 | [`Core\Script\Handle`](#core-core-script-handle) | what `spawn script` answers — a handle on a running child script that `await` collects exactly once |
 | [`Core\Script`](#core-core-script) |  |
+| [`Core\Script\ExitReport`](#core-core-script-exitreport) |  |
 | [`Core\Program`](#core-core-program) | what the compiler knows about the whole program — every class implementing an interface, enumerated at compile time |
 | [`Core\Cli`](#core-core-cli) |  |
 | [`Core\Cli\Text`](#core-core-cli-text) | the value a captured terminal write comes back as — bytes that have already been through the output sink |
@@ -14552,11 +14553,12 @@ a handle is awaited once
 <a id="core-core-script"></a>
 ### `Core\Script`
 
-Keywords: args
+Keywords: args, onExit
 
 | Member | Signature |
 |---|---|
 | [`Core\Script::args`](#core-core-script-args) | `args(): mixed` |
+| [`Core\Script::onExit`](#core-core-script-onexit) | `onExit(callable $hook): void` |
 
 <a id="core-core-script-args"></a>
 #### `Core\Script::args`
@@ -14568,6 +14570,65 @@ Core\Script::args(): mixed
 Answers the value this script was spawned with — `spawn script … with(args: …)` as the child sees it, already copied into this isolate's own arena.
 
 **Returns** `mixed` — Whatever the parent passed, unchanged in shape; `null` for a child spawned with no `args:` and for the root script, which nothing spawned.
+
+<a id="core-core-script-onexit"></a>
+#### `Core\Script::onExit`
+
+```nvs skip
+Core\Script::onExit(callable $hook): void
+```
+
+Registers a closure to run as the last user code of this script — at a normal end, at an `exit`, and when a throw reaches the root with nothing left to catch it. Hooks run in registration order, once, and a `FATAL` or a cancellation runs none of them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$hook` | `callable` | What to run. It is handed one readonly `Core\Script\ExitReport` saying which ending this was, and answers nothing; declaring no parameter is allowed. A hook that throws is logged and abandoned, and the hooks behind it still run. |
+
+**Returns** `void` — Nothing. Registering is request-local, registering twice registers twice, and a hook registered by a hook joins the tail of the same drain. Nothing a hook does changes the ending: the report is fixed before the first one runs, and `exit` inside a hook is a `RuntimeError` rather than a second ending.
+
+<a id="core-core-script-exitreport"></a>
+### `Core\Script\ExitReport`
+
+Keywords: reason, status, error
+
+| Member | Signature |
+|---|---|
+| [`Core\Script\ExitReport->reason`](#core-core-script-exitreport-reason) | `reason(): Core\Script\ExitReason` |
+| [`Core\Script\ExitReport->status`](#core-core-script-exitreport-status) | `status(): int` |
+| [`Core\Script\ExitReport->error`](#core-core-script-exitreport-error) | `error(): ?Throwable` |
+
+<a id="core-core-script-exitreport-reason"></a>
+#### `Core\Script\ExitReport->reason`
+
+```nvs skip
+$exitReport->reason(): Core\Script\ExitReason
+```
+
+Which ending is running the hooks.
+
+**Returns** `Core\Script\ExitReason` — `Normal` for the last statement having run, `ExitCall` for an `exit`, `UncaughtThrow` for a throw that reached the root.
+
+<a id="core-core-script-exitreport-status"></a>
+#### `Core\Script\ExitReport->status`
+
+```nvs skip
+$exitReport->status(): int
+```
+
+The status the process will exit with, decided before the first hook ran.
+
+**Returns** `int` — `0` for a normal end, the `exit($n)` argument for an `exit`, `1` for an uncaught throw. Reading it changes nothing — a hook observes the ending it was given.
+
+<a id="core-core-script-exitreport-error"></a>
+#### `Core\Script\ExitReport->error`
+
+```nvs skip
+$exitReport->error(): ?Throwable
+```
+
+The exception that ended the script, for the one ending that has one.
+
+**Returns** `?Throwable` — The live `Throwable` for an `UncaughtThrow` — the object the program threw, with its own class, message and backtrace — and `null` for the other two endings.
 
 <a id="core-core-program"></a>
 ### `Core\Program`
@@ -16948,6 +17009,17 @@ Which of CLDR's six plural forms a count selects. The names are CLDR's own label
 | `Core\Cldr\PluralCategory::Few` | The paucal, for the small counts a language groups: Russian's 2 to 4, Arabic's 3 to 10, Welsh's 3 alone. |
 | `Core\Cldr\PluralCategory::Many` | The form above `Few` where a language has both — Russian's 5 to 20, and the whole millions in Romance languages that mark them. |
 | `Core\Cldr\PluralCategory::Other` | The form every language has, and in a language with no plural distinction the only one any count selects. |
+
+<a id="enum-core-script-exitreason"></a>
+#### `Core\Script\ExitReason`
+
+Which of the three endings ran the exit hooks. A `FATAL` and a cancellation have no case here because they run no hook at all.
+
+| Case | Meaning |
+|---|---|
+| `Core\Script\ExitReason::Normal` | The last top-level statement ran and the script ended of its own accord. |
+| `Core\Script\ExitReason::ExitCall` | `exit`, `exit($n)` or `exit("msg")` ended the script — the one ending no `finally` observes. |
+| `Core\Script\ExitReason::UncaughtThrow` | A throw reached the root of the script with nothing left to catch it; the report carries the `Throwable` itself. |
 
 # Part C — The toolchain
 
