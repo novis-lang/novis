@@ -1,0 +1,20 @@
+--TEST--
+`Core\Cli\Progress::advance` has no spelling at all for a negative step, because `by` is a `uint` — ADR 0086 § 5
+--FILE--
+<?nvs
+// The low bound on a step is the *type's*, not the member's: a program that
+// means to walk a bar backwards is refused a phase before any of its arithmetic
+// runs, so there is nothing for the counting case beside this one to catch at
+// run time. That is what makes a step of zero the smallest step there is, and
+// why the two ends of `advance` are asked in two files.
+Core\Cli::progress(2, fn(Core\Cli\Progress $bar): int => {
+    $bar->advance({by: -1});
+    return 0;
+});
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `uint`, found `int`
+  --> case.nvs:%d:%d
+%A
+error: aborting due to 1 error

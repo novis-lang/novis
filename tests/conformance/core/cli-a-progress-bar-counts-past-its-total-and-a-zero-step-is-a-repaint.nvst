@@ -1,0 +1,90 @@
+--TEST--
+`Core\Cli\Progress::advance` is bounded at neither end of its own total — the step that completes the bar, the step past it and a step of zero are all ordinary, and only the row that is drawn clamps — ADR 0086 § 5
+--FILE--
+<?nvs
+// § 5 gives the runtime the cursor and the program the counter, so the two
+// bounds a bar has are not the same bound. The *row* is clamped — `bar()` in
+// `crates/nvs-stdlib/src/cli.rs` draws a finished bar for a loop that
+// miscounted, rather than one past its end — while the counter is the
+// program's own arithmetic and has no ceiling to hit. Nothing here reads the
+// row: § 5 renders nothing at all when the stream is not a terminal, so what a
+// case can ask about is the handle, which `Core\Debug` walks.
+class Step {
+    // The one fact this case reads off a dump: how far the bar says it is.
+    public static function reached(Core\Cli\Progress $bar, int $expected): bool {
+        return Core\Str::contains(
+            Core\Debug::render($bar) as string,
+            "done => uint(" . $expected . ")"
+        );
+    }
+}
+
+var $counted = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): string => {
+    int $asked = 0;
+    int $agreed = 0;
+
+    // The default step is exactly one — the reason `advance()` inside a
+    // counting loop is written with no options at all.
+    $bar->advance();
+    $asked = $asked + 1;
+    if (Step::reached($bar, 1)) {
+        $agreed = $agreed + 1;
+    }
+
+    // A step of zero is the low end, and it is a repaint rather than a refusal:
+    // it moves nothing and still takes the label, which is the only other thing
+    // `advance` writes. A member that treated an absent `by` and a `by: 0`
+    // alike would land on 2 here and read correctly everywhere else.
+    $bar->advance({by: 0, label: "still counting"});
+    $asked = $asked + 1;
+    if (Step::reached($bar, 1)) {
+        $agreed = $agreed + 1;
+    }
+    $asked = $asked + 1;
+    if (Core\Str::contains(Core\Debug::render($bar) as string, "still counting")) {
+        $agreed = $agreed + 1;
+    }
+
+    // The step that completes the bar, which is ordinary...
+    $bar->advance({by: 2});
+    $asked = $asked + 1;
+    if (Step::reached($bar, 3)) {
+        $agreed = $agreed + 1;
+    }
+
+    // ...and the first step past it, which is equally ordinary: the handle does
+    // not throw, does not stop and does not saturate at the total. A bar that
+    // clamped its counter here would hide the miscount instead of finishing the
+    // work, and the drawing already handles the display.
+    $bar->advance();
+    $asked = $asked + 1;
+    if (Step::reached($bar, 4)) {
+        $agreed = $agreed + 1;
+    }
+
+    // Far past it is the same answer, so the second bound is absent rather than
+    // merely one step wider than the first.
+    $bar->advance({by: 96});
+    $asked = $asked + 1;
+    if (Step::reached($bar, 100)) {
+        $agreed = $agreed + 1;
+    }
+
+    return $agreed . " of " . $asked;
+});
+echo "steps ", $counted, "\n";
+
+// The other total with no interior: zero, where the row is a finished bar from
+// the first frame and the counter still counts. This is the division the
+// percentage would otherwise do by zero.
+var $ofNothing = Core\Cli::progress(0, fn(Core\Cli\Progress $bar): string => {
+    $bar->advance({by: 7});
+    if (Step::reached($bar, 7)) {
+        return "a total of nothing still counts";
+    }
+    return "broken: a zero total swallowed the step";
+});
+echo $ofNothing, "\n";
+--EXPECT--
+steps 6 of 6
+a total of nothing still counts
