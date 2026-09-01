@@ -1373,6 +1373,15 @@ pub const CLASSES: &[CoreClass] = &[
     // nothing that reaches back into execution, which is what makes § 3's
     // inertness structural rather than promised.
     crate::ast::NODE,
+    // § 18, and ADR 0067 for every semantic behind it. Only the two entry
+    // points that need no connection are on the roster so far — `connect` and
+    // `open` join them once a `[db.<name>]` block resolves into a target, which
+    // is why this class carries no capability row below yet.
+    crate::db::CLASS,
+    // What `inList` answers with: ADR 0067 § 5's explicit expansion marker,
+    // memberless because § 18's own table accepts it nowhere but a bound
+    // parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.
+    crate::db::IN_LIST,
 ];
 
 /// Every member of a capability-bearing class, and which capability it needs —
@@ -3435,7 +3444,11 @@ mod tests {
     /// entry for the same reason — `value_to_string` reads its one slot — with
     /// ADR 0024 § 5 adding that it has no constructor either, a member taking
     /// a runtime string being the bypass that section closes
-    /// ([`crate::html`]).
+    /// ([`crate::html`]). The ninth is `Core\Db\InList`, whose one slot the
+    /// bind reads: ADR 0067 § 5's expansion marker is accepted at exactly one
+    /// position and nowhere else, so a member answering the values back would
+    /// be a surface on a thing whose whole content is where it may appear
+    /// ([`crate::db`]).
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
         const HANDLES: &[&str] = &[
@@ -3448,6 +3461,7 @@ mod tests {
             crate::http::TARGET_NAME,
             crate::cli::COLOR_NAME,
             crate::cli::STYLE_NAME,
+            crate::db::IN_LIST_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

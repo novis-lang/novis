@@ -1,0 +1,36 @@
+--TEST--
+Core\Db::quoteIdentifier bounds an identifier's first character on both sides — `_` leads and a digit does not — and its refusal names the name — ADR 0024 § 4
+--FILE--
+<?nvs
+// The rule is a letter or `_`, then letters, digits or `_`. This case names the
+// accepted first characters and the refused one together: a member that let a
+// leading digit through would still look right on every line of the sibling
+// case, which only asks about names it accepts.
+
+// Accepted: `_` leads on its own, and a digit is legal everywhere after one.
+echo Core\Db::quoteIdentifier("_"), "\n";
+echo Core\Db::quoteIdentifier("_9"), "\n";
+echo Core\Db::quoteIdentifier("a9"), "\n";
+
+// Refused: the same digit in the first position. The message names the name,
+// which is what tells a caller which of its identifiers was the bad one.
+try {
+    echo Core\Db::quoteIdentifier("9a"), "\n";
+} catch (LogicError $leading) {
+    echo $leading->message, "\n";
+}
+
+// The empty name is the other end of the same bound: there is no identifier
+// with no characters, so an empty string is a name the caller assembled and
+// got wrong rather than one to pass through.
+try {
+    echo Core\Db::quoteIdentifier(""), "\n";
+} catch (LogicError $empty) {
+    echo $empty->message, "\n";
+}
+--EXPECT--
+_
+_9
+a9
+Core\Db::quoteIdentifier() takes a bare identifier — a letter or `_`, then letters, digits or `_` — and `9a` is not one. `Core\Db` has no connection and so no dialect to delimit for, so a name that needs delimiting is refused rather than quoted for the wrong backend
+Core\Db::quoteIdentifier() takes a bare identifier — a letter or `_`, then letters, digits or `_` — and `` is not one. `Core\Db` has no connection and so no dialect to delimit for, so a name that needs delimiting is refused rather than quoted for the wrong backend

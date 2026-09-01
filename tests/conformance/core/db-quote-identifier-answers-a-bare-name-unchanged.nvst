@@ -1,0 +1,39 @@
+--TEST--
+Core\Db::quoteIdentifier answers a bare identifier unchanged and adds no delimiter, because Core\Db has no connection and so no dialect — docs/spec/01-core-library.md § 18, ADR 0024 § 4
+--FILE--
+<?nvs
+// The launderer for the statement-text sink. `crates/nvs-stdlib/src/db.rs`'s
+// module doc is the home of why it validates instead of escaping: the five
+// backends delimit an identifier three different ways, and on MySQL a
+// double-quoted identifier is a string literal — so a delimiter chosen with no
+// connection in front of it is wrong on some backends and *means something
+// else* on others.
+
+// 1. What comes back is the argument, byte for byte.
+echo Core\Db::quoteIdentifier("users"), "\n";
+echo Core\Db::quoteIdentifier("created_at"), "\n";
+echo Core\Db::quoteIdentifier("_internal"), "\n";
+echo Core\Db::quoteIdentifier("Table2"), "\n";
+
+// 2. Over a sweep, asserted by counting: a member that delimited, folded the
+// case or truncated would still print something plausible on each line above.
+array<string> $names = ["users", "created_at", "_internal", "Table2", "a", "_", "x9"];
+int $unchanged = 0;
+foreach ($names as string $name) {
+    if (Core\Db::quoteIdentifier($name) == $name) {
+        $unchanged = $unchanged + 1;
+    }
+}
+echo "unchanged=", $unchanged, "/7\n";
+
+// 3. There is no dotted form, so a qualified name is two calls and the dot the
+// caller writes between them — nothing is handed a name whose halves it did
+// not each check.
+echo Core\Db::quoteIdentifier("public"), ".", Core\Db::quoteIdentifier("users"), "\n";
+--EXPECT--
+users
+created_at
+_internal
+Table2
+unchanged=7/7
+public.users

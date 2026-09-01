@@ -1,0 +1,35 @@
+--TEST--
+Core\Db::inList refuses an empty list rather than picking between "match nothing" and "match everything", and the refusal is the length alone — ADR 0067 § 5
+--FILE--
+<?nvs
+// § 5: an empty list matches nothing inside `IN` and everything inside
+// `NOT IN`, the rewriter cannot tell which it is in, and silently picking one
+// is worse than making the caller branch. So the refusal lands at the *call* —
+// where the caller who wrote the empty list is still on the stack — rather
+// than at the bind, where the statement is but that caller is not.
+
+array<int> $none = [];
+try {
+    Core\Db::inList($none);
+    echo "an empty list was accepted\n";
+} catch (LogicError $empty) {
+    echo $empty->message, "\n";
+}
+
+// The refusal is the list's length and nothing else about it: a run of one
+// `null` is still a run, because `NULL` is a value a placeholder binds.
+array<?int> $maybe = [null];
+Core\Db::inList($maybe);
+echo "a run of one null is not an empty list\n";
+
+// And the branch § 5 asks for is one the caller writes around the call, which
+// is why this is a `LogicError` and not a value the member could have chosen.
+if (Core\Arr::isEmpty($none)) {
+    echo "the caller branches\n";
+} else {
+    Core\Db::inList($none);
+}
+--EXPECT--
+Core\Db::inList() was given an empty list, and ADR 0067 § 5 refuses one: an empty list matches nothing inside `IN` and everything inside `NOT IN`, the rewriter cannot tell which it is in, and the caller has to branch
+a run of one null is not an empty list
+the caller branches

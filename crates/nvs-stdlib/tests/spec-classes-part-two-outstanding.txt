@@ -8,12 +8,10 @@
 # and a line naming a class that is registered now fails the same test.
 #
 # Every one of these is owed by a milestone or a goal that has not run, which is
-# why the list opens at nine rather than at zero: `Core\Db` is goal 5's and its
-# surface is § 18, `Core\Metrics` is goal 6's, and the four in § 17 are the
-# document and archive formats M9 carries. `Core\Net`, `Core\Os` and
-# `Core\Signal` have no owning slice yet at all.
+# why the list opens at eight rather than at zero: `Core\Metrics` is goal 6's,
+# and the four in § 17 are the document and archive formats M9 carries.
+# `Core\Net`, `Core\Os` and `Core\Signal` have no owning slice yet at all.
 
-§16 Core\Db
 §16 Core\Metrics
 §16 Core\Net
 §16 Core\Os

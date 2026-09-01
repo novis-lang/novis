@@ -1,0 +1,44 @@
+--TEST--
+Core\Db::inList marks a run of bound values at every non-zero arity, and what it answers is an ordinary value a program can hold — docs/spec/01-core-library.md § 18, ADR 0067 § 5
+--FILE--
+<?nvs
+// ADR 0067 § 5 makes `inList` the *explicit* marker that one bound parameter
+// expands into a parenthesised run of placeholders, because an automatic
+// expansion would make the SQL text depend on a runtime value's type. What a
+// case can observe without a connection is which lists it accepts and that the
+// marker is a value: the markers themselves are `$1` on PostgreSQL and `@p1`
+// on SQL Server, so the rendering belongs to a driver and not to this member.
+
+// 1. One value is the smallest accepted run — the accepted half of § 5's
+// bound, whose refused half is `db-in-list-refuses-an-empty-list`.
+array<int> $one = [1];
+Core\Db::inList($one);
+echo "a run of one is accepted\n";
+
+// 2. Every longer arity is accepted too. Counted rather than echoed, because
+// an arity the member quietly refused would still leave the line above it
+// looking right.
+array<array<int>> $runs = [
+    [1],
+    [1, 2],
+    [1, 2, 3],
+    [1, 2, 3, 4],
+    [1, 2, 3, 4, 5],
+];
+int $marked = 0;
+foreach ($runs as array<int> $run) {
+    Core\Db::inList($run);
+    $marked = $marked + 1;
+}
+echo "marked=", $marked, "/5\n";
+
+// 3. The marker is an ordinary value: it can be named, held and handed on, so
+// a program builds one where the ids are and binds it where the statement is.
+array<int> $ids = [7, 8];
+var $marker = Core\Db::inList($ids);
+var $same = $marker;
+echo "the marker is a value\n";
+--EXPECT--
+a run of one is accepted
+marked=5/5
+the marker is a value

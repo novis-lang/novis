@@ -1,0 +1,36 @@
+--TEST--
+Core\Db::inList takes a run of any element type, a nested array included, because what an element is is the type map's question and not the marker's — ADR 0067 §§ 5, 9
+--FILE--
+<?nvs
+// § 5's "one parameter is always one value" cuts both ways. A list bound
+// straight to a placeholder is a *single* value whatever is in it — a
+// PostgreSQL array column, a JSON document — and `inList` is the marker that
+// says the opposite about this one argument. So what the elements are is § 9's
+// question: the member takes `array<mixed>` and refuses nothing but the empty
+// list.
+
+array<mixed> $row = [1, "a", true, null, 1.5, [2, 3]];
+Core\Db::inList($row);
+echo "one run carries every element type\n";
+
+// The same roster one element at a time, so a type the member accepted only
+// because something else in the list carried it still fails here. Counted
+// rather than echoed, because a run it quietly refused would leave the line
+// above looking right.
+array<array<mixed>> $singles = [
+    [1],
+    ["a"],
+    [true],
+    [null],
+    [1.5],
+    [[2, 3]],
+];
+int $marked = 0;
+foreach ($singles as array<mixed> $single) {
+    Core\Db::inList($single);
+    $marked = $marked + 1;
+}
+echo "marked=", $marked, "/6\n";
+--EXPECT--
+one run carries every element type
+marked=6/6

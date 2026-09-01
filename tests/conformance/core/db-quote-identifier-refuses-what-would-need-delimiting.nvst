@@ -1,0 +1,52 @@
+--TEST--
+Core\Db::quoteIdentifier refuses every name that would need a delimiter to be legal, so nothing in its answer can end the identifier and start something else — ADR 0024 § 4
+--FILE--
+<?nvs
+// What laundering owes ADR 0024 § 4 is that the result cannot end the
+// identifier and start something else. The member buys that with an alphabet
+// rather than with escaping: no quote, no backtick, no bracket, no space, no
+// dot, no semicolon and no comment opener survives, so there is nothing left in
+// the answer for any of the five dialects' parsers to act on.
+//
+// Counted rather than read off a line, so a name the member quietly accepted
+// fails here even though every other name in the sweep behaved.
+
+array<string> $refused = [
+    "users; DROP TABLE t",
+    "users\"",
+    "\"users\"",
+    "`users`",
+    "[users]",
+    "users t",
+    "public.users",
+    "users--",
+    "users/*",
+    "users)",
+    "users'",
+    'user$id',
+    "naïve",
+    "",
+];
+
+int $caught = 0;
+foreach ($refused as string $name) {
+    try {
+        Core\Db::quoteIdentifier($name);
+    } catch (LogicError $bad) {
+        $caught = $caught + 1;
+    }
+}
+echo "refused=", $caught, "/14\n";
+
+// `$` is on that list although four of the five backends accept one inside an
+// identifier: it is the character that also opens PostgreSQL's dollar-quoting,
+// and one rule a caller can hold in their head is worth more than a character
+// almost nothing names a column with.
+try {
+    Core\Db::quoteIdentifier('user$id');
+} catch (LogicError $dollar) {
+    echo $dollar->message, "\n";
+}
+--EXPECT--
+refused=14/14
+Core\Db::quoteIdentifier() takes a bare identifier — a letter or `_`, then letters, digits or `_` — and `user$id` is not one. `Core\Db` has no connection and so no dialect to delimit for, so a name that needs delimiting is refused rather than quoted for the wrong backend

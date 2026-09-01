@@ -53,15 +53,15 @@
 §15 Session::remove
 §15 Session::set
 
-# § 18 -- `Core\Db`, which needs a driver and a server to talk to: goal 5's.
+# § 18 -- `Core\Db`, whose remaining members each need a driver and a server to
+# talk to: goal 5's. `inList` and `quoteIdentifier` need neither and have
+# landed.
 §18 connect
 §18 execute
 §18 executeMany
-§18 inList
 §18 open
 §18 query
 §18 queryAs
-§18 quoteIdentifier
 §18 stream
 §18 streamAs
 §18 transaction
