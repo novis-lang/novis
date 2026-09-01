@@ -8,14 +8,16 @@
   Not in scope: the API of the builder and the component's entry points, which the milestone that builds
   it designs the way [0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) did
   for images; the sandbox contract itself ([0003](0003-extension-system.md)); how the package is named,
-  pinned and granted ([0081](0081-packages-are-digests-resolution-is-a-maximum.md)); scheduling — no
+  pinned and granted ([0081](0081-packages-are-digests-resolution-is-a-maximum.md)); reading or
+  rasterising an existing PDF, which is the image component's decode format
+  ([0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md)); scheduling — no
   milestone owns this, deliberately.
 - **Depends on:** [0003](0003-extension-system.md) — the sandbox this ADR spends its whole argument on;
   [0051](0051-standard-library-tiers.md) — the tests that decide the placement.
 - **Amends:** [0051](0051-standard-library-tiers.md) § 3 — the first-party Ext roster gains a third
   component, unscheduled; the "two is the whole roster" sentence and its Consequences bullet now read
   three, with M9's build unchanged at two.
-- **Amended by:** 0123
+- **Amended by:** 0123, 0128
 
 > **In short:** Novis will own one spelling for HTML-to-PDF, as a first-party Tier 1 `.nvsx` — package
 > `nvs/pdf`, namespace `Novis\Pdf` — because in PHP this job is both fragmented across incompatible

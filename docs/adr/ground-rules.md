@@ -393,6 +393,10 @@ spellings rejected, and the reasoning.
   fetched and nothing executed, a formula is a typed value so a string is always a text cell, macros are
   never written, CSV stays `Core\Csv`, and equal input gives byte-equal output**
   ([0123](0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md)).
+- **A PDF page is a decode source of the image component — `open` takes `page` and `dpi`, `info`'s
+  `frames` is the page count read without a pixel, the page box at the requested dpi is priced against
+  the pixel cap before any buffer, encryption and an undecodable embedded object throw, and text
+  extraction stays third-party** ([0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md)).
 - **The end of a script is observable: `Core\Script::onExit` hooks run FIFO as the last user code at
   every non-fatal ending — normal, `exit`, uncaught throw — never on a `FATAL` or a cancellation, and
   they observe the ending rather than change it** ([0127](0127-the-end-of-a-script-is-observable.md)).

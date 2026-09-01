@@ -23,6 +23,7 @@
   [0064](0064-configuration-file-format.md) § 2a — `[image]` joins the block roster.
   [docs/plan/m9.md](../plan/m9.md) — the verification names this ADR's fixtures, and "built from Rust
   and from a second language" is read as one component linking a C codec compiled to wasm.
+- **Amended by:** 0128
 
 > **In short:** `Novis\Image::open($bytes)->resize({fit: Fit::Cover, width: 800, height: 600})
 > ->format(Format::Webp)->encode()` is the whole shape. `open` reads the header and decodes nothing; every
@@ -39,7 +40,9 @@
 > allocated: the sandbox is the backstop, the cap is the policy. Formats: JPEG, PNG/APNG, WebP, GIF and
 > AVIF both ways, JPEG XL decode only, lossy WebP via libwebp compiled to wasm — which is also M9's
 > second-language proof. Comparison, perceptual hashing, placeholders, text and QR codes are in; SVG
-> rasterising is the second wave. `gd`'s hundred-odd functions map onto this surface in § 11, one row per
+> rasterising is the second wave, and a PDF page is a decode source
+> ([0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md)). `gd`'s hundred-odd functions
+> map onto this surface in § 11, one row per
 > concept, and the per-name rows move to [02-php-migration.md](../spec/02-php-migration.md) when the
 > inventory has the names.
 
@@ -124,9 +127,9 @@ where the result differs from sequential application by resampling rounding alon
 
 | Member | Signature | Replaces |
 |---|---|---|
-| `open` | `open(bytes $data, {autoOrient?: bool, toSrgb?: bool, maxPixels?: uint}): Image` — reads the header, applies § 6's cap; `autoOrient` and `toSrgb` default `true` (§ 7) | `imagecreatefrom*`, `imagecreatefromstring` |
+| `open` | `open(bytes $data, {autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float}): Image` — reads the header, applies § 6's cap; `autoOrient` and `toSrgb` default `true` (§ 7); `page` and `dpi` select and scale a page of a paged source ([0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md) § 2) | `imagecreatefrom*`, `imagecreatefromstring` |
 | `create` | `create(uint $width, uint $height, Color $fill = Color::TRANSPARENT): Image` — a blank canvas, for cards and QR codes | `imagecreatetruecolor` |
-| `info` | `info(bytes $data): Info` — header only, never a pixel: `{format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?Exif, hasIcc: bool}` | `getimagesize`, `getimagesizefromstring`, `imagesx`, `imagesy`, `exif_read_data`, `exif_imagetype` |
+| `info` | `info(bytes $data): Info` — header only, never a pixel: `{format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?Exif, hasIcc: bool}`; for a paged source `frames` is the page count ([0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md) § 2) | `getimagesize`, `getimagesizefromstring`, `imagesx`, `imagesy`, `exif_read_data`, `exif_imagetype` |
 | `$img->resize` | `resize({width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}): Image` — `Fit` is `Cover`, `Contain`, `Fill`, `Inside`, `Outside`; one dimension alone keeps the aspect; `Filter` defaults to `Lanczos3`; `upscale` defaults `false` | `imagecopyresampled`, `imagecopyresized`, `imagescale` |
 | `$img->crop` | `crop({x: uint, y: uint, width: uint, height: uint}): Image` | `imagecrop` |
 | `$img->trim` | `trim({threshold?: float}): Image` — removes a uniform border | `imagecropauto` |
@@ -191,6 +194,7 @@ answer:
 | AVIF | yes | yes — seconds of CPU per image, documented as a `Core\Queue` job rather than a request-path call | `rav1d`, `ravif` |
 | JPEG XL | yes | **no** — no Rust encoder exists, and libjxl is not admitted | `jxl-oxide` |
 | SVG | yes, rasterised — second wave (§ 9) | no | `resvg` |
+| PDF | yes — one page rasterised per `open`, second wave ([0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md)) | no | `hayro` |
 | TIFF, BMP, TGA, ICO, PNM, HEIC/HEIF, and gd's own formats | no | no | — |
 
 The container is the `image` crate; resampling is `fast_image_resize`, chosen for its SIMD paths and its
@@ -206,7 +210,9 @@ exists for whoever needs the rest.
 **`[image] max_pixels`**, default `"24M"`, is a per-request limit argued here and classed by
 [0005](0005-config-changeability.md) like `[limits]`'s other per-request caps. Before any pixel buffer is
 allocated the component reads the declared dimensions — width × height × frames for an animated input,
-the declared canvas for an SVG — and refuses an image over the cap with a thrown `RuntimeError` naming
+the declared canvas for an SVG, the selected page's box at the requested `dpi` for a PDF
+([0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md) § 2) — and refuses an image over
+the cap with a thrown `RuntimeError` naming
 the cap and the declared size. It is a throw rather than an [0020](0020-error-escalation-ladder.md)
 limit report because a rejected upload is an ordinary outcome the application answers with a status
 code. A call may pass `{maxPixels}` to `open` only to **lower** the cap — the same monotone rule
@@ -259,7 +265,9 @@ produces daily. **SVG** is an input format the second wave adds via `resvg`: the
 against § 6's cap, `<script>` and `foreignObject` are ignored, and **no external reference is ever
 resolved** — there is nothing in the guest to resolve it with, and that is the design rather than a
 limitation. Rasterising is how an uploaded SVG is displayed safely; sanitising one is the repair
-[0095](0095-ambiguous-input-is-refused-never-repaired.md) refuses.
+[0095](0095-ambiguous-input-is-refused-never-repaired.md) refuses. **PDF** joins the same wave as a
+decode source — one page rasterised per `open`, its pages counted by `info` — under
+[0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md)'s contract.
 
 ### 10. Qualifiers and capabilities: it declares nothing and needs nothing
 
