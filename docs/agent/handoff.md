@@ -2,51 +2,57 @@
 
 ## State
 
-**`Core\Env`'s two depth cases are closed** — spec § 15's `get` answers a value whole, and an empty
-value is a value rather than an absence. Two new `.nvst` cases and one doc paragraph on
-`nvs_core_env_get`; no behaviour changed anywhere, so no new refcount edge and no valgrind run.
-Conformance 1346, and `Core\Env` has left `gaps.py`'s thinnest twenty-five.
+**Stage 10's first gate is on disk and green.**
+`crates/nvs-stdlib/tests/spec_registry_coverage.rs:577`'s `every_part_two_spec_member_is_registered`
+walks spec §§ 14-19 against `registry::CLASSES` — § 14's and § 15's bullets, § 18's and § 19's Member
+tables — over the ratchet
+`crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`, which holds 59 keys: § 14's
+directory/metadata half of `Core\IO`, § 15's three request classes plus `Core\Env::mode`, its three
+constants and `Core\Cap::has`, and § 18's `Core\Db` whole. The test's own doc owns the reader (a bullet's
+roster is what precedes its em dash) and the exclusions.
 
-**A value has no syntax, and the case asserts that by counting twice.** A second `=`, a `;`, a pair of
-quotes and leading padding all arrive as the bytes an operator set. The second count is over the four
-readings a member *with* an opinion would answer instead — split at the second `=`, cut at the `;`,
-unwrapped, trimmed — each of which is a prefix or an interior of the value beside it and so prints
-plausibly on its own line. `crates/nvs-stdlib/src/env.rs:188`'s doc comment is the home of both laws.
+**§§ 16 and 17 are unguarded by any registry walk**, on the same line § 13 is: both are
+`| Class | Surface | ADR |` tables with the members inside an English cell. Ten classes are therefore
+gated only by `conformance_coverage.rs`, which walks the registry and so cannot see a spec row that was
+never implemented.
 
-**An empty-valued `--ENV--` entry survives the runner on Windows**, which is what makes the
-empty/absent bound assertable on every leg: `NVS_CASE_EMPTY=` reads back as a length-0 `string` from
-`get` and as a present key in `all`, not as an unset name. `case.rs`'s `--ENV--` parse trims each line
-at its *end* only, so a leading-space value is expressible and a trailing-space one is not.
+**The acceptance check has advanced, not closed.** Stage 10's `cargo-named` check lists six tests and
+two are still absent from every crate — `every_part_two_member_has_a_conformance_case` and
+`no_class_outside_tier_zero_registers_a_core_name`. They are the next group, and the check will keep
+naming the first missing one.
 
-**The acceptance check still names `every_part_two_spec_member_is_registered`**, and no test by that
-name is on disk in any crate. It is stage 10's gate over a complete Part II and needs spec §§ 15-19
-from goal 6. Not a regression and not closable here. Nothing was missing from this session's pack.
+**The previous handoff's `Core\Uuid` group was already on disk in full**, so nothing was written for it;
+the playbook's new *Tooling* bullet owns why `gaps.py` keeps nominating finished classes. Nothing was
+missing from this session's pack.
 
 ## Next group
 
-**`Core\Uuid` is `gaps.py`'s thinnest class that needs neither a fixture nor a capability — one file,
-`crates/nvs-stdlib/src/uuid.rs`, plus `tests/conformance/core/`.** Its three thinnest members are
-`tryParse` (3 cases), `parse` (5) and `v7` (5), and the two below are one file set with the third.
-Spec § 11's second table is the section; `Core\Uuid` replaces `uniqid`, `com_create_guid` and every
-userland library with one type, so the questions are about the *type*, not about a formatter.
+**Both remaining stage 10 tests, one file set: `crates/nvs-stdlib/tests/`.** They are what
+`docs/agent/loop-goal.toml`'s stage 10 check still names, and `docs/plan/m8.md`'s *Verify* paragraph
+names the second one as CI infrastructure rather than as a fixture.
 
-- [ ] **`parse` and `tryParse` are one bound named on both sides** — every spelling `tryParse` answers
-      a value for is one `parse` accepts, and every spelling it answers `null` for is one `parse`
-      throws on, asserted by counting a sweep of near-miss spellings (a lost hyphen, an extra nibble, a
-      non-hex digit, surrounding braces, upper case) rather than read off a line. The two are one
-      reading of one grammar reached two ways, so a member that grew its own leniency fails here while
-      still looking right alone. `crates/nvs-stdlib/src/uuid.rs:415`, `crates/nvs-stdlib/src/uuid.rs:443`.
-- [ ] **A `v7` is time-ordered across a sweep, and that is the whole reason it is not `v4`** — a run of
-      them compares in the order they were made, asserted by counting adjacent pairs rather than by
-      printing any one of them, since none of the bytes is predictable. `crates/nvs-stdlib/src/uuid.rs:382`.
-- [ ] **A `v7`'s version and variant nibbles are fixed whatever the clock says** — the sweep above,
-      re-read as an invariant: every value carries version 7 and the RFC variant, so a generator that
-      spent those bits on the timestamp fails on a count. `crates/nvs-stdlib/src/uuid.rs:382`.
+- [ ] **`every_part_two_member_has_a_conformance_case`** — this session's spec reader, asked the other
+      way round: every §§ 14-19 member that *is* registered has a `.nvst` case calling it. It is
+      `every_core_class_has_a_conformance_floor_of_three`'s question narrowed to Part II, so the case
+      index it already builds is the half not to rewrite; the spec walk is the half to lift.
+      `crates/nvs-stdlib/tests/conformance_coverage.rs:286`,
+      `crates/nvs-stdlib/tests/spec_registry_coverage.rs:577`.
+- [ ] **`no_class_outside_tier_zero_registers_a_core_name`** — ADR 0051 § 3's tier boundary as a gate:
+      nothing but `registry::CLASSES` may declare a name beginning `Core\`. Decide first what the second
+      roster is in this tree — `nvs_hir::errors::TREE` holds `Core\Test\Failure` and is trusted to, per
+      the playbook's two-rosters bullet — so the test is a statement about which rosters exist, not a
+      scan for a class nobody has written. `crates/nvs-stdlib/src/registry.rs:1079`,
+      `crates/nvs-stdlib/tests/capability.rs:278`.
 
 ## Backlog
 
-- `Core\Math`'s `atan2`, `hypot` and `lcm` are the next thinnest pure class — spec § 3.
-- `Core\Validate`'s `isAscii`, `isDomain` and `isEmail`, five cases each — spec § 12.
-- `Core\Task::afterResponse` is the last differential gap, twin `fastcgi_finish_request` — `crates/nvs-stdlib/src/task.rs:561`.
-- `Core\Env::get`'s non-UTF-8 throw is unasserted and unreachable from source — `crates/nvs-stdlib/src/env.rs:208`.
-- `every_part_two_spec_member_is_registered` needs spec §§ 15-19, which are goal 6's — `docs/agent/loop-goal.toml` stage 10.
+- Spec § 14's `Core\IO` roster is 13 members short — `append`, `copy`, `move`, `list`, `walk`, `stat`,
+  `makeDir`, `isDir`/`isFile`/`isReadable`/`isWritable`, `modifiedAt`, `canonicalize`. The ratchet file
+  is the list; `docs/spec/01-core-library.md` § 14 is the spec.
+- Widening the Part II walk to §§ 16-17 needs a *Replaces* cut inside a Surface cell;
+  `spec_registry_coverage.rs`'s test doc says what excluding them costs.
+- `tools/gaps.py` ranks by case count, not by depth of question, so it nominates finished classes.
+- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case; `Core\Http\Response`
+  and `Core\Mail` are the thinnest classes and both need a fixture (`tools/gaps.py`).
+- The 5 unasserted `thrown` paths are each documented unreachable or test-only — `csv.rs:610`'s own doc
+  comment says so out loud. Judge before writing one.

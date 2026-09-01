@@ -1353,6 +1353,17 @@ is why" — is this file.
   that does understand the format is `target/debug/nvs.exe test <path.nvst>`, it takes a single file
   as happily as a tree, and it is the same binary and the same harness `verify.py` uses — so reach
   for it directly and keep `try.py` for a snippet with no config block.
+- **A handoff's *next group* can already be on disk, and `gaps.py`'s ranking is what leads a session
+  there.** The tool ranks a class by its **case count** — the median and the worst member — and the floor
+  is 3, so a class whose every question has already been asked keeps being nominated for as long as its
+  thinnest member has three cases. The `Core\Uuid` group two handoffs pointed at was landed in full by
+  commit 5bcee544 and its neighbours: `tryParse`/`parse` agreement counted over eighteen near-miss
+  spellings, `v7`'s ordering counted over a 64-draw sweep, its version and variant nibbles counted over
+  24 draws. `Core\Math`'s `atan2`/`hypot`/`lcm`, `Core\Cldr::pluralCategory` and `Core\Arr`'s
+  `replaceRange`/`underlay`/`withoutFirst` are the same story — each already has a case file named for
+  the question. **One `ls tests/conformance/core/ | grep <class>` before taking the group is the whole
+  check**: a purpose-named file is the tell, and reading the two it names costs one call against a
+  session spent rewriting a case that exists.
 
 ## Running things
 
