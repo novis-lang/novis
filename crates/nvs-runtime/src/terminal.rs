@@ -1,6 +1,6 @@
-//! The controlling terminal's profile — which standard streams are terminals,
-//! how wide and tall one is, and how much colour it can show — resolved once
-//! for the process.
+//! The controlling terminal: the profile resolved once for the process — which
+//! standard streams are terminals, how wide and tall one is, how much colour it
+//! can show — and how many of its columns a given string will occupy.
 //!
 //! [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 3
 //! specifies the answers and `crates/nvs-stdlib/src/cli.rs` is the surface that
@@ -39,6 +39,23 @@
 //! "the terminal changed" is that a program writes `Cli\Text` and the sink
 //! decides at write time, so there is nothing in the surface that freshness
 //! here could serve.
+//!
+//! # The column count is here, and both of its callers are
+//!
+//! [`display_width`] answers ADR 0086 § 3's `Core\Cli::displayWidth` and
+//! [`clamp`] cuts a region's row to the same unit. They are one table read
+//! twice on purpose: a row cut against a different answer than the one the
+//! program was handed is a frame that wraps, which is the one failure ADR 0086
+//! § 8's clamp exists to prevent. The unit itself — UAX #11 columns over the
+//! string *as the sink would write it* — and the three code points that are
+//! not a column at all are [`display_width`]'s own doc comment, which is their
+//! only home.
+//!
+//! It sits in this module rather than beside `Core\Str`'s units because a
+//! column count is a property of the renderer, not of the string
+//! ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 2 fixed the two
+//! that are properties of the string, and ADR 0086 § 3's last paragraph is why
+//! this third one is not a `Core\Str` member).
 //!
 //! # The prompts read the terminal, never `Stream::In`
 //!
@@ -99,6 +116,9 @@
 
 use std::io::IsTerminal;
 use std::sync::OnceLock;
+
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 /// The default width, for a process with no controlling terminal — ADR 0086
 /// § 3 names it.
@@ -911,35 +931,87 @@ impl std::fmt::Debug for Region {
     }
 }
 
-/// `row`, cut to `width` visible characters.
+/// How far a `TAB` moves the cursor: on to the next multiple of eight columns.
+///
+/// Eight is not a preference. It is where every terminal Novis can write to has
+/// its stops, because the only way to move one is an escape sequence, and
+/// [`display_width`] measures a string ADR 0086 § 1 has already replaced every
+/// escape in with a picture — so a program cannot have moved the stops in the
+/// text this counts, and a program that moved them by writing a `Cli\Text` it
+/// built from `styled` moved them for a run in which nothing else it wrote is
+/// measurable either.
+const TAB_STOP: usize = 8;
+
+/// `text`'s width in terminal columns — ADR 0086 § 3's `Core\Cli::displayWidth`,
+/// whose paragraph beside that table states the rule and is its only home:
+/// UAX #11 widths, over grapheme clusters, measured on the string § 1's
+/// substitution will actually put on the screen, with `TAB` reaching the next
+/// [`TAB_STOP`] and `LF` ending a row rather than filling one.
+///
+/// What is decided *here* is the order those compose in, which is the one way
+/// this can be built wrong: substitute, then split rows, then walk clusters.
+/// Substituting first is what makes a control byte cost its Control Picture
+/// rather than nothing, and walking clusters rather than code points is what
+/// keeps a combining mark and an emoji ZWJ sequence attached to the glyph they
+/// are drawn as part of.
+///
+/// A `Cli\Text` is the one input this must not be handed: it carries the SGR
+/// its `Cli\Style` put there, and this function would measure that as the
+/// pictures a substitution would make of it. [`clamp`] is the caller that has
+/// one, and it does its own escape scan for exactly that reason.
+#[must_use]
+pub fn display_width(text: &str) -> usize {
+    let shown = nvs_render::text::substitute(text);
+    shown.split('\n').map(row_width).max().unwrap_or(0)
+}
+
+/// The column one row — no `LF` in it — leaves the cursor at, from zero.
+fn row_width(row: &str) -> usize {
+    row.graphemes(true)
+        .fold(0, |column, cluster| advance(cluster, column))
+}
+
+/// The column `cluster` leaves the cursor at, having entered it at `at`.
+///
+/// The one place the tab stop is applied, so [`display_width`] and [`clamp`]
+/// cannot come to disagree about where a tabbed row ends.
+fn advance(cluster: &str, at: usize) -> usize {
+    if cluster == "\t" {
+        return at + TAB_STOP - at % TAB_STOP;
+    }
+    at + cluster.width()
+}
+
+/// `row`, cut to `width` terminal columns.
 ///
 /// Escape sequences are copied through and cost no width, because a styled
 /// `Cli\Text` carries the SGR its `Cli\Style` put there and those bytes occupy
 /// no column. A row that was cut while styled is closed with a reset, so the
-/// colour cannot leak onto the rest of the screen. The count is characters
-/// rather than display columns — `Core\Cli::displayWidth` is the member that
-/// will know the difference, and it is not built — so a row of wide glyphs is
-/// clamped short of the edge rather than past it, which is the side of the
-/// approximation that cannot wrap.
+/// colour cannot leak onto the rest of the screen.
+///
+/// The count is [`display_width`]'s, one grapheme cluster at a time, and a
+/// cluster that would cross the edge is left off entirely rather than half
+/// written — so a row of wide glyphs stops one column short of the edge rather
+/// than one past it, which is the side of the rounding that cannot wrap.
 ///
 /// A row holds no newline of its own: ADR 0086 § 1's substitution has already
 /// replaced every control byte a `Cli\Text` was built from with a visible
 /// glyph, so one `Cli\Text` is one terminal row by construction.
 fn clamp(row: &str, width: usize) -> String {
     let mut out = String::with_capacity(row.len());
-    let mut shown = 0usize;
+    let mut column = 0usize;
     let mut styled = false;
-    let mut chars = row.chars();
-    while let Some(ch) = chars.next() {
-        if ch == '\x1b' {
+    let mut clusters = row.graphemes(true);
+    while let Some(cluster) = clusters.next() {
+        if cluster == "\x1b" {
             styled = true;
-            out.push(ch);
-            if let Some(next) = chars.next() {
-                out.push(next);
-                if next == '[' {
-                    for byte in chars.by_ref() {
-                        out.push(byte);
-                        if ('\x40'..='\x7e').contains(&byte) {
+            out.push_str(cluster);
+            if let Some(next) = clusters.next() {
+                out.push_str(next);
+                if next == "[" {
+                    for part in clusters.by_ref() {
+                        out.push_str(part);
+                        if matches!(part.chars().next(), Some('\x40'..='\x7e')) {
                             break;
                         }
                     }
@@ -947,14 +1019,15 @@ fn clamp(row: &str, width: usize) -> String {
             }
             continue;
         }
-        if shown == width {
+        let reaches = advance(cluster, column);
+        if reaches > width {
             if styled {
                 out.push_str("\x1b[0m");
             }
             return out;
         }
-        out.push(ch);
-        shown += 1;
+        out.push_str(cluster);
+        column = reaches;
     }
     out
 }
@@ -1007,5 +1080,67 @@ mod tests {
         assert!(ColorDepth::None < ColorDepth::Ansi16);
         assert!(ColorDepth::Ansi16 < ColorDepth::Ansi256);
         assert!(ColorDepth::Ansi256 < ColorDepth::TrueColor);
+    }
+
+    /// UAX #11's two-column classes, against the count of the thing that is not
+    /// the column count: `"日本語"` is three grapheme clusters and six columns,
+    /// and a fullwidth Latin letter is the same trap in the alphabet a caller
+    /// is least expecting it in.
+    #[test]
+    fn a_wide_glyph_is_two_columns() {
+        assert_eq!(display_width("日本語"), 6);
+        assert_eq!("日本語".chars().count(), 3);
+        assert_eq!(display_width("Ｈｉ"), 4);
+    }
+
+    /// The other half of counting clusters: a mark occupies no column of its
+    /// own, and the sequence is one column however many code points it took.
+    #[test]
+    fn a_combining_mark_is_no_columns() {
+        assert_eq!(display_width("e\u{301}"), 1);
+        assert_eq!("e\u{301}".chars().count(), 2);
+    }
+
+    /// A control byte reaches the screen as a picture, so it is one column and
+    /// not zero — and an SGR sequence cannot make a string measure short,
+    /// because § 1 replaces it before the count sees it.
+    #[test]
+    fn a_control_byte_costs_what_its_picture_costs() {
+        assert_eq!(display_width("a\u{1b}b"), 3);
+        assert_eq!(display_width("\u{7f}"), 1);
+        assert_eq!(display_width("\u{9b}"), 1);
+        assert_eq!(display_width("\u{1b}[31mred\u{1b}[0m"), 12);
+    }
+
+    /// The two rows § 1 passes through, each asserted where a fixed count for
+    /// it would answer plausibly: the tab lands on the stop wherever it stands,
+    /// and the newline ends a row rather than filling one.
+    #[test]
+    fn a_tab_reaches_the_stop_and_a_newline_ends_the_row() {
+        assert_eq!(display_width("a\tb"), 9);
+        assert_eq!(display_width("\tb"), 9);
+        assert_eq!(display_width("abcdefgh\ti"), 17);
+        assert_eq!(display_width("ab\n日本語"), 6);
+        assert_eq!(display_width(""), 0);
+    }
+
+    /// The rounding [`clamp`]'s doc comment names, asserted on both sides: the
+    /// glyph that fits is kept, the one that would cross the edge is left off
+    /// whole, and the row that comes back is never wider than it was asked for.
+    #[test]
+    fn a_clamped_row_stops_short_of_the_edge_rather_than_past_it() {
+        assert_eq!(clamp("日本語", 4), "日本");
+        assert_eq!(clamp("日本語", 3), "日");
+        assert!(display_width(&clamp("日本語", 3)) <= 3);
+        assert_eq!(clamp("abc", 3), "abc");
+    }
+
+    /// A cut row closes the style it was cut inside, and the SGR it copied
+    /// through cost it no columns — the whole reason `clamp` scans escapes
+    /// itself rather than calling [`display_width`].
+    #[test]
+    fn a_row_cut_while_styled_is_closed() {
+        assert_eq!(clamp("\u{1b}[31mabcd", 2), "\u{1b}[31mab\u{1b}[0m");
+        assert_eq!(clamp("\u{1b}[31mab\u{1b}[0m", 2), "\u{1b}[31mab\u{1b}[0m");
     }
 }

@@ -194,6 +194,23 @@ caseless = "0.2"
 # been rejected twice.
 unicode-normalization = "0.1"
 
+# --- Unicode display width (ADR 0086 § 3's `Core\Cli::displayWidth`) ---
+# UAX #11's East_Asian_Width table, plus the zero-width classes a column
+# count needs beside it — combining marks, Hangul medial and trailing jamo,
+# default-ignorables — and the emoji ZWJ sequences that are one column pair
+# however many code points they are. Every one of those is data on a Unicode
+# version, not something a member can derive, and the third of the three
+# measures ADR 0009 § 2 leaves open: bytes and grapheme clusters are ours,
+# terminal columns are the renderer's. From the same `unicode-rs` org as the
+# three crates above, pure Rust, no build script, no C, and already in this
+# tree's lock file as `wasm-encoder`'s dependency — naming it here is the
+# difference between depending on a crate and depending on another crate's
+# choice of one. `default-features = false` drops the `cjk` half: the
+# alternate width for East Asian *ambiguous* characters is a property of the
+# locale the terminal is in, and Novis has no ambient locale at all
+# (ADR 0051 § 3, which dropped `setlocale` for saying so).
+unicode-width = { version = "0.2", default-features = false }
+
 # --- regular expressions (ADR 0056's two tiers, both named by the user) ---
 # `regex` is the linear-time default: a finite-automata engine that cannot be
 # made to backtrack exponentially, which is the whole point of that ADR.

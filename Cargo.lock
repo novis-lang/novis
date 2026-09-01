@@ -1695,6 +1695,7 @@ dependencies = [
  "subtle",
  "toml",
  "unicode-segmentation",
+ "unicode-width",
  "windows-sys 0.61.2",
 ]
 
