@@ -82,10 +82,14 @@
 //!    per-core pool is what would change that, and it may only do so behind
 //!    that section's reset; [`nvs_runtime::Ctx::hold_open_connection`] is where
 //!    that is written down.
-//! 4. **`Db\DbError` and `Db\RolledBack` are not in spec § 10's tree yet**, so
-//!    a refusal here is a plain `RuntimeError` or an `IOError` and carries no
-//!    `kind`, `sqlState` or `constraint`. Nothing about the messages changes
-//!    when they land; what changes is what a `catch` can name.
+//! 4. **`Db\DbError` is not in spec § 10's tree yet**, so a refusal here is a
+//!    plain `RuntimeError` or an `IOError` and carries no `kind`, `sqlState`
+//!    or `constraint`. Nothing about the messages changes when it lands; what
+//!    changes is what a `catch` can name. `Db\RolledBack` *is* in the tree
+//!    (`nvs_hir::errors::TREE`), with the `reason` its message fills, and
+//!    `nvs_runtime::ThrownClass::DbRolledBack` is what a helper names to raise
+//!    one — nothing in this module raises one yet, because § 7's
+//!    `transaction` is what would.
 //! 5. **`query`, `execute` and `executeMany` are what has landed of
 //!    `Core\Db\Queryable`.** `queryAs`, `stream`, `streamAs` and `transaction`
 //!    are owed, and so are `close` and § 18's three readonly properties on

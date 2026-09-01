@@ -146,3 +146,25 @@ fn ParseError::constructor(object, string, tagged) -> void {
     release v0
     return
 }
+
+fn Core\Db\RolledBack::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Core\Db\RolledBack::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Core\Db\RolledBack::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Core\Db\RolledBack::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Core\Db\RolledBack::location, v4
+    retain v1
+    field.set v0, Core\Db\RolledBack::reason, v1
+    release v1
+    release v2
+    release v0
+    return
+}

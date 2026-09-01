@@ -119,11 +119,11 @@ pub enum ThrownClass {
     /// composite assertion, a retry wrapper or a test *of* an assertion can
     /// intercept one by name.
     ///
-    /// `Core\Test\Failure` and [`Self::CliNotInteractive`] are the two entries
-    /// in this roster whose names are namespaced; `nvs_hir::errors::TREE` says
-    /// why they are classes in the tree rather than `nvs_stdlib::registry`
-    /// rows, and nothing here has to care, the lookup below being by name
-    /// either way.
+    /// `Core\Test\Failure`, [`Self::CliNotInteractive`] and
+    /// [`Self::DbRolledBack`] are the three entries in this roster whose names
+    /// are namespaced; `nvs_hir::errors::TREE` says why they are classes in the
+    /// tree rather than `nvs_stdlib::registry` rows, and nothing here has to
+    /// care, the lookup below being by name either way.
     TestFailure,
     /// `Core\Cli\NotInteractive` — a prompt with no controlling terminal to
     /// read and no default to fall back on
@@ -133,6 +133,17 @@ pub enum ThrownClass {
     /// and it is [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md)'s
     /// "no spelling for an unbounded wait" on a second surface.
     CliNotInteractive,
+    /// `Core\Db\RolledBack` — a transaction the program itself rolled back
+    /// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 7), propagated out of
+    /// the closure that owned it.
+    ///
+    /// It is not a driver failure and deliberately not the same class as one:
+    /// a `catch` distinguishing "I gave up" from "the database said no" is the
+    /// whole reason spec § 18 puts two names in the tree rather than one.
+    /// Its `reason` slot is filled by the message the throw carries, which
+    /// `nvs_ir::lower::exception`'s synthesized constructor does — there is no
+    /// second field for a helper here to write.
+    DbRolledBack,
 }
 
 impl ThrownClass {
@@ -149,6 +160,7 @@ impl ThrownClass {
             Self::Arithmetic => "ArithmeticError",
             Self::TestFailure => "Core\\Test\\Failure",
             Self::CliNotInteractive => "Core\\Cli\\NotInteractive",
+            Self::DbRolledBack => "Core\\Db\\RolledBack",
         }
     }
 
@@ -163,6 +175,7 @@ impl ThrownClass {
         Self::Arithmetic,
         Self::TestFailure,
         Self::CliNotInteractive,
+        Self::DbRolledBack,
     ];
 }
 

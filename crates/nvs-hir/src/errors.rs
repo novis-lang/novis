@@ -29,7 +29,7 @@
 /// Ordered parent-before-child so a consumer building a flattened supertype
 /// set can walk it in one pass.
 ///
-/// # Two entries are namespaced, and they are here rather than in the registry
+/// # Three entries are namespaced, and they are here rather than in the registry
 ///
 /// `Core\Test\Failure` is [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
 /// § 5's assertion failure, and that section makes it "an ordinary
@@ -50,7 +50,19 @@
 /// saying no rather than a bug in the program: the same code is correct when
 /// it is run from a terminal.
 ///
-/// Those two are the entries whose names have more than one segment, which is
+/// `Core\Db\RolledBack` is the third, and it is here for the same reason once
+/// more: [ADR 0067](../../../docs/adr/0067-core-db.md) § 7 makes
+/// `Transaction::rollBack` throw it and
+/// [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 18
+/// puts it *in this tree*, extending `RuntimeError` — a deliberate rollback is
+/// the database saying no rather than a bug in the program, and the closure
+/// that owns the transaction propagates it to a `catch` written by name. It is
+/// the second entry after `ParseError` to declare a property of its own; see
+/// [`OWN_PROPERTIES`]. `Core\Db\DbError` joins it when § 18's `kind`,
+/// `sqlState`, `driverCode`, `constraint` and `sql` have somewhere to come
+/// from.
+///
+/// Those three are the entries whose names have more than one segment, which is
 /// why every consumer here goes through `QName::parse` rather than treating a
 /// row as a bare global segment. `QName::is_reserved_global_class`
 /// deliberately still answers only for the single-segment rows: what makes
@@ -68,6 +80,7 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     ("ArithmeticError", Some("Throwable")),
     ("Core\\Test\\Failure", Some("Throwable")),
     ("Core\\Cli\\NotInteractive", Some("RuntimeError")),
+    ("Core\\Db\\RolledBack", Some("RuntimeError")),
 ];
 
 /// The root every other entry in [`TREE`] descends from, and the one name a
@@ -94,21 +107,32 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// slot order, keyed by class name.
 ///
 /// [`PROPERTIES`] is the root's row; the rest of the tree inherits those four
-/// and, with one exception, adds nothing. That exception is `ParseError`,
-/// which [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5 gives an
+/// and, with two exceptions, adds nothing. The first is `ParseError`, which
+/// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5 gives an
 /// `issues` list so that a decode reports **every** bad field from one throw
-/// rather than the first.
+/// rather than the first. The second is `Core\Db\RolledBack`, which spec § 18
+/// gives a `reason` — the string
+/// [ADR 0067](../../../docs/adr/0067-core-db.md) § 7's `Transaction::rollBack`
+/// was called with, readable from the `catch` outside the transaction closure
+/// that the throw unwound.
 ///
-/// It is declared on `ParseError` rather than on the root deliberately: the
+/// Each is declared on its own class rather than on the root deliberately: the
 /// root is allocated by every `throw` in every program, and a fifth slot there
 /// would cost sixteen bytes plus one empty-array allocation on a path that
 /// PHP-shaped code takes for ordinary control flow
 /// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)'s measured cost).
-/// `Core\Db\DbError` gains the same property when M8 adds it to [`TREE`].
-pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[(ROOT, PROPERTIES), ("ParseError", ISSUES)];
+/// `Core\Db\DbError` gains the same treatment when M8 adds it to [`TREE`].
+pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[
+    (ROOT, PROPERTIES),
+    ("ParseError", ISSUES),
+    ("Core\\Db\\RolledBack", REASON),
+];
 
 /// `ParseError`'s own row of [`OWN_PROPERTIES`].
 const ISSUES: &[&str] = &["issues"];
+
+/// `Core\Db\RolledBack`'s own row of [`OWN_PROPERTIES`].
+const REASON: &[&str] = &["reason"];
 
 /// The slot `ParseError::$issues` occupies.
 ///
@@ -117,6 +141,16 @@ const ISSUES: &[&str] = &["issues"];
 /// [`PROPERTIES`] — `parse_error_s_own_slots_start_after_the_root_s` is what
 /// holds that rather than a comment.
 pub const ISSUES_SLOT: usize = PROPERTIES.len();
+
+/// The slot `Core\Db\RolledBack::$reason` occupies.
+///
+/// The same arithmetic as [`ISSUES_SLOT`] and for the same reason: nothing
+/// between `Core\Db\RolledBack` and the root declares a slot, so its one own
+/// property sits immediately after [`PROPERTIES`]. It is
+/// `rolled_back_s_own_slot_starts_after_the_root_s` that holds that, not this
+/// sentence — the two classes are siblings under `RuntimeError` and neither
+/// index is derived from the other.
+pub const REASON_SLOT: usize = PROPERTIES.len();
 
 /// `name`'s own instance properties, in slot order — empty for a class that
 /// declares none, and for a name that is not in [`TREE`] at all.
@@ -203,9 +237,23 @@ mod tests {
     }
 
     #[test]
-    fn only_the_root_and_parse_error_declare_anything_of_their_own() {
+    fn rolled_back_s_own_slot_starts_after_the_root_s() {
+        // The same claim `parse_error_s_own_slots_start_after_the_root_s`
+        // makes, asserted separately because the two are siblings: a slot
+        // added to either one must not move the other, and a single test
+        // written over one of them would not notice if it did.
+        let above = conforms_to("Core\\Db\\RolledBack").expect("RolledBack is in the tree");
+        let inherited: usize = above.iter().map(|name| own_properties(name).len()).sum();
+        assert_eq!(inherited, REASON_SLOT);
+        assert_eq!(own_properties("Core\\Db\\RolledBack"), &["reason"]);
+        assert_eq!(above, vec!["RuntimeError", "Throwable"]);
+    }
+
+    #[test]
+    fn only_the_root_parse_error_and_rolled_back_declare_anything_of_their_own() {
         for (name, _) in TREE {
-            let expected = *name == ROOT || *name == "ParseError";
+            let expected =
+                *name == ROOT || *name == "ParseError" || *name == "Core\\Db\\RolledBack";
             assert_eq!(declares_constructor(name), expected, "{name}");
         }
         for (name, _) in OWN_PROPERTIES {

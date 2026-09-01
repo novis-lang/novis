@@ -5823,6 +5823,19 @@ sibling in the same namespace unqualified.
   because `nvs meta --json` ships the card verbatim to a reader with no ADR tree — state the fact
   and leave the citation to the doc comment above the row. Nineteen rows written to the shape in
   `conventions.md` failed on these two and on nothing else.
+- **A new `nvs_hir::errors::TREE` row that declares a property of its own owes more than the
+  roster the bullet above lists, and two of the extra sites fail in crates that never name the
+  class.** `Core\Db\RolledBack` needed all six of the usual ones plus: a type arm in
+  `nvs_types::error_lib::own_properties`, which `panic!`s at *seed* time on a property with no
+  type — so every `-p nvs-types` test dies at once with `no type seeded for` and nothing pointing
+  at `errors.rs`; an entry in `nvs_ir::lower::exception::synthesized_exception_constructors`,
+  because `declares_constructor` is exactly "has own properties" and ADR 0022 would otherwise read
+  `null` out of a slot the root's constructor never wrote; and a second name in the *functions*
+  list of `a_file_with_no_class_still_carries_every_compiler_declared_class`, which is a different
+  assertion in the same test from the class-label list. Then five `nvs-ir` insta snapshots go
+  red, because each renders the whole lowered program and every synthesized constructor is in it.
+  `cargo insta` is **not installed** in this tree: `INSTA_UPDATE=always cargo test -p nvs-ir --lib`
+  is what rewrites them in place, and it leaves no `.snap.new` behind for `git status` to catch.
 
 ## Divergences and refusals already pinned
 

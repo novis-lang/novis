@@ -659,6 +659,15 @@ pub(crate) const PARSE_ERROR: &str = "ParseError";
 /// `ParseError::$issues`.
 pub(crate) const ISSUES_FIELD: &str = "issues";
 
+/// `Core\Db\RolledBack`, the second class below the root that declares a
+/// property — spec § 18's `reason`, thrown by
+/// [ADR 0067](../../../../docs/adr/0067-core-db.md) § 7's
+/// `Transaction::rollBack`. Restated here for [`PARSE_ERROR`]'s reason.
+pub(crate) const ROLLED_BACK: &str = "Core\\Db\\RolledBack";
+
+/// `Core\Db\RolledBack::$reason`.
+pub(crate) const REASON_FIELD: &str = "reason";
+
 /// The Novis functions with no source text: one constructor per exception class
 /// that declares state of its own.
 ///
@@ -675,29 +684,57 @@ pub(crate) const ISSUES_FIELD: &str = "issues";
 /// `null` default — so the slot is written on every path and ADR 0022's
 /// definite assignment holds without a branch here.
 ///
-/// `ParseError` gets a second one rather than inheriting the root's, because
-/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5 gives it an
-/// `issues` list declared `array<Issue>`: ADR 0022 makes every property
-/// definitely assigned, and a slot the root's constructor never touches would
-/// read `null` out of a type that cannot be one. It writes all five slots
-/// rather than chaining, which costs three duplicated instructions and buys
-/// not needing a call at all on a path that allocates an exception.
+/// `ParseError` and `Core\Db\RolledBack` each get one of their own rather than
+/// inheriting the root's, because each declares a property the root's
+/// constructor never touches — ADR 0022 makes every property definitely
+/// assigned, and such a slot would read `null` out of a type that cannot be
+/// one. Each writes all five slots rather than chaining, which costs three
+/// duplicated instructions and buys not needing a call at all on a path that
+/// allocates an exception.
+///
+/// **What each extra slot is initialized to is [`ExtraInit`]'s decision**, and
+/// the two differ: `ParseError::$issues` starts empty, because a `ParseError`
+/// raised by hand has no field list to report and
+/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's decoder fills
+/// it from native code. `Core\Db\RolledBack::$reason` starts as **the message**,
+/// because spec § 18 gives that class nothing else to carry: the one string a
+/// caller passes is the reason, so `new Core\Db\RolledBack("cart is empty")`
+/// and ADR 0067 § 7's `rollBack("cart is empty")` agree without the thrower
+/// having to write a second slot.
 pub(crate) fn synthesized_exception_constructors() -> Vec<Function> {
     vec![
         exception_constructor(THROWABLE_ROOT, &[]),
-        exception_constructor(PARSE_ERROR, &[ISSUES_FIELD]),
+        exception_constructor(PARSE_ERROR, &[(ISSUES_FIELD, ExtraInit::EmptyArray)]),
+        exception_constructor(ROLLED_BACK, &[(REASON_FIELD, ExtraInit::Message)]),
     ]
 }
 
-/// One such constructor: the root's four slots, then one empty `array` per
-/// name in `extra` — which is every property `class` declares beyond them.
+/// What [`exception_constructor`] stores into one property a subclass declares
+/// beyond the root's four.
+///
+/// A closed set rather than a value the caller builds: every one of these has
+/// to be a definite assignment ADR 0022 accepts *and* a representation the
+/// class's seeded type admits (`nvs_types::error_lib::own_properties` is where
+/// that type is), so a third initializer is a deliberate addition here rather
+/// than an instruction written at a call site.
+#[derive(Clone, Copy)]
+enum ExtraInit {
+    /// A fresh empty `array`.
+    EmptyArray,
+    /// The `$message` parameter, retained a second time — the slot is a second
+    /// durable owner of the same string.
+    Message,
+}
+
+/// One such constructor: the root's four slots, then one per `(field, init)`
+/// pair in `extra` — which is every property `class` declares beyond them.
 ///
 /// The receiver, the message and the `previous` option are all *transferred*
 /// to this frame by the call convention, so all three are released at the exit
 /// — each field takes its own reference first. A tagged `null` retains and
 /// releases as a no-op, which `nvs_runtime::nvs_value_retain` decides at run
 /// time rather than this lowering deciding it here.
-fn exception_constructor(class: &str, extra: &[&str]) -> Function {
+fn exception_constructor(class: &str, extra: &[(&str, ExtraInit)]) -> Function {
     let mut ids = IdGen::default();
     let block = ids.next_block();
     let this = ids.next_value();
@@ -747,10 +784,21 @@ fn exception_constructor(class: &str, extra: &[&str]) -> Function {
         defines(location, Ty::Str, InstKind::ConstStr(String::new())),
         store(LOCATION_FIELD, location),
     ];
-    for field in extra {
-        let value = ids.next_value();
-        insts.push(defines(value, Ty::Array, empty_array()));
-        insts.push(store(field, value));
+    for &(field, init) in extra {
+        match init {
+            ExtraInit::EmptyArray => {
+                let value = ids.next_value();
+                insts.push(defines(value, Ty::Array, empty_array()));
+                insts.push(store(field, value));
+            }
+            // The slot takes its own reference, exactly as `MESSAGE_FIELD`
+            // above does — the frame still releases the transferred `message`
+            // at the exit, and both fields outlive it.
+            ExtraInit::Message => {
+                insts.push(plain(InstKind::Retain { operand: message }));
+                insts.push(store(field, message));
+            }
+        }
     }
     insts.push(plain(InstKind::Release { operand: message }));
     insts.push(plain(InstKind::Release { operand: previous }));

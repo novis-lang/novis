@@ -3048,8 +3048,9 @@ fn an_uncatchable_status_leaves_a_try_through_a_block_that_releases_the_locals()
 }
 
 /// A file declaring no class still lowers, and still carries both rosters
-/// no source declares — `nvs_hir::errors`' exception tree, with its one
-/// synthesized constructor, and `nvs_hir::interfaces`' four global
+/// no source declares — `nvs_hir::errors`' exception tree, with the
+/// synthesized constructor of every class in it that declares state of its
+/// own, and `nvs_hir::interfaces`' four global
 /// interfaces — the `hello.nvs` shape. Nothing in the file references any
 /// of them and they are emitted anyway: a descriptor has to exist before
 /// `$x instanceof Stringable` has anything to test against, and a class
@@ -3068,10 +3069,12 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
         [
             "ArithmeticError",
             "Comparable",
-            // ADR 0086 § 4's refusal to block, and ADR 0079 § 5's assertion
-            // failure — the exception tree's two namespaced entries, classes
-            // in it for the reason `nvs_hir::errors::TREE` gives.
+            // ADR 0086 § 4's refusal to block, ADR 0067 § 7's deliberate
+            // rollback, and ADR 0079 § 5's assertion failure — the exception
+            // tree's three namespaced entries, classes in it for the reason
+            // `nvs_hir::errors::TREE` gives.
             "Core\\Cli\\NotInteractive",
+            "Core\\Db\\RolledBack",
             "Core\\Test\\Failure",
             "IOError",
             "Iterable",
@@ -3092,7 +3095,8 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
         [
             "<script>",
             "Throwable::constructor",
-            "ParseError::constructor"
+            "ParseError::constructor",
+            "Core\\Db\\RolledBack::constructor"
         ]
     );
 }

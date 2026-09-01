@@ -46,22 +46,22 @@
 > refuses a field no column reads back as (`E0756`). **`crates/nvs-db` exists**: § 5's `Connection`
 > enum, § 4's four-state busy field and the `NVS_DB_MATRIX_*` reader, over an `NvsTls` now generic
 > in its transport. Its wire I/O opens with PostgreSQL's own: § 3's `SSLRequest` upgrade and a
-> SCRAM-SHA-256 exchange, asserted in-crate for want of a usable certificate. § 4's extended-query
-> state machine and § 13's reset are over it: one flush per statement, one for the six reset
-> commands, and `reset` takes `self`.  § 9's whole type map decodes over it: a `Value` for the
-> scalar rows and parsed components — `PgScalar` — for the five that are a `Core\Time` or
+> SCRAM-SHA-256 exchange. § 4's extended-query state machine and § 13's reset are over it: one flush
+> per statement, one for the six reset commands.  § 9's whole type map decodes over it: a `Value`
+> for the scalar rows and parsed components — `PgScalar` — for the five that are a `Core\Time` or
 > `Core\Uuid` instance only `nvs-stdlib` can build; § 4's count, `lastId` and `executeMany` too. § 7
 > is on it too — `BEGIN`/`COMMIT`/`ROLLBACK`, a nested one a `SAVEPOINT` the depth names, and § 8's
 > kind inside every refusal. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect`, over a
 > connection the request holds and drops with it, beside `inList`, `quoteIdentifier` and § 4's
 > `query`, `execute` and `executeMany` — bound in § 5's rewriter's order, one rewrite per bind set,
 > and § 18's readers over it: five of `Rows`' six, all fourteen of `Row`, `Write`'s three, with
-> `columns()` owed on a `ColumnType` enum. `open` waits on a shape-parameter type. The pool is
-> Stages 3 to 7, and **ADR 0132 has claimed the goal's one ADR slot**: a driver is a borrowed
-> sans-IO codec plus a state machine over the parking stream, and the five are an enum rather than a
-> trait.   **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** — `Core`'s
-> capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
-> Conformance 1404, differential 250, its gate met, migration 90%/74%.
+> `columns()` owed on a `ColumnType` enum. `open` waits on a shape-parameter type. **§ 10's tree now
+> carries `Core\Db\RolledBack`**, its `reason` the message; `DbError` does not. The pool is Stages 3
+> to 7, and **ADR 0132 has claimed the goal's one ADR slot**: a driver is a borrowed sans-IO codec
+> plus a state machine over the parking stream, and the five are an enum rather than a trait.
+> **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** — `Core`'s capability-bearing
+> half in full, with `ring` the one C dependency ADR 0051 § 4 records. Conformance 1405,
+> differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

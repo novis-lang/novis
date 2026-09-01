@@ -1,0 +1,65 @@
+--TEST--
+`Core\Db\RolledBack` is a class in spec § 10's tree under `RuntimeError`, and its `reason` is the string it was constructed with — spec § 18, ADR 0067 § 7
+--FILE--
+<?nvs
+// § 18 gives the class one property of its own beyond the root's four, and
+// the synthesized constructor fills it from the message: the one string a
+// caller passes *is* the reason, so both spellings agree.
+try {
+    throw new Core\Db\RolledBack("cart is empty");
+} catch (Core\Db\RolledBack $e) {
+    echo "reason=", $e->reason, "\n";
+    echo "message=", $e->message, "\n";
+    if ($e->reason == $e->message) {
+        echo "same string\n";
+    }
+}
+
+// It extends `RuntimeError` — a deliberate rollback is the world saying no
+// rather than a bug in the program — so every supertype catches it, and
+// `LogicError` is not one of them. The clauses are ordered narrow-to-wide so
+// the one that matches is the one being asserted.
+try {
+    throw new Core\Db\RolledBack("deadlock retry gave up");
+} catch (LogicError $wrong) {
+    echo "not reached: LogicError\n";
+} catch (RuntimeError $runtime) {
+    echo "runtime=", $runtime->message, "\n";
+}
+
+try {
+    throw new Core\Db\RolledBack("nothing to commit");
+} catch (Throwable $root) {
+    echo "root=", $root->message, "\n";
+}
+
+// The root's four slots sit at the same indices on every class in the tree,
+// so `reason` cannot have displaced one: `previous` still chains and
+// `location` still names the throw site rather than the construction site.
+var $cause = new IOError("socket closed");
+try {
+    throw new Core\Db\RolledBack("could not finish", {previous: $cause});
+} catch (Core\Db\RolledBack $chained) {
+    echo "reason=", $chained->reason, "\n";
+    if ($chained->previous instanceof IOError) {
+        echo "chained to an IOError\n";
+    }
+}
+
+// And the property belongs to this class alone: a sibling under the same
+// parent is still the root's four and nothing more, which is why the root
+// does not pay for a fifth slot on every throw.
+try {
+    throw new TimeoutError("waited long enough");
+} catch (RuntimeError $sibling) {
+    echo "sibling=", $sibling->message, "\n";
+}
+--EXPECT--
+reason=cart is empty
+message=cart is empty
+same string
+runtime=deadlock retry gave up
+root=nothing to commit
+reason=could not finish
+chained to an IOError
+sibling=waited long enough

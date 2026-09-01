@@ -80,8 +80,9 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         // A class that declares no state of its own inherits both its
         // properties and its constructor through the graph
         // `nvs_hir::hierarchy` seeded — the same walk a user subclass goes
-        // through. The root and `ParseError` are the two that do declare
-        // some; `nvs_hir::errors::OWN_PROPERTIES` is that roster's home.
+        // through. The root, `ParseError` and `Core\Db\RolledBack` are the
+        // three that do declare some; `nvs_hir::errors::OWN_PROPERTIES` is
+        // that roster's home.
         let properties = if qname == root {
             root_properties(interner)
         } else {
@@ -107,6 +108,11 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                     let issues = issue_shape(interner);
                     interner.array(issues)
                 }
+                // `Core\Db\RolledBack::$reason` — spec § 18 types it a plain
+                // `string`, not a `?string`: a rollback always has the reason
+                // its caller passed, and the synthesized constructor writes
+                // the message into it (`nvs_ir::lower::exception`).
+                "reason" => interner.string(),
                 other => panic!("no type seeded for `{name}::{other}`"),
             };
             ((*property).to_owned(), ty)
