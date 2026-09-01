@@ -1,0 +1,64 @@
+--TEST--
+Core\Ast\Node's walk is a whole tree, asserted by counting rather than read off a line: every node names a production, has one parent and appears once — ADR 0019 § 3
+--FILE--
+<?nvs
+// The *invariance over a sweep* shape. Every other case in this class reads an
+// answer off a node it names; this one asserts four properties over the whole
+// tree at once, by arithmetic, so a walk that dropped a subtree — or visited
+// one twice, or reached a node it could not describe — fails on a count rather
+// than on a line nobody wrote.
+//
+// The size is pinned first, because three of the four checks below compare
+// against it: a walk that lost half the tree would still partition, still count
+// its edges consistently and still hold each node once.
+var $tree = Core\Ast::parse('<?nvs var $a = 1 + 2; if ($a > 2) { echo "big"; } else { echo "small"; }');
+var $nodes = $tree->nodes();
+int $total = Core\Arr::count($nodes) as int;
+
+int $named = 0;
+int $withChildren = 0;
+int $withoutChildren = 0;
+// Seeded with the file's own children, because the file is the one node the
+// walk excludes and its children still have a parent.
+int $edges = Core\Arr::count($tree->children()) as int;
+Core\ObjectSet<Core\Ast\Node> $once = new Core\ObjectSet<Core\Ast\Node>();
+foreach ($nodes as Core\Ast\Node $node) {
+    // `kind` names a production, so there is no node the walk reaches that it
+    // cannot say anything about — known gap 1 is that the name is all a node
+    // carries, not that some node carries nothing.
+    if (Core\Str::length($node->kind()) > 0) {
+        $named = $named + 1;
+    }
+    if (Core\Arr::count($node->children()) > 0) {
+        $withChildren = $withChildren + 1;
+    } else {
+        $withoutChildren = $withoutChildren + 1;
+    }
+    $edges = $edges + Core\Arr::count($node->children()) as int;
+    $once->add($node);
+}
+
+echo $total, " nodes\n";
+echo $named == $total ? "every node names a production" : "a node named nothing", "\n";
+
+// Interior and leaf are the whole partition: there is no third kind of node,
+// so the two counts have to add back up to the walk.
+echo $withChildren, "+", $withoutChildren, " ",
+    $withChildren + $withoutChildren == $total ? "is the whole tree" : "is not the whole tree", "\n";
+
+// Summing `children` over every node counts each parent-child edge exactly
+// once, and in a tree that is one edge per node other than the root — so the
+// edge total and the walk's own count are the same number, reached two
+// different ways.
+echo $edges == $total ? "every node but the file has one parent" : "the edge count disagrees", "\n";
+
+// And by identity: a tree, not a graph. A `nodes` that had begun sharing a
+// subtree between two parents would keep every count above this line and lose
+// this one.
+echo $once->count() as int == $total ? "the walk names each node once" : "a node repeats in the walk", "\n";
+--EXPECT--
+14 nodes
+every node names a production
+8+6 is the whole tree
+every node but the file has one parent
+the walk names each node once
