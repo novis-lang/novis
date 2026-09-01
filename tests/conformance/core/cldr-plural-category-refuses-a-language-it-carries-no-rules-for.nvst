@@ -1,0 +1,34 @@
+--TEST--
+`Core\Cldr::pluralCategory` refuses a language whose rules it does not carry, rather than answering another language's — ADR 0082 § 2, ADR 0095
+--FILE--
+<?nvs
+// ADR 0095: ambiguous input is refused, never repaired. The cheaper design
+// here answers English's `one`/`other` for anything it does not recognize,
+// and it is wrong in the direction that hides: a Russian catalog written
+// against those two forms reads correctly for 1 and wrongly for 2, 5 and 11
+// alike. The refusal names the subtag, so the gap arrives as a message.
+try {
+    Core\Cldr::pluralCategory(2, "tlh");
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// A tag carrying no language subtag is the same refusal and not a silent
+// `other`.
+try {
+    Core\Cldr::pluralCategory(2, "-GB");
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The refusal is about the roster and not about the member: a language the
+// table does carry still answers, and answers its own rules.
+echo "pl 2: ", Core\Cldr::pluralCategory(2, "pl") == Core\Cldr\PluralCategory::Few ? "few" : "other", "\n";
+echo "pl 5: ", Core\Cldr::pluralCategory(5, "pl") == Core\Cldr\PluralCategory::Many ? "many" : "other", "\n";
+--EXPECT--
+Core\Cldr::pluralCategory carries no plural rules for the language `tlh`: a language is never given another one's rules, because a catalog written against the wrong forms reads correctly for one count and wrongly for the rest
+Core\Cldr::pluralCategory read no language subtag from the locale `-GB`: a tag begins with letters
+pl 2: few
+pl 5: many

@@ -1,0 +1,52 @@
+--TEST--
+`Core\Cldr\PluralCategory`'s six cases are all reachable, and Welsh is the language that uses every one of them — ADR 0082 § 2, ADR 0010 § 1
+--FILE--
+<?nvs
+// The six case names are CLDR's labels for a language's forms, not amounts:
+// `Many` is not "a lot". Welsh is the clearest statement of that — it marks
+// 0, 1, 2, 3 and 6 each with its own form and everything else with `other`,
+// so one language reaches all six cases the enum declares.
+class Form {
+    public static function of(int $count): string {
+        return match (Core\Cldr::pluralCategory($count, "cy")) {
+            Core\Cldr\PluralCategory::Zero => "zero",
+            Core\Cldr\PluralCategory::One => "one",
+            Core\Cldr\PluralCategory::Two => "two",
+            Core\Cldr\PluralCategory::Few => "few",
+            Core\Cldr\PluralCategory::Many => "many",
+            Core\Cldr\PluralCategory::Other => "other",
+        };
+    }
+}
+
+array<int> $shown = [0, 1, 2, 3, 6, 4];
+foreach ($shown as int $count) {
+    echo $count, " => ", Form::of($count), "\n";
+}
+
+// Counted rather than read off those lines: six distinct forms over one
+// language, which is what makes the enum six cases wide rather than the two
+// English needs.
+array<bool> $seen = [];
+foreach ($shown as int $count) {
+    $seen[Form::of($count)] = true;
+}
+echo "distinct: ", Core\Arr::count($seen), "\n";
+
+// A language with no plural distinction at all reaches exactly one of the
+// six, and it is the one every language has.
+array<bool> $japanese = [];
+array<int> $wide = [0, 1, 2, 3, 6, 100];
+foreach ($wide as int $count) {
+    $japanese[Core\Cldr::pluralCategory($count, "ja") == Core\Cldr\PluralCategory::Other ? "other" : "else"] = true;
+}
+echo "ja distinct: ", Core\Arr::count($japanese), "\n";
+--EXPECT--
+0 => zero
+1 => one
+2 => two
+3 => few
+6 => many
+4 => other
+distinct: 6
+ja distinct: 1

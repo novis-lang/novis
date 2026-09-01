@@ -1,0 +1,50 @@
+--TEST--
+`Core\Cldr::pluralCategory` answers from the language's own rules, so English and Russian disagree on four counts in five — ADR 0082 § 2, ADR 0063 R1
+--FILE--
+<?nvs
+// ADR 0082 § 2 puts this member in `Core` so `Web\I18n` picks a plural form
+// from CLDR's rules rather than shipping a second copy of them. This case is
+// why the rules cannot be replaced by `== 1`: over the same five counts,
+// English draws one line and Russian draws three.
+class Form {
+    public static function of(int $count, string $locale): string {
+        return match (Core\Cldr::pluralCategory($count, $locale)) {
+            Core\Cldr\PluralCategory::Zero => "zero",
+            Core\Cldr\PluralCategory::One => "one",
+            Core\Cldr\PluralCategory::Two => "two",
+            Core\Cldr\PluralCategory::Few => "few",
+            Core\Cldr\PluralCategory::Many => "many",
+            Core\Cldr\PluralCategory::Other => "other",
+        };
+    }
+}
+
+array<int> $counts = [1, 2, 5, 11, 21];
+foreach ($counts as int $count) {
+    echo $count, ": en=", Form::of($count, "en"), " ru=", Form::of($count, "ru"), "\n";
+}
+
+// Counted rather than read off the lines above: a member that answered
+// English's rules for every language would still print plausible Russian.
+int $differ = 0;
+foreach ($counts as int $count) {
+    if (Form::of($count, "en") != Form::of($count, "ru")) {
+        $differ = $differ + 1;
+    }
+}
+echo "differ: ", $differ, "\n";
+
+// ADR 0063 R1's argument order: the count is what is classified and the
+// locale is the rule it is classified under. Only the language subtag of the
+// tag is read, so a region and a script change nothing.
+echo "en-GB: ", Form::of(2, "en-GB"), "\n";
+echo "ru_RU: ", Form::of(2, "ru_RU"), "\n";
+--EXPECT--
+1: en=one ru=one
+2: en=other ru=few
+5: en=other ru=many
+11: en=other ru=many
+21: en=other ru=one
+differ: 4
+en-GB: other
+ru_RU: few

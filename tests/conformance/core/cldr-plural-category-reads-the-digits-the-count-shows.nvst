@@ -1,0 +1,63 @@
+--TEST--
+`Core\Cldr::pluralCategory` reads CLDR's operands from the digits the count shows, and refuses the two counts that show none it can read — ADR 0082 § 2, ADR 0054 § 3
+--FILE--
+<?nvs
+// CLDR's `v` and `f` operands are the fraction digits a reader *sees*, so
+// English's singular is `i = 1 and v = 0` and `1.0` is not it. A `decimal`
+// carries its scale (ADR 0054) and answers that distinction exactly; an `int`
+// has no fraction at all; a `float` is read at the digits it prints, which is
+// what `echo` writes for the same value.
+class Form {
+    public static function of(int|float|decimal $count, string $locale): string {
+        return match (Core\Cldr::pluralCategory($count, $locale)) {
+            Core\Cldr\PluralCategory::Zero => "zero",
+            Core\Cldr\PluralCategory::One => "one",
+            Core\Cldr\PluralCategory::Two => "two",
+            Core\Cldr\PluralCategory::Few => "few",
+            Core\Cldr\PluralCategory::Many => "many",
+            Core\Cldr\PluralCategory::Other => "other",
+        };
+    }
+}
+
+decimal $scaled = 1.0;
+decimal $whole = 1;
+echo "int 1: ", Form::of(1, "en"), "\n";
+echo "float 1.0: ", Form::of(1.0 as float, "en"), "\n";
+echo "decimal 1: ", Form::of($whole, "en"), "\n";
+echo "decimal 1.0: ", Form::of($scaled, "en"), "\n";
+
+// Czech reads the same fact from the other side: any visible fraction at all
+// is `many` there, whatever the integer part is.
+decimal $half = 1.5;
+echo "cs 1: ", Form::of($whole, "cs"), "\n";
+echo "cs 1.5: ", Form::of($half, "cs"), "\n";
+
+// The two bounds, named on the side that is refused. A count that is not
+// finite has no digits to read, and one whose digits outrun the operands
+// cannot be evaluated over them — both throw rather than answering `other`,
+// which is the answer a caller would have gone on to branch on.
+float $vast = 1.0e300;
+try {
+    Form::of($vast * $vast, "en");
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+// One past `u128`, which is where the integer part stops fitting.
+float $wide = 1.0e39;
+try {
+    Form::of($wide, "en");
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+int 1: one
+float 1.0: one
+decimal 1: one
+decimal 1.0: other
+cs 1: one
+cs 1.5: many
+Core\Cldr::pluralCategory has no category for the count `inf`: it is not a finite number
+Core\Cldr::pluralCategory cannot classify the count `1000000000000000000000000000000000000000`: it prints more digits than the plural rules are evaluated over
