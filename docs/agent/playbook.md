@@ -4183,6 +4183,14 @@ is why" — is this file.
   substituted band is wider than CR and LF, and `Core\Json::encode` writes DEL (0x7f) bare because JSON
   requires an escape only below 0x20, so a sweep over an encoder's own output prints `␡` on the Novis
   side against PHP's raw byte and fails on a row that has nothing to do with the encoder.
+- **`Core\Csv::format` takes no `escape` knob, and the module doc's dialect section reads as though
+  it does.** `csv.rs`'s *The dialect: three bytes, and each one is the caller's* names
+  `{separator?, quote?, escape?}` as "the three knobs every real CSV dialect turns", which is the
+  **reader's** set: `FORMAT_OPTIONS` (`csv.rs:292`) is `separator`, `quote` and `header`, and the
+  writer's only spelling of an inner quote is doubling. A case planning to turn `{escape:}` on the
+  writer against `fputcsv`'s fifth argument therefore has nothing to turn — what it can measure is
+  that PHP's `""` dialect is the one this writer has, so a backslash is an ordinary field byte on
+  both sides. The `{escape:}` reading recorded as a gap elsewhere in this file is the reader's alone.
 
 ## Splitting a file that got too big
 

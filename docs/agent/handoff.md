@@ -2,54 +2,63 @@
 
 ## State
 
-**Goal 4, M8.** The driver's failing acceptance check is the last gate the goal has open:
+**Goal 4, M8.** The driver's one failing acceptance check is still the last gate the goal has open:
 `differential`'s `min_passing = 250` (`docs/agent/loop-goal.toml:2630`). It is **not a regression** —
-nothing fails, the count is the item, and the work is writing cases.
+nothing fails, the count is the item.
 
-**The suite is now 238 passing, 0 failing — 12 short.** This session took the previous group's first
-two slices: `Core\Json::encode` against `json_encode` (four files) and `Core\Path`'s lexical
-decomposition against `pathinfo` (three). Four of the seven are `--ORACLE-DIVERGES--` findings the
-sweeps turned up rather than predicted, each now pinned in its own file: `json_encode` on PHP 8.5
-drops a whole-numbered float's point (`1.0` is `1`) and keeps a mantissa fraction under an exponent
-(`1.0e+100` against `1e+100`); `/`-escaping and `JSON_PRETTY_PRINT`'s four-space indent have no Novis
-spelling at all, against two bare spaces; `pathinfo` reads a dotfile's whole name and a trailing dot's
-empty string as extensions; and `dirname('')` is `.` here against PHP's `''`.
+**The suite is now 246 passing, 0 failing — 4 short.** This session took all four slices of the
+previous group, two cases each. `Core\Uri::resolve` is measured against RFC 3986 § 5.2's transform
+written out in PHP over the RFC's own Appendix B splitter, and § 5.3's verbatim recomposition is
+asked beside `compareTo`'s normal form so that which member normalizes is one question with one
+answer. `Core\Task::afterResponse`'s twin is **`register_shutdown_function`, not
+`fastcgi_finish_request`** — the member with the name takes no closure and exists under no SAPI a
+case can run.
 
-`python tools/gaps.py`'s *differential gap* list still holds one member with a PHP twin and no oracle
-file at all — `Core\Task::afterResponse` against `fastcgi_finish_request` — and it is the last slice
-of the group below.
+Three of the eight are `--ORACLE-DIVERGES--` findings: `Core\Validate::isPrintable` asks Unicode's
+`Cc` question where `ctype_print` asks the C locale's byte question, so `café`, a non-breaking space
+and a bidi override are printable here and the empty string is too; `Core\Csv::format` quotes the
+four bytes that change a parse where `fputcsv` also quotes a space and a tab; and the deferred queue
+is sealed by its own drain where PHP's shutdown list may be appended to while it runs.
+
+**`python tools/gaps.py`'s *differential gap* list is now empty** — every member with a PHP twin has
+an oracle case. The remaining four are therefore **depth**: a second question of a pair that already
+has one, and the group below is the class where that is cheapest.
 
 ## Next group
 
-**All four slices are new files under `tests/differential/core/`**, sharing the same two reads apiece:
-the spec section holding the member's *Replaces* column, and its owning `nvs-stdlib` module for the
-option names. `--ORACLE--`, never `--EXPECT--`, and never in `tests/conformance/`
-(`docs/agent/conventions.md`). Write the whole sweep as one oracle case and run it with
-`target/debug/nvs.exe test <file>` — the runner prints both sides aligned and tells you which rows are
-a divergence case instead.
+**All four are new files under `tests/differential/core/`**, sharing one module —
+`crates/nvs-stdlib/src/hash.rs` — and spec § 11's first table. Every twin here is exact and
+deterministic, so each is an `--ORACLE--` case with nothing to freeze by hand. Run one with
+`target/debug/nvs.exe test <file>`; the runner prints both sides aligned, which is also how a
+divergence is found rather than predicted.
 
-- [ ] **`Core\Uri::resolve` and `$uri->compareTo` against the hand-written PHP** (~2 cases). Neither
-      has a `parse_url` twin, so the oracle is RFC 3986 § 5.3's merge written out in PHP beside the
-      normalization `uri-compare-to-matches-a-hand-written-rfc-3986-normalization` already uses.
-      `crates/nvs-stdlib/src/uri.rs:2076`, `crates/nvs-stdlib/src/uri.rs:2155`.
-- [ ] **`Core\Validate::isAscii` and `::isPrintable` against `ctype_print` and a byte-band probe**
-      (~2 cases). § 12's prose roster; the band each accepts is the case, asserted on both sides of
-      its bound. `crates/nvs-stdlib/src/validate.rs:586`,
-      `crates/nvs-stdlib/src/validate.rs:601`.
-- [ ] **`Core\Csv::format`'s quoting against `fputcsv`** (~2 cases). The landed
-      `csv-format-writes-the-records-fputcsv-writes` asks the ordinary rows; what is untouched is
-      which fields get quoted — leading and trailing whitespace, a bare quote, an embedded newline,
-      the empty field. `crates/nvs-stdlib/src/csv.rs:558`.
-- [ ] **`Core\Task::afterResponse` against `fastcgi_finish_request`** (~2 cases). The one member
-      `gaps.py` still lists with a PHP twin and no oracle file; the ordering of the hook against the
-      response is the claim, and ADR 0127 owns whether it runs before or after `onExit`.
-      `crates/nvs-stdlib/src/task.rs:561`.
+- [ ] **`Core\Hash::equals` against `hash_equals`** (~1 case). The one member of the class with no
+      oracle file: both are constant-time comparisons that answer `bool`, so the corpus is equal
+      digests, digests differing in the first byte and in the last, and two of different lengths.
+      `crates/nvs-stdlib/src/hash.rs:856`, `crates/nvs-stdlib/src/hash.rs:328`.
+- [ ] **`Core\Hash::hmac` over the key-length boundary against `hash_hmac`** (~1 case). The landed
+      `hash-hmac-matches-hash_hmac-over-every-strong-digest` sweeps the algorithms with one key;
+      what no case asks is RFC 2104's own boundary — a key shorter than the block size, one exactly
+      at it and one past it, where the key is hashed instead of padded (64 bytes for the SHA-2
+      family, 128 for SHA-512 and its truncations). `crates/nvs-stdlib/src/hash.rs:818`.
+- [ ] **`Core\Hash::of` over the empty subject and a multi-block one against `hash()`** (~1 case).
+      `hash-of-matches-the-hash-family` asks every algorithm one subject; the block boundary is
+      where a digest implementation's padding is, so the sweep is the empty string, one byte under
+      a block, exactly a block and one over, for every `Core\Hash\Algorithm` case.
+      `crates/nvs-stdlib/src/hash.rs:802`, `crates/nvs-stdlib/src/hash.rs:183`.
+- [ ] **`Core\Hash\Stream` fed one byte at a time agrees with a single `hash_update`** (~1 case).
+      Chunking invariance: the landed stream case feeds two chunks, and what matters is that *no*
+      chunking changes the digest — one byte at a time, one whole subject, and an empty `update`
+      between two real ones. `crates/nvs-stdlib/src/hash.rs:928`,
+      `crates/nvs-stdlib/src/hash.rs:450`.
 
 ## Backlog
 
-- `Core\Json::decodeAs`'s issue paths have no differential twin — ADR 0071 § 5 owns the shape.
-- `Core\Path::relativeTo` and `::join` have no PHP twin at all; a hand-written oracle is the shape.
-- `Core\Uri::query` round-trips are pinned but its `resolve` of a scheme-relative reference is not.
-- Spec § 9's collections still have the least differential depth per member — `docs/spec/01-core-library.md`.
-- `Core\Encoding`'s error paths are pinned; its `isValidText` band over the C1 range is not.
-- ADR 0129's bcrypt roster has conformance cases and no differential one against `password_verify`.
+- `Core\Env`, `Core\Random` and `Core\Uuid` have PHP twins that `gaps.py` does not count (no
+  deterministic expectation); a differential case for `Core\Env::get` against `getenv` would need
+  the runner to set an environment — docs/agent/commands.md owns whether it can.
+- `[context] modules` in `docs/agent/loop-goal.toml` carries no `nvs-runtime/src/deferred.rs`
+  pattern; the `afterResponse` slice needed its sealing rule. Add it if a `Core\Task` slice returns.
+- `Core\IO\Metadata` is the thinnest class at 1 case per member (`python tools/gaps.py`), which is a
+  conformance gap rather than a differential one — spec § 14 owns the roster.
+- The conformance suite stands at 1380 and its gate is met; nothing there is blocking.
