@@ -167,6 +167,18 @@ per-property `set` hook, recorded on `nvs_runtime::write_erased_property` and in
 `crates/nvs-stdlib/src/reflect.rs`' *Known gaps* — is owned there and closes for all of its callers at
 once, rather than being answered a second way here.
 
+**In the IR that is one instruction per direction and not a chain**, which is the choice this paragraph
+exists to record. A key is a name, so what the access needs is the by-name search on the receiver's
+concrete descriptor that the erased access already does in one call: `nvs_ir`'s `InstKind::KeyGet` and
+`InstKind::KeySet` are `SlotGet`/`SlotSet` with the name arriving as a value, over
+`nvs_runtime::nvs_object_key_get` and `::nvs_object_key_set`. The alternative was a closed-set chain over
+the roster the conversion already tests — one equality test and one ordinary resolved read per public
+property, joined by a `Phi` — which needs no new instruction and no codegen arm, and spends a comparison
+and a basic block *per property at every access* to reach the same slot. It would also have to tag each
+arm's read into the union's representation before the join, so the statically-typed read it looks like it
+buys is not one; and the hook behaviour it would incidentally fix is the erased path's gap above, which is
+closing for every caller at once rather than for this one caller early.
+
 **A write through a key is refused, at the write, where `T`'s public set holds a `readonly` property**,
 naming it, as `E0782` — the code an ordinary write to that property after construction already gets,
 because it is the same rule of [ADR 0038](0038-lateinit-property-modifier.md) § 1 being broken:

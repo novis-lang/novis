@@ -2,61 +2,59 @@
 
 ## State
 
-**ADR 0126's `property<T>` reaches `nvs-ir`, and § 2's three conversions run end to end.** A key is a
-name, so the type erases to `Ty::Str` (`crates/nvs-ir/src/lower/mod.rs`'s `erase_checked_ty` and
-`lower_decl_type`) and a parameter, a return and a local hold one for nothing. `property<T> as
-string` is the free `from == to` row; the two rows *into* a key are the membership chain
-`lower_literal_membership` already emits, under `as ?property<T>` too — the roster travels from the
-checker as `ExprInfo::PropertyKey`, keyed by the annotation's span, because `nvs-ir` has no class
-table to re-derive it from. A written-out operand still reaches no chain: § 2 decides it where it is
-written.
+**ADR 0126 is lowered end to end: `$obj->$key` reads and writes the field it names.** § 5's choice is
+recorded in the ADR body and in `nvs-ir`'s known gap 21 — one instruction per direction rather than a
+closed-set chain over the roster. `crates/nvs-types/src/expr/members.rs`'s `check_keyed_property` now
+records `ExprInfo::KeyedProperty { class, ty }` at the access span, carrying § 5's union;
+`crates/nvs-ir/src/lower/expr.rs` and `lower/stmt.rs` lower it to `InstKind::KeyGet`/`KeySet`, which
+`nvs-codegen` hands to the new `nvs_runtime::nvs_object_key_get`/`::nvs_object_key_set` — ADR 0036 § 4's
+erased access with the name arriving as a `Value` by address instead of as a static byte range. The
+erased *read* is now `read_erased_property_hinted`, factored out of `nvs_object_slot_get` so the two
+callers share one lookup, mirroring what `write_erased_property` already was.
 
-**What this opens is the one thing still missing: `$obj->$key` does not lower.** It now *panics*
-where before no program could reach it — the type did not lower, so nothing could hold a key. The
-catch-all is `crates/nvs-ir/src/lower/expr.rs:3670`; it is `nvs-ir`'s known gap 21, which carries
-what closing it needs, and `check_property_member`'s doc comment says the proof it used to carry is
-owed rather than held. The panel's message deliberately does not name the gap: `nvs-ir`'s
-`tests/refusals.rs` ceiling is a one-way ratchet over messages claiming one, so the claim lands in
-the slice that removes the site. That slice is the next group's first.
+**`lower_property_access`'s catch-all is a consistency claim again**, not a lowering still owed:
+`check_property_member`'s doc comment holds its proof rather than owing it, and the entry is recorded even
+where `T` declares no public property, since "unreachable at run time" is not "never lowered".
 
-Owed on the item beyond that: § 5's write half, and the empty-set half of `E0799` (siting still
-undecided — the playbook bullet a previous session left says why the obvious home cannot work).
+**The stage-8 acceptance check is closed**: all three `.nvst` cases it names are written and green.
+
+Owed on item 35: § 5's `E0782` refusal for a write through a key whose set holds a `readonly` property,
+and the empty-set half of `E0799` (siting still undecided — the playbook bullet a previous session left
+says why the obvious home cannot work). The keyed access inherits ADR 0036 § 4's own gap, hooks bypassed
+on both directions; that is recorded on `nvs_object_key_get` and closes for every caller at once.
 
 ## Next group
 
-**The keyed access, both directions, over `crates/nvs-types/src/expr/members.rs`,
-`crates/nvs-types/src/expr_table.rs` and `crates/nvs-ir/src/lower/expr.rs`.**
+**§ 5's two remaining refusals plus the erased path's hook gap, over
+`crates/nvs-types/src/expr/assign.rs`, `crates/nvs-types/src/expr/members.rs` and
+`crates/nvs-runtime/src/object.rs`.**
 
-- [ ] **The read lowers** — ADR 0126 § 5's union. `check_keyed_property` returns § 5's union today
-      and records nothing (`crates/nvs-types/src/expr/members.rs:633`), so the access reaches
-      `lower_property_access`'s catch-all at `crates/nvs-ir/src/lower/expr.rs:3670` and panics. It
-      wants the dynamic-name counterpart of `ExprInfo::Property`
-      (`crates/nvs-types/src/expr_table.rs:444`) — the bounding class and the union, with the name
-      arriving as a value. **ADR 0036 § 4's erased read is not reusable as it stands**:
-      `crates/nvs-ir/src/ir.rs:734`'s `SlotGet` carries the name as a `String` and
-      `crates/nvs-codegen/src/emit.rs:2437` hands the runtime a constant byte range, so this is
-      either a new instruction taking a `ValueId` name or a closed-set chain over the same roster
-      the conversion tests. `nvs-ir`'s known gap 21 weighs the two; the choice is § 5's to record.
-      Closing this is also what lets the panic say so — the refusal ceiling forbids the claim
-      before the site is gone.
-- [ ] **The write half** — ADR 0126 § 5's checked erased store, at
-      `crates/nvs-runtime/src/object.rs:2445`'s `write_erased_property`, which is the landing point
-      and closes for all of its callers at once. The store's own arm is `lower_store`'s
-      `PropertyAccess`; `E0782` at the write where `T`'s public set holds a `readonly` property is
-      the checker's, beside `crates/nvs-types/src/expr/members.rs:633`.
-- [ ] **The case the acceptance check names** —
-      `tests/conformance/class/a-property-key-reads-and-writes-the-field-it-names.nvst`, which the
-      two slices above make writable. The conversion half is already pinned by
-      `tests/conformance/class/a-property-key-is-checked-where-the-name-arrives.nvst:1`, which is
-      the shape to follow; the arm it cannot reach yet is
-      `crates/nvs-ir/src/lower/expr.rs:3670`.
+- [ ] **`E0782` through a key** — ADR 0126 § 5's last paragraph: a write through a `property<T>` whose
+      public set holds a `readonly` property is refused at the write, naming it. The code and the
+      headline are already `crates/nvs-types/src/expr/assign.rs:648`'s
+      `E_READONLY_WRITE_AFTER_CONSTRUCTION`; what is new is that the check must run over the *set*
+      rather than over one resolved property, and it has to know the access is a write —
+      `check_keyed_property` at `crates/nvs-types/src/expr/members.rs:594` is only told `is_unset`
+      today, so the write flag threads the same way `access_span` just did
+      (`crates/nvs-types/src/expr/members.rs:868`, `crates/nvs-types/src/expr/mod.rs:428`). The § 5
+      console block is the exact wording.
+- [ ] **The empty-set half of `E0799`** — ADR 0126 § 1 refuses a written `property<T>` whose `T`
+      declares no public property at all. `check_keyed_property` already answers `mixed` and records
+      an entry for that case (`crates/nvs-types/src/expr/members.rs:640`), so the refusal is owed at
+      the *annotation* rather than here; the E07xx band is FULL at `E0799`, which is what the previous
+      session's playbook bullet says makes the obvious home unworkable. Decide the siting and record
+      it in § 1.
+- [ ] **The hooked-property gap on the erased path** — ADR 0036 § 4's own, at
+      `crates/nvs-runtime/src/object.rs:2510` (the read) and
+      `crates/nvs-runtime/src/object.rs:2586` (the write): both reach the slot past a per-property
+      hook (ADR 0014 § 1). Now that three callers share them — § 4's own access,
+      `Core\Reflect\ClassInfo::get`/`set` and ADR 0126's key — closing it once closes it everywhere.
+      `ClassDesc` carries no hook table today, which is the cost to weigh.
 
 ## Backlog
 
-- The empty-set half of `E0799` — ADR 0126 § 1, `crates/nvs-types/src/lower.rs:210`.
-- `Core\Cli::displayWidth` — docs/plan/m8.md, stage 3.
-- `Core\IO\File::truncate` and `::lock` — docs/plan/m8.md, stage 2.
-- Reading `[log] target` — ADR 0020 § 6, stage 7.
-- `lower_class_reference`'s message names the bound, not the name that failed —
-  `crates/nvs-ir/src/lower/convert.rs`'s own *Known gaps*. `property<T>`'s throw does name both, so
-  the two siblings now disagree.
+- Stage 7: reading `[log] target` — `docs/plan/m8.md`.
+- Stage 2: `Core\IO\File::truncate` and `::lock` — `docs/spec/01-core-library.md` § 13.
+- Stage 3: `Core\Cli::displayWidth` — ADR 0086 § 1.
+- ADR 0014 § 3's `onPropertyGet` never fires on an erased or keyed read — decide whether that is a gap
+  or the rule, in ADR 0036 § 4.
