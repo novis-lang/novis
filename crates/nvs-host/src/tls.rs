@@ -48,7 +48,7 @@
 //! [`NvsTls::set_deadline`]. One clock, on the thing that waits, rather than a
 //! second budget this layer would have to keep agreeing with.
 //!
-//! # The trust anchors are compiled in, and an operator adds to them
+//! # The trust anchors are compiled in, and an operator may name their own
 //!
 //! Novis trusts **Mozilla's CA set, carried in the binary** (`webpki-roots`),
 //! and not the host's own certificate store. Three reasons, in this project's
@@ -73,12 +73,15 @@
 //! What this gives up is the private CA — an internal PKI, or a corporate
 //! inspection proxy — and that is deliberately left to the **operator**, whose
 //! decision it is, in the file that already holds every other one
-//! ([ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)). A
-//! configured anchor bundle is an `nvs.toml` slice that has not landed;
-//! [`upgraded`] is already the seam it plugs into. What is closed permanently
-//! is a *program* choosing anchors, or turning verification off: neither has a
-//! spelling here, and the whole point of ADR 0058's pinned outbound door is
-//! that a script does not get to widen a decision the deployment made.
+//! ([ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)),
+//! who names a PEM bundle in `nvs.toml` and gets [`NvsTls::over_bundle`]
+//! against exactly it. The bundle **replaces** the compiled-in set for the
+//! endpoint that names it rather than adding to it — [`anchors_from`] argues
+//! that, and it is the reading every other client an operator has configured
+//! already has. What is closed permanently is a *program* choosing anchors, or
+//! turning verification off: neither has a spelling here, and the whole point
+//! of ADR 0058's pinned outbound door is that a script does not get to widen a
+//! decision the deployment made.
 //!
 //! What that spends, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
 //! one parsed root store and one `ClientConfig` for the whole **process**, built
@@ -108,12 +111,15 @@
 //! failures actually live — state machine, record framing, certificate path
 //! building, name verification — is `rustls` and `rustls-webpki`, pure Rust.
 
+use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
-use std::sync::{Arc, OnceLock};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use rustls::pki_types::ServerName;
+use rustls::pki_types::pem::PemObject;
+use rustls::pki_types::{CertificateDer, ServerName};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 
 use crate::net::NvsTcp;
@@ -174,6 +180,23 @@ impl<T: Read + Write> NvsTls<T> {
     pub fn over(stream: T, name: &str) -> io::Result<Self> {
         upgraded(stream, name, anchors())
     }
+
+    /// [`over`](Self::over), against the anchors an operator named instead of
+    /// the compiled-in set.
+    ///
+    /// `bundle` is a PEM file of certificates, already resolved and
+    /// trust-checked by whoever read the configuration — this function opens
+    /// the path it is given and asks no questions about where it came from,
+    /// which is what keeps ADR 0118 § 1's door on the config reader rather than
+    /// here. `nvs_config::db` is that reader today.
+    ///
+    /// # Errors
+    ///
+    /// [`over`](Self::over)'s, plus `NotFound`/`InvalidData` for a bundle that
+    /// cannot be opened or holds no certificate.
+    pub fn over_bundle(stream: T, name: &str, bundle: &Path) -> io::Result<Self> {
+        upgraded(stream, name, anchors_from(bundle)?)
+    }
 }
 
 /// The methods that are the socket's rather than the session's.
@@ -231,9 +254,12 @@ impl<T: Read + Write> Write for NvsTls<T> {
 /// The one seam a configured anchor bundle plugs into: a handshake against a
 /// caller-supplied configuration rather than the compiled-in one.
 ///
-/// Private, and it stays private until an operator can name a bundle in
-/// `nvs.toml` — this module's docs § *The trust anchors are compiled in* is why
-/// a program may never reach it.
+/// Private, and it stays private now that an operator *can* name a bundle:
+/// [`NvsTls::over_bundle`] is that door and it takes a path, so the only two
+/// configurations this module will build are the compiled-in set and a file
+/// `nvs_config` resolved. A caller handing in its own `ClientConfig` is a
+/// program choosing anchors, which this module's docs § *The trust anchors are
+/// compiled in* closes permanently.
 fn upgraded<T: Read + Write>(
     stream: T,
     name: &str,
@@ -274,6 +300,71 @@ fn anchors() -> Arc<ClientConfig> {
         roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         Arc::new(config_over(roots))
     }))
+}
+
+/// The client configuration for one operator-named PEM bundle, built on first
+/// use of that path.
+///
+/// **The bundle replaces the compiled-in set for the connection that names it
+/// and does not add to it.** That is `sslrootcert`'s meaning on libpq and
+/// `ssl-ca`'s on MySQL, so it is what an operator writing the key already
+/// expects; and it is the stricter of the two readings, which decides it under
+/// priority 1. A server behind a private CA is precisely the deployment where
+/// one of ~150 public CAs still being able to vouch for its name is the attack
+/// the bundle was written to prevent. An operator who wants both writes both
+/// into the file.
+///
+/// Cached per path for [`anchors`]'s reason and with its bound: a connection
+/// pool re-opens against the same `[db.<name>]` block for the life of the
+/// process, and re-parsing a bundle per handshake would be priority 3 spent on
+/// a constant. The map is O(distinct bundles the configuration names), which is
+/// O(1) in requests served — a path is only ever inserted from a value
+/// `nvs_config` resolved at boot.
+fn anchors_from(path: &Path) -> io::Result<Arc<ClientConfig>> {
+    static BUNDLES: OnceLock<Mutex<HashMap<PathBuf, Arc<ClientConfig>>>> = OnceLock::new();
+    let cache = BUNDLES.get_or_init(|| Mutex::new(HashMap::new()));
+
+    if let Some(hit) = cache
+        .lock()
+        .expect("the anchor bundle cache was poisoned")
+        .get(path)
+    {
+        return Ok(Arc::clone(hit));
+    }
+
+    // `pem_file_iter` folds "the file is not there" and "the file is not a
+    // bundle" into one error type, and those are the two an operator acts on
+    // differently. Opening it here keeps them apart: past this line every
+    // refusal is `InvalidData` and is about the content.
+    drop(std::fs::File::open(path)?);
+
+    // A file that holds no certificate — empty, or a PEM of something else —
+    // would otherwise verify nothing at all, and the handshake would fail with
+    // an unknown issuer: a message that sends an operator looking at the server
+    // rather than at the bundle they wrote. So a parse error and an empty
+    // result are the same refusal, and both name the file.
+    let refused = |why: &dyn std::fmt::Display| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("`{}` names no trust anchor: {why}", path.display()),
+        )
+    };
+    let mut roots = RootCertStore::empty();
+    for cert in CertificateDer::pem_file_iter(path).map_err(|err| refused(&err))? {
+        roots
+            .add(cert.map_err(|err| refused(&err))?)
+            .map_err(|err| refused(&err))?;
+    }
+    if roots.is_empty() {
+        return Err(refused(&"it holds no certificate"));
+    }
+
+    let config = Arc::new(config_over(roots));
+    cache
+        .lock()
+        .expect("the anchor bundle cache was poisoned")
+        .insert(path.to_path_buf(), Arc::clone(&config));
+    Ok(config)
 }
 
 /// A client configuration over `roots`, on the one provider this build has.
@@ -327,6 +418,55 @@ mod tests {
             .add(cert.clone())
             .expect("the root store refused the certificate");
         (cert, key, Arc::new(config_over(roots)))
+    }
+
+    /// A path under the system temporary directory, named for its case.
+    ///
+    /// No `tempfile` dependency for two files: what these cases need is a name
+    /// nothing else writes, and the case's own is that.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("nvs-anchors-{name}.pem"))
+    }
+
+    /// One bundle is parsed once however many sessions name it.
+    ///
+    /// The memoization [`anchors_from`] promises, asserted by identity rather
+    /// than by equality: `ClientConfig` has no `PartialEq`, and a second parse
+    /// producing an equal configuration would be exactly the cost the cache
+    /// exists to avoid.
+    #[test]
+    fn an_anchor_bundle_is_parsed_once_per_path() {
+        let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+            .expect("the certificate could not be generated");
+        let path = scratch("parsed-once");
+        std::fs::write(&path, issued.cert.pem()).expect("the bundle could not be written");
+
+        let first = anchors_from(&path).expect("the bundle was refused");
+        let second = anchors_from(&path).expect("the bundle was refused on the second call");
+        assert!(
+            Arc::ptr_eq(&first, &second),
+            "the bundle was parsed a second time for the same path"
+        );
+        std::fs::remove_file(&path).ok();
+    }
+
+    /// A bundle holding no certificate is refused where it is read.
+    ///
+    /// The alternative is an empty root store and a handshake that fails with
+    /// an unknown issuer, which sends an operator to look at the server rather
+    /// than at the file they wrote.
+    #[test]
+    fn an_anchor_bundle_with_no_certificate_is_refused_rather_than_trusted_empty() {
+        let path = scratch("no-certificate");
+        std::fs::write(&path, "# not a certificate\n").expect("the bundle could not be written");
+
+        let refused = anchors_from(&path).expect_err("an empty bundle built a configuration");
+        assert_eq!(
+            refused.kind(),
+            io::ErrorKind::InvalidData,
+            "the refusal was {refused} rather than one about the file's content"
+        );
+        std::fs::remove_file(&path).ok();
     }
 
     /// A TLS server on loopback that answers `pong\n` to whatever it is told,

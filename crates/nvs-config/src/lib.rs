@@ -58,6 +58,7 @@
 pub mod app;
 pub mod cache;
 pub mod capability;
+pub mod db;
 pub mod directive;
 pub mod file;
 pub mod http;

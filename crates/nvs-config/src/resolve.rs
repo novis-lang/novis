@@ -298,6 +298,10 @@ pub fn resolve(
     let materialized = crate::secret::materialize(&mut resolved.config, &origins, files)?;
     resolved.warnings = materialized.warnings;
     resolved.secrets = materialized.secrets;
+    // ADR 0067 § 3's trust anchors, beside § 7's secrets and for the same reason: a `_file` on a
+    // `[db]` block is resolved against the file that wrote it, and only the merge knows which of
+    // them won.
+    crate::db::canonicalize(&mut resolved.config, &origins, files)?;
     // ADR 0104 § 1's keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
     // so the roster only exists once the merge is done.
     crate::app::canonicalize(&mut resolved.config, &origins, files)?;

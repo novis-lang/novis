@@ -529,6 +529,19 @@ pub struct Database {
     pub password_file: Option<String>,
     /// The database name.
     pub database: Option<String>,
+    /// The PEM file of trust anchors this server's certificate is verified against, resolved
+    /// against the directory of the file it is written in (ADR 0103 § 5).
+    ///
+    /// **Written, it replaces the compiled-in Mozilla set for this block and does not add to it** —
+    /// `nvs_host::tls`'s module doc owns why, and it is `sslrootcert`'s meaning on every other
+    /// client an operator has used. A server behind a private CA is exactly the case where a public
+    /// CA vouching for it is the attack.
+    ///
+    /// It is a trust-boundary file on the footing of [`Self::password_file`]: whoever can write it
+    /// chooses which server this connection may be talking to. So [`mod@crate::db`] resolves and
+    /// trust-checks it at boot rather than at connect time, and a bundle another account can write
+    /// is a boot refusal.
+    pub tls_ca_file: Option<String>,
     /// How many server-side prepared statements one connection keeps alive (ADR 0067 § 1).
     ///
     /// Unset is the driver's own default rather than a number written here, because the size that

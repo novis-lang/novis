@@ -137,6 +137,11 @@ webpki-roots = "1"
 rcgen = { version = "0.14", default-features = false, features = [
     "crypto",
     "ring",
+    # `Certificate::pem`, for the one test that writes a bundle to a file rather than handing a
+    # `CertificateDer` straight to a root store: `nvs_host::tls::anchors_from` reads PEM off disk
+    # because that is what an operator writes, and a test that skipped the encoding would be
+    # asserting against a path nothing runs.
+    "pem",
 ] }
 
 # --- extension sandbox (M9). Built on the same cranelift version above;
