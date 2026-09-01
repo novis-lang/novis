@@ -115,6 +115,7 @@ use std::borrow::Cow;
 use std::cell::Cell;
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
+use std::path::Path;
 use std::time::Instant;
 
 use bytes::BytesMut;
@@ -162,6 +163,16 @@ pub struct PgTarget<'a> {
     pub password: &'a str,
     /// The database to attach to.
     pub database: &'a str,
+    /// The PEM bundle whose anchors this server's certificate is verified
+    /// against, or the compiled-in Mozilla set where the block names none.
+    ///
+    /// [ADR 0067 § 3](../../../docs/adr/0067-core-db.md) has no spelling for
+    /// turning verification off and this is not one: what it changes is *whose*
+    /// certificates are believed, never whether they are checked. The path
+    /// arrives absolute and already inside ADR 0103 § 6's trust boundary —
+    /// `nvs_config::db` resolves it at boot — so the connect path opens it and
+    /// asks nothing further about it.
+    pub tls_ca_file: Option<&'a Path>,
     /// The zone a zone-less `TIMESTAMP` column is read in, as a whole number
     /// of seconds east of UTC.
     ///
@@ -413,6 +424,10 @@ impl<'a> PgTarget<'a> {
             user,
             password,
             database,
+            // Absolute and trust-checked by `nvs_config::db` before the block
+            // reached here, so there is nothing for this resolver to decide:
+            // written or not written is the whole of it.
+            tls_ca_file: block.tls_ca_file.as_deref().map(Path::new),
             time_zone,
             statement_cache: StatementCache::capacity_for(block),
         })
@@ -563,7 +578,8 @@ impl PgConn {
     ///
     /// `ConnectionRefused` when the server will not upgrade to TLS or offers no
     /// SASL mechanism this driver accepts, `InvalidData` for a message that is
-    /// not what the protocol allows at that point, `TimedOut` when the deadline
+    /// not what the protocol allows at that point — or for a `tls_ca_file` that
+    /// holds no certificate — `TimedOut` when the deadline
     /// passes, and whatever the socket or the TLS handshake itself reported. A
     /// refusal the *server* worded — a wrong password, a database that does not
     /// exist — carries its own `SQLSTATE` and message.
@@ -581,7 +597,11 @@ impl PgConn {
         tcp.set_deadline(deadline);
 
         request_tls(&mut tcp)?;
-        let mut wire = Wire::new(NvsTls::over(tcp, target.host)?);
+        let session = match target.tls_ca_file {
+            Some(bundle) => NvsTls::over_bundle(tcp, target.host, bundle)?,
+            None => NvsTls::over(tcp, target.host)?,
+        };
+        let mut wire = Wire::new(session);
         let cancel = authenticate(&mut wire, target)?;
 
         Ok(PgConn {
@@ -3448,6 +3468,9 @@ mod tests {
             user: "novis",
             password,
             database: "novis_test",
+            // These cases drive the exchange over a recorded peer rather than a
+            // socket, so no handshake runs and the anchors are never consulted.
+            tls_ca_file: None,
             // Deliberately not UTC: a zone this driver sends is visible in the
             // startup message only when it is not the default of every field
             // around it.
