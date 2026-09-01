@@ -3958,6 +3958,19 @@ is why" — is this file.
   `check($code, $secret, $step)` answering `null`, which is the successor step disagreeing in the one
   direction `$after` exposes. The step axis itself belongs in the module's own `#[cfg(test)] mod
   tests`, where the derivation takes the step as an argument.
+- **A bound that lands on a wall-clock *second* can be asserted on both sides without a fixed clock,
+  by waiting for the second rather than sleeping into it.** The bullet above is right that a `.nvst`
+  case has no clock to move, but it stops one step short: where the bound is a whole second — `exp`
+  in `Core\Jwt`, which RFC 7519 § 4.1.4 counts in seconds — two loops make both halves deterministic
+  instead of flaky. Spin on `Core\Time::now()->toEpochSeconds()` until it *changes* before signing,
+  so the token is minted at the start of its own second and the accepted half has a full second of
+  margin; then loop `while (... < $exp) { Core\Time::sleep(5ms); }` and assert the refusal at
+  `== $exp`, which names the first refused second exactly and survives an oversleep that a fixed
+  `sleep(1s)` would turn into a wrong number. The accepted half is then countable too — verify in a
+  50ms loop until the second turns and assert every reading verified, which is "the whole of its
+  lifetime" rather than one sample after signing.
+  `tests/conformance/core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst`
+  is the shape.
 
 ## Splitting a file that got too big
 

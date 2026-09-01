@@ -2,22 +2,27 @@
 
 ## State
 
-**All three `Core\Totp` slices landed**, and the class has left the 3.0 floor: `python tools/gaps.py`
-now reads `4.0 4 4 2 Core\Totp check 4, code 4`, and the floor is eight classes at 3.0 of which
-`Core\Jwt` is the next group. One `.nvst` case, one small refactor and two Rust tests.
+**All three `Core\Jwt` slices landed**, and the class has left the 3.0 floor: `python tools/gaps.py`
+no longer lists it, at 6 cases over 2 members. Three `.nvst` cases, no Rust change, no member change,
+so no new refcount edge and no valgrind run behind them.
 
-- **`check`'s decision is now `match_step(secret, code, now, after)`** — the same loop, the same
-  candidate skip and so the same constant time, lifted out of the helper
-  (`crates/nvs-stdlib/src/totp.rs:293`) so a test can ask *it* the question `code_at` answers. The
-  reason is in its own doc comment: the existing Rust test asserted the window by rebuilding
-  `((now - DRIFT)..=(now + DRIFT))` beside it, and a reconstruction agrees with itself by
-  construction. No behaviour change, no new refcount edge, so no valgrind run behind it.
-- **Slices 2 and 3 are one commit with two clauses**, because both are `#[test]`s in one file and git
-  cannot stage them apart. `git log` still reads a slice a clause.
-- **The `.nvst` case measures the function, not a draw**: 48 redraws microseconds apart, then one
-  `Core\Time::sleep` across a real wall-clock second — which is what sees a member reading the second
-  rather than the step — counted as the biconditional, because a step boundary lands inside that
-  second one run in thirty. The playbook bullet is the home of why.
+- **`sign` and `verify` agree over a sweep of claim shapes** — six bags signed and verified back,
+  counted twice (the caller's claims plus exactly the registered pair, and every claim identical):
+  an empty bag, a flat one, a claim whose value is itself JSON text, non-ASCII in both a name and a
+  value, the integer bounds with a padded number beside them, and a 2048-character claim reported by
+  length. `payload_of` escapes a name and a value through the same `quoted`, which is why a name is
+  in the sweep at all.
+- **The lifetime bound is named on both sides** — the last accepted second is `iat`, the first
+  refused one is `exp`, and they are adjacent because the minimum lifetime is one whole second. The
+  playbook bullet added this session is the home of how that is made deterministic without a fixed
+  clock; the case also pins the complement of `jwt-refuses-every-unverifiable-token-with-one-sentence`,
+  that the expiry refusal is the *one* failure allowed its own sentence.
+- **Twelve tokens over two keys and six claim widths are three unpadded base64url segments**, with a
+  non-vacuity line: at least one segment carries a byte standard base64 would spell `+` or `/`, so
+  the counts say the alphabet was exercised rather than merely not contradicted.
+
+**Nothing echoes a claim.** `verify` answers `array<tainted string>` (ADR 0060 § 5) and `echo` is a
+sink, so every assertion over a claim is a comparison or a `Core\Str::length`, which is neutral.
 
 **The two `orient.py` warnings are still there**: `[context] modules` patterns
 `crates/nvs-stdlib/src/fatal.rs` and `crates/nvs-stdlib/src/script.rs` are reported as matching no
@@ -30,34 +35,32 @@ goal and is not a regression.
 
 ## Next group
 
-**`Core\Jwt` is the floor's richest entry — ADR 0060 § 1's fourth roster entry, "the one whose
-historical failures are all failures of *choice*". The file set is `crates/nvs-stdlib/src/jwt.rs` and
-`tests/conformance/core/`; the two member bodies are seventy lines apart. Three cases already ask
-about it — the two bounds on a key and a lifetime, one sentence for every unverifiable token, and
-`exp`/`iat` written by `sign` itself — so read
-`jwt-refuses-every-unverifiable-token-with-one-sentence.nvst` first.**
+**`Core\Csrf` is ADR 0060 § 1's second roster entry and the floor's next security one — one of seven
+classes now sitting at 3.0. The file set is `crates/nvs-stdlib/src/csrf.rs` and
+`tests/conformance/core/`; the two member bodies are twenty lines apart. Three cases already ask
+about it — the binding to one session, every shape of session, and a signed cookie of the same
+session not being a token — so the shapes left are the ones about the token itself.**
 
-- [ ] **`sign` and `verify` agree over a sweep of claim shapes** — one question asked of both, counted:
-      every shape that signs verifies back to the same claims, over an empty bag, a nested one, one
-      carrying non-ASCII text, the integer bounds and a long string, so a serializer that reordered,
-      coerced or truncated fails by count while round-tripping one flat bag plausibly.
-      `crates/nvs-stdlib/src/jwt.rs:454` and `crates/nvs-stdlib/src/jwt.rs:524`.
-- [ ] **A token verifies for the whole of its lifetime and not one second past it** — the bound named
-      on both sides, which is reachable here because the minimum lifetime is one whole second: sign
-      with `1s`, verify, `Core\Time::sleep` past the expiry, verify again. A member that compared
-      `>=` where it means `>` prints plausibly against either half alone.
-      `crates/nvs-stdlib/src/jwt.rs:524`.
-- [ ] **Every token is three base64url segments with no padding and no `+` or `/`** — over a sweep of
-      keys and claim shapes, counted, because one encoding in four carries a character the URL
-      alphabet renames and a single token is silent about it. `crates/nvs-stdlib/src/jwt.rs:454`.
+- [ ] **Two tokens issued for the same session under the same key differ, and both verify** — the
+      seal is nonce-bearing, so `issue` is not a function of its arguments; counted over a sweep of
+      issues, so a member that went deterministic (and made a token a stable secret every response
+      reprints) fails by count while one round trip still looks right.
+      `crates/nvs-stdlib/src/csrf.rs:316` and `crates/nvs-stdlib/src/csrf.rs:339`.
+- [ ] **Every single-character mutation of a token is refused, and none of them throws** — over a
+      sweep of positions across all three of a token's regions, counted, which is what a comparison
+      written over a prefix or a decode that ignored trailing bytes fails.
+      `crates/nvs-stdlib/src/csrf.rs:339`.
+- [ ] **A wrong key is `false` and a key that was never a key is a `LogicError`** — the bound named
+      on both sides at 32 octets, per the card's own two error rows: rotating the key refuses every
+      outstanding token without telling the holder why. `crates/nvs-stdlib/src/csrf.rs:339`.
 
 ## Backlog
 
-- `Core\Csrf`, `Core\Cli\Color`, `Core\RateLimit` and `Core\Http\Response` are the rest of the 3.0
-  floor — `python tools/gaps.py`.
-- `Core\Task::afterResponse` is the last member with a PHP twin and no oracle case
-  (`fastcgi_finish_request`) — `crates/nvs-stdlib/src/task.rs:561`, and it belongs in
-  `tests/differential/`.
-- `[context] modules` patterns `fatal.rs`/`script.rs` warn while matching — `docs/agent/loop-goal.toml`.
-- Non-UTF-8 octets cannot be written to disk from a `.nvst` case, which blocks the third
-  `Core\Process\Result` slice — `docs/agent/playbook.md`.
+- Six more classes at the 3.0 floor after `Core\Csrf`: `Core\Cli\Color`, `Core\Http\Response`,
+  `Core\RateLimit`, `Core\Cli\Progress`, `Core\Cli\Style`, `Core\Mail` — `python tools/gaps.py`.
+- The one differential gap left: `Core\Task::afterResponse` against `fastcgi_finish_request`,
+  `crates/nvs-stdlib/src/task.rs:561`, and it belongs in `tests/differential/`.
+- `orient.py`'s `[context] modules` matcher misses a pattern naming a module by its exact path —
+  `docs/agent/loop-goal.toml`.
+- `crates/nvs-stdlib/src/time.rs:3214`'s `wall_clock` doc says "every wall-clock reading in `Core`,
+  which today is `Core\Time::now` and `Core\Uuid::v7`" — `jwt.rs:351` and `totp.rs:257` read it too.
