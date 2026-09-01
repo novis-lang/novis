@@ -2599,19 +2599,26 @@ name = "conformance"
 args = ["test", "tests/conformance/"]
 min_passing = 1250
 cases = [
-  "tests/conformance/io/a-file-round-trips-through-a-handle.nvst",
-  "tests/conformance/io/within-proves-containment-and-normalize-does-not.nvst",
-  "tests/conformance/io/a-write-stream-that-fails-leaves-no-partial-file.nvst",
+  # These are the paths the corpus actually took: `tests/conformance/` is flat directories with a
+  # subsystem prefix on the file name, so the `io/` and `cli/` directories this list was drafted with
+  # were never created. The claim each name was drafted for is the claim the file beside it pins.
+  "tests/conformance/core/io-an-open-file-is-an-object-and-never-a-resource.nvst",
+  "tests/conformance/core/io-within-resolves-and-then-proves-containment.nvst",
+  "tests/conformance/core/io-write-stream-holds-its-max-on-both-sides.nvst",
   "tests/conformance/reject/there-is-no-shell-string-form-of-process-run.nvst",
-  "tests/conformance/cli/a-live-region-restores-the-terminal-on-a-panic.nvst",
-  "tests/conformance/core/a-signed-cookie-round-trips-and-a-tampered-one-is-refused.nvst",
-  "tests/conformance/reject/a-verified-signature-does-not-launder.nvst",
-  "tests/conformance/reject/a-post-retried-without-an-idempotency-key-is-refused.nvst",
-  "tests/conformance/core/the-two-cache-tiers-have-two-contracts.nvst",
-  "tests/conformance/core/an-unreachable-rate-limit-store-throws.nvst",
-  "tests/conformance/error/the-log-floor-and-core-log-agree-on-shape.nvst",
-  "tests/conformance/core/reflection-obeys-the-visibility-ordinary-code-obeys.nvst",
-  "tests/conformance/core/an-attribute-retrieval-folds-to-a-constant.nvst",
+  "tests/conformance/core/signed-cookie-a-round-trip-hands-back-the-payload-itself.nvst",
+  "tests/conformance/core/signed-cookie-open-refuses-every-forgery-with-one-message.nvst",
+  "tests/conformance/core/signed-cookie-open-launders-where-jwt-verify-does-not.nvst",
+  "tests/conformance/core/a-post-retried-without-an-idempotency-key-is-refused-while-compiling.nvst",
+  "tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst",
+  "tests/conformance/core/ratelimit-refuses-rather-than-deciding-allowed.nvst",
+  "tests/conformance/error/the-floor-and-core-log-write-record-the-same-error-the-same-way.nvst",
+  "tests/conformance/core/reflect-call-runs-a-public-method-and-refuses-a-private-one.nvst",
+  "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
+  # `a-live-region-restores-the-terminal-on-a-panic` is not here because restoration on an *internal
+  # panic* is not reachable from a `.nvst` case at all: the case would have to survive the panic to
+  # assert anything. Stage 5's `cargo-named` check above already holds it, as the `nvs-stdlib` unit
+  # test `a_live_region_is_scoped_and_restores_the_terminal_on_a_panic`.
 ]
 
 [[check]]
