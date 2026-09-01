@@ -5077,6 +5077,17 @@ sibling in the same namespace unqualified.
   holds the `Type` node and not the `Expr` around it, and `ExprTypeTable`'s `types` and `by_span` are
   separate maps so a declared type and an `ExprInfo` share a span without shadowing. Reading the item
   as "one arm in `erase_checked_ty` plus one in the `Conversion` arm" costs the discovery twice.
+- **A `Core` class with a slot and no members fails a registry test whose exemption is a
+  by-name list, and the failure names your class rather than the rule.** `Core\Html\Markup` is
+  ADR 0024 § 5's carrier: one slot holding the trusted bytes, and deliberately no member, because
+  every way of obtaining one is a language construct and a constructor would take a runtime
+  string. Adding it to `registry::CLASSES` turns
+  `a_class_with_slots_has_instance_members_and_the_reverse` red —
+  *"Core\Html\Markup declares 1 slot(s) and 0 instance member(s)"* — which reads as a half-written
+  class, and the fix is the opposite: add the name to that test's `HANDLES` const **and a sentence
+  to its doc comment saying who reads the slot**, since seven classes were already there for
+  exactly this. The general shape: a registry invariant with a named exemption list is a design
+  question the test is asking, not a rule to satisfy by inventing a member.
 
 ## Divergences and refusals already pinned
 
