@@ -845,6 +845,7 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `ob_get_clean` | member | `Core\Out::capture` is exactly this pair: it captures and returns, and there is no state left behind to clean |
 | `ob_get_contents` | member | `Core\Out::capture`'s return value. There is no way to read a buffer somebody else started, because there is no buffer somebody else started |
 | `ob_end_clean` | dropped | a buffer ends when its closure returns |
+| `ob_clean` | dropped | emptying a buffer half way through and carrying on is only possible where the buffer outlives the statement that filled it. A `capture`'s bytes are its closure's return value: not calling it is how they are discarded |
 | `ob_end_flush` | dropped | `capture` always swallows. Re-emitting is a visible `echo Core\Out::capture(…)` rather than the engine passing bytes through on a program's behalf |
 | `ob_flush` | dropped | same |
 | `ob_get_flush` | dropped | same |
@@ -895,11 +896,196 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `sapi_windows_set_ctrl_handler` | dropped | signals are `Core\Signal`, graceful shutdown only ([ADR 0051](../adr/0051-standard-library-tiers.md) § 3) |
 | `sapi_windows_generate_ctrl_event` | dropped | sending one is `Core\Process::spawn`'s handle where the target is a child, and not offered at all where it is not |
 
+## Reflection and the class API
+
+Most of this family asks the compiler a question at run time. `class_exists`, `method_exists`,
+`get_class_methods` and `get_declared_classes` exist because a PHP program is assembled while it runs: a
+name is declared when a file happens to be included, so whether a class exists is a fact that can differ
+between two lines. A Novis unit is whole before it runs — *"which file declares this name?"* is `autoload`,
+a top-level declaration with literal paths and no runtime existence whatsoever
+([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) — so each of these is either a
+question the compiler has already answered or one member of `Core\Reflect`
+([01 § 13](01-core-library.md)), and never a lookup that can load a file as a side effect.
+
+The rest divides in two. The **dynamic-call** family is the language: a `callable` is closures only
+([ADR 0027](../adr/0027-callable-is-closures-only.md)) and a closure is called by writing the call, a
+variadic parameter is the list `func_get_args` reconstructed, and no static call takes a target assembled
+at run time. The **dumping** family is one diagnostic record with three renderings
+([ADR 0092](../adr/0092-one-diagnostic-record-three-renderings.md)), which is `Core\Debug`.
+
+Two domains are gone rather than moved, and every row that names them says so once. There is no `trait`
+([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)) — shared behaviour is
+an interface method with a body and shared state is delegation — and there is no `resource`
+([ADR 0063](../adr/0063-core-api-conventions.md) R14), so the `get_resource_*` trio has no atom left to
+identify.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `class_exists` | member | `Core\Reflect::forClass`, whose `null` is the answer: an undeclared name is an absence rather than a failure (R6). PHP's `$autoload` argument has nothing left to control, because no existence check can run a loader ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) |
+| `interface_exists` | member | `Core\Reflect::forClass`. Which kind of declaration carries the name is not a second question, and the description it answers with says which |
+| `trait_exists` | dropped | there is no `trait` ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)), so no name could answer `true` |
+| `enum_exists` | member | `Core\Reflect::forClass`, the same door. An enum's cases are closed and known while compiling ([ADR 0010](../adr/0010-enums-are-a-value-type.md)), so its existence is the only thing left to ask at run time |
+| `get_class` | member | `Core\Reflect::forObject`, whose description carries the name. Where the receiver's class is known while compiling — most calls — `$object::class` is a constant the compiler already holds |
+| `get_called_class` | language | `static::class`. Late static binding has its own spelling, and a function that reads the calling scope is not one |
+| `get_parent_class` | member | `Core\Reflect::forObject`'s description. The test a parent name usually feeds is `instanceof`, which the compiler answers without producing a name at all |
+| `get_object_vars` | member | `Core\Reflect::forObject`, whose property walk respects the visibility the *calling site* has ([ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md) § 2) rather than silently returning more when called from inside the class |
+| `get_mangled_object_vars` | dropped | the mangling is PHP's own encoding of `private` and `protected` into a property key (`"\0Class\0name"`). Novis reports visibility as visibility, so there is no encoded key to hand back |
+| `get_class_methods` | member | `Core\Reflect::forClass` ([01 § 13](01-core-library.md)). The walk is visibility-respecting, so what it lists is what the calling site could have called |
+| `get_class_vars` | member | `Core\Reflect::forClass`. The default-value half is the declaration's own initializer, which reflection reports rather than reconstructs |
+| `method_exists` | member | `Core\Reflect::forClass`. On a receiver whose class the checker knows this is not a question at all — a declared type or an interface answers it while compiling, and reflection is for the receiver whose type was erased |
+| `property_exists` | member | the same member, with the same reservation. An undeclared property is a hard error ([ADR 0014](../adr/0014-property-observer.md)), so "does this object happen to carry one" has no case that can be true |
+| `is_a` | language | `instanceof`, which is an operator (R17). Its `$allow_string` argument is the by-name reading, which is `Core\Reflect::forClass` |
+| `is_subclass_of` | language | `instanceof`. It differs from `is_a` only by excluding the class itself, which is a comparison against the name the description already carries |
+| `class_implements` | member | `Core\Reflect::forClass` ([01 § 13](01-core-library.md)). The plugin-registry use — *which* classes implement an interface — is `Core\Program`'s compile-time `implementing<T>()` query instead, which does not require them to have been loaded first ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) |
+| `class_parents` | member | `Core\Reflect::forClass`'s description; as with `get_parent_class`, the test it feeds is `instanceof` |
+| `class_uses` | dropped | there is no `trait` ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
+| `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker, `Core\Program`'s discovery, and `nvs convert`. Renaming is `use X as Y`, which is per-file and resolved while compiling |
+| `get_declared_classes` | member | `Core\Program`'s `implementing<T>()` ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)), which answers what every honest caller was asking — which classes implement this — and answers it while compiling. A list of every class in the process is a list whose contents depend on which files happened to run |
+| `get_declared_interfaces` | member | the same query, from the other end |
+| `get_declared_traits` | dropped | there is no `trait` ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
+| `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` ([ADR 0051](../adr/0051-standard-library-tiers.md) § 3); a list of the classes one extension registered describes a build, not a program |
+| `spl_object_id` | member | `Core\ObjectMap` and `Core\ObjectSet` ([01 § 9](01-core-library.md)) — the side table the id existed to key. An identity valid only while the object is alive, handed out as a reusable `int`, is the bug those two classes remove |
+| `spl_object_hash` | dropped | the same id in hex, with the same reuse hazard and a string's cost on top |
+| `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)). A loader stack is process-global state a thread-per-core runtime cannot keep |
+| `spl_autoload_unregister` | dropped | there is no stack to remove from |
+| `spl_autoload_functions` | dropped | same; there is no stack to enumerate |
+| `spl_autoload_call` | dropped | there is no moment at which a name is declared but not yet resolved |
+| `spl_autoload` | dropped | the default loader, which is the `include`-path search `autoload`'s literal paths replace |
+| `spl_autoload_extensions` | dropped | same — `autoload` names paths, so there is no extension list to guess a filename from |
+| `call_user_func` | language | `$f(...)`. A `callable` is closures only ([ADR 0027](../adr/0027-callable-is-closures-only.md)), and a closure is invoked by writing the call; the `"Class::method"` string form has no spelling at all |
+| `call_user_func_array` | language | `$f(...$args)`, argument unpacking |
+| `forward_static_call` | dropped | it exists to forward late static binding through a call whose target is a string. A static call's target is a name the compiler resolves, and the binding is `static::` written directly |
+| `forward_static_call_array` | dropped | the same, with unpacking |
+| `func_get_args` | language | a variadic parameter (`...$args`), which is that list with a declared element type and a name |
+| `func_get_arg` | language | the same parameter, indexed |
+| `func_num_args` | language | that parameter's own length. There is no second arity to discover, because a call passing arguments the signature does not declare fails to compile |
+| `function_exists` | dropped | there are no free functions to look up ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)): a member either resolves while compiling or the call is not compiled. Its feature-detection use asks which components a unit was built against, which cannot differ between two requests of one process |
+| `serialize` | member | `Core\Serialize::encode` — the user-facing half of the one graph copy the `spawn` boundary already runs ([ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md)), in a versioned format of Novis's own rather than PHP's |
+| `unserialize` | member | `Core\Serialize::decode`, which is a **`tainted` sink** with no launderer ([01 § 13](01-core-library.md)): bytes that arrived from outside are refused structurally, which is what closes PHP's most productive remote-code-execution class. Its `$options` allowed-class list is the workaround that rule replaces |
+| `var_dump` | member | `Core\Debug::dump`, over the one diagnostic record ([ADR 0092](../adr/0092-one-diagnostic-record-three-renderings.md)) |
+| `print_r` | member | `Core\Debug::render` for the string and `Core\Debug::dump` for the write. PHP's `$return` flag chose between those two, which is one member each rather than a boolean that changes a return type |
+| `var_export` | member | `Core\Debug::render`, whose rendering is one of ADR 0092 § 3's three over that same record. The promise that the output is valid source is not kept and is not wanted: there is no `eval` to feed it to ([ADR 0052](../adr/0052-closed-doors.md)) |
+| `debug_zval_dump` | dropped | it prints a refcount, which is the runtime's own accounting and not a fact a program is entitled to branch on. The dumping half is `Core\Debug::dump` |
+| `debug_backtrace` | member | `$e->backtrace`, a readonly property every `Throwable` carries ([01 § 10](01-core-library.md)). A stack read where nothing failed is profiling, and that is `Core\Debug`'s probe half ([ADR 0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)) |
+| `debug_print_backtrace` | member | the same property, handed to `Core\Debug::dump` |
+| `token_get_all` | member | `Core\Ast::parse`, which calls the compiler's own lexer and parser and answers with a typed, inert tree rather than an untyped token array ([ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md) § 3) |
+| `token_name` | dropped | there is no token array whose integer kinds need naming: a node's kind is its type |
+| `get_resource_type` | dropped | there is no `resource` (R14) — anything with a lifetime is an object, and its type is its class |
+| `get_resource_id` | dropped | same; identity across a collection is `Core\ObjectMap`'s key |
+| `get_resources` | dropped | same, and an enumeration of every open handle in the process is not a per-request fact in a runtime that serves many requests at once |
+
+## Sessions, requests and headers
+
+These three families are one section because they fail the same way: each is a **function that mutates
+state the engine owns on the program's behalf**. `header()` writes into a table nobody holds, which is why
+`headers_sent` and `headers_list` exist to ask what happened to it. `session_start` populates a
+superglobal, which is why `session_status`, `session_reset` and `session_abort` exist to ask and unask what
+it did. Novis has neither table: a handler is handed a `Core\Request` and returns a `Core\Response`
+([01 § 15](01-core-library.md)), and `Core\Session`'s six members *are* the session
+([ADR 0012](../adr/0012-no-superglobals.md)).
+
+That removes about half of this family outright, and the pattern is worth naming once rather than in
+twenty cells. **A read-back of what the engine was told is dropped**, because the handler holding the
+response already knows. **A process-global setting a request may change is dropped**, because a
+thread-per-core runtime serves many requests from one process and the one that changed it would be
+changing it for the others. **A buffer-then-commit pair is dropped**, because `set` is the write.
+
+The cookie rows are the exception that is not a drop. `setcookie`'s eight positional arguments become
+`Core\Response::addCookie`'s one options shape, every field of it defaulted from `[http.cookies]` — so a
+cookie written with no options is `Secure; HttpOnly; SameSite=Lax; Path=/` and `SameSite` is an enum rather
+than a string ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)).
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `header` | member | three members, because it is three jobs behind one string: `Core\Response::setHeader`, `Core\Response::redirect` for the `Location:` form, and `Core\Response::setStatus` for the `HTTP/1.1 404` form. `setHeader` is a header **sink**, so a `tainted` value is refused ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)) — which is response splitting closed structurally rather than by remembering to strip a newline |
+| `header_remove` | dropped | a header exists on a response because the handler set it, so unsetting one is not setting it. The headers a program does not write are policy's ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)), and overriding one on a single response is `Core\Response::setHeader` |
+| `headers_list` | dropped | a read-back of what the engine was told. The handler holding the response is the one that set them |
+| `headers_sent` | dropped | there is no moment at which the headers escaped and a program must start guarding: the server writes a response the handler returned. The one ordering error it was used to avoid — writing a header after a body — is a compile error ([01 § 15](01-core-library.md)) |
+| `header_register_callback` | dropped | a hook the engine runs just before flushing, to correct headers written from somewhere else. Nothing writes headers from somewhere else |
+| `http_response_code` | member | `Core\Response::setStatus`. Its getter half is a read-back the handler does not need, since it chose the status |
+| `setcookie` | member | `Core\Response::addCookie`, one options shape instead of eight positional arguments, defaulted from `[http.cookies]` ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)) |
+| `setrawcookie` | dropped | it differs from `setcookie` only by skipping the URL-encoding, and encoding a cookie's value is `addCookie`'s job rather than a second function's — no operation is reachable two ways ([ADR 0063](../adr/0063-core-api-conventions.md)) |
+| `http_get_last_response_headers` | dropped | it reports the headers of the last fetch a **stream wrapper** made — `$http_response_header` under a function name. There are no stream wrappers ([ADR 0052](../adr/0052-closed-doors.md)), and an outbound response is the value `Core\Http\Client` returns ([01 § 16](01-core-library.md)) |
+| `http_clear_last_response_headers` | dropped | same; there is no hidden slot to clear |
+| `request_parse_body` | member | `Core\Request`'s `body`, `query` and `files`. PHP 8.4 added this to parse a body the engine had decided not to parse; here the request is asked for what the handler needs, and an upload is a stream with exactly one way to receive it ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)) |
+| `session_start` | dropped | `Core\Session`'s members are the session ([01 § 15](01-core-library.md)). There is no superglobal to populate first, so there is no call that must come before the others and no failure mode where it did not |
+| `session_status` | dropped | a session that must be asked whether it is running is one the program had to start |
+| `session_id` | dropped | the identifier is the cookie's business. The one operation a program performs on it is `Core\Session::regenerate` after a privilege change, and reading it out is how it ends up in a log |
+| `session_regenerate_id` | member | `Core\Session::regenerate`, which is the whole of it: PHP's `$delete_old_session` argument chose between a fixation window and a lost session, and only one of those is correct |
+| `session_create_id` | dropped | ids are minted by the session. A program that mints its own must be trusted to mint it unpredictably, and `Core\Random` is what it would have to reach for to do so |
+| `session_destroy` | member | `Core\Session::destroy` |
+| `session_unset` | member | `Core\Session::clear`, which empties the data without ending the session |
+| `session_reset` | dropped | it re-reads the stored data over uncommitted changes, which is only meaningful where writes are buffered until a commit |
+| `session_abort` | dropped | the same buffer, discarded from the other end |
+| `session_commit` | dropped | there is no request-long write buffer to flush: `Core\Session::set` is the write |
+| `session_write_close` | dropped | `session_commit`'s other name, with the same answer |
+| `session_gc` | dropped | expiry belongs to the store, on its own schedule. A request that collects garbage for the ones before it pays their bill |
+| `session_encode` | dropped | the storage format is the backend's own and is never a program-visible string. Serializing a value on purpose is `Core\Serialize::encode` |
+| `session_decode` | dropped | same, and reading a serialized session out of bytes from outside is exactly the hazard `Core\Serialize::decode`'s `tainted` sink refuses ([01 § 13](01-core-library.md)) |
+| `session_name` | dropped | the cookie's name is configuration. A process-global setting one request may change is one it changes for every other request that core is serving |
+| `session_module_name` | dropped | the backend is configured, not named at run time by a string that has to match a compiled-in handler |
+| `session_save_path` | dropped | where sessions live is the operator's decision, and a per-request write to it is the same process-global mutation |
+| `session_set_save_handler` | dropped | a userland handler installed into engine-global state, per request, with six callbacks whose ordering is undocumented. A backend is chosen once, in configuration |
+| `session_get_cookie_params` | dropped | a read-back of the cookie policy, which is `[http.cookies]`'s and applies to every cookie alike ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)) |
+| `session_set_cookie_params` | dropped | the same policy, mutated per request |
+| `session_cache_limiter` | dropped | it writes `Cache-Control` and `Expires` as a side effect of a session existing, from a four-name vocabulary nobody remembers. Caching headers are `Core\Response::setHeader`, written where they are meant |
+| `session_cache_expire` | dropped | the same headers, and the same answer |
+| `session_register_shutdown` | dropped | it exists because a session's write happened at shutdown. Nothing is deferred here, and end-of-script work in general is `Core\Script::onExit` ([ADR 0127](../adr/0127-the-end-of-a-script-is-observable.md)) |
+
+## Compression
+
+PHP's zlib surface is three jobs spelled nine ways. A **whole buffer** — `gzcompress`, `gzencode`,
+`gzdeflate` and their three inverses, which differ only in which header the bytes carry, plus `zlib_encode`
+and `zlib_decode`, which take that difference as an integer argument instead. A **handle** — `gzopen` and
+its eleven readers, which are `fopen`'s roster written a second time. And an **incremental context** —
+`deflate_init`/`deflate_add`. `Core\Compress` ([01 § 17](01-core-library.md)) is one API over gzip,
+deflate, brotli and zstd, and three rules stated elsewhere collapse the table: the format is an enum case
+rather than part of a function's name (as in *Hashing* above), anything with a lifetime is an object rather
+than a `resource` ([ADR 0063](../adr/0063-core-api-conventions.md) R14), and there are no stream wrappers
+or filters for `zlib.*` to be registered against ([ADR 0052](../adr/0052-closed-doors.md)).
+
+The rule that is this section's own is that **decompression is bounded, and the bound is not the caller's
+to forget**. A decompression bomb is policy, and policy must be non-optional — which is the whole reason
+`Core\Compress` is Tier 0 rather than a sandboxed component
+([ADR 0051](../adr/0051-standard-library-tiers.md) § 3). Every row below that decompresses inherits that
+ceiling; PHP's `$max_length` argument, optional and defaulted to unlimited, is the shape it replaces.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `gzcompress` | member | `Core\Compress`, with the zlib format an enum case rather than a third of the function's name |
+| `gzuncompress` | member | the same class in the other direction, under the output bound above |
+| `gzdeflate` | member | `Core\Compress` with the raw-deflate case, which is the same bytes without the header |
+| `gzinflate` | member | the same, bounded |
+| `gzencode` | member | `Core\Compress` with the gzip case |
+| `gzdecode` | member | the same, bounded |
+| `zlib_encode` | member | `Core\Compress`. PHP's `$encoding` integer *is* the enum case, chosen at the call site and validated at run time; here the compiler validates it |
+| `zlib_decode` | member | the same, bounded |
+| `zlib_get_coding_type` | dropped | it reports which encoding `ob_gzhandler` picked for the response, and response compression is configured at the edge rather than installed as an output callback ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 1) |
+| `gzopen` | dropped | reading and decompressing are two jobs (R17): `Core\IO::open`'s handle yields the bytes and `Core\Compress` decodes them. A handle is an object either way, never a `resource` (R14) |
+| `gzclose` | dropped | there is no second handle roster to close; a `Core\IO` handle's lifetime is the object's |
+| `gzread` | dropped | the same pair — `Core\IO`'s handle reads, `Core\Compress` decodes |
+| `gzwrite` | dropped | the same pair, in the other direction |
+| `gzputs` | dropped | `gzwrite`'s alias. No operation is reachable two ways ([ADR 0063](../adr/0063-core-api-conventions.md)) |
+| `gzgetc` | dropped | one byte per call is what a handle offers. The decompressed bytes are a value here, and reading one out of it is `Core\Bytes` ([01 § 7](01-core-library.md)) |
+| `gzgets` | dropped | splitting into lines is `Core\Str`'s job over those bytes, not a second thing the decompressor does |
+| `gzeof` | dropped | end-of-input is a question about a handle being drained by hand. An iteration ends when it ends ([ADR 0053](../adr/0053-iteration-and-generators.md)) |
+| `gzseek` | dropped | seeking inside a compressed stream means decompressing from the start and discarding the result, which is a cost no member should hide behind a name that reads as free |
+| `gztell` | dropped | the same, from the other side: an offset into bytes that only exist as they are produced |
+| `gzrewind` | dropped | the same, and the honest spelling is to decode again |
+| `gzfile` | member | `Core\IO::read` for the bytes, `Core\Compress` for the decoding and `Core\Str` for the split into lines — three jobs PHP folded into one call, and the middle one is the only one that is about compression |
+| `readgzfile` | member | the same first two, with the result echoed. Nothing reads, decodes and writes to the output in one step, because each of those is a different question about what the program is allowed to do |
+| `gzpassthru` | dropped | it writes the remainder of a handle straight to the output. Output is `echo` over a value the program is holding ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)) |
+| `deflate_init` | member | `Core\Compress`, whose incremental half is an object rather than a context `resource` (R14) — [01 § 17](01-core-library.md) names this family as one of the three surfaces it replaces |
+| `deflate_add` | member | that object's update member. PHP's `$flush_mode` constants are the one place this API is genuinely incremental, and they stay |
+| `inflate_init` | member | the same, decompressing, under the same non-optional ceiling |
+| `inflate_add` | member | that object's update member |
+| `inflate_get_status` | dropped | an integer read after every `inflate_add` to learn whether the stream ended or failed. A failure throws and an ending is the end of the iteration ([ADR 0063](../adr/0063-core-api-conventions.md)) |
+| `inflate_get_read_len` | dropped | how much input the last call consumed, which a caller needs only because PHP's context does not report what it produced |
+
 ---
 
 ## Not yet classified
 
 Everything else the inventory lists. `python tools/check-migration.py --report` prints the current list;
 it is not duplicated here, because a copy would go stale the moment a row lands. The domains still to do,
-each roughly one pass: sessions and requests, reflection and the class API, XML, compression, the four
-database extensions, networking, and PHP's own introspection.
+each roughly one pass: XML, the four database extensions, networking, and PHP's own introspection.
