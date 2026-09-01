@@ -18020,6 +18020,19 @@ Which of the three endings ran the exit hooks. A `FATAL` and a cancellation have
 | `Core\Script\ExitReason::ExitCall` | `exit`, `exit($n)` or `exit("msg")` ended the script — the one ending no `finally` observes. |
 | `Core\Script\ExitReason::UncaughtThrow` | A throw reached the root of the script with nothing left to catch it; the report carries the `Throwable` itself. |
 
+<a id="enum-core-db-isolation"></a>
+#### `Core\Db\Isolation`
+
+What a transaction is allowed to see of the work running beside it — the `isolation` option `transaction` takes, and the connection's own level when it is absent. A driver that cannot offer the level asked for throws rather than running the closure at a weaker one.
+
+| Case | Meaning |
+|---|---|
+| `Core\Db\Isolation::ReadUncommitted` | A statement may read rows another transaction has written and not committed, on a backend that implements the level at all. |
+| `Core\Db\Isolation::ReadCommitted` | A statement sees the rows committed before that statement began. |
+| `Core\Db\Isolation::RepeatableRead` | Every statement in the transaction sees one snapshot of committed rows. |
+| `Core\Db\Isolation::Snapshot` | The transaction reads from one snapshot taken when it began, and writes conflict rather than block — SQL Server's own level, and what the row-versioning backends call `REPEATABLE READ`. |
+| `Core\Db\Isolation::Serializable` | Concurrent transactions produce a result some serial order of them would have produced, and a transaction that cannot is rolled back for the caller to retry. |
+
 # Part C — The toolchain
 
 <a id="tools-cli"></a>
