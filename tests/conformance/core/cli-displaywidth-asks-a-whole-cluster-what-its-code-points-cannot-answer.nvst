@@ -1,0 +1,75 @@
+--TEST--
+`Core\Cli::displayWidth` asks each whole grapheme cluster how wide it is rather than summing its code points, so it counts the units `Core\Str::length` counts and exceeds that count by exactly the wide columns — ADR 0086 § 3, ADR 0009 § 2
+--FILE--
+<?nvs
+// The three cases already on this member ask what a control byte, a tab and a
+// table column cost. What none asks is how the count is *composed*, which is
+// the one thing a zero-width mark and an emoji sequence disagree with a naive
+// implementation about: ADR 0086 § 3 makes this a renderer's count, and the
+// renderer walks ADR 0009 § 2's grapheme clusters and asks each whole cluster
+// for its width. A member summing per code point instead answers plausibly for
+// every string whose clusters are one code point each — which is every sample
+// the other three cases use.
+//
+// Asserted by **counting** over the sweep, so a member right on the ASCII rows
+// and wrong on the emoji ones still fails. The five samples: plain ASCII, a
+// combining acute (five code points, four clusters), two CJK ideographs, a ZWJ
+// technologist (three code points, one cluster) and a ZWJ couple carrying a
+// variation selector (six code points, one cluster).
+array<string> $samples = [
+    "ok",
+    "cafe" . Core\Str::fromCodePoint(769),
+    "日本",
+    Core\Str::fromCodePoints([128105, 8205, 128187]),
+    Core\Str::fromCodePoints([128105, 8205, 10084, 65039, 8205, 128104]),
+];
+
+uint $byCluster = 0;
+uint $byCodePoint = 0;
+foreach ($samples as string $s) {
+    // Both measures are cluster-shaped, so their whole difference is the
+    // clusters that take two columns instead of one.
+    uint $wide = 0;
+    foreach (Core\Str::graphemes($s) as string $cluster) {
+        if (Core\Cli::displayWidth($cluster) == 2) {
+            $wide = $wide + 1;
+        }
+    }
+    // The measure this member is not: one column count per code point, added
+    // up. It agrees wherever a cluster is a single code point.
+    uint $sum = 0;
+    foreach (Core\Str::codePoints($s) as uint $codePoint) {
+        $sum = $sum + Core\Cli::displayWidth(Core\Str::fromCodePoint($codePoint));
+    }
+    uint $columns = Core\Cli::displayWidth($s);
+    if ($columns == Core\Str::length($s) + $wide) {
+        $byCluster = $byCluster + 1;
+    }
+    if ($columns == $sum) {
+        $byCodePoint = $byCodePoint + 1;
+    }
+}
+
+echo "samples=", Core\Arr::count($samples), "\n";
+echo "columns are clusters plus wide=", $byCluster, "\n";
+echo "columns are a code point sum=", $byCodePoint, "\n";
+
+// The two classes of code point the sweep turns on, alone: a combining mark
+// costs nothing at all, and a CJK ideograph costs two.
+echo "combining mark=", Core\Cli::displayWidth(Core\Str::fromCodePoint(769)), "\n";
+echo "cjk=", Core\Cli::displayWidth("日"), "\n";
+
+// The witness for the two rows the code point sum gets wrong: three code
+// points, one cluster, and two columns rather than the four a sum would say —
+// a terminal draws one glyph there and this member says so.
+string $zwj = Core\Str::fromCodePoints([128105, 8205, 128187]);
+echo "zwj clusters=", Core\Str::length($zwj),
+    " columns=", Core\Cli::displayWidth($zwj),
+    " code points=", Core\Arr::count(Core\Str::codePoints($zwj)), "\n";
+--EXPECT--
+samples=5
+columns are clusters plus wide=5
+columns are a code point sum=3
+combining mark=0
+cjk=2
+zwj clusters=1 columns=2 code points=3
