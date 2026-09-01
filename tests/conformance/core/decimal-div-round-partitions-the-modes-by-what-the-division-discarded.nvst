@@ -1,0 +1,70 @@
+--TEST--
+ADR 0054 § 3: `Core\Decimal::divRound`'s six modes partition by what the truncation discarded, counted, and the same way on either sign
+--FILE--
+<?nvs
+// A mode decides what to do with what the truncation threw away, so the whole
+// surface is four questions -- nothing discarded, below half, above half,
+// exactly half -- asked of all six modes. Counting how many round away from
+// zero, rather than reading each answer off its own line, is what fails a mode
+// that grew a rule of its own while still printing something plausible.
+array<Core\RoundMode> $modes = [
+    Core\RoundMode::HalfUp,
+    Core\RoundMode::HalfDown,
+    Core\RoundMode::HalfEven,
+    Core\RoundMode::HalfOdd,
+    Core\RoundMode::Up,
+    Core\RoundMode::Down,
+];
+decimal $one = 1;
+decimal $two = 2;
+decimal $three = 3;
+decimal $four = 4;
+decimal $eight = 8;
+
+// One quotient per discard: 1/4 is 0.25 exactly, 1/3 truncates below the half,
+// 2/3 above it, and 1/8 is 0.125, which is the half itself.
+array<decimal> $values = [$one, $one, $two, $one];
+array<decimal> $divisors = [$four, $three, $three, $eight];
+array<string> $discards = ["nothing", "below half", "above half", "half"];
+
+// `Down` is the truncation itself -- it is the one mode that never moves -- so
+// "rounded away" is measured against its answer rather than recomputed here.
+// Each quotient is asked twice, once with the sign flipped: rounding is away
+// from *zero*, one rule per mode rather than one per direction, so a mode that
+// grew a second rule for negatives shows up as a column that stops matching.
+decimal $value = $one;
+decimal $divisor = $one;
+decimal $truncated = $one;
+int $away = 0;
+int $total = 0;
+int $i = 0;
+while ($i < Core\Arr::count($values)) {
+    $value = $values[$i];
+    $divisor = $divisors[$i];
+    array<decimal> $numerators = [$value, 0 - $value];
+    echo $discards[$i], ":";
+    foreach ($numerators as decimal $numerator) {
+        $truncated = Core\Decimal::divRound($numerator, $divisor, 2, Core\RoundMode::Down);
+        $away = 0;
+        foreach ($modes as Core\RoundMode $mode) {
+            if (Core\Decimal::divRound($numerator, $divisor, 2, $mode) != $truncated) {
+                $away = $away + 1;
+            }
+        }
+        $total = $total + $away;
+        echo " ", $away;
+    }
+    echo "\n";
+    $i = $i + 1;
+}
+
+// Nothing discarded moves no mode; below the half moves only `Up`; above it
+// moves everything but `Down`; and the half is the only place the four
+// half-modes part, two each way whichever parity the truncated mantissa has.
+echo "rounded away ", $total, " of ", Core\Arr::count($modes) * 2 * Core\Arr::count($values), "\n";
+--EXPECT--
+nothing: 0 0
+below half: 1 1
+above half: 5 5
+half: 3 3
+rounded away 18 of 48
