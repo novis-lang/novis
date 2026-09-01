@@ -1404,6 +1404,19 @@ is why" — is this file.
   rather than as a spec-side gap. `Core\Attributes::get`/`::all` have the same shape. Widening the
   regex is the wrong fix: either name the class and leave the member in prose, or give 01 a spelling
   a machine can read.
+- **A migration cell's ADR link is guessed, and nothing checks it.** `check-migration.py` validates the
+  `Core\X::y` spellings in a cell against `01-core-library.md` and looks at nothing else in it, and
+  `verify.py`'s `doc` step is `cargo doc`'s intra-doc links — Rust doc comments, not markdown — so its
+  "every link resolves" line says nothing about `docs/`. A `](../adr/<slug>.md)` pointing at a file that
+  does not exist lands green through both. Three of the roughly forty links written in one pass were wrong — the real slugs are
+  `0071-derived-codecs`, `0079-testing-is-a-language-feature` and
+  `0118-a-capability-is-checked-at-the-door-to-the-effect`, none of which reads the way the ADR's title
+  does. One Python pass over `\]\((\.\./adr/[^)]+)\)` resolving each against `docs/adr/` catches all of
+  them in one call. The same call settles the spelling question the honest way:
+  `sys.path.insert(0, 'tools')` then `importlib.import_module('check-migration').core_surface()` hands
+  back the exact class and word sets the checker will use. Re-deriving those with your own regex inside a
+  shell heredoc does not work — the backslash in `Core\Xml` is eaten before Python sees the pattern, and
+  every class comes back missing, which reads as "01 names no classes at all".
 
 ## Running things
 
