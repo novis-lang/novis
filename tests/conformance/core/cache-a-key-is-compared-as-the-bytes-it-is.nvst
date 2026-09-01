@@ -1,0 +1,92 @@
+--TEST--
+A cache key is the bytes the program handed over — keys differing by one byte, by case, by a space, by a combining mark or by their last character are separate entries, and two spellings of the same bytes are one — ADR 0059 § 2
+--FILE--
+<?nvs
+// § 2 fixes what happens to the *value* — the graph copy, in both directions —
+// and says nothing about the key, because there is nothing to say: the key is
+// the bytes it is. `crates/nvs-stdlib/src/cache.rs`'s store is a map keyed on
+// those bytes and on nothing derived from them. The failure this pins is the
+// plausible one, since a store that lower-cased, trimmed, normalised or
+// truncated a key would answer correctly for every key asked on its own and
+// hand one caller another's entry only where two keys it had decided were
+// equal were not.
+var $cache = Core\Cache::local();
+
+// Every neighbouring pair below differs by exactly one of the things such a
+// store would remove: one byte in the middle, one byte of case, a leading or a
+// trailing space, a combining mark NFC folds away, and — for one that
+// truncated — the last byte of a key far longer than any bound it might pick.
+string $long = Core\Str::repeat("tenant/west/", 24);
+array<string> $keys = [
+    "user:1",
+    "user:2",
+    "user",
+    "User",
+    "USER",
+    "user ",
+    " user",
+    "caf\u{e9}",
+    "cafe\u{301}",
+    $long . "a",
+    $long . "b",
+];
+
+// The value is derived from the key so that no two are equal, which is what
+// turns a collision into a wrong *answer* rather than a missing one: two keys
+// the store had treated as one leave the earlier of them reading back the
+// later's value, so the count drops while every line still looks plausible.
+foreach ($keys as string $key) {
+    $cache->put($key, "<" . $key . ">");
+}
+string $back = "";
+int $own = 0;
+foreach ($keys as string $key) {
+    $back = $cache->get($key) as string;
+    if ($back == "<" . $key . ">") {
+        $own = $own + 1;
+    }
+}
+echo "each key answered its own value: ", $own, " of ", Core\Arr::count($keys), "\n";
+
+// The negative half of the same claim: a key one byte away from a stored one
+// was never written, and absence is the only answer a store keyed on bytes has
+// for it — § 1's `null`, reached because nothing matched rather than because
+// something was forgotten.
+string $near = $cache->get("user:3") == null ? "absent" : "present";
+echo "user:3 is ", $near, "\n";
+
+// Case is a byte difference like any other, printed rather than counted so the
+// pair the count covers is visible.
+string $lower = $cache->get("user") as string;
+string $upper = $cache->get("User") as string;
+echo "user -> ", $lower, ", User -> ", $upper, "\n";
+
+// The two spellings of one word are compared as bytes and not as text, so the
+// store performs no Unicode normalisation on the way in — the answers are
+// compared to each other here rather than printed, since both render alike.
+string $composed = $cache->get("caf\u{e9}") as string;
+string $decomposed = $cache->get("cafe\u{301}") as string;
+string $folded = $composed == $decomposed ? "one entry" : "two entries";
+echo "two spellings of one word are ", $folded, "\n";
+
+// And a key is compared whole: two that agree for hundreds of characters and
+// differ at the last one are two entries, which a store hashing a bounded
+// prefix would fail while passing every short key above.
+string $tailA = $cache->get($long . "a") as string;
+string $tailB = $cache->get($long . "b") as string;
+string $truncated = $tailA == $tailB ? "one entry" : "two entries";
+echo "keys agreeing for ", Core\Str::length($long), " characters and differing at the last are ", $truncated, "\n";
+
+// Differing by nothing at all is the other side of it: the store compares what
+// a string holds and not which literal produced it, so a key built at run time
+// reaches the entry written under an equal literal.
+string $built = "us" . "er" . ":1";
+string $viaBuilt = $cache->get($built) as string;
+echo "an equal key built at run time reads ", $viaBuilt, "\n";
+--EXPECT--
+each key answered its own value: 11 of 11
+user:3 is absent
+user -> <user>, User -> <User>
+two spellings of one word are two entries
+keys agreeing for 288 characters and differing at the last are two entries
+an equal key built at run time reads <user:1>
