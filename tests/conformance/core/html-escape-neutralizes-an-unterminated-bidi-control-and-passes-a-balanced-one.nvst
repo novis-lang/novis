@@ -1,0 +1,38 @@
+--TEST--
+`Core\Html::escape` replaces a directional control left open at the end of the text with `U+FFFD`, while a balanced pair passes through untouched — ADR 0024 § 5, ADR 0087
+--FILE--
+<?nvs
+// ADR 0024 § 5's last bullet, which is the row a reader does not expect on an
+// escaper: escaping `<`, `>`, `&` and the quotes says nothing about display
+// *order*, so a payload that reverses the rendering of everything after it
+// survives the escape intact. ADR 0087 owns the predicate; this member is its
+// third caller, after the lexer's source spans and the terminal sink.
+
+// Balanced — RLE opens a scope and PDF closes it inside the same value. This
+// is legitimate mixed-direction text, and ADR 0087's whole position is that
+// banning the code points outright breaks Arabic and Hebrew.
+string $balanced = "left \u{202B}right\u{202C} left again";
+echo Core\Html::escape($balanced) == $balanced ? "same" : "changed", "\n";
+
+// Unterminated — RLO with no PDF after it, so the scope is still open when the
+// value ends and everything downstream of it renders reversed. The control
+// becomes `U+FFFD`: it is being removed, not displayed, so it is not written
+// as `&#8238;` either, which would be an escaped payload rather than a
+// neutralized one.
+string $open = "safe\u{202E}reversed";
+echo Core\Html::escape($open), "\n";
+
+// Both bounds named together, so a member that neutralized every directional
+// control rather than the unterminated ones fails on the first line here while
+// still printing the right answer on the second.
+echo Core\Html::escape($open) == $open ? "same" : "changed", "\n";
+
+// The two transformations compose in one pass: the escape and the
+// substitution are decided per character over the same walk, so a value
+// needing both gets both.
+echo Core\Html::escape("a<b\u{2066}c"), "\n";
+--EXPECT--
+same
+safe�reversed
+changed
+a&lt;b�c

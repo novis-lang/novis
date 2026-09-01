@@ -1,0 +1,38 @@
+--TEST--
+`Core\Html::escape` writes all five of `&<>"'` as character references and answers a plain `string` for a `tainted` argument — ADR 0024 §§ 3, 5
+--FILE--
+<?nvs
+// ADR 0024 § 3 writes this member out as *the* worked example of a launderer:
+// narrow, named for one sink, and the only route from an untrusted value to
+// text that may be written into an HTML document. The route runs end to end
+// here — the value arrives tainted, the escape happens, and the answer is a
+// plain `string`, which is the whole of what "it launders" means.
+tainted string $t = "<a href='x' title=\"y\">Tom & Jerry</a>";
+
+// Declaring anything other than `string` here would be the reject case: a
+// contagious row's answer still carries the qualifier and cannot be bound to
+// this type (tests/conformance/core/a-launder-row-hands-a-tainted-value-to-the-sink-it-names.nvst).
+string $safe = Core\Html::escape($t);
+echo $safe, "\n";
+
+// All five, always, with no flag to choose between them — ADR 0063 R6 forbids
+// the `htmlspecialchars` bitmask, and the member of every pair those flags
+// chose between that is worth having is the safe one. Escaping both quote
+// characters is what makes the answer safe in an unquoted attribute position
+// as well as in element content, so this counts them rather than reading the
+// line above: a member that dropped `'` back to PHP's pre-8.1 default still
+// prints plausibly.
+echo Core\Str::contains($safe, "&amp;") ? "y" : "n",
+     Core\Str::contains($safe, "&lt;") ? "y" : "n",
+     Core\Str::contains($safe, "&gt;") ? "y" : "n",
+     Core\Str::contains($safe, "&quot;") ? "y" : "n",
+     Core\Str::contains($safe, "&#39;") ? "y" : "n",
+     "\n";
+
+// `&#39;` and not `&apos;`: the named reference is XML's, and HTML 4 never
+// defined it.
+echo Core\Str::contains($safe, "&apos;") ? "y" : "n", "\n";
+--EXPECT--
+&lt;a href=&#39;x&#39; title=&quot;y&quot;&gt;Tom &amp; Jerry&lt;/a&gt;
+yyyyy
+n
