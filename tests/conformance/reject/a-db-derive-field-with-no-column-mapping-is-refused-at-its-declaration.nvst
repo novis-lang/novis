@@ -1,0 +1,47 @@
+--TEST--
+`#[Db\Derive]` refuses a field whose declared type is not a column at the property that declared it, not at the `queryAs<T>` that would later run — ADR 0067 § 9, ADR 0071 § 2
+--FILE--
+<?nvs
+// ADR 0067 § 9's type map is the row format's reachable set, and it is not
+// ADR 0071 § 2's: a row is a flat list of columns, so a nested object is not a
+// column type however well it maps to JSON. `Handle` carries a derive of its
+// own and is still refused here, which is the half that a rule copied from the
+// JSON pass would get wrong — § 2's "another class that itself has a codec"
+// admits exactly this field for `#[Json\Derive]`.
+//
+// `$cache` is a `Handle` too, and § 3's escape hatch takes it off the mapping
+// in writing, so it is examined and accepted before `$h` is reached: a rule
+// refusing the type's *appearance* rather than its presence in the contract
+// would name both properties and still look right on the second half alone.
+#[Core\Db\Derive]
+class Row {
+    #[Core\Db\Field(skip: true)]
+    public Handle $cache;
+
+    public Handle $h;
+
+    public function constructor(Handle $cache, Handle $h)
+    {
+        $this->cache = $cache;
+        $this->h = $h;
+    }
+}
+
+#[Core\Db\Derive]
+class Handle {
+    public int $n;
+
+    public function constructor(int $n)
+    {
+        $this->n = $n;
+    }
+}
+
+echo "unreachable ", (new Row(new Handle(1), new Handle(2)))->h->n, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0756]: `Row::$h` is declared `Handle`, which has no column mapping
+   --> case.nvs:18:19
+%A
+error: aborting due to 1 error
