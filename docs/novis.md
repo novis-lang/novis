@@ -138,6 +138,7 @@ Conventions the whole file uses:
 | [`Core\Ast`](#core-core-ast) |  |
 | [`Core\Ast\Node`](#core-core-ast-node) |  |
 | [`Core\Db`](#core-core-db) |  |
+| [`Core\Db\Connection`](#core-core-db-connection) |  |
 | [`Core\Db\InList`](#core-core-db-inlist) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
@@ -17136,12 +17137,32 @@ Every node this one contains, however deeply — `children` closed transitively,
 <a id="core-core-db"></a>
 ### `Core\Db`
 
-Keywords: inList, quoteIdentifier
+Keywords: connect, inList, quoteIdentifier
 
 | Member | Signature |
 |---|---|
+| [`Core\Db::connect`](#core-core-db-connect) | `connect(string $name, {shared?: bool, timeout?: Core\Time\Duration}): Core\Db\Connection` |
 | [`Core\Db::inList`](#core-core-db-inlist) | `inList(array<mixed> $values): Core\Db\InList` |
 | [`Core\Db::quoteIdentifier`](#core-core-db-quoteidentifier) | `quoteIdentifier(string $name): string` |
+
+<a id="core-core-db-connect"></a>
+#### `Core\Db::connect`
+
+```nvs skip
+Core\Db::connect(string $name, {shared?: bool, timeout?: Core\Time\Duration}): Core\Db\Connection
+```
+
+Opens the connection an operator named in a `[db.<name>]` block of `nvs.toml`, and answers the same one again for the rest of the request — `new PDO`, `pg_connect` and `mysqli_connect`, with the credential out of the program and in root-owned configuration. Needs the `db.connect` capability for that name.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The block to open, matched exactly: `"main"` is `[db.main]`. Two blocks that configure the same server are two connections, because an operator who wrote two meant two. |
+| `{shared: …}` | `bool` (default `true`) | Whether this call may answer with the connection an earlier one already opened. `false` opens a dedicated connection instead — what a write that must survive a rollback, a session-scoped lock or a second statement alongside a `stream` needs. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long the handshake may take, including name resolution and TLS. Left out, the connection is bounded by the server and the network alone. |
+
+**Returns** `Core\Db\Connection` — A `Core\Db\Connection`. The same call twice in one request answers the same object unless `shared` is `false`, and the connection is closed when the request ends.
+
+**Throws** `RuntimeError` — `db.connect` does not grant `$name`, no `[db.<name>]` block of that name exists, or the block cannot be read as a connection — a missing `driver`, a field belonging to another driver, or a `time_zone` that is not an offset.; `IOError` — The host does not resolve, or the connection, the TLS handshake or the login itself failed. A refusal the server worded carries its own message.
 
 <a id="core-core-db-inlist"></a>
 #### `Core\Db::inList`
@@ -17176,6 +17197,14 @@ Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, 
 **Returns** `string` — The same text, without the `tainted` qualifier. It carries no delimiter — `Core\Db` has no connection and so no dialect, and the five backends disagree on what a delimiter is.
 
 **Throws** `LogicError` — `$name` is empty, starts with a digit, or holds any character outside letters, digits and `_` — including a name that would need delimiting to be legal.
+
+<a id="core-core-db-connection"></a>
+### `Core\Db\Connection`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
 
 <a id="core-core-db-inlist"></a>
 ### `Core\Db\InList`
@@ -19410,6 +19439,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `mysqli_options` | dropped | sets `MYSQLI_OPT_*` between those two calls. Every option that survives is a key an operator writes — the connection's own `[db.<name>]` block, or `[db.<name>.pool]` for the bounds ([ADR 0067](adr/0067-core-db.md) §§ 2, 13) — and the runtime reads it, not the program |
 | `mysqli_set_opt` | dropped | an alias of `mysqli_options` |
 | `mysqli_ssl_set` | dropped | certificate, key and CA paths for the handshake. TLS is the `tls` key of the connection's config block and `Tls::VerifyFull` over TCP with nothing configured ([ADR 0067](adr/0067-core-db.md) § 2); the paths are the operator's |
+| `mysqli_close` | member | `Db\Connection`'s `->close()`, which releases one connection early. The runtime releases the rest at request teardown, and a later `Core\Db::connect` acquires a fresh one ([ADR 0067](adr/0067-core-db.md) § 2) |
 | `mysqli_change_user` | dropped | re-authenticates an open connection as a different user. The pool key includes every credential ([ADR 0067](adr/0067-core-db.md) § 13), so two users are two connections and never one connection twice |
 | `mysqli_select_db` | dropped | switches the default database mid-session. The database is a field of the config block or of `Db\Settings`, and a program that needs two of them opens two connections |
 | `mysqli_set_charset` | dropped | a `string` is UTF-8 ([ADR 0009](adr/0009-string-and-bytes.md)) and the driver fixes the connection charset to match it. A charset the program can change at runtime is what made `SET NAMES` a documented way around an escaper |
