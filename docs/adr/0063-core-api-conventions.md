@@ -17,7 +17,7 @@
   `DateTime::format`, per R18; the folded argument is unchanged and so is everything else about it.
   [0051](0051-standard-library-tiers.md) § 3 — the Core roster gains `Core\Path`, `Core\Out`, `Core\Bytes`
   and `Core\Error`, all split out of entries it already lists.
-- **Amended by:** 0066, 0069, 0070, 0071, 0098, 0122
+- **Amended by:** 0066, 0069, 0070, 0071, 0098, 0122, 0127
 
 > **In short:** PHP's built-ins have no API. Argument order flips between neighbouring functions
 > (`array_map(f, a)` / `array_filter(a, f)`), failure is signalled four different ways in the same
@@ -127,8 +127,9 @@ notice the twelfth one nobody thought about, which is how `ctype_*`, `iterator_t
    `get_defined_vars`, `parse_str`, `$$var`), [0027](0027-callable-is-closures-only.md)/[0031](0031-callable-is-the-only-closure-type.md)
    (`call_user_func*`, `func_get_args`, `function_exists`), [0052](0052-closed-doors.md) (`eval`, `dl`,
    every `stream_*` wrapper), [0020](0020-error-escalation-ladder.md) (`set_error_handler`,
-   `trigger_error`, `error_get_last`, `@`), [0028](0028-closing-the-remaining-magic-methods.md)
-   (`register_shutdown_function`), [0012](0012-no-superglobals.md) (`session_*`, `header`, `setcookie`,
+   `trigger_error`, `error_get_last`, `@`), [0127](0127-the-end-of-a-script-is-observable.md)
+   (`register_shutdown_function` — `Core\Script::onExit` for every non-fatal ending, the ladder's hooks
+   for a fatal), [0012](0012-no-superglobals.md) (`session_*`, `header`, `setcookie`,
    `filter_input*`), [0051](0051-standard-library-tiers.md) (`setlocale`, `gettext`, `pcntl_*`, `putenv`),
    [0059](0059-cross-request-state-is-explicit.md) (`apcu_*`, `shmop`, `sysv*`).
 4. **Structurally wrong here** — the internal array pointer (`current`/`key`/`next`/`prev`/`reset`/`end`:

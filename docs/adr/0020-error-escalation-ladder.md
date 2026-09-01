@@ -6,7 +6,7 @@
   `THROWN` reaches an isolate/request root; what happens when a script or the entry file itself fails to
   compile; the guarantee that every one of those is logged somewhere, in one shared format, no matter how
   many of the handlers in between also fail
-- **Amended by:** 0033, 0076, 0086, 0092, 0106
+- **Amended by:** 0033, 0076, 0086, 0092, 0106, 0127
 
 > **In short:** nothing Novis runs is ever silently dropped, but not everything is *caught* — those are
 > different guarantees, and conflating them is what this ADR avoids. `FATAL` stays exactly what
@@ -141,6 +141,11 @@ ordinary remaining budget applies — and it gets the **real `Throwable` object*
 root itself, not a boundary [ADR 0006](0006-isolated-script-execution.md) has to copy across.
 
 Same zero-retry rule: a handler that itself faults falls straight to tier 3.
+
+After this tier and before native teardown, [ADR 0127](0127-the-end-of-a-script-is-observable.md)'s
+`Core\Script::onExit` queue runs. It is not a tier of this ladder: it runs at every non-fatal ending,
+succeeding ones included, needs no reserve, and observes the ending rather than reporting the failure.
+A handler faulting here changes nothing about it — the queue runs either way.
 
 ### 3. The configured `.nvs` handler — an ordinary `spawn script` isolate, with one narrow exception
 

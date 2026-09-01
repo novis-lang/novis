@@ -122,6 +122,7 @@ so you never have to open this file to route a topic.
 | Trojan Source, right-to-left overrides, `U+202E`, a comment that renders as code, homoglyphs, zero-width characters, or why a non-ASCII identifier does not compile | [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) |
 | Porting a PHP codebase — `nvs convert`, its two modes, what a `TODO(convert:…)` means, why the default output does not run, how a rewrite is proven, where the rule table lives, which PHP parser and which PHP versions | [0089](0089-convert-is-one-rule-table-with-two-modes.md) |
 | Running several things at once — `Task::all`/`::map`, `parallel_map`, a task deadline, cancellation, work after the response is sent, `fastcgi_finish_request`, why there is no job queue | [0072](0072-core-task-structured-concurrency.md) |
+| End-of-script work — `register_shutdown_function`, a shutdown hook, the exit reason, what still runs after `exit` or an uncaught throw, `Core\Script::onExit` | [0127](0127-the-end-of-a-script-is-observable.md) |
 | Cron, scheduled jobs, a nightly task, running something once across a fleet, `[[schedule]]` | [0073](0073-scheduled-work-is-config.md) |
 | Response security headers, CORS, cookie defaults, HSTS, CSP; and outbound timeouts, retries, backoff, idempotency keys | [0074](0074-http-defaults-safe-and-finite.md) |
 | How a header is parsed, folded headers, a header with no colon, request smuggling, CRLF, a cookie's *name* and its `__Host-` prefix, multipart part counts, reserved Windows filenames, a path component that resolves elsewhere | [0095](0095-ambiguous-input-is-refused-never-repaired.md) |
@@ -351,6 +352,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) | PHP 8.6 lands as four compile-time refusals and one session rule | Accepted |
 | [0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md) | A class reference is a type, and `as` is its only source | Accepted |
 | [0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md) | A property key is a checked name, and `as` is its only source | Accepted |
+| [0127](0127-the-end-of-a-script-is-observable.md) | The end of a script is observable: `Core\Script::onExit` runs at every non-fatal ending | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
