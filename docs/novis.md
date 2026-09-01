@@ -10132,7 +10132,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 <a id="core-core-io"></a>
 ### `Core\IO`
 
-Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, writeStream, exists, isFile, isDir, size, remove, removeDir, list, temporaryDir, canonicalize, within, readText, lines, open, stdin
+Keywords: file_get_contents, file_put_contents, fopen, fread, fwrite, fs.read, fs.write, capability, nvs.toml, path, read, write, append, writeStream, exists, isFile, isDir, size, copy, move, remove, makeDir, removeDir, list, temporaryDir, canonicalize, within, readText, lines, open, stdin
 
 `Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
 must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
@@ -10183,12 +10183,16 @@ outside: refused
 |---|---|
 | [`Core\IO::read`](#core-core-io-read) | `read(string $path): string` |
 | [`Core\IO::write`](#core-core-io-write) | `write(string $path, string $content): void` |
+| [`Core\IO::append`](#core-core-io-append) | `append(string $path, string $content): void` |
 | [`Core\IO::writeStream`](#core-core-io-writestream) | `writeStream(string $path, array<bytes>\|Iterable<bytes>\|Iterator<bytes> $src, {max?: uint, overwrite?: bool}): void` |
 | [`Core\IO::exists`](#core-core-io-exists) | `exists(string $path): bool` |
 | [`Core\IO::isFile`](#core-core-io-isfile) | `isFile(string $path): bool` |
 | [`Core\IO::isDir`](#core-core-io-isdir) | `isDir(string $path): bool` |
 | [`Core\IO::size`](#core-core-io-size) | `size(string $path): uint` |
+| [`Core\IO::copy`](#core-core-io-copy) | `copy(string $from, string $to): void` |
+| [`Core\IO::move`](#core-core-io-move) | `move(string $from, string $to): void` |
 | [`Core\IO::remove`](#core-core-io-remove) | `remove(string $path): void` |
+| [`Core\IO::makeDir`](#core-core-io-makedir) | `makeDir(string $path): void` |
 | [`Core\IO::removeDir`](#core-core-io-removedir) | `removeDir(string $path): void` |
 | [`Core\IO::list`](#core-core-io-list) | `list(string $path): array<string>` |
 | [`Core\IO::temporaryDir`](#core-core-io-temporarydir) | `temporaryDir(): string` |
@@ -10228,11 +10232,29 @@ Replaces a file's whole content, creating it if it does not exist — `file_put_
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$path` | `string` (sink) | The file to write, absolute or relative to the working directory. |
-| `$content` | `string` (neutral) | The bytes to write. They become the file's entire content; there is no append in this signature. |
+| `$content` | `string` (neutral) | The bytes to write. They become the file's entire content; `append` is the member that adds to what is already there. |
 
 **Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; checked before anything is created, so a refused write leaves no file behind.; `IOError` — The capability allowed it and the operating system did not — a missing directory, a read-only filesystem, a permission the process lacks.
+
+<a id="core-core-io-append"></a>
+#### `Core\IO::append`
+
+```nvs skip
+Core\IO::append(string $path, string $content): void
+```
+
+Adds to the end of a file, creating it if it is not there — `file_put_contents` with `FILE_APPEND`, which is a member here rather than a flag on the member that replaces. Needs the `fs.write` capability for the path.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file to add to, absolute or relative to the working directory. |
+| `$content` | `string` (neutral) | The bytes to add. Whatever the file already holds is kept and these follow it; the end is found by the operating system at the write, not read beforehand. |
+
+**Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; checked before anything is created, so a refused append leaves no file behind.; `IOError` — The capability allowed it and the operating system did not — a missing directory, a read-only filesystem, a path that is a directory.
 
 <a id="core-core-io-writestream"></a>
 #### `Core\IO::writeStream`
@@ -10322,6 +10344,42 @@ The size of the file at `$path` in bytes, as the operating system reports it —
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The capability allowed it and the operating system did not — there is nothing at the path, or its metadata could not be read. A missing file has no size, so it throws here where `exists` answers `false`.
 
+<a id="core-core-io-copy"></a>
+#### `Core\IO::copy`
+
+```nvs skip
+Core\IO::copy(string $from, string $to): void
+```
+
+Duplicates a file — `copy`. Needs `fs.read` for the source and `fs.write` for the destination, which are two grants and not one: reading a directory is never permission to fill it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$from` | `string` (sink) | The file to read. It is left exactly as it was. |
+| `$to` | `string` (sink) | The file to create. Anything already at this path is replaced, as `write` replaces — this destination is one the program named beside a source it already holds. |
+
+**Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for the source or `fs.write` for the destination; both are checked before either is used, so a refusal copies nothing.; `IOError` — The capability allowed it and the operating system did not — nothing at the source, a destination directory that is not there, or a permission the process lacks. The message names both ends.
+
+<a id="core-core-io-move"></a>
+#### `Core\IO::move`
+
+```nvs skip
+Core\IO::move(string $from, string $to): void
+```
+
+Renames a file, which is how it is moved — `rename`. Needs `fs.write` for **both** paths, and not `copy`'s read for the source: a move takes the source away, and taking a file away is destroying it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$from` | `string` (sink) | The path that stops existing. |
+| `$to` | `string` (sink) | The path that ends up holding the file. Anything already there is replaced. |
+
+**Returns** `void` — Nothing. The rename is the operating system's own, so it is atomic: the destination is the whole file or the file it was before. A move between filesystems fails rather than becoming a copy and a delete, which would be neither atomic nor the two capability checks the program would have chosen — `copy` then `remove` is that spelling.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for one of the two paths; both are checked before either is used.; `IOError` — The capability allowed it and the operating system did not — nothing at the source, a destination directory that is not there, or the two paths on different filesystems. The message names both ends.
+
 <a id="core-core-io-remove"></a>
 #### `Core\IO::remove`
 
@@ -10338,6 +10396,23 @@ Deletes the file at `$path` — `unlink`. Needs the `fs.write` capability: remov
 **Returns** `void` — Nothing. Removing a name that is not there throws rather than answering quietly, so a program that deleted nothing has not been told it succeeded.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; being allowed to read a root is not permission to empty it.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is a directory, or the process may not unlink it.
+
+<a id="core-core-io-makedir"></a>
+#### `Core\IO::makeDir`
+
+```nvs skip
+Core\IO::makeDir(string $path): void
+```
+
+Makes sure a directory exists at `$path`, creating any missing parent along the way — `mkdir` with `$recursive` true, which is a parameter there and the only behaviour here. Needs the `fs.write` capability.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The directory that is to exist. Every missing component above it is created too; all of them are under the path the capability was asked about. |
+
+**Returns** `void` — Nothing. A directory that is already there is success rather than a refusal — the contract is that it exists afterwards, and refusing would leave every caller writing an `exists` check in front of this one. `removeDir` is deliberately not the mirror of this: it refuses to recurse, because what it would recurse over is destruction.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path; checked before anything is created, so a refused call leaves no directory behind.; `IOError` — The capability allowed it and the operating system did not — a component of the path exists and is a file, or the process may not create there.
 
 <a id="core-core-io-removedir"></a>
 #### `Core\IO::removeDir`
