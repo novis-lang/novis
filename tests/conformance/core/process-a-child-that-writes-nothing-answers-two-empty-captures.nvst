@@ -1,0 +1,74 @@
+--TEST--
+`Core\Process\Result::stdout` and `::stderr` answer a zero-length capture for a child that wrote nothing — the absence edge both members are written around, measured rather than tested for truthiness — ADR 0044 § 1
+--FILE--
+<?nvs
+// The other side of the bound `process-a-completed-runs-two-streams-stay-apart.nvst`
+// names. That case pins that a stream carries what the child wrote; this one
+// pins what a stream carries when the child wrote nothing at all, which is the
+// answer neither `stdout` nor `stderr` can arrive at by copying its neighbour.
+// `Core\Process::run` builds both members' slots out of
+// `Value::bytes(NvsStr::new(&output.stdout))`, so an empty pipe has to survive
+// a zero-length allocation, a zero-length `bytes` value and a zero-length read
+// back out — three places a capture could pick up a byte it was never given.
+//
+// The length is **printed**, not asserted to be falsy. The failure this is
+// written against is a one-byte answer: a child launched through a shell that
+// echoed a line, or a member that terminated the capture itself, hands back
+// `"\n"`, which every "is it empty" spelling short of a measurement reads as
+// output that is merely small. `0` and `1` are one character apart in the
+// expectation and cannot be confused.
+//
+// A `null` is not the third possibility it looks like: both members are
+// declared `bytes` and not `?bytes`, so absence has exactly one spelling here
+// and it is the one measured below. That is the decision this case pins in
+// place — a later `?bytes` would fail to compile against these declarations
+// rather than quietly changing what an empty capture means.
+//
+// The child writes nothing on purpose and by the shortest route available:
+// `:` is the shell's own null command and `exit 0` is `cmd`'s, so neither
+// child is a program whose silence depends on how it was invoked. `echo` with
+// no argument was the obvious spelling and is precisely wrong — it writes the
+// one byte this case exists to refuse.
+//
+// The two candidates are the platform shells named absolutely, for the reason
+// `process-a-completed-run-answers-the-status-the-child-chose.nvst` states:
+// § 1 makes a `PATH` lookup the caller's own, so the one that is not this
+// platform's has nothing at its path and the operating system answers
+// `IOError`.
+
+// The sentinels are non-empty, and that is the whole point of them: a run in
+// which no child started at all would otherwise print the two zeroes this case
+// is looking for and pass without ever having measured a capture.
+bytes $out = "sentinel" as bytes;
+bytes $err = "sentinel" as bytes;
+int $started = 0;
+
+try {
+    var $unix = Core\Process::run("/bin/sh", ["-c", ":"]);
+    $started = $started + 1;
+    $out = $unix->stdout();
+    $err = $unix->stderr();
+} catch (IOError $notAUnix) {
+}
+
+try {
+    var $windows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "exit 0"]);
+    $started = $started + 1;
+    $out = $windows->stdout();
+    $err = $windows->stderr();
+} catch (IOError $notWindows) {
+}
+
+echo "started=", $started, "\n";
+echo "stdout length=", Core\Bytes::length($out), "\n";
+echo "stderr length=", Core\Bytes::length($err), "\n";
+--FILE nvs.toml--
+# `true` for the reason the exit-code case gives: the door's own scoping is
+# pinned by `process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst`,
+# and this case is about what a completed run captured.
+[capabilities.process]
+exec = true
+--EXPECT--
+started=1
+stdout length=0
+stderr length=0
