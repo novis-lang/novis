@@ -3971,6 +3971,19 @@ is why" — is this file.
   lifetime" rather than one sample after signing.
   `tests/conformance/core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst`
   is the shape.
+- **A `Core` value type's slots are observable from a program through `Core\Debug::render`, and that
+  is how a case asks what a `Cli\Style` or a `Cli\Progress` *holds* when nothing it renders reaches
+  the output.** ADR 0086 § 3 leaves a captured stream at `ColorDepth::None`, so every style renders
+  as exactly the text it wraps and a case comparing rendered output cannot tell `bold` from
+  `italic` — which is most of what a `Style` is. The obvious way out is a trap: `--ENV--` with
+  `CLICOLOR_FORCE=1` forces colour on Linux and *not* on Windows, because `enable_virtual_terminal()`
+  calls `GetConsoleMode` on a piped standard output, fails, and returns `ColorDepth::None` anyway
+  (`crates/nvs-runtime/src/terminal.rs`), so the case would be green on one leg and red on another.
+  `Core\Debug::render($value) as string` prints the instance's own slots — a `Style`'s `$color`,
+  `$background` and `$flags`, a `Progress`'s `$total` and `$done` — on every host alike. Compare
+  whole renderings rather than reading a slot's value wherever the representation is the module's
+  own business: `cli.rs` packs five booleans into one integer and three channels into one `uint`,
+  and neither is a fact the language owes anyone.
 
 ## Splitting a file that got too big
 
