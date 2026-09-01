@@ -1,0 +1,27 @@
+--TEST--
+`as Markup` trusts only a source literal and `+` composes only two `Markup` — ADR 0024 § 5's two bounds
+--FILE--
+<?nvs
+// § 5's first bullet, on both sides of its bound: the literal above is trusted
+// because it is exactly what the developer wrote in the file, and the computed
+// string below can never become trusted markup this way. That is what closes
+// "compute the escape-defeating payload at runtime, then cast it" — a string
+// whose bytes were assembled at run time has no author to trust.
+Core\Html\Markup $ok = "<b>" as Core\Html\Markup;
+string $computed = "<b" . ">";
+Core\Html\Markup $bad = $computed as Core\Html\Markup;
+
+// § 5's second bullet reads `Markup` **+** `Markup`, and the emphasis is on
+// both sides: `+` composes two already-trusted fragments and is not a sink, so
+// it has nowhere to escape a plain string on its way in.
+echo $ok + "raw", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0417]: only a source-literal string may be converted `as Markup`; a runtime-computed or `tainted` value can never become trusted markup this way
+%A
+error[E0716]: `+` has no meaning for `Core\Html\Markup`
+%A
+   = help: ADR 0024 § 5 composes `Markup` with `Markup` and nothing else: lift the other operand with `as Markup` if it is a source literal, or escape it with `Core\Html::escape(...)` — `+` is not a sink and will not escape it for you
+
+error: aborting due to 2 errors

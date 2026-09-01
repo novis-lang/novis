@@ -1,0 +1,29 @@
+--TEST--
+`as Core\Html\Markup` lifts a source literal into the carrier the HTML sink writes raw — ADR 0024 §§ 3 and 5
+--FILE--
+<?nvs
+// § 5: a `Markup` is the sink's only raw-write bypass, and `as` on a source
+// literal is the way one is obtained — the class is memberless, so there is no
+// constructor to reach instead.
+var $m = "<b>bold</b>" as Core\Html\Markup;
+echo $m, "\n";
+
+// The bound on the other side, over the identical text: § 3's launderer is
+// what every non-`Markup` value goes through, and it writes the same
+// characters as references. The two lines together are the whole of what the
+// carrier buys — the same bytes, one path trusted and one escaped — so a lift
+// that quietly escaped, or an `escape` that quietly stopped, fails here.
+echo Core\Html::escape("<b>bold</b>"), "\n";
+
+// All five characters survive the lift, none of them escaped, counted as one
+// string rather than read off five lines.
+echo "&<>\"'" as Core\Html\Markup, "\n";
+
+// A parenthesized literal is exactly as trusted as a bare one: § 5's rule is
+// about where the bytes came from, not about how the expression was written.
+echo ("<hr>") as Core\Html\Markup, "\n";
+--EXPECT--
+<b>bold</b>
+&lt;b&gt;bold&lt;/b&gt;
+&<>"'
+<hr>

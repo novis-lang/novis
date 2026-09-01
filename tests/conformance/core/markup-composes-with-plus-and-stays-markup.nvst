@@ -1,0 +1,27 @@
+--TEST--
+`Markup + Markup` is `Markup`, so trusted fragments compose without a second decision — ADR 0024 § 5
+--FILE--
+<?nvs
+// § 5: composing trusted fragments is what templating already does, so it
+// stays cheap and stays trusted. Neither operand is escaped on the way in —
+// re-escaping a fragment that was already lifted is what would corrupt it, and
+// the `&` here is the character that would show it.
+var $open = "<b>" as Core\Html\Markup;
+var $body = "bold & wide" as Core\Html\Markup;
+var $close = "</b>" as Core\Html\Markup;
+echo $open + $body + $close, "\n";
+
+// The result is a `Markup` and not merely bytes that print the same: the
+// declared type is what asserts it, and composing the result a second time is
+// what would stop compiling if `+` answered a `string`.
+Core\Html\Markup $whole = $open + $body + $close;
+echo $whole + $whole, "\n";
+
+// A `Markup` is a value, peer to `string` the way `bytes` is: `+` builds a
+// third fragment rather than growing the left one, so both operands read back
+// exactly as they were written.
+echo $open, "|", $close, "\n";
+--EXPECT--
+<b>bold & wide</b>
+<b>bold & wide</b><b>bold & wide</b>
+<b>|</b>
