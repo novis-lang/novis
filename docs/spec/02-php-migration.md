@@ -594,12 +594,198 @@ how this runtime is built.
 | `php_sapi_name` | dropped | there is one runtime and one execution model; `nvs run` and the server differ in what they are handed, not in an engine to name |
 | `zend_version` | dropped | there is no Zend engine. `Core\Env::VERSION` is the runtime's own version |
 
+## Files, directories and streams
+
+`Core\IO` ([01 § 14](01-core-library.md)) is the whole filesystem surface. Every member is an
+[ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) path sink holding an `fs.read` or `fs.write`
+capability, failure throws rather than returning `false`, and `resource` is never exposed — an open file is
+a `Core\IO\File` object (R14), whose methods are written `$file->read` below because they are reached
+through the handle `Core\IO::open` hands back.
+
+Three of PHP's habits do not survive the crossing. A **mode string** is an enum (`IO\FileMode`), because
+`"r+b"` is a grammar rather than an argument (R11). A **stat array** is one member per question, because an
+array whose keys depend on what produced it cannot be typed. And a **scheme prefix is not dispatch**:
+[ADR 0052](../adr/0052-closed-doors.md) § 2 closes the wrapper registry, which is why the `stream_*` rows
+below are the largest block of `dropped` in this file with no rewrite offered. That is deliberate. What the
+mechanism actually bought — polymorphism over "things you can read bytes from" — is an ordinary
+`Iterable<bytes>` here ([ADR 0053](../adr/0053-iteration-and-generators.md)), so a filter, a bucket and a
+context have nothing left to be.
+
+### Whole-file reads and writes
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `file_get_contents` | member | `Core\IO::read` for bytes, `Core\IO::readText` where the file is text in a known charset. A URL is not a path ([ADR 0052](../adr/0052-closed-doors.md) § 2); fetching one is `Core\Http\Client` |
+| `file_put_contents` | member | `Core\IO::write`, or `Core\IO::append` for what the `FILE_APPEND` flag meant — an option is never a bitmask (R11) |
+| `file` | member | `Core\IO::lines`, which is lazy where PHP's array is not; the whole-array shape is what `Core\Arr` does to it afterwards |
+| `readfile` | member | `Core\IO::read` and then `Core\Cli::write` or a `Core\Response` body. Reading and writing are two members, never one that does both to two different places |
+| `fpassthru` | member | the same pair, over the handle `Core\IO::open` returns |
+| `tmpfile` | member | `Core\IO::temporaryDir` and `Core\IO::open` inside it. There is no `temporaryFile`, because a program that needs one needs somewhere to put the second ([ADR 0131](../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)) |
+| `tempnam` | member | `Core\IO::temporaryDir`, then the name is the program's to choose inside it — never a name handed back for someone else to race for |
+| `sys_get_temp_dir` | member | `Core\IO::temporaryDir`, which **creates** a private directory that the runtime removes when the script ends, rather than naming a shared one every process can write |
+
+### Handles
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `fopen` | member | `Core\IO::open`, whose second argument is the `IO\FileMode` enum (R11) |
+| `fclose` | member | `$file->close` |
+| `fread` | member | `$file->read` |
+| `fgets` | member | `$file->readLine` |
+| `fgetc` | member | `$file->read` with a length of 1 — there is no member for the one-byte case (R17) |
+| `fwrite` | member | `$file->write` |
+| `fputs` | member | `$file->write`; `fputs` is PHP's own alias of `fwrite` |
+| `feof` | dropped | a read at the end answers empty and `Core\IO::lines` simply ends, so there is no flag to test. PHP's `while (!feof(…))` asks *before* the read, which is why it runs one iteration too many |
+| `fseek` | member | `$file->seek` |
+| `ftell` | member | `$file->tell` |
+| `rewind` | member | `$file->seek` to 0 — one member for positioning, not two |
+| `ftruncate` | member | `$file->truncate` |
+| `fflush` | member | `$file->flush` |
+| `fsync` | member | `$file->flush`, which is durable. A flush that has not reached the disk is not a guarantee a caller can act on, so there is one member and not two |
+| `fdatasync` | member | `$file->flush`; leaving the metadata behind is a distinction the caller cannot act on either |
+| `flock` | member | `$file->lock`, which takes the lock or throws — never a `bool` a caller forgets to read |
+| `fstat` | member | `Core\IO::stat` |
+| `set_file_buffer` | dropped | buffer sizes are the runtime's, tuned where the read is issued. `$file->flush` is the only control a program has over when bytes leave |
+| `fscanf` | dropped | there is no `scanf` grammar: a second parsing language next to `Core\Regex` earns nothing. Read the line with `$file->readLine` and parse it with `Core\Regex` or `Core\Csv::parse` |
+| `fgetcsv` | member | `Core\Csv::parse` over `$file->readLine` — parsing a record and reading a line are separate jobs ([01 § 12](01-core-library.md)) |
+| `fputcsv` | member | `Core\Csv::format`, then `$file->write` |
+
+### Metadata
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `file_exists` | member | `Core\IO::exists` |
+| `is_file` | member | `Core\IO::isFile` |
+| `is_dir` | member | `Core\IO::isDir` |
+| `is_readable` | member | `Core\IO::isReadable` |
+| `is_writable` | member | `Core\IO::isWritable` |
+| `is_writeable` | member | `Core\IO::isWritable`; `is_writeable` is PHP's own alias |
+| `is_executable` | member | `Core\IO::stat`, whose record carries the mode. There is no predicate of its own, because on Windows PHP's answer is a guess from the extension |
+| `is_link` | member | `Core\IO::stat`, which describes the entry itself rather than what it points at |
+| `filesize` | member | `Core\IO::size` |
+| `filemtime` | member | `Core\IO::modifiedAt` |
+| `fileatime` | member | `Core\IO::stat`. Access time gets no member of its own: it is disabled on most filesystems a server runs on, so a member would be a fact that is usually a lie |
+| `filectime` | member | `Core\IO::stat` |
+| `fileinode` | member | `Core\IO::stat` |
+| `fileowner` | member | `Core\IO::stat` |
+| `filegroup` | member | `Core\IO::stat` |
+| `fileperms` | member | `Core\IO::stat` |
+| `filetype` | member | `Core\IO::stat`, or `Core\IO::isFile`/`Core\IO::isDir` where the question is one of those two — never a string to compare against (R11) |
+| `stat` | member | `Core\IO::stat` |
+| `lstat` | member | `Core\IO::stat`, which does not follow the link |
+| `clearstatcache` | dropped | nothing caches a stat between calls, so there is nothing to clear. The cache existed because PHP's per-function stats were expensive; one `Core\IO::stat` asking every question at once is the replacement |
+| `disk_free_space` | dropped | free space on a mount is a host fact an operator monitors, not a request's to read. A program that checks it before writing has a race and not a guarantee: the write either succeeds or throws |
+| `disk_total_space` | dropped | same |
+| `diskfreespace` | dropped | same; PHP's own alias of `disk_free_space` |
+| `getlastmod` | dropped | there is no main script to stat at run time. `Core\IO::modifiedAt` on a path the program names asks the same question out loud |
+
+### Manipulation, directories and links
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `copy` | member | `Core\IO::copy` |
+| `rename` | member | `Core\IO::move` |
+| `unlink` | member | `Core\IO::remove` |
+| `touch` | dropped | creating the file is `Core\IO::write` with empty content; setting a timestamp by hand is not offered, because a modification time the filesystem did not observe is one every reader of it is entitled to disbelieve |
+| `mkdir` | member | `Core\IO::makeDir` |
+| `rmdir` | member | `Core\IO::removeDir` |
+| `scandir` | member | `Core\IO::list` |
+| `glob` | member | `Core\IO::list` for one directory and `Core\IO::walk` for a tree, filtered with `Core\Regex` — a glob is a second pattern language for the same job (R17) |
+| `fnmatch` | dropped | same reason: `Core\Regex` is the pattern language |
+| `opendir` | member | `Core\IO::list`, or `Core\IO::walk` where the directory is large enough that the list should not be materialised |
+| `readdir` | member | the same two members: iterating is what they answer with, so there is no cursor to advance |
+| `closedir` | dropped | no directory handle is opened, so none is closed |
+| `rewinddir` | dropped | same; a second pass is a second `Core\IO::list`, which is also the only honest way to see what changed |
+| `dir` | dropped | the `Directory` object is `opendir` with methods on it — one job reachable two ways (R17). `Core\IO::list` is the one way |
+| `link` | dropped | a hard link is filesystem topology, which deployment owns rather than a request. Where a copy was what was meant, `Core\IO::copy` says so |
+| `symlink` | dropped | same. A request that can create a link into a directory it cannot otherwise reach has widened its own capability, which is exactly what `fs.write` is scoped to prevent |
+| `readlink` | member | `Core\IO::canonicalize`, which resolves the whole chain rather than one hop of it |
+| `linkinfo` | member | `Core\IO::stat` |
+| `chmod` | dropped | a mode is a deployment fact. A request that can change one can widen its own reach, and the case it is usually reached for — a file only this program reads — is what `Core\IO::temporaryDir` already creates |
+| `chown` | dropped | same, and ownership additionally requires a privilege the runtime declines to hold |
+| `chgrp` | dropped | same |
+| `umask` | dropped | it mutates **process-global** state, so one request's call changes every core's writes — unsound for the same reason `putenv` and `setlocale` are gone |
+| `chdir` | dropped | the working directory is process-global too. A path is absolute, or is joined onto a directory the program was configured with, using `Core\Path::join` |
+| `getcwd` | dropped | with nothing able to change it, the working directory is not a request-visible fact; a program that wants a base directory is given one in `nvs.toml` |
+| `is_uploaded_file` | dropped | there is no temporary file to interrogate: an upload is never written to one. `Core\Request::files` yields the parts, and a part is a part by construction ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)) |
+| `move_uploaded_file` | member | `Core\IO::writeStream`, given a part from `Core\Request::files` — the part goes to its destination directly, and a write that fails mid-stream removes the partial file ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) § 4) |
+| `get_include_path` | dropped | there is no runtime include and so no search path: a program's units are resolved while compiling |
+| `set_include_path` | dropped | same, and it is process-global besides |
+| `stream_resolve_include_path` | dropped | same. Resolving a path the program does name is `Core\IO::canonicalize`, and proving it is inside a base is `Core\IO::within` |
+| `ftok` | dropped | System V IPC is not in this runtime. State shared between requests is `Core\Cache` and nothing else ([ADR 0059](../adr/0059-cross-request-state-is-explicit.md)) |
+
+### Streams: wrappers, filters, contexts and buckets
+
+Every row here is `dropped` with **no replacement offered**, which no other block in this file does at this
+scale. [ADR 0052](../adr/0052-closed-doors.md) § 2 refuses dispatch on the textual content of a path, and
+these functions exist only to extend that dispatch: `phar://` metadata unserializing on any path operation,
+`php://filter` chains turning a file read into code execution, `data://` and `http://` turning every local
+inclusion bug into a remote one. There is no opt-in and no reduced form.
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `stream_wrapper_register` | dropped | a path means a path. No registry exists to add a scheme to |
+| `stream_register_wrapper` | dropped | same; PHP's own alias |
+| `stream_wrapper_unregister` | dropped | nothing is registered, so nothing is unregistered |
+| `stream_wrapper_restore` | dropped | same |
+| `stream_get_wrappers` | dropped | the answer would be the empty list, and a program that asks is about to do something the door is closed on |
+| `stream_get_transports` | dropped | same question about the same registry |
+| `stream_filter_register` | dropped | a transform belongs to the program, applied where the bytes are: `Core\Compress`, `Core\Encoding` or `Core\Hash` over an `Iterable<bytes>` |
+| `stream_filter_append` | dropped | same |
+| `stream_filter_prepend` | dropped | same |
+| `stream_filter_remove` | dropped | same |
+| `stream_get_filters` | dropped | same |
+| `stream_bucket_new` | dropped | a bucket is a filter's unit of work, and there are no filters |
+| `stream_bucket_append` | dropped | same |
+| `stream_bucket_prepend` | dropped | same |
+| `stream_bucket_make_writeable` | dropped | same |
+| `stream_context_create` | dropped | a context is an option array keyed by scheme, which is scheme dispatch by another name. Outbound options are `Core\Http\Options` ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)) |
+| `stream_context_get_default` | dropped | same, and a **default** context is one request setting another's options |
+| `stream_context_set_default` | dropped | same |
+| `stream_context_get_options` | dropped | same |
+| `stream_context_set_option` | dropped | same |
+| `stream_context_set_options` | dropped | same |
+| `stream_context_get_params` | dropped | same |
+| `stream_context_set_params` | dropped | same |
+
+### Streams: reading, waiting and sockets
+
+| PHP | Outcome | Novis |
+|---|---|---|
+| `stream_get_contents` | member | `Core\IO::read` for a path, `$file->read` for a handle |
+| `stream_get_line` | member | `$file->readLine` |
+| `stream_copy_to_stream` | member | `Core\IO::writeStream`, which is the one member every stream-to-disk case goes through |
+| `stream_get_meta_data` | dropped | the array's keys depend on which wrapper produced the handle, which is the mechanism § 2 closes. What a `Core\IO\File` knows, it answers with a member |
+| `socket_get_status` | dropped | same; PHP's own alias of `stream_get_meta_data` |
+| `stream_is_local` | dropped | every path is local, because no path can be anything else |
+| `stream_supports_lock` | dropped | `$file->lock` takes the lock or throws, so there is no capability to test first |
+| `stream_isatty` | member | `Core\Cli::isTty` |
+| `stream_set_blocking` | dropped | there is no blocking mode to choose. A read suspends the task and hands the core to another; that is what the runtime's reactor is for, and a program that could turn it off could stall a core |
+| `socket_set_blocking` | dropped | same; PHP's own alias |
+| `stream_set_timeout` | dropped | a deadline is an argument at the call, not a mode set on a handle — `Core\Http\Options`'s `deadline`, which has no unbounded spelling ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)) |
+| `socket_set_timeout` | dropped | same; PHP's own alias |
+| `stream_set_chunk_size` | dropped | chunk and buffer sizes are the runtime's |
+| `stream_set_read_buffer` | dropped | same |
+| `stream_set_write_buffer` | dropped | same |
+| `stream_select` | dropped | waiting on many sources is `Core\Task` ([ADR 0072](../adr/0072-core-task-structured-concurrency.md)): the reactor does the selecting, and a task that is ready is resumed |
+| `stream_socket_client` | member | `Core\Net` ([01 § 16](01-core-library.md)), over the runtime's own reactor rather than a second event loop |
+| `stream_socket_server` | member | `Core\Net` |
+| `stream_socket_accept` | member | `Core\Net` |
+| `stream_socket_pair` | member | `Core\Net` |
+| `stream_socket_get_name` | member | `Core\Net` |
+| `stream_socket_recvfrom` | member | `Core\Net` |
+| `stream_socket_sendto` | member | `Core\Net` |
+| `stream_socket_shutdown` | member | `Core\Net` |
+| `stream_socket_enable_crypto` | dropped | a connection is TLS from the moment it is made or it is not TLS at all. Where a protocol requires STARTTLS the client does it — `Core\Mail`'s does — and no program flips a live plaintext socket |
+| `fsockopen` | member | `Core\Net`, which replaces `socket_*`, `stream_socket_*` and `fsockopen`: three PHP APIs for one job |
+| `pfsockopen` | member | `Core\Net`; the **persistent** half is dropped, because a connection outliving its request is cross-request state ([ADR 0052](../adr/0052-closed-doors.md) § 3) |
+
 ---
 
 ## Not yet classified
 
 Everything else the inventory lists. `python tools/check-migration.py --report` prints the current list;
 it is not duplicated here, because a copy would go stale the moment a row lands. The domains still to do,
-each roughly one pass: files and streams, output and buffering, sessions and requests, reflection and the
-class API, hashing and passwords, XML, compression, the four database extensions, processes, networking,
-and PHP's own introspection.
+each roughly one pass: output and buffering, sessions and requests, reflection and the class API, hashing
+and passwords, XML, compression, the four database extensions, processes, networking, and PHP's own
+introspection.
