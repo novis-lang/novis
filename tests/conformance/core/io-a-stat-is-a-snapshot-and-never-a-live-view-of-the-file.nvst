@@ -1,0 +1,69 @@
+--TEST--
+a Core\IO\Metadata answers about the moment its `stat` was made and never about the file afterwards — a value taken before an append still reports the old size while a fresh one reports the new, and the second modification time is never before the first — spec § 14
+--FILE--
+<?nvs
+// What `stat` buys is one syscall for four questions; what it costs is that
+// the answers are frozen. This is the bound on both sides: the same member of
+// the same value, asked before and after the file changed under it, and a
+// second value taken afterwards that does see the change.
+Core\IO::write("note.txt", "hello world\n");
+
+var $before = Core\IO::stat("note.txt");
+int $was = $before->size() as int;
+echo "before: ", $was as string, "\n";
+
+Core\IO::append("note.txt", "and more\n");
+
+// The held value has not moved. A live view would print 21 here, and a member
+// that re-stat'ed on every call would look identical to a caller who only ever
+// asked once -- which is why the question is asked twice of one value.
+int $held = $before->size() as int;
+echo "held: ", $held as string, "\n";
+
+var $after = Core\IO::stat("note.txt");
+int $now = $after->size() as int;
+echo "after: ", $now as string, "\n";
+
+if ($now > $was) {
+    echo "a fresh stat sees the append\n";
+}
+
+// The modification time moves the same way, and only forwards. `compareTo`
+// answers -1, 0 or 1, so "not before" is the assertion a filesystem whose
+// timestamps are coarse can still satisfy -- a write inside one tick of the
+// clock leaves the two equal, and that is not a failure.
+if ($after->modifiedAt()->compareTo($before->modifiedAt()) >= 0) {
+    echo "the later stat is not the earlier one\n";
+}
+
+// `Core\IO::modifiedAt` reaches the file rather than the snapshot, so it
+// agrees with the value taken after the append and not with the one before.
+if (Core\IO::modifiedAt("note.txt")->compareTo($after->modifiedAt()) == 0) {
+    echo "the member agrees with the fresh snapshot\n";
+}
+
+// The kind of thing at the path did not change, and neither did the answer.
+// The partition is over the snapshot exactly as it is over the path: a regular
+// file answers `true` to one of these and `false` to the other, and appending
+// to it cannot move it from one side to the other.
+if ($before->isFile() && $after->isFile()) {
+    echo "still a file on both sides\n";
+}
+if ($before->isDir() || $after->isDir()) {
+    echo "one snapshot called it a directory\n";
+} else {
+    echo "neither snapshot called it a directory\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+before: 12
+held: 12
+after: 21
+a fresh stat sees the append
+the later stat is not the earlier one
+the member agrees with the fresh snapshot
+still a file on both sides
+neither snapshot called it a directory

@@ -1110,6 +1110,12 @@ pub const CLASSES: &[CoreClass] = &[
     // descriptors, which its own docs argue for; `Core\Script\Handle` is the
     // same shape and landed first.
     crate::io::FILE,
+    // What `Core\IO::stat` answers with — § 14's whole metadata bullet as one
+    // value, so a program asking more than one question about a path pays for
+    // one syscall. Its own docs argue why it is an instance rather than an ADR
+    // 0036 shape, and why the questions it answers are also members of
+    // `Core\IO` without that being ADR 0063 R17's two spellings.
+    crate::io::METADATA,
     // ADR 0044's one way to run another program, and the result it answers
     // with. Beside `Core\IO` because it is the other class that reaches the
     // operating system through a door of its own; its capability row is in
@@ -1425,7 +1431,26 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::io::NAME, "exists", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "isFile", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "isDir", Some(nvs_config::Cap::FsRead)),
+    (crate::io::NAME, "isReadable", Some(nvs_config::Cap::FsRead)),
+    // `fs.write` and not `fs.read`, which is the one place this table's split
+    // is decided by what a question is *about* rather than by what its member
+    // does: `isWritable` performs no write and asks about nothing else, so a
+    // program granted only reads may not ask it. `capability::writable`'s own
+    // doc is the home of that reading.
+    (
+        crate::io::NAME,
+        "isWritable",
+        Some(nvs_config::Cap::FsWrite),
+    ),
     (crate::io::NAME, "size", Some(nvs_config::Cap::FsRead)),
+    // The same reading as `size`: a modification time is metadata, and a
+    // program that can learn when a path it was never granted last changed can
+    // watch a directory it may not open.
+    (crate::io::NAME, "modifiedAt", Some(nvs_config::Cap::FsRead)),
+    // One row for the member that answers every one of the questions above at
+    // once, and the same capability each of them needs — a `stat` is one read
+    // whether the caller wanted one field of it or four.
+    (crate::io::NAME, "stat", Some(nvs_config::Cap::FsRead)),
     // Enumeration is a read of one path — the directory itself — and never a
     // grant over what the listing names. `capability::read_dir`'s own doc is
     // the home of that reading, and of why it is a door rather than a widening
@@ -1480,6 +1505,15 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // is the declaration that says so, per this table's own docs — and it is
     // one row per member rather than one for the class precisely so that a
     // member added later cannot inherit the answer without being asked.
+    // `Core\IO\Metadata`'s four members reach nothing at all: the `stat` that
+    // built the value was checked when `Core\IO::stat` asked, and each member
+    // here is a slot read over the answer it already holds. That is the same
+    // shape as the handle rows below — the check happened where the value was
+    // produced — and the reason a snapshot is worth having.
+    (crate::io::METADATA_NAME, "size", None),
+    (crate::io::METADATA_NAME, "modifiedAt", None),
+    (crate::io::METADATA_NAME, "isFile", None),
+    (crate::io::METADATA_NAME, "isDir", None),
     (crate::io::FILE_NAME, "read", None),
     (crate::io::FILE_NAME, "readLine", None),
     (crate::io::FILE_NAME, "write", None),

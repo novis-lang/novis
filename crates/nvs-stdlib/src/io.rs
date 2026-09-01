@@ -166,6 +166,24 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&IS_DIR_DOC),
         },
         CoreMethod {
+            name: "isReadable",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_io_is_readable",
+            doc: Some(&IS_READABLE_DOC),
+        },
+        CoreMethod {
+            name: "isWritable",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_io_is_writable",
+            doc: Some(&IS_WRITABLE_DOC),
+        },
+        CoreMethod {
             name: "size",
             names: &["path"],
             params: &[CoreTy::Text(Qual::Sink)],
@@ -176,6 +194,27 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_io_size",
             doc: Some(&SIZE_DOC),
+        },
+        CoreMethod {
+            name: "modifiedAt",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            // `Core\Time\Instant` and never an epoch `int`: R12's "units are
+            // types", and the one place PHP's `filemtime` leaks a number a
+            // caller then has to remember the unit of.
+            return_ty: CoreTy::Instance(crate::time::INSTANT_NAME),
+            symbol: "nvs_core_io_modified_at",
+            doc: Some(&MODIFIED_AT_DOC),
+        },
+        CoreMethod {
+            name: "stat",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(METADATA_NAME),
+            symbol: "nvs_core_io_stat",
+            doc: Some(&STAT_DOC),
         },
         CoreMethod {
             name: "copy",
@@ -602,6 +641,43 @@ const IS_DIR_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\IO::isReadable`'s reference card — ADR 0117.
+const IS_READABLE_DOC: MethodDoc = MethodDoc {
+    short: "Whether this process could read what is at `$path` right now — `is_readable`. Needs \
+            the `fs.read` capability, which is a separate and earlier gate: a path outside the \
+            grant is refused rather than reported as unreadable.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The file or directory to ask about, absolute or relative to the working directory.",
+        shape: &[],
+    }],
+    ret: "`true` if the operating system would allow a read, `false` if it would not — including \
+          for a name that is not there. The answer is about the instant it was asked and nothing \
+          holds it still, so a read that follows it can still fail.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The configuration does not grant `fs.read` for this path.",
+    }],
+};
+
+/// `Core\IO::isWritable`'s reference card — ADR 0117.
+const IS_WRITABLE_DOC: MethodDoc = MethodDoc {
+    short: "Whether this process could write what is at `$path` right now — `is_writable`. Needs \
+            the `fs.write` capability, because the whole question is about writing: a program \
+            granted only reads cannot ask where it could write.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The file or directory to ask about, absolute or relative to the working directory.",
+        shape: &[],
+    }],
+    ret: "`true` if the operating system would allow a write, `false` if it would not — including \
+          for a name that is not there. A snapshot, exactly as `isReadable` is.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The configuration does not grant `fs.write` for this path.",
+    }],
+};
+
 /// `Core\IO::size`'s reference card — ADR 0117.
 const SIZE_DOC: MethodDoc = MethodDoc {
     short: "The size of the file at `$path` in bytes, as the operating system reports it — \
@@ -623,6 +699,58 @@ const SIZE_DOC: MethodDoc = MethodDoc {
             desc: "The capability allowed it and the operating system did not — there is nothing \
                    at the path, or its metadata could not be read. A missing file has no size, so \
                    it throws here where `exists` answers `false`.",
+        },
+    ],
+};
+
+/// `Core\IO::modifiedAt`'s reference card — ADR 0117.
+const MODIFIED_AT_DOC: MethodDoc = MethodDoc {
+    short: "When the file at `$path` was last written, as a `Core\\Time\\Instant` — `filemtime`, \
+            with the unit in the type instead of in the caller's memory. Needs the `fs.read` \
+            capability: asking when a file changed is reading it.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The file or directory to ask about, absolute or relative to the working directory.",
+        shape: &[],
+    }],
+    ret: "The modification time as an absolute point on the timeline, with no zone of its own — \
+          `->in($zone)` is what gives it a calendar.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for this path.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "There is nothing at the path, its metadata could not be read, the platform \
+                   does not record a modification time, or the one it recorded falls outside \
+                   the range a `Core\\Time\\Instant` can name.",
+        },
+    ],
+};
+
+/// `Core\IO::stat`'s reference card — ADR 0117.
+const STAT_DOC: MethodDoc = MethodDoc {
+    short: "Everything one `stat` answers about `$path`, as a `Core\\IO\\Metadata` — `stat`, \
+            `lstat` and `filemtime` in one call, so a program asking more than one question \
+            about a file pays for one syscall rather than one per question. Needs the \
+            `fs.read` capability.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The file or directory to measure, absolute or relative to the working directory.",
+        shape: &[],
+    }],
+    ret: "A `Core\\IO\\Metadata` — a snapshot, not a live view: it answers about the moment the \
+          call was made, and says nothing about the file afterwards.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for this path.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "There is nothing at the path, or its metadata could not be read. A missing \
+                   file has no metadata, so it throws here where `exists` answers `false`.",
         },
     ],
 };
@@ -1487,6 +1615,154 @@ pub(crate) const LINES: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\IO::stat`'s answer, as [`CoreTy::Instance`] spells it.
+pub(crate) const METADATA_NAME: &str = r"Core\IO\Metadata";
+
+/// [`METADATA`]'s slots, in declaration order — the layout
+/// [`nvs_core_io_stat`] fills and every member of that class reads back.
+const METADATA_SIZE_SLOT: usize = 0;
+/// See [`METADATA_SIZE_SLOT`].
+const METADATA_MODIFIED_AT_SLOT: usize = 1;
+/// See [`METADATA_SIZE_SLOT`].
+const METADATA_IS_FILE_SLOT: usize = 2;
+/// See [`METADATA_SIZE_SLOT`].
+const METADATA_IS_DIR_SLOT: usize = 3;
+
+/// Spec § 14's `stat`, as the value it answers with: one `stat` call's whole
+/// answer about one path, frozen at the moment it was asked.
+///
+/// # Decision: an instance, not a fixed-key shape
+///
+/// [`crate::instance`] can build either — an ADR 0036 shape is an anonymous
+/// methodless object whose fields a program reads with `->size`, and a
+/// [`CoreClass`] is one with members and no reachable field. The shape reads
+/// better at the call site and is the wrong one here for one reason:
+/// [`CoreTy`] has no spelling for a shape *return*, so a member answering one
+/// would need a new registry variant, a lowering for it in `nvs-types` and a
+/// second way for the checker to learn a `Core` member's result type. `Core`
+/// already answers with instances in 141 rows, and `Core\Time\Instant` — which
+/// this class holds one of — is the same shape. A record is not worth a second
+/// return-type mechanism.
+///
+/// # Decision: it answers the questions the single-question members answer
+///
+/// `size`, `modifiedAt`, `isFile` and `isDir` are all members of `Core\IO`
+/// too, and spec § 14's metadata bullet names them beside `stat` on purpose.
+/// **ADR 0063 R17/R18 are not what that collides with**: R18 forbids a static
+/// that *mirrors an object's own method* — `Time::format($instant, $fmt)`
+/// beside `$instant->format($fmt)`, where the object is the static's own
+/// subject. Here the subject of `Core\IO::size` is a `string` path and the
+/// operation is a syscall; the subject of `$m->size()` is a snapshot already
+/// taken and the operation is a slot read. They are not two spellings of one
+/// operation and their answers can differ — a file that grew between the two
+/// calls says so — which is exactly why a program that asks more than one
+/// question asks `stat` once instead.
+///
+/// # What it does not carry
+///
+/// **No permission member.** `fileperms` has no portable content: Windows
+/// records one read-only attribute and Unix records nine mode bits, so a
+/// member over `std::fs::Permissions::readonly` would answer the platform's
+/// question rather than the language's, and no `Core` member sets permissions,
+/// so no case could ever pin its `true` side. The question a program actually
+/// asks is answered by § 14's `isReadable` and `isWritable`, which are access
+/// checks over the process, the path and the mount rather than a bit on the
+/// inode.
+///
+/// **No created or accessed time.** Neither is recorded by every filesystem
+/// Novis runs on, and a member whose answer is "this platform does not know"
+/// is one every caller has to write a branch for. § 14 names `modifiedAt`
+/// alone, and that is the one every filesystem has.
+///
+/// **What it spends:** two allocations per `stat` — this instance and the
+/// `Core\Time\Instant` in its second slot — charged to the request that asked,
+/// released with it. The `Instant` is built eagerly rather than from a stored
+/// pair of `int` slots so that its representation stays inside
+/// [`crate::time`], which is where [`crate::time::instant_at_system_time`]'s
+/// own doc argues it belongs.
+pub(crate) const METADATA: CoreClass = CoreClass {
+    name: METADATA_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "size",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_io_metadata_size",
+            doc: Some(&METADATA_SIZE_DOC),
+        },
+        CoreMethod {
+            name: "modifiedAt",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(crate::time::INSTANT_NAME),
+            symbol: "nvs_core_io_metadata_modified_at",
+            doc: Some(&METADATA_MODIFIED_AT_DOC),
+        },
+        CoreMethod {
+            name: "isFile",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_io_metadata_is_file",
+            doc: Some(&METADATA_IS_FILE_DOC),
+        },
+        CoreMethod {
+            name: "isDir",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_io_metadata_is_dir",
+            doc: Some(&METADATA_IS_DIR_DOC),
+        },
+    ],
+    slots: &["size", "modifiedAt", "isFile", "isDir"],
+    constants: &[],
+};
+
+/// `Core\IO\Metadata::size`'s reference card — ADR 0117.
+const METADATA_SIZE_DOC: MethodDoc = MethodDoc {
+    short: "The file's size in bytes at the moment `stat` was called. Needs no capability of its \
+            own: the path was checked when `stat` produced this value.",
+    params: &[],
+    ret: "The byte count as a `uint`. A directory's is the platform's own number for a directory \
+          entry and means nothing portable.",
+    errors: &[],
+};
+
+/// `Core\IO\Metadata::modifiedAt`'s reference card — ADR 0117.
+const METADATA_MODIFIED_AT_DOC: MethodDoc = MethodDoc {
+    short: "When the file was last written, as a `Core\\Time\\Instant` — the same answer \
+            `Core\\IO::modifiedAt` gives, out of the `stat` this value already holds.",
+    params: &[],
+    ret: "The modification time as an absolute point on the timeline, with no zone of its own.",
+    errors: &[],
+};
+
+/// `Core\IO\Metadata::isFile`'s reference card — ADR 0117.
+const METADATA_IS_FILE_DOC: MethodDoc = MethodDoc {
+    short: "Whether the path was a regular file. Together with `isDir` this partitions most of \
+            what exists and does not cover it — a socket, a device node and a named pipe answer \
+            `false` to both.",
+    params: &[],
+    ret: "`true` for a regular file, `false` for anything else that was there.",
+    errors: &[],
+};
+
+/// `Core\IO\Metadata::isDir`'s reference card — ADR 0117.
+const METADATA_IS_DIR_DOC: MethodDoc = MethodDoc {
+    short: "Whether the path was a directory — the other half of the partition `isFile` \
+            describes.",
+    params: &[],
+    ret: "`true` for a directory, `false` for anything else that was there.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -1499,9 +1775,19 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_io_exists" => (nvs_core_io_exists as *const ()).cast(),
         "nvs_core_io_is_file" => (nvs_core_io_is_file as *const ()).cast(),
         "nvs_core_io_is_dir" => (nvs_core_io_is_dir as *const ()).cast(),
+        "nvs_core_io_is_readable" => (nvs_core_io_is_readable as *const ()).cast(),
+        "nvs_core_io_is_writable" => (nvs_core_io_is_writable as *const ()).cast(),
         "nvs_core_io_list" => (nvs_core_io_list as *const ()).cast(),
         "nvs_core_io_canonicalize" => (nvs_core_io_canonicalize as *const ()).cast(),
         "nvs_core_io_size" => (nvs_core_io_size as *const ()).cast(),
+        "nvs_core_io_modified_at" => (nvs_core_io_modified_at as *const ()).cast(),
+        "nvs_core_io_stat" => (nvs_core_io_stat as *const ()).cast(),
+        "nvs_core_io_metadata_size" => (nvs_core_io_metadata_size as *const ()).cast(),
+        "nvs_core_io_metadata_modified_at" => {
+            (nvs_core_io_metadata_modified_at as *const ()).cast()
+        }
+        "nvs_core_io_metadata_is_file" => (nvs_core_io_metadata_is_file as *const ()).cast(),
+        "nvs_core_io_metadata_is_dir" => (nvs_core_io_metadata_is_dir as *const ()).cast(),
         "nvs_core_io_copy" => (nvs_core_io_copy as *const ()).cast(),
         "nvs_core_io_move" => (nvs_core_io_move as *const ()).cast(),
         "nvs_core_io_make_dir" => (nvs_core_io_make_dir as *const ()).cast(),
@@ -2462,6 +2748,47 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\IO::isReadable(string $path): bool` — replacing `is_readable`.
+    ///
+    /// **A guard and never a gate.** What it answers is a snapshot of the
+    /// operating system's opinion, which anything may invalidate before the
+    /// caller acts on it — so the shape a program should reach for is still a
+    /// `read` inside a `try`, and this member is for the case where "cannot"
+    /// is an ordinary branch rather than an error: a config file that may be
+    /// absent, a directory a tool offers to use if it can.
+    ///
+    /// Absence is `false` here where `size` throws for it, and the difference
+    /// is the question: a name that is not there is genuinely not readable,
+    /// while it has no size for any answer to be about.
+    fn nvs_core_io_is_readable(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "isReadable", "path")?);
+        let allowed =
+            nvs_runtime::capability::readable(ctx, path, "Core\\IO::isReadable")?;
+        Ok(Value::bool(allowed))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::isWritable(string $path): bool` — replacing `is_writable`.
+    ///
+    /// [`nvs_core_io_is_readable`]'s doc is the home of what this pair is for,
+    /// and the door [`nvs_runtime::capability::writable`] owns why the
+    /// capability is `fs.write`.
+    ///
+    /// **A name that is not there is not writable, even where creating it
+    /// would succeed.** The question is about the path as it is, not about
+    /// what `write` would do with it — `is_writable` answers the same way, and
+    /// matching it is priority 2. A program asking "can I create this file"
+    /// is asking about the *directory*, and that is the path to hand over.
+    fn nvs_core_io_is_writable(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "isWritable", "path")?);
+        let allowed =
+            nvs_runtime::capability::writable(ctx, path, "Core\\IO::isWritable")?;
+        Ok(Value::bool(allowed))
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\IO::size(string $path): uint` — replacing `filesize`.
     ///
     /// The operating system's number rather than the length of anything the
@@ -2473,6 +2800,142 @@ nvs_runtime::nvs_helper! {
         let path = Path::new(text(&args[0], "size", "path")?);
         let stat = nvs_runtime::capability::metadata(ctx, path, "Core\\IO::size")?;
         Ok(Value::uint(stat.len()))
+    }
+}
+
+/// The modification time in `stat` as a `Core\Time\Instant`, or the `IOError`
+/// saying why there is not one.
+///
+/// One function because [`nvs_core_io_modified_at`] and [`nvs_core_io_stat`]
+/// ask the same thing of the same `stat` and must fail the same way: a
+/// platform that does not record a modification time and one that recorded an
+/// unnameable one are both `IOError`s here rather than a `null` either caller
+/// would have to branch on. [`METADATA`]'s docs own why the second of those
+/// fails the whole `stat` rather than only the member that would have read it.
+///
+/// # Errors
+///
+/// An `IOError` naming the member and the path, for either failure above.
+fn modified_at(
+    stat: &nvs_runtime::capability::Metadata,
+    path: &Path,
+    member: &str,
+) -> Result<Value, Fault> {
+    let at = stat
+        .modified()
+        .map_err(|err| nvs_runtime::capability::io_failure(member, path, &err))?;
+    crate::time::instant_at_system_time(at).ok_or_else(|| {
+        Fault::thrown_as(
+            ThrownClass::Io,
+            format!(
+                "{member} failed on {}: its modification time is outside the range a \
+                 `Core\\Time\\Instant` can name",
+                path.display()
+            ),
+        )
+    })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::modifiedAt(string $path): Core\Time\Instant` — replacing
+    /// `filemtime`.
+    ///
+    /// An `Instant` and not an epoch `int`, which is ADR 0063 R12: `filemtime`
+    /// hands back a number whose unit the caller has to remember, and every
+    /// comparison against one is a chance to remember it wrong. What the type
+    /// buys is that the answer can only be compared with another point on the
+    /// timeline and can only be rendered through a zone the program names.
+    fn nvs_core_io_modified_at(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "modifiedAt", "path")?);
+        let stat = nvs_runtime::capability::metadata(ctx, path, "Core\\IO::modifiedAt")?;
+        modified_at(&stat, path, "Core\\IO::modifiedAt")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\IO::stat(string $path): Core\IO\Metadata` — replacing `stat`,
+    /// `lstat` and the whole `file*` family of one-question members.
+    ///
+    /// **One syscall, four answers.** That is the only reason this member
+    /// exists beside `size`, `modifiedAt`, `isFile` and `isDir`: a program
+    /// asking two of those questions about one path pays for two `stat`s, and
+    /// the two can disagree because anything else may have written between
+    /// them. [`METADATA`]'s own docs own why that is not the two-spellings
+    /// ADR 0063 R17 forbids.
+    ///
+    /// The result is a **snapshot** and never a live view — the door hands
+    /// back a whole `std::fs::Metadata` for exactly this, and its doc comment
+    /// is the home of why a second door per field would have been a second
+    /// syscall for the same permission.
+    fn nvs_core_io_stat(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "stat", "path")?);
+        let stat = nvs_runtime::capability::metadata(ctx, path, "Core\\IO::stat")?;
+        let modified = modified_at(&stat, path, "Core\\IO::stat")?;
+        Ok(crate::instance::build(
+            &METADATA,
+            [
+                Value::uint(stat.len()),
+                modified,
+                Value::bool(stat.is_file()),
+                Value::bool(stat.is_dir()),
+            ],
+        ))
+    }
+}
+
+/// Slot `index` of the `Core\IO\Metadata` receiver in argument slot 0,
+/// retained for the caller.
+///
+/// Every member of that class is this and nothing else, which is
+/// [`METADATA`]'s decision written out: the questions were all answered by the
+/// one `stat` that built the value, so a member here computes nothing and can
+/// fail at nothing.
+///
+/// # Errors
+///
+/// The [`crate::instance::receiver`] fault a wrongly-tagged receiver is, which
+/// compiled code cannot produce.
+fn metadata_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
+    let object = crate::instance::receiver(args[0], &METADATA, member)?;
+    let held = crate::instance::slot(object, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot is owned by the receiver, which the argument slot holds a \
+                  reference to for the length of the call, so the copy handed back to \
+                  Novis code needs a reference of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$m->size(): uint` — the byte count the `stat` behind this value read.
+    fn nvs_core_io_metadata_size(_ctx, args: [1]) {
+        metadata_slot(args, METADATA_SIZE_SLOT, "size")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$m->modifiedAt(): Core\Time\Instant` — the modification time the
+    /// `stat` behind this value read, built when it was.
+    fn nvs_core_io_metadata_modified_at(_ctx, args: [1]) {
+        metadata_slot(args, METADATA_MODIFIED_AT_SLOT, "modifiedAt")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$m->isFile(): bool` — whether the path was a regular file.
+    fn nvs_core_io_metadata_is_file(_ctx, args: [1]) {
+        metadata_slot(args, METADATA_IS_FILE_SLOT, "isFile")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$m->isDir(): bool` — whether the path was a directory.
+    fn nvs_core_io_metadata_is_dir(_ctx, args: [1]) {
+        metadata_slot(args, METADATA_IS_DIR_SLOT, "isDir")
     }
 }
 

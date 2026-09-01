@@ -21,9 +21,20 @@
 //!
 //! [ADR 0118]: ../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md
 
-use std::fs::{File, Metadata, ReadDir};
+use std::fs::{File, ReadDir};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+
+/// What [`metadata`] and [`metadata_if_present`] hand back, re-exported so that their callers can
+/// name it.
+///
+/// `nvs-stdlib` may not write `std::fs` anywhere —
+/// `nvs_stdlib_reaches_the_os_only_through_the_gate` is the scan that holds ADR 0118 § 2's door
+/// shut — so a `Core` member that passes one of these to a helper of its own would otherwise have
+/// no spelling for the parameter, and would have to re-derive each field at the call site instead.
+/// Re-exporting the type grants nothing: every way of *obtaining* one still goes through a door
+/// above that has already asked.
+pub use std::fs::Metadata;
 
 use nvs_config::capability::{Cap, Scope};
 
@@ -495,6 +506,95 @@ pub fn exists(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
     require(ctx, Cap::FsRead, Scope::Path(path), member)?;
     path.try_exists()
         .map_err(|err| io_failure(member, path, &err))
+}
+
+/// § 2's access door for reading: whether the operating system would let **this process** read what
+/// is at `path`, once [`Cap::FsRead`] has been shown to cover it.
+///
+/// **The two gates answer differently on purpose, and this is the whole design of the pair.** The
+/// capability is the configuration's answer to "may this program touch that name at all", and it
+/// **refuses** — a path outside the grant throws here exactly as it does at every other door. Only
+/// then does the member ask the operating system's question, which is about this process's uid, the
+/// mode bits and the mount, and that one answers `false`. Folding the first into the second would
+/// hand a program a boolean it could sweep the filesystem with to map its own configuration, which
+/// is precisely the enumeration [`exists`] is behind a capability to prevent.
+///
+/// Absence is `false` and not a failure — a name that is not there is not readable, which is the
+/// same answer PHP's `is_readable` gives and is what makes this member usable as a guard before a
+/// read rather than a second thing to wrap in a `try`.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
+/// `path`. Nothing else: every operating-system outcome, absence included, is one of the two
+/// booleans.
+pub fn readable(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
+    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    Ok(permitted(path, false))
+}
+
+/// § 2's access door for writing: whether the operating system would let **this process** write what
+/// is at `path`, once [`Cap::FsWrite`] has been shown to cover it.
+///
+/// [`readable`]'s doc is the home of why the capability refuses where the operating system answers
+/// `false`. What is decided *here* is which capability: `fs.write` and not `fs.read`, by the same
+/// reading that puts `size` behind `fs.read` — a member's capability is about the effect its
+/// question is *about*, and this question is entirely about writing. A program granted only reads
+/// therefore cannot ask where it could write, which is the answer a read-only program has no use for
+/// and an escaping one has every use for.
+///
+/// # Errors
+///
+/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
+/// `path`, and nothing else.
+pub fn writable(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
+    require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+    Ok(permitted(path, true))
+}
+
+/// Whether this process may write (or, for `write` false, read) what is at `path`, as the operating
+/// system itself would decide it at the moment of the call.
+///
+/// **`access(2)` on Unix, and the read-only attribute on Windows**, which is exactly the split PHP's
+/// own `is_readable`/`is_writable` make and for the same reason: only one of the two platforms has a
+/// question to ask. Unix permission is a function of the process's real uid and gid against the mode
+/// bits of the file *and* of every directory above it, so nothing short of the syscall answers it —
+/// `std::fs::Permissions::readonly` is true only when no write bit is set for *anybody*, which says
+/// nothing about whether this process is the owner. Windows has no uid in that sense at this layer:
+/// a handle-based check would need a full access-token comparison against the DACL, and the
+/// attribute is what its own CRT's `_waccess` reports.
+///
+/// **This is inherently a snapshot**, on both platforms and in PHP alike: the answer is about the
+/// instant it was asked, and anything may change the permission before the caller acts on it. That
+/// is a reason to prefer attempting the operation and catching the failure, and it is why this is a
+/// door under a member rather than something any `Core` writer consults on a caller's behalf.
+///
+/// A path that cannot be spelled for the platform call — a Unix path holding an interior NUL — is
+/// `false`, because there is nothing there for the answer to be about.
+#[cfg(unix)]
+fn permitted(path: &Path, write: bool) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+
+    let Ok(name) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
+        return false;
+    };
+    let mode = if write { libc::W_OK } else { libc::R_OK };
+    #[expect(
+        unsafe_code,
+        reason = "`access` reads the NUL-terminated string it is handed and nothing else, and \
+                  `name` owns that allocation for the length of the call"
+    )]
+    let answer = unsafe { libc::access(name.as_ptr(), mode) };
+    answer == 0
+}
+
+/// See the `unix` half above, which is the home of this pair's reasoning.
+#[cfg(windows)]
+fn permitted(path: &Path, write: bool) -> bool {
+    let Ok(stat) = std::fs::metadata(path) else {
+        return false;
+    };
+    !write || !stat.permissions().readonly()
 }
 
 /// § 2's resolution door: what `path` actually names, once [`Cap::FsRead`] has been shown to cover

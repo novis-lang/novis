@@ -129,6 +129,7 @@
 //!   `parse` keeps the host and the path as text and so is contagious.
 
 use std::sync::OnceLock;
+use std::time::SystemTime;
 
 use jiff::civil::{self, Weekday};
 use jiff::tz::{Offset, TimeZone};
@@ -2981,6 +2982,24 @@ fn time_of_day_address(symbol: &str) -> Option<*const u8> {
 // ============================================================================
 // Shared reading and building, for the three classes above
 // ============================================================================
+
+/// A `Core\Time\Instant` at `at`, for a member **outside this module** holding
+/// a [`SystemTime`] — spec § 14's `Core\IO::modifiedAt` and the `modifiedAt`
+/// slot of `Core\IO\Metadata` are the two so far.
+///
+/// The seam exists so that [`INSTANT`]'s two-slot representation — the epoch
+/// second and the subsecond nanosecond, always of the same sign — stays inside
+/// this module: a caller elsewhere holds a clock reading and wants the language
+/// type for it, and has no business knowing which integers that is made of.
+///
+/// `None` for a reading outside [`Timestamp`]'s range, which is roughly years 1
+/// to 9999. A filesystem is free to hand back a modification time no calendar
+/// has a name for — a corrupt inode, a `0xFFFF_FFFF` sentinel — and the caller
+/// decides what to say about it, because this seam has no member to name in a
+/// message and no answer that would not be invented.
+pub(crate) fn instant_at_system_time(at: SystemTime) -> Option<Value> {
+    Timestamp::try_from(at).ok().map(instant_built)
+}
 
 /// A fresh `Instant` at `at`.
 fn instant_built(at: Timestamp) -> Value {

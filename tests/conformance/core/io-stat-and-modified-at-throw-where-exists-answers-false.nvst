@@ -1,0 +1,71 @@
+--TEST--
+Core\IO::stat and ::modifiedAt name the bound absence puts them on, both sides of it: each answers for a directory that is there and throws IOError for a name that is not, where ::exists answers `false` for the same name — a missing file has no metadata, and inventing a zero or an epoch would be indistinguishable from a real one — spec § 14, ADR 0118 § 2
+--FILE--
+<?nvs
+// The accepted side first, on the kind of path that is easiest to get wrong:
+// a directory is a name with metadata, so both members answer for it.
+Core\IO::makeDir("sub");
+
+var $dir = Core\IO::stat("sub");
+if ($dir->isDir()) {
+    echo "sub: a directory\n";
+}
+if ($dir->isFile()) {
+    echo "sub: a file\n";
+} else {
+    echo "sub: not a file\n";
+}
+
+// A directory has a modification time like anything else, and asking for it
+// twice of the same unchanged name is the same point on the timeline.
+if (Core\IO::modifiedAt("sub")->compareTo($dir->modifiedAt()) == 0) {
+    echo "sub: one modification time, asked two ways\n";
+}
+
+// The last accepted value of a byte count, beside the absence below that is
+// not one: a file with nothing in it has a metadata answer, and that answer is
+// zero. Inventing a zero for the missing name in the next block is exactly
+// what would make these two indistinguishable to a caller.
+Core\IO::write("empty.txt", "");
+var $empty = Core\IO::stat("empty.txt");
+int $bytes = $empty->size() as int;
+echo "empty.txt: ", $bytes as string, " bytes\n";
+if ($empty->isFile()) {
+    echo "empty.txt: a file all the same\n";
+}
+
+// The refused side. `exists` has an answer here and the other two do not:
+// absence is an outcome for the member that asks whether something is there,
+// and a failure for every member that asks something about it.
+if (Core\IO::exists("missing.txt")) {
+    echo "missing.txt: exists\n";
+} else {
+    echo "missing.txt: absent\n";
+}
+
+try {
+    var $gone = Core\IO::stat("missing.txt");
+    echo "missing.txt: measured\n";
+} catch (IOError $absent) {
+    echo "missing.txt: no metadata\n";
+}
+
+try {
+    var $when = Core\IO::modifiedAt("missing.txt");
+    echo "missing.txt: dated\n";
+} catch (IOError $undated) {
+    echo "missing.txt: no modification time\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+sub: a directory
+sub: not a file
+sub: one modification time, asked two ways
+empty.txt: 0 bytes
+empty.txt: a file all the same
+missing.txt: absent
+missing.txt: no metadata
+missing.txt: no modification time

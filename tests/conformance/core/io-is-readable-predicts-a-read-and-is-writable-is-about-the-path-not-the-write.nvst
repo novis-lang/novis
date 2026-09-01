@@ -1,0 +1,64 @@
+--TEST--
+Core\IO::isReadable predicts whether ::read succeeds for both a file that is there and a name that is not, while ::isWritable answers `false` for a name ::write then creates without complaint — the divergence is PHP's `is_writable` and is kept on purpose, because the question is about the path as it is rather than about what a write would do with it — spec § 14, ADR 0063 R4
+--FILE--
+<?nvs
+// The agreement first, counted rather than read off a line: for each of a name
+// that is there and a name that is not, the guard and the operation say the
+// same thing. A member that answered plausibly for the present file alone
+// still fails this.
+array<string> $paths = ["seed.txt", "missing.txt"];
+int $n = Core\Arr::count($paths) as int;
+
+int $agree = 0;
+int $i = 0;
+for (; $i < $n; $i = $i + 1) {
+    string $path = $paths[$i];
+    bool $guard = Core\IO::isReadable($path);
+    bool $read = true;
+    try {
+        string $held = Core\IO::read($path);
+    } catch (IOError $failed) {
+        $read = false;
+    }
+    if ($guard == $read) {
+        $agree = $agree + 1;
+    }
+}
+echo "isReadable agrees with read: ", $agree as string, " of ", $n as string, "\n";
+
+// And the divergence, which is the whole reason this member is not a
+// substitute for trying. A name that is not there is not writable -- there is
+// no path for a permission to be about -- and `write` creates it anyway,
+// because creating is what `write` does.
+if (Core\IO::isWritable("fresh.txt")) {
+    echo "fresh.txt: writable before it exists\n";
+} else {
+    echo "fresh.txt: not writable before it exists\n";
+}
+
+Core\IO::write("fresh.txt", "made\n");
+
+if (Core\IO::isWritable("fresh.txt")) {
+    echo "fresh.txt: writable once it does\n";
+} else {
+    echo "fresh.txt: not writable once it does\n";
+}
+
+// A program asking "may I create a file here" is asking about the directory,
+// and that is the path to hand over.
+if (Core\IO::isWritable(".")) {
+    echo "the directory it was created in: writable\n";
+} else {
+    echo "the directory it was created in: not writable\n";
+}
+--FILE seed.txt--
+kept
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+isReadable agrees with read: 2 of 2
+fresh.txt: not writable before it exists
+fresh.txt: writable once it does
+the directory it was created in: writable

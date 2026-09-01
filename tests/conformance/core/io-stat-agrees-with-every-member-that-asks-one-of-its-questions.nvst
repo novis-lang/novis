@@ -1,0 +1,62 @@
+--TEST--
+Core\IO::stat answers in one call what ::size, ::isFile, ::isDir and ::modifiedAt answer in four, and every pair agrees — asserted by counting the agreements rather than by printing each answer, so a member that grew its own reading of the same `stat` fails here while still looking right on its own line — spec § 14, ADR 0063 R17
+--FILE--
+<?nvs
+// The four single-question members and the one that answers all four exist
+// side by side on purpose: this case is the rule that makes that legal. They
+// are not two spellings of one operation -- each static reaches the operating
+// system with a path, while each member of the snapshot reads a slot -- but
+// they must never disagree about a file nothing is writing.
+Core\IO::write("note.txt", "hello world\n");
+Core\IO::makeDir("sub");
+
+var $file = Core\IO::stat("note.txt");
+var $dir = Core\IO::stat("sub");
+
+// Counted, not read off a line. Four agreements is the whole assertion; a
+// member answering plausibly on its own row still fails this.
+int $agree = 0;
+
+if (($file->size() as int) == (Core\IO::size("note.txt") as int)) {
+    $agree = $agree + 1;
+}
+if ($file->isFile() == Core\IO::isFile("note.txt")) {
+    $agree = $agree + 1;
+}
+if ($file->isDir() == Core\IO::isDir("note.txt")) {
+    $agree = $agree + 1;
+}
+// The modification time is a point on the timeline and not a number, so the
+// comparison is `compareTo` -- ADR 0063 R12's units-are-types, and the whole
+// reason `filemtime`'s epoch integer does not survive into Novis.
+if ($file->modifiedAt()->compareTo(Core\IO::modifiedAt("note.txt")) == 0) {
+    $agree = $agree + 1;
+}
+
+echo "agreeing answers: ", $agree as string, "\n";
+
+// And the same four questions of a directory, where two of them swap. The
+// pair partitions most of what exists without covering it, which is
+// `isFile`/`isDir`'s own rule stated over a snapshot instead of over a path.
+if ($dir->isDir() == Core\IO::isDir("sub")) {
+    echo "directory: isDir agrees\n";
+}
+if ($dir->isFile() == Core\IO::isFile("sub")) {
+    echo "directory: isFile agrees\n";
+}
+if ($file->isFile()) {
+    echo "note.txt: a file\n";
+}
+if ($dir->isDir()) {
+    echo "sub: a directory\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+agreeing answers: 4
+directory: isDir agrees
+directory: isFile agrees
+note.txt: a file
+sub: a directory

@@ -1,0 +1,51 @@
+--TEST--
+Core\IO::isWritable names `fs.write` and is refused at the door for a path the configuration does not cover, whether or not that path exists — the capability is a separate and earlier gate than the operating system's own answer, so a program cannot sweep a boolean across the filesystem to map its own grant — ADR 0118 §§ 1-2, spec § 14
+--FILE--
+<?nvs
+// `fs.read` covers this directory and `fs.write` covers nothing. That splits
+// the pair: `isReadable` answers, `isWritable` refuses. A member that folded
+// the capability into its boolean would answer `false` on both lines below and
+// look entirely reasonable doing it -- while handing any program a probe for
+// the configuration it is running under.
+if (Core\IO::isReadable("seed.txt")) {
+    echo "seed.txt: readable\n";
+} else {
+    echo "seed.txt: not readable\n";
+}
+
+array<string> $paths = ["seed.txt", "missing.txt"];
+int $n = Core\Arr::count($paths) as int;
+string $needed = " needs the capability `fs.write` for ";
+
+int $refused = 0;
+int $namingFsWrite = 0;
+
+int $i = 0;
+for (; $i < $n; $i = $i + 1) {
+    string $path = $paths[$i];
+    try {
+        bool $may = Core\IO::isWritable($path);
+        echo "isWritable answered for ", $path, "\n";
+    } catch (RuntimeError $denied) {
+        $refused = $refused + 1;
+        if ($denied->message == "Core\\IO::isWritable" . $needed . $path . ", which is not granted") {
+            $namingFsWrite = $namingFsWrite + 1;
+        }
+    }
+}
+
+// Counted over both paths, because the load-bearing half of the claim is that
+// the refusal does not depend on whether the name is there: a member that
+// refused only the file that exists would leak the existence of every other
+// one through the difference.
+echo "paths: ", $n as string,
+     ", refused: ", $refused as string,
+     ", naming fs.write: ", $namingFsWrite as string, "\n";
+--FILE seed.txt--
+kept
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+seed.txt: readable
+paths: 2, refused: 2, naming fs.write: 2

@@ -1,0 +1,63 @@
+--TEST--
+Core\IO::isReadable and ::isWritable answer the operating system's question about a file and a directory that are there, and answer `false` rather than throwing for a name that is not — the bound named on both sides, beside the `exists` that agrees about the same absent name — spec § 14, ADR 0118 § 2
+--FILE--
+<?nvs
+// Both members are guards rather than gates: what they answer is a snapshot of
+// a permission anything may change, so the shape a program reaches for is
+// still the operation inside a `try`. What they are for is the case where
+// "cannot" is an ordinary branch -- a config file that may be absent, a
+// directory a tool offers to use if it can.
+Core\IO::write("note.txt", "hello\n");
+Core\IO::makeDir("sub");
+
+if (Core\IO::isReadable("note.txt")) {
+    echo "note.txt: readable\n";
+} else {
+    echo "note.txt: not readable\n";
+}
+if (Core\IO::isWritable("note.txt")) {
+    echo "note.txt: writable\n";
+} else {
+    echo "note.txt: not writable\n";
+}
+
+// A directory is a path like any other here. Neither member is about the kind
+// of thing at the name -- that is `isFile` and `isDir` -- and a program that
+// wants to know whether it may create a file asks about the directory, since
+// the name it means does not exist yet.
+if (Core\IO::isReadable("sub")) {
+    echo "sub: readable\n";
+} else {
+    echo "sub: not readable\n";
+}
+
+// The other side. A name that is not there is not readable and not writable,
+// which is an answer and not a failure: `size` throws for the same name
+// because it has no number to give, while "can this be read" has a perfectly
+// good `false`.
+if (Core\IO::exists("missing.txt")) {
+    echo "missing.txt: exists\n";
+} else {
+    echo "missing.txt: absent\n";
+}
+if (Core\IO::isReadable("missing.txt")) {
+    echo "missing.txt: readable\n";
+} else {
+    echo "missing.txt: not readable\n";
+}
+if (Core\IO::isWritable("missing.txt")) {
+    echo "missing.txt: writable\n";
+} else {
+    echo "missing.txt: not writable\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+note.txt: readable
+note.txt: writable
+sub: readable
+missing.txt: absent
+missing.txt: not readable
+missing.txt: not writable
