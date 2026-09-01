@@ -1,0 +1,80 @@
+--TEST--
+Core\Crypto::seal and ::open agree at every key width over a sweep, exactly one width is a key, and 31 octets is refused beside the 32 that is accepted and the 33 that is refused again — ADR 0051 § 3, ADR 0063
+--FILE--
+<?nvs
+// A bound asserted on both sides, and asserted once for both members rather
+// than once per member. `keyed` is the only door either of them reaches a
+// cipher through, so a width that seals has to open and a width that opens has
+// to seal; a member that grew its own length check — an `openssl_encrypt` that
+// truncated a long key, or a `sodium_*` that padded a short one — still prints
+// a plausible line of its own and fails here.
+bytes $message = "attack at dawn" as bytes;
+
+// The all-`A` key of the one accepted width, and the message it sealed. Every
+// `open` below is asked about *this* message, so the only thing a width can be
+// refused for is not being a key: at 32 octets the candidate is the very key
+// that sealed it, and there is no authenticity question left to answer.
+secret bytes $sealing = Core\Bytes::fill(32, 65);
+bytes $probe = Core\Crypto::seal($message, $sealing);
+
+// Nothing, one octet, the two widths a cipher of a different construction
+// would have taken, one short of the key, the key, one past it, and twice it.
+// The three in the middle are adjacent so that the bound is named on both
+// sides: a member stopping one octet early or late prints plausibly against
+// either half alone.
+array<uint> $widths = [0, 1, 16, 24, 31, 32, 33, 64];
+
+int $agreed = 0;
+int $keys = 0;
+uint $only = 0;
+foreach ($widths as uint $width) {
+    // A plain `bytes` of any width widens onto the `secret bytes` the
+    // parameter asks for; the qualifier is about confidentiality and says
+    // nothing about length, which is why the wrong length is a run-time
+    // refusal rather than a compile-time one.
+    secret bytes $candidate = Core\Bytes::fill($width, 65);
+
+    bool $sealTakesIt = true;
+    try {
+        bytes $sealed = Core\Crypto::seal($message, $candidate);
+    } catch (LogicError $notAKey) {
+        $sealTakesIt = false;
+    }
+
+    bool $openTakesIt = true;
+    try {
+        bytes $opened = Core\Crypto::open($probe, $candidate);
+    } catch (LogicError $stillNotAKey) {
+        $openTakesIt = false;
+    }
+
+    if ($sealTakesIt == $openTakesIt) {
+        $agreed += 1;
+    }
+    if ($sealTakesIt && $openTakesIt) {
+        $keys += 1;
+        $only = $width;
+    }
+
+    // One verdict for both members at the three adjacent widths, rather than
+    // one line each: a member that answered on its own would read as right
+    // here and only the word would change.
+    string $verdict = "one of them alone";
+    if ($sealTakesIt && $openTakesIt) {
+        $verdict = "both accept";
+    }
+    if (!$sealTakesIt && !$openTakesIt) {
+        $verdict = "both refuse";
+    }
+    if ($width >= 31 && $width <= 33) {
+        echo $width, " octets: ", $verdict, "\n";
+    }
+}
+echo "agreed ", $agreed, " of ", Core\Arr::count($widths), "\n";
+echo "keys ", $keys, " of ", Core\Arr::count($widths), ", at ", $only, " octets", "\n";
+--EXPECT--
+31 octets: both refuse
+32 octets: both accept
+33 octets: both refuse
+agreed 8 of 8
+keys 1 of 8, at 32 octets
