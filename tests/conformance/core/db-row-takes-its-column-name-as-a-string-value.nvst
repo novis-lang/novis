@@ -1,0 +1,53 @@
+--TEST--
+Every `Core\Db\Row` member takes its column as a `string` value the caller computes, and a column *number* is not a spelling of one — ADR 0067 § 6, spec § 18
+--FILE--
+<?nvs
+// The argument side of the same roster the other three cases pin from the
+// return side. Two claims, and they are one boundary asserted on both halves:
+// a column name is an ordinary `string` **value**, so a variable works
+// everywhere a literal does; and it is *only* a name, so the positional
+// reading PHP's `FETCH_NUM` and `fetchColumn($n)` offer has no spelling here at
+// all. `Core\Db\Rows::column` is where a position is taken, and it is a
+// different member on a different class for exactly that reason.
+var $db = Core\Db::connect("main");
+var $rows = $db->query("select * from accounts", []);
+
+// Not a literal at the call site. Nothing about these members is resolved at
+// compile time from the name, which is what makes a column list a program can
+// build possible at all.
+var $name = "owner";
+
+// The position half, on the member that has one: `column` takes `int|string`,
+// so this is the accepted spelling of "the first column of every row".
+array<mixed> $byPosition = $rows->column(0);
+
+foreach ($rows->all() as Core\Db\Row $row) {
+    var $present = $row->has($name);
+    var $any = $row->get($name);
+    var $whole = $row->toArray();
+    var $owner = $row->string($name);
+    var $photo = $row->bytes($name);
+    var $id = $row->int($name);
+    var $seq = $row->uint($name);
+    var $ratio = $row->float($name);
+    var $active = $row->bool($name);
+    var $balance = $row->decimal($name);
+    var $seen = $row->instant($name);
+    var $born = $row->date($name);
+    var $opens = $row->time($name);
+    var $external = $row->uuid($name);
+
+    // And the refusal, which is the boundary: a reader takes the label and
+    // nothing else. A member that also accepted a number would make
+    // `$row->int(0)` and `$row->int("0")` two different questions with one
+    // spelling, which is the ambiguity `Rows::column` above keeps on its own
+    // member instead.
+    var $refused = $row->int(1);
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `int`
+   --> case.nvs:42:30
+%A
+error: aborting due to 1 error

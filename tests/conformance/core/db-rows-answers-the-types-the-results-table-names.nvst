@@ -1,0 +1,42 @@
+--TEST--
+`Core\Db\Rows`'s readers answer the types spec § 18's Results table gives them, so a result set is read without a fetch-mode argument choosing the shape — ADR 0067 §§ 4 and 6, spec § 18
+--FILE--
+<?nvs
+// § 18's Results table asserted as *types* rather than as values: nothing here
+// reaches a server, and nothing needs to. A `Rows` member whose declared
+// return type disagreed with that table would be a diagnostic at one of the
+// six assignments below, so what this case checks is the whole row of it at
+// once — which no single value could.
+var $db = Core\Db::connect("main");
+var $rows = $db->query("select id, owner from accounts", []);
+
+// `all` and `first` are written together because the pair is the claim:
+// `fetchAll` and `fetch` differ in *type* here, and not in a mode flag passed
+// to one member that returns whatever it was told to.
+array<Core\Db\Row> $all = $rows->all();
+?Core\Db\Row $first = $rows->first();
+
+// `value` is `mixed`, because the first column of the first row is whatever
+// ADR 0067 § 9's map made of that column.
+mixed $value = $rows->value();
+
+// `column` takes either half of its `int|string` key — a label or a position
+// in the server's own description — and both answer the same array.
+array<mixed> $byName = $rows->column("id");
+array<mixed> $byPosition = $rows->column(0);
+
+// `count` is a `uint` and it is exact: a `Rows` exists only after § 4's
+// buffered read has already finished, so there is nothing left to estimate.
+uint $count = $rows->count();
+
+// And the bound on the other side, which is what makes `all` and `first` two
+// members rather than one: an empty result is `null` and never an empty array,
+// so the type says so at the assignment rather than at the first `foreach`.
+array<Core\Db\Row> $wrong = $rows->first();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `array<Core\Db\Row>`, found `null|Core\Db\Row`
+   --> case.nvs:32:29
+%A
+error: aborting due to 1 error

@@ -1,0 +1,61 @@
+--TEST--
+Every one of `Core\Db\Row`'s eleven typed readers answers `?T`, so a NULL column is dealt with at the read rather than at the first use — ADR 0067 § 6, spec § 18
+--FILE--
+<?nvs
+// One question asked of all fourteen members at once: what does a reader
+// answer when the column it names is NULL? The answer has to be the *same* for
+// every one of them, because a reader that answered `T` would be a member
+// where a NULL column is discovered somewhere else entirely — which is what
+// `fetch`'s `false`, `null` and `""` did between them in PHP.
+var $db = Core\Db::connect("main");
+
+// A `tainted` column name is accepted everywhere a name is taken: a label is a
+// lookup key, so what comes back carries the qualifiers ADR 0067 § 9 gives the
+// *column* and never the ones the name arrived with.
+tainted string $outside = "owner";
+
+foreach ($db->query("select * from accounts", [])->all() as Core\Db\Row $row) {
+    // The associative reading, and the only one — there is no numeric or
+    // object fetch mode to ask for instead.
+    bool $present = $row->has($outside);
+    mixed $any = $row->get("owner");
+    array<mixed> $whole = $row->toArray();
+
+    // The eleven, in § 18's own order. A `null` from one of these is a NULL
+    // column and never "no such column": that second question is `has`, above,
+    // and an unknown name throws here rather than reading as absent.
+    ?string $owner = $row->string("owner");
+    ?bytes $photo = $row->bytes("photo");
+    ?int $id = $row->int("id");
+    ?uint $seq = $row->uint("seq");
+    ?float $ratio = $row->float("ratio");
+    ?bool $active = $row->bool("active");
+    ?decimal $balance = $row->decimal("balance");
+    ?Core\Time\Instant $seen = $row->instant("seen_at");
+    ?Core\Time\Date $born = $row->date("born_on");
+    ?Core\Time\TimeOfDay $opens = $row->time("opens_at");
+    ?Core\Uuid $external = $row->uuid("external_id");
+}
+
+// The `Rows` half of the same sweep, so that the one refusal below is the only
+// thing in this case that does not compile.
+var $rows = $db->query("select id from accounts", []);
+array<Core\Db\Row> $all = $rows->all();
+?Core\Db\Row $first = $rows->first();
+mixed $one = $rows->value();
+array<mixed> $ids = $rows->column("id");
+uint $count = $rows->count();
+
+// And the bound, on a row that is not in doubt: the reader answers `?string`,
+// so a `string` is one narrowing away and never the thing that was returned.
+// A reader that answered `T` would compile here and fail on the first NULL.
+foreach ($all as Core\Db\Row $named) {
+    string $unwrapped = $named->string("owner");
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `string|null`
+   --> case.nvs:50:25
+%A
+error: aborting due to 1 error

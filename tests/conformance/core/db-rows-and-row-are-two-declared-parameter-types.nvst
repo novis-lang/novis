@@ -1,0 +1,58 @@
+--TEST--
+Every `Rows` and `Row` reader is reached through a declared parameter, so where the value came from does not decide what it can answer — and a `?Row` is not a `Row` — ADR 0067 § 6, spec § 18
+--FILE--
+<?nvs
+// The agreement question: a result set and a row are *types*, so the two
+// rosters below are reachable on a parameter that names nothing about the
+// statement, the connection or the call that produced the value. That is the
+// difference from `fetch`, where what a value can answer depended on the mode
+// the fetch was asked with, so a helper taking "a row" had to be told which
+// kind of row it was getting.
+class Reads {
+    public static function set(Core\Db\Rows $rows): uint {
+        var $all = $rows->all();
+        var $head = $rows->first();
+        var $one = $rows->value();
+        var $byPosition = $rows->column(0);
+        return $rows->count();
+    }
+
+    public static function row(Core\Db\Row $row): bool {
+        var $whole = $row->toArray();
+        var $any = $row->get("owner");
+        var $owner = $row->string("owner");
+        var $photo = $row->bytes("photo");
+        var $id = $row->int("id");
+        var $seq = $row->uint("seq");
+        var $ratio = $row->float("ratio");
+        var $active = $row->bool("active");
+        var $balance = $row->decimal("balance");
+        var $seen = $row->instant("seen_at");
+        var $born = $row->date("born_on");
+        var $opens = $row->time("opens_at");
+        var $external = $row->uuid("external_id");
+        return $row->has("owner");
+    }
+}
+
+var $db = Core\Db::connect("main");
+var $rows = $db->query("select * from accounts", []);
+
+// Both helpers, over the values `query` and `all` hand back.
+var $counted = Reads::set($rows);
+foreach ($rows->all() as Core\Db\Row $each) {
+    var $asked = Reads::row($each);
+}
+
+// And the one refusal, which is the same nullability the assignment cases pin,
+// asserted at an argument instead: `first` answers `?Row`, the parameter says
+// `Row`, and there is no coercion between them. A program that means "the
+// first row, if there is one" narrows before it calls.
+var $refused = Reads::row($rows->first());
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Db\Row`, found `null|Core\Db\Row`
+   --> case.nvs:48:27
+%A
+error: aborting due to 1 error
