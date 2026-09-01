@@ -2,59 +2,58 @@
 
 ## State
 
-**PostgreSQL runs statements and resets, and both are on disk and green.** `crates/nvs-db/src/pg.rs`
-now holds ADR 0132 § 4's state machine — `start_statement` writes Parse/Bind/Describe/Execute/Sync
-into one buffer and flushes once, `PgRows` is the `Streaming` borrow, and every path back to `Idle`
-goes through the `ReadyForQuery` that the batch's own `Sync` guarantees. `reset_session` is ADR 0067
-§ 13's six commands pipelined as simple `Query` messages, one more round trip.
+**The SQL layer over the state machine is on disk and green.** `crates/nvs-db/src/sql.rs` is the
+shared half ADR 0132 § 5 keeps as plain data with no wire in it: ADR 0067 § 5's `?`/`:name` rewriter
+over four dialects with `inList` expansion, and § 1's LRU statement cache keyed by SQL text plus that
+expansion's arity. `crates/nvs-db/src/pg.rs` is the first driver to spend it — a hit sends no
+`Parse`, an eviction's `Close` rides in the batch that replaced it under the same `Sync`, and the
+cache is written only once `ParseComplete` has proved the server holds the statement.
 
-**Three calls this session recorded in that module's doc rather than in an ADR**, because § 13 states
-properties and not command lists and 0132 § 4 delegates the choice to the driver: `Bind` sends and
-requests **text** format (§ 9 maps `interval`/`hstore`/ranges/`inet` to `tainted string` *as the
-server renders them*, which no binary body can produce); **abandonment is not poison** (the `Sync` is
-already on the wire, so the drain is deterministic — § 4's per-driver call, decided in PostgreSQL's
-favour, and poison is now only ever a wire that failed); and `DISCARD TEMP` is the spelling of § 13's
-"drop the session's temporary schema", chosen over `DISCARD ALL` for that section's own reason.
+**Two calls recorded in that module's doc rather than in an ADR**, because § 5 states the rule and
+not the scanner. **Quoting and escaping are dialect properties** — MySQL's backslash escape,
+PostgreSQL's dollar quoting and nested block comments, SQL Server's brackets — because getting a
+literal's end wrong rewrites a `?` that was never a placeholder, and that is the one way this
+module can produce a query nobody wrote. And **malformed SQL is the server's diagnosis**: an
+unterminated quote ends the scan at the end of the text and the statement goes out to be refused by
+a parser that can say what is actually wrong with it.
 
-**`PgConn::reset` takes `self` by value**, so a failed reset cannot hand a connection back — the type
-is the enforcement, deliberately *not* `State::Poisoned`, which answers "is the wire at a known
-boundary" and would be false. `Connection::reset` must mirror the shape when the pool lands.
+**`statement_cache` has no reader**, and it is the one thing § 1 asks for that is not yet true.
+Nothing in this crate opens a connection *from* config, so the capacity is a `new()` parameter and
+`StatementCache::DEFAULT_CAPACITY` (16) is what `PgConn::connect` passes until the connect path
+reads one.
 
 Unchanged: nothing can handshake against `tests/db/compose.yaml` (self-signed, no anchor seam in
 `nvs_host::tls`), and the goal's three fixtures are red at `E0405` because `Core\Db\Connection` has
-no stdlib rows yet — that is this goal's ordinary state, not a regression.
+no stdlib rows yet — this goal's ordinary state, and what the driver's last acceptance check
+reported.
 
-**Manifest gap, still open after two sessions:** `[context] adrs` in `docs/agent/loop-goal.toml`
-names no section of ADR 0132, so § 4 was paid for by hand again. Add §§ 1-5.
+**Manifest gap, open three sessions now:** `[context] adrs` in `docs/agent/loop-goal.toml` names no
+section of ADR 0132, and none of ADR 0067 §§ 1 or 5 — § 5 is the specification of the whole slice
+above and was sliced out of the ADR by hand again. Add 0132 §§ 1-5 and 0067 §§ 1, 5.
 
 ## Next group
 
-**The SQL layer over the state machine** — `crates/nvs-db/src/pg.rs`, a new `crates/nvs-db/src/sql.rs`
-and `crates/nvs-db/src/lib.rs`, and nothing outside the crate. Item 1 creates the file the other two
-read from.
+**ADR 0067 § 9's type map, the PostgreSQL half** — `crates/nvs-db/src/pg.rs` and `nvs-runtime`'s
+values, nothing else in the crate. Both halves read the same two structs, and § 9's table is the
+specification for each row of them.
 
-- [ ] **ADR 0067 § 5's `?`/`:name` rewriter and `inList` expansion** — one placeholder spelling in,
-      PostgreSQL's `$n` out, plus the parameter order and the **expansion arity** § 1's cache keys
-      on. A new `crates/nvs-db/src/sql.rs`, declared beside its siblings at
-      `crates/nvs-db/src/lib.rs:121`, feeding the `sql` and `params` of
-      `crates/nvs-db/src/pg.rs:783`.
-- [ ] **ADR 0067 § 1's LRU statement cache** — replaces the unnamed statement at
-      `crates/nvs-db/src/pg.rs:602` with a name keyed by SQL text plus expansion arity, sized by
-      `statement_cache`, held on the connection at `crates/nvs-db/src/conn.rs:165`. `Parse` is then
-      skipped on a hit, which is the round trip § 1 says PostgreSQL already does not pay.
-- [ ] **ADR 0067 § 9's type map, the PostgreSQL half** — `crates/nvs-db/src/pg.rs:611`'s
-      `PgColumn::type_oid` to a Novis type, decoding the text-format column bodies
-      `crates/nvs-db/src/pg.rs:645` hands back. § 9's table is the specification and `nvs-runtime`'s
-      values are the target.
+- [ ] **§ 9's scalar rows** — `crates/nvs-db/src/pg.rs:616`'s `PgColumn::type_oid` to a Novis type,
+      decoding the text-format bodies `crates/nvs-db/src/pg.rs:629`'s `PgRow` hands back:
+      int/uint, `decimal`, float, bool, `tainted string`, `tainted bytes`, and `NULL` as `?T`.
+      `crates/nvs-db/src/pg.rs:1055`'s `columns_of` is where the OID arrives.
+- [ ] **§ 9's structured rows** — `Core\Time\Date`, `TimeOfDay`, `Instant` for `TIMESTAMPTZ`,
+      `DateTime` in the connection's declared zone, `Core\Uuid`, arrays as `array<T>`, and the
+      `tainted string` catch-all § 9 gives `interval`/`hstore`/ranges/`inet` *as the server renders
+      them*. Same two anchors: `crates/nvs-db/src/pg.rs:616` and `crates/nvs-db/src/pg.rs:629`.
+- [ ] **`statement_cache` gets its reader** — § 1's config field displacing
+      `crates/nvs-db/src/sql.rs:224`'s `DEFAULT_CAPACITY` at the connect path. Small, and the last
+      § 1 obligation open.
 
 ## Backlog
 
-- The private-root anchor seam ADR 0132 § 3 calls a "future `nvs.toml` anchor bundle" — until it
-  exists no driver can reach `tests/db/compose.yaml`. `crates/nvs-db/src/lib.rs`'s module doc.
-- `Core\Db\Connection`'s registry rows and helper bodies, which is what closes the three fixtures at
-  `E0405`. `docs/spec/01-core-library.md`, and ADR 0067 §§ 2-4.
-- ADR 0067 § 7's transaction closure wants the last `ReadyForQuery`'s transaction-status byte, which
-  nothing keeps; `reset_session` sends `ROLLBACK` unconditionally because of it.
-- `Connection::reset` must take `self` by value, mirroring `crates/nvs-db/src/pg.rs:366`.
-- `[context] adrs` in `docs/agent/loop-goal.toml` needs ADR 0132 §§ 1-5.
-- The four remaining drivers, PostgreSQL-first order per the goal's standing decisions. ADR 0067 § 12.
+- The four remaining drivers, PostgreSQL-first having done its job — ADR 0067 § 3.
+- The per-core pool and its acquire path, over the reset already on disk — ADR 0067 § 13.
+- `Core\Db\Connection`'s stdlib rows, which is what the fixtures' `E0405` is — docs/spec/01-core-library.md.
+- The `nvs.toml` anchor bundle; without it no driver reaches `tests/db/compose.yaml` — ADR 0132 § 3.
+- `[context] adrs` gains ADR 0132 §§ 1-5 and ADR 0067 §§ 1, 5 — docs/agent/loop-goal.toml.
+- A doc-cleanup pass, fired by the user and never automatically — docs/agent/doc-cleanup.md.

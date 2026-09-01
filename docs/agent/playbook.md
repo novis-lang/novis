@@ -1451,6 +1451,13 @@ is why" — is this file.
   `M Cargo.lock` in the tool's own "uncommitted after the wrap" line, which is the only place it shows.
   Name `Cargo.lock` in the `## commit:` of whichever slice touched a manifest, and expect the same for any
   other generated file a build step rewrites.
+- `tools/splice.py` and `tools/session.py` take a patch in **two different formats**, and the wrap
+  skeleton is the one you will have read most recently. A splice patch is git conflict markers —
+  `--- <path>`, then `<<<<<<< OLD` / `=======` / `>>>>>>> NEW` around each block — while a wrap
+  file's `## plan-edit:` is `--- old` / `--- new`. Writing the wrap form into a splice patch fails
+  with `no <<<<<<< OLD block`, which names the fix but not the shape, and `splice.py --help` prints
+  three usage lines without it. The format is the first 30 lines of that file's own docstring:
+  `python tools/peek.py tools/splice.py:1-40`.
 
 ## Running things
 
