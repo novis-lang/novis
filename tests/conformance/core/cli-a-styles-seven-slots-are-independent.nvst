@@ -1,0 +1,103 @@
+--TEST--
+`Core\Cli\Style::of`'s seven options land in seven independent slots — each one asked alone, and each one asked as the difference between two styles, counted, so a bag that dropped or aliased an option fails here while every single option still reads correctly — ADR 0086 § 2
+--FILE--
+<?nvs
+// § 2's style is a value built out of typed parts, and the parts are seven: two
+// colours and five attributes. What a case can ask about them without a
+// terminal is whether they are *seven*, because § 3 leaves a captured stream at
+// `ColorDepth::None` and every style renders as nothing there. `Core\Debug`
+// answers that question instead — it walks the value itself, so the comparisons
+// below hold whatever the terminal is, and they compare whole renderings rather
+// than reading the flag word, which is `crates/nvs-stdlib/src/cli.rs`'s own
+// business and not the language's.
+class Bag {
+    // The bag is a shape literal with fixed keys, so a sweep over the five
+    // attributes passes all five every time and varies which are `true`.
+    public static function flags(
+        bool $bold,
+        bool $dim,
+        bool $italic,
+        bool $underline,
+        bool $strikethrough
+    ): string {
+        return Core\Debug::render(Core\Cli\Style::of({
+            bold: $bold,
+            dim: $dim,
+            italic: $italic,
+            underline: $underline,
+            strikethrough: $strikethrough
+        })) as string;
+    }
+
+    public static function only(int $option): string {
+        return Bag::flags($option == 0, $option == 1, $option == 2, $option == 3, $option == 4);
+    }
+
+    public static function allBut(int $option): string {
+        return Bag::flags($option != 0, $option != 1, $option != 2, $option != 3, $option != 4);
+    }
+}
+
+array<int> $options = [0, 1, 2, 3, 4];
+string $empty = Bag::flags(false, false, false, false, false);
+string $all = Bag::flags(true, true, true, true, true);
+
+// Aliasing: two options that wrote the same slot would give the same style, and
+// each of them would still look right on a line of its own. Counted over every
+// pair, so one aliased pair is one line short.
+int $pairs = 0;
+int $distinct = 0;
+foreach ($options as int $left) {
+    foreach ($options as int $right) {
+        if ($left < $right) {
+            $pairs = $pairs + 1;
+            if (Bag::only($left) != Bag::only($right)) {
+                $distinct = $distinct + 1;
+            }
+        }
+    }
+}
+echo "singles pairwise distinct ", $distinct, " of ", $pairs, "\n";
+
+// Dropping: an option the bag never stored makes `of({})` the answer to asking
+// for it alone, and makes the whole style the answer to asking for everything
+// except it. The second half is the one that catches an option aliased onto a
+// neighbour, since the neighbour still sets it.
+int $carried = 0;
+int $missed = 0;
+foreach ($options as int $option) {
+    if (Bag::only($option) != $empty) {
+        $carried = $carried + 1;
+    }
+    if (Bag::allBut($option) != $all) {
+        $missed = $missed + 1;
+    }
+}
+echo "each attribute alone is not the empty style ", $carried, " of 5", "\n";
+echo "each attribute is missed from the whole ", $missed, " of 5", "\n";
+
+// The other two slots hold values rather than bits, and they are the pair most
+// easily written into one place: a bag that kept the last colour it read, or
+// that put both into the foreground, passes every line above.
+var $indexed = Core\Cli\Color::index(160);
+var $direct = Core\Cli\Color::rgb(0, 0, 255);
+string $foreground = Core\Debug::render(Core\Cli\Style::of({color: $indexed})) as string;
+string $background = Core\Debug::render(Core\Cli\Style::of({background: $indexed})) as string;
+string $both = Core\Debug::render(Core\Cli\Style::of({color: $indexed, background: $direct})) as string;
+string $swapped = Core\Debug::render(Core\Cli\Style::of({color: $direct, background: $indexed})) as string;
+int $held = 0;
+if ($foreground != $background) {
+    $held = $held + 1;
+}
+if ($both != $swapped) {
+    $held = $held + 1;
+}
+if ($foreground != $empty && $background != $empty) {
+    $held = $held + 1;
+}
+echo "the two colour slots are their own ", $held, " of 3", "\n";
+--EXPECT--
+singles pairwise distinct 10 of 10
+each attribute alone is not the empty style 5 of 5
+each attribute is missed from the whole 5 of 5
+the two colour slots are their own 3 of 3
