@@ -502,9 +502,13 @@ def calibrate(sessions, write):
     if write:
         CALIBRATION.parent.mkdir(parents=True, exist_ok=True)
         CALIBRATION.write_text(
+            # `calls_per_session` too: `orient.py`'s audit already reads that key and only falls
+            # back to a constant of its own when it is absent, and that constant said 98 when
+            # these logs measured 71 -- which overstates what trimming the pack buys by a third.
             json.dumps({"bytes_per_token": round(ratio, 3),
                         "floor_tokens": round(intercept),
                         "r_squared": round(r2, 4),
+                        "calls_per_session": round(sum(s["calls"] for s in sessions) / len(sessions)),
                         "sessions": n}, indent=2) + "\n",
             encoding="utf-8", newline="\n")
         print(f"\n   written to {CALIBRATION.relative_to(ROOT).as_posix()} -- "
