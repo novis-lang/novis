@@ -1,0 +1,40 @@
+--TEST--
+`Core\Cap::has` reports the grant and never a scope, so a `true` still meets the door's own refusal for an argument outside it — ADR 0112 §§ 6-7, ADR 0118 §§ 1-2
+--FILE--
+<?nvs
+// The member takes a capability and no argument to place inside it, so the
+// question it can answer is "granted for something". Here that is `true`, and
+// the grant behind it is one directory wide.
+if (Core\Cap::has("fs.write")) {
+    echo "fs.write: granted\n";
+} else {
+    echo "fs.write: not granted\n";
+}
+
+// The bound on the other side, and the reason ADR 0112 § 7 keeps two
+// enforcement points rather than folding the second into the first: a path
+// inside the grant opens, and one outside it is still refused at the door. A
+// program that read the `true` above as permission for any path learns nothing
+// new from it — `nvs_runtime::capability::require` asks again with the path in
+// hand, which is the ask this member cannot make on its behalf.
+Core\IO::write("inside.txt", "written\n");
+echo Core\IO::read("inside.txt");
+
+try {
+    Core\IO::write("../outside.txt", "x");
+    echo "../outside.txt: written\n";
+} catch (IOError $reached) {
+    echo "../outside.txt: the os answered first\n";
+} catch (RuntimeError $refused) {
+    echo "../outside.txt: refused at the door\n";
+}
+--FILE nvs.toml--
+# One directory wide, which is what makes the two halves of the case differ: a
+# grant that named nothing would refuse both, and `true` would be a lie.
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+fs.write: granted
+written
+../outside.txt: refused at the door

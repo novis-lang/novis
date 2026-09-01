@@ -1,0 +1,52 @@
+--TEST--
+`Core\Cap::has` answers the deployment's own grant table, yes for what was granted and no for what was not — ADR 0112 §§ 6, 8
+--FILE--
+<?nvs
+// ADR 0112 § 6's whole purpose is a package that declared a capability
+// *optional* taking the other branch instead of failing a build, so the member
+// has to track the operator's file in both directions. Asked of four roster
+// names against an `nvs.toml` that grants two of them: an answer that ignored
+// the file would agree with half of this and no arrangement of the four.
+if (Core\Cap::has("fs.read")) {
+    echo "fs.read: granted\n";
+} else {
+    echo "fs.read: not granted\n";
+}
+
+// The block is present and this key is not, which is the shape a real
+// deployment has: granting one half of the filesystem says nothing about the
+// other, and a member reading "is there a `[capabilities.fs]` block" rather
+// than the key would answer this one wrong.
+if (Core\Cap::has("fs.write")) {
+    echo "fs.write: granted\n";
+} else {
+    echo "fs.write: not granted\n";
+}
+
+if (Core\Cap::has("net.connect")) {
+    echo "net.connect: granted\n";
+} else {
+    echo "net.connect: not granted\n";
+}
+
+// A block nobody wrote at all — the deny-by-default answer, and the one every
+// capability gives on a host with no configuration.
+if (Core\Cap::has("process.exec")) {
+    echo "process.exec: granted\n";
+} else {
+    echo "process.exec: not granted\n";
+}
+--FILE nvs.toml--
+# Two grants of different shapes, because the answer is drawn from the grant
+# and not from the block: a path list and a host list both mean "granted for
+# these", and `Core\Cap::has` reports the grant rather than the entries.
+[capabilities.fs]
+read = ["."]
+
+[capabilities.net]
+connect = ["example.test"]
+--EXPECT--
+fs.read: granted
+fs.write: not granted
+net.connect: granted
+process.exec: not granted

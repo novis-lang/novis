@@ -1371,6 +1371,20 @@ pub mod code {
     /// exists, somewhere this is not.
     pub const E_UNSPELLED_LOG_FORMAT: Code = Code::new("E0615");
 
+    /// A written `Core\Cap::has("…")` naming something that is not a capability
+    /// — ADR 0112 § 8's roster is closed, and § 6's whole point is that the
+    /// answer decides which branch a package takes. A misspelling folds to
+    /// `false` and so reads as *not granted*, which is the same answer the
+    /// correct spelling gives on a deployment that granted nothing: the branch
+    /// simply never runs, on every machine, and nothing at run time can tell
+    /// the two apart. That is `E0798`'s reasoning one class over, and it is why
+    /// only a *written* name is refused — a computed one keeps ADR 0057 § 2's
+    /// rule that nothing is refused for being dynamic, and answers `false` at
+    /// run time. In this band rather than the types one because what it checks
+    /// is a capability name, which is `nvs_config::capability::Cap`'s roster and
+    /// the same table a `[grants]` line is read against.
+    pub const E_NOT_A_CAPABILITY: Code = Code::new("E0616");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

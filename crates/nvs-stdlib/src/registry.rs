@@ -1218,6 +1218,13 @@ pub const CLASSES: &[CoreClass] = &[
     // process-wide fact the operator chose is not a door, and why every value
     // it hands back is `tainted` instead.
     crate::env::CLASS,
+    // § 15's other class that needs no request, and beside `Core\Env` because
+    // the two ask the same operator the same kind of question: what was this
+    // process started with, and what was it allowed to do. ADR 0112 § 6 is what
+    // specifies it — the member exists so that a package which declared a
+    // capability *optional* has a branch to take — and [`crate::cap`]'s module
+    // doc owns why reporting a grant is not widening one.
+    crate::cap::CLASS,
     // ADR 0020 § 1, and no spec § of its own: the escalation ladder's ADR is
     // where this member is specified, because what it registers is a rung of
     // that ladder rather than a library facility. [`crate::fatal`] owns why the
@@ -1610,6 +1617,15 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // asked again, because a path the operator names is still a file the
     // engine opens rather than one the program picked.
     (crate::log::NAME, "write", None),
+    // ADR 0112 § 6's query, and the fourth `None`: the member whose whole
+    // subject is capabilities is the one that needs none. It reads the table a
+    // door would read and answers a `bool` — no name is resolved, no file is
+    // opened and nothing leaves the process, so ADR 0118 § 1 has no door to put
+    // a check at, exactly as `Core\Cache::local` two rows up. Requiring a grant
+    // to ask about grants would also close the shape § 6 opened: a package that
+    // declared `fs.write` optional would need a second capability before it
+    // could find out whether it had the first.
+    (crate::cap::NAME, "has", None),
     // ADR 0082 § 2's transport half, granted the way ADR 0067 § 3 grants a
     // database: by the *name* of the block, never by the host inside it. That is
     // what makes the row `mail.send` rather than `net.connect` — a `net.connect`

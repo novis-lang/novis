@@ -211,6 +211,10 @@ mod ast;
 mod attributes;
 mod bytes;
 mod cache;
+// `pub` for the two predicates `nvs_types::capability` reads — the class's own
+// spelling and ADR 0112 § 8's roster — so that the checker's refusal holds no
+// copy of either. `cldr` is `pub` for the same reason one grammar over.
+pub mod cap;
 mod channel;
 pub mod cldr;
 pub mod cli;
@@ -344,6 +348,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| attributes::address(symbol))
         .or_else(|| bytes::address(symbol))
         .or_else(|| cache::address(symbol))
+        .or_else(|| cap::address(symbol))
         .or_else(|| channel::address(symbol))
         .or_else(|| cldr::address(symbol))
         .or_else(|| cli::address(symbol))

@@ -281,6 +281,13 @@ namespace that would inherit the standard library's own authority.
 | `E0605` | configuration and capabilities | `nvs-hir` | a file of package `<name>` declares `<namespace>`, outside the prefix `<prefix>` its manifest claims |
 | `E0606` | configuration and capabilities | boot | `[grants]` names `<capability>`, which is not a capability |
 | `E0607` | configuration and capabilities | boot | two `[grants]` keys match identically |
+| `E0616` | configuration and capabilities | `nvs-types` | a written `Core\Cap::has("<name>")` names something outside § 8's roster |
+
+**The first four numbers are claims, not assignments, and the band has moved past all of them.** Nothing in
+this ADR is on disk except § 6's member, and `E0604` through `E0607` have since been issued to
+configuration diagnostics — `nvs_diagnostics::code` is the registry, and it is the one that decides.
+Each of the four takes the band's next free number when the check behind it lands; `python tools/brief.py`
+prints what that is. `E0616` is written above rather than claimed because it exists.
 
 `E0604` is reported by `nvs-hir` rather than by the checker because it needs only a resolved name and the
 grant table, both of which exist before type checking — which is what keeps the check independent of

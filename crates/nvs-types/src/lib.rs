@@ -197,6 +197,7 @@
 //!   `nvs_ir::lower` if a program reads it.
 
 pub(crate) mod attributes;
+pub(crate) mod capability;
 pub mod check;
 // Public for [`routes`]'s reason: ADR 0086 § 6's finished table is read back
 // out of [`expr_table::ExprTypeTable::commands`] by whoever runs the program,

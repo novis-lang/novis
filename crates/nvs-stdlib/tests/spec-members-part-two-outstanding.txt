@@ -18,11 +18,10 @@
 # directory, metadata and copying members, and both of its `Iterable<string>`s.
 # It keeps no keys here.
 
-# § 15 -- the request-facing half, which needs a request: goal 6's. `Core\Env`
-# is registered whole now -- both readers, its run mode and its three constants
-# -- and so is `Core\Cli`'s roster, so what is left of § 15 here is
-# `Core\Cap::has` and the three request classes whole.
-§15 Cap::has
+# § 15 -- the request-facing half, and nothing else: every member left here is
+# one that needs a request, which makes all of them goal 6's. `Core\Env`,
+# `Core\Cap` and `Core\Cli` are registered whole, so what remains is the three
+# request classes whole.
 §15 Request::body
 §15 Request::bodyStream
 §15 Request::clientIp

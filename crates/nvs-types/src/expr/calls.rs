@@ -360,6 +360,10 @@ pub(crate) fn infer_static_call(
         // [`infer_method_call`] has no arm of this hook rather than a missing
         // one. See [`reject_keyless_retry`].
         reject_keyless_retry(owner, name, args, env);
+        // ADR 0112 § 6's roster, over the one member whose argument names a
+        // capability — static-only, like the member. See
+        // [`crate::capability`], which replaces nothing.
+        crate::capability::reject_unknown_capability(owner, name, args, env);
         // ADR 0057 § 1's closed list — [`infer_method_call`]'s arm of the same
         // hook, for the `Core\Str::format(…)` / `Core\Regex::compile(…)` half
         // of the roster. See [`crate::intrinsics`].

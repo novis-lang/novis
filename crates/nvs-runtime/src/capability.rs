@@ -1,7 +1,9 @@
 //! [ADR 0118] § 2's check, and § 5's refusal: the one function a door to the operating system calls
 //! before it opens.
 //!
-//! [`require`] is deliberately the only *decision* here. The decision procedure is
+//! [`require`] is deliberately the only *decision* here, and [`granted`] is that same decision
+//! without the sentence — a door needs to say what it refused, and ADR 0112 § 6's `Core\Cap::has`
+//! needs only the yes or no. The decision procedure is
 //! [`nvs_config::capability`] and is pure; this is the half that knows about a request — where the
 //! snapshot comes from, and what a denial looks like to the program that hit it. Twelve below are
 //! § 2's filesystem doors — [`open_read`], [`metadata`], [`metadata_if_present`], [`exists`],
@@ -68,18 +70,35 @@ pub fn require(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Result<()
 /// asks this rather than re-deriving the sentence, so the message a denial prints has exactly one
 /// author whichever door produced it.
 pub(crate) fn refusal(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Option<String> {
-    let granted = ctx.config().is_some_and(|config| {
+    if granted(ctx, cap, scope) {
+        return None;
+    }
+    Some(denial(cap, scope, member))
+}
+
+/// § 1's question as a `bool`, with no message built for the `false` side.
+///
+/// [`require`]'s own decision, factored out for the one caller that is not a door: `Core\Cap::has`,
+/// which is [ADR 0112](../../../docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
+/// § 6's way for a package that declared a capability *optional* to degrade instead of failing a
+/// build. Every door goes on calling `require`, because a door needs the sentence a denial prints
+/// and this answers only the yes or no.
+///
+/// **Reporting a grant is not widening one.** § 7's runtime layer may only ever drop, and this
+/// reads the same effective configuration a door reads at the same instant — so an answer of `true`
+/// is a fact about what the request already holds, never a step towards holding it. Nothing here
+/// records the question either: a member that answered and then let the program proceed on the
+/// strength of the answer would still meet `require` at the door.
+#[must_use]
+pub fn granted(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
+    ctx.config().is_some_and(|config| {
         config
             .snapshot()
             .config
             .capabilities
             .as_ref()
             .is_some_and(|caps| caps.allows(cap, scope, &nvs_config::resolve::Disk))
-    });
-    if granted {
-        return None;
-    }
-    Some(denial(cap, scope, member))
+    })
 }
 
 /// § 5's message. The capability's name comes first after the member because the reader is usually
