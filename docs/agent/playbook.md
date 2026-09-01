@@ -1395,6 +1395,15 @@ is why" — is this file.
   `Core\Socket`, which are ADR-only classes with no entry in that spec file at all. Ten lines of
   `importlib` over the tool's own `core_surface()` answer "is this spelling legal" for a whole table
   before it is written, which beats discovering it one row at a time.
+- **`check-migration.py` validates a `Core\X::y` cell against `01-core-library.md`'s *backticked
+  words*, not against the registry** — so a member the spec only ever spells with a generic parameter
+  cannot be named in a row at all. `Core\Program::implementing` is the case: 01 § 13 writes
+  `` `implementing<T>()` ``, and the checker's word extraction takes a bare backticked word or a
+  `name(` prefix, and `implementing<` matches neither — so the row fails with "names
+  `Core\Program::implementing`, which 01-core-library.md does not", which reads as a misspelling
+  rather than as a spec-side gap. `Core\Attributes::get`/`::all` have the same shape. Widening the
+  regex is the wrong fix: either name the class and leave the member in prose, or give 01 a spelling
+  a machine can read.
 
 ## Running things
 

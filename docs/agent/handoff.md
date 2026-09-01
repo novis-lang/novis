@@ -2,58 +2,52 @@
 
 ## State
 
-**Goal 4's only open gate is `check-migration --min 74`, and it reads 56%** — 645 of 1,152 inventory
-names classified, 507 open — after three families landed this session: files, directories and streams;
-hashing, passwords and identifiers; output buffering and the process. 74% needs roughly **207 more rows**,
-which is two or three sessions of the same work.
+**Goal 4's only open gate is `check-migration --min 74`, and it now reads 66%** — 761 of 1,152 inventory
+names classified, 391 open — after three families landed this session: reflection and the class API (52
+rows), sessions, requests and headers (35, plus the `ob_clean` row the output-buffering pass had missed),
+and compression (29).
+
+What is left is two blocks and a tail. The **XML family** is ~77 names (`xmlwriter_*` 42, `xml_parser_*`
+and its handler roster 22, `libxml_*` 8, `simplexml_*` 3, `dom_import_simplexml`). The **four database
+extensions** are 226 (`pg_*` 120, `mysqli_*` 106), which ADR 0067 owes an audited row each. The tail is
+~88 of PHP's own introspection — error handling, `readline_*`, `filter_*`, `phpinfo` and friends. **XML
+plus the tail clears 74% without opening the database block**, which is why the group below is those two.
 
 Nothing else about § 15's stdlib half moved. `Core\Env` and `Core\Cap::has` are on disk, the compile-time
 half of ADR 0112 is still absent, and `crates/nvs-stdlib/src/cap.rs`'s module doc owns what that costs.
 `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` is still 41 keys and none of them is this
 goal's.
 
-**The largest block left is not in the next group on purpose.** The four database extensions are 236
-names — alone more than enough to clear the gate — and ADR 0067 owes each a row, which is a different
-kind of pass than mapping a family onto a roster that already exists.
-
 ## Next group
 
-**Every slice is `docs/spec/02-php-migration.md` alone.** Each maps one family onto one section of
-`docs/spec/01-core-library.md`, appends a `##` section before `## Not yet classified`, and trims the
-domain it closed out of that section's closing paragraph. `python tools/check-migration.py` reports the
-open names and validates every `Core\X::y` spelling; run it after each family, not at the end.
+**Both slices are `docs/spec/02-php-migration.md` alone.** Each maps one family onto a section of
+`docs/spec/01-core-library.md`, appends a `##` section before `## Not yet classified`, and trims the domain
+it closed out of that section's closing paragraph. `python tools/check-migration.py` reports the open names
+and validates every `Core\X::y` spelling against 01 — run it after each family, not at the end, and read
+the playbook's *Tooling* bullet on what that validation actually reads.
 
-- [ ] **Migration rows: reflection and the class API.** `class_exists`/`interface_exists`/`trait_exists`/
-      `enum_exists`, `get_class` and the `get_class_*`/`get_object_vars` family, `method_exists`,
-      `property_exists`, `is_a`, `is_subclass_of`, `class_implements`/`class_parents`/`class_uses`,
-      `get_declared_*`, `spl_object_id`/`spl_object_hash`, the whole `spl_autoload_*` family against
-      ADR 0061's compile-time discovery, `call_user_func*`/`forward_static_call*`/`func_get_args*`,
-      `serialize`/`unserialize`, `var_dump`/`print_r`/`var_export`/`debug_zval_dump`, `debug_backtrace`,
-      `token_get_all`/`token_name`, and `get_resource_*` against R14's "there is no `resource`".
-      Roughly 55 names against 01 § 13's table. `docs/spec/02-php-migration.md:900`,
-      `docs/spec/01-core-library.md:949`.
-- [ ] **Migration rows: sessions, requests and headers.** The ~25 `session_*` names against
-      `Core\Session`, `header`/`header_remove`/`headers_list`/`headers_sent`/`header_register_callback`,
-      `setcookie`/`setrawcookie`, `http_response_code`, `http_*_last_response_headers`,
-      `request_parse_body`, and `filter_input*`/`filter_var*` against `Core\Validate`'s validators-only
-      roster. ADR 0012 is the reason most of them are `dropped` rather than renamed.
-      `docs/spec/02-php-migration.md:900`, `docs/spec/01-core-library.md:1038`.
-- [ ] **Migration rows: compression.** The ~20 `gz*` handle functions, `readgzfile`, `deflate_init`/
-      `deflate_add`, `inflate_init`/`inflate_add`/`inflate_get_status`/`inflate_get_read_len`, and
-      `zlib_encode`/`zlib_decode`/`zlib_get_coding_type` against 01 § 17's `Core\Compress` — one API for
-      gzip, deflate, brotli and zstd, and no handle. `docs/spec/02-php-migration.md:900`,
-      `docs/spec/01-core-library.md:1123`.
+- [ ] **Migration rows: XML.** The ~77 names of six PHP APIs for one job: `xml_parser_create`/`_create_ns`
+      and the eleven `xml_set_*_handler` callbacks, `xml_parse`/`xml_parse_into_struct`, the
+      `xml_get_current_*` and `xml_error_*` pair, `simplexml_load_string`/`_load_file`/`_import_dom`,
+      `dom_import_simplexml`, the whole `xmlwriter_*` roster, and `libxml_use_internal_errors`/
+      `_get_errors`/`_clear_errors` plus the four entity-loader and stream-context functions — the last of
+      which is where XXE and ADR 0052's closed doors meet. 01 § 17's `Core\Xml` row states the one rule
+      that shapes the section: the tree API and the streaming reader/writer are different jobs, not twins,
+      and no operation is available through both. `docs/spec/02-php-migration.md:1087`,
+      `docs/spec/01-core-library.md:1128`.
+- [ ] **Migration rows: PHP's own introspection and the tail.** The ~88 left once XML is gone:
+      `error_reporting`/`error_get_last`/`error_clear_last`/`error_log`/`trigger_error` and the
+      `set_*_handler`/`restore_*_handler` pairs against ADR 0020's ladder and `Core\Log`; `filter_*` (7)
+      against `Core\Validate`; `readline_*` (8) against `Core\Cli`; `get_defined_*`,
+      `get_loaded_extensions`, `get_included_files`, `phpinfo`/`phpversion`/`phpcredits`,
+      `constant`/`define`/`defined`, `assert`/`assert_options`, `inet_*`, `highlight_*`, `setlocale`,
+      `syslog`. `docs/spec/02-php-migration.md:1087`, `docs/spec/01-core-library.md:1116`.
 
 ## Backlog
 
-- The four database extensions: 236 names, ADR 0067 owes a row each — [docs/adr/0067-core-db.md](../adr/0067-core-db.md).
-- XML: `xml_*`, `xmlwriter_*`, `simplexml_*`, `libxml_*` — ~90 names against 01 § 17's `Core\Xml`.
-- Networking and DNS: `dns_*`, `gethostby*`, `checkdnsrr`, `getmxrr`, `inet_*`, `ip2long`/`long2ip`,
-  `getprotoby*`/`getservby*`, `net_get_interfaces` — against `Core\Net`, 01 § 16.
-- PHP's own introspection: `phpinfo`, `phpversion`, `phpcredits`, `get_loaded_extensions`,
-  `get_defined_*`, `version_compare`, `assert*`, and the `error_*`/`trigger_error`/`set_error_handler`
-  family against ADR 0020's ladder.
-- The tail nobody owns yet: `pack`/`unpack`, `parse_ini_*`, `readline*`, `mail`, `syslog`/`openlog`/
-  `closelog`, `get_browser`, `getimagesize*`, `iptc*`, `hebrev`, `highlight_*`.
-- The compile-time half of ADR 0112 — § 1's per-namespace `[grants]` table and § 4's `E0604` —
-  `crates/nvs-stdlib/src/cap.rs`'s module doc.
+- The four database extensions: 226 `pg_*`/`mysqli_*` names, one audited row each — ADR 0067, 01 § 18.
+- `Core\Compress` has no member roster in 01 § 17, so this session's compression rows name the class and
+  describe the shape in prose — 01 § 17 owns fixing that.
+- ADR 0112's compile-time half is absent; `crates/nvs-stdlib/src/cap.rs`'s module doc owns the cost.
+- `spec-members-part-two-outstanding.txt` is 41 keys, none of them this goal's.
+- Networking's `socket_*`/`stream_socket_*` roster is in the unaudited-extension hole, not the open list.
