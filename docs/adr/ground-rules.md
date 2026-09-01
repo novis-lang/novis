@@ -400,3 +400,7 @@ spellings rejected, and the reasoning.
 - **The end of a script is observable: `Core\Script::onExit` hooks run FIFO as the last user code at
   every non-fatal ending — normal, `exit`, uncaught throw — never on a `FATAL` or a cancellation, and
   they observe the ending rather than change it** ([0127](0127-the-end-of-a-script-is-observable.md)).
+- **`Core\Password::verify` and `::needsRehash` read a PHP-stored bcrypt hash — `verify` verifies it,
+  `needsRehash` answers `true` for every one — while `hash` writes only Argon2id, so a migrated user
+  table upgrades itself one login at a time**
+  ([0129](0129-password-verify-reads-a-stored-bcrypt-hash.md)).

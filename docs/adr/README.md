@@ -165,6 +165,7 @@ so you never have to open this file to route a topic.
 | SSRF, fetching a user-supplied URL, `Core\Http\Client`, the `net.connect` address policy, DNS rebinding | [0058](0058-outbound-request-policy.md) |
 | `exec`/`system`/`shell_exec`/backticks/`proc_open`, running another program, shell injection | [0044](0044-core-process-argv-only-no-shell.md) |
 | Passwords, API keys, credentials, `secret string`, why a value can't be echoed/logged/dumped | [0033](0033-secret-qualifier-for-confidential-values.md) |
+| Migrating a PHP user table — `password_hash`, `PASSWORD_DEFAULT`, a stored `$2y$` bcrypt hash, `password_needs_rehash`, the login-time upgrade to Argon2id, the bcrypt cost ceiling | [0129](0129-password-verify-reads-a-stored-bcrypt-hash.md) |
 | JWT, CSRF tokens, TOTP, signed cookies, or whether OAuth/WebAuthn/SAML belong in `Core` | [0060](0060-application-security-protocols.md) |
 | Running Novis client-side in a browser, a wasm32 compile target, `Core\Browser` — retired, and what would reopen it | [0025](0025-wasm-browser-target.md) |
 | The PhpStorm plugin, `nvs-lsp`/`nvs fmt` client wiring, what "IDE integration" covers | [0016](0016-ide-integration.md) |
@@ -355,6 +356,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md) | A property key is a checked name, and `as` is its only source | Accepted |
 | [0127](0127-the-end-of-a-script-is-observable.md) | The end of a script is observable: `Core\Script::onExit` runs at every non-fatal ending | Accepted |
 | [0128](0128-a-pdf-page-is-a-decode-source-of-the-image-component.md) | A PDF page is a decode source of the image component | Accepted |
+| [0129](0129-password-verify-reads-a-stored-bcrypt-hash.md) | `Core\Password::verify` reads a PHP-stored bcrypt hash, and `hash` never writes one | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
