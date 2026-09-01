@@ -1334,6 +1334,17 @@ is why" — is this file.
   is worth it for what it changes: the owed work becomes `verify.py`, the commit messages nobody
   wrote, and the next slice, rather than a second implementation of what is already there. Do not
   assume such a tree is wrong because it is uncommitted; verify it first and only then judge it.
+- **A handoff's `## Next group` can describe work that is already on disk, and `gaps.py`'s own
+  depth number is the tell.** The `Core\Totp` group named three slices as unasked while quoting
+  `python tools/gaps.py`'s `depth 4.0 ... check 4, code 4` in the same paragraph — and that number
+  *is* the median cases per member, so four cases already existed and two of them
+  (`totp-a-stored-counter-narrows-the-window-from-both-sides`,
+  `totp-accepts-a-code-once-inside-a-window-with-no-widening-argument`) were the first item almost
+  by title. The check is one call — `ls tests/conformance/core/<class>-*` and `git log --oneline --`
+  those files — against the context a session spends discovering it after writing half a duplicate
+  case. It falls on the session *writing* the handoff as much as the one reading it: a group's claim
+  is about the tree, and the tree moves under a handoff that was true when it was written. Read the
+  four existing `--TEST--` lines before proposing a fifth case, never the file names alone.
 
 ## Running things
 
