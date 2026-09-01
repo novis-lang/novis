@@ -1,0 +1,105 @@
+--TEST--
+A Core\RateLimit\Decision's three readers agree with the sweep that produced them, over two windows of different widths — ADR 0075 §§ 2 and 3
+--FILE--
+<?nvs
+// § 3's four fields are four readers over one decision, and each of them reads
+// right on its own line for a reader that grew its own arithmetic: a `limit`
+// that answered a remembered number, a `remaining` that counted its own calls
+// rather than the store's units, a `retryAfter` that estimated the rest of the
+// period instead of computing the wait. What none of them survives is being
+// asked after *every* arrival of two windows of different widths and made to
+// agree with the sweep — so this case counts agreements and never reads a
+// figure off a line.
+//
+// Two windows, both an hour, three units wide and five: one unit drains every
+// 1200 seconds in the first and every 720 in the second, and the burst defaults
+// to the limit, so each admits its whole width at an instant and sheds the
+// rest.
+array<string> $keys = ["decision:three", "decision:five"];
+array<int> $limits = [3, 5];
+array<int> $arrivals = [6, 8];
+array<int> $drains = [1200, 720];
+
+int $decisions = 0;
+int $admitted = 0;
+int $shed = 0;
+
+// `limit` never moves — it is the argument the decision was made against, which
+// is what lets a `RateLimit` header be written from the decision alone.
+int $limitHeld = 0;
+// `remaining` falls by exactly one per admitted unit, from the limit itself.
+int $stepped = 0;
+// And once it reaches zero it stays there: a refusal charges nothing, so there
+// is no overdraft for it to report.
+int $heldAtZero = 0;
+// `retryAfter` is answered exactly when the arrival was shed (§ 3), and when it
+// is, it is this window's own drain interval rather than the rest of the hour.
+int $waitAgreed = 0;
+
+foreach (Core\Arr::range(0, 1) as int $w) {
+    string $key = $keys[$w];
+    uint $limit = $limits[$w] as uint;
+    int $previous = $limits[$w];
+    int $zeroSeen = 0;
+
+    foreach (Core\Arr::range(1, $arrivals[$w]) as int $n) {
+        var $decision = Core\RateLimit::shed($key, $limit, 1h);
+        $decisions = $decisions + 1;
+
+        if (($decision->limit() as int) == $limits[$w]) {
+            $limitHeld = $limitHeld + 1;
+        }
+
+        int $left = $decision->remaining() as int;
+        if ($zeroSeen == 1) {
+            if ($left == 0) {
+                $heldAtZero = $heldAtZero + 1;
+            }
+        }
+        if ($left == 0) {
+            $zeroSeen = 1;
+        }
+
+        var $wait = $decision->retryAfter();
+        var $seconds = 0;
+        if ($wait != null) {
+            // Rounded up for the same reason `examples/cache.nvs` rounds up:
+            // the wait is measured from an arrival a whisker after the one that
+            // filled the window, so the exact figure is just under the drain.
+            $seconds = $wait->toSeconds();
+            if ($wait->toMilliseconds() % 1000 != 0) {
+                $seconds = $seconds + 1;
+            }
+        }
+
+        if ($decision->allowed()) {
+            $admitted = $admitted + 1;
+            if ($previous - $left == 1) {
+                $stepped = $stepped + 1;
+            }
+            if ($wait == null) {
+                $waitAgreed = $waitAgreed + 1;
+            }
+        } else {
+            $shed = $shed + 1;
+            if ($wait != null) {
+                if ($seconds == $drains[$w]) {
+                    $waitAgreed = $waitAgreed + 1;
+                }
+            }
+        }
+        $previous = $left;
+    }
+}
+
+echo "decisions ", $decisions, ", admitted ", $admitted, ", shed ", $shed, "\n";
+echo "limit answered its own window ", $limitHeld, " of ", $decisions, "\n";
+echo "remaining fell by one on every admission ", $stepped, " of ", $admitted, "\n";
+echo "remaining held at zero ", $heldAtZero, " of ", $shed, "\n";
+echo "retryAfter agreed with allowed ", $waitAgreed, " of ", $decisions, "\n";
+--EXPECT--
+decisions 14, admitted 8, shed 6
+limit answered its own window 14 of 14
+remaining fell by one on every admission 8 of 8
+remaining held at zero 6 of 6
+retryAfter agreed with allowed 14 of 14
