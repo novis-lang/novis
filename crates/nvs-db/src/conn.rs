@@ -34,6 +34,7 @@
 use std::cell::Cell;
 
 use crate::pg::{CancelKey, Wire};
+use crate::sql::StatementCache;
 
 /// The five backends [ADR 0067 § 12](../../../docs/adr/0067-core-db.md) closes
 /// the set at.
@@ -181,6 +182,14 @@ pub struct PgConn {
     /// unrepeatable: the key arrives once, during the handshake, and a
     /// connection that dropped it cannot ask again.
     pub(crate) cancel: CancelKey,
+    /// ADR 0067 § 1's LRU of server-side prepared statements, keyed by SQL text
+    /// plus expansion arity.
+    ///
+    /// It is on the connection because a prepared statement is a name on one
+    /// session: two connections sharing this would bind against names the
+    /// other's server has never heard of. It survives this driver's reset,
+    /// which is § 13's whole reason for not sending `DISCARD ALL`.
+    pub(crate) cache: StatementCache,
 }
 
 /// A MySQL connection: `mysql_common`'s codec plus the handshake, `COM_STMT_*`

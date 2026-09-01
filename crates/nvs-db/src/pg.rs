@@ -114,6 +114,7 @@ use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
 
 use crate::conn::{PgConn, State};
+use crate::sql::{Prepared, StatementCache};
 
 /// The one mechanism this driver authenticates with.
 const SCRAM_SHA_256: &str = "SCRAM-SHA-256";
@@ -312,6 +313,10 @@ impl PgConn {
             wire,
             state: Cell::new(State::Idle),
             cancel,
+            // ADR 0067 § 1 sizes this by `statement_cache` in the connection's
+            // config block; nothing opens a connection *from* config yet, so
+            // the driver's own default stands until the connect path reads one.
+            cache: StatementCache::new(StatementCache::DEFAULT_CAPACITY),
         })
     }
 
@@ -340,7 +345,7 @@ impl PgConn {
     /// `LogicError`. Otherwise the server's own error, which leaves the
     /// connection idle and poolable, or a wire failure, which poisons it.
     pub fn query(&mut self, sql: &str, params: &[Option<&[u8]>]) -> io::Result<PgRows<'_>> {
-        start_statement(&mut self.wire, &self.state, sql, params)
+        start_statement(&mut self.wire, &self.state, &mut self.cache, sql, params)
     }
 
     /// ADR 0067 § 13's reset, and the connection back only if it worked.
@@ -594,11 +599,11 @@ fn server_error(body: &backend::ErrorResponseBody) -> io::Error {
 /// The unnamed statement and the unnamed portal, which is what an uncached
 /// execution uses.
 ///
-/// PostgreSQL destroys the unnamed statement at the next `Parse` and the
-/// unnamed portal at the next `Sync`, so nothing accumulates on the server
-/// between calls and there is nothing to deallocate. ADR 0067 § 1's LRU
-/// statement cache is what puts a *name* here, keyed by SQL text plus expansion
-/// arity; that is its own slice and it does not change anything below.
+/// PostgreSQL destroys the unnamed portal at the next `Sync`, so nothing
+/// accumulates on the server between calls and there is nothing to deallocate.
+/// The *statement* is named by [`StatementCache`] whenever ADR 0067 § 1's cache
+/// is on, and this remains the spelling of the unnamed one — which is what a
+/// capacity of zero, and only that, still sends.
 const UNNAMED: &str = "";
 
 /// One column of a portal's row description.
@@ -777,12 +782,26 @@ impl<S: Read + Write> Drop for PgRows<'_, S> {
 /// in one flush, and this returns once the portal has described itself — which
 /// is the point rows may start arriving and [`State::Streaming`] is true.
 ///
+/// `cache` is what decides whether the `Parse` is in that buffer at all. On a
+/// hit it is not — the round trip ADR 0067 § 1 says PostgreSQL already does not
+/// pay — and the batch opens at `Bind` against a name the server is already
+/// holding. On a miss that had to evict, the victim's `Close` rides in the
+/// *same* buffer: the batch's own `Sync` is what bounds it, so deallocating a
+/// statement never costs a round trip of its own.
+///
+/// The cache is written only once the parse has landed. `ParseComplete` arrives
+/// before the row description this returns at, so every path that reaches the
+/// commit has proof the server holds the statement; every path that does not
+/// leaves the cache exactly as it found it, and the statement is simply parsed
+/// again next time.
+///
 /// # Errors
 ///
 /// As [`PgConn::query`].
 fn start_statement<'a, S: Read + Write>(
     wire: &'a mut Wire<S>,
     state: &'a Cell<State>,
+    cache: &mut StatementCache,
     sql: &str,
     params: &[Option<&[u8]>],
 ) -> io::Result<PgRows<'a, S>> {
@@ -797,10 +816,27 @@ fn start_statement<'a, S: Read + Write>(
         ));
     }
 
+    // The arity is the parameter count, which ADR 0067 § 5's `inList` expansion
+    // has already moved by the time the SQL reaches here.
+    let arity = params.len();
+    let prepared = cache.prepare(sql, arity);
+
     let mut out = BytesMut::new();
-    frontend::parse(UNNAMED, sql, [], &mut out)?;
+    match &prepared {
+        // The server has it: no `Parse`, and the batch is four messages.
+        Prepared::Hit(_) => {}
+        Prepared::Miss { name, evicted } => {
+            if let Some(closing) = evicted {
+                // `b'S'` is the statement, not the portal. It goes first so the
+                // server is never holding both at once.
+                frontend::close(b'S', closing, &mut out)?;
+            }
+            frontend::parse(name, sql, [], &mut out)?;
+        }
+        Prepared::Unnamed => frontend::parse(UNNAMED, sql, [], &mut out)?,
+    }
     frontend::bind(
-        UNNAMED,
+        prepared.name(),
         UNNAMED,
         // Both format lists empty, which is the protocol's spelling for "all
         // text". The module doc owns why text and not binary.
@@ -839,7 +875,11 @@ fn start_statement<'a, S: Read + Write>(
 
     let columns = loop {
         match read_or_poison(wire, state)? {
-            backend::Message::ParseComplete | backend::Message::BindComplete => {}
+            // `CloseComplete` is the evicted statement's, and it arrives ahead
+            // of this batch's own answers.
+            backend::Message::CloseComplete
+            | backend::Message::ParseComplete
+            | backend::Message::BindComplete => {}
             backend::Message::RowDescription(body) => {
                 break columns_of(&body).inspect_err(|_| state.set(State::Poisoned))?;
             }
@@ -859,6 +899,12 @@ fn start_statement<'a, S: Read + Write>(
             _ => return Err(out_of_sequence(state)),
         }
     };
+
+    // The parse landed, so the name is one the server will answer to until we
+    // close it. A `Hit` was already recorded and an `Unnamed` never is.
+    if let Prepared::Miss { name, .. } = prepared {
+        cache.commit(sql, arity, name);
+    }
 
     state.set(State::Streaming);
     Ok(PgRows {
@@ -1045,6 +1091,13 @@ mod tests {
     use std::cell::Cell;
 
     use super::{CancelKey, PgTarget, State, Wire, authenticate, request_tls, start_statement};
+    use crate::sql::StatementCache;
+
+    /// A cache that never caches, so a test about the wire asserts the unnamed
+    /// statement it has always asserted. The cached path has its own case.
+    fn no_cache() -> StatementCache {
+        StatementCache::new(0)
+    }
 
     /// A server that answers the client rather than a script: the SASL
     /// exchange's every message depends on the one before it, so a canned
@@ -1456,6 +1509,100 @@ mod tests {
         out
     }
 
+    /// The same shape, answering only the messages the batch actually carried:
+    /// a `CloseComplete` for an eviction and a `ParseComplete` for a parse.
+    ///
+    /// A server does not answer a `Parse` that was never sent, so a cache hit
+    /// the driver got wrong would stall here rather than pass quietly.
+    fn statement_answer(closed: bool, parsed: bool) -> Vec<u8> {
+        let mut out = Vec::new();
+        if closed {
+            out.extend_from_slice(&message(b'3', b"")); // CloseComplete
+        }
+        if parsed {
+            out.extend_from_slice(&message(b'1', b"")); // ParseComplete
+        }
+        out.extend_from_slice(&message(b'2', b"")); // BindComplete
+        out.extend_from_slice(&row_description(b"greeting", 25));
+        out.extend_from_slice(&message(b'C', b"SELECT 0\0"));
+        out.extend_from_slice(&message(b'Z', b"I"));
+        out
+    }
+
+    /// ADR 0067 § 1's cache on the wire: the round trip PostgreSQL stops paying
+    /// on the second execution is the `Parse` that is no longer in the batch.
+    #[test]
+    fn a_cached_statement_is_parsed_once_and_bound_by_name_after() {
+        let state = Cell::new(State::Idle);
+        let mut cache = StatementCache::new(2);
+        let mut answered = 0usize;
+        let mut wire = Wire::new(Peer::new(move |_: &[u8]| {
+            answered += 1;
+            statement_answer(false, answered == 1)
+        }));
+
+        for _ in 0..2 {
+            let mut rows = start_statement(&mut wire, &state, &mut cache, "select greeting", &[])
+                .expect("the portal described itself");
+            while rows.next_row().expect("the stream drained").is_some() {}
+        }
+
+        assert_eq!(tags(&wire.peer().sent[0]), b"PBDES".to_vec());
+        assert_eq!(
+            tags(&wire.peer().sent[1]),
+            b"BDES".to_vec(),
+            "the second execution parsed a statement the server was already holding"
+        );
+        assert_eq!(cache.len(), 1);
+    }
+
+    /// The eviction's `Close` rides in the batch that replaced it, so making
+    /// room costs no round trip of its own — the batch's `Sync` bounds both.
+    #[test]
+    fn an_evicted_statement_is_closed_in_the_batch_that_replaced_it() {
+        let state = Cell::new(State::Idle);
+        let mut cache = StatementCache::new(1);
+        let mut answered = 0usize;
+        let mut wire = Wire::new(Peer::new(move |_: &[u8]| {
+            answered += 1;
+            statement_answer(answered > 1, true)
+        }));
+
+        for sql in ["select 'a'", "select 'b'"] {
+            let mut rows = start_statement(&mut wire, &state, &mut cache, sql, &[])
+                .expect("the portal described itself");
+            while rows.next_row().expect("the stream drained").is_some() {}
+        }
+
+        assert_eq!(wire.peer().sent.len(), 2, "the close was its own flush");
+        assert_eq!(tags(&wire.peer().sent[0]), b"PBDES".to_vec());
+        assert_eq!(tags(&wire.peer().sent[1]), b"CPBDES".to_vec());
+        assert_eq!(cache.len(), 1, "the cache outgrew its capacity");
+    }
+
+    /// A statement the server refused leaves the cache exactly as it was: the
+    /// name was minted but never parsed, and binding it later would draw a
+    /// `26000` on a connection that was otherwise fine.
+    #[test]
+    fn a_statement_the_server_would_not_parse_is_not_left_in_the_cache() {
+        let state = Cell::new(State::Idle);
+        let mut cache = StatementCache::new(2);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out = error_response("42601", "syntax error at or near \"slect\"");
+            out.extend_from_slice(&message(b'Z', b"I"));
+            out
+        }));
+
+        start_statement(&mut wire, &state, &mut cache, "slect 1", &[])
+            .expect_err("a statement that never parsed was accepted");
+
+        assert!(
+            cache.is_empty(),
+            "the server is not holding what was cached"
+        );
+        assert_eq!(state.get(), State::Idle);
+    }
+
     /// ADR 0067 § 1's "PostgreSQL's extended protocol pays nothing extra",
     /// asserted as bytes: all five messages go out in **one** flush, so there is
     /// no prepare round trip to save. Asserted by walking the length prefixes
@@ -1466,8 +1613,14 @@ mod tests {
         let mut wire = Wire::new(Peer::new(|_: &[u8]| one_statement(Vec::new())));
 
         {
-            let mut rows = start_statement(&mut wire, &state, "select $1", &[Some(b"7")])
-                .expect("the portal described itself");
+            let mut rows = start_statement(
+                &mut wire,
+                &state,
+                &mut no_cache(),
+                "select $1",
+                &[Some(b"7")],
+            )
+            .expect("the portal described itself");
             while rows.next_row().expect("the stream drained").is_some() {}
         }
 
@@ -1491,8 +1644,8 @@ mod tests {
             ])
         }));
 
-        let mut rows =
-            start_statement(&mut wire, &state, "select greeting", &[]).expect("the portal opened");
+        let mut rows = start_statement(&mut wire, &state, &mut no_cache(), "select greeting", &[])
+            .expect("the portal opened");
         assert_eq!(state.get(), State::Streaming);
         assert_eq!(rows.columns().len(), 1);
         assert_eq!(rows.columns()[0].name, "greeting");
@@ -1527,7 +1680,7 @@ mod tests {
             let state = Cell::new(busy);
             let mut wire = Wire::new(Peer::new(|_: &[u8]| Vec::new()));
 
-            let refused = start_statement(&mut wire, &state, "select 1", &[])
+            let refused = start_statement(&mut wire, &state, &mut no_cache(), "select 1", &[])
                 .expect_err("a second statement was accepted");
 
             assert_eq!(refused.kind(), io::ErrorKind::InvalidInput, "{busy:?}");
@@ -1548,8 +1701,9 @@ mod tests {
         }));
 
         {
-            let mut rows = start_statement(&mut wire, &state, "select greeting", &[])
-                .expect("the portal opened");
+            let mut rows =
+                start_statement(&mut wire, &state, &mut no_cache(), "select greeting", &[])
+                    .expect("the portal opened");
             assert!(rows.next_row().expect("the first row arrived").is_some());
             assert_eq!(state.get(), State::Streaming);
         }
@@ -1571,7 +1725,7 @@ mod tests {
             out
         }));
 
-        let refused = start_statement(&mut wire, &state, "slect 1", &[])
+        let refused = start_statement(&mut wire, &state, &mut no_cache(), "slect 1", &[])
             .expect_err("a syntax error was accepted");
 
         let said = refused.to_string();
@@ -1598,8 +1752,8 @@ mod tests {
         }));
 
         {
-            let mut rows =
-                start_statement(&mut wire, &state, "select 1/x", &[]).expect("the portal opened");
+            let mut rows = start_statement(&mut wire, &state, &mut no_cache(), "select 1/x", &[])
+                .expect("the portal opened");
             assert!(rows.next_row().expect("the first row arrived").is_some());
             let failed = rows.next_row().expect_err("the error was swallowed");
             assert!(failed.to_string().contains("22012"), "{failed}");
@@ -1625,7 +1779,7 @@ mod tests {
             out
         }));
 
-        let failed = start_statement(&mut wire, &state, "select 1", &[])
+        let failed = start_statement(&mut wire, &state, &mut no_cache(), "select 1", &[])
             .expect_err("a truncated message was accepted");
 
         assert_eq!(failed.kind(), io::ErrorKind::UnexpectedEof);
@@ -1649,7 +1803,7 @@ mod tests {
             out
         }));
 
-        let failed = start_statement(&mut wire, &state, "copy t from stdin", &[])
+        let failed = start_statement(&mut wire, &state, &mut no_cache(), "copy t from stdin", &[])
             .expect_err("an out-of-sequence message was accepted");
 
         assert_eq!(failed.kind(), io::ErrorKind::InvalidData);
