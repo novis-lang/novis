@@ -1,0 +1,58 @@
+--TEST--
+Eight seals of one message under one key agree about the plaintext and disagree about every ciphertext — the 24-octet nonce prefix distinct across all 28 pairs, and the body behind it distinct too — ADR 0051 § 3
+--FILE--
+<?nvs
+// Agreement and disagreement in one case, counted over a sweep. That two
+// seals of one message differ is already pinned in
+// `crypto-seals-and-opens-with-no-cipher-argument.nvst`; what a pair cannot
+// see is *where* they differ. A member that drew a fresh nonce, prefixed it,
+// and then sealed the message deterministically behind it would pass that case
+// and every round trip below, and would have kept none of the confidentiality
+// a nonce is drawn for — two messages under one key would differ only in a
+// prefix an attacker is handed anyway.
+secret bytes $key = Core\Crypto::generateKey();
+bytes $message = "attack at dawn" as bytes;
+
+array<bytes> $nonces = [];
+array<bytes> $bodies = [];
+int $opens = 0;
+foreach (Core\Arr::range(1, 8) as int $draw) {
+    bytes $sealed = Core\Crypto::seal($message, $key);
+    if (Core\Crypto::open($sealed, $key) == $message) {
+        $opens += 1;
+    }
+
+    // The layout the flat 40-octet overhead is made of: 24 octets of nonce in
+    // front, then the ciphertext and its tag. `crates/nvs-stdlib/src/crypto.rs`
+    // owns why the nonce is prefixed rather than taken back as a second
+    // argument the way `openssl_decrypt` takes its IV.
+    $nonces = Core\Arr::append($nonces, Core\Bytes::slice($sealed, 0, 24));
+    $bodies = Core\Arr::append(
+        $bodies,
+        Core\Bytes::slice($sealed, 24, (Core\Bytes::length($sealed) as int) - 24)
+    );
+}
+echo "opens ", $opens, " of 8", "\n";
+
+int $pairs = 0;
+int $freshNonce = 0;
+int $freshBody = 0;
+foreach (Core\Arr::range(0, 7) as int $i) {
+    foreach (Core\Arr::range(0, 7) as int $j) {
+        if ($i < $j) {
+            $pairs += 1;
+            if ($nonces[$i] != $nonces[$j]) {
+                $freshNonce += 1;
+            }
+            if ($bodies[$i] != $bodies[$j]) {
+                $freshBody += 1;
+            }
+        }
+    }
+}
+echo "nonces distinct ", $freshNonce, " of ", $pairs, "\n";
+echo "bodies distinct ", $freshBody, " of ", $pairs, "\n";
+--EXPECT--
+opens 8 of 8
+nonces distinct 28 of 28
+bodies distinct 28 of 28
