@@ -1309,6 +1309,14 @@ is why" — is this file.
   `wasm-encoder`'s. A crate whose diff adds a `[[package]]` block is the case where this shortcut does
   not apply, and it still owes `python tools/gen-attribution.py`, which does run here.
 
+- **`verify.py`'s reference step regenerates `docs/novis.md`, so a new `Core` member leaves the tree
+  dirty *after* the wrap.** The page is built from the registry's reference cards, and the run that
+  proves the member green is the run that writes its card into that file — which happens after the
+  wrap file has been written and, if the wrap is applied straight afterwards, after every `##
+  commit:` has been staged. `session.py` reports it as `uncommitted after the wrap`; it is a real
+  change and it is yours. Name `docs/novis.md` in the member's own `## commit:` when the slice adds
+  a row, and the sweep takes it with the rest.
+
 ## Running things
 
 - **Verification is one call:** `python tools/verify.py` — build, fmt, test, the two `.nvst` trees and
