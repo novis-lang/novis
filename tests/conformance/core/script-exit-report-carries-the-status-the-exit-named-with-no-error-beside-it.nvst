@@ -1,0 +1,54 @@
+--TEST--
+An `exit($n)` puts the very `$n` on the report rather than a normalized 0 or 1, and that non-zero status arrives with `error` still `null` — ADR 0127 § 2
+--FILE--
+<?nvs
+// § 2's middle row, in the column no landed case reads: `exit($n)` is `status`
+// `$n`. The two `exit` cases already on disk both end at 0, which is also the
+// `Normal` row's status — so nothing yet tells "the report carries the number
+// the program chose" from "the report carries 0 unless something threw".
+//
+// The number is chosen for what it is not. 42 is not 0, not 1, and not either
+// of the two the other rows of § 2 impose, so a report that had normalized the
+// status to a success/failure bit would print plausibly on any other ending and
+// fails here.
+int $chosen = 42;
+
+// One number, read at the call site and at the report, so the assertion is that
+// the two *agree* rather than that the report said 42. Capture is by value at
+// the literal (ADR 0031 § 2) and `$chosen` is never rebound, so what the hook
+// holds is what the `exit` below is handed.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    string $named = match ($report->reason()) {
+        Core\Script\ExitReason::Normal => "Normal",
+        Core\Script\ExitReason::ExitCall => "ExitCall",
+        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+    };
+    ?Throwable $error = $report->error();
+    echo "exit hook: ", $named, " ", $report->status(), " ",
+        $error == null ? "no error" : "an error", "\n";
+
+    if ($report->status() == $chosen) {
+        echo "the status is the number the call named\n";
+    } else {
+        echo "the status is not the number the call named\n";
+    }
+
+    // The other half, and the reason the two columns are asserted together: a
+    // status of 1 is what `script-on-exit-carries-the-live-throwable-of-an-
+    // uncaught-throw.nvst` pins for a throw, so "not 0" reads like "something
+    // threw" until a case names an ending that is both. `reason` and `error`
+    // are the columns that tell § 2's rows apart; `status` never was one.
+    if ($report->status() != 0 && $error == null) {
+        echo "a failing status is not evidence of a throw\n";
+    }
+});
+
+echo "before the exit\n";
+exit($chosen);
+--EXPECT--
+before the exit
+exit hook: ExitCall 42 no error
+the status is the number the call named
+a failing status is not evidence of a throw
+--EXPECTF-ERROR--
+%A
