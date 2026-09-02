@@ -58,10 +58,18 @@
 //!    "…")` folds nothing and runs unvalidated, exactly as
 //!    [`crate::links`]' own gap 1 describes: reading one needs the slot
 //!    mapping `check_args_typed` built and this pass is not handed.
+//! 5. **ADR 0067 § 10's unterminated string literal is not refused**, and the
+//!    reason is a disagreement rather than an absence: `nvs_db::sql`'s own
+//!    module doc declines it in the other direction, because an unterminated
+//!    quote ends that scan at the end of the text and the statement goes out to
+//!    be diagnosed by a parser that can say what is actually wrong with it.
+//!    Refusing it here would be the one thing this pass refuses that the
+//!    rewriter does not, which is § 4 read backwards. It waits on which of the
+//!    two docs is right, not on a scan.
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{CallArgs, Expr};
+use nvs_syntax::ast::{Arg, CallArgs, Expr, ExprKind};
 
 use crate::Env;
 use crate::defaults::ConstArg;
@@ -86,6 +94,13 @@ enum Grammar {
     /// `Core\Str::format`'s `printf` template, which is the one grammar that
     /// is also checked *against the call's other arguments*.
     Template,
+    /// ADR 0067 § 5's placeholder spelling, checked against the *params array*
+    /// written beside it — the second grammar read against another argument,
+    /// and the only one whose other argument is a single array rather than the
+    /// variadic tail. [ADR 0067 § 10](../../../docs/adr/0067-core-db.md) is
+    /// what puts it on § 1's list; the vendors' SQL itself is not read here and
+    /// that section says why.
+    Sql,
 }
 
 /// One row of § 1's table: a member, and which of its arguments is the small
@@ -141,6 +156,51 @@ const INTRINSICS: &[Intrinsic] = &[
         at: 0,
         grammar: Grammar::Template,
     },
+    // ADR 0067 § 10's three members, on both classes that declare them: § 7's
+    // `Core\Db\Transaction` forwards the interface to its connection, so the
+    // same statement written inside a transaction is the same check. The rows
+    // are nominal against the *declaring* class, so the receiver is not counted
+    // and `at: 0` is the `sql` parameter on all six.
+    //
+    // `executeMany` is deliberately absent: its second argument is `sets`, a
+    // list of parameter *sets* rather than one, so the count this pass makes is
+    // not the count that member binds.
+    Intrinsic {
+        owner: r"Core\Db\Connection",
+        member: "query",
+        at: 0,
+        grammar: Grammar::Sql,
+    },
+    Intrinsic {
+        owner: r"Core\Db\Connection",
+        member: "queryAs",
+        at: 0,
+        grammar: Grammar::Sql,
+    },
+    Intrinsic {
+        owner: r"Core\Db\Connection",
+        member: "execute",
+        at: 0,
+        grammar: Grammar::Sql,
+    },
+    Intrinsic {
+        owner: r"Core\Db\Transaction",
+        member: "query",
+        at: 0,
+        grammar: Grammar::Sql,
+    },
+    Intrinsic {
+        owner: r"Core\Db\Transaction",
+        member: "queryAs",
+        at: 0,
+        grammar: Grammar::Sql,
+    },
+    Intrinsic {
+        owner: r"Core\Db\Transaction",
+        member: "execute",
+        at: 0,
+        grammar: Grammar::Sql,
+    },
 ];
 
 /// § 1's row for a resolved target, or `None` for the overwhelming majority of
@@ -189,6 +249,7 @@ pub(crate) fn check_call(
     };
     match row.grammar {
         Grammar::Template => check_template(&text, pattern.value.span, row, arg_types, env),
+        Grammar::Sql => check_sql(&text, pattern.value.span, row, list, env),
         // Both CLDR rows read the same pattern language through the same
         // `compile`, which is why they share one variant: the two members
         // differ only in what they do with the pieces afterwards.
@@ -228,6 +289,80 @@ pub(crate) fn check_call(
                 report_malformed(pattern.value.span, &err.message(), env);
             }
         }
+    }
+}
+
+/// A literal query, and the literal params array written beside it —
+/// [ADR 0067 § 10](../../../docs/adr/0067-core-db.md)'s refused second
+/// statement, placeholder count and positional-vs-named consistency.
+///
+/// The two halves are two codes because they are two mistakes: a second
+/// statement is a text this member cannot send whatever it is handed, and the
+/// other two are a pairing that could have been written to agree. § 10's fourth
+/// clause — an unterminated string literal — is not made here, and the module's
+/// known gaps own why.
+///
+/// The refusal is `nvs_stdlib::db::check_literal_query`'s, which is the
+/// rewriter the request itself would have run; that function's doc owns why it
+/// is the rewriter rather than a second reader, and why a refusal has to hold
+/// on all four dialects.
+///
+/// **The params array is read for its shape and never for its values.** Every
+/// element stands in as one bound slot, including a `Core\Db::inList(…)`: § 5's
+/// expansion changes how many *markers* an element renders to and never how
+/// many slots the call binds, which is the only number either check counts.
+/// An array this pass cannot read whole — a spread, a variable, keyed and
+/// unkeyed elements mixed — is not read at all, per § 2.
+fn check_sql(
+    text: &str,
+    span: nvs_diagnostics::Span,
+    row: &Intrinsic,
+    list: &[Arg],
+    env: &mut Env<'_>,
+) {
+    // § 1's statement count first, because it is a fact about the literal alone
+    // and holds however unreadable the params array beside it turns out to be.
+    if let Err(message) = nvs_stdlib::db::check_single_statement(text) {
+        report_malformed(span, &message, env);
+        return;
+    }
+    let Some(params) = list.get(row.at + 1) else {
+        // A missing argument is the arity check's refusal, already made.
+        return;
+    };
+    let ExprKind::ArrayLiteral(items) = &params.value.unparenthesized().kind else {
+        return;
+    };
+    if items.iter().any(|item| item.spread || item.by_ref) {
+        return;
+    }
+    let keyed = items.iter().filter(|item| item.key.is_some()).count();
+    let refused = if keyed == 0 {
+        nvs_stdlib::db::check_literal_query(
+            text,
+            nvs_stdlib::db::LiteralParams::Positional(items.len()),
+        )
+    } else if keyed == items.len() {
+        let mut names = Vec::with_capacity(items.len());
+        for item in items {
+            let Some(key) = item.key.as_ref() else {
+                return;
+            };
+            let Some(ConstArg::Str(name)) = folded_str(key, env) else {
+                return;
+            };
+            names.push(name);
+        }
+        let keys: Vec<&str> = names.iter().map(String::as_str).collect();
+        nvs_stdlib::db::check_literal_query(text, nvs_stdlib::db::LiteralParams::Named(&keys))
+    } else {
+        // § 5's two spellings in one array. The array is neither list-keyed nor
+        // string-keyed, and the `LogicError` for that is raised where the array
+        // is rather than against the query.
+        return;
+    };
+    if let Err(message) = refused {
+        report_query(span, &message, env);
     }
 }
 
@@ -364,6 +499,24 @@ fn report_mismatch(span: nvs_diagnostics::Span, message: &str, label: &str, env:
         .with_help(
             "every argument must be read by at least one placeholder and every placeholder must \
              have an argument to read — `%1$s` numbers them where the order differs",
+        ),
+    );
+}
+
+/// [ADR 0067 § 10](../../../docs/adr/0067-core-db.md)'s refusals, which are the
+/// same *kind* as [`report_mismatch`]'s and share its code: the literal is one
+/// the rewriter reads perfectly well, and the mistake is in the pairing.
+fn report_query(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_FORMAT_TEMPLATE_MISMATCH,
+            format!("this query and its parameters do not agree: {message}"),
+        )
+        .with_primary(span, "read while compiling, because it is a constant")
+        .with_help(
+            "the compiler binds a literal query with the same rewriter the request would have \
+             used, so this is the `LogicError` the first call would have thrown — `?` and \
+             `:name` are ADR 0067 § 5's two spellings and one statement uses one of them",
         ),
     );
 }

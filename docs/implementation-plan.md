@@ -49,19 +49,19 @@
 > `lastId` and `executeMany` too. § 7's `BEGIN`/`COMMIT`/`ROLLBACK` is on it, nesting as a
 > `SAVEPOINT` to any depth. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect` over a
 > request-held, memoized connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and
-> `executeMany` — bound in § 5's rewriter's order — and § 18's readers: all six of `Rows`', all
-> fourteen of `Row`, `Write`'s three, and `Db\Column`'s three. `open` waits on a shape-parameter
-> type. **§ 7's `transaction` is on both classes with all three options, retrying either conflict,
-> no backoff** and a refusal throws `Db\DbError` carrying four of § 8's five;  `Rows` is generic at
-> `T` and **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and § 9's five structured columns
-> build the `Core\Time`/`Core\Uuid` instance `Row`'s typed readers and a `#[Db\Derive]` field answer
-> with, so `examples/db.nvs` runs end to end. Stages 3-4 are green in `-p nvs-db`, Stage 5 four of
-> seven, **§ 13's pool is complete, every bound and the park live**, **ADR 0084 § 2's `[queue]`
-> resolves at boot** (`E0617`), **`nvs queue migrate` applies § 2's schema, a worker claims, runs,
-> reports and dead-letters it, and § 3's enqueue, § 4's claim and § 6's ladder are proven live**,
-> **all four of § 1's members are live**, and **a shape encodes as a JSON object**. **The matrix
-> anchors each driver**, **ADR 0132 took the slot**. **Goals 1-4 and M4 are closed**. Conformance
-> 1428, differential 250, migration 90%/74%.
+> `executeMany` — bound in § 5's rewriter's order —  `open` waits on a shape-parameter type. **§ 7's
+> `transaction` is on both classes with all three options, retrying either conflict, no backoff**
+> and a refusal throws `Db\DbError` carrying four of § 8's five;  `Rows` is generic at `T` and
+> **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and § 9's five structured columns build the
+> `Core\Time`/`Core\Uuid` instance `Row`'s typed readers and a `#[Db\Derive]` field answer with, so
+> `examples/db.nvs` runs end to end. Stages 3-4 are green in `-p nvs-db`, Stage 5 four of seven, **§
+> 13's pool is complete, every bound and the park live**, **ADR 0084 § 2's `[queue]` resolves at
+> boot** (`E0617`), **`nvs queue migrate` applies § 2's schema, a worker claims, runs, reports and
+> dead-letters it, and § 3's enqueue, § 4's claim and § 6's ladder are proven live**, **all four of
+> § 1's members are live**, and **a shape encodes as a JSON object**. **The matrix anchors each
+> driver**, **ADR 0132 took the slot**. **Stage 9's literal-query diagnostics are live** — ADR 0067
+> § 10's three, ADR 0024 § 4's pair. **Goals 1-4 and M4 are closed**. Conformance 1428, differential
+> 250, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

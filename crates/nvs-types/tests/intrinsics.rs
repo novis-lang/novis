@@ -417,3 +417,193 @@ fn a_nullable_argument_is_not_refused_against_a_numeric_conversion() {
         "a `?int` was refused where the runtime would have accepted it: {diags:?}"
     );
 }
+
+#[test]
+fn a_tainted_value_at_a_query_text_parameter_is_a_diagnostic() {
+    // ADR 0024 § 4 is the whole injection story for ADR 0067, and this is its
+    // first half: the statement text is the sink, so a `tainted` value cannot
+    // reach it at all. There is no escaping function to reach for after the
+    // refusal — § 1 says an escaper would be a second, weaker answer to a
+    // question the bound parameters already answer.
+    let queried = check_call(
+        "    Core\\Db\\Connection $db = Core\\Db::connect(\"main\");\n    \
+         tainted string $t = \"select id from t\" as tainted string;\n    \
+         Core\\Db\\Rows<Core\\Db\\Row> $r = $db->query($t, []);\n",
+    );
+    assert!(
+        reported(&queried, code::E_TYPE_MISMATCH),
+        "a tainted statement text reached query: {queried:?}"
+    );
+
+    // `execute`'s row carries the same mark, because a rule stated on `query`
+    // alone would leave the member that writes wide open.
+    let executed = check_call(
+        "    Core\\Db\\Connection $db = Core\\Db::connect(\"main\");\n    \
+         tainted string $t = \"delete from t\" as tainted string;\n    \
+         Core\\Db\\Write $w = $db->execute($t, []);\n",
+    );
+    assert!(
+        reported(&executed, code::E_TYPE_MISMATCH),
+        "a tainted statement text reached execute: {executed:?}"
+    );
+}
+
+#[test]
+fn the_same_tainted_value_at_a_bound_parameter_compiles() {
+    // § 4's second half, and the one a refusal alone would get wrong: a bound
+    // parameter accepts `tainted` **freely**. It is the same value at the same
+    // call — the pair is what makes the rule a boundary rather than a ban, and
+    // it is why the API needs no `escape`.
+    let diags = check_call(
+        "    Core\\Db\\Connection $db = Core\\Db::connect(\"main\");\n    \
+         tainted string $t = \"ada\" as tainted string;\n    \
+         Core\\Db\\Rows<Core\\Db\\Row> $r = \
+         $db->query(\"select id from t where name = ?\", [$t]);\n",
+    );
+    assert!(
+        !diags.has_errors(),
+        "a tainted value was refused at a bound parameter: {diags:?}"
+    );
+}
+
+/// A connection to write a literal query against. `connect` is § 18's entry
+/// point and its return type is what puts `Core\Db\Connection` on `$db`, which
+/// is the class § 1's rows are matched nominally against.
+fn query(sql: &str, params: &str) -> Diagnostics {
+    check_call(&format!(
+        "    Core\\Db\\Connection $db = Core\\Db::connect(\"main\");\n    \
+         $db->query({sql}, {params});\n"
+    ))
+}
+
+#[test]
+fn a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic() {
+    // ADR 0067 § 10's first clause, in both directions. The refusal is the
+    // rewriter's own — `nvs_stdlib::db::check_literal_query` runs the one the
+    // request would have run — so this is the `LogicError` the first call would
+    // have thrown, moved to `nvs check`.
+    let short = query("\"select id from t where a = ? and b = ?\"", "[1]");
+    assert!(
+        reported(&short, code::E_FORMAT_TEMPLATE_MISMATCH),
+        "two placeholders against one argument: {short:?}"
+    );
+    let long = query("\"select id from t where a = ?\"", "[1, 2]");
+    assert!(
+        reported(&long, code::E_FORMAT_TEMPLATE_MISMATCH),
+        "one placeholder against two arguments: {long:?}"
+    );
+
+    // The shapes that must stay silent. A count that agrees is a call the
+    // runtime accepts, and a params array this pass cannot read whole is § 2's
+    // rule: nothing is refused for being dynamic.
+    let fine = query("\"select id from t where a = ? and b = ?\"", "[1, 2]");
+    assert!(
+        !fine.has_errors(),
+        "a query whose count agrees was refused: {fine:?}"
+    );
+    let dynamic = check_call(
+        "    Core\\Db\\Connection $db = Core\\Db::connect(\"main\");\n    \
+         array<mixed> $p = [1];\n    \
+         $db->query(\"select id from t where a = ? and b = ?\", $p);\n",
+    );
+    assert!(
+        !dynamic.has_errors(),
+        "a computed params array was read anyway: {dynamic:?}"
+    );
+
+    // § 5's `??` escape, which is the one piece of syntax the rewriter adds to
+    // SQL: a literal question mark is not a placeholder, so this binds one
+    // argument and not two. It is here because it is exactly the shape a second
+    // reader of the same grammar would get wrong.
+    let escaped = query("\"select a ?? b from t where c = ?\"", "[1]");
+    assert!(
+        !escaped.has_errors(),
+        "`??` was counted as a placeholder: {escaped:?}"
+    );
+}
+
+#[test]
+fn a_two_statement_literal_query_is_a_diagnostic() {
+    // § 1's "every statement is prepared", read as the one question about
+    // statement count that needs no vendor's grammar: a prepared statement is
+    // one command on every backend, so a text holding two never runs.
+    let two = query("\"update t set a = 1; drop table t\"", "[]");
+    assert!(
+        reported(&two, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "a second statement was accepted: {two:?}"
+    );
+
+    // The *other* code, because this is a fact about the literal alone: it
+    // holds however the params array reads, and is reported before the pairing
+    // is looked at.
+    let with_params = query("\"update t set a = ?; drop table t\"", "[1]");
+    assert!(
+        reported(&with_params, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "a second statement beside a params array that agrees: {with_params:?}"
+    );
+
+    // And the three spellings of a `;` that is not a separator — the ones a
+    // scan that only looked for the byte would refuse. A terminator ends the
+    // one statement, a comment after it is still that statement, and a `;`
+    // inside a string literal is text.
+    for sql in [
+        "\"update t set a = 1;\"",
+        "\"update t set a = 1; -- and nothing after it\"",
+        "\"update t set a = ';'\"",
+    ] {
+        let single = query(sql, "[]");
+        assert!(
+            !single.has_errors(),
+            "a `;` that separates nothing was refused: {sql} {single:?}"
+        );
+    }
+}
+
+#[test]
+fn mixed_placeholder_styles_on_a_literal_are_a_diagnostic() {
+    // § 5's two spellings, and § 10's "positional-vs-named consistency": one
+    // statement uses one of them. Both directions, because the rewriter refuses
+    // at whichever marker disagrees with the array it was handed.
+    let named_in_a_list = query("\"select id from t where a = ? and b = :b\"", "[1, 2]");
+    assert!(
+        reported(&named_in_a_list, code::E_FORMAT_TEMPLATE_MISMATCH),
+        "a `:name` against a list-keyed array: {named_in_a_list:?}"
+    );
+    let positional_in_names = query(
+        "\"select id from t where a = :a and b = ?\"",
+        "[\"a\" => 1, \"b\" => 2]",
+    );
+    assert!(
+        reported(&positional_in_names, code::E_FORMAT_TEMPLATE_MISMATCH),
+        "a `?` against a string-keyed array: {positional_in_names:?}"
+    );
+
+    // A name no argument binds is the same clause read the other way, and a
+    // repeated `:name` is § 5's one value bound once — the thing the positional
+    // form cannot express, so it must not be counted twice.
+    let unbound = query(
+        "\"select id from t where a = :a and b = :c\"",
+        "[\"a\" => 1, \"b\" => 2]",
+    );
+    assert!(
+        reported(&unbound, code::E_FORMAT_TEMPLATE_MISMATCH),
+        "a `:name` naming no argument: {unbound:?}"
+    );
+    let repeated = query(
+        "\"select id from t where a = :a or b = :a\"",
+        "[\"a\" => 1]",
+    );
+    assert!(
+        !repeated.has_errors(),
+        "a `:name` used twice was counted twice: {repeated:?}"
+    );
+
+    // And PostgreSQL's `::` cast, which is why a bare `:` does not start a
+    // name. The refusal has to hold on every dialect, and this one holds on
+    // none.
+    let cast = query("\"select a::text from t where b = ?\"", "[1]");
+    assert!(
+        !cast.has_errors(),
+        "a `::` cast was read as a `:name`: {cast:?}"
+    );
+}
