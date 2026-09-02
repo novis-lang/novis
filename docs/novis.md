@@ -4487,6 +4487,7 @@ class, not an interface: a user class extends it directly. The tree is fixed and
 | `ArithmeticError` | `Throwable` | — |
 | `Core\Test\Failure` | `Throwable` | — |
 | `Core\Cli\NotInteractive` | `RuntimeError` | — |
+| `Core\Db\DbError` | `RuntimeError` | — |
 | `Core\Db\RolledBack` | `RuntimeError` | `$reason` |
 
 - PHP's `Exception` and `Error` do not exist. `class E extends Exception`, `catch (Exception $e)`
@@ -17233,7 +17234,7 @@ Runs one statement with its values bound, and reads every row it answers into me
 
 **Returns** `Core\Db\Rows<Core\Db\Row>` — A `Core\Db\Rows<Core\Db\Row>` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-connection-queryas"></a>
 #### `Core\Db\Connection->queryAs`
@@ -17269,7 +17270,7 @@ Runs one statement that answers counts rather than rows — an `insert`, an `upd
 
 **Returns** `Core\Db\Write` — A `Core\Db\Write` carrying how many rows were affected, that count as the server reported it, and the id a `RETURNING` clause handed back. Rows the statement did answer are read to the end and discarded, so the connection is free when this returns; `query` is the member that keeps them.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-connection-executemany"></a>
 #### `Core\Db\Connection->executeMany`
@@ -17287,7 +17288,7 @@ Runs one statement once per set of values and answers how many rows the whole ba
 
 **Returns** `uint` — The sum of what each execution reported, with a command whose tag carries no count contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a `RETURNING` clause produced are discarded, and there is no `lastId`: neither has one execution to belong to.
 
-**Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `RuntimeError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-connection-transaction"></a>
 #### `Core\Db\Connection->transaction`
@@ -17307,7 +17308,7 @@ Runs `$fn` inside a transaction and answers whatever it answered: returning comm
 
 **Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
 
-**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `RuntimeError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
+**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `Core\Db\DbError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction"></a>
 ### `Core\Db\Transaction`
@@ -17339,7 +17340,7 @@ Runs one statement with its values bound, and reads every row it answers into me
 
 **Returns** `Core\Db\Rows<Core\Db\Row>` — A `Core\Db\Rows<Core\Db\Row>` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-queryas"></a>
 #### `Core\Db\Transaction->queryAs`
@@ -17375,7 +17376,7 @@ Runs one statement that answers counts rather than rows — an `insert`, an `upd
 
 **Returns** `Core\Db\Write` — A `Core\Db\Write` carrying how many rows were affected, that count as the server reported it, and the id a `RETURNING` clause handed back. Rows the statement did answer are read to the end and discarded, so the connection is free when this returns; `query` is the member that keeps them.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-executemany"></a>
 #### `Core\Db\Transaction->executeMany`
@@ -17393,7 +17394,7 @@ Runs one statement once per set of values and answers how many rows the whole ba
 
 **Returns** `uint` — The sum of what each execution reported, with a command whose tag carries no count contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a `RETURNING` clause produced are discarded, and there is no `lastId`: neither has one execution to belong to.
 
-**Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `RuntimeError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-transaction"></a>
 #### `Core\Db\Transaction->transaction`
@@ -17413,7 +17414,7 @@ Runs `$fn` inside a transaction and answers whatever it answered: returning comm
 
 **Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
 
-**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `RuntimeError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
+**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `Core\Db\DbError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-rollback"></a>
 #### `Core\Db\Transaction->rollBack`
