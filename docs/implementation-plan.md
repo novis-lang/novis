@@ -58,8 +58,8 @@
 > `ClassDesc::db_codec`, and § 9's five structured columns build the `Core\Time`/`Core\Uuid`
 > instance `Row`'s typed readers and a `#[Db\Derive]` field answer with, so `examples/db.nvs` runs
 > that end to end and pins a real refusal's § 8 values. Stages 3 and 4 are green in `-p nvs-db` and
-> Stage 5 four of its seven, two of them in `-p nvs-stdlib`, **§ 13's pool is on disk end to end** —
-> bounds at boot, release at teardown, reset-or-destroy at acquire — and **ADR 0132 has claimed the
+> Stage 5 four of its seven, two of them in `-p nvs-stdlib`, **§ 13's pool is on disk** — bounds at
+> boot, release at teardown, reset-or-destroy and `max` at acquire — and **ADR 0132 has claimed the
 > goal's one ADR slot**. **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** —
 > `Core`'s capability-bearing half in full. Conformance 1415, differential 250, its gate met,
 > migration 90%/74%.
