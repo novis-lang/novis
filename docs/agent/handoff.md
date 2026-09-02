@@ -2,58 +2,59 @@
 
 ## State
 
-**A worker reports the attempt it ran.** `crates/nvs-cli/src/worker.rs:435`'s `report` writes
-`nvs_stdlib::queue::SUCCEEDED` for a completion whose `ok` is true and `queue::RETRY` for one that
-is not, both keyed on the lease — `id` *and* the `claimed_at` this worker's own claim wrote — so a
-worker that overran § 4's visibility window cannot cancel the attempt that replaced it. The retry's
-`run_at` is ADR 0084 § 6's ladder, `crates/nvs-stdlib/src/queue.rs:379`'s `retry_at`: exponential in
-the attempts the claim already counted, capped at five minutes, and jittered off the job's own id so
-that a hundred jobs failing against one endpoint do not come back together. Verified against the
-live container end to end — a receipt job lands in `Succeeded` at one attempt, and `flaky.nvs`
-throws, retries and exhausts.
+**ADR 0084 § 6's dead-letter move is landed and proven against the live container.** An attempt
+that fails on a job whose `attempts` have reached its `max_attempts` is no longer left claimed:
+`crates/nvs-cli/src/worker.rs:463`'s `report` runs `crates/nvs-stdlib/src/queue.rs:376`'s
+`DEAD_LETTER`, one data-modifying CTE that deletes the row out of `nvs_jobs` and inserts it into
+`nvs_dead_jobs` in the same moment — so a job is never in both tables or in neither — keyed on the
+lease exactly as `SUCCEEDED` is. `run` answers with the `nvs_host::Failure` the attempt produced
+rather than a bool, and a refusal (an unresolvable script, a payload that will not cross) crosses
+in that same shape under class `Error`, so the row records a refusal and a throw identically.
 
-**An exhausted job is the one branch left open**: it is announced on standard error and left
-`Claimed`, which the worker's module doc carries as its *Known gap*.
+**The `errors` array is one entry deep, and that is a decision rather than unfinished writing.**
+`nvs_jobs` has no column holding what an earlier attempt threw, so § 6's "every attempt's error" is
+the last attempt's; `MIGRATION`'s doc comment owns the trade and `dead_errors`
+(`crates/nvs-stdlib/src/queue.rs:397`) owns the entry's shape. Every attempt before the last is
+visible only on the worker's standard error, which is the worker module's `## Known gap`.
 
-**Stage 2's first two `-p nvs-db` names exist**, as `crates/nvs-db/tests/handshake.rs` — matrix-gated
-like `pool_reuse.rs`, so they skip with no container and assert against a real PostgreSQL under
-`python tools/db-matrix.py --driver postgres`, where both pass. **The check still fails, and its
-other four names are not writable yet**: `local_infile_is_refused_and_no_file_is_sent` is MySQL's and
-there is no MySQL driver, `a_named_connection_is_memoized_for_the_request` is `Core\Db::connect`'s
-and so `nvs-stdlib`'s rather than a `-p nvs-db` test at all, `no_driver_path_interpolates_a_value_into_sql`
-is a claim over five drivers of which one exists, and `the_connection_charset_is_forced_to_utf8`'s
-claim is already asserted inside `pg.rs`'s successful-handshake case. The playbook's *a
-`loop-goal.toml` check can name a test in a crate that cannot host it* is the shape of the first two.
+**`examples/queue.nvs` prints all five of stage 8's frozen lines** against `tests/db/compose.yaml`'s
+PostgreSQL, `claimed 1` included — that line needed `examples/queue/receipt.nvs` to park, for the
+reason the playbook bullet gives.
+
+**Stage 2's `-p nvs-db` check still fails and the analysis is unchanged**: its first two names are
+`crates/nvs-db/tests/handshake.rs` and pass under `python tools/db-matrix.py --driver postgres`;
+`a_named_connection_is_memoized_for_the_request` is `Core\Db::connect`'s and so `nvs-stdlib`'s,
+`local_infile_is_refused_and_no_file_is_sent` is MySQL's with no driver, and
+`the_connection_charset_is_forced_to_utf8` is already asserted inside `pg.rs`. The check's `args`
+is the fix, per the playbook's *a `loop-goal.toml` check can name a test in a crate that cannot
+host it*.
 
 ## Next group
 
-**§ 6's floor, over `crates/nvs-cli/src/worker.rs`, `crates/nvs-stdlib/src/queue.rs` and
-`examples/queue.nvs` — the same three files this session held.**
+**Stage 8's `-p nvs-db` names, none of which exists on disk — one new matrix-gated
+`crates/nvs-db/tests/queue.rs` over the statements in `crates/nvs-stdlib/src/queue.rs`, with
+`crates/nvs-db/tests/handshake.rs` as the gating shape. All three slices share that file set.**
 
-- [ ] **The dead-letter move** — ADR 0084 § 6. Replace the exhaustion branch at
-      `crates/nvs-cli/src/worker.rs:451` with a statement beside
-      `crates/nvs-stdlib/src/queue.rs:350`: one `with moved as (delete from nvs_jobs … returning …)
-      insert into nvs_dead_jobs …`, keyed on the lease as `SUCCEEDED` is. `nvs_jobs` has no column
-      holding earlier attempts' errors (`crates/nvs-stdlib/src/queue.rs:205`'s DDL), so § 6's
-      `errors` array can only carry this attempt's — decide that in the slice and say so in the
-      column's doc.
-- [ ] **The fixture's last two lines print off the state they name** —
-      `examples/queue.nvs:112`'s `deadLettered` poll passes once the move lands, and
-      `examples/queue.nvs:106`'s `attempts` poll already does; what is left is the ~5s the
-      dead-letter poll still waits out. Stage 8's frozen `want` is `enqueued`, `claimed 1`, `ran`,
-      `retried`, `dead-lettered`.
-- [ ] **A `-p nvs-cli` test over `report`'s three branches** — `crates/nvs-cli/src/worker.rs:435`.
-      Nothing pins which statement each completion picks; the crate has no PostgreSQL double, so the
-      cheap half is `retry_at`'s ladder (already pinned in `-p nvs-stdlib`) plus a test that the two
-      statements name the lease columns the claim writes.
+- [ ] **An exhausted job reaches the dead-letter table** — ADR 0084 § 6,
+      `docs/agent/loop-goal.toml:2964`. Push with `crates/nvs-stdlib/src/queue.rs:246`, claim with
+      `crates/nvs-stdlib/src/queue.rs:295`, run `crates/nvs-stdlib/src/queue.rs:376` on that lease:
+      assert the row left `nvs_jobs`, kept its `id` and `queue`, and carries `errors`. Gate it like
+      `crates/nvs-db/tests/handshake.rs:43`, which is the only way a test reaches a real `PgConn`.
+- [ ] **The claim is `skip locked`-shaped, and a visibility timeout returns an abandoned job** —
+      § 4, `crates/nvs-stdlib/src/queue.rs:295`. Two connections claiming one due row come back
+      with one job and none; a row whose `claimed_at` predates the cutoff is claimable again.
+- [ ] **An enqueue commits with the write that made it** — § 3,
+      `crates/nvs-stdlib/src/queue.rs:246` inside a `BEGIN`/`ROLLBACK` on one connection: the
+      rolled-back half leaves no job, which is the property the whole ADR is built around.
 
 ## Backlog
 
-- Stage 2's four remaining `cargo-named` names need the goal file corrected, not tests — see *State*;
-  fix `docs/agent/goals/<goal>.toml` alongside the live copy (`docs/agent/playbook.md`).
-- `examples/queue/nope.nvs` rows from an old experiment sit in the shared test database and are
-  claimed by every fixture run; harmless, but they print two warnings per run.
-- ADR 0084 § 5's "grants narrowed from those recorded at enqueue" still has no column
-  (`crates/nvs-cli/src/worker.rs`'s module doc).
-- § 4's visibility timeout re-claims an exhausted job forever until the dead-letter move lands.
-- Stage 5 is four of seven in `-p nvs-db` (`docs/implementation-plan.md`).
+- `retries_are_bounded_and_backoff_is_jittered` — stage 8's sixth name, but
+  `a_retry_is_exponential_jittered_and_capped` in `-p nvs-stdlib` already holds the ladder:
+  `docs/agent/loop-goal.toml:2964`.
+- A `-p nvs-cli` test over `report`'s three branches — `crates/nvs-cli/src/worker.rs:463`; there is
+  no seam that builds a `PgConn`, per the playbook.
+- Stage 2's four unwritable names — `docs/agent/loop-goal.toml:2760`.
+- `Core\Queue` reads `nvs_dead_jobs` for depth and `status` only; nothing hands a caller the row —
+  docs/adr/0084-durable-background-jobs.md § 1.
+- `Core\Db::open` still waits on a shape-parameter type — `crates/nvs-stdlib/src/db.rs`'s gaps.

@@ -4572,6 +4572,16 @@ is why" — is this file.
   away. Task children are real tasks otherwise — `nvs_host::Wake::current` answers inside one, so
   parking and `Core\Time::sleep` work — and statics *are* shared, which is what makes the missing
   field look deliberate when it is not.
+- **A fixture cannot observe a state an in-process worker never yields inside, and the tell is a
+  counter that polls out at `0` while everything around it is green.** `examples/queue.nvs` waits
+  five seconds for `Core\Queue::stats($queue)->claimed()` to be non-zero and printed `claimed 0`
+  against a stage-8 check wanting `claimed 1`, with `ran`, `retried` and `dead-lettered` all
+  correct on the lines after it. `[queue] workers` runs the job's isolate on the *same core* as
+  the program polling `stats`, and between ADR 0084 § 4's claim and § 6's write-back a job that
+  returns straight away parks on nothing — so the row is `Claimed` only across a window in which
+  the polling task is never scheduled, and polling faster cannot reach it. The job has to park:
+  `examples/queue/receipt.nvs` sleeps for a beat and says why. The same reasoning covers any state
+  a worker passes through between two of its own statements.
 
 ## Splitting a file that got too big
 
