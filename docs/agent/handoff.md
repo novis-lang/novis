@@ -2,58 +2,58 @@
 
 ## State
 
-**§ 13's pool is proven live four ways, and the fourth is the park.** `examples/pool.nvs`
-now ends in a `Core\Task::all` (ADR 0072 § 1) whose first child asks the full pool for the
-connection the request itself is holding while its sibling sleeps three times beside it: a
-wait that kept the core would take the two in sequence and the fixture prints the elapsed
-milliseconds instead of its verdict. Both goal copies carry the fourth line (stage 7).
+**§ 13's pool is proven live six ways, and the last two are the bounds that decide what a
+pool keeps.** `crates/nvs-db/tests/pool_reuse.rs` now holds four cases over a real server:
+reuse, `pool = false`, a connection past its `lifetime`, and a release past `idle`. What
+each adds over `nvs_runtime::pool`'s own `Fake` cases is the same thing in both new ones —
+the retirement and the over-bound release are a **close**, so the next request is answered
+by a different backend, and the connection the pool kept is the one released *under* the
+bound rather than the one past it. `pg_backend_pid()` is the whole of the identity, as it
+is for the two cases already there. Both names are in `docs/agent/loop-goal.toml`'s stage 7
+`cargo-named` check, and `python tools/db-matrix.py --driver postgres` is green.
 
-**A task child now sees its request's configuration.** `Ctx::child`
-(`crates/nvs-runtime/src/ctx.rs:2734`) copies `config` beside the five fields it already
-copied, and it copies the **whole `nvs_config::Request`, overlay included** — ADR 0006's
-table row ("derived, never shared: a copy of the parent's *effective* config, which the
-spawn may narrow"), which is what `Ctx::isolate` already did and for the same reason. The
-direction is the security one: `[capabilities]` is a `RuntimeTighten` directive, so a child
-re-reading the snapshot alone would hand back a capability its parent had dropped. That doc
-comment is the decision's home; no ADR was opened, because 0006's row already decides it.
-`a_task_child_is_granted_what_its_request_was_granted` in
-`crates/nvs-runtime/src/capability.rs` is the unit half, with an unconfigured child as its
-negative control.
+**The clock moves, not the bound.** `pool::release` and `pool::take` are each handed the
+`Instant` they compare against, so the `lifetime` case tests § 13's real 30-minute default
+and costs no wall time; only the `idle` case names a bound of its own (`idle = 1`, the
+smallest that still keeps something, so "which connection survived" has an answer).
 
 **Unchanged and still true.** The driver's acceptance line for `examples/queue.nvs` is
-Stage 8's unlanded `Core\Queue` (ADR 0084), not a regression. Stage 6's `mariadb: n/a` /
-`mssql: n/a` are did-not-run. § 7's backoff is still blocked on `nvs-runtime`'s known gap 3
-(`crates/nvs-stdlib/src/db.rs:149`). Stage 5's `args = ["test", "-p", "nvs-db"]` still cannot
-see the two `nvs-stdlib` tests — the user's call.
+Stage 8's unlanded `Core\Queue` (ADR 0084), not a regression — nothing of that class is on
+disk, and the next group opens it. Stage 6's `mariadb: n/a` / `mssql: n/a` are did-not-run.
+§ 7's backoff is still blocked on `nvs-runtime`'s known gap 3
+(`crates/nvs-stdlib/src/db.rs:149`). Stage 5's `args = ["test", "-p", "nvs-db"]` still
+cannot see the two `nvs-stdlib` tests — the user's call.
 
 **`orient.py`'s pack is still short.** `[context] modules` names none of
-`nvs-runtime/src/pool.rs`, `nvs-runtime/src/ctx.rs`, `nvs-runtime/src/capability.rs` or
-`nvs-stdlib/src/db.rs`, and this session read all four; the first is the next group's own
-file set.
+`nvs-runtime/src/pool.rs`, `nvs-config/src/db.rs` or `nvs-stdlib/src/db.rs`, and this
+session read all three; `[context] adrs` should gain ADR 0084 §§ 1-2 for the group below.
 
 ## Next group
 
-**The two live halves of § 13's bounds that only a real server can show. The file set is
-`crates/nvs-db/tests/pool_reuse.rs` and `crates/nvs-runtime/src/pool.rs`, and both cases
-join the two already in that file under the same `tools/db-matrix.py` skip rule.**
+**`Core\Queue` opens — ADR 0084's surface, over the `Core\Db` connection an operator names.
+The file set is a new `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/src/registry.rs`
+and `crates/nvs-config/src/tree.rs`, and nothing of the class exists yet: `Core\Queue` is
+not in `CLASSES` and there is no `[queue]` block in the config tree.**
 
-- [ ] **A connection past its `lifetime` is retired rather than handed on, over a real
-      server** — the live double of `crates/nvs-runtime/src/pool.rs:778`, which only moves a
-      clock. Take a connection, release it, move past `[db.tight.pool] lifetime`, take again,
-      and assert `pg_backend_pid()` **differs** — the inverse of
-      `crates/nvs-db/tests/pool_reuse.rs:126`'s assertion, in the same shape. The scan that
-      closes it is `crates/nvs-runtime/src/pool.rs:564`.
-- [ ] **`idle` bounds what a pool keeps, over a real server** — the live double of
-      `crates/nvs-runtime/src/pool.rs:714`: release more connections under one key than
-      `idle`, and the surplus is closed rather than filed, so the next request's pid is a new
-      one. Anchors as above, beside `crates/nvs-db/tests/pool_reuse.rs:198`.
+- [ ] **`[queue]` is a config block naming a `[db.<name>]`** — ADR 0084 § 2. `connection`,
+      `workers` and the finite `maxAttempts` § 6 requires, resolved and trust-checked at
+      boot exactly as `db` is: `crates/nvs-config/src/tree.rs:653` is the neighbouring
+      block, `crates/nvs-config/src/db.rs:166` the resolver to copy. Everything below
+      needs it, and it is the smallest of the three.
+- [ ] **`Core\Queue::push` inserts a row on the queue's own connection** — ADR 0084 §§ 1
+      and 3, the property the design exists for. A new `crates/nvs-stdlib/src/queue.rs`
+      registered in `crates/nvs-stdlib/src/registry.rs:1099`, running its statement the way
+      `crates/nvs-stdlib/src/db.rs:370`'s class does; `Queue\Id` is an instance class in
+      the shape of `crates/nvs-stdlib/src/channel.rs:117`.
+- [ ] **`cancel`, `status` and `stats` complete § 1's roster** — same `queue.rs`, with
+      `Queue\State` the enum `examples/queue.nvs:31` already imports and
+      `crates/nvs-stdlib/src/registry.rs:1099` the one place it is declared.
 
 ## Backlog
 
-- A closure's `catch` binding that shadows an enclosing one panics the lowerer —
-  `crates/nvs-ir/src/lower/expr.rs:2424`; the playbook holds the workaround.
-- Stage 8's `Core\Queue` (ADR 0084) is what the driver's acceptance line reports.
-- § 7's backoff waits on `nvs-runtime`'s known gap 3 — `crates/nvs-stdlib/src/db.rs:149`.
-- `open` still waits on a shape-parameter type — `docs/adr/0067-core-db.md` § 2.
-- Stage 5's `-p nvs-db` args cannot reach the two `nvs-stdlib` cases — the user's call.
-- MariaDB and SQL Server report `n/a` until `tools/db-matrix.py` has a server for them.
+- § 2's two tables and `nvs queue migrate --dry-run` naming both — `docs/agent/loop-goal.toml` stage 8.
+- § 4's claim statement, `FOR UPDATE SKIP LOCKED` per backend — ADR 0084 § 4, `crates/nvs-db/src/pg.rs`.
+- § 6's bounded retries, jittered backoff and the dead letter — ADR 0084 § 6.
+- Stage 9's literal-query diagnostics in `-p nvs-types` — `docs/agent/loop-goal.toml` stage 9.
+- § 7's `transaction` backoff, blocked on `nvs-runtime`'s known gap 3 — `crates/nvs-stdlib/src/db.rs:149`.
+- Stage 5's two `nvs-stdlib` tests no `-p nvs-db` check can see — the user's call.
