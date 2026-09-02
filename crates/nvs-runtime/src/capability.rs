@@ -148,9 +148,33 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
 /// host outside the grant is refused before it is looked up, so an ungranted program cannot use
 /// this door as a resolver.
 pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
-    use std::net::{IpAddr, ToSocketAddrs};
-
     require(ctx, Cap::NetConnect, Scope::Host(host), member)?;
+    pinned_address(ctx, host, member)
+}
+
+/// [`pin_host`]'s second half on its own: resolve `host` once and refuse the address if § 3's
+/// table denies it.
+///
+/// **Split out because one member asks the capability question differently and the address
+/// question identically.** `Core\Db::open`'s grant is `db.open`, whose scope is the host a
+/// settings literal named ([ADR 0067 § 3](../../../docs/adr/0067-core-db.md)), so asking
+/// `net.connect` as well would demand a second grant for the same host; what § 3 does say is that
+/// an `open` target "stays subject to that policy in full", and *that* policy is this function.
+/// Calling [`pin_host`] there instead would collapse two capabilities into one, and re-implementing
+/// the range check beside it would be a second home for the rule — which is the reason this is a
+/// door here rather than a few lines in `nvs-stdlib`.
+///
+/// Every caller still owes its own capability check first, and both of this module's callers make
+/// it before they reach here: a host outside the grant is refused before it is looked up, so an
+/// ungranted program cannot use this as a resolver.
+///
+/// # Errors
+///
+/// A `RuntimeError` when the name resolves to no address at all, and a `RuntimeError` naming the
+/// range when the address it resolves to is one § 3 denies and this deployment's `net.internal`
+/// does not except.
+pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
+    use std::net::{IpAddr, ToSocketAddrs};
 
     // A bracketed IPv6 literal is written `[::1]` inside an authority and is not one anywhere else,
     // so the brackets come off before the address is read and stay off afterwards.
