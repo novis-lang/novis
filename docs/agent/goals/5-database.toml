@@ -102,6 +102,13 @@ adrs = [
   "0067 §8",
   "0067 §9",
   "0067 §13",
+  # `Db\Settings` is the goal's one shape parameter, so every remaining `open`
+  # item is measured against these three: § 1 is the row's shape, § 2 the arm
+  # selection still unwritten, § 3 the ABI its helper reads. Added after two
+  # sessions in a row sliced § 3 by hand and asked for it in the handoff.
+  "0135 §1",
+  "0135 §2",
+  "0135 §3",
 ]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]

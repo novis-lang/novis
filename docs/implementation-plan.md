@@ -45,8 +45,8 @@
 > PostgreSQL is whole**, § 3's upgrade through § 13's reset.  § 9's whole type map decodes over it.
 > § 7's `BEGIN`/`COMMIT`/`ROLLBACK` is on it, nesting as a `SAVEPOINT` to any depth. **`Core\Db` has
 > opened in `nvs-stdlib`**: § 18's `connect` over a request-held, memoized connection, `inList`,
-> `quoteIdentifier` and § 4's `query`, `execute` and `executeMany` ,  `open` waits on 0135's IR
-> flatten. **§ 7's `transaction` is on both classes with all three options, retrying either
+> `quoteIdentifier` and § 4's `query`, `execute` and `executeMany` ,  `open` waits on its own
+> registry row. **§ 7's `transaction` is on both classes with all three options, retrying either
 > conflict, no backoff** and a refusal throws `Db\DbError` carrying four of § 8's five; `Rows` is
 > generic at `T` and **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and § 9's five structured
 > columns build the `Core\Time`/`Core\Uuid` instance `Row`'s typed readers and a `#[Db\Derive]`
