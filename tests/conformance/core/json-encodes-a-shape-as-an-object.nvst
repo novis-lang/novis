@@ -1,0 +1,58 @@
+--TEST--
+Core\Json::encode spells an ADR 0036 shape as a JSON object keyed by its own field names, in the sorted order its synthesized class carries, and still refuses a declared class inside one — ADR 0036 § 2, ADR 0071 § 7
+--FILE--
+<?nvs
+use Core\Json;
+
+// ADR 0071 § 7: a shape literal has no declaration to hang `#[Json\Derive]`
+// on, so there is nothing to opt in and its fields *are* the document.
+echo Json::encode({order: 7}), "\n";
+
+// ADR 0036 § 2: the synthesized class is named for its field names alone,
+// already sorted, and the slots are in that order — so two literals that write
+// the same fields in different orders are one class and one key order. Both
+// lines below are the same document, which is what makes a shape's encoding
+// byte-deterministic on ADR 0071 § 2's terms.
+echo Json::encode({b: 1, a: 2}), "\n";
+echo Json::encode({a: 2, b: 1}), "\n";
+
+// Each field is spelled by the tag its own value carries, exactly as an array
+// element is: the class is keyed on names and holds no per-field wire type at
+// all. A nested shape, a list, a string and a `null` reach the same four arms
+// they reach at the top level.
+echo Json::encode({id: 7, tags: ["a", "b"], at: {y: 2026, m: 9}, note: null}), "\n";
+
+// One level down, in both directions: a shape inside an array and an array
+// inside a shape are the same walk.
+echo Json::encode([{n: 1}, {n: 2}]), "\n";
+
+// `pretty` is a property of the writer, not of what is being written, so it
+// reaches a shape's object exactly as it reaches a derived class's.
+echo Json::encode({n: 1}, {pretty: true}), "\n";
+
+// The refusal is unchanged for everything that *does* have a declaration: a
+// shape does not lend its structural encoding to a class one of its fields
+// holds. ADR 0071 § 7 is an exception for the thing with no class to annotate,
+// not a hole in ADR 0063 § 4's written participation.
+class Impostor {
+    public int $n;
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+try {
+    echo Json::encode({wrapped: new Impostor(1)}), "\n";
+    echo "not reached\n";
+} catch (LogicError $unencodable) {
+    echo "no codec\n";
+}
+--EXPECT--
+{"order":7}
+{"a":2,"b":1}
+{"a":2,"b":1}
+{"at":{"m":9,"y":2026},"id":7,"note":null,"tags":["a","b"]}
+[{"n":1},{"n":2}]
+{
+  "n": 1
+}
+no codec

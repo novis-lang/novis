@@ -202,13 +202,14 @@ pub const CLASS: CoreClass = CoreClass {
 /// [`nvs_core_json_encode`] and [`Encodable`] do, and nothing the spec's § 6
 /// promises beyond them.
 const ENCODE_DOC: MethodDoc = MethodDoc {
-    short: "Serializes `$value` as JSON text — scalars, arrays and instances of classes carrying \
-            `#[Json\\Derive]` — on one line unless `pretty` is set.",
+    short: "Serializes `$value` as JSON text — scalars, arrays, shape literals and instances of \
+            classes carrying `#[Json\\Derive]` — on one line unless `pretty` is set.",
     params: &[
         ParamDoc {
             name: "value",
             desc: "The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, \
-                   `string`, an array, or an instance of a class carrying `#[Json\\Derive]`.",
+                   `string`, an array, a `{name: value}` shape, or an instance of a class \
+                   carrying `#[Json\\Derive]`.",
             shape: &[],
         },
         ParamDoc {
@@ -532,6 +533,13 @@ impl Encodable {
     /// list means the class carries no `#[Json\Derive]`, which is the refusal
     /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) § 4 asks
     /// for: participation in a wire format is written, never inferred.
+    ///
+    /// The one instance that is not a declared class is an
+    /// [ADR 0036](../../../../docs/adr/0036-anonymous-object-shapes.md) § 2
+    /// shape, which encodes as a JSON object keyed by its own field names —
+    /// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 7 owns why
+    /// that is not an exception to the rule above, and the arm below says what
+    /// it walks.
     fn serialize_object<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
         if self.depth >= DEPTH_CEILING_U32 {
             return Err(S::Error::custom(format!(
@@ -555,6 +563,25 @@ impl Encodable {
                       defined its class, which outlives every instance of it"
         )]
         let desc = unsafe { &*object.class() };
+        // ADR 0036 § 2's shape, before the codec is read: a shape is a bag of
+        // named fields with no declaration to hang `#[Json\Derive]` on, so the
+        // refusal below has nothing to ask it for — ADR 0071 § 7. Its slots are
+        // walked the way an array's entries are, each value spelled by its own
+        // tag, because the class is keyed on field *names* alone
+        // (`nvs_ir::lower::shape_class_label`) and so has no per-field wire
+        // type a `CodecField` could honestly carry: `{n: 1}` and `{n: "s"}` are
+        // one class. Key order is that label's, which is sorted, so a shape's
+        // document is byte-deterministic on ADR 0071 § 2's terms.
+        if desc.is_shape() {
+            let mut map = ser.serialize_map(Some(desc.field_count()))?;
+            for slot in 0..desc.field_count() {
+                let name = desc
+                    .field_name(slot)
+                    .ok_or_else(|| S::Error::custom("a slot below the field count is named"))?;
+                map.serialize_entry(name, &self.child(object.field(slot)))?;
+            }
+            return map.end();
+        }
         let fields = desc.codec();
         if fields.is_empty() {
             return Err(S::Error::custom(format!(

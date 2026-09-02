@@ -268,6 +268,21 @@ standing preference for a hard error over a suppressed one).
   object with no per-class opt-in, preserves identity and cycles, and is not a declared wire contract at
   all. A derive for it would be a second, weaker path to an operation that already works —
   [ADR 0063](0063-core-api-conventions.md) R17.
+- **An [ADR 0036](0036-anonymous-object-shapes.md) § 2 shape encodes with no attribute at all**, as a JSON
+  object keyed by its field names, and this is not a hole in § 1's written opt-in: a shape literal has no
+  declaration to carry an attribute, so there is nothing a program could have written and nothing an
+  encoder could refuse it for. The refusal exists because a *declared* class has an identity and an
+  intended representation that its property list is only a guess at; a shape has neither — it is the fields
+  written at the literal and nothing else, which is also why `decodeAs<T>` already reads one back
+  (spec § 6). The encoding is structural, not derived: a shape's synthesized class is keyed on its field
+  names alone, so it carries no per-field wire type a `CodecField` could hold, and each value is spelled by
+  the tag it has. Key order is that class's, already sorted, so § 2's byte-determinism holds. A `secret`
+  field is refused at the call site rather than here, by ADR 0033 § 4's serialiser sink, because the
+  qualifier is inferred into the literal's type and never reaches a slot —
+  [tests/conformance/reject/json-encode-refuses-a-secret.nvst](../../tests/conformance/reject/json-encode-refuses-a-secret.nvst)
+  pins that position and
+  [tests/conformance/core/json-encodes-a-shape-as-an-object.nvst](../../tests/conformance/core/json-encodes-a-shape-as-an-object.nvst)
+  the encoding.
 - **No validation.** A derived codec checks types and presence; it does not check that an email looks like
   one. Validation is `Core\Validate` and user code, and folding it in here is how a derive attribute grows
   into a framework.

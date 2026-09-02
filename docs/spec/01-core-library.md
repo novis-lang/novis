@@ -604,7 +604,10 @@ rather than degrading to `float`, because silent precision loss on a wire format
 `JSON_BIGINT_AS_STRING` exists to work around. A class participates by implementing
 `Core\Json\Codec`, which declares `toJson(): mixed` and a static `fromJson(mixed $value): static`; there is
 no magic hook and no structural encoding of public properties
-([ADR 0063 § 4](../adr/0063-core-api-conventions.md)). A `secret` value cannot be encoded at all
+([ADR 0063 § 4](../adr/0063-core-api-conventions.md)). An inline shape
+([ADR 0036](../adr/0036-anonymous-object-shapes.md)) is the one instance that needs neither, encoding as a
+JSON object keyed by its field names — it has no declaration to carry a codec, and
+[ADR 0071 § 7](../adr/0071-derived-codecs.md) owns why that is not the same rule. A `secret` value cannot be encoded at all
 ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)).
 
 Both halves are generated from a class's own declared properties by the opt-in `#[Json\Derive]`

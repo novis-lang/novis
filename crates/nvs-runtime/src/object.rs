@@ -702,6 +702,29 @@ impl ClassDesc {
         &self.name
     }
 
+    /// Whether this class is the one an
+    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 2 shape
+    /// literal constructs, rather than one a `class` declaration named.
+    ///
+    /// Read off the label `nvs_ir::lower::shape_class_label` mints —
+    /// `$shape{x,y}` — because that label is the only mark a shape class
+    /// carries. Every structural test that would answer the same question
+    /// ("no methods, no codec, no constructor") is also true of an ordinary
+    /// class a program wrote and did not opt into a wire format, and
+    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 7 requires
+    /// those to stay refused. `$` cannot start an Novis identifier, so no
+    /// declared class collides with the prefix — the guarantee the label
+    /// itself already relies on.
+    ///
+    /// The one reader is `nvs_stdlib::json`'s encoder, which spells a shape as
+    /// a JSON object; `tests/conformance/core/json-encodes-a-shape-as-an-object.nvst`
+    /// is what holds this spelling and the label's together, since the two
+    /// crates cannot see each other.
+    #[must_use]
+    pub fn is_shape(&self) -> bool {
+        self.name.starts_with("$shape{")
+    }
+
     /// How many [`Value`] slots an instance of this class has, including every
     /// ancestor's.
     #[must_use]
