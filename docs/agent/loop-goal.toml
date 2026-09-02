@@ -2760,13 +2760,26 @@ args = ["test", "-p", "nvs-db"]
 tests = [
   "a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream",
   "a_connection_read_parks_its_coroutine_rather_than_blocking_the_core",
-  # § 2 -- memoized for the request, and five settings TYPES rather than one loose shape.
-  "a_named_connection_is_memoized_for_the_request",
   # § 1 -- emulated prepares do not exist in any form.
   "no_driver_path_interpolates_a_value_into_sql",
   # § 3 -- a property of the CLIENT, because a malicious server can request it at any time.
   "local_infile_is_refused_and_no_file_is_sent",
   "the_connection_charset_is_forced_to_utf8",
+]
+
+# § 2's memo is asked of `Core\Db::connect`, and that member is nvs-stdlib's. This check exists rather
+# than a name in the block above because ADR 0132 § 1 points the crate edge nvs-stdlib -> nvs-db: the
+# memo is a table on `nvs_runtime::Ctx` that `Core\Db::connect` reads, and no -p nvs-db test can see
+# either half of that. Moving a name to the crate that owns the behaviour is the fix; inventing a test
+# where the name was filed is not.
+[[check]]
+kind = "cargo-named"
+stage = "2 first driver"
+name = "nvs-stdlib (§ 2's memo, where `Core\\Db::connect` lives)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # § 2 -- a second connect under one name in one request is one connection and one handshake.
+  "a_named_connection_is_memoized_for_the_request",
 ]
 
 [[check]]
