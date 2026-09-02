@@ -3072,6 +3072,40 @@ impl<'a> Lowering<'a> {
             let sig = ArgSig::of_helper(call);
             let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
+            // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
+            // handed the class its call site wrote and whether it was written
+            // as a list of that class — and those two go *ahead of the
+            // receiver*, which is the order that roster's docs state and the
+            // one `Lowering::lower_callable_ref` already emits. Neither a
+            // descriptor nor a bool is refcounted, so neither is retained or
+            // released here. Emitted before the receiver is opened so that a
+            // `?->` guard's branch cannot come between a constant and its use.
+            let written_class =
+                nvs_types::core_takes_written_class(&call.class.to_string(), &call.method).then(
+                    || {
+                        let label = call.written_class.as_ref().unwrap_or_else(|| {
+                            panic!(
+                                "nvs-ir: `{}::{}` needs the class written at its call site, \
+                                 and nvs_types recorded none — did this program pass \
+                                 nvs_types::check_program with the same table?",
+                                call.class, call.method
+                            )
+                        });
+                        let (desc, _) = self.emit(
+                            *cur,
+                            Ty::ClassDesc,
+                            InstKind::ClassDescConst {
+                                class: label.to_string(),
+                            },
+                        );
+                        let (list, _) = self.emit(
+                            *cur,
+                            Ty::Bool,
+                            InstKind::ConstBool(call.written_class_is_list),
+                        );
+                        [desc, list]
+                    },
+                );
             let mark = self.temporaries_mark();
             let (object_v, receiver_ty, guard) =
                 self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
@@ -3088,7 +3122,8 @@ impl<'a> Lowering<'a> {
             }
             let LoweredArgs { values } =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
-            let mut arg_values = Vec::with_capacity(values.len() + 1);
+            let mut arg_values = Vec::with_capacity(values.len() + 3);
+            arg_values.extend(written_class.into_iter().flatten());
             arg_values.push(object_v);
             arg_values.extend(values);
             let (v, ty) = self.emit_fallible(

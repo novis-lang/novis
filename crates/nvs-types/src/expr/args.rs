@@ -1227,8 +1227,8 @@ pub(crate) fn written_class_of(
         .with_primary(span, format!("`{found}` written here"))
         .with_help(
             "ADR 0071 § 2: a decode is an ordinary `new`, so the type argument names the \
-             class to construct — write a class carrying `#[Json\\Derive]`, or `array<C>` \
-             of one for a document that is a JSON array",
+             class to construct — write a class carrying the deriving attribute its format \
+             asks for, or `array<C>` of one for a document that is a JSON array",
         ),
     );
     None

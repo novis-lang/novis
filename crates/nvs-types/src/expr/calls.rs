@@ -122,7 +122,7 @@ pub(crate) fn infer_method_call(
     let label = resolved
         .as_ref()
         .map(|(owner, name, _)| format!("{owner}::{name}"));
-    let (sig, _written) =
+    let (sig, written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     // ADR 0088 § 2's contagion, decided here because `resolved_call` below
@@ -181,7 +181,19 @@ pub(crate) fn infer_method_call(
     // never survives a call site, and this record is the one thing that carries
     // a signature past it.
     if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
-        let call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
+        let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
+        // `Core\Db\Queryable::queryAs<T>` is the *instance* half of
+        // `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`, and it needs the class
+        // its call site wrote for exactly the reason `Core\Json::decodeAs` does
+        // — see the static call's own record below. The receiver settles
+        // nothing here: `queryAs` produces its `T` rather than reading one off
+        // a `Rows` it was called on.
+        if let Some((class, list)) =
+            written_class_of(qname, name, &written, type_args, expr.span, env)
+        {
+            call.written_class = Some(class);
+            call.written_class_is_list = list;
+        }
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
     // ADR 0008 § 1's late static binding, as a type: a member declaring
