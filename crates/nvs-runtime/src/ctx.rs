@@ -1163,16 +1163,50 @@ pub enum FaultSite {
     HelperPanic,
 }
 
-/// One [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-/// § 1 call-site trace record.
-///
+/// Which of
 /// [ADR 0041](../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
-/// adds a `call`/`gc`/`spawn`/`query` kind alongside this; every event here is
-/// a `call`, since the GC, isolate-spawn and `Core\Db` statement routines it
-/// also instruments do not exist yet.
+/// § 1's four kinds a [`TraceEvent`] is.
+///
+/// The tag is the whole of the distinction here, and deliberately so: § 1 keeps
+/// a `call` event's shape exactly as ADR 0018 defined it, and the three other
+/// kinds carry facts of their own that this stand-in vector has nowhere to put.
+/// A `query`'s field set is fixed by [ADR 0067](../../../docs/adr/0067-core-db.md)
+/// § 11 and lives in `nvs_db::QuerySpan`, which is where the driver already
+/// holds it; a per-kind payload is what § 4's export needs and what lands with
+/// ADR 0018's sink, alongside the `PROFILE` timing the `trace` field's own doc
+/// comment defers for the same reason.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TraceKind {
+    /// A call site's entry or exit — ADR 0018 § 1's probe pair, and the only
+    /// kind anything in the tree records today.
+    Call,
+    /// A cycle-collector pause — ADR 0041 § 2. The collector's run routine
+    /// does not record one yet.
+    Gc,
+    /// An isolate spawn or join — ADR 0041 § 3, and unrecorded for the same
+    /// reason as [`TraceKind::Gc`].
+    Spawn,
+    /// One statement, filed from inside a driver's own statement routine —
+    /// ADR 0041 § 1 and ADR 0067 § 11.
+    Query,
+}
+
+/// One [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// § 1 call-site trace record, tagged with
+/// [ADR 0041](../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+/// § 1's kind.
+///
+/// The remaining two fields are the `call` kind's shape, and a `query` reuses
+/// the first of them rather than adding a field per kind — [`Ctx::record_query`]
+/// owns that reasoning, and [`TraceKind`]'s doc comment owns what a per-kind
+/// payload waits on.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceEvent {
-    /// The callee's `Class::method` label.
+    /// Which of ADR 0041 § 1's four kinds this is.
+    pub kind: TraceKind,
+    /// What the event is *of*: a [`TraceKind::Call`]'s callee as a
+    /// `Class::method` label, and a [`TraceKind::Query`]'s span as the driver
+    /// rendered it — see [`Ctx::record_query`] for why one field carries both.
     pub callee: String,
     /// `None` on entry; on exit, the status the call site is about to branch
     /// on — so a trace records a thrown or `FATAL` exit exactly as it
@@ -3303,10 +3337,44 @@ impl Ctx {
 
     /// Records one call-site trace event — [`nvs_probe_call_enter`]/
     /// [`nvs_probe_call_exit`]'s whole effect under [`DebugFlags::TRACE`].
+    ///
+    /// The kind is [`TraceKind::Call`] and is not a parameter: a probe is the
+    /// only thing that reaches this method, and the three other kinds are
+    /// emitted from routines that carry facts this record has no field for
+    /// (ADR 0041 § 1).
     pub fn record_trace(&mut self, callee: &str, status: Option<i32>) {
         self.trace.push(TraceEvent {
+            kind: TraceKind::Call,
             callee: callee.to_owned(),
             status,
+        });
+    }
+
+    /// Records one statement as
+    /// [ADR 0041](../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+    /// § 1's `query` event — `Core\Db`'s statement routines' whole effect under
+    /// [`DebugFlags::TRACE`], called once the rows have ended so the span is
+    /// complete.
+    ///
+    /// **The span arrives already rendered, and that is the crate boundary
+    /// rather than laziness.** [ADR 0067](../../../docs/adr/0067-core-db.md)
+    /// § 11's field set lives in `nvs_db::QuerySpan`, in a crate that depends on
+    /// this one; a struct here holding the same seven facts would be that field
+    /// set's second home, and the one nobody edits when a driver adds to it.
+    /// What it costs is that a consumer reads text where it will later read
+    /// fields — which is what the `trace` field's own doc comment already says
+    /// this vector is, a stand-in until ADR 0018's sink gives every kind its
+    /// payload.
+    ///
+    /// The rendering is `QuerySpan`'s `Display`, so § 11's "never parameters"
+    /// is held where the span is built and
+    /// `a_query_span_contains_no_parameter_value_anywhere` asserts it over that
+    /// same rendering; nothing here can put a bound value back.
+    pub fn record_query(&mut self, span: &str) {
+        self.trace.push(TraceEvent {
+            kind: TraceKind::Query,
+            callee: span.to_owned(),
+            status: None,
         });
     }
 
@@ -4825,12 +4893,45 @@ mod tests {
             ctx.trace(),
             [
                 TraceEvent {
+                    kind: TraceKind::Call,
                     callee: "Boom::inner".to_owned(),
                     status: None,
                 },
                 TraceEvent {
+                    kind: TraceKind::Call,
                     callee: "Boom::inner".to_owned(),
                     status: Some(crate::THROWN),
+                },
+            ]
+        );
+    }
+
+    /// ADR 0041 § 1's kind, over the two kinds anything in the tree records: a
+    /// probe files a `call` and `Core\Db`'s statement routine files a `query`,
+    /// and one vector keeps them apart. Asserted as the whole trace rather than
+    /// on the second event, because the tag only earns its place if the first
+    /// event still reads as a `call` beside it.
+    #[test]
+    fn a_query_event_is_filed_under_its_own_kind_beside_a_call() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::TRACE);
+        ctx.record_trace("People::all", Some(crate::OK));
+        // What `nvs_db::QuerySpan`'s `Display` hands over, which is the whole
+        // of what a `query` event carries — no bound value among it, per
+        // ADR 0067 § 11.
+        ctx.record_query("driver=postgres connection=main rows=2 sql=select 1");
+        assert_eq!(
+            ctx.trace(),
+            [
+                TraceEvent {
+                    kind: TraceKind::Call,
+                    callee: "People::all".to_owned(),
+                    status: Some(crate::OK),
+                },
+                TraceEvent {
+                    kind: TraceKind::Query,
+                    callee: "driver=postgres connection=main rows=2 sql=select 1".to_owned(),
+                    status: None,
                 },
             ]
         );
