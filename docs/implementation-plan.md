@@ -57,11 +57,12 @@
 > new `tls_ca_file`; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over
 > `ClassDesc::db_codec`, and § 9's five structured columns build the `Core\Time`/`Core\Uuid`
 > instance both `Row`'s four typed readers and a `#[Db\Derive]` field answer with, so
-> `examples/db.nvs` runs all of that end to end. The pool is Stages 3 to 7, and **ADR 0132 has
-> claimed the goal's one ADR slot**: a driver is a sans-IO codec plus a state machine over the
-> parking stream, the five an enum not a trait. **Goals 1-4 and M4 are closed and are this goal's
-> Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR
-> 0051 § 4 records. Conformance 1414, differential 250, its gate met, migration 90%/74%.
+> `examples/db.nvs` runs all of that end to end. Stage 3's check is green, the pool is Stages 4 to
+> 7, and **ADR 0132 has claimed the goal's one ADR slot**: a driver is a sans-IO codec plus a state
+> machine over the parking stream, the five an enum not a trait. **Goals 1-4 and M4 are closed and
+> are this goal's Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring` the one C
+> dependency ADR 0051 § 4 records. Conformance 1414, differential 250, its gate met, migration
+> 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

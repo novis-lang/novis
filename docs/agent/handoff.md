@@ -2,53 +2,50 @@
 
 ## State
 
-**ADR 0067 § 4's streaming half is asserted**, which closes the two `nvs-db` names Stage 3's
-`cargo-named` check lists for it. `a_large_result_streams_at_constant_memory` reads the bound off
-`nvs_runtime::budget` while a hundred thousand rows go past — a row count is what a *buffering* driver
-passes too, so the heap while the rows move is the whole claim.
-`a_second_statement_on_a_busy_connection_is_a_logic_error` pins the classification rather than the
-refusal the case beside it already pins: one predicate decides it, and the connection is still usable
-once the caller reads its rows.
+**Stage 3's one `cargo-named` check is green**: all six names it lists for `nvs-db` now exist and
+pass. The four § 5 rewriter names landed this session in `crates/nvs-db/src/sql.rs`, each asking a
+question its landed near-twin does not — `the_rewriter_skips_string_literals_and_comments` sweeps
+every hiding construct and asserts the *count* of binds rather than one line per construct;
+`a_postgres_cast_and_a_jsonb_question_mark_survive_the_rewrite` puts `::`, `?|` and `??` in one
+statement because they are one scan; `a_named_parameter_used_twice_binds_one_value_once` asserts the
+reuse as an agreement across all four dialects, tying the arity to what § 1's cache keys on; and
+`in_list_expands_and_an_empty_list_throws` names the length bound on both sides and pins the
+refusal's `InvalidInput` classification. None was a rename of a green test — the playbook's bullet
+on stage 2's comment header forbids that, and all six landed names are still there.
 
-**A stream needs a server that does not buffer either.** `Peer`, this module's scripted server, keeps
-every byte it ever answered in `inbound`, so a large result read over it would measure the harness.
-`Firehose` generates one message at a time into the buffer the last one used, and its doc comment owns
-why the bound has to hold on both sides of the stream — server and driver are one thread and one heap.
-
-**Stage 3's four remaining names are § 5's rewriter and none of them exists yet**; one has a landed
-near-twin under another name, which the next group's last item spells out.
+**Stage 4's eight names are next and none of them exists**, but two landed near-twins split the
+sweep in half: `every_scalar_row_of_the_type_map_decodes_to_its_novis_type`
+(`crates/nvs-db/src/pg.rs:5453`) and `every_structured_row_of_the_type_map_decodes_to_its_components`
+(`:5541`). The new names have to ask across both halves, not re-ask either.
 
 **The driver's acceptance line still names `examples/queue.nvs`**, which is Stage 8's unlanded
-`Core\Queue` (ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s module
-doc owns why.
+`Core\Queue` (ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s
+module doc owns why.
 
 ## Next group
 
-**Stage 3's four remaining `nvs-db` names — ADR 0067 § 5's placeholder rewriter — and the file set is
-`crates/nvs-db/src/sql.rs` alone.** Nothing in `nvs-stdlib` moves. **Read the `[[check]]` block at
-`docs/agent/loop-goal.toml:2789` before writing anything**: its names are the specification, and the
-playbook's bullet on stage 2's comment header forbids renaming a landed test into one of them.
+**Stage 4's § 9 type-map names — the `[[check]]` block at `docs/agent/loop-goal.toml:2806` — and the
+file set is `crates/nvs-db/src/pg.rs` alone.** Nothing in `sql.rs` moves. Read that block first: its
+names are the specification, and a landed near-twin may not be renamed into one of them.
 
-- [ ] **`the_rewriter_skips_string_literals_and_comments`** — § 5's naive-scanner case: a `:name` or a
-      `?` inside a string literal or a `--`/`/* */` comment is text, not a placeholder.
-      `crates/nvs-db/src/sql.rs:423` is `rewrite` and `crates/nvs-db/src/sql.rs:785` opens the test
-      module. ADR 0067 § 5.
-- [ ] **`a_postgres_cast_and_a_jsonb_question_mark_survive_the_rewrite`** — the same scanner's two
-      PostgreSQL spellings that look like the driver's own syntax, `::text` and `?`/`?|`/`?&`, in one
-      query. `crates/nvs-db/src/sql.rs:423`. ADR 0067 § 5.
-- [ ] **`a_named_parameter_used_twice_binds_one_value_once`** — the arity § 1's statement cache keys on
-      is the *bind* count, so a name repeated in the SQL is one value and one slot.
-      `crates/nvs-db/src/sql.rs:423`. ADR 0067 § 5.
-- [ ] **`in_list_expands_and_an_empty_list_throws`** — `crates/nvs-db/src/sql.rs:882` already holds
-      `in_list_expands_to_a_parenthesised_run_and_moves_the_arity`, which pins the expansion half only;
-      the empty list's throw is what this adds, so it is a new case beside that one and never a rename.
-      ADR 0067 § 5.
+- [ ] **`every_row_of_the_type_map_round_trips`** — § 9's whole table in one sweep, asserted by
+      count across both halves the two landed tests split: every OID this driver names describes,
+      decodes, and comes back as the Novis type the table gives it.
+      `crates/nvs-db/src/pg.rs:1667` is `describe`, `crates/nvs-db/src/pg.rs:1720` is `decode`, and
+      `crates/nvs-db/src/pg.rs:5331` is the `column()` helper the tests build one with. ADR 0067 § 9.
+- [ ] **`no_driver_returns_a_number_as_a_string`** — § *Context*'s own defect: no numeric OID
+      (`INT2`/`INT4`/`INT8`/`OID`/`FLOAT4`/`FLOAT8`/`NUMERIC`/`MONEY`) decodes to a text value, and
+      `decimal` is a `decimal` rather than PHP's string. `crates/nvs-db/src/pg.rs:1720` and the
+      `rendered()` helper at `crates/nvs-db/src/pg.rs:5406`. ADR 0067 § 9.
+- [ ] **`affected_is_the_matched_count_and_changed_is_mysql_only`** — § 4's count: PostgreSQL's tag
+      reports matched rows and there is no second `changed` number to read.
+      `crates/nvs-db/src/pg.rs:2411` is `affected_rows`, `crates/nvs-db/src/pg.rs:2475` is
+      `affected`, and the landed twin is `crates/nvs-db/src/pg.rs:5512`. ADR 0067 § 4.
 
 ## Backlog
 
-- `stream`'s registry rows in `nvs-stdlib` — a cursor that holds the connection past the call, ADR 0067
-  § 18.
-- Stage 4's § 9 type-map names under `-p nvs-db` — `docs/agent/loop-goal.toml`, stage `4 type map`.
-- `Core\Db::open` waits on a shape-parameter type — `docs/implementation-plan.md`, *Open now*.
-- `Core\Queue` is Stage 8 (ADR 0084) and is what the acceptance line names every iteration.
-- The compose CA is still not in git — `crates/nvs-host/src/tls.rs`'s module doc owns why.
+- Stage 4's five other names — the `TINYINT(1)`, `BIGINT UNSIGNED`, `decimal`-into-`float`, declared-zone
+  and `queryAs` ones; `docs/agent/loop-goal.toml:2806`.
+- Stage 5 to 7: transactions, the pool, the four remaining drivers; `docs/agent/loop-goal.md`.
+- `Core\Queue` (ADR 0084) is Stage 8 and owns the standing acceptance failure.
+- The compose CA is generated, not committed; `crates/nvs-host/src/tls.rs`'s module doc.
