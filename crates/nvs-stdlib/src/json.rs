@@ -861,7 +861,7 @@ impl<'de> Visitor<'de> for Decode {
 /// § 6's default of [`DEFAULT_MAX_DEPTH`], so leaving it on would make the
 /// declared default unreachable. [`Decode`]'s own counter is the bound
 /// instead, and it is checked against a ceiling the call cannot raise.
-fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
+pub(crate) fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
     let mut deserializer = serde_json::Deserializer::from_str(text);
     deserializer.disable_recursion_limit();
     let value = Decode { depth: 1, max }.deserialize(&mut deserializer)?;

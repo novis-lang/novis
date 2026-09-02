@@ -1036,6 +1036,27 @@ fn payload_of(args: &[Value]) -> Result<Option<String>, Fault> {
         .map_err(|refused| Fault::thrown(format!("{PUSH}: `args` cannot be stored: {refused}")))
 }
 
+/// The other half of [`payload_of`]: the `args` column of a claimed row, as the value the job's
+/// isolate is handed.
+///
+/// **One reference is handed over**, which is exactly what [`nvs_host::Isolate::new`] consumes, so
+/// the caller passes this straight into the isolate and owes no release on the ordinary path.
+///
+/// `None` for a document that does not parse. That cannot be a row this module wrote — the encoder
+/// above produces one document per row and the column is written by nothing else — so it is a row
+/// some other writer put in the table, and a job whose payload is not the payload it was enqueued
+/// with is not run with a guess at what was meant. The depth bound is
+/// [`crate::json::DEFAULT_MAX_DEPTH`], the same one the encoder refused past.
+///
+/// `pub` because the worker that runs a claimed job lives in `nvs-cli` — the crate that owns the
+/// scheduler a worker is a task on — while § 3's payload encoding is this module's, and a column's
+/// two halves belong beside each other.
+#[must_use]
+pub fn payload(text: &str) -> Option<Value> {
+    let max = u32::try_from(crate::json::DEFAULT_MAX_DEPTH).unwrap_or(u32::MAX);
+    crate::json::read(text, max).ok()
+}
+
 /// The `[queue]` block this deployment resolved at boot, and the bounds it carries.
 ///
 /// One reading of § 2's block for every member that needs it, for the reason

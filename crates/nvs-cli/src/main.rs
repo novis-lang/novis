@@ -902,6 +902,11 @@ fn run_run(
     if let Some(origin) = snapshot.origin.clone() {
         ctx.set_origin(&origin);
     }
+    // The workers get their own handle on the same tree, taken before it is moved onto this
+    // context: a job is an isolate resolved through ADR 0118 § 2's spawn door, that door asks the
+    // *context* it is resolved from, and a worker's context is not the script's. `worker`'s module
+    // doc owns why the deployment's own snapshot is the right answer there.
+    let for_workers = queued.is_some().then(|| std::sync::Arc::clone(&snapshot));
     ctx.set_config(snapshot);
     // ADR 0086 § 6: `Core\Command`'s members are generated from the table the
     // front end already built, so the rows cross here — once, before the program
@@ -943,12 +948,12 @@ fn run_run(
     // being told it. One task, one core, and no thread is pinned — a CLI run
     // wants the tree, not the fan-out.
     let mut sched = nvs_host::Scheduler::new();
-    // Spawned before the script's task and stopped by it: `worker`'s module doc
-    // owns both halves, and the second is why this is held rather than dropped
-    // — a worker polls forever, so `run_until_idle` would never return.
-    let workers = queued
-        .as_ref()
-        .map(|(bounds, block)| worker::start(&mut sched, bounds, block));
+    // The switch the script's task throws on its way out, built before either
+    // task because both ends hold it — a worker polls forever, so without it
+    // `run_until_idle` would never return. The workers themselves are spawned
+    // *after* the script, below; `worker`'s module doc owns what that order is
+    // worth to a run that never gives one a turn.
+    let workers = queued.as_ref().map(|_| worker::Workers::new());
     // Two things have to come back out of the task, and they come back by
     // different routes. The call's status is written into a cell the body
     // captures, since a task's body returns nothing; the `Ctx` arrives in the
@@ -959,6 +964,7 @@ fn run_run(
         std::rc::Rc::new(std::cell::Cell::new(None));
     let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, {
         let status = std::rc::Rc::clone(&status);
+        let workers = workers.clone();
         move |ctx| {
             // The returned value is discarded exactly as it was when this was a
             // direct call: the script frame answers with null.
@@ -1030,6 +1036,17 @@ fn run_run(
             }
         }
     });
+
+    // And the workers, after the task above rather than before it. The order is
+    // a cost and not a preference: a worker's first act is a database handshake
+    // and the run queue is FIFO, so a program that never parks would otherwise
+    // wait one out before it could exit. `worker`'s module doc has the two
+    // numbers.
+    if let (Some((bounds, block)), Some(workers), Some(snapshot)) =
+        (&queued, &workers, &for_workers)
+    {
+        worker::start(&mut sched, workers, bounds, block, snapshot);
+    }
 
     // The reactor is what a parked task is woken by, so it is installed even
     // for a program that never parks — `run_until_idle` refuses a scheduler
