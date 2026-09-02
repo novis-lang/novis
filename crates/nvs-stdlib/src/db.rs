@@ -82,7 +82,7 @@
 //!    per-core pool is what would change that, and it may only do so behind
 //!    that section's reset; [`nvs_runtime::Ctx::hold_open_connection`] is where
 //!    that is written down.
-//! 4. **`Db\DbError` declares § 18's `kind` and none of its four raw values.**
+//! 4. **`Db\DbError` declares all five of § 18's values.**
 //!    A refusal the server itself made is thrown as
 //!    `nvs_runtime::ThrownClass::DbError` ([`statement_failure`]), so a `catch`
 //!    can name the database instead of `RuntimeError` — which it still is,
@@ -94,10 +94,12 @@
 //!    [`statement_failure`] writes the driver's own classification over it
 //!    through `nvs_runtime::Fault::thrown_with_slots`, and the raw `sqlState`
 //!    and `constraint` beside it where a server worded the refusal — the second
-//!    only where the condition names one, since most do not. `driverCode` is
+//!    only where the condition names one, since most do not. `sql` is the
+//!    statement as the caller spelled it, absent only where the member had no
+//!    caller-written statement to name — § 7's `BEGIN` and `COMMIT`.
+//!    `driverCode` is
 //!    declared and stays `null` on PostgreSQL, whose `SQLSTATE` is its only
-//!    code. What a program cannot do is read `sql`, which owes a seeded type
-//!    first. A failure of the *wire* rather than of the
+//!    code. A failure of the *wire* rather than of the
 //!    statement stays an `IOError`: § 8's class is the server's answer, not the
 //!    socket's.
 //! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
@@ -2629,7 +2631,23 @@ fn bound_of(value: Value) -> Bound {
 /// answered with no [`nvs_db::ServerError`] behind it reads as `Other`, which
 /// is what § 8 defines that case to be — the condition a code table does not
 /// name — so the property is written on every path and never `null`.
-fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fault {
+///
+/// **`sql` is the statement the caller wrote and not [`Statement::sql`]'s
+/// rewrite of it**, and `None` for a member with no caller-written statement to
+/// name. § 8 lets the text ride the throw because it is developer-authored,
+/// which the rewritten form is only at one remove: that form spells its markers
+/// the way one driver wants them — `$1` here, `?` on MySQL — so carrying it
+/// would make a property of a deliberately *normalised* error read differently
+/// per driver, which is the thing § 8's `kind` exists to stop. § 7's `BEGIN`,
+/// `COMMIT` and `SAVEPOINT` pass `None` for the other half of the same reason:
+/// that text is this runtime's, no program asked for it by name, and `?string`
+/// already has an absent case that costs no slot.
+fn statement_failure(
+    named: &str,
+    block: &Value,
+    sql: Option<&str>,
+    refused: &std::io::Error,
+) -> Fault {
     let name = block.as_text().unwrap_or("?");
     match refused.kind() {
         std::io::ErrorKind::InvalidInput => {
@@ -2637,6 +2655,16 @@ fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fa
         }
         std::io::ErrorKind::Other => {
             let message = format!("{named}: `[db.{name}]` refused the statement: {refused}");
+            // Built once for both arms below: whether the driver classified the
+            // refusal says nothing about whether there was a statement behind
+            // it, so `sql` is not the server's half of the error and does not
+            // follow the server's.
+            let wrote = sql.map(|text| {
+                (
+                    nvs_runtime::SQL_SLOT,
+                    Value::str(NvsStr::new(text.as_bytes())),
+                )
+            });
             match nvs_db::ServerError::of(refused) {
                 // The raw code rides beside the kind normalised from it, so an
                 // application that § 8's eleven conditions do not cover reads
@@ -2663,14 +2691,17 @@ fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fa
                             Value::str(NvsStr::new(constraint.as_bytes())),
                         ));
                     }
+                    slots.extend(wrote);
                     Fault::thrown_with_slots(ThrownClass::DbError, message, slots)
                 }
-                None => Fault::thrown_with_slot(
-                    ThrownClass::DbError,
-                    message,
-                    nvs_runtime::KIND_SLOT,
-                    error_kind_value(nvs_db::DbErrorKind::Other),
-                ),
+                None => {
+                    let mut slots = vec![(
+                        nvs_runtime::KIND_SLOT,
+                        error_kind_value(nvs_db::DbErrorKind::Other),
+                    )];
+                    slots.extend(wrote);
+                    Fault::thrown_with_slots(ThrownClass::DbError, message, slots)
+                }
             }
         }
         _ => Fault::thrown_as(
@@ -2790,7 +2821,9 @@ struct Statement {
     /// The `[db.<name>]` block it was opened by, so a refusal can name the
     /// connection without holding it.
     block: Value,
-    /// § 5's rewritten text, in the driver's own placeholder spelling.
+    /// § 5's rewritten text, in the driver's own placeholder spelling. A
+    /// refusal names the caller's own spelling instead — [`statement_failure`]'s
+    /// `sql` parameter — because this one is a property of the driver.
     sql: String,
     /// One entry per marker that text holds, in the **statement's** order and
     /// never the array's — `None` where the bound value is `null`.
@@ -2880,7 +2913,7 @@ fn statement_of(args: &[Value], member: &str, named: &str) -> Result<Statement, 
         nvs_db::Params::Named(&keyed)
     };
     let rewritten = nvs_db::rewrite(sql, spelling, nvs_db::Dialect::PostgreSql)
-        .map_err(|refused| statement_failure(named, &block, &refused))?;
+        .map_err(|refused| statement_failure(named, &block, Some(sql), &refused))?;
 
     let bounds: Vec<&Bound> = if keys.is_empty() {
         positional.iter().collect()
@@ -2891,7 +2924,7 @@ fn statement_of(args: &[Value], member: &str, named: &str) -> Result<Statement, 
     for source in &rewritten.binds {
         rendered.push(
             nvs_db::encode(bounds[source.arg].values[source.element])
-                .map_err(|refused| statement_failure(named, &block, &refused))?,
+                .map_err(|refused| statement_failure(named, &block, Some(sql), &refused))?,
         );
     }
 
@@ -3127,6 +3160,12 @@ fn queried_rows(
     named: &str,
 ) -> Result<Answered, Fault> {
     let statement = statement_of(args, member, named)?;
+    // § 18's `$sql` argument read a second time rather than [`Statement::sql`]:
+    // what a refusal names is the text the program wrote, where that field is
+    // § 5's rewrite of it. The tag is already known good — `statement_of`
+    // refused anything else above — so the `None` arm here is unreachable and
+    // costs no message of its own.
+    let source = args[1].as_text();
     let sending: Vec<Option<&[u8]>> = statement.binds.iter().map(|one| one.as_deref()).collect();
     let postgres = postgres_of(ctx, statement.key, &statement.block, named)?;
     // Read before the statement borrows the connection, and once for the whole
@@ -3136,7 +3175,7 @@ fn queried_rows(
     let zone = postgres.time_zone();
     let mut answered = postgres
         .query(&statement.sql, &sending)
-        .map_err(|refused| statement_failure(named, &statement.block, &refused))?;
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
     // Taken before the first row: a `PgRows` lends its columns and its rows
     // out of one borrow, and the rows are read with it held mutably.
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
@@ -3146,7 +3185,7 @@ fn queried_rows(
     loop {
         let Some(row) = answered
             .next_row()
-            .map_err(|refused| statement_failure(named, &statement.block, &refused))?
+            .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
         else {
             break;
         };
@@ -3157,10 +3196,10 @@ fn queried_rows(
         for (index, column) in columns.iter().enumerate() {
             let body = row
                 .column(index)
-                .map_err(|refused| statement_failure(named, &statement.block, &refused))?;
+                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
             let scalar = column
                 .scalar(body)
-                .map_err(|refused| statement_failure(named, &statement.block, &refused))?;
+                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
             let value = column_value(scalar, zone, named, &column.name)?;
             one.set(NvsStr::new(column.name.as_bytes()), value);
         }
@@ -3414,15 +3453,18 @@ nvs_runtime::nvs_helper! {
     /// differently on this driver.
     fn nvs_core_db_connection_execute(ctx, args: [3]) {
         let statement = statement_of(args, "execute", EXECUTE)?;
+        // As `query`, and for the reason given there: a refusal names the
+        // caller's own text rather than the rewrite of it that reached the wire.
+        let source = args[1].as_text();
         let sending: Vec<Option<&[u8]>> =
             statement.binds.iter().map(|one| one.as_deref()).collect();
         let postgres = postgres_of(ctx, statement.key, &statement.block, EXECUTE)?;
         let mut answered = postgres
             .query(&statement.sql, &sending)
-            .map_err(|refused| statement_failure(EXECUTE, &statement.block, &refused))?;
+            .map_err(|refused| statement_failure(EXECUTE, &statement.block, source, &refused))?;
         while answered
             .next_row()
-            .map_err(|refused| statement_failure(EXECUTE, &statement.block, &refused))?
+            .map_err(|refused| statement_failure(EXECUTE, &statement.block, source, &refused))?
             .is_some()
         {}
 
@@ -3474,9 +3516,13 @@ nvs_runtime::nvs_helper! {
         let sets: Vec<&[Option<&[u8]>]> = sending.iter().map(Vec::as_slice).collect();
 
         let postgres = postgres_of(ctx, batch.key, &batch.block, EXECUTE_MANY)?;
+        // One statement over many parameter sets, so the batch has exactly the
+        // one text to name and it is the caller's, as `execute`'s is.
         let written = postgres
             .execute_many(&batch.sql, &sets)
-            .map_err(|refused| statement_failure(EXECUTE_MANY, &batch.block, &refused))?;
+            .map_err(|refused| {
+                statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), &refused)
+            })?;
         Ok(Value::uint(written))
     }
 }
@@ -3600,7 +3646,9 @@ nvs_runtime::nvs_helper! {
             let outermost = postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?.depth() == 0;
             postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?
                 .begin(isolation, read_only)
-                .map_err(|refused| statement_failure(TRANSACTION_MEMBER, &block, &refused))?;
+                .map_err(|refused| {
+                    statement_failure(TRANSACTION_MEMBER, &block, None, &refused)
+                })?;
 
             // The block name is handed on rather than looked up again: a
             // transaction refuses under the same `[db.<name>]` its connection
@@ -3700,7 +3748,7 @@ nvs_runtime::nvs_helper! {
                 left -= 1;
                 continue;
             }
-            return Err(statement_failure(TRANSACTION_MEMBER, &block, &refused));
+            return Err(statement_failure(TRANSACTION_MEMBER, &block, None, &refused));
         }
     }
 }
