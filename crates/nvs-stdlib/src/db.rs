@@ -2526,8 +2526,9 @@ const ROW_FLOAT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Row::bool`'s reference card — ADR 0117.
 const ROW_BOOL_DOC: MethodDoc = MethodDoc {
-    short: "One column as `bool` — `BOOLEAN` and `BIT(1)`. MySQL's and MariaDB's `TINYINT(1)` is \
-            naturally an `int` and is read by `->int`.",
+    short: "One column as `bool` — `BOOLEAN` and `BIT(1)`, and an integer column holding `0` or \
+            `1`, which is how MySQL's and MariaDB's `TINYINT(1)` is read: it is naturally an \
+            `int`, and asking for a `bool` is what converts it.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",
@@ -2536,8 +2537,9 @@ const ROW_BOOL_DOC: MethodDoc = MethodDoc {
     ret: "The truth value, or `null` for a NULL column.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The row has no column with that name, or the column is not boolean — a `0`/`1` \
-               integer is not silently one.",
+        desc: "The row has no column with that name, the column is neither boolean nor an \
+               integer, or it is an integer holding something other than `0` or `1` — a stored \
+               `7` is a refusal here rather than `true`.",
     }],
 };
 
@@ -5968,23 +5970,23 @@ fn converted(
     match ty {
         // ADR 0007's `mixed`: whatever the column held, unchecked.
         CodecTy::Mixed => Ok(held),
-        CodecTy::Bool => match held.tag() {
-            Some(Tag::Bool) => Ok(held),
-            _ => Err(wanted("`bool`", held)),
+        // § 6's three crossings, and a field asks for one in exactly the words
+        // a `Db\Row` reader does: the helpers below are the rule's one home, so
+        // `queryAs<T>` cannot drift from `->bool()` the way two copies would.
+        CodecTy::Bool => match requested_bool(held) {
+            Requested::Is(flag) => Ok(Value::bool(flag)),
+            Requested::Lossy(holds) => Err(lossy("`bool`", &holds)),
+            Requested::Mismatched => Err(wanted("`bool`", held)),
         },
-        CodecTy::Int => match held.as_uint() {
-            Some(unsigned) => i64::try_from(unsigned).map(Value::int).map_err(|_| {
-                format!("the column holds {unsigned}, which is not an `int` — ADR 0067 § 6")
-            }),
-            None if held.tag() == Some(Tag::Int) => Ok(held),
-            None => Err(wanted("`int`", held)),
+        CodecTy::Int => match requested_int(held) {
+            Requested::Is(number) => Ok(Value::int(number)),
+            Requested::Lossy(holds) => Err(lossy("`int`", &holds)),
+            Requested::Mismatched => Err(wanted("`int`", held)),
         },
-        CodecTy::Uint => match held.as_int() {
-            Some(signed) => u64::try_from(signed).map(Value::uint).map_err(|_| {
-                format!("the column holds {signed}, which is not a `uint` — ADR 0067 § 6")
-            }),
-            None if held.tag() == Some(Tag::Uint) => Ok(held),
-            None => Err(wanted("`uint`", held)),
+        CodecTy::Uint => match requested_uint(held) {
+            Requested::Is(number) => Ok(Value::uint(number)),
+            Requested::Lossy(holds) => Err(lossy("`uint`", &holds)),
+            Requested::Mismatched => Err(wanted("`uint`", held)),
         },
         CodecTy::Float => match held.tag() {
             Some(Tag::Float) => Ok(held),
@@ -6092,6 +6094,17 @@ fn wanted(want: &str, held: Value) -> String {
             || format!("tag {}", held.tag_byte()),
             |tag| tag.describe().to_owned()
         )
+    )
+}
+
+/// [`wanted`]'s other half, and [`column_out_of_range`]'s counterpart on this
+/// side: the column is of the family the field declares and holds a value that
+/// does not survive the crossing. `holds` is [`Requested::Lossy`]'s fragment, so
+/// a field and a reader say the same thing about the same value.
+fn lossy(want: &str, holds: &str) -> String {
+    format!(
+        "the column holds {holds}, so reading it as {want} would not be the same value — ADR 0067 \
+         § 6 converts losslessly or throws"
     )
 }
 
@@ -6234,9 +6247,87 @@ fn column_out_of_range(member: &str, name: &[u8], holds: &str) -> Fault {
         ThrownClass::Logic,
         format!(
             "{ROW_NAME}::{member}: the column `{}` holds {holds}, so reading it as `{member}` \
-             would not be the same number — ADR 0067 § 6 converts losslessly or throws",
+             would not be the same value — ADR 0067 § 6 converts losslessly or throws",
             String::from_utf8_lossy(name)
         ),
+    )
+}
+
+/// What one of [ADR 0067](../../../docs/adr/0067-core-db.md) § 6's *requests*
+/// makes of the value a column's natural type already produced.
+///
+/// Three answers rather than two, because the two refusals are different
+/// questions and a caller says so in different words: [`Self::Lossy`] is the
+/// right family and a value that does not survive the crossing, while
+/// [`Self::Mismatched`] is a family with no crossing to consider at all. A
+/// `DECIMAL` asked for `float` is the second and not the first — ADR 0054 keeps
+/// those apart by construction, so there is no value of one that is a value of
+/// the other.
+enum Requested<T> {
+    /// § 6's "losslessly".
+    Is(T),
+    /// The right family, the wrong value, carrying the fragment that says which
+    /// — the number, and why it does not cross. Built here so the reader's
+    /// sentence and the `#[Db\Derive]` field's quote one wording.
+    Lossy(String),
+    /// The wrong family.
+    Mismatched,
+}
+
+/// § 6's `bool` request: the one crossing in the map that is neither a column's
+/// natural type nor a refusal.
+///
+/// `BOOLEAN` and `BIT(1)` arrive as `Tag::Bool` already. MySQL and MariaDB have
+/// neither, and § 9 reads their `TINYINT(1)` as `int` because a display width is
+/// not a type and nothing on the wire separates a flag column from a small
+/// integer — so the *request* is what decides, and § 6 says outright that it
+/// decides this one. `0` and `1` are the whole of what a flag column holds; a
+/// stored `7` throws rather than reading as PHP's `true`, which is the half of
+/// this rule that keeps the conversion lossless.
+fn requested_bool(value: Value) -> Requested<bool> {
+    if let Some(flag) = value.as_bool() {
+        return Requested::Is(flag);
+    }
+    let number = match (value.as_int(), value.as_uint()) {
+        (Some(signed), _) => i128::from(signed),
+        (_, Some(unsigned)) => i128::from(unsigned),
+        _ => return Requested::Mismatched,
+    };
+    match number {
+        0 => Requested::Is(false),
+        1 => Requested::Is(true),
+        _ => Requested::Lossy(format!("{number}, which is neither `0` nor `1`")),
+    }
+}
+
+/// § 6's `int` request, which crosses from the other half of ADR 0007 § 4's one
+/// integer and stops where `int` does.
+fn requested_int(value: Value) -> Requested<i64> {
+    if let Some(signed) = value.as_int() {
+        return Requested::Is(signed);
+    }
+    let Some(unsigned) = value.as_uint() else {
+        return Requested::Mismatched;
+    };
+    i64::try_from(unsigned).map_or_else(
+        |_| Requested::Lossy(format!("{unsigned}, which is past `int`'s ceiling")),
+        Requested::Is,
+    )
+}
+
+/// § 6's `uint` request — [`requested_int`]'s twin, and what `BIGINT UNSIGNED`
+/// needs: PHP overflows that column to a `float` and stops comparing equal to
+/// itself.
+fn requested_uint(value: Value) -> Requested<u64> {
+    if let Some(unsigned) = value.as_uint() {
+        return Requested::Is(unsigned);
+    }
+    let Some(signed) = value.as_int() else {
+        return Requested::Mismatched;
+    };
+    u64::try_from(signed).map_or_else(
+        |_| Requested::Lossy(format!("{signed}, which is below `uint`'s floor")),
+        Requested::Is,
     )
 }
 
@@ -6531,15 +6622,11 @@ nvs_runtime::nvs_helper! {
         let Some(value) = found else {
             return Ok(Value::null());
         };
-        if let Some(number) = value.as_int() {
-            return Ok(Value::int(number));
+        match requested_int(value) {
+            Requested::Is(number) => Ok(Value::int(number)),
+            Requested::Lossy(holds) => Err(column_out_of_range("int", name, &holds)),
+            Requested::Mismatched => Err(wrong_column_type("int", name, value, "an integer")),
         }
-        let Some(number) = value.as_uint() else {
-            return Err(wrong_column_type("int", name, value, "an integer"));
-        };
-        i64::try_from(number)
-            .map(Value::int)
-            .map_err(|_| column_out_of_range("int", name, "a value past `int`'s ceiling"))
     }
 }
 
@@ -6552,15 +6639,11 @@ nvs_runtime::nvs_helper! {
         let Some(value) = found else {
             return Ok(Value::null());
         };
-        if let Some(number) = value.as_uint() {
-            return Ok(Value::uint(number));
+        match requested_uint(value) {
+            Requested::Is(number) => Ok(Value::uint(number)),
+            Requested::Lossy(holds) => Err(column_out_of_range("uint", name, &holds)),
+            Requested::Mismatched => Err(wrong_column_type("uint", name, value, "an integer")),
         }
-        let Some(number) = value.as_int() else {
-            return Err(wrong_column_type("uint", name, value, "an integer"));
-        };
-        u64::try_from(number)
-            .map(Value::uint)
-            .map_err(|_| column_out_of_range("uint", name, "a negative value"))
     }
 }
 
@@ -6582,16 +6665,23 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$row->bool(string $name): ?bool` — `BOOLEAN` and `BIT(1)`.
+    /// `$row->bool(string $name): ?bool` — `BOOLEAN` and `BIT(1)`, and on
+    /// request `TINYINT(1)` as well.
+    ///
+    /// The one reader whose answer is not the column's natural type: MySQL and
+    /// MariaDB have no boolean column at all, so § 6 makes the *request* what
+    /// converts a `0`/`1` integer here. [`requested_bool`] owns the rule and the
+    /// stored `7` it refuses.
     fn nvs_core_db_row_bool(_ctx, args: [2]) {
         let (name, found) = typed_column(args, "bool")?;
         let Some(value) = found else {
             return Ok(Value::null());
         };
-        value
-            .as_bool()
-            .map(Value::bool)
-            .ok_or_else(|| wrong_column_type("bool", name, value, "`bool`"))
+        match requested_bool(value) {
+            Requested::Is(flag) => Ok(Value::bool(flag)),
+            Requested::Lossy(holds) => Err(column_out_of_range("bool", name, &holds)),
+            Requested::Mismatched => Err(wrong_column_type("bool", name, value, "`bool`")),
+        }
     }
 }
 
@@ -6789,7 +6879,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nvs_runtime::{Ctx, OutputSink, call};
+    use nvs_runtime::{Ctx, Decimal, OutputSink, call};
 
     /// ADR 0067 § 5's rewrite and § 9's encoding are **one** choice per driver,
     /// and the pairing is what a statement bound half one way fails on — at the
@@ -7456,6 +7546,342 @@ mod tests {
                 SocketAddr::from(([127, 0, 0, 1], expected)),
                 "a block writing no `port` means the port its driver listens on"
             );
+        }
+    }
+
+    /// One [`Requested`] answer as a word, so a case below reads as the sentence
+    /// ADR 0067 § 6 writes rather than as a `match` arm.
+    fn answered<T: std::fmt::Debug>(requested: &Requested<T>) -> String {
+        match requested {
+            Requested::Is(value) => format!("{value:?}"),
+            Requested::Lossy(holds) => format!("throws — {holds}"),
+            Requested::Mismatched => "throws — not that family".to_owned(),
+        }
+    }
+
+    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 6's first named crossing:
+    /// **`TINYINT(1)` is naturally `int` and reads as `bool` on request, with a
+    /// stored `7` throwing.**
+    ///
+    /// Both halves of that sentence, because either alone is a member that
+    /// looks right. A reader that refused the crossing outright would be
+    /// correct about the `7` and unusable against MySQL, which has no boolean
+    /// column for § 9 to map — `nvs_db::mysql`'s own type-map test pins
+    /// `MYSQL_TYPE_TINY` as [`nvs_db::ColumnType::Int`] for that reason. A
+    /// reader that took PHP's cast instead would be usable and would read a
+    /// `7` as `true`, which is the lossy conversion § 6 exists to refuse.
+    ///
+    /// The bound is asserted on both sides at once: `0` and `1` are the last
+    /// accepted values and `2` is the first refused one, with `-1` the other
+    /// end — a member stopping one entry early prints plausibly against either
+    /// half alone. `7` is § 6's own number and is in here under its own name.
+    ///
+    /// Asked of [`requested_bool`] rather than of `$row->bool()`, because that
+    /// function is where the rule lives *and* is what `queryAs<T>`'s `bool`
+    /// field reaches through [`converted`]: the two surfaces are asserted to
+    /// agree below rather than tested twice.
+    #[test]
+    fn tinyint_one_reads_int_and_bool_and_throws_for_a_stored_seven() {
+        // § 9 first: a `TINYINT(1)` is an `int` column, so the value a row
+        // holds for one is an `int` and `->int()` reads it unchanged.
+        for stored in [0_i64, 1, 7, -1] {
+            let held = Value::int(stored);
+            assert_eq!(
+                answered(&requested_int(held)),
+                format!("{stored}"),
+                "§ 9 gives `TINYINT(1)` the `int` row, whatever it stores"
+            );
+        }
+
+        // § 6 second: the request converts, and only where it is lossless.
+        for (stored, expected) in [
+            (0_i64, "false"),
+            (1, "true"),
+            (7, "throws — 7, which is neither `0` nor `1`"),
+            (2, "throws — 2, which is neither `0` nor `1`"),
+            (-1, "throws — -1, which is neither `0` nor `1`"),
+        ] {
+            assert_eq!(
+                answered(&requested_bool(Value::int(stored))),
+                expected,
+                "a `TINYINT(1)` storing {stored}, read as `bool`"
+            );
+            // The same column on a server that declared it `UNSIGNED`, which is
+            // § 9's `uint` row and the same question.
+            if let Ok(unsigned) = u64::try_from(stored) {
+                assert_eq!(
+                    answered(&requested_bool(Value::uint(unsigned))),
+                    expected,
+                    "an unsigned `TINYINT(1)` storing {stored}, read as `bool`"
+                );
+            }
+        }
+
+        // And a real `BOOLEAN`/`BIT(1)`, which needs no crossing at all.
+        for flag in [false, true] {
+            assert_eq!(
+                answered(&requested_bool(Value::bool(flag))),
+                format!("{flag}")
+            );
+        }
+
+        // The two surfaces § 6 states the rule for once: a `Db\Row` reader and
+        // a `#[Db\Derive]` field. A field is checked here through `converted`,
+        // which is the whole of what `queryAs<T>` asks; that they route through
+        // one function is the assertion, since a second copy would agree on the
+        // day it was written and on nothing afterwards.
+        assert!(
+            matches!(
+                converted(nvs_runtime::CodecTy::Bool, None, None, Value::int(1)),
+                Ok(value) if value.as_bool() == Some(true)
+            ),
+            "a `bool` field over a `TINYINT(1)` holding 1 hydrates"
+        );
+        let refused = converted(nvs_runtime::CodecTy::Bool, None, None, Value::int(7))
+            .expect_err("a `bool` field over a stored 7 is § 6's refusal");
+        assert!(
+            refused.contains("7, which is neither `0` nor `1`"),
+            "the field quotes the reader's own wording: {refused}"
+        );
+    }
+
+    /// § 6's second named crossing: **a `BIGINT UNSIGNED` past `i64::MAX` reads
+    /// as `uint` and throws for `int`.**
+    ///
+    /// The bound on both sides, at the one value where it falls: `i64::MAX`
+    /// itself crosses and `i64::MAX + 1` does not. A driver reading the column
+    /// through PHP's `int` loses that value to a `float` and stops comparing
+    /// equal to itself, which is the defect § 9's `uint` row exists for — and a
+    /// range check written one off would pass every test that named only the
+    /// obvious `u64::MAX`.
+    ///
+    /// The other direction is the same rule and is asserted beside it, since
+    /// `int` and `uint` are ADR 0007 § 4's one integer read two ways: a
+    /// negative `BIGINT` has no `uint` reading, and `0` is the bound there.
+    #[test]
+    fn bigint_unsigned_past_i64_max_reads_uint_and_throws_for_int() {
+        /// Where `int` stops and `uint` keeps going, which is the one value
+        /// this bound falls at.
+        const CEILING: u64 = i64::MAX.cast_unsigned();
+
+        for (stored, as_uint, as_int) in [
+            (0_u64, "0", "0"),
+            (CEILING, "9223372036854775807", "9223372036854775807"),
+            (
+                CEILING + 1,
+                "9223372036854775808",
+                "throws — 9223372036854775808, which is past `int`'s ceiling",
+            ),
+            (
+                u64::MAX,
+                "18446744073709551615",
+                "throws — 18446744073709551615, which is past `int`'s ceiling",
+            ),
+        ] {
+            let held = Value::uint(stored);
+            assert_eq!(
+                answered(&requested_uint(held)),
+                as_uint,
+                "a `BIGINT UNSIGNED` holding {stored} is `uint`'s own row"
+            );
+            assert_eq!(
+                answered(&requested_int(held)),
+                as_int,
+                "the same column asked for `int`"
+            );
+        }
+
+        for (stored, as_uint) in [
+            (0_i64, "0"),
+            (-1, "throws — -1, which is below `uint`'s floor"),
+            (
+                i64::MIN,
+                "throws — -9223372036854775808, which is below `uint`'s floor",
+            ),
+        ] {
+            assert_eq!(
+                answered(&requested_uint(Value::int(stored))),
+                as_uint,
+                "a signed `BIGINT` holding {stored}, asked for `uint`"
+            );
+        }
+
+        // Neither reading is a way into a column of another family: § 6's
+        // crossings are between `int` and `uint` and nowhere else.
+        for held in [
+            Value::float(1.0),
+            Value::decimal(Decimal::parse("1").expect("`1` is a decimal")),
+            Value::bool(true),
+        ] {
+            assert!(
+                matches!(requested_int(held), Requested::Mismatched),
+                "{held:?} is not an integer column"
+            );
+            assert!(matches!(requested_uint(held), Requested::Mismatched));
+        }
+    }
+
+    /// § 6's third named crossing, which is the one that is not a crossing: **a
+    /// `DECIMAL` refuses a `float` field**, since
+    /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) keeps the two
+    /// apart.
+    ///
+    /// This is the ADR's own § *Context* defect at the hydration boundary. PDO
+    /// hands a `DECIMAL` back as a string on every driver it has, and the PHP
+    /// code that follows compares a price with `==` and gets away with it until
+    /// a value stops surviving the `float` it is silently coerced through. So
+    /// the refusal is asserted at a value where the widening is *invisible* —
+    /// `0.1` has no exact `float` and `1` has one — because a check written
+    /// against a value that already fails to round-trip would pass over a
+    /// codec that widened whenever it could.
+    ///
+    /// Both directions, since ADR 0054 keeps them apart in both: a `FLOAT`
+    /// column has no `decimal` field either, and `->decimal()` is the reader
+    /// the exact column has.
+    #[test]
+    fn a_decimal_into_a_float_field_throws() {
+        use nvs_runtime::CodecTy;
+
+        for text in ["1", "0.1", "-12345678901234567890.12", "0"] {
+            let exact = Decimal::parse(text).expect("a decimal literal");
+            let refused = converted(CodecTy::Float, None, None, Value::decimal(exact))
+                .expect_err("a `float` field over a `DECIMAL` is refused whatever it holds");
+            assert!(
+                refused.contains("`float`"),
+                "the refusal names the field's declared type: {refused}"
+            );
+
+            // The column's own field type still hydrates it, so what is being
+            // pinned is the crossing and not the column.
+            assert!(
+                converted(CodecTy::Mixed, None, None, Value::decimal(exact)).is_ok(),
+                "`mixed` takes whatever the column held"
+            );
+        }
+
+        // The other side of ADR 0054's wall, and the reason this is a
+        // `Mismatched` rather than a range: there is no `DECIMAL` a `float`
+        // field takes and no `FLOAT` a `decimal` field takes, at any value.
+        let refused = converted(CodecTy::Float, None, None, Value::int(1))
+            .expect_err("§ 6 has no int-widens-to-float crossing either");
+        assert!(refused.contains("`float`"), "{refused}");
+    }
+
+    /// One [`nvs_runtime::CodecField`], with the six properties this file's
+    /// cases never vary spelled once.
+    fn codec_field(key: &str, param: usize, ty: nvs_runtime::CodecTy) -> nvs_runtime::CodecField {
+        nvs_runtime::CodecField {
+            key: key.to_owned(),
+            slot: param,
+            param,
+            ty,
+            element: None,
+            class: None,
+            cases: None,
+            nullable: false,
+        }
+    }
+
+    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 6's refusal for
+    /// `queryAs<T>`: a wrong type, a missing column or a NULL in a field
+    /// declared non-nullable throws **naming every offending column, not the
+    /// first**.
+    ///
+    /// The three conditions are named in one sentence of the ADR and they reach
+    /// [`hydrate`] by three different routes — a value the field's declared type
+    /// refuses, a key the row has no entry for at all, and a `Tag::Null` that
+    /// only a `?T` field takes — so a codec that accumulated on one route and
+    /// returned early on another passes any case that asks about one of them.
+    /// Asked here as a **count**: three fields are wrong and three issues come
+    /// back, which is the assertion a per-condition case cannot make.
+    ///
+    /// Naming the column is the item rather than a nicety. § 6 has field names
+    /// match column names exactly and `AS` as the way to rename, so at a table
+    /// of forty columns the path is the only thing separating "one of these did
+    /// not match" from a fix — [ADR 0071 § 5](../../../docs/adr/0071-derived-codecs.md)
+    /// is where the `issues` list this reads back is specified, and the throw is
+    /// a `ParseError` for the reason [`hydrate`]'s own docs give.
+    #[test]
+    fn query_as_throws_naming_the_column_for_a_mismatch_a_missing_column_and_a_null() {
+        use nvs_runtime::CodecTy;
+
+        // A descriptor is identified by its address, so the table outlives the
+        // test rather than being moved — `allocation_policy.rs`'s `closure_of`
+        // is the same shape and the same reason.
+        let table: &'static mut nvs_runtime::ClassTable =
+            Box::leak(Box::new(nvs_runtime::ClassTable::new()));
+        let id = table.define("Account", &["id", "name", "at"], &[]);
+        table.set_db_codec(
+            id,
+            vec![
+                codec_field("id", 0, CodecTy::Int),
+                codec_field("name", 1, CodecTy::Str),
+                codec_field("at", 2, CodecTy::Str),
+            ],
+            3,
+            vec![std::ptr::null(); 3],
+        );
+        let class = table.desc(id);
+
+        // The row three of whose columns are wrong in three different ways, and
+        // the fourth — `id` is present and is a string where the field declares
+        // `int`; `name` is absent outright; `at` is SQL NULL against a field
+        // that is not `?T`. Nothing here is right, which is the point: a codec
+        // reporting the first would answer one of the three.
+        let mut row = NvsArray::new();
+        row.set(NvsStr::new(b"id"), Value::str(NvsStr::new(b"7")));
+        row.set(NvsStr::new(b"at"), Value::null());
+
+        #[expect(unsafe_code, reason = "the leaked table keeps the descriptor live")]
+        let refused = unsafe {
+            hydrate(&mut Ctx::new(OutputSink::Sink), class, &row).expect_err(
+                "a row with three offending columns is § 6's throw and never reaches `new`",
+            )
+        };
+
+        let Fault::ThrownWithSlots(ThrownClass::Parse, message, slots) = refused else {
+            panic!("§ 6's mismatch is ADR 0071 § 5's `ParseError` carrying `issues`")
+        };
+        assert!(
+            message.contains("3 column(s) of `Account`"),
+            "the summary counts what the list carries: {message}"
+        );
+
+        let [(slot, issues)] = *slots else {
+            panic!("one slot, and it is `issues`")
+        };
+        assert_eq!(slot, nvs_runtime::ISSUES_SLOT);
+        let list = crate::arr::borrowed(issues.array_ptr().expect("`issues` is an `array<Issue>`"));
+        assert_eq!(
+            list.count(),
+            3,
+            "every offending column at once, which is what a form needs to \
+             report all four bad fields rather than the first"
+        );
+
+        // ADR 0071 § 5's `path` is the column, and the order is the field
+        // declaration order — read off `crate::issue::FIELDS`' slot order
+        // rather than guessed, since that agreement is the one that would fail
+        // silently.
+        let paths: Vec<String> = (0..3)
+            .map(|index| {
+                let issue = list
+                    .get_index(index)
+                    .expect("every position of the list holds an issue");
+                let object = issue.obj_ptr().expect("an issue is a shape value");
+                let path = crate::instance::slot(object, 1);
+                String::from_utf8_lossy(path.as_str_bytes().expect("`path` is a string"))
+                    .into_owned()
+            })
+            .collect();
+        assert_eq!(paths, ["id", "name", "at"]);
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the reference the throw handed over"
+        )]
+        unsafe {
+            issues.release();
         }
     }
 }
