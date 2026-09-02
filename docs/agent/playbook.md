@@ -6101,6 +6101,15 @@ sibling in the same namespace unqualified.
   nothing fails to compile — and that landing the row without the constructor leaves an ADR 0022
   slot never definitely assigned. Add both in one change. The tell that you got it right is five
   `nvs-ir` whole-program snapshots going red with only the new constructor in the diff.
+- **`nvs_host::timer::park_until` is not the primitive for "wait for a peer, but no longer than
+  `X`" — it is deliberately un-wakeable, and reaching for it fails silently.** Its loop re-arms past
+  every early wake (`crates/nvs-host/src/timer.rs:251`), because a caller that asked for an *instant*
+  wants the instant and a wake is noise; a caller waiting on state a peer changes gets the wake
+  swallowed and pays the whole bound every time, with nothing failing and no test to notice. The
+  same mechanism with the loop off is `timer::wait_until`, and a `Core` member reaches it as
+  `nvs_runtime::host::Host::park(Some(at))`. The general shape: in this tree "park until an instant"
+  and "park until something happens, at most until an instant" are two functions on purpose, and the
+  doc comment on each says which it is in its first sentence.
 
 ## Divergences and refusals already pinned
 

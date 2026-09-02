@@ -2,71 +2,65 @@
 
 ## State
 
-**ADR 0067 § 13's `max` is enforced, and a `Lease` is the thing that counts.**
-`crates/nvs-runtime/src/pool.rs:282` is `admit`: it grants one slot per live connection under a
-key, refusing at `max`, and the lease it answers with is carried beside the connection for the
-request's whole life. `crates/nvs-runtime/src/pool.rs:325`'s `release` consumes it, and
-`Lease`'s own `Drop` gives the slot back on every other path — including a handshake that failed
-after admission — so no caller has a decrement to remember.
+**ADR 0067 § 13's four bounds are all on disk, and `acquire` is a queue rather than a scramble.**
+`crates/nvs-runtime/src/pool.rs:425`'s `queue` joins a task to a per-key line and `Waiting::slot` is
+what it re-asks after every wake. A `Lease` that ends hands its slot to the head of that line instead
+of freeing it, so the count never dips across the hand-over and `admit` still finds the key full — a
+newcomer cannot barge past a waiter, and that needs no separate rule. `pool.rs`'s module doc
+§ *`acquire` is a queue* is that argument's only home.
 
-**`take` draws against a lease rather than a bare key**, and that is what makes § 13's
-`cores × max` literally true rather than approximately: an idle entry is only ever a connection
-that was live under a lease, so `live + idle` under a key can no more exceed `max` than `live`
-can. `pool.rs`'s module doc § *What `max` counts* is that argument's only home, and the handbook
-row (`docs/novis.md:18575`) now states the deployment number in those terms.
+**The parking is the caller's, and it had to be.** `nvs-runtime` cannot name `nvs-host`, so the pool
+owns the line and `Core\Db::connect` owns the loop, reaching its core through `nvs_runtime::host` —
+the same inversion `Core\Channel` already waits on. `Host::park` now takes an `Option<Instant>`
+(`crates/nvs-runtime/src/host.rs:366`) rather than being unbounded, backed by
+`nvs_host::timer::wait_until` (`crates/nvs-host/src/timer.rs:305`): `park_until` without the
+re-arming loop, so a wake ends it and so does the instant. `Core\Channel`'s wait passes `None`.
 
-**At the ceiling, `Core\Db::connect` throws immediately** (`crates/nvs-stdlib/src/db.rs:2376`) —
-`ThrownClass::Io`, beside the handshake that "did not open", because § 8's `Db\DbError` is for a
-refusal the *server* made. That is exactly `acquire = 0` semantics; what is missing is the
-waiting, not the refusal.
+**Which deadline wins is settled and recorded.** Whichever is earlier, and the refusal names which
+one it was. `crates/nvs-stdlib/src/db.rs:3159`'s `wait_for_slot` doc comment is that decision's home:
+`acquire` is the operator's ceiling and `timeout` is the program's, neither may spend the other, and
+because the handshake below is measured against the same `timeout` instant a wait that ate most of it
+leaves the rest for opening. `acquire = 0` and a call with no task beneath it both refuse without
+parking, which is § 13's own reading of zero.
 
-**`acquire` is the last of the four bounds, and it needs the core's scheduler.**
-`nvs_host::timer::park_until` (`crates/nvs-host/src/timer.rs:251`) is the primitive that exists;
-what does not is a way for a dropped lease to wake a request parked on that key, so the choice
-between a waiter list woken from `Lease::drop` and a bounded poll is open and is the next
-session's first decision. It also has to say which deadline wins when `connect`'s own `timeout`
-option (`crates/nvs-stdlib/src/db.rs:2218`) is shorter than `acquire`.
-
-**A matrix test has no trust anchor yet.** `crates/nvs-db/src/matrix.rs:91`'s `endpoint` has
-**no caller at all** — the five test files `crates/nvs-db/src/lib.rs:93` names do not exist — and
-`matrix.rs` carries no CA field, while the compose PostgreSQL is reached over TLS and the CA is
-still not in git. Docker is up and healthy on this machine, so the wall is the trust anchor and
-nothing else.
+**A matrix test still has no trust anchor**, unchanged from last session. `crates/nvs-db/src/matrix.rs:91`'s
+`endpoint` has no caller at all — the five test files `crates/nvs-db/src/lib.rs:93` names do not exist
+— and `matrix.rs` carries no CA field, while the compose PostgreSQL is reached over TLS. Docker is up
+and healthy here, so the wall is the trust anchor and nothing else.
 
 **Unchanged and still true.** The driver's acceptance line names `examples/queue.nvs` — Stage 8's
-unlanded `Core\Queue` (ADR 0084), not a regression; its `[[check]]` is
-`docs/agent/loop-goal.toml:2927`. § 7's backoff is still blocked on `nvs-runtime`'s known gap 3
-(`crates/nvs-stdlib/src/db.rs:149` argues it). Stage 5's `args = ["test", "-p", "nvs-db"]`
-(`docs/agent/loop-goal.toml:2830`) still cannot see the two `nvs-stdlib` tests, and is still the
-user's call.
+unlanded `Core\Queue` (ADR 0084), not a regression; its `[[check]]` is `docs/agent/loop-goal.toml:2927`.
+§ 7's backoff is still blocked on `nvs-runtime`'s known gap 3 (`crates/nvs-stdlib/src/db.rs:149`
+argues it). Stage 5's `args = ["test", "-p", "nvs-db"]` (`docs/agent/loop-goal.toml:2830`) still
+cannot see the two `nvs-stdlib` tests, and is still the user's call.
 
-**`orient.py`'s pack was right for the slice.** The one thing it could not have printed is the
-scheduler's parking surface, which the next item needs — `[context] modules` naming
-`nvs-host/src/timer.rs` and `nvs-host/src/scheduler.rs` would close that.
+**`orient.py`'s pack was short the scheduler, exactly as the last handoff predicted.** `[context]
+modules` names neither `nvs-host/src/timer.rs`, `nvs-host/src/group.rs` nor `nvs-runtime/src/host.rs`,
+so all three were read from scratch to answer "what can a `Core` member wait on". Adding them pays
+for itself the next time a member has to wait.
 
 ## Next group
 
-**§ 13's last bound and the proof that reuse is real. The file set is
-`crates/nvs-runtime/src/pool.rs`, `crates/nvs-stdlib/src/db.rs` and `crates/nvs-host/src/timer.rs`.**
+**The proof that § 13's reuse and its queue are real, against a live server. The file set is
+`crates/nvs-db/src/matrix.rs`, `crates/nvs-db/src/lib.rs` and a new `crates/nvs-db/tests/` file.**
 
-- [ ] **`acquire` is how long a request waits at the ceiling before it throws** — decide the wait
-      first: a waiter list per key woken from `Lease::drop`, or a bounded poll over
-      `nvs_host::timer::park_until` (`crates/nvs-host/src/timer.rs:251`). `admit` is
-      `crates/nvs-runtime/src/pool.rs:282` and its refusal is
-      `crates/nvs-stdlib/src/db.rs:2376`; `Lease::drop` is `crates/nvs-runtime/src/pool.rs:224`.
-      Zero is legal and already means what it says. ADR 0067 § 13.
-- [ ] **Which deadline wins: `acquire` or `connect`'s `timeout`** — one paragraph in the same
-      slice, decided where `deadline_of` is read (`crates/nvs-stdlib/src/db.rs:2218`) and stated
-      in `pool.rs`'s module doc. ADR 0067 §§ 2, 13.
-- [ ] **A matrix test that reuse is real and clean** — two requests on one core, the second
-      getting the first's connection, reset. First answer how a `-p nvs-db` case trusts the
-      compose server: `crates/nvs-db/src/matrix.rs:91` has no CA field and no caller yet.
-      ADR 0067 § 13 and its *Verification*.
+- [ ] **A matrix test has a trust anchor** — `crates/nvs-db/src/matrix.rs:91`'s `endpoint` needs a CA
+      field beside the `NVS_DB_MATRIX_*` ones it already reads, and `tools/db-matrix.py` needs to set
+      it; `crates/nvs-db/src/lib.rs:93` names the five test files that do not exist yet, so decide
+      whether that list is the plan or is stale. Nothing can connect from `-p nvs-db` until this
+      lands. ADR 0067 § *Verification*.
+- [ ] **Two requests on one core share one connection** — the first releases at teardown, the second
+      draws it warm through `crates/nvs-runtime/src/pool.rs:495`'s `take` and its reset ran. Assert
+      the *identity* of the connection, not that a second query worked. ADR 0067 § 13.
+- [ ] **A third request at the ceiling waits and then throws naming `acquire`** — `max = 1` with a
+      short `acquire`, two tasks, and the refusal from `crates/nvs-stdlib/src/db.rs:3159`. The queue's
+      own unit cases are in `crates/nvs-runtime/src/pool.rs:905`; what this adds is a real park.
+      ADR 0067 § 13.
 
 ## Backlog
 
-- § 7's exponential backoff, blocked on `nvs-runtime` known gap 3 — `crates/nvs-stdlib/src/db.rs:149`.
-- Stage 5's `-p nvs-db` args cannot see the two `nvs-stdlib` tests — `docs/agent/loop-goal.toml:2830`.
-- `Core\Db::open`'s shape-parameter settings — ADR 0067 § 2, `docs/plan/m8.md`.
-- The other four drivers — ADR 0132 § 1, `crates/nvs-db/src/conn.rs`.
-- `Core\Db\Connection::close`, which is what would take a connection out mid-request — spec § 18.
+- Stage 8's `Core\Queue` (ADR 0084) is the standing acceptance failure — `docs/agent/loop-goal.toml:2927`.
+- § 7's backoff waits on `nvs-runtime`'s known gap 3 — `crates/nvs-stdlib/src/db.rs:149`.
+- `Core\Db::open`'s shape-parameter type — `docs/implementation-plan.md`, Open now.
+- Stage 5's `-p nvs-db` check cannot see two `nvs-stdlib` tests — `docs/agent/loop-goal.toml:2830`.
+- `[context] modules` is missing the three scheduler files above — `docs/agent/loop-goal.toml`.
