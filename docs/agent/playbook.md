@@ -6340,6 +6340,15 @@ sibling in the same namespace unqualified.
   it; `#[allow]` is the spelling that goes stale silently. Do not pair it with a `#[cfg(test)]`
   test of the same function: `--all-targets` builds the crate twice, the test build makes the
   expectation unfulfilled, and `unfulfilled_lint_expectation` is a warning too.
+- **Landing a decode path ahead of its caller leaves `#[expect(dead_code)]` on more functions than
+  the doc naming the path mentions, and clippy reports the leftover under a message that names the
+  one you already fixed.** `nvs_stdlib::db`'s gap 2 named two — `mysql_column_value` and
+  `mysql_described_columns` — so taking those two off and building looked complete; the third was on
+  `mysql_civil_of`, a helper of a helper, and `unfulfilled_lint_expectations` echoes the *reason
+  string* as its `note:`, which read "as `mysql_column_value`, whose only caller this is". So the
+  error appears to be about the function whose attribute you just removed. One
+  `grep -n 'expect(' <the module>` for every reason naming the path being enabled, before the build,
+  is the whole check.
 
 ## Divergences and refusals already pinned
 
