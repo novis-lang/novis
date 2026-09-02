@@ -64,6 +64,11 @@ services:
   # `chown 999` is not cosmetic. PostgreSQL refuses to start on a key with group or world access, and
   # both images run as uid 999, so the key is 0600 and owned by exactly that. The CA key stays root's:
   # nothing but this service ever reads it.
+  #
+  # `mssql.key` is that same key under a second name owned by uid 10001, because SQL Server runs as that
+  # user and reads its key itself: one file cannot be 0600 for two uids, and a mode any other user could
+  # read is one `sqlservr` refuses. Its three steps sit *outside* the guarded group on purpose, so a
+  # volume generated before they existed gains the copy on the next `up` instead of only on a fresh one.
   # ---------------------------------------------------------------------------------------------------
   certs:
     image: alpine/openssl:3.5.7
@@ -89,6 +94,9 @@ services:
         && chown 999:999 /certs/server.key /certs/server.crt /certs/ca.crt
         && chmod 600 /certs/server.key /certs/ca.key
         && chmod 644 /certs/server.crt /certs/ca.crt)
+        && cp -f /certs/server.key /certs/mssql.key
+        && chown 10001:10001 /certs/mssql.key
+        && chmod 600 /certs/mssql.key
     volumes:
       - certs:/certs
 
@@ -130,9 +138,23 @@ services:
   # MariaDB, on the 11.4 LTS line because that is the release that turns TLS on by itself.
   # `healthcheck.sh` ships in the image; `--innodb_initialized` is the difference between a listening
   # socket and a server that can serve.
+  #
+  # Turning TLS on by itself is not the same as being verifiable, which is why the `certs` leaf is
+  # named here as it is for MySQL two blocks above: 11.4 generates its own certificate at first boot
+  # with no `subjectAltName`, and a client that verifies a name -- the only kind `nvs_host::tls` has --
+  # refuses it before any credential is offered. Naming the three files replaces that certificate with
+  # the one `tools/db-matrix.py` hands the client as its anchor, and without them this server is one
+  # the matrix reports `n/a` rather than runs.
   # ---------------------------------------------------------------------------------------------------
   mariadb:
     image: mariadb:11.4.13
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+    command:
+      - --ssl-ca=/certs/ca.crt
+      - --ssl-cert=/certs/server.crt
+      - --ssl-key=/certs/server.key
     ports: ["127.0.0.1:13307:3306"]
     environment:
       MARIADB_ROOT_PASSWORD: Novis-Root-Pw1
@@ -145,6 +167,8 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
+    volumes:
+      - certs:/certs:ro
 
   # ---------------------------------------------------------------------------------------------------
   # PostgreSQL -- the first driver, per goal 5's standing decisions, because its extended protocol pays
@@ -183,14 +207,35 @@ services:
   # five services rather than six, so a one-shot init container would never be started by the driver.
   # The healthcheck creates the database instead: it is idempotent, it runs until it succeeds anyway,
   # and `--wait` returning means both "the server answers" and "the database is there".
+  #
+  # The certificate is the one place SQL Server is not like the other three. It has no `--ssl-cert`
+  # equivalent and no environment variable for one: left alone it generates a certificate *inside the
+  # instance*, which is presented at every handshake and cannot be copied out as a file, so there is
+  # nothing `tools/db-matrix.py` could hand a client as an anchor. `mssql.conf`'s `[network]` section is
+  # the only way to point it at one, and it is written here rather than mounted -- `mssql-conf` rewrites
+  # that file in place during setup, which a bind-mounted host file cannot survive. Hence the entrypoint
+  # override: write the section, then `exec` the server the image's own CMD names. `forceencryption`
+  # makes a misconfigured certificate stop the server rather than quietly serving the instance's own
+  # again, and the key is the `certs` job's second copy for the reason that job's header gives.
   # ---------------------------------------------------------------------------------------------------
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-CU20-ubuntu-22.04
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >
+        printf '[network]\ntlscert = /certs/server.crt\ntlskey = /certs/mssql.key\nforceencryption = 1\n'
+        > /var/opt/mssql/mssql.conf
+        && exec /opt/mssql/bin/sqlservr
     ports: ["127.0.0.1:11433:1433"]
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: Novis-Test-Pw1
       MSSQL_PID: Developer
+    volumes:
+      - certs:/certs:ro
     healthcheck:
       test:
         - CMD-SHELL

@@ -147,17 +147,20 @@ DRIVERS: tuple[Driver, ...] = (
     # therefore PostgreSQL's.
     Driver("mysql", "mysql", 3306, "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE",
            anchor="/certs/ca.crt"),
-    # MariaDB serves no certificate as `compose.yaml` configures it -- `ssl_cert` is empty in the
-    # running server -- so there is nothing to anchor to and nothing to connect to. Stage 6 owes it
-    # the same `certs` volume PostgreSQL mounts.
-    Driver("mariadb", "mariadb", 3306, "MARIADB_USER", "MARIADB_PASSWORD", "MARIADB_DATABASE"),
+    # MariaDB is served the same `certs` leaf, and for the same reason MySQL is: 11.4 turns TLS on
+    # by itself, but the certificate it generates to do that carries no `subjectAltName` and is
+    # unverifiable by name however good its CA is. `compose.yaml`'s MariaDB block says so at length.
+    Driver("mariadb", "mariadb", 3306, "MARIADB_USER", "MARIADB_PASSWORD", "MARIADB_DATABASE",
+           anchor="/certs/ca.crt"),
     Driver("postgres", "postgres", 5432, "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB",
            anchor="/certs/ca.crt"),
     # SQL Server has no `MSSQL_USER`: the image's only account is `sa`, and the database is created
-    # by the healthcheck rather than by the entrypoint — `compose.yaml`'s own comment says why. Its
-    # self-signed certificate lives in the instance rather than on the filesystem, so there is no
-    # `anchor` to copy out either.
-    Driver("mssql", "mssql", 1433, None, "MSSQL_SA_PASSWORD", None, user="sa"),
+    # by the healthcheck rather than by the entrypoint — `compose.yaml`'s own comment says why. The
+    # certificate it presents is the `certs` leaf too, but reaching that took an `mssql.conf` rather
+    # than a flag, because the one it generates for itself lives inside the instance and no file on
+    # any filesystem is a copy of it.
+    Driver("mssql", "mssql", 1433, None, "MSSQL_SA_PASSWORD", None, user="sa",
+           anchor="/certs/ca.crt"),
     # The one driver with no wire at all (ADR 0132 § 3): a file this tool makes and removes.
     Driver("sqlite", None, None, note="a scratch file, no container"),
 )
