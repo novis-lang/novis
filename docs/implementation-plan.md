@@ -47,22 +47,21 @@
 > generic. Its wire I/O is PostgreSQL's: § 3's `SSLRequest` upgrade, SCRAM-SHA-256, § 4's
 > extended-query state machine and § 13's reset.  § 9's whole type map decodes over it; § 4's count,
 > `lastId` and `executeMany` too. § 7's `BEGIN`/`COMMIT`/`ROLLBACK` is on it, nesting as a
-> `SAVEPOINT` to any depth, with § 8's kind and no bound value in any refusal. **`Core\Db` has
-> opened in `nvs-stdlib`**: § 18's `connect` over a request-held connection, `inList`,
-> `quoteIdentifier` and § 4's `query`, `execute` and `executeMany` — bound in § 5's rewriter's order
-> — and § 18's readers: all six of `Rows`', all fourteen of `Row`, `Write`'s three, and
-> `Db\Column`'s three. `open` waits on a shape-parameter type. **§ 7's `transaction` is on both
-> classes with all three options, retrying either conflict, no backoff** and a refusal throws
-> `Db\DbError` carrying four of § 8's five; `nvs.toml` now opens `[db.main]` and grants `db.connect`
-> to the two fixtures; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over
+> `SAVEPOINT` to any depth. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect` over a
+> request-held connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and
+> `executeMany` — bound in § 5's rewriter's order — and § 18's readers: all six of `Rows`', all
+> fourteen of `Row`, `Write`'s three, and `Db\Column`'s three. `open` waits on a shape-parameter
+> type. **§ 7's `transaction` is on both classes with all three options, retrying either conflict,
+> no backoff** and a refusal throws `Db\DbError` carrying four of § 8's five; `nvs.toml` grants
+> `db.connect` to its three fixtures; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over
 > `ClassDesc::db_codec`, and § 9's five structured columns build the `Core\Time`/`Core\Uuid`
 > instance `Row`'s typed readers and a `#[Db\Derive]` field answer with, so `examples/db.nvs` runs
 > that end to end and pins a real refusal's § 8 values. Stages 3-4 are green in `-p nvs-db`, Stage 5
-> four of seven, two in `-p nvs-stdlib`, **§ 13's pool is complete — reuse, ceiling and `pool =
-> false` live**, **the matrix anchors each driver** and the two servers with none report `n/a`, and
-> **ADR 0132 has claimed the goal's one ADR slot**. **Goals 1-4 and M4 are closed**, this goal's
-> Stage 1 floor — `Core`'s capability-bearing half. Conformance 1415, differential 250, its gate
-> met, migration 90%/74%.
+> four of seven, two in `-p nvs-stdlib`, **§ 13's pool is complete — reuse, ceiling, `pool = false`
+> and the park live**, the last from a `Core\Task` child now carrying its request's configuration,
+> **the matrix anchors each driver**, two servers reporting `n/a`, and **ADR 0132 has claimed the
+> goal's one ADR slot**. **Goals 1-4 and M4 are closed**, this goal's Stage 1 floor — `Core`'s
+> capability-bearing half. Conformance 1415, differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

@@ -6141,6 +6141,16 @@ sibling in the same namespace unqualified.
   `nvs_runtime::host::Host::park(Some(at))`. The general shape: in this tree "park until an instant"
   and "park until something happens, at most until an instant" are two functions on purpose, and the
   doc comment on each says which it is in its first sentence.
+- **A `catch` binding inside a closure that spells a name the enclosing frame also binds is
+  lowered as a *capture* of that name, and the compiler panics rather than diagnosing it.**
+  `try { … } catch (IOError $full) { … }` written inside an `fn(): string => { … }` whose
+  enclosing function also has a `catch (IOError $full)` dies at
+  `crates/nvs-ir/src/lower/expr.rs:2424` with "the closure at 0:6173..6364 captures `$full`,
+  which is not bound in the enclosing frame — nvs_types records a capture only for a name its
+  own scope resolved". Nothing about the message points at the `catch`, and the same closure
+  compiles the moment the binding is renamed. So a closure inside a `try`/`catch` picks its own
+  spelling for the exception, and a program that hits this panic is looking for a shadowed
+  binding rather than for a capture it wrote.
 
 ## Divergences and refusals already pinned
 
