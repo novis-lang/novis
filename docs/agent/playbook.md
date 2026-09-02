@@ -6420,6 +6420,17 @@ sibling in the same namespace unqualified.
   on a decision about the band layout, which is an ADR and not a line in a checker. Do not invent
   an `E08xx`: `E09xx` is internal compiler errors, so a third types band is a change to
   `crates/nvs-diagnostics/src/lib.rs`'s legend and to every tool that groups by band.
+- **An ADR clause that mandates a wire feature can be un-implementable for reasons only the
+  *sibling* driver's code shows, so a "decide whether to build X" item is read out of the tree
+  and not out of the ADR.** ADR 0067 § 4 mandated `COM_STMT_BULK_EXECUTE` for MariaDB's
+  `executeMany` in one table row, and the two facts that settled it against the feature were both
+  three files away from anything MariaDB: `crates/nvs-db/src/pg.rs:2788` flushes *every*
+  `Bind`/`Execute`/`Sync` in one `wire.send`, so PostgreSQL's batch has already run the sets behind
+  a refusal and no driver can be made to stop at one; and `crates/nvs-db/src/mysql.rs`'s `Prepared`
+  doc says a prepare reports `0` columns for a statement whose result set depends on the data, so
+  "does this produce rows" cannot be asked ahead of the execution either. Neither is in the ADR,
+  and both are load-bearing. Read the sibling driver and the struct docs *before* budgeting the
+  feature — the previous session sized this one from the ADR and had to stop at the packet.
 
 ## Divergences and refusals already pinned
 

@@ -2,73 +2,68 @@
 
 ## State
 
-**MariaDB's second capability word is negotiated, and both packets that carry one say the same
-thing.** `MARIADB_CLIENT_STMT_BULK_OPERATIONS` is bit 34 and `CapabilityFlags` is `u32`, so it was
-never going to fit `CLIENT_CAPABILITIES`; MariaDB's answer is to redefine the handshake's trailing
-filler as 19 bytes plus a little-endian `u32`, and `mysql_common` 0.38.2 models exactly that on
-`SslRequest`, `HandshakeResponse` and `HandshakePacket`. **Nothing is composed by hand** — the
-question the item asked is answered `with_mariadb_ext_capabilities`, and
-`crates/nvs-db/src/mysql.rs:741`'s `agreed_extended` doc is that answer's home.
+**ADR 0067 § 4 now runs `executeMany` as N executions on every driver, and `COM_STMT_BULK_EXECUTE`
+is refused with its reason written down.** The decision is § 4's own text (`docs/adr/0067-core-db.md`,
+the paragraph after the transaction one) and it is a *rule* rather than a MariaDB special case: a batch
+command that cannot reproduce the loop's observable behaviour is not used. Two of the three
+divergences are unrepairable inside a driver and that is what settled it — PostgreSQL flushes every
+`Bind`/`Execute`/`Sync` in one `wire.send` (`crates/nvs-db/src/pg.rs:2788`), so the loop cannot be
+made to stop at a refusal, while a bulk command cannot be made to continue past one; and a set that
+answers with rows cannot be routed to the loop in advance, a prepare reporting `0` columns for any
+statement whose result set depends on the data. The third — an aggregate count rather than a sum — is
+provenance only and would have been acceptable alone. The price is N round trips, recorded in § 4 the
+way § 1 records the prepare's.
 
-The word is a third field on `crate::mysql::Backend`, which is already the one place the shared
-framing asks which server it is framing for: MySQL's is empty, MariaDB's is
-`maria::EXTENDED_CAPABILITIES`, and the greeting's own word intersects it. A MySQL server offers
-zero because to it those bytes are filler, so the *intersection alone* is the gate and no code asks
-which server this is. `the_mariadb_handshake_claims_bulk_operations_and_the_mysql_one_claims_nothing`
-asserts all three outcomes over both packets; it was confirmed to assert by dropping the response's
-`.with_…` call, which made it fail naming the packet that lost the word. `python tools/db-matrix.py
---driver mariadb --driver mysql` is green, so both real servers still accept the handshake.
+**The trade is priority 2 over priority 3 and it is large in one direction**: a 1000-set batch keeps
+paying 1000 round trips where one command would have done. That is the ordering applied rather than a
+judgement, and § 4 names the single fact that reopens it — whether a server under
+`MARIADB_CLIENT_BULK_UNIT_RESULTS` *continues* past a refused set, which needs a real server to
+establish and is not knowable from the crates.
 
-**The bulk protocol itself was not taken, and the reason is that it is not a slice.** Reading far
-enough to size it turned up three ways `COM_STMT_BULK_EXECUTE` changes what a caller observes, all
-against the paragraph in `crates/nvs-db/src/mysql.rs:1983`'s doc that says the drivers agree
-deliberately. ADR 0067 § 4 mandates the feature in one clause and settles none of the three, so the
-next group opens with the decision rather than with the packet. Details in the group below.
+`MARIADB_CLIENT_STMT_BULK_OPERATIONS` **stays claimed** and needed no undoing: `maria.rs`'s
+`EXTENDED_CAPABILITIES` doc already said the bit is "spent later or not at all", and the word is what
+the server answers in too, so the intersection is still how the driver learns which server it reached.
 
-**The driver's stage-2 check is unchanged and still open**: `a_db_open_target_in_a_denied_range_fails`
-waits on `Core\Db::open`, blocked on a registry type for a shape **parameter**
-(`nvs_stdlib::db` known gap 1) — a language-surface decision that wants its own ADR, not a slice.
+**Stage 6's `nvs-db (per-driver specifics)` check should now be green.** Its other two names already
+existed — `crates/nvs-db/tests/handshake.rs:930` and `crates/nvs-db/src/maria.rs:592` — and the third
+was this session's; `execute_many_uses_the_bulk_protocol_on_mariadb` is renamed in
+`docs/agent/loop-goal.toml` to `execute_many_on_mariadb_is_n_executions_and_not_the_bulk_command`,
+with a comment saying the ADR won over the file so nobody restores it.
 
-**`orient.py` gap: `[context] adrs` did not print ADR 0067 § 4**, and it is the section that says
-`executeMany` is one prepare and N executions and that MariaDB 10.2+ uses `COM_STMT_BULK_EXECUTE`.
-Every remaining slice of this group is about that clause. Add `0067:4` to the manifest.
+**The goal's one open check is now `a_db_open_target_in_a_denied_range_fails`**, and it is the next
+group below rather than a slice: it waits on `Core\Db::open`, which waits on a registry type for a
+shape *parameter*.
 
 ## Next group
 
-**One decision, then one command, then the check that names it. Same file set as this session's:
-`crates/nvs-db/src/mysql.rs`, `crates/nvs-db/src/maria.rs`, `crates/nvs-db/src/conn.rs` and
-`crates/nvs-db/tests/handshake.rs`.**
+**One decision that is bigger than this goal, then the type, then the member. File set:
+`crates/nvs-stdlib/src/db.rs` and `crates/nvs-stdlib/src/registry.rs`.**
 
-- [ ] **Decide what MariaDB's `executeMany` observes, and write it down.** Bulk is one command, so
-      it diverges from the N-executes loop three ways and each needs an answer: a refusal **ends**
-      the batch (the loop attempts every later set and reports the first error — the property
-      `crates/nvs-db/src/mysql.rs:1983`'s doc calls a deliberate cross-driver agreement); a set that
-      answers with a result set — `CALL` — is not something the bulk command accepts, and the loop
-      supports it; and the affected count is one aggregate the server computed rather than a sum
-      this driver added up. ADR 0067 § 4 (`docs/adr/0067-core-db.md:150`) names the feature in one
-      table row and settles none of them. Refusing bulk is still legitimate and is then an amendment
-      to that row, not silence. The pre-authorized shape is decide-and-record; an ADR slot for it is
-      not in the goal's standing list, so prefer amending § 4 plus the module doc at
-      `crates/nvs-db/src/mysql.rs:1983`.
-- [ ] **`COM_STMT_BULK_EXECUTE` (`0xFA`) in `maria.rs`** — `mysql_common`'s
-      `ComStmtBulkExecuteRequestBuilder` builds it, splits a batch that outgrows `max_allowed_packet`
-      across several commands, and refuses mixed arity itself; `MariadbBulkIndicator` is the per-value
-      indicator byte. Two gates before it is reachable: the negotiated word has to be **stored** —
-      `MariaConn` (`crates/nvs-db/src/conn.rs:707`) has no field for it yet and
-      `crates/nvs-db/src/maria.rs:352` is where `agreed_extended` would be called, the greeting still
-      being in scope — and a zero-arity batch must stay on the loop, the builder's own doc refusing a
-      statement with no parameters. `crates/nvs-db/src/mysql.rs:1812`'s `cached_statement` is private
-      and is the prepare half. `crates/nvs-db/src/maria.rs:437` is the delegation to replace.
-- [ ] **`execute_many_uses_the_bulk_protocol_on_mariadb`** — stage 6's named check, in
-      `crates/nvs-db/tests/handshake.rs:930`'s neighbourhood, against the real server
-      `tools/db-matrix.py --driver mariadb` brings up. What it must assert is that the batch cost
-      **one** command and not N, which the server will say through `Com_stmt_bulk_execute` in
-      `SHOW SESSION STATUS` — a count read before and after, in the shape
-      `mariadb_returning_is_available_and_mysqls_is_not` reads its own answer.
+**Read this first:** the decision is a *language-surface* one — how every future fixed-key shape
+parameter is passed across the ABI — and goal 5's standing list spends its one ADR slot on ADR 0132.
+Standing decision 1 ("decide and record; never `BLOCKED` for a design call") still covers it, so take
+it; but say in the ADR that it was opened from goal 5 and re-check the next free number immediately
+before creating the file, because another agent derives the same answer from the same directory.
+
+- [ ] **Decide how a fixed-key shape parameter reaches a `Core` member, and write the ADR.**
+      `crates/nvs-stdlib/src/db.rs:66`'s known gap 1 states the hole: `CoreTy::Options`
+      (`crates/nvs-stdlib/src/registry.rs:594`) is a *trailing* bag, flattened to one ABI argument per
+      option and optional by construction, and no row has ever declared a fixed-key shape *argument*.
+      § 18's `open(Db\Settings $settings, {shared?: bool})` additionally needs a discriminated union
+      of two shapes over ADR 0047's enum-case types — the SQLite arm has a `path` and no `host` — so
+      the decision is two questions, and whether the union is one `CoreTy` or a pair is the second.
+- [ ] **Add the `CoreTy` variant and its ABI.** `crates/nvs-stdlib/src/registry.rs:180` is the enum
+      and `:594` its `Options` neighbour to shape it against; the arity rule that an options bag
+      flattens to one argument per option is what the new variant has to answer for itself.
+- [ ] **`Core\Db::open`'s five edits, and `a_db_open_target_in_a_denied_range_fails` with them.**
+      `crates/nvs-stdlib/src/db.rs:251` (`SCOPE_SLOT`) is where the capability half already sits; the
+      test is stage 2's last open check and ADR 0067 § 3 is what it asserts — `db.open`'s targets are
+      program-supplied and stay subject to ADR 0058's denied ranges in full, unlike a `connect`-named
+      endpoint.
 
 ## Backlog
 
-- `Core\Db::open` waits on a registry type for a shape parameter — `nvs_stdlib::db` known gap 1.
-- `MARIADB_CLIENT_BULK_UNIT_RESULTS` (11.5.1+) would give a per-set answer and reopen the
-  affected-count question — `crates/nvs-db/src/maria.rs:111`'s doc says why it is not claimed.
-- ADR 0067 § 8's fifth field on `DbError` is still unfilled — `docs/adr/0067-core-db.md` § 8.
+- MariaDB's `RETURNING`, the one place the two drivers still part — `crates/nvs-db/src/maria.rs:415`.
+- Whether `BULK_UNIT_RESULTS` continues past a refused set; the one fact that reopens ADR 0067 § 4.
+- ADR 0067 has no `Validated by:` field; adding one means naming every test holding a § claim, not one.
+- Stage 7's pool names and stage 6's matrix legs — `docs/agent/loop-goal.toml`, stages 6 and 7.
