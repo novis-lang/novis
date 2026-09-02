@@ -4659,6 +4659,16 @@ is why" — is this file.
   Nothing catches this until a case asks about the charset or the width: ADR 0067 § 9 reads
   `tainted string` against `tainted bytes` off the charset, which is exactly the field the swap
   corrupts, and a name-only assertion passes either way.
+- A MySQL twin of a PostgreSQL case cannot reuse the PostgreSQL query text, and the failure is a
+  panic rather than a failed assertion. `mysql_one_value` reads a **text** column through § 9's
+  decoder, and MySQL's binary protocol types `SLEEP()` as `BIGINT`, `CONNECTION_ID()` as
+  `BIGINT UNSIGNED` and a user variable as whatever it was assigned — so the helper dies with
+  `the statement answered Int(0), which is not text` and the case never reaches what it was about.
+  Wrap the expression in `CAST(… AS CHAR)`; `handshake.rs`'s `GROUP_CONCAT` case was already doing
+  it for exactly this reason. The *absence* spellings differ too: `to_regclass` answers `NULL` for a
+  temporary table PostgreSQL no longer has, where MySQL answers error `1146`, so a twin that needs
+  absence as a value marks the session with a user variable and reads `NULL` back — and asserts the
+  missing table separately, as a `ServerError`.
 
 ## Splitting a file that got too big
 

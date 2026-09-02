@@ -58,10 +58,10 @@
 > encodes as a JSON object**. **MySQL runs a block end to end** and `connect` opens and pools one: §
 > 3's upgrade, two plugins, `utf8mb4`, § 9's zone, § 13's reset, § 1's cache, § 9's values off its
 > binary rows, and § 5's rewrite and § 9's encoding both following its own driver — so § 4's members
-> and § 7's `transaction` answer on MySQL, and a real MySQL now holds § 3, § 7's savepoint and § 8's
-> `1062`. **Stage 9 is § 10's three diagnostics, ADR 0024 § 4's pair, and § 11 whole: a `query`
-> event per statement and a `slow_query` log line.** **Goals 1-4 and M4 are closed**. Conformance
-> 1428, differential 250, migration 90%/74%.
+> and § 7's `transaction` answer on MySQL, and a real MySQL holds § 3's park, § 7, § 8 and § 13's
+> reset and pool. **Stage 9 is § 10's three diagnostics, ADR 0024 § 4's pair, and § 11 whole: a
+> `query` event per statement and a `slow_query` log line.** **Goals 1-4 and M4 are closed**.
+> Conformance 1428, differential 250, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

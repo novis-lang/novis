@@ -27,6 +27,17 @@
 //! and can be nothing else — a case that merely ran a second query would pass
 //! with no pool underneath it at all.
 //!
+//! **`CONNECTION_ID()` is that identity on MySQL**, and every case here is
+//! written twice for the reason the pool itself gives: `nvs_runtime::pool`
+//! stores a `Box<dyn …>` and knows nothing about a driver, so "the connection
+//! comes back" is a claim about the `Connection` this crate files and unfiles,
+//! and it is a different variant, a different reset and a different socket per
+//! driver. What changes between the twins beyond the query is the marker: § 13's
+//! reset is asked to have removed a **session variable** on MySQL rather than a
+//! temporary table, because there the variable is the one whose absence has a
+//! single spelling — a missing temporary table is an error rather than a value,
+//! and [`handshake`](./handshake.rs) is where that half is asserted.
+//!
 //! # The teardown is `pool::release`, called the way `Ctx` calls it
 //!
 //! `nvs_runtime::Ctx`'s own `Drop` releases each connection a request still
@@ -43,7 +54,8 @@ use std::time::{Duration, Instant};
 use nvs_config::db::PoolBounds;
 use nvs_config::snapshot::Snapshot;
 use nvs_db::matrix::{self, Location, Server};
-use nvs_db::{Connection, Driver, PgConn, PgTarget};
+use nvs_db::mysql::scalar;
+use nvs_db::{Connection, Driver, MySqlConn, MySqlScalar, MySqlTarget, PgConn, PgTarget};
 use nvs_runtime::pool::{self, Ticket};
 
 /// How long the whole of one handshake here may take.
@@ -70,14 +82,35 @@ fn postgres() -> Option<Server> {
     Some(server)
 }
 
-/// A fresh connection to `server`, as a request that found the pool empty opens
-/// one.
-fn open(server: &Server) -> PgConn {
-    let addr: SocketAddr = (server.host.as_str(), server.port)
+/// This process's MySQL server, or `None` because nothing pointed it at one.
+///
+/// [`postgres`]'s twin, and the twinning is what makes the skip rule one rule:
+/// every case in this crate runs on every leg of the matrix, and each asks for
+/// the one driver it can assert about.
+fn mysql() -> Option<Server> {
+    let endpoint = matrix::endpoint()?;
+    if endpoint.driver != Driver::MySql {
+        return None;
+    }
+    let Location::Server(server) = endpoint.location else {
+        unreachable!("SQLite is the only driver reached by path, and this is not it")
+    };
+    Some(server)
+}
+
+/// Where `server` listens, which is the one part of opening a connection that
+/// is not the driver's business.
+fn address(server: &Server) -> SocketAddr {
+    (server.host.as_str(), server.port)
         .to_socket_addrs()
         .expect("the matrix host is an address")
         .next()
-        .expect("the matrix host resolves to somewhere");
+        .expect("the matrix host resolves to somewhere")
+}
+
+/// A fresh connection to `server`, as a request that found the pool empty opens
+/// one.
+fn open(server: &Server) -> PgConn {
     let target = PgTarget {
         host: &server.host,
         user: &server.user,
@@ -90,9 +123,65 @@ fn open(server: &Server) -> PgConn {
         statement_cache: 8,
     };
 
-    PgConn::connect(addr, &target, Some(Instant::now() + DEADLINE))
+    PgConn::connect(address(server), &target, Some(Instant::now() + DEADLINE))
         .expect("the matrix server accepts a handshake verified against its own anchor")
 }
+
+/// [`open`]'s twin on the other driver.
+fn mysql_open(server: &Server) -> MySqlConn {
+    let target = MySqlTarget {
+        host: &server.host,
+        user: &server.user,
+        password: &server.password,
+        database: &server.database,
+        tls_ca_file: Some(server.ca.as_path()),
+        time_zone: 0,
+        statement_cache: 8,
+    };
+
+    MySqlConn::connect(address(server), &target, Some(Instant::now() + DEADLINE))
+        .expect("the matrix server accepts a handshake verified against its own anchor")
+}
+
+/// [`one_value`]'s twin over the binary protocol, where the column arrives
+/// already typed and is read through § 9's own decoder rather than by parsing
+/// the octets here.
+///
+/// Every caller below asks for its answer as `CHAR`, so a statement that
+/// answered anything else panics rather than being rendered into text: what
+/// `CONNECTION_ID()`'s own column type is has nothing to do with what these
+/// cases are asserting, and pinning it here would make them fail for a reason
+/// that is not theirs.
+fn mysql_one_value(conn: &mut MySqlConn, sql: &str) -> Option<String> {
+    let mut rows = conn.query(sql, &[]).expect("the server ran the statement");
+    // Cloned out before the walk begins: the definitions describe every row,
+    // and `next_row` needs the borrow they came from.
+    let columns = rows.columns().to_vec();
+    let mut answer = None;
+    let mut first = true;
+    while let Some(row) = rows.next_row().expect("a row, or the end of the stream") {
+        if first {
+            first = false;
+            let value = row.value(0).expect("the row has a first column");
+            answer = match scalar(&columns[0], value).expect("the column decodes under § 9") {
+                MySqlScalar::Null => None,
+                MySqlScalar::Text(text) => Some(text.to_owned()),
+                other => panic!("the statement answered {other:?}, which is not text"),
+            };
+        }
+    }
+    answer
+}
+
+/// MySQL's `pg_backend_pid()`: the identity of the session on the other end of
+/// this socket, and the whole of what tells one connection from another here.
+const MYSQL_ID: &str = "SELECT CAST(CONNECTION_ID() AS CHAR)";
+
+/// The session state a request leaves behind for § 13's reset to remove, and the
+/// read that says whether it survived — the module doc owns why it is a variable
+/// on this driver and a temporary table on the other.
+const MYSQL_MARK: &str = "SET @novis_pool_marker = 'marker'";
+const MYSQL_MARKER: &str = "SELECT CAST(@novis_pool_marker AS CHAR)";
 
 /// The first column of the first row `sql` returns, `None` for SQL `NULL` and
 /// for a statement that returned no rows at all.
@@ -353,6 +442,165 @@ fn a_release_past_the_idle_bound_closes_the_second_connection() {
 
     // And there is nothing behind it: the second release closed its socket with
     // the request that opened it, exactly as `pool = false` does with every one.
+    let lease = pool::admit(ticket).expect("an unused slot");
+    assert!(
+        pool::take(&lease, now).is_none(),
+        "`idle = 1` keeps one connection under a key, so this request draws nothing",
+    );
+}
+
+/// § 13 on the other driver: the connection one request released is the
+/// connection the next request on that core draws, and it arrives reset.
+///
+/// [`two_requests_on_one_core_share_one_connection`]'s assertion, made of the
+/// session id MySQL answers with. The pool is driver-blind — it files a
+/// `Box<dyn …>` and gives it back — so what this adds over the PostgreSQL case
+/// is everything between that box and a socket: the `Connection::MySql` variant
+/// this crate files, the downcast that unfiles it, and
+/// `MySqlConn::reset`'s `COM_RESET_CONNECTION` standing where the other
+/// driver's `RESET ALL` stands.
+#[test]
+fn two_requests_on_one_core_share_one_mysql_connection() {
+    let Some(server) = mysql() else {
+        return;
+    };
+
+    // One configuration generation, which is what § 13's key is scoped to —
+    // `Ticket::key_for` owns why a reload is two pools rather than one.
+    let generation = Arc::new(Snapshot::default());
+    let ticket = Ticket::for_block(&generation, "main", PoolBounds::DEFAULT);
+
+    // The first request. The pool is empty, so it opens; it leaves a session
+    // variable behind for the reset to remove.
+    let lease = pool::admit(ticket.clone()).expect("an unused key is under `max`");
+    let mut opened = mysql_open(&server);
+    let first = mysql_one_value(&mut opened, MYSQL_ID).expect("a session has an id");
+    mysql_one_value(&mut opened, MYSQL_MARK);
+    assert_eq!(
+        mysql_one_value(&mut opened, MYSQL_MARKER).as_deref(),
+        Some("marker"),
+        "the session state this request is about to leave in the pool",
+    );
+
+    // Teardown: the one call `Ctx`'s `Drop` makes, which consumes the lease and
+    // so gives the key's slot back with it.
+    pool::release(lease, Instant::now(), Box::new(Connection::MySql(opened)));
+
+    // The second request, on this same core: it admits under the same key and
+    // finds a connection warm rather than opening one.
+    let lease = pool::admit(ticket).expect("the released connection gave its slot back");
+    let held = pool::take(&lease, Instant::now()).expect("this core released one under this key");
+    let held = held
+        .into_any()
+        .downcast::<Connection>()
+        .expect("this crate filed it, so this crate's type is what comes back");
+    let Connection::MySql(warm) = *held else {
+        panic!("the driver under test on this leg is MySQL")
+    };
+    // § 13's reset is the acquiring request's and not the releasing one's —
+    // `nvs_runtime::pool`'s *Where the reset is* owns why — and it consumes the
+    // connection, so a reset that failed could not hand one back here at all.
+    let mut warm = warm.reset().expect("a healthy connection resets");
+
+    assert_eq!(
+        mysql_one_value(&mut warm, MYSQL_ID).as_deref(),
+        Some(first.as_str()),
+        "the second request is talking to the first request's session, over its socket",
+    );
+    assert_eq!(
+        mysql_one_value(&mut warm, MYSQL_MARKER),
+        None,
+        "§ 13's reset removed the session state the first request left behind",
+    );
+}
+
+/// § 13 on the other driver: a MySQL connection past its `lifetime` is retired
+/// rather than handed on.
+///
+/// [`a_connection_past_its_lifetime_is_not_the_one_the_next_request_draws`]'s
+/// twin, and the bound is the real 30-minute one for that case's reason: the
+/// clock moves rather than the bound, so this costs no wall time either.
+#[test]
+fn a_mysql_connection_past_its_lifetime_is_not_the_one_the_next_request_draws() {
+    let Some(server) = mysql() else {
+        return;
+    };
+
+    let generation = Arc::new(Snapshot::default());
+    let ticket = Ticket::for_block(&generation, "main", PoolBounds::DEFAULT);
+    let now = Instant::now();
+
+    let lease = pool::admit(ticket.clone()).expect("an unused key is under `max`");
+    let mut opened = mysql_open(&server);
+    let first = mysql_one_value(&mut opened, MYSQL_ID).expect("a session has an id");
+    pool::release(lease, now, Box::new(Connection::MySql(opened)));
+
+    let expired = now + PoolBounds::DEFAULT.lifetime + Duration::from_secs(1);
+    let lease = pool::admit(ticket).expect("the released connection gave its slot back");
+    assert!(
+        pool::take(&lease, expired).is_none(),
+        "a connection past its `lifetime` is retired by the scan that walks it, not handed on",
+    );
+
+    let mut second = mysql_open(&server);
+    let again = mysql_one_value(&mut second, MYSQL_ID).expect("a session has an id");
+    assert_ne!(
+        first, again,
+        "a retired connection is gone, so this request is talking to a session of its own",
+    );
+}
+
+/// § 13 on the other driver: the release past `idle` closes that connection
+/// instead of filing it.
+///
+/// [`a_release_past_the_idle_bound_closes_the_second_connection`]'s twin, and
+/// the same reason for `idle = 1`: one is the smallest bound that still keeps
+/// something, so the survivor has a name and the case can assert *which*
+/// connection the pool kept rather than how many it holds.
+#[test]
+fn a_release_past_the_idle_bound_closes_the_second_mysql_connection() {
+    let Some(server) = mysql() else {
+        return;
+    };
+
+    let generation = Arc::new(Snapshot::default());
+    let ticket = Ticket::for_block(
+        &generation,
+        "main",
+        PoolBounds {
+            idle: 1,
+            ..PoolBounds::DEFAULT
+        },
+    );
+    let now = Instant::now();
+
+    let first_lease = pool::admit(ticket.clone()).expect("an unused key is under `max`");
+    let second_lease = pool::admit(ticket.clone()).expect("two live connections are under `max`");
+    let mut kept = mysql_open(&server);
+    let mut spare = mysql_open(&server);
+    let kept_id = mysql_one_value(&mut kept, MYSQL_ID).expect("a session has an id");
+    let spare_id = mysql_one_value(&mut spare, MYSQL_ID).expect("a session has an id");
+    assert_ne!(kept_id, spare_id, "two connections are two sessions");
+
+    pool::release(first_lease, now, Box::new(Connection::MySql(kept)));
+    pool::release(second_lease, now, Box::new(Connection::MySql(spare)));
+
+    let lease = pool::admit(ticket.clone()).expect("both releases gave their slots back");
+    let held = pool::take(&lease, now).expect("the first release is filed under this key");
+    let held = held
+        .into_any()
+        .downcast::<Connection>()
+        .expect("this crate filed it, so this crate's type is what comes back");
+    let Connection::MySql(warm) = *held else {
+        panic!("the driver under test on this leg is MySQL")
+    };
+    let mut warm = warm.reset().expect("a healthy connection resets");
+    assert_eq!(
+        mysql_one_value(&mut warm, MYSQL_ID).as_deref(),
+        Some(kept_id.as_str()),
+        "the connection kept is the one released under the bound, not the one past it",
+    );
+
     let lease = pool::admit(ticket).expect("an unused slot");
     assert!(
         pool::take(&lease, now).is_none(),
