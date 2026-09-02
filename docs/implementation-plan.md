@@ -48,7 +48,7 @@
 > extended-query state machine and § 13's reset.  § 9's whole type map decodes over it; § 4's count,
 > `lastId` and `executeMany` too. § 7's `BEGIN`/`COMMIT`/`ROLLBACK` is on it, nesting as a
 > `SAVEPOINT` to any depth. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect` over a
-> request-held connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and
+> request-held, memoized connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and
 > `executeMany` — bound in § 5's rewriter's order — and § 18's readers: all six of `Rows`', all
 > fourteen of `Row`, `Write`'s three, and `Db\Column`'s three. `open` waits on a shape-parameter
 > type. **§ 7's `transaction` is on both classes with all three options, retrying either conflict,
