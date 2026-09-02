@@ -4582,6 +4582,19 @@ is why" — is this file.
   the polling task is never scheduled, and polling faster cannot reach it. The job has to park:
   `examples/queue/receipt.nvs` sleeps for a beat and says why. The same reasoning covers any state
   a worker passes through between two of its own statements.
+- **A live-server case over `Core\Queue`'s statements cannot live in `crates/nvs-db`, and the
+  harness will not run it where it can.** The stage 8 item named
+  `crates/nvs-db/tests/queue.rs`, and both halves of that are wrong. ADR 0132 § 1 makes
+  `nvs-stdlib` depend on `nvs-db` and never the reverse, and a test target is part of its crate,
+  so such a case cannot `use nvs_stdlib::queue::CLAIM` at all — while a copy of the statement text
+  kept beside it would assert over the copy rather than over what a `push` issues.
+  `crates/nvs-stdlib/tests/queue.rs` sees both crates and is where it goes. The second half is the
+  one that costs a silent green: `tools/db-matrix.py` ran `cargo test -q -p nvs-db` and nothing
+  else, so a case moved out of that crate skips on every driver leg while the leg still prints
+  `postgres: ok`. It runs a `SUITES` list now. Either way, prove a new live case actually asserted
+  rather than skipped — `docker exec novis-db-postgres-1 psql -U novis -d novis_test -c "select
+  …"` for the row it should have written — because a case that skipped and a case that passed are
+  the same green.
 
 ## Splitting a file that got too big
 

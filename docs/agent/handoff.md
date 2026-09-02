@@ -2,59 +2,59 @@
 
 ## State
 
-**ADR 0084 § 6's dead-letter move is landed and proven against the live container.** An attempt
-that fails on a job whose `attempts` have reached its `max_attempts` is no longer left claimed:
-`crates/nvs-cli/src/worker.rs:463`'s `report` runs `crates/nvs-stdlib/src/queue.rs:376`'s
-`DEAD_LETTER`, one data-modifying CTE that deletes the row out of `nvs_jobs` and inserts it into
-`nvs_dead_jobs` in the same moment — so a job is never in both tables or in neither — keyed on the
-lease exactly as `SUCCEEDED` is. `run` answers with the `nvs_host::Failure` the attempt produced
-rather than a bool, and a refusal (an unresolvable script, a payload that will not cross) crosses
-in that same shape under class `Error`, so the row records a refusal and a throw identically.
+**Stage 8's live half is landed.** `crates/nvs-stdlib/tests/queue.rs` runs ADR 0084 § 1's `INSERT`,
+§ 4's `CLAIM` and § 6's `DEAD_LETTER` against `tests/db/compose.yaml`'s PostgreSQL and asserts three
+of the stage 8 check's six names: the dead-letter move from both sides (the row is in one table
+rather than in neither), the visibility bound from both sides (held inside the window, returned with
+an attempt spent past it), and `skip locked` against a second connection inside an open transaction,
+where `statement_timeout` turns a block into a failure instead of a hung leg.
 
-**The `errors` array is one entry deep, and that is a decision rather than unfinished writing.**
-`nvs_jobs` has no column holding what an earlier attempt threw, so § 6's "every attempt's error" is
-the last attempt's; `MIGRATION`'s doc comment owns the trade and `dead_errors`
-(`crates/nvs-stdlib/src/queue.rs:397`) owns the entry's shape. Every attempt before the last is
-visible only on the worker's standard error, which is the worker module's `## Known gap`.
+**Those cases are in `nvs-stdlib`, not the `nvs-db` the check named, and two things forced it.** ADR
+0132 § 1 fixes the crate edge — a test target in `nvs-db` cannot name `nvs_stdlib::queue` — and
+`tools/db-matrix.py` ran only `-p nvs-db`, so a case anywhere else silently skipped on every driver
+leg. It now runs a `SUITES` list, and stage 8's check is `-p nvs-stdlib` with the reason in its
+comment. The playbook bullet owns the trap.
 
-**`examples/queue.nvs` prints all five of stage 8's frozen lines** against `tests/db/compose.yaml`'s
-PostgreSQL, `claimed 1` included — that line needed `examples/queue/receipt.nvs` to park, for the
-reason the playbook bullet gives.
+**Stage 2's `-p nvs-db` check cannot go green in this goal-run, and its ledger line is not this
+session's failure.** `local_infile_is_refused_and_no_file_is_sent` is MySQL's, and stage 2's own
+comment forbids a second driver until PostgreSQL is green end to end — so that check reports "did
+not run" permanently, and closing the name it currently reports only moves the report to that one.
+The name it reports now, `a_named_connection_is_memoized_for_the_request`, has no test anywhere and
+is `Core\Db::connect`'s, so `nvs-stdlib`'s; it is the third item below.
 
-**Stage 2's `-p nvs-db` check still fails and the analysis is unchanged**: its first two names are
-`crates/nvs-db/tests/handshake.rs` and pass under `python tools/db-matrix.py --driver postgres`;
-`a_named_connection_is_memoized_for_the_request` is `Core\Db::connect`'s and so `nvs-stdlib`'s,
-`local_infile_is_refused_and_no_file_is_sent` is MySQL's with no driver, and
-`the_connection_charset_is_forced_to_utf8` is already asserted inside `pg.rs`. The check's `args`
-is the fix, per the playbook's *a `loop-goal.toml` check can name a test in a crate that cannot
-host it*.
+**The `errors` array is one entry deep by decision, not by omission** — `MIGRATION`'s doc comment
+owns the trade and `crates/nvs-stdlib/src/queue.rs:400`'s `dead_errors` owns the entry's shape.
 
 ## Next group
 
-**Stage 8's `-p nvs-db` names, none of which exists on disk — one new matrix-gated
-`crates/nvs-db/tests/queue.rs` over the statements in `crates/nvs-stdlib/src/queue.rs`, with
-`crates/nvs-db/tests/handshake.rs` as the gating shape. All three slices share that file set.**
+**The file this session created, plus one statement's home — `crates/nvs-stdlib/tests/queue.rs`
+(helpers: `push` at :175, `claim` at :198, `rows`/`one`/`apply` at :128, :156 and :166) and
+`crates/nvs-stdlib/src/queue.rs`. The third item leaves that set for `crates/nvs-stdlib/src/db.rs`.**
 
-- [ ] **An exhausted job reaches the dead-letter table** — ADR 0084 § 6,
-      `docs/agent/loop-goal.toml:2964`. Push with `crates/nvs-stdlib/src/queue.rs:246`, claim with
-      `crates/nvs-stdlib/src/queue.rs:295`, run `crates/nvs-stdlib/src/queue.rs:376` on that lease:
-      assert the row left `nvs_jobs`, kept its `id` and `queue`, and carries `errors`. Gate it like
-      `crates/nvs-db/tests/handshake.rs:43`, which is the only way a test reaches a real `PgConn`.
-- [ ] **The claim is `skip locked`-shaped, and a visibility timeout returns an abandoned job** —
-      § 4, `crates/nvs-stdlib/src/queue.rs:295`. Two connections claiming one due row come back
-      with one job and none; a row whose `claimed_at` predates the cutoff is claimable again.
-- [ ] **An enqueue commits with the write that made it** — § 3,
-      `crates/nvs-stdlib/src/queue.rs:246` inside a `BEGIN`/`ROLLBACK` on one connection: the
-      rolled-back half leaves no job, which is the property the whole ADR is built around.
+- [ ] **An enqueue commits with the write that made it, and a rolled-back write leaves no job** —
+      ADR 0084 § 3, two names in `docs/agent/loop-goal.toml:2964`. Push with
+      `crates/nvs-stdlib/src/queue.rs:249` inside a transaction opened by
+      `crates/nvs-db/src/pg.rs:698`, close it with `crates/nvs-db/src/pg.rs:735`, and count the rows;
+      then the same push under § 7's `ROLLBACK` (`crates/nvs-db/src/pg.rs:739`) and count zero. The
+      property is § 3's whole reason for the design, so assert it over one connection — a second one
+      would be testing a different design.
+- [ ] **Retries are bounded and the backoff is jittered** — § 6,
+      `docs/agent/loop-goal.toml:2969`. `crates/nvs-stdlib/src/queue.rs:434`'s `retry_at` and :457's
+      `jitter` are pure, so this one needs no server: assert the ladder doubles, that it stops at
+      `RETRY_CAP_MS` (:416), and that two ids at the same attempt land on different delays. It
+      belongs in that module's own `#[cfg(test)]` block at :1764, not in the live file.
+- [ ] **A named connection is memoized for the request** — ADR 0067 § 2, the name stage 2's check
+      reports (`docs/agent/loop-goal.toml:2764`). `crates/nvs-runtime/src/ctx.rs:3129`'s
+      `memoized_connection` is the mechanism and `crates/nvs-stdlib/src/db.rs`'s `open_named` is the
+      caller; the check's `args` is `-p nvs-db`, which cannot host it, so the name moves to a
+      `-p nvs-stdlib` check in the same edit — and `docs/agent/goals/5-database.toml` is copied from
+      the live file afterwards.
 
 ## Backlog
 
-- `retries_are_bounded_and_backoff_is_jittered` — stage 8's sixth name, but
-  `a_retry_is_exponential_jittered_and_capped` in `-p nvs-stdlib` already holds the ladder:
-  `docs/agent/loop-goal.toml:2964`.
-- A `-p nvs-cli` test over `report`'s three branches — `crates/nvs-cli/src/worker.rs:463`; there is
-  no seam that builds a `PgConn`, per the playbook.
-- Stage 2's four unwritable names — `docs/agent/loop-goal.toml:2760`.
-- `Core\Queue` reads `nvs_dead_jobs` for depth and `status` only; nothing hands a caller the row —
-  docs/adr/0084-durable-background-jobs.md § 1.
-- `Core\Db::open` still waits on a shape-parameter type — `crates/nvs-stdlib/src/db.rs`'s gaps.
+- `no_driver_path_interpolates_a_value_into_sql` — stage 2's remaining writable name, ADR 0067 § 1.
+- `local_infile_is_refused_and_no_file_is_sent` — MySQL's, and blocked on that driver existing.
+- Stage 5's other three names — `docs/agent/loop-goal.toml`, stage 5's block.
+- `Core\Db::open` and `Core\Queue`'s `limits`/`grants` wait on a shape-parameter type —
+  `crates/nvs-stdlib/src/queue.rs`'s *Known gaps* 1.
+- `$args` is `mixed` and so does not refuse a `secret` — same gap list, 2.
