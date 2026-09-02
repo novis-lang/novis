@@ -217,6 +217,69 @@ pub enum Isolation {
     Serializable,
 }
 
+/// What a result column was *declared* as — spec § 18's `ColumnType`, whose
+/// fourteen cases `Core\Db\Column::type` answers with.
+///
+/// **This is not a summary of what a read of the column produces**, and the two
+/// questions are deliberately different. [ADR 0067
+/// § 9](../../../docs/adr/0067-core-db.md)'s type map decodes a `JSON` column to
+/// a `tainted string` exactly as it decodes a `TEXT` one — it has to, since
+/// MariaDB's `JSON` is `LONGTEXT` with a check constraint and is not detectable
+/// at all — while a *description* of the column can tell them apart wherever the
+/// backend has a type of its own, so [`ColumnType::Json`] is a case here. The
+/// same split is why there is no array case: § 9 reads a PostgreSQL array as
+/// `array<T>` and MySQL's `SET` as `array<string>`, and both describe as
+/// [`ColumnType::Other`].
+///
+/// [`ColumnType::Other`] is the total case rather than a failure. Every column
+/// type § 9's table has no row for — `inet`, a range, `hstore`, geometry,
+/// `interval` — reads as `tainted string` and describes as `Other`, so
+/// `columns()` answers for every column a server can send rather than only for
+/// the ones this enum enumerates.
+///
+/// The variants are the spec's own order, and nothing derives `Ord` from it
+/// because they are a set and not a scale. Each driver classifies its own type
+/// codes; PostgreSQL's is [`crate::PgColumn::column_type`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ColumnType {
+    /// `SMALLINT`/`INTEGER`/`BIGINT`, read as `int`.
+    Int,
+    /// A column § 9 reads as `uint`: an `UNSIGNED` integer on MySQL and
+    /// MariaDB, `oid` on PostgreSQL.
+    Uint,
+    /// `FLOAT`/`REAL`/`DOUBLE`, read as `float`.
+    Float,
+    /// `DECIMAL`/`NUMERIC`/`MONEY`, read as `decimal`.
+    Decimal,
+    /// A text-family column — `CHAR`/`VARCHAR`/`TEXT`/`ENUM` — read as
+    /// `tainted string`.
+    Text,
+    /// `BINARY`/`BLOB`/`BYTEA`, read as `tainted bytes`.
+    Bytes,
+    /// `BOOLEAN`, and `BIT(1)`.
+    Bool,
+    /// `DATE`, read as a `Core\Time\Date`.
+    Date,
+    /// `TIME`, read as a `Core\Time\TimeOfDay`.
+    Time,
+    /// A zone-less `DATETIME`/`TIMESTAMP`, read as a `Core\Time\DateTime` in
+    /// the zone the connection declared.
+    DateTime,
+    /// `TIMESTAMPTZ`, read as a `Core\Time\Instant` because it carries its own
+    /// offset.
+    Instant,
+    /// `UUID`/`uniqueidentifier`, read as a `Core\Uuid`. MySQL's `BINARY(16)`
+    /// is [`ColumnType::Bytes`], as § 9 says.
+    Uuid,
+    /// A column the backend types as JSON. The value still reads as a `tainted
+    /// string` — § 9's rule that JSON is never auto-decoded is untouched — and
+    /// on a backend where JSON is an aliased text type the column is
+    /// [`ColumnType::Text`], because that is what it is.
+    Json,
+    /// Every other column: one with no Novis type of its own, and every array.
+    Other,
+}
+
 /// [ADR 0067 § 8](../../../docs/adr/0067-core-db.md)'s normalised `ErrorKind`,
 /// under a name that cannot be misread as [`std::io::ErrorKind`] in a driver
 /// that spells both in one function.

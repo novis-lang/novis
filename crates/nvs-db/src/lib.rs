@@ -133,8 +133,8 @@ pub mod pg;
 pub mod sql;
 
 pub use conn::{
-    Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn, PgConn, ServerError,
-    SqliteConn, State, TdsConn,
+    ColumnType, Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn, PgConn,
+    ServerError, SqliteConn, State, TdsConn,
 };
 pub use pg::{
     BlockError, CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode,

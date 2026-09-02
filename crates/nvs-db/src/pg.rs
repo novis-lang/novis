@@ -128,7 +128,7 @@ use postgres_protocol::authentication::sasl::{ChannelBinding, ScramSha256};
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
 
-use crate::conn::{DbErrorKind, Driver, Isolation, PgConn, ServerError, State};
+use crate::conn::{ColumnType, DbErrorKind, Driver, Isolation, PgConn, ServerError, State};
 use crate::sql::{Prepared, StatementCache, time_zone_for};
 
 /// The one mechanism this driver authenticates with.
@@ -1160,21 +1160,26 @@ impl PgRow {
 }
 
 /// The `pg_type` OIDs [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s table
-/// names, spelled as PostgreSQL numbers them.
+/// and [`ColumnType`](crate::ColumnType) name, spelled as PostgreSQL numbers
+/// them.
 ///
 /// A built-in type's OID is bootstrap data — fixed in `pg_type.dat` and the
 /// same on every server of every version — which is what makes a literal table
 /// legitimate here rather than a `SELECT` against the catalog at connect time.
 /// `postgres-protocol` is framing and vends none of them.
 ///
-/// Only the types that are **not** text are named. § 9's last row sends
-/// everything without a Novis type to `tainted string` as the server rendered
-/// it, and `text`, `varchar`, `json`, `inet`, `interval` and the rest arrive
-/// there by simply not being in this list.
+/// **Two questions are asked of this table, and the second is why the text
+/// types are in it.** [`super::PgColumn::scalar`] asks what a body decodes to,
+/// and for that a type is either named here or reaches § 9's last row as text.
+/// [`super::PgColumn::column_type`] asks what the column *is*, and there
+/// `varchar` is `ColumnType::Text` while `inet` is `ColumnType::Other` — so the
+/// text family and the two JSON types are named as well, though no decoder
+/// branches on them. What stays absent is what both questions answer the same
+/// way: `xml`, `inet`, ranges, `hstore`, geometry and `interval` are `tainted
+/// string` and `Other` by simply not being in this list.
 ///
-/// The array types are the one place a text type is named anyway, in
-/// [`element`]: `text[]` is `array<string>`, so the element OID has to be
-/// answerable even where the element itself reaches that last row.
+/// [`element`] names an array type per element type for a third reason, which
+/// its own doc gives.
 mod oid {
     use postgres_protocol::Oid;
 
@@ -1182,20 +1187,33 @@ mod oid {
     pub(super) const BOOL: Oid = 16;
     /// `BYTEA`.
     pub(super) const BYTEA: Oid = 17;
+    /// `"char"`, the one-byte internal text type the catalog uses.
+    pub(super) const CHAR: Oid = 18;
+    /// `name`, the internal text type an identifier column has.
+    pub(super) const NAME: Oid = 19;
     /// `BIGINT`.
     pub(super) const INT8: Oid = 20;
     /// `SMALLINT`.
     pub(super) const INT2: Oid = 21;
     /// `INTEGER`.
     pub(super) const INT4: Oid = 23;
+    /// `TEXT`.
+    pub(super) const TEXT: Oid = 25;
     /// `oid`, the only unsigned integer a query is likely to select.
     pub(super) const OID: Oid = 26;
+    /// `json`, which decodes as text and describes as `ColumnType::Json` — the
+    /// module doc's second question, and the whole reason it is named.
+    pub(super) const JSON: Oid = 114;
     /// `REAL`.
     pub(super) const FLOAT4: Oid = 700;
     /// `DOUBLE PRECISION`.
     pub(super) const FLOAT8: Oid = 701;
     /// `money`.
     pub(super) const MONEY: Oid = 790;
+    /// `CHAR(n)`, which PostgreSQL types as `bpchar` — blank-padded.
+    pub(super) const BPCHAR: Oid = 1042;
+    /// `VARCHAR(n)`.
+    pub(super) const VARCHAR: Oid = 1043;
     /// `DATE`.
     pub(super) const DATE: Oid = 1082;
     /// `TIME`, which is `time without time zone`. `timetz` is a different OID
@@ -1213,6 +1231,8 @@ mod oid {
     pub(super) const NUMERIC: Oid = 1700;
     /// `UUID`.
     pub(super) const UUID: Oid = 2950;
+    /// `jsonb`, named for the reason [`JSON`] is.
+    pub(super) const JSONB: Oid = 3802;
 
     /// The element type of the array type `oid` names, or `None` for an OID
     /// that is not an array this driver knows.
@@ -1233,11 +1253,11 @@ mod oid {
     pub(super) fn element(oid: Oid) -> Option<Oid> {
         Some(match oid {
             // `xml[]`. An element OID written as a literal is one this module
-            // has no constant for, because § 9 sends the type itself to
-            // `tainted string`.
+            // has no constant for: nothing asks about `xml` on its own, which
+            // is text as a value and `Other` as a description alike.
             143 => 142,
             // `json[]`.
-            199 => 114,
+            199 => JSON,
             // `cidr[]`.
             651 => 650,
             791 => MONEY,
@@ -1245,15 +1265,15 @@ mod oid {
             1001 => BYTEA,
             // `"char"[]` and `name[]`, the two internal text types a query
             // against the catalog selects without meaning to.
-            1002 => 18,
-            1003 => 19,
+            1002 => CHAR,
+            1003 => NAME,
             1005 => INT2,
             1007 => INT4,
             // `text[]`.
-            1009 => 25,
+            1009 => TEXT,
             // `bpchar[]` and `varchar[]`.
-            1014 => 1042,
-            1015 => 1043,
+            1014 => BPCHAR,
+            1015 => VARCHAR,
             1016 => INT8,
             1021 => FLOAT4,
             1022 => FLOAT8,
@@ -1274,7 +1294,7 @@ mod oid {
             1563 => VARBIT,
             2951 => UUID,
             // `jsonb[]`.
-            3807 => 3802,
+            3807 => JSONB,
             _ => return None,
         })
     }
@@ -1624,6 +1644,47 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
 }
 
 impl PgColumn {
+    /// The column's declared type, as spec § 18's `ColumnType` names it — what
+    /// `Core\Db\Rows::columns` answers for this column.
+    ///
+    /// **This describes the column rather than summarising [`Self::scalar`]**,
+    /// and [`ColumnType`]'s own doc owns why the two differ. What follows here
+    /// is that it reads no body at all: a column whose every row is NULL still
+    /// has a type, which is most of why `columns()` exists. The one thing it
+    /// reads besides the OID is [ADR 0067
+    /// § 9](../../../docs/adr/0067-core-db.md)'s `BIT(1)` row, for the reason
+    /// [`Self::scalar`] reads the modifier there.
+    ///
+    /// A PostgreSQL `ENUM` is the one member of § 9's text family this answers
+    /// [`ColumnType::Other`] for rather than [`ColumnType::Text`]: an enum
+    /// type's OID is created with the type and is not bootstrap data, so the
+    /// only way to recognise one is a catalog lookup per connection — which is
+    /// exactly what the [`oid`] table exists to avoid, and `Other` is a true
+    /// answer rather than a wrong one.
+    #[must_use]
+    pub fn column_type(&self) -> ColumnType {
+        match self.type_oid {
+            oid::INT2 | oid::INT4 | oid::INT8 => ColumnType::Int,
+            oid::OID => ColumnType::Uint,
+            oid::FLOAT4 | oid::FLOAT8 => ColumnType::Float,
+            oid::NUMERIC | oid::MONEY => ColumnType::Decimal,
+            oid::CHAR | oid::NAME | oid::TEXT | oid::BPCHAR | oid::VARCHAR => ColumnType::Text,
+            oid::BYTEA => ColumnType::Bytes,
+            oid::BOOL => ColumnType::Bool,
+            // § 9's `BIT(1)` row, and the width is the only thing that says so.
+            oid::BIT | oid::VARBIT if self.type_modifier == 1 => ColumnType::Bool,
+            oid::DATE => ColumnType::Date,
+            oid::TIME => ColumnType::Time,
+            oid::TIMESTAMP => ColumnType::DateTime,
+            oid::TIMESTAMPTZ => ColumnType::Instant,
+            oid::UUID => ColumnType::Uuid,
+            oid::JSON | oid::JSONB => ColumnType::Json,
+            // Every array, every `BIT(n>1)`, and every type with no Novis type
+            // of its own: § 9's last row, which `scalar` reads as text.
+            _ => ColumnType::Other,
+        }
+    }
+
     /// This column's `body` as the Novis value [ADR 0067
     /// § 9](../../../docs/adr/0067-core-db.md)'s table names, with `None` — SQL
     /// `NULL` — as `null`, which is why every column reads back as `?T`.
@@ -3292,7 +3353,7 @@ mod tests {
         affected_rows, authenticate, execute_many, oid, posix_time_zone, request_tls,
         start_statement,
     };
-    use crate::conn::{DbErrorKind, Driver, Isolation, ServerError};
+    use crate::conn::{ColumnType, DbErrorKind, Driver, Isolation, ServerError};
     use crate::sql::StatementCache;
 
     /// A cache that never caches, so a test about the wire asserts the unnamed
@@ -4964,6 +5025,66 @@ mod tests {
             type_oid,
             type_modifier,
         }
+    }
+
+    /// Every OID this driver names, described as the `ColumnType` spec § 18
+    /// gives it, plus the two directions in which a description is not what a
+    /// decode of the same column says.
+    #[test]
+    fn a_column_type_describes_the_column_where_a_decode_answers_for_the_value() {
+        for (type_oid, expected) in [
+            (oid::INT2, ColumnType::Int),
+            (oid::INT4, ColumnType::Int),
+            (oid::INT8, ColumnType::Int),
+            (oid::OID, ColumnType::Uint),
+            (oid::FLOAT4, ColumnType::Float),
+            (oid::FLOAT8, ColumnType::Float),
+            (oid::NUMERIC, ColumnType::Decimal),
+            (oid::MONEY, ColumnType::Decimal),
+            (oid::CHAR, ColumnType::Text),
+            (oid::NAME, ColumnType::Text),
+            (oid::TEXT, ColumnType::Text),
+            (oid::BPCHAR, ColumnType::Text),
+            (oid::VARCHAR, ColumnType::Text),
+            (oid::BYTEA, ColumnType::Bytes),
+            (oid::BOOL, ColumnType::Bool),
+            (oid::DATE, ColumnType::Date),
+            (oid::TIME, ColumnType::Time),
+            (oid::TIMESTAMP, ColumnType::DateTime),
+            (oid::TIMESTAMPTZ, ColumnType::Instant),
+            (oid::UUID, ColumnType::Uuid),
+            (oid::JSON, ColumnType::Json),
+            (oid::JSONB, ColumnType::Json),
+        ] {
+            assert_eq!(
+                column(type_oid, -1).column_type(),
+                expected,
+                "OID {type_oid} described"
+            );
+        }
+
+        // § 9's `BIT(1)` row is a `bool` and every wider bit string is text,
+        // and the description reads the modifier for exactly that reason.
+        for type_oid in [oid::BIT, oid::VARBIT] {
+            assert_eq!(column(type_oid, 1).column_type(), ColumnType::Bool);
+            assert_eq!(column(type_oid, 8).column_type(), ColumnType::Other);
+        }
+
+        // One direction: a description no decode could have produced, because
+        // both of these decode as the text § 9 leaves them at.
+        for type_oid in [oid::JSON, oid::JSONB] {
+            let json = column(type_oid, -1);
+            assert_eq!(json.column_type(), ColumnType::Json);
+            assert_eq!(
+                rendered(&json.scalar(Some(&b"{}"[..])).expect("json decoded")),
+                "text {}"
+            );
+        }
+
+        // The other: `text[]` decodes to an array and `inet` to text, and both
+        // describe as `Other` — the enum has no array case, by § 18's design.
+        assert_eq!(column(1009, -1).column_type(), ColumnType::Other);
+        assert_eq!(column(869, -1).column_type(), ColumnType::Other);
     }
 
     /// What a decoded column is, rendered so a whole table of § 9's rows fits
