@@ -83,8 +83,12 @@
 //!    those variants have no connect path behind them. Past the handshake the
 //!    list is shorter than that: [`postgres_of`] is what a statement goes
 //!    through, so a MySQL connection opens, pools and resets, and refuses
-//!    every member that would run something on it. § 9's own half of that path
-//!    is already here — [`mysql_column_value`] and [`mysql_described_columns`]
+//!    every member that would run something on it. Everything *before* the
+//!    send already follows the driver — [`rendering_of`] pairs § 5's dialect
+//!    with § 9's encoder off the connection's own [`nvs_db::Driver`], so a
+//!    MySQL statement is rewritten to `?` and bound as MySQL reads a
+//!    parameter, and it is the send that has nowhere to go. § 9's reading half
+//!    is here too — [`mysql_column_value`] and [`mysql_described_columns`]
 //!    read a MySQL row and its description — and both carry an
 //!    `#[expect(dead_code)]` that the branch calling them takes off by itself.
 //! 3. **Only the two drivers that open are pooled.** ADR 0067 § 13's pool is
@@ -3061,6 +3065,13 @@ struct Statement {
 /// Everything ADR 0067 §§ 4 and 5 do to a call before it reaches the socket:
 /// § 18's `$params` rule, the rewrite, and the encoding.
 ///
+/// **Both halves are the receiver's own driver's**, which is the one thing a
+/// caller cannot state: [`rendering_of`] reads it off the connection filed
+/// under the receiver's key, and § 5's rewrite and § 9's encoding follow it
+/// together. The context is borrowed for that lookup alone and released before
+/// the caller reaches [`postgres_of`], so a member still binds and sends inside
+/// one borrow each.
+///
 /// Both spellings of the member's name are passed because two things want
 /// different ones: `member` is the bare name [`connection_of`] builds
 /// `Class::member` out of, and `named` is the whole spelling the messages here
@@ -3069,12 +3080,40 @@ struct Statement {
 ///
 /// # Errors
 ///
-/// A thrown `LogicError` for a `$params` keyed both ways at once, and whatever
+/// [`rendering_of`]'s throw for a driver with no statement path yet, a thrown
+/// `LogicError` for a `$params` keyed both ways at once, and whatever
 /// [`statement_failure`] makes of the rewriter's and the encoder's refusals. A
 /// [`Fault::fatal`] for an argument of the wrong tag, which the registry row
 /// refuses first.
-fn statement_of(args: &[Value], member: &str, named: &str) -> Result<Statement, Fault> {
+fn statement_of(
+    ctx: &mut nvs_runtime::Ctx,
+    args: &[Value],
+    member: &str,
+    named: &str,
+) -> Result<Statement, Fault> {
     let (key, block) = handle_of(args[0], member)?;
+    let (dialect, encode) = rendering_of(ctx, key, &block, named)?;
+    statement_in(dialect, encode, key, block, args, named)
+}
+
+/// [`statement_of`] with the connection already asked about, so a batch asks
+/// once for every set it binds rather than once per set.
+///
+/// The key and the block are passed in for that reason and not carried back out
+/// of [`handle_of`] again: they are the receiver's, and every set of a batch has
+/// the same one.
+///
+/// # Errors
+///
+/// [`statement_of`]'s, less the lookup it has already done.
+fn statement_in(
+    dialect: nvs_db::Dialect,
+    encode: Encoder,
+    key: u64,
+    block: Value,
+    args: &[Value],
+    named: &str,
+) -> Result<Statement, Fault> {
     // Unreachable from source: parameter 0 is a `string` in `CONNECTION`
     // above, so a non-text argument is refused at `E0401` first — the same
     // judgement `Core\Db::quoteIdentifier`'s guard states.
@@ -3140,7 +3179,7 @@ fn statement_of(args: &[Value], member: &str, named: &str) -> Result<Statement, 
     } else {
         nvs_db::Params::Named(&keyed)
     };
-    let rewritten = nvs_db::rewrite(sql, spelling, nvs_db::Dialect::PostgreSql)
+    let rewritten = nvs_db::rewrite(sql, spelling, dialect)
         .map_err(|refused| statement_failure(named, &block, Some(sql), &refused))?;
 
     let bounds: Vec<&Bound> = if keys.is_empty() {
@@ -3151,7 +3190,7 @@ fn statement_of(args: &[Value], member: &str, named: &str) -> Result<Statement, 
     let mut rendered: Vec<Option<Vec<u8>>> = Vec::with_capacity(rewritten.binds.len());
     for source in &rewritten.binds {
         rendered.push(
-            nvs_db::encode(bounds[source.arg].values[source.element])
+            encode(bounds[source.arg].values[source.element])
                 .map_err(|refused| statement_failure(named, &block, Some(sql), &refused))?,
         );
     }
@@ -3206,10 +3245,19 @@ struct Batch {
 /// # Errors
 ///
 /// A thrown `LogicError` for two sets that do not rewrite alike, plus whatever
-/// [`statement_of`] throws for any one of them. A [`Fault::fatal`] for an
-/// argument of the wrong tag, which the registry row refuses first.
-fn batch_of(args: &[Value], member: &str, named: &str) -> Result<Batch, Fault> {
+/// [`statement_in`] throws for any one of them and [`rendering_of`]'s throw for
+/// a driver with no statement path yet. A [`Fault::fatal`] for an argument of
+/// the wrong tag, which the registry row refuses first.
+fn batch_of(
+    ctx: &mut nvs_runtime::Ctx,
+    args: &[Value],
+    member: &str,
+    named: &str,
+) -> Result<Batch, Fault> {
     let (key, block) = handle_of(args[0], member)?;
+    // Once for the batch: every set binds to the same connection, so asking per
+    // set would be the same answer read `$sets` times.
+    let (dialect, encode) = rendering_of(ctx, key, &block, named)?;
     // Unreachable from source for both, as in `statement_of`: the row declares
     // a `string` and an `array<array<mixed>>`, so `E0401` refuses either tag
     // first.
@@ -3247,7 +3295,7 @@ fn batch_of(args: &[Value], member: &str, named: &str) -> Result<Batch, Fault> {
                 set.tag_byte()
             )));
         }
-        let one = statement_of(&[args[0], args[1], set], member, named)?;
+        let one = statement_in(dialect, encode, key, block, &[args[0], args[1], set], named)?;
         match &text {
             None => text = Some(one.sql),
             Some(first) if *first == one.sql => {}
@@ -3407,6 +3455,102 @@ fn wait_for_slot(
     }
 }
 
+/// How one driver's bound values are rendered — [`nvs_db::encode`] for
+/// PostgreSQL, [`nvs_db::mysql::encode`] for the two that speak MySQL's
+/// protocol.
+///
+/// A pointer rather than a `match` at the two call sites because § 5's dialect
+/// and § 9's encoding are **one** choice: a statement rewritten for one
+/// protocol and bound for another is refused by nothing here — `?` and `$1` are
+/// both valid text, `t` and `1` are both valid bytes — and fails at the server
+/// or, worse, binds the wrong value. [`rendering_for`] is the single place the
+/// pair is made.
+type Encoder = fn(Value) -> std::io::Result<Option<Vec<u8>>>;
+
+/// ADR 0067 § 5's dialect and § 9's encoder for one driver, or `None` for a
+/// driver with no statement path yet — this module's known gap 2.
+///
+/// Pure and separate from [`rendering_of`] so the pairing is testable with no
+/// connection in hand: `a_driver_is_bound_in_its_own_dialect` is what holds it
+/// to [`nvs_db::Dialect::of`], which is the rewriter's own answer for the same
+/// question.
+///
+/// **MariaDB renders as MySQL does, and that is not a shortcut**: the encoder
+/// follows the *protocol*, which the two share whole, where
+/// [`nvs_db::Driver`] separates them for the auth plugins and error tables ADR
+/// 0067 keeps them apart for. `nvs_db::Dialect` has already made the same call
+/// for the text.
+fn rendering_for(driver: nvs_db::Driver) -> Option<(nvs_db::Dialect, Encoder)> {
+    let encode: Encoder = match driver {
+        nvs_db::Driver::Postgres => nvs_db::encode,
+        nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => nvs_db::mysql::encode,
+        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => return None,
+    };
+    Some((nvs_db::Dialect::of(driver), encode))
+}
+
+/// [`rendering_for`] the connection filed under `key`, which is how a statement
+/// is written in its own connection's dialect rather than in one this module
+/// picked.
+///
+/// It is asked **before** anything is rewritten, where [`postgres_of`] is asked
+/// after everything is bound — the two refusals therefore name different
+/// halves of gap 2, and a driver that can bind but not send says so at the
+/// send.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a driver nothing binds for yet, and
+/// [`filed_connection`]'s [`Fault::fatal`]s for a table this crate filled
+/// wrongly.
+fn rendering_of(
+    ctx: &mut nvs_runtime::Ctx,
+    key: u64,
+    block: &Value,
+    named: &str,
+) -> Result<(nvs_db::Dialect, Encoder), Fault> {
+    let driver = filed_connection(ctx, key, named)?.driver();
+    rendering_for(driver).ok_or_else(|| {
+        Fault::thrown(format!(
+            "{named}: `[db.{}]` is a {driver:?} connection, and no statement is written in its \
+             dialect yet — this module's known gap 2 is the list",
+            block.as_text().unwrap_or("?")
+        ))
+    })
+}
+
+/// The `nvs-db` connection filed under `key`, whichever driver it is.
+///
+/// The one downcast in this module: [`postgres_of`] narrows it further and
+/// [`rendering_of`] only reads its driver, and either written on its own is a
+/// second place holding the two `Fault::fatal`s that say the request's own
+/// table is wrong.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a key the request's table does not hold, and another
+/// for an entry that is not this crate's — both this crate's paste error rather
+/// than a program's.
+fn filed_connection<'a>(
+    ctx: &'a mut nvs_runtime::Ctx,
+    key: u64,
+    named: &str,
+) -> Result<&'a mut nvs_db::Connection, Fault> {
+    let filed = ctx.open_connection_mut(key).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{named}: no connection is filed under the key {key}"
+        ))
+    })?;
+    filed
+        .as_any_mut()
+        .downcast_mut::<nvs_db::Connection>()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{named}: the connection filed under the key {key} is not `nvs-db`'s"
+            ))
+        })
+}
+
 /// The connection a [`Statement`] or a [`Batch`] names, as the one driver that
 /// runs a statement so far.
 ///
@@ -3426,19 +3570,7 @@ fn postgres_of<'a>(
     block: &Value,
     named: &str,
 ) -> Result<&'a mut nvs_db::PgConn, Fault> {
-    let filed = ctx.open_connection_mut(key).ok_or_else(|| {
-        Fault::fatal(format!(
-            "{named}: no connection is filed under the key {key}"
-        ))
-    })?;
-    let connection = filed
-        .as_any_mut()
-        .downcast_mut::<nvs_db::Connection>()
-        .ok_or_else(|| {
-            Fault::fatal(format!(
-                "{named}: the connection filed under the key {key} is not `nvs-db`'s"
-            ))
-        })?;
+    let connection = filed_connection(ctx, key, named)?;
     let driver = connection.driver();
     let nvs_db::Connection::Postgres(postgres) = connection else {
         return Err(Fault::thrown(format!(
@@ -3519,7 +3651,7 @@ fn queried_rows(
     member: &str,
     named: &str,
 ) -> Result<Answered, Fault> {
-    let statement = statement_of(args, member, named)?;
+    let statement = statement_of(ctx, args, member, named)?;
     // § 18's `$sql` argument read a second time rather than [`Statement::sql`]:
     // what a refusal names is the text the program wrote, where that field is
     // § 5's rewrite of it. The tag is already known good — `statement_of`
@@ -4101,7 +4233,7 @@ nvs_runtime::nvs_helper! {
     /// `changed` keeps the absence, which is the only thing the two say
     /// differently on this driver.
     fn nvs_core_db_connection_execute(ctx, args: [3]) {
-        let statement = statement_of(args, "execute", EXECUTE)?;
+        let statement = statement_of(ctx, args, "execute", EXECUTE)?;
         // As `query`, and for the reason given there: a refusal names the
         // caller's own text rather than the rewrite of it that reached the wire.
         let source = args[1].as_text();
@@ -4174,7 +4306,7 @@ nvs_runtime::nvs_helper! {
     /// part way through leaves the writes before it standing, and `transaction`
     /// is the member that asks for all or nothing.
     fn nvs_core_db_connection_execute_many(ctx, args: [3]) {
-        let batch = batch_of(args, "executeMany", EXECUTE_MANY)?;
+        let batch = batch_of(ctx, args, "executeMany", EXECUTE_MANY)?;
         // Two hops rather than one: the driver borrows each set as a slice, so
         // the per-set `Vec` has to outlive the slice taken of it.
         let sending: Vec<Vec<Option<&[u8]>>> = batch
@@ -5627,6 +5759,62 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 mod tests {
     use super::*;
     use nvs_runtime::{Ctx, OutputSink, call};
+
+    /// ADR 0067 § 5's rewrite and § 9's encoding are **one** choice per driver,
+    /// and the pairing is what a statement bound half one way fails on — at the
+    /// server if it is lucky, since `?` and `$1` are both valid text and `t` and
+    /// `1` are both valid bytes.
+    ///
+    /// The dialect is asserted against [`nvs_db::Dialect::of`] rather than
+    /// against a list spelled out here, because that is the rewriter's own
+    /// answer to the same question and a second list is the thing that drifts.
+    /// `bool` is the value the two encoders first disagree about, so it is what
+    /// catches a pair put together the wrong way round.
+    #[test]
+    fn a_driver_is_bound_in_its_own_dialect() {
+        for driver in nvs_db::Driver::ALL {
+            let Some((dialect, encode)) = rendering_for(driver) else {
+                continue;
+            };
+            assert_eq!(
+                dialect,
+                nvs_db::Dialect::of(driver),
+                "{driver:?} rewrites in the dialect `Dialect::of` gives it, or in none at all"
+            );
+            let rendered = encode(Value::bool(true)).expect("`true` renders on every driver");
+            let expected: &[u8] = if dialect == nvs_db::Dialect::PostgreSql {
+                b"t"
+            } else {
+                b"1"
+            };
+            assert_eq!(
+                rendered.as_deref(),
+                Some(expected),
+                "{driver:?} is paired with another protocol's encoder"
+            );
+        }
+    }
+
+    /// The roster [`rendering_for`] answers for at all, pinned whole — the test
+    /// above says nothing about a driver it answers `None` for, and that half is
+    /// this module's known gap 2.
+    #[test]
+    fn only_a_driver_with_a_statement_path_is_bound() {
+        let bound: Vec<nvs_db::Driver> = nvs_db::Driver::ALL
+            .into_iter()
+            .filter(|driver| rendering_for(*driver).is_some())
+            .collect();
+        assert_eq!(
+            bound,
+            vec![
+                nvs_db::Driver::Postgres,
+                nvs_db::Driver::MySql,
+                nvs_db::Driver::MariaDb,
+            ],
+            "this module's known gap 2 names the drivers a statement is written for, and a driver \
+             that gains an encoder belongs in both places"
+        );
+    }
 
     /// The two halves of one enum name the same fourteen cases —
     /// [`COLUMN_TYPE`]'s doc is where "the wire one is authoritative" is
