@@ -55,6 +55,7 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::time::Instant;
 
+use mysql_common::constants::MariadbCapabilities;
 use mysql_common::packets::AuthPlugin;
 use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
@@ -85,11 +86,37 @@ pub const CLIENT_ED25519: &str = "client_ed25519";
 /// MariaDB 11.6's Parsec, the third plugin this driver answers.
 pub const PARSEC: &str = "parsec";
 
-/// This module's server: MariaDB's name on a [`crate::ServerError`], and
-/// MariaDB's [`kind_of`].
+/// What this driver claims in the handshake's second capability word — the one
+/// MariaDB carved out of MySQL's trailing filler, because its own bits start at
+/// 32 and the first word is 32 bits wide.
+///
+/// One bit today: `MARIADB_CLIENT_STMT_BULK_OPERATIONS`, bit 34, which is the
+/// server's permission to send `COM_STMT_BULK_EXECUTE` — one command carrying
+/// every parameter set of an `executeMany` instead of one execute per set.
+/// Claiming it costs a connection nothing and obliges it to nothing: it widens
+/// what this client *may* send and changes no packet the server sends back, so
+/// it is claimed at the handshake and spent later or not at all.
+///
+/// **The four bits not here are absences with reasons**, in the shape
+/// `crate::mysql`'s `CLIENT_CAPABILITIES` uses for the first word.
+/// `MARIADB_CLIENT_PROGRESS` asks the server to interleave progress packets
+/// into a result stream, which is a second packet shape on the row path for a
+/// report nothing in `Core\Db` surfaces. `MARIADB_CLIENT_EXTENDED_METADATA` and
+/// `MARIADB_CLIENT_CACHE_METADATA` are decisions about column metadata, and
+/// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s type map is read off the
+/// metadata MySQL's own framing already carries — a driver that asked for a
+/// wider or a suppressed form would be decoding two layouts to answer one
+/// table. `MARIADB_CLIENT_BULK_UNIT_RESULTS` changes what a bulk command
+/// answers with, and § 4's `executeMany` reports one sum.
+pub(crate) const EXTENDED_CAPABILITIES: MariadbCapabilities =
+    MariadbCapabilities::MARIADB_CLIENT_STMT_BULK_OPERATIONS;
+
+/// This module's server: MariaDB's name on a [`crate::ServerError`], MariaDB's
+/// [`kind_of`], and the extended word only MariaDB has.
 pub(crate) const MARIADB: Backend = Backend {
     name: "mariadb",
     kind_of,
+    extended: EXTENDED_CAPABILITIES,
 };
 
 /// The [ADR 0067 § 8](../../../docs/adr/0067-core-db.md) kind a MariaDB error
@@ -156,7 +183,7 @@ fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
 /// # Errors
 ///
 /// `ConnectionRefused`, naming what was asked for and what this driver answers.
-fn plugin_or_refuse(name: &[u8]) -> io::Result<AuthPlugin<'static>> {
+pub(crate) fn plugin_or_refuse(name: &[u8]) -> io::Result<AuthPlugin<'static>> {
     match AuthPlugin::from_bytes(name) {
         AuthPlugin::MysqlNativePassword => Ok(AuthPlugin::MysqlNativePassword),
         AuthPlugin::Ed25519 => Ok(AuthPlugin::Ed25519),

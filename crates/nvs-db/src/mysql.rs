@@ -146,7 +146,7 @@ use mysql_common::auth::plugins::{
 };
 use mysql_common::collations::CollationId;
 use mysql_common::constants::{
-    CapabilityFlags, ColumnFlags, ColumnType as MyColumnType, StatusFlags,
+    CapabilityFlags, ColumnFlags, ColumnType as MyColumnType, MariadbCapabilities, StatusFlags,
 };
 use mysql_common::io::ParseBuf;
 use mysql_common::packets::{
@@ -449,12 +449,21 @@ pub(crate) struct Backend {
     /// server's vendor codes. MariaDB's is not MySQL's, which is § 8's own
     /// sentence and the reason this field is a function rather than a bool.
     pub(crate) kind_of: fn(u16, &str) -> DbErrorKind,
+    /// The extended capability word this driver claims, which is the *only*
+    /// place either handshake packet's last four reserved bytes get a value —
+    /// see [`agreed_extended`] for what those bytes are and why a 32-bit
+    /// [`CapabilityFlags`] cannot hold them.
+    ///
+    /// MySQL's is empty and has to be: the bits are MariaDB's, and a MySQL
+    /// server reads that field as filler it expects to be zero.
+    pub(crate) extended: MariadbCapabilities,
 }
 
 /// This module's server: MySQL's name and [`kind_of`], MySQL's table.
 pub(crate) const MYSQL: Backend = Backend {
     name: "mysql",
     kind_of,
+    extended: MariadbCapabilities::empty(),
 };
 
 /// A MySQL connection's stream, the bytes read off it that are not yet a whole
@@ -644,6 +653,10 @@ pub(crate) struct Greeting {
     /// The capability bits the server claims, already checked against
     /// [`REQUIRED_CAPABILITIES`].
     capabilities: CapabilityFlags,
+    /// The extended capability bits the server claims, which are MariaDB's own
+    /// and which a MySQL server leaves as the zero filler they sit in —
+    /// [`agreed_extended`] is the one reader.
+    extended: MariadbCapabilities,
     /// The challenge every plugin's response is derived from.
     nonce: Vec<u8>,
     /// The plugin the server wants, as it spelled it.
@@ -689,6 +702,7 @@ pub(crate) fn read_greeting<S: Read + Write>(wire: &mut Wire<S>) -> io::Result<G
 
     Ok(Greeting {
         capabilities,
+        extended: handshake.mariadb_ext_capabilities(),
         nonce: handshake.nonce(),
         plugin: handshake
             .auth_plugin_name_ref()
@@ -696,6 +710,36 @@ pub(crate) fn read_greeting<S: Read + Write>(wire: &mut Wire<S>) -> io::Result<G
             .to_vec(),
         server_version: handshake.server_version_parsed().unwrap_or((5, 5, 3)),
     })
+}
+
+/// The extended capabilities this driver and this server both have, which is
+/// what goes in the last four of either handshake packet's reserved bytes.
+///
+/// **A second capability word exists because the first one filled up.**
+/// MariaDB's own bits start at 32 and `CapabilityFlags` is `u32`, so
+/// [`CLIENT_CAPABILITIES`] cannot name one however it is written:
+/// `MARIADB_CLIENT_STMT_BULK_OPERATIONS` is bit 34. MariaDB's answer was to
+/// redefine the handshake's trailing filler — 23 bytes in MySQL's layout, 19
+/// bytes plus a little-endian `u32` in MariaDB's — and `mysql_common` models
+/// exactly that, so neither packet is composed by hand here: `SslRequest` and
+/// `HandshakeResponse` each take the word and serialize it where the filler's
+/// last four bytes were. The reply's own builder carrying it is the reason this
+/// slice is a `.with_…` call rather than a patched buffer.
+///
+/// **The intersection is the whole gate, and it needs no test for which server
+/// this is.** A MySQL server sends zeros in those bytes because to it they are
+/// filler, so its greeting offers nothing and nothing is claimed back at it;
+/// [`MYSQL`]'s own [`Backend::extended`] is empty for the same reason from the
+/// other side, so the two independently agree on zero. What a driver claims is
+/// therefore a fact about the driver, and what it gets is a fact about the pair.
+///
+/// It is sent **twice** — once in the `SSLRequest` and once in the handshake
+/// response — because those packets share a header and the server parses the
+/// word out of whichever it is reading. libmariadb writes it in both, and a
+/// client that claimed a capability in the cleartext half and dropped it in the
+/// encrypted one would be describing itself two ways to one server.
+pub(crate) fn agreed_extended(backend: &Backend, greeting: &Greeting) -> MariadbCapabilities {
+    backend.extended.intersection(greeting.extended)
 }
 
 /// Writes the `SSLRequest` that turns the rest of this socket into TLS records.
@@ -716,6 +760,7 @@ pub(crate) fn request_tls<S: Read + Write>(
         MAX_PACKET,
         COLLATION,
     )
+    .with_mariadb_capabilities(agreed_extended(wire.backend, greeting))
     .serialize(&mut payload);
     wire.send(&payload)
 }
@@ -807,7 +852,9 @@ impl AuthContextTrait for AuthContext<'_> {
 /// Sends the handshake response and answers the server until it says `OK`.
 ///
 /// Returns the capability set the two ends agreed on, which every later packet
-/// on this connection is decoded against.
+/// on this connection is decoded against. The *extended* half is not returned
+/// with it and does not need to be: [`agreed_extended`] is a function of the
+/// backend and the greeting, both of which a caller that wants it still holds.
 ///
 /// # Errors
 ///
@@ -845,6 +892,7 @@ pub(crate) fn authenticate<S: Read + Write>(
         None,
         MAX_PACKET,
     )
+    .with_mariadb_ext_capabilities(agreed_extended(wire.backend, greeting))
     .serialize(&mut payload);
     wire.send(&payload)?;
 
@@ -3081,15 +3129,21 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        AuthContext, CLIENT_CAPABILITIES, COLLATION, COM_QUERY, DbErrorKind, Greeting, Login,
-        MYSQL, MySqlTarget, MyValue, NvsStr, Prepared, ServerError, State, Value, Wire,
+        AuthContext, Backend, CLIENT_CAPABILITIES, COLLATION, COM_QUERY, DbErrorKind, Greeting,
+        Login, MYSQL, MySqlTarget, MyValue, NvsStr, Prepared, ServerError, State, Value, Wire,
         authenticate, begin, column_type, commit, encode, execute, execute_many, kind_of,
         offset_literal, plugin_or_refuse, read_greeting, read_ok, request_tls, roll_back, scalar,
         server_refusal, start_statement,
     };
     use crate::conn::ColumnType as NovisType;
     use crate::conn::{BlockError, Driver, Isolation};
-    use mysql_common::constants::{CapabilityFlags, ColumnFlags, ColumnType, StatusFlags};
+    use crate::maria::{
+        EXTENDED_CAPABILITIES, MARIADB, MYSQL_NATIVE_PASSWORD,
+        plugin_or_refuse as mariadb_plugin_or_refuse,
+    };
+    use mysql_common::constants::{
+        CapabilityFlags, ColumnFlags, ColumnType, MariadbCapabilities, StatusFlags,
+    };
     use mysql_common::io::ParseBuf;
     use mysql_common::packets::{Column, ComStmtExecuteRequestBuilder, HandshakePacket};
     use mysql_common::proto::{MyDeserialize, MySerialize};
@@ -3177,8 +3231,21 @@ mod tests {
     }
 
     /// A server greeting naming `plugin`, with `capabilities` on top of the set
-    /// every modern server offers.
+    /// every modern server offers, and offering no extended capabilities —
+    /// which is what a MySQL server's trailing filler decodes to.
     fn greeting_bytes(plugin: &str, capabilities: CapabilityFlags) -> Vec<u8> {
+        greeting_offering(plugin, capabilities, MariadbCapabilities::empty())
+    }
+
+    /// [`greeting_bytes`] with the second capability word said out loud: a
+    /// MariaDB server writes it where MySQL's filler is, and every case about
+    /// that word needs to script both a server that offers a bit and one that
+    /// does not.
+    fn greeting_offering(
+        plugin: &str,
+        capabilities: CapabilityFlags,
+        extended: MariadbCapabilities,
+    ) -> Vec<u8> {
         // A real server's second scramble field carries a trailing NUL, and
         // the length byte in front of it counts that byte — a 12-byte tail
         // here would make the *plugin name* start one byte late, which is
@@ -3198,6 +3265,7 @@ mod tests {
             StatusFlags::empty(),
             Some(plugin.as_bytes()),
         )
+        .with_mariadb_ext_capabilities(extended)
         .serialize(&mut payload);
         packet(0, &payload)
     }
@@ -3317,6 +3385,100 @@ mod tests {
         assert!(
             sent.windows(proof.len()).any(|w| w == proof),
             "the handshake response does not carry `caching_sha2_password`'s own proof"
+        );
+    }
+
+    /// The last four of a handshake packet's reserved bytes, as the flags they
+    /// spell.
+    ///
+    /// Past the four-byte header, both packets that carry the word have the
+    /// same prefix: a capability word, a max-packet word, the collation byte,
+    /// then 19 bytes of filler where MySQL has 23 — so the word starts at 32
+    /// in either, which is why one reader answers both.
+    fn extended_word(sent: &[u8]) -> MariadbCapabilities {
+        MariadbCapabilities::from_bits_retain(u32::from_le_bytes(
+            sent[32..36]
+                .try_into()
+                .expect("an extended capability word"),
+        ))
+    }
+
+    /// What `backend` claimed in each of the two packets that carry a second
+    /// capability word — the `SSLRequest` first, the handshake response second
+    /// — at a server offering `offered`.
+    fn extended_words(
+        backend: &'static Backend,
+        login: &Login<'_>,
+        plugin: &str,
+        offered: MariadbCapabilities,
+    ) -> (MariadbCapabilities, MariadbCapabilities) {
+        let mut step = 0;
+        let mut wire = Wire::on(
+            backend,
+            Peer::new(move |_sent: &[u8]| {
+                step += 1;
+                match step {
+                    1 => Vec::new(),
+                    _ => packet(u8::try_from(step).expect("a small step count") + 1, &[0x00]),
+                }
+            }),
+        );
+        wire.inbox
+            .extend_from_slice(&greeting_offering(plugin, server_capabilities(), offered));
+
+        let greeting = read_greeting(&mut wire).expect("the greeting decodes");
+        request_tls(&mut wire, &greeting).expect("the upgrade request goes out");
+        authenticate(&mut wire, login, &greeting).expect("the server says OK");
+
+        let sent = &wire.peer().sent;
+        (extended_word(&sent[0]), extended_word(&sent[1]))
+    }
+
+    /// The second capability word, asserted as the three outcomes the
+    /// intersection allows rather than as one packet's bytes.
+    ///
+    /// `MARIADB_CLIENT_STMT_BULK_OPERATIONS` is bit 34 and `CapabilityFlags` is
+    /// 32 bits wide, so this word is not a wider version of the first one — it
+    /// is a second field, in bytes MySQL treats as filler, and a driver can get
+    /// it wrong in two directions that look identical from one side. So all
+    /// three legs are here: MariaDB at a server that offers the bit claims it,
+    /// MariaDB at a server that does not claims nothing, and **MySQL at a
+    /// server that offers it still claims nothing** — the leg that fails if the
+    /// word is ever derived from the greeting rather than from the driver.
+    ///
+    /// Each leg reads both packets, because the `SSLRequest` and the handshake
+    /// response carry the same word at the same offset and are written by two
+    /// different call sites: a client that claimed a capability in the
+    /// cleartext half and dropped it in the encrypted one describes itself two
+    /// ways to one server, and that is the failure neither packet shows alone.
+    #[test]
+    fn the_mariadb_handshake_claims_bulk_operations_and_the_mysql_one_claims_nothing() {
+        let mariadb = Login {
+            user: "novis",
+            password: PASSWORD,
+            database: "shop",
+            roster: mariadb_plugin_or_refuse,
+        };
+
+        let offered = EXTENDED_CAPABILITIES;
+        assert_eq!(
+            extended_words(&MARIADB, &mariadb, MYSQL_NATIVE_PASSWORD, offered),
+            (offered, offered),
+            "this driver did not claim `MARIADB_CLIENT_STMT_BULK_OPERATIONS` at a MariaDB \
+             offering it, in one or both of the packets that carry the word"
+        );
+
+        let none = MariadbCapabilities::empty();
+        assert_eq!(
+            extended_words(&MARIADB, &mariadb, MYSQL_NATIVE_PASSWORD, none),
+            (none, none),
+            "this driver claimed an extended capability the server never offered"
+        );
+        assert_eq!(
+            extended_words(&MYSQL, &login(), super::CACHING_SHA2_PASSWORD, offered),
+            (none, none),
+            "the MySQL driver claimed a MariaDB capability, in bytes a MySQL server reads \
+             as filler it expects to be zero"
         );
     }
 
@@ -3494,6 +3656,7 @@ mod tests {
             "{:?}",
             Greeting {
                 capabilities: CLIENT_CAPABILITIES,
+                extended: EXTENDED_CAPABILITIES,
                 nonce: NONCE.to_vec(),
                 plugin: super::CACHING_SHA2_PASSWORD.as_bytes().to_vec(),
                 server_version: (8, 0, 36),
