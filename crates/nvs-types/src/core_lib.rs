@@ -223,6 +223,17 @@ pub(crate) fn is_registered(qname: &QName) -> bool {
 /// rather than read from `defaults`, which is what makes the bag optional
 /// without a registry row ever saying so twice — see
 /// `nvs_stdlib::registry::CoreTy::Options`.
+///
+/// A [`CoreTy::Shape`](nvs_stdlib::registry::CoreTy::Shape) parameter gets its
+/// entry synthesized the same way, from [`shape_fills`], and this is the one
+/// place ADR 0135 § 3's fills are recorded. Which *variant* carries them is
+/// the parameter's own optionality and nothing else: a shape a call must write
+/// takes [`ConstArg::RequiredShape`], which
+/// [`MethodSig::required`](crate::signatures::MethodSig::required) skips, and
+/// an optional one — no registry row declares one yet — takes
+/// [`ConstArg::Options`], because for an omittable parameter the fills *are*
+/// what an omitting call passes. Either way the row's own `defaults` entry for
+/// that slot is not read: a shape has no single constant to be defaulted to.
 fn defaults_of(method: &nvs_stdlib::registry::CoreMethod) -> Vec<Option<ConstArg>> {
     let positional = method.positional().len();
     let required = positional - method.defaults.len();
@@ -238,6 +249,13 @@ fn defaults_of(method: &nvs_stdlib::registry::CoreMethod) -> Vec<Option<ConstArg
                         .map(|option| (option.name.to_owned(), lower_const(&option.default)))
                         .collect(),
                 ));
+            }
+            if let CoreTy::Shape(arms) = &method.params[index] {
+                let fills = shape_fills(arms);
+                return Some(match index >= required {
+                    true => ConstArg::Options(fills),
+                    false => ConstArg::RequiredShape(fills),
+                });
             }
             index
                 .checked_sub(required)
@@ -552,25 +570,72 @@ fn merge_shape_arms(
     interner: &mut TypeInterner,
 ) -> Vec<crate::ty::CoreShapeField> {
     let mut merged: Vec<crate::ty::CoreShapeField> = Vec::new();
+    for (name, declared) in merged_arm_fields(arms) {
+        let mut ty = lower(&declared[0].ty, interner);
+        for field in &declared[1..] {
+            let next = lower(&field.ty, interner);
+            ty = interner.make_union([ty, next]);
+        }
+        let required = arms.iter().all(|arm| {
+            arm.iter()
+                .any(|other| other.name == name && other.default.is_none())
+        });
+        merged.push(crate::ty::CoreShapeField {
+            name: name.to_owned(),
+            ty,
+            required,
+        });
+    }
+    merged
+}
+
+/// One slot of ADR 0135 § 3's merged list per entry, in the order the list
+/// flattens, carrying every arm declaration behind that slot: the arms in
+/// declaration order, each arm's fields in declaration order, a name a
+/// previous arm already emitted folded into the slot it already has.
+///
+/// The order is stated here once because two things describe the same
+/// flattening — [`merge_shape_arms`] builds the checked type's fields and
+/// [`shape_fills`] the constant each slot takes — and a parameter whose type
+/// and whose fills disagreed about slot order would pass every argument one
+/// position out.
+fn merged_arm_fields(
+    arms: &[&'static [nvs_stdlib::registry::CoreField]],
+) -> Vec<(&'static str, Vec<&'static nvs_stdlib::registry::CoreField>)> {
+    let mut merged: Vec<(&'static str, Vec<&'static nvs_stdlib::registry::CoreField>)> = Vec::new();
     for arm in arms {
         for field in *arm {
-            let ty = lower(&field.ty, interner);
-            if let Some(existing) = merged.iter_mut().find(|slot| slot.name == field.name) {
-                existing.ty = interner.make_union([existing.ty, ty]);
-                continue;
+            match merged.iter_mut().find(|(name, _)| *name == field.name) {
+                Some((_, declared)) => declared.push(field),
+                None => merged.push((field.name, vec![field])),
             }
-            let required = arms.iter().all(|arm| {
-                arm.iter()
-                    .any(|other| other.name == field.name && other.default.is_none())
-            });
-            merged.push(crate::ty::CoreShapeField {
-                name: field.name.to_owned(),
-                ty,
-                required,
-            });
         }
     }
     merged
+}
+
+/// ADR 0135 § 3's fill list: one constant per slot of [`merged_arm_fields`]'s
+/// order — the first declaring arm's own default where it has one, and `null`
+/// for a field belonging to an arm the caller did not write.
+///
+/// Every slot gets an entry, including the required ones, because the list is
+/// read per *call site*: a key required by the arm the caller wrote is filled
+/// by the literal and never reaches here, and the same key is a key some other
+/// arm's call site does not write at all. So "no default" is `null` rather than
+/// an absence — which is also why a shape field is never nullable
+/// ([ADR 0135](../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+/// § 3), so that `null` cannot be mistaken for a written one.
+fn shape_fills(arms: &[&'static [nvs_stdlib::registry::CoreField]]) -> Vec<(String, ConstArg)> {
+    merged_arm_fields(arms)
+        .into_iter()
+        .map(|(name, declared)| {
+            let fill = declared
+                .iter()
+                .find_map(|field| field.default.as_ref())
+                .map_or(ConstArg::Null, lower_const);
+            (name.to_owned(), fill)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -640,6 +705,83 @@ mod tests {
             interner.describe(fields[0].ty),
             "string|int",
             "the shared key's slot is the union of the arms' declarations",
+        );
+    }
+
+    /// ADR 0135 § 3's fill list, and the reason it is a variant of its own: a
+    /// shape parameter records what its unwritten slots pass *and* stays
+    /// required, which a `ConstArg::Options` entry could not do — `required`
+    /// reads optionality off this vector, so a bag-shaped entry here would let
+    /// a call omit the whole parameter. Over the same two-arm fixture the
+    /// merge test uses, because no registry row declares a shape yet.
+    #[test]
+    fn a_required_shape_records_its_fills_without_becoming_optional() {
+        const SERVER: &[CoreField] = &[
+            CoreField {
+                name: "driver",
+                ty: CoreTy::Str,
+                default: None,
+            },
+            CoreField {
+                name: "port",
+                ty: CoreTy::Int,
+                default: Some(Const::Int(5432)),
+            },
+        ];
+        const FILE: &[CoreField] = &[
+            CoreField {
+                name: "driver",
+                ty: CoreTy::Int,
+                default: None,
+            },
+            CoreField {
+                name: "path",
+                ty: CoreTy::Str,
+                default: None,
+            },
+        ];
+        const OPEN: nvs_stdlib::registry::CoreMethod = nvs_stdlib::registry::CoreMethod {
+            name: "open",
+            names: &["settings"],
+            params: &[CoreTy::Shape(&[SERVER, FILE])],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_shape_fixture_open",
+            doc: None,
+        };
+
+        let mut interner = TypeInterner::new();
+        let sig = method_sig(&OPEN, true, &mut interner);
+        assert_eq!(
+            sig.required(),
+            1,
+            "a shape parameter carrying its fills is still written at every call site",
+        );
+        let Some(ConstArg::RequiredShape(fills)) = &sig.defaults[0] else {
+            panic!("a required shape's fills are a `RequiredShape` entry, not a bag's");
+        };
+        // The merged list's own order (`merged_arm_fields`), one entry per
+        // slot: `port`'s own default, and `null` for a key belonging to an arm
+        // the caller did not write.
+        assert_eq!(
+            fills,
+            &vec![
+                ("driver".to_owned(), ConstArg::Null),
+                ("port".to_owned(), ConstArg::Int(5432)),
+                ("path".to_owned(), ConstArg::Null),
+            ],
+        );
+        // The type and the fills describe one flattening, so a slot is the
+        // same slot in both — the invariant `merged_arm_fields` exists for.
+        let Ty::CoreShape(fields) = interner.get(sig.params[0]) else {
+            panic!("a `CoreTy::Shape` parameter lowers to a `Ty::CoreShape`");
+        };
+        assert_eq!(
+            fields.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(),
+            fills
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>(),
         );
     }
 

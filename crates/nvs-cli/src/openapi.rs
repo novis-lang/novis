@@ -295,7 +295,10 @@ fn example_value(value: &ConstArg) -> Option<Value> {
                 Value::Object(members(entries)?)
             }
         }
-        ConstArg::Bytes(_) | ConstArg::Options(_) | ConstArg::Built { .. } => return None,
+        ConstArg::Bytes(_)
+        | ConstArg::Options(_)
+        | ConstArg::RequiredShape(_)
+        | ConstArg::Built { .. } => return None,
     })
 }
 

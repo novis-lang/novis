@@ -151,6 +151,31 @@ pub enum ConstArg {
     /// [`eval_param_default`]: user code cannot declare a bag, so this only
     /// ever comes from [`crate::core_lib`].
     Options(Vec<(String, ConstArg)>),
+    /// [ADR 0135](../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+    /// § 3's fill list for a **required** shape parameter: one entry per field
+    /// of the merged arm list, in the order that list flattens, holding what
+    /// the call site passes for a key the written literal does not carry — the
+    /// field's own default where it has one, [`Self::Null`] for a field
+    /// belonging to an arm the caller did not write.
+    ///
+    /// The one variant that is **not a default for its parameter**, and the
+    /// distinction is the whole reason it is a second variant rather than an
+    /// [`Self::Options`] entry: a shape parameter is written at every call
+    /// site, so recording its fills the way a bag records its own would make
+    /// [`crate::signatures::MethodSig::required`] count the parameter as
+    /// optional and let a call omit it entirely. `required` skips this entry
+    /// for exactly that reason, and it is the one reader of `defaults` that
+    /// asks the optionality question. An optional shape parameter, which no
+    /// registry row declares yet, would record `Options` instead — the
+    /// variants split on *omittable or not*, not on which registry spelling
+    /// produced them.
+    ///
+    /// Like [`Self::Options`] it has no single `nvs_ir::ir::InstKind` constant
+    /// under it: `nvs_ir::lower::Lowering::lower_options_arg` expands it into
+    /// one ordinary constant per slot. Never produced by [`eval_param_default`]
+    /// — user code cannot declare a shape parameter, so this only ever comes
+    /// from [`crate::core_lib`].
+    RequiredShape(Vec<(String, ConstArg)>),
     /// A `Core`-owned instance, named by the symbol that builds it and the
     /// constant arguments that symbol takes —
     /// `nvs_stdlib::registry::Const::Built`, which owns the rule that this is

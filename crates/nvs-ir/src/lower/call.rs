@@ -192,12 +192,13 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         out: &mut LoweredArgs,
     ) {
-        // ADR 0063 R2's options bag: not one argument but one *per declared
-        // option*, so it never reaches `lower_checked_ty` — it has no IR type
-        // at all. See [`Self::lower_options_arg`].
+        // ADR 0063 R2's options bag, and ADR 0135 § 3's shape parameter with
+        // it: not one argument but one *per slot of the merged list*, so
+        // neither ever reaches `lower_checked_ty` — a shape has no IR type at
+        // all. See [`Self::lower_options_arg`].
         if let CheckedTy::CoreShape(options) = checked_types.get(sig.param_tys[index]) {
             let options = options.clone();
-            let defaults = options_defaults(&sig.defaults, index);
+            let defaults = shape_fills(&sig.defaults, index);
             self.lower_options_arg(
                 Some(&arg.value),
                 &options,
@@ -655,6 +656,14 @@ impl<'a> Lowering<'a> {
             nvs_types::ConstArg::Options(_) => panic!(
                 "nvs-ir: an options bag has no IR constant of its own; \
                  `Lowering::lower_options_arg` expands it per option"
+            ),
+            // The same, one level further: a shape parameter is written at
+            // every call site (`ConstArg::RequiredShape`), so reaching here
+            // means an argument the arity check should already have demanded
+            // was treated as omitted.
+            nvs_types::ConstArg::RequiredShape(_) => panic!(
+                "nvs-ir: a shape parameter has no IR constant of its own and is never omitted; \
+                 `Lowering::lower_options_arg` expands its written literal per slot"
             ),
             // Handled above, before the constant table: it is a call.
             nvs_types::ConstArg::Built { .. } => unreachable!(),

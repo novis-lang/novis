@@ -332,7 +332,10 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
         ConstArg::Null
         | ConstArg::Bytes(_)
+        // Neither is one value: a bag and ADR 0135 § 3's shape are a fill list
+        // apiece, and no property declaration has a `Core` parameter's type.
         | ConstArg::Options(_)
+        | ConstArg::RequiredShape(_)
         | ConstArg::Built { .. }
         // ADR 0046 § 5's folded retrieval, which is an expression's value and
         // never a written property default.
@@ -2887,24 +2890,34 @@ pub(crate) fn lower_decl_type(
     }
 }
 
-/// The per-option defaults recorded for the options-bag parameter at `index` —
-/// `nvs_types::core_lib` synthesizes exactly one `ConstArg::Options` entry per
-/// bag, so a bag parameter always has one.
+/// The per-slot constants recorded for the `Ty::CoreShape` parameter at
+/// `index` — what a slot the written literal does not fill passes.
+/// `nvs_types::core_lib` synthesizes exactly one entry per such parameter, so
+/// a bag or a shape parameter always has one.
+///
+/// Two variants carry it and the split is the parameter's own optionality,
+/// which that function's docs own: an omittable bag records its fills as the
+/// parameter's own default (`ConstArg::Options`, ADR 0063 R2), and a shape
+/// parameter a call must write records them without becoming optional
+/// (`ConstArg::RequiredShape`, ADR 0135 § 3). Both flatten identically here —
+/// the whole point of the merged list is that a call site reads one order.
 ///
 /// # Panics
 ///
-/// Panics if that parameter's recorded default is absent or is not a bag,
-/// which would mean the signature table and the parameter type disagree about
-/// what the parameter is.
-fn options_defaults(
+/// Panics if that parameter's recorded default is absent or is neither
+/// variant, which would mean the signature table and the parameter type
+/// disagree about what the parameter is.
+fn shape_fills(
     defaults: &[Option<nvs_types::ConstArg>],
     index: usize,
 ) -> &[(String, nvs_types::ConstArg)] {
     match defaults.get(index) {
-        Some(Some(nvs_types::ConstArg::Options(options))) => options,
+        Some(Some(
+            nvs_types::ConstArg::Options(fills) | nvs_types::ConstArg::RequiredShape(fills),
+        )) => fills,
         other => panic!(
-            "nvs-ir: parameter {index} is an options bag but its recorded default is {other:?} \
-             — nvs_types::core_lib is trusted to record one `ConstArg::Options` per bag"
+            "nvs-ir: parameter {index} is a shape but its recorded default is {other:?} — \
+             nvs_types::core_lib is trusted to record one fill list per bag and per shape"
         ),
     }
 }

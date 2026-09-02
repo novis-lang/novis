@@ -89,6 +89,13 @@ pub struct MethodSig {
     /// [`crate::defaults`] owns what a default may be and why it is evaluated
     /// here rather than in the callee.
     ///
+    /// One entry is present without making its parameter optional, and it is
+    /// the only exception: a
+    /// [`ConstArg::RequiredShape`](crate::defaults::ConstArg::RequiredShape)
+    /// records ADR 0135 § 3's per-field fills for a shape parameter a call
+    /// must still write. That is why [`Self::required`] is the one reader
+    /// allowed to answer "is this parameter optional" off this vector.
+    ///
     /// A parallel `Vec` for [`Self::inout`]'s reason, and read through
     /// [`Self::required`] rather than scanned at each call site.
     pub defaults: Vec<Option<crate::defaults::ConstArg>>,
@@ -216,12 +223,23 @@ impl MethodSig {
     /// `...$rest` already accepts zero arguments, so it carries no default to
     /// be optional *by*, and counting it would make every call to
     /// `Core\Str::format` look one argument short.
+    ///
+    /// A [`ConstArg::RequiredShape`](crate::defaults::ConstArg::RequiredShape)
+    /// entry does not end the leading run either: ADR 0135 § 3's fill list is
+    /// a property of the parameter's *type* — what a written literal's missing
+    /// keys pass — and a parameter that carries one is written at every call
+    /// site. `Self::defaults`' own docs name this as its one exception.
     #[must_use]
     pub fn required(&self) -> usize {
         let leading = self
             .defaults
             .iter()
-            .take_while(|default| default.is_none())
+            .take_while(|default| {
+                matches!(
+                    default,
+                    None | Some(crate::defaults::ConstArg::RequiredShape(_))
+                )
+            })
             .count();
         match self.variadic {
             true => leading.min(self.params.len().saturating_sub(1)),
