@@ -2922,9 +2922,10 @@ tests = [
 # `nvs-db`, which has no capability layer, no config block and no `Core\Db::connect` -- the ceiling is
 # taken in `nvs-stdlib` before the handshake, so a fixture is the first place the two meet.
 #
-# What this check does NOT pin is that the wait is a *park*: for that, other work has to run on the
-# core while it is on, and a `Core\Task` child cannot do database work yet. `docs/agent/handoff.md`
-# names the gap and the anchor.
+# The fourth line is the half elapsed time cannot reach: that the wait is a *park* and not a spin.
+# The fixture asks for the held connection from inside a `Core\Task` child while a sibling child
+# sleeps beside it, so a wait that kept the core would print how many milliseconds the two took in
+# sequence instead of the verdict.
 [[check]]
 kind = "exact"
 stage = "7 pool"
@@ -2933,6 +2934,7 @@ want = [
   "opened=1",
   "refused: waited `acquire` out, and named it",
   "usable=1",
+  "parked: the core ran a sibling task while the request waited",
 ]
 
 
