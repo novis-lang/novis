@@ -1,7 +1,7 @@
-//! MySQL: reading the server's greeting, upgrading the socket in band,
-//! authenticating with a proof rather than a password, forcing the
-//! connection's charset to `utf8mb4`, and running one statement over
-//! `COM_STMT_PREPARE` and `COM_STMT_EXECUTE`.
+//! MySQL: reading a `[db.<name>]` block, reading the server's greeting,
+//! upgrading the socket in band, authenticating with a proof rather than a
+//! password, forcing the connection's charset to `utf8mb4`, and running one
+//! statement over `COM_STMT_PREPARE` and `COM_STMT_EXECUTE`.
 //!
 //! **The statement path runs to the end of the result set.**
 //! [`start_statement`] answers a [`MySqlRows`], and [`MySqlRows::next_row`]
@@ -9,6 +9,13 @@
 //! connection to [`State::Idle`]. § 1's statement cache is not here, which is
 //! why every statement costs the two round trips § 1 prices it at rather than
 //! the one a cache hit would.
+//!
+//! **A value is finished in two places, and § 9's table says which.**
+//! [`scalar`] reads one column against its definition and answers a
+//! [`MySqlScalar`]; [`decode`] mints the [`Value`] for the rows that are
+//! values, and the three that are `Core\Time` instances stay components for
+//! `nvs-stdlib` to build — the boundary [`crate::PgScalar`] sits on for the
+//! other driver, and [`MySqlDate`] owns why it is a boundary at all.
 //!
 //! # A binary row is a null bitmap and then values of no stated width
 //!
@@ -146,10 +153,13 @@ use mysql_common::proto::codec::PacketCodec;
 use mysql_common::proto::codec::error::PacketCodecError;
 use mysql_common::proto::{MyDeserialize, MySerialize};
 use mysql_common::value::{BinValue, ServerSide, Value as MyValue, ValueDeserializer};
+use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
+use nvs_runtime::{Decimal, NvsStr, Value};
 
-use crate::conn::{ColumnType, MySqlConn, State};
+use crate::conn::{BlockError, ColumnType, Driver, MySqlConn, State, written_value};
+use crate::sql::time_zone_for;
 
 /// MySQL's own port, which an absent `port` in a `[db.<name>]` block means.
 ///
@@ -269,6 +279,109 @@ pub struct MySqlTarget<'a> {
     /// rather than a name because named zones need `mysql.time_zone` populated
     /// and it usually is not.
     pub time_zone: i32,
+}
+
+impl<'a> MySqlTarget<'a> {
+    /// One `[db.<name>]` block as this driver's target, or why it is not one.
+    ///
+    /// [`crate::PgTarget::resolve`]'s twin, and the twinning is the point:
+    /// [ADR 0067 § 2](../../../docs/adr/0067-core-db.md) makes a block a
+    /// discriminated union on `driver`, so the *fields* a MySQL connection
+    /// needs are the same four a PostgreSQL one needs and the refusals are one
+    /// vocabulary — [`BlockError`], which lives in [`mod@crate::conn`] for that
+    /// reason. What differs is which `driver` spelling this resolver accepts
+    /// and which backend its refusals name.
+    ///
+    /// **The target borrows the block and copies nothing.** A resolved target
+    /// outlives the [`MySqlConn::connect`] call that opens with it because the
+    /// configuration snapshot it borrows does; owning the four strings would
+    /// mean a second copy of the password — a `secret` at the language level
+    /// (§ 3) — in a struct nothing zeroes.
+    ///
+    /// The address is not here, for the reason [`MySqlTarget`] gives: `host` is
+    /// the name the certificate is checked against, and resolving it to a
+    /// [`SocketAddr`] belongs to whoever checked the `db.connect` capability.
+    ///
+    /// § 1's `statement_cache` is not read yet — this driver has no cache to
+    /// size, and the field is [`crate::PgTarget::statement_cache`] until it
+    /// does.
+    ///
+    /// # Errors
+    ///
+    /// [`BlockError`], in the order the checks run: the `driver` first, since a
+    /// PostgreSQL block resolved as MySQL would send this handshake to a server
+    /// that cannot answer it; then a field belonging to another driver; then the
+    /// four the handshake sends, each by its own key; then § 9's zone.
+    pub fn resolve(block: &'a Database) -> Result<MySqlTarget<'a>, BlockError<'a>> {
+        let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
+        match Driver::from_config_name(written) {
+            Some(Driver::MySql) => {}
+            // MariaDB is refused here rather than accepted as a dialect of
+            // this one: it is its own driver, which ADR 0067 argues at length,
+            // and a MariaDB block opened by this resolver would be the design
+            // error that argument is about.
+            Some(driver) => {
+                return Err(BlockError::OtherDriver {
+                    written,
+                    driver,
+                    expected: Driver::MySql,
+                });
+            }
+            None => return Err(BlockError::UnknownDriver { written }),
+        }
+
+        if block.path.is_some() {
+            return Err(BlockError::Unusable {
+                field: "path",
+                expected: Driver::MySql,
+            });
+        }
+
+        let password = match (block.password.as_deref(), block.password_file.is_some()) {
+            // `nvs_config::secret` materializes the file's content into
+            // `password` and leaves `password_file` set, so a block with the
+            // file and no value is one that never went through that pass.
+            (None, true) => return Err(BlockError::SecretUnread),
+            // A password may legitimately be spaces, so this one field is
+            // empty only when it is *empty* — the rule `written_value`'s doc
+            // owns.
+            (Some(""), _) => return Err(BlockError::Blank { field: "password" }),
+            (Some(password), _) => password,
+            (None, false) => {
+                return Err(BlockError::Missing {
+                    field: "password",
+                    expected: Driver::MySql,
+                });
+            }
+        };
+
+        let host = written_value(block.host.as_deref(), "host", Driver::MySql)?;
+        let user = written_value(block.user.as_deref(), "user", Driver::MySql)?;
+        // `CLIENT_CONNECT_WITH_DB` is negotiated, so the schema goes out in the
+        // handshake response rather than in a `USE` afterwards — which is why
+        // it is as required here as the user is.
+        let database = written_value(block.database.as_deref(), "database", Driver::MySql)?;
+
+        let Some(time_zone) = time_zone_for(block) else {
+            return Err(BlockError::TimeZone {
+                // `time_zone_for` answers `Some(0)` for an absent field, so
+                // reaching here means the block wrote one.
+                written: block.time_zone.as_deref().unwrap_or_default(),
+            });
+        };
+
+        Ok(MySqlTarget {
+            host,
+            user,
+            password,
+            database,
+            // Absolute and trust-checked by `nvs_config::db` before the block
+            // reached here, so there is nothing for this resolver to decide:
+            // written or not written is the whole of it.
+            tls_ca_file: block.tls_ca_file.as_deref().map(Path::new),
+            time_zone,
+        })
+    }
 }
 
 impl std::fmt::Debug for MySqlTarget<'_> {
@@ -1402,11 +1515,10 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 ///
 /// The values are `mysql_common`'s own [`MyValue`], which is
 /// [ADR 0132 § 2](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)'s
-/// borrowed codec answering in its own vocabulary. Turning one into the Novis
-/// value [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s table names is the
-/// slice after this one — the same boundary [`crate::PgColumn::decode`] sits on
-/// for the other driver, and the reason [`column_type`] is here while no
-/// `decode` is.
+/// borrowed codec answering in its own vocabulary. [`scalar`] is what turns one
+/// into the Novis value [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s
+/// table names, against the column it belongs to — the boundary
+/// [`crate::PgColumn::decode`] sits on for the other driver.
 pub struct MySqlRow {
     values: Vec<MyValue>,
 }
@@ -1488,6 +1600,365 @@ fn decode_row(columns: &[Column], packet: &[u8]) -> io::Result<MySqlRow> {
         });
     }
     Ok(MySqlRow { values })
+}
+
+/// A calendar date, in the fields the server sent and no further.
+///
+/// [`crate::PgDate`]'s opposite number and the same promise: a
+/// `Core\Time\Date` is an instance of a class `nvs-stdlib` declares, this crate
+/// cannot allocate one, and so [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s
+/// structured rows are finished one layer up.
+///
+/// Nothing here parsed a rendering — MySQL's binary protocol sends the
+/// components as integers — so the fields are the server's own and are not
+/// checked at all. MySQL's zero date arrives as `0000-00-00`, month and day
+/// both zero, and is refused by the type that has a calendar in it rather than
+/// by this one, which is where every other impossible date is refused too.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct MySqlDate {
+    /// The year, `0` for the zero date and `1` to `9999` otherwise.
+    pub year: i32,
+    /// The month, 1 to 12, or `0` in the zero date.
+    pub month: u8,
+    /// The day of the month, 1 to 31, or `0` in the zero date.
+    pub day: u8,
+}
+
+impl std::fmt::Debug for MySqlDate {
+    /// The type and none of the fields, for the reason [`MySqlRow`]'s own
+    /// rendering gives: a decoded column is one request's data.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MySqlDate").finish_non_exhaustive()
+    }
+}
+
+/// A time of day, to the nanosecond, in the fields the server sent.
+///
+/// The reason this is components rather than an instance is [`MySqlDate`]'s.
+///
+/// **A `TIME` that is not a time of day never reaches this struct.** MySQL's
+/// `TIME` is a signed interval of `-838:59:59` to `838:59:59` — it carries a
+/// sign and a day count — while § 9 reads the column as a `Core\Time\TimeOfDay`,
+/// which has neither. [`time_of_day`] refuses the values that fall outside a
+/// day, so what this holds is always a clock reading.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct MySqlTime {
+    /// The hour, 0 to 23.
+    pub hour: u8,
+    /// The minute, 0 to 59.
+    pub minute: u8,
+    /// The second, 0 to 59. MySQL has no leap second: the column stops at 59.
+    pub second: u8,
+    /// The nanosecond within the second. MySQL stores microseconds, so the
+    /// last three digits are always zero; the field counts nanoseconds because
+    /// that is what every `Core\Time` type holds.
+    pub nanosecond: u32,
+}
+
+impl std::fmt::Debug for MySqlTime {
+    /// As [`MySqlDate`]'s: the type, and none of the data.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MySqlTime").finish_non_exhaustive()
+    }
+}
+
+/// One column's value, decoded but not yet allocated as a [`Value`].
+///
+/// [`crate::PgScalar`]'s opposite number, one row of § 9's table per variant,
+/// and it exists here for the reasons it exists there: everything that can go
+/// wrong with a column happens before anything is allocated, so § 9's whole
+/// table is assertable in a `-p nvs-db` test that leaks nothing, and the three
+/// rows whose Novis type is a class instance have somewhere to be returned as
+/// components — see [`MySqlDate`].
+///
+/// **Three, not [`crate::PgScalar`]'s five.** MySQL has no `TIMESTAMPTZ`, so
+/// nothing here carries its own offset — § 9's zone-less row is
+/// [`Self::DateTime`] and the zone is the one `set_session_time_zone` declared
+/// — and MySQL has no `UUID` column type either: § 9 sends its `BINARY(16)` to
+/// the `bytes` row, and the backend that does have the type is MariaDB, which
+/// is its own driver. There is no array variant for the matching reason:
+/// PostgreSQL's `array<T>` is a type and MySQL's `SET` is a text column with a
+/// flag, which [`column_type`] describes as [`ColumnType::Other`].
+///
+/// A `Text` and a `Bytes` borrow the row they were decoded out of, where
+/// [`crate::PgScalar`] owns its octets: this protocol carries them as
+/// themselves rather than as a text rendering that had to be unhexed, so there
+/// is nothing for the decoder to own and no `into_owned` to make.
+pub enum MySqlScalar<'a> {
+    /// SQL `NULL`: the row of § 9's table that makes every column `?T`.
+    Null,
+    /// `BIT(1)`. MySQL has no `BOOLEAN` — `TINYINT(1)` is § 6's `int` — so this
+    /// is the one column type that reaches it.
+    Bool(bool),
+    /// A signed `TINYINT`/`SMALLINT`/`MEDIUMINT`/`INT`/`BIGINT`, and `YEAR`.
+    Int(i64),
+    /// The same set carrying `UNSIGNED`, which is § 9's `uint` row and the
+    /// range `BIGINT UNSIGNED` needs.
+    UInt(u64),
+    /// `FLOAT`/`DOUBLE`.
+    Float(f64),
+    /// `DECIMAL`, which the binary protocol sends as its digits.
+    Decimal(Decimal),
+    /// A `tainted string`'s text, already proven well-formed UTF-8. Borrowed
+    /// out of the row.
+    Text(&'a str),
+    /// A `tainted bytes`'s octets, borrowed out of the row.
+    Bytes(&'a [u8]),
+    /// `DATE`, which is a `Core\Time\Date`.
+    Date(MySqlDate),
+    /// `TIME`, which is a `Core\Time\TimeOfDay`.
+    Time(MySqlTime),
+    /// `DATETIME` and `TIMESTAMP`: § 9's zone-less row, a `Core\Time\DateTime`
+    /// in the zone [`MySqlTarget::time_zone`] declared and the server was told.
+    DateTime {
+        /// The civil date, as the server sent it.
+        date: MySqlDate,
+        /// The civil time, as the server sent it.
+        time: MySqlTime,
+    },
+}
+
+impl std::fmt::Debug for MySqlScalar<'_> {
+    /// Which row of § 9's table this landed on, and never the value: a column
+    /// in flight is one request's data, which is the rule [`MySqlRow`]'s own
+    /// rendering holds.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            MySqlScalar::Null => "null",
+            MySqlScalar::Bool(_) => "bool",
+            MySqlScalar::Int(_) => "int",
+            MySqlScalar::UInt(_) => "uint",
+            MySqlScalar::Float(_) => "float",
+            MySqlScalar::Decimal(_) => "decimal",
+            MySqlScalar::Text(_) => "string",
+            MySqlScalar::Bytes(_) => "bytes",
+            MySqlScalar::Date(_) => "date",
+            MySqlScalar::Time(_) => "time",
+            MySqlScalar::DateTime { .. } => "datetime",
+        })
+    }
+}
+
+impl MySqlScalar<'_> {
+    /// The Novis value, taking on the one reference a `string` or a `bytes`
+    /// costs and nothing at all for the rest.
+    ///
+    /// `None` for § 9's three structured rows, whose Novis type is a class
+    /// instance this crate cannot allocate — [`MySqlDate`] owns why. A caller
+    /// that wants the whole table matches those three first and reaches this
+    /// for everything left, which is what [`crate::PgScalar::into_value`]'s
+    /// caller already does for the other driver.
+    #[must_use]
+    pub fn into_value(self) -> Option<Value> {
+        Some(match self {
+            MySqlScalar::Null => Value::null(),
+            MySqlScalar::Bool(value) => Value::bool(value),
+            MySqlScalar::Int(value) => Value::int(value),
+            MySqlScalar::UInt(value) => Value::uint(value),
+            MySqlScalar::Float(value) => Value::float(value),
+            MySqlScalar::Decimal(value) => Value::decimal(value),
+            MySqlScalar::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
+            MySqlScalar::Bytes(octets) => Value::bytes(NvsStr::new(octets)),
+            MySqlScalar::Date(_) | MySqlScalar::Time(_) | MySqlScalar::DateTime { .. } => {
+                return None;
+            }
+        })
+    }
+}
+
+/// One column's value as the Novis value § 9's table names, or `None` for the
+/// rows that are class instances.
+///
+/// [`crate::PgColumn::decode`] on the other driver, and free rather than a
+/// method for the reason [`column_type`] is: `Column` is `mysql_common`'s type
+/// and an inherent `impl` belongs to the crate that declares it.
+///
+/// # Errors
+///
+/// As [`scalar`].
+pub fn decode(column: &Column, value: &MyValue) -> io::Result<Option<Value>> {
+    Ok(scalar(column, value)?.into_value())
+}
+
+/// [`decode`]'s whole decision, before anything is allocated, and every row of
+/// § 9's table rather than the scalar half.
+///
+/// `nvs-stdlib` calls this one: it is the only crate that can turn a
+/// [`MySqlScalar::Date`] and its two siblings into the `Core\Time` instances
+/// the table names.
+///
+/// **The column decides the row and the value only fills it in**, which is why
+/// this takes both and why [`column_type`] is the match's subject: a `BIT(1)`
+/// and a `BIT(8)` arrive as the same [`MyValue::Bytes`] and § 9 sends them to
+/// different rows, exactly as `ENUM` and `SET` do. The one thing read off the
+/// value instead is `NULL`, which every column type may be.
+///
+/// # Errors
+///
+/// `InvalidData` for a value its column's own type cannot be read out of: a
+/// `DECIMAL` past what [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s
+/// `decimal` holds, a text column whose octets are not UTF-8, a `BIT(1)` that
+/// is neither bit, a `TIME` outside a day ([`time_of_day`]), and a value whose
+/// shape is not the one its column declared, which is a server that did not
+/// send the row those definitions describe. Every such message names the
+/// column and its type and **never the value**, for the reason
+/// [`crate::PgColumn::decode`] gives.
+pub fn scalar<'a>(column: &Column, value: &'a MyValue) -> io::Result<MySqlScalar<'a>> {
+    Ok(match (column_type(column), value) {
+        // Asked first and off the value, because § 9's `?T` is every row's
+        // and a column that was null says nothing about its type.
+        (_, MyValue::NULL) => MySqlScalar::Null,
+        (ColumnType::Int, MyValue::Int(number)) => MySqlScalar::Int(*number),
+        // A `uint` column's value is put back under its declared type in
+        // `decode_row`, which is where that rule lives and why this arm sees a
+        // `UInt` at all.
+        (ColumnType::Uint, MyValue::UInt(number)) => MySqlScalar::UInt(*number),
+        (ColumnType::Float, MyValue::Float(number)) => MySqlScalar::Float(widened(*number)),
+        (ColumnType::Float, MyValue::Double(number)) => MySqlScalar::Float(*number),
+        (ColumnType::Decimal, MyValue::Bytes(digits)) => MySqlScalar::Decimal(
+            Decimal::parse(text(column, digits)?).ok_or_else(|| malformed(column, "a decimal"))?,
+        ),
+        // § 9's `BIT(1)` row: one octet, and the width is what said this
+        // column was a `bool` at all.
+        (ColumnType::Bool, MyValue::Bytes(bits)) => MySqlScalar::Bool(match bits.as_slice() {
+            [0] => false,
+            [1] => true,
+            _ => return Err(malformed(column, "a one-bit string")),
+        }),
+        // § 9 keeps JSON at `tainted string`: it is never auto-decoded, and
+        // `Core\Json::decode` is one honest call.
+        (ColumnType::Text | ColumnType::Json, MyValue::Bytes(body)) => {
+            MySqlScalar::Text(text(column, body)?)
+        }
+        (ColumnType::Bytes, MyValue::Bytes(body)) => MySqlScalar::Bytes(body),
+        (ColumnType::Date, MyValue::Date(year, month, day, ..)) => {
+            MySqlScalar::Date(civil_date(*year, *month, *day))
+        }
+        (ColumnType::DateTime, MyValue::Date(year, month, day, hour, minute, second, micros)) => {
+            MySqlScalar::DateTime {
+                date: civil_date(*year, *month, *day),
+                time: civil_time(*hour, *minute, *second, *micros),
+            }
+        }
+        (ColumnType::Time, MyValue::Time(negative, days, hour, minute, second, micros)) => {
+            MySqlScalar::Time(time_of_day(
+                column, *negative, *days, *hour, *minute, *second, *micros,
+            )?)
+        }
+        // § 9's last row, which on this protocol is two rows and not one.
+        // `BIT(n>1)` and `GEOMETRY` are octets that are not text in any
+        // encoding, while a `SET` is its members joined by commas; the charset
+        // is what separates them, exactly as it separates a `BLOB` from a
+        // `TEXT` one arm up. § 9 words that row as `tainted string` because it
+        // was written against PostgreSQL, whose server renders every one of
+        // them as text before it reaches a driver.
+        (ColumnType::Other, MyValue::Bytes(body)) => {
+            if column.character_set() == BINARY_CHARSET {
+                MySqlScalar::Bytes(body)
+            } else {
+                MySqlScalar::Text(text(column, body)?)
+            }
+        }
+        // Every pairing left, including the two rows no MySQL column
+        // describes as: a value whose shape is not its column's is a server
+        // that did not send the row these definitions describe.
+        _ => return Err(malformed(column, "the type its definition declared")),
+    })
+}
+
+/// A `FLOAT`'s four bytes as the `float` § 9 makes them, by way of the
+/// shortest decimal that reads back as the same `f32`.
+///
+/// `f64::from` would be free and would answer the `f32`'s *exact* value:
+/// `0.100000001490116119384765625` for a column holding `0.1`. That is a
+/// different double from the one [`crate::PgColumn::scalar`] answers for the
+/// same row — PostgreSQL renders `float4` as `0.1` and that driver parses the
+/// rendering — and § 9's table is one table for every backend, so the same
+/// column on two of them reading back as two different numbers is the thing
+/// worth a `to_string` per value. `DOUBLE`, which is every wider column, takes
+/// neither path.
+fn widened(value: f32) -> f64 {
+    value
+        .to_string()
+        .parse()
+        .unwrap_or_else(|_| f64::from(value))
+}
+
+/// The date components the binary protocol sent, widened to the fields every
+/// `Core\Time` type counts in.
+fn civil_date(year: u16, month: u8, day: u8) -> MySqlDate {
+    MySqlDate {
+        year: i32::from(year),
+        month,
+        day,
+    }
+}
+
+/// The time components the binary protocol sent. MySQL stores microseconds, so
+/// the last three digits of the nanosecond are always zero; the field counts
+/// nanoseconds because that is what every `Core\Time` type holds.
+fn civil_time(hour: u8, minute: u8, second: u8, micros: u32) -> MySqlTime {
+    MySqlTime {
+        hour,
+        minute,
+        second,
+        nanosecond: micros.saturating_mul(1_000),
+    }
+}
+
+/// A `TIME` column's value as the clock reading § 9 makes it.
+///
+/// # Errors
+///
+/// `InvalidData` for the values MySQL's `TIME` has and a `Core\Time\TimeOfDay`
+/// does not: a negative one, and one carrying whole days — the column's range
+/// is `-838:59:59` to `838:59:59` because it doubles as an interval type, and
+/// three quarters of that range is not a time of day at all. The refusal is
+/// here rather than one layer up because it is the column type's own shape and
+/// not the calendar's: `nvs-stdlib` is handed hours, minutes and seconds, and
+/// a day count has nowhere to go in them.
+fn time_of_day(
+    column: &Column,
+    negative: bool,
+    days: u32,
+    hour: u8,
+    minute: u8,
+    second: u8,
+    micros: u32,
+) -> io::Result<MySqlTime> {
+    if negative || days != 0 || hour > 23 {
+        return Err(malformed(column, "a time of day"));
+    }
+    Ok(civil_time(hour, minute, second, micros))
+}
+
+/// A value's octets as text, **checked**.
+///
+/// The connection's charset is `utf8mb4` and the server was told so, but a
+/// column's own charset is per column and a `latin1` one still arrives; the
+/// check is what keeps § 9's `tainted string` a Novis `string`, which
+/// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) makes UTF-8 by
+/// definition.
+fn text<'a>(column: &Column, body: &'a [u8]) -> io::Result<&'a str> {
+    std::str::from_utf8(body).map_err(|_| malformed(column, "well-formed UTF-8"))
+}
+
+/// The refusal every decode above answers with: the column, its declared type,
+/// and **not one byte of the value**.
+///
+/// A message carrying the value would put one request's data into a log line
+/// and into whatever the operator's error reporting forwards it to; the column
+/// and its type are what a person fixing the schema needs, and they are the
+/// server's own metadata rather than the row's.
+fn malformed(column: &Column, wanted: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "column {:?} of type {:?} did not decode as {wanted}",
+            column.name_str(),
+            column.column_type()
+        ),
+    )
 }
 
 /// A statement's result, and the rows still to come out of it.
@@ -1714,12 +2185,15 @@ mod tests {
     use super::{
         AuthContext, CLIENT_CAPABILITIES, COLLATION, Greeting, MySqlTarget, MyValue, Prepared,
         State, Wire, authenticate, column_type, execute, offset_literal, read_greeting, read_ok,
-        request_tls, start_statement,
+        request_tls, scalar, start_statement,
     };
     use crate::conn::ColumnType as NovisType;
+    use crate::conn::{BlockError, Driver};
     use mysql_common::constants::{CapabilityFlags, ColumnFlags, ColumnType, StatusFlags};
+    use mysql_common::io::ParseBuf;
     use mysql_common::packets::{Column, ComStmtExecuteRequestBuilder, HandshakePacket};
-    use mysql_common::proto::MySerialize;
+    use mysql_common::proto::{MyDeserialize, MySerialize};
+    use nvs_config::tree::Database;
     use std::cell::Cell;
     use std::io;
 
@@ -2468,6 +2942,557 @@ mod tests {
             "the first of these is past `i64::MAX`, and a driver that packed it into \
              an `int` answers a negative number for a column § 9 makes a `uint`"
         );
+    }
+
+    /// A `[db.<name>]` block with every field a MySQL connection reads, as an
+    /// operator writes it and as `nvs_config` hands it over.
+    fn block() -> Database {
+        Database {
+            driver: Some("mysql".to_owned()),
+            host: Some("mysql.test".to_owned()),
+            user: Some("novis".to_owned()),
+            password: Some("hunter2".to_owned()),
+            database: Some("novis_test".to_owned()),
+            time_zone: Some("+02:00".to_owned()),
+            ..Database::default()
+        }
+    }
+
+    /// A complete block resolves to exactly what the handshake sends, and
+    /// § 9's zone arrives as the seconds `set_session_time_zone` renders
+    /// rather than as the text an operator wrote.
+    #[test]
+    fn a_complete_block_resolves_to_the_target_the_handshake_sends() {
+        let mut block = block();
+        let target = MySqlTarget::resolve(&block).expect("a complete block resolves");
+        assert_eq!(target.host, "mysql.test");
+        assert_eq!(target.user, "novis");
+        assert_eq!(target.password, "hunter2");
+        assert_eq!(target.database, "novis_test");
+        assert_eq!(target.time_zone, 2 * 3600);
+        assert!(target.tls_ca_file.is_none());
+
+        block.time_zone = None;
+        assert_eq!(
+            MySqlTarget::resolve(&block)
+                .expect("an unwritten zone is UTC")
+                .time_zone,
+            0
+        );
+    }
+
+    /// ADR 0067 § 2's discriminant, from this side of it — and **MariaDB is
+    /// the case worth the test**.
+    ///
+    /// The two share a wire protocol and a codec crate, so opening a MariaDB
+    /// block with this resolver would work often enough to look right; ADR
+    /// 0067 refuses that at length, because the two have diverged in auth
+    /// plugins, error tables and bulk protocol and a connection that silently
+    /// crossed over would answer the wrong table for every error it reported.
+    /// A resolver that matched on the shared protocol rather than on the
+    /// written `driver` passes every other case here.
+    #[test]
+    fn a_block_that_is_not_mysqls_is_refused_and_mariadb_is_a_driver_and_not_a_flag() {
+        let mut block = block();
+        block.driver = None;
+        assert_eq!(
+            MySqlTarget::resolve(&block).unwrap_err(),
+            BlockError::NoDriver
+        );
+
+        for (written, driver) in [("mariadb", Driver::MariaDb), ("postgres", Driver::Postgres)] {
+            block.driver = Some(written.to_owned());
+            assert_eq!(
+                MySqlTarget::resolve(&block).unwrap_err(),
+                BlockError::OtherDriver {
+                    written,
+                    driver,
+                    expected: Driver::MySql
+                }
+            );
+        }
+
+        block.driver = Some("mysqli".to_owned());
+        assert_eq!(
+            MySqlTarget::resolve(&block).unwrap_err(),
+            BlockError::UnknownDriver { written: "mysqli" }
+        );
+
+        // A file is written by a human, so the capitals are a spelling and not
+        // a sixth backend.
+        block.driver = Some("MySQL".to_owned());
+        assert!(MySqlTarget::resolve(&block).is_ok());
+
+        // SQLite's field, and the one a silent resolver loses: ignoring it
+        // would open a *server* connection for a block that named a file.
+        block.path = Some("app.db".to_owned());
+        assert_eq!(
+            MySqlTarget::resolve(&block).unwrap_err(),
+            BlockError::Unusable {
+                field: "path",
+                expected: Driver::MySql
+            }
+        );
+    }
+
+    /// The two resolvers refuse one broken block the same way, and each names
+    /// its own backend when it does.
+    ///
+    /// § 2 makes a `[db.<name>]` block one file format with a discriminant, so
+    /// a fault an operator can write is a fault under every driver — and the
+    /// thing a per-driver refusal quietly grows is a second vocabulary for the
+    /// same file. Asserted as agreement rather than as two rosters: each
+    /// resolver is handed its own driver's block with the same field broken,
+    /// and the *variant* must match while the sentence names PostgreSQL on one
+    /// side and MySQL on the other.
+    #[test]
+    fn the_two_resolvers_refuse_one_block_the_same_way_and_name_their_own_backend() {
+        type Break = (&'static str, fn(&mut Database));
+        let faults: [Break; 5] = [
+            ("host absent", |block| block.host = None),
+            ("user blank", |block| block.user = Some("  ".to_owned())),
+            ("password absent", |block| block.password = None),
+            ("secret unread", |block| {
+                block.password = None;
+                block.password_file = Some("/run/secrets/db".to_owned());
+            }),
+            ("zone is a name", |block| {
+                block.time_zone = Some("Europe/Vienna".to_owned());
+            }),
+        ];
+
+        let mut swept = 0;
+        for (label, apply) in faults {
+            let mut mine = block();
+            apply(&mut mine);
+            let mut theirs = block();
+            theirs.driver = Some("postgres".to_owned());
+            apply(&mut theirs);
+
+            let refused = MySqlTarget::resolve(&mine).unwrap_err();
+            let other = crate::PgTarget::resolve(&theirs).unwrap_err();
+            assert_eq!(
+                std::mem::discriminant(&refused),
+                std::mem::discriminant(&other),
+                "{label} is one fault of the file format and not one driver's"
+            );
+            swept += 1;
+        }
+        assert_eq!(swept, faults.len());
+
+        // The one thing that does differ, on both sides of it: the sentence an
+        // operator reads names the backend whose resolver read the block.
+        let mut absent = block();
+        absent.host = None;
+        let mine = MySqlTarget::resolve(&absent).unwrap_err().refusal("main");
+        assert_eq!(
+            mine,
+            "[db.main]: the block names no `host`, which a MySQL connection cannot be opened \
+             without"
+        );
+
+        absent.driver = Some("postgres".to_owned());
+        let theirs = crate::PgTarget::resolve(&absent)
+            .unwrap_err()
+            .refusal("main");
+        assert!(theirs.contains("a PostgreSQL connection"), "{theirs}");
+    }
+
+    /// A `Column` as the driver reads one, out of the definition packet
+    /// [`typed_column_def`] writes and through the same `deserialize`
+    /// [`super::read_columns`] uses.
+    fn column_of(
+        name: &str,
+        ty: ColumnType,
+        flags: ColumnFlags,
+        charset: u16,
+        length: u32,
+    ) -> Column {
+        let body = typed_column_def(name, ty, flags, charset, length);
+        Column::deserialize((), &mut ParseBuf(&body)).expect("a definition just written here")
+    }
+
+    /// ADR 0067 § 9's type map, both halves at once: every column this driver
+    /// can describe, decoded, and the row the value landed on asserted
+    /// **against the row the description named**.
+    ///
+    /// The pairing is the point. `column_type` and `scalar` are two functions
+    /// reading two different things — a definition packet and a value — and a
+    /// driver where they disagree answers a `Core\Db\Column::type` that no
+    /// column of that name ever yields. Asserted as one table rather than a
+    /// line each so that a row added to § 9 with no arm here fails the count
+    /// as well as the comparison.
+    ///
+    /// The three type codes that are two rows apiece are all here: `BIGINT` and
+    /// `BIGINT UNSIGNED`, `ENUM` and `SET`, `BIT(1)` and `BIT(8)`. So is the
+    /// one place this driver reads § 9's last row as `bytes` rather than as
+    /// `tainted string` — a binary-charset column with no Novis type, whose
+    /// octets are not text in any encoding — which `super::scalar`'s own
+    /// comment owns.
+    #[test]
+    fn every_column_of_9s_type_map_decodes_to_the_row_its_description_names() {
+        let binary = super::BINARY_CHARSET;
+        let utf8 = u16::from(COLLATION);
+        let midday = MyValue::Date(2026, 9, 2, 12, 30, 15, 250_000);
+        let table: Vec<(&str, Column, MyValue)> = vec![
+            (
+                "int",
+                column_of(
+                    "i",
+                    ColumnType::MYSQL_TYPE_LONG,
+                    ColumnFlags::empty(),
+                    binary,
+                    11,
+                ),
+                MyValue::Int(-7),
+            ),
+            (
+                "year",
+                column_of(
+                    "y",
+                    ColumnType::MYSQL_TYPE_YEAR,
+                    ColumnFlags::empty(),
+                    binary,
+                    4,
+                ),
+                MyValue::Int(2026),
+            ),
+            (
+                "bigint unsigned",
+                column_of(
+                    "u",
+                    ColumnType::MYSQL_TYPE_LONGLONG,
+                    ColumnFlags::UNSIGNED_FLAG,
+                    binary,
+                    20,
+                ),
+                MyValue::UInt(u64::MAX),
+            ),
+            (
+                "float",
+                column_of(
+                    "f",
+                    ColumnType::MYSQL_TYPE_FLOAT,
+                    ColumnFlags::empty(),
+                    binary,
+                    12,
+                ),
+                MyValue::Float(0.5),
+            ),
+            (
+                "double",
+                column_of(
+                    "d",
+                    ColumnType::MYSQL_TYPE_DOUBLE,
+                    ColumnFlags::empty(),
+                    binary,
+                    22,
+                ),
+                MyValue::Double(0.5),
+            ),
+            (
+                "decimal",
+                column_of(
+                    "m",
+                    ColumnType::MYSQL_TYPE_NEWDECIMAL,
+                    ColumnFlags::empty(),
+                    binary,
+                    12,
+                ),
+                MyValue::Bytes(b"12.34".to_vec()),
+            ),
+            (
+                "bit(1)",
+                column_of(
+                    "b",
+                    ColumnType::MYSQL_TYPE_BIT,
+                    ColumnFlags::empty(),
+                    binary,
+                    1,
+                ),
+                MyValue::Bytes(vec![0x01]),
+            ),
+            (
+                "varchar",
+                column_of(
+                    "s",
+                    ColumnType::MYSQL_TYPE_VAR_STRING,
+                    ColumnFlags::empty(),
+                    utf8,
+                    255,
+                ),
+                MyValue::Bytes(b"ada".to_vec()),
+            ),
+            (
+                "enum",
+                column_of(
+                    "e",
+                    ColumnType::MYSQL_TYPE_STRING,
+                    ColumnFlags::ENUM_FLAG,
+                    utf8,
+                    16,
+                ),
+                MyValue::Bytes(b"green".to_vec()),
+            ),
+            (
+                "set",
+                column_of(
+                    "t",
+                    ColumnType::MYSQL_TYPE_STRING,
+                    ColumnFlags::SET_FLAG,
+                    utf8,
+                    16,
+                ),
+                MyValue::Bytes(b"red,green".to_vec()),
+            ),
+            (
+                "blob",
+                column_of(
+                    "o",
+                    ColumnType::MYSQL_TYPE_BLOB,
+                    ColumnFlags::empty(),
+                    binary,
+                    65535,
+                ),
+                MyValue::Bytes(vec![0xFF, 0x00]),
+            ),
+            (
+                "bit(8)",
+                column_of(
+                    "w",
+                    ColumnType::MYSQL_TYPE_BIT,
+                    ColumnFlags::empty(),
+                    binary,
+                    8,
+                ),
+                MyValue::Bytes(vec![0xFF]),
+            ),
+            (
+                "json",
+                column_of(
+                    "j",
+                    ColumnType::MYSQL_TYPE_JSON,
+                    ColumnFlags::empty(),
+                    binary,
+                    4096,
+                ),
+                MyValue::Bytes(br#"{"a":1}"#.to_vec()),
+            ),
+            (
+                "date",
+                column_of(
+                    "da",
+                    ColumnType::MYSQL_TYPE_DATE,
+                    ColumnFlags::empty(),
+                    binary,
+                    10,
+                ),
+                MyValue::Date(2026, 9, 2, 0, 0, 0, 0),
+            ),
+            (
+                "datetime",
+                column_of(
+                    "dt",
+                    ColumnType::MYSQL_TYPE_DATETIME,
+                    ColumnFlags::empty(),
+                    binary,
+                    19,
+                ),
+                midday.clone(),
+            ),
+            (
+                "timestamp",
+                column_of(
+                    "ts",
+                    ColumnType::MYSQL_TYPE_TIMESTAMP,
+                    ColumnFlags::empty(),
+                    binary,
+                    19,
+                ),
+                midday,
+            ),
+            (
+                "time",
+                column_of(
+                    "ti",
+                    ColumnType::MYSQL_TYPE_TIME,
+                    ColumnFlags::empty(),
+                    binary,
+                    10,
+                ),
+                MyValue::Time(false, 0, 23, 59, 59, 999_999),
+            ),
+            (
+                "null",
+                column_of(
+                    "n",
+                    ColumnType::MYSQL_TYPE_LONG,
+                    ColumnFlags::empty(),
+                    binary,
+                    11,
+                ),
+                MyValue::NULL,
+            ),
+        ];
+
+        let read: Vec<(&str, NovisType, String)> = table
+            .iter()
+            .map(|(label, column, value)| {
+                let scalar = scalar(column, value).expect("a value its column describes");
+                (*label, column_type(column), format!("{scalar:?}"))
+            })
+            .collect();
+
+        assert_eq!(
+            read,
+            [
+                ("int", NovisType::Int, "int".to_owned()),
+                ("year", NovisType::Int, "int".to_owned()),
+                ("bigint unsigned", NovisType::Uint, "uint".to_owned()),
+                ("float", NovisType::Float, "float".to_owned()),
+                ("double", NovisType::Float, "float".to_owned()),
+                ("decimal", NovisType::Decimal, "decimal".to_owned()),
+                ("bit(1)", NovisType::Bool, "bool".to_owned()),
+                ("varchar", NovisType::Text, "string".to_owned()),
+                ("enum", NovisType::Text, "string".to_owned()),
+                ("set", NovisType::Other, "string".to_owned()),
+                ("blob", NovisType::Bytes, "bytes".to_owned()),
+                ("bit(8)", NovisType::Other, "bytes".to_owned()),
+                ("json", NovisType::Json, "string".to_owned()),
+                ("date", NovisType::Date, "date".to_owned()),
+                ("datetime", NovisType::DateTime, "datetime".to_owned()),
+                ("timestamp", NovisType::DateTime, "datetime".to_owned()),
+                ("time", NovisType::Time, "time".to_owned()),
+                // Every column type may be null, and the description is still
+                // the column's: § 9's `?T` is a value's fact and not a
+                // column's.
+                ("null", NovisType::Int, "null".to_owned()),
+            ]
+        );
+
+        // The two rows § 9 gives MySQL no column type for, asserted as an
+        // absence over the sweep rather than trusted from reading the arms:
+        // `TIMESTAMPTZ` is PostgreSQL's and `UUID` is MariaDB's, and MariaDB
+        // is its own driver.
+        assert!(
+            read.iter()
+                .all(|(_, described, _)| *described != NovisType::Instant
+                    && *described != NovisType::Uuid),
+            "no MySQL column describes as an instant or a uuid"
+        );
+    }
+
+    /// § 9's three structured rows answer no [`Value`], and every other row
+    /// does.
+    ///
+    /// The three are class instances `nvs-stdlib` builds — this crate cannot
+    /// allocate one — so a `None` here is what routes a column to that crate
+    /// rather than a failure. Asked of the scalar rows that mint nothing:
+    /// a `string` or a `bytes` would allocate an `NvsStr` with a reference
+    /// this crate has no way to give back, `Value::release` being `unsafe` and
+    /// forbidden here.
+    ///
+    /// [`Value`]: nvs_runtime::Value
+    #[test]
+    fn the_rows_that_are_class_instances_are_the_rows_with_no_value() {
+        let binary = super::BINARY_CHARSET;
+        let structured = [
+            (
+                column_of(
+                    "da",
+                    ColumnType::MYSQL_TYPE_DATE,
+                    ColumnFlags::empty(),
+                    binary,
+                    10,
+                ),
+                MyValue::Date(2026, 9, 2, 0, 0, 0, 0),
+            ),
+            (
+                column_of(
+                    "ti",
+                    ColumnType::MYSQL_TYPE_TIME,
+                    ColumnFlags::empty(),
+                    binary,
+                    10,
+                ),
+                MyValue::Time(false, 0, 1, 2, 3, 0),
+            ),
+            (
+                column_of(
+                    "dt",
+                    ColumnType::MYSQL_TYPE_DATETIME,
+                    ColumnFlags::empty(),
+                    binary,
+                    19,
+                ),
+                MyValue::Date(2026, 9, 2, 12, 30, 15, 0),
+            ),
+        ];
+        for (column, value) in &structured {
+            let scalar = scalar(column, value).expect("a value its column describes");
+            assert!(
+                scalar.into_value().is_none(),
+                "a class instance is `nvs-stdlib`'s to build"
+            );
+        }
+
+        let int = column_of(
+            "i",
+            ColumnType::MYSQL_TYPE_LONG,
+            ColumnFlags::empty(),
+            binary,
+            11,
+        );
+        for value in [MyValue::Int(7), MyValue::NULL] {
+            assert!(
+                scalar(&int, &value)
+                    .expect("a value its column describes")
+                    .into_value()
+                    .is_some(),
+                "a scalar row is a value this crate mints itself"
+            );
+        }
+    }
+
+    /// § 9's `TIME` row is a `Core\Time\TimeOfDay`, and MySQL's `TIME` is not:
+    /// the bound is asserted on both sides of itself.
+    ///
+    /// The column doubles as an interval type — `-838:59:59` to `838:59:59` —
+    /// so `23:59:59` is the last value that is a time of day and `24:00:00`,
+    /// which arrives as one whole day and a zero hour, is the first that is
+    /// not. Either alone reads plausibly: a driver that dropped the day count
+    /// answers midnight for the second and passes any case that only asks
+    /// about the first.
+    ///
+    /// The refusal's message is asserted too, and what it must *not* carry is
+    /// the value: an error that reaches a log line takes the column and its
+    /// type with it and leaves one request's data behind.
+    #[test]
+    fn a_time_outside_a_day_is_refused_and_the_message_carries_no_value() {
+        let column = column_of(
+            "shift",
+            ColumnType::MYSQL_TYPE_TIME,
+            ColumnFlags::empty(),
+            super::BINARY_CHARSET,
+            10,
+        );
+
+        let last = scalar(&column, &MyValue::Time(false, 0, 23, 59, 59, 999_999))
+            .expect("the last value that is a time of day");
+        assert_eq!(format!("{last:?}"), "time");
+
+        for outside in [
+            MyValue::Time(false, 1, 0, 0, 0, 0),
+            MyValue::Time(true, 0, 1, 0, 0, 0),
+        ] {
+            let refused = scalar(&column, &outside).expect_err("a value with no time of day in it");
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+            let message = refused.to_string();
+            assert!(
+                message.contains("shift") && message.contains("a time of day"),
+                "the message names the column and what it wanted: {message}"
+            );
+        }
     }
 
     /// ADR 0067 § 4's one-statement-at-a-time rule, on the state alone.

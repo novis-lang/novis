@@ -115,14 +115,14 @@
 //! [`pg`] is the first driver to spend it: a hit drops the `Parse` from the
 //! batch, and an eviction's `Close` rides in the batch that replaced it.
 //!
-//! [`mysql`] is the second driver and has its opening only: the greeting, § 3's
-//! `CLIENT_SSL` upgrade, the authentication exchange over `mysql_common`'s
-//! plugins, the forced `utf8mb4` collation, § 9's declared zone as a session
-//! variable and § 13's `COM_RESET_CONNECTION`. Its statement path —
-//! `COM_STMT_PREPARE`/`COM_STMT_EXECUTE`, the two round trips § 1 records the
-//! cost of — is what it still owes, and until it lands nothing above this crate
-//! can name a MySQL connection: there is no `MySqlTarget::resolve`, so a
-//! `[db.<name>]` block with `driver = "mysql"` reaches no opener. § 13's
+//! [`mysql`] is the second driver and is complete from a `[db.<name>]` block
+//! to a decoded row: [`MySqlTarget::resolve`] reads the block, then the
+//! greeting, § 3's `CLIENT_SSL` upgrade, the authentication exchange over
+//! `mysql_common`'s plugins, the forced `utf8mb4` collation, § 9's declared
+//! zone as a session variable, § 13's `COM_RESET_CONNECTION`, and § 1's two
+//! round trips over `COM_STMT_PREPARE`/`COM_STMT_EXECUTE` with § 9's whole type
+//! map decoded off the binary rows. What it still owes is § 1's *cache*, so
+//! every statement pays those two round trips and none pays one. § 13's
 //! pool is above this crate — `nvs_runtime::pool` is the store and `nvs-stdlib`
 //! the acquire path — so what is here is the halves only a driver can hold:
 //! [`Connection::is_poolable`]'s release gate and [`pg`]'s reset, met over a
@@ -153,12 +153,10 @@ pub mod span;
 pub mod sql;
 
 pub use conn::{
-    ColumnType, Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn, PgConn,
-    ServerError, SqliteConn, State, TdsConn,
+    BlockError, ColumnType, Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn,
+    PgConn, ServerError, SqliteConn, State, TdsConn,
 };
-pub use mysql::{MySqlRow, MySqlRows, MySqlTarget};
-pub use pg::{
-    BlockError, CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode,
-};
+pub use mysql::{MySqlDate, MySqlRow, MySqlRows, MySqlScalar, MySqlTarget, MySqlTime};
+pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode};
 pub use span::{QuerySpan, SQL_LIMIT};
 pub use sql::{Binding, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite};
