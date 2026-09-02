@@ -2848,7 +2848,14 @@ tests = [
 kind = "exact"
 stage = "5 transactions"
 file = "examples/transaction.nvs"
-want = ["inserted 2", "rolled back", "count=0", "committed", "count=2"]
+# The second line is § 8's `$reason`: `rollBack`'s argument reaches the caller on
+# the thrown `Db\RolledBack`, which is the only channel a closure returning
+# nothing has.
+want = [
+  "inserted 2",
+  "rolled back: this fixture keeps nothing from the first attempt",
+  "count=0", "committed", "count=2",
+]
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -2973,6 +2980,10 @@ want = [
   # declared as one, and the instance the driver's components built is checked
   # against it rather than refused.
   "typed day=2024-03-05",
+  # § 8's kind on a real refusal: the primary key refuses a second write of row
+  # 1, and the thrown `Db\DbError` carries the normalised case rather than
+  # `23505`, so the `match` in the fixture is the branch an application writes.
+  "kind=UniqueViolation",
 ]
 
 

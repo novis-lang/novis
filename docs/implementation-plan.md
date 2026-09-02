@@ -43,25 +43,26 @@
 >
 > **Open now:** **Goal 5 of the parity program — `Core\Db`, M8 — is running.** **Stage 0 has
 > landed**: ADR 0071's derive pass, and § 9's type map refusing a field no column reads back as
-> (`E0756`). **`crates/nvs-db` exists**: § 5's `Connection` enum, § 4's busy field and the
-> `NVS_DB_MATRIX_*` reader, over an `NvsTls` generic in its transport. Its wire I/O is PostgreSQL's:
-> § 3's `SSLRequest` upgrade, SCRAM-SHA-256, § 4's extended-query state machine and § 13's reset.  §
-> 9's whole type map decodes over it; § 4's count, `lastId` and `executeMany` too. § 7's
-> `BEGIN`/`COMMIT`/`ROLLBACK` is on it, nesting as a `SAVEPOINT` to any depth, with § 8's kind and
-> no bound value in any refusal. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect` over a
-> request-held connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and
-> `executeMany` — bound in § 5's rewriter's order — and § 18's readers: all six of `Rows`', all
-> fourteen of `Row`, `Write`'s three, and `Db\Column`'s three. `open` waits on a shape-parameter
-> type. **§ 7's `transaction` is on both classes with all three options, retrying either conflict,
-> no backoff** and a refusal throws `Db\DbError` in § 10's tree carrying § 8's `kind`; `nvs.toml`
-> now opens `[db.main]` and grants `db.connect` to the two fixtures; `Rows` is generic at `T` and
-> **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and § 9's five structured columns build the
-> `Core\Time`/`Core\Uuid` instance both `Row`'s four typed readers and a `#[Db\Derive]` field answer
-> with, so `examples/db.nvs` runs all of that end to end. Stages 3 and 4 are green in `-p nvs-db`
-> and Stage 5 four of its seven, two of them in `-p nvs-stdlib`, the pool is 5 to 7, and **ADR 0132
-> has claimed the goal's one ADR slot**. **Goals 1-4 and M4 are closed and are this goal's Stage 1
-> floor** — `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4
-> records. Conformance 1415, differential 250, its gate met, migration 90%/74%.
+> (`E0756`). **`crates/nvs-db` exists**: § 5's `Connection` enum, § 4's busy field, over an `NvsTls`
+> generic. Its wire I/O is PostgreSQL's: § 3's `SSLRequest` upgrade, SCRAM-SHA-256, § 4's
+> extended-query state machine and § 13's reset.  § 9's whole type map decodes over it; § 4's count,
+> `lastId` and `executeMany` too. § 7's `BEGIN`/`COMMIT`/`ROLLBACK` is on it, nesting as a
+> `SAVEPOINT` to any depth, with § 8's kind and no bound value in any refusal. **`Core\Db` has
+> opened in `nvs-stdlib`**: § 18's `connect` over a request-held connection, `inList`,
+> `quoteIdentifier` and § 4's `query`, `execute` and `executeMany` — bound in § 5's rewriter's order
+> — and § 18's readers: all six of `Rows`', all fourteen of `Row`, `Write`'s three, and
+> `Db\Column`'s three. `open` waits on a shape-parameter type. **§ 7's `transaction` is on both
+> classes with all three options, retrying either conflict, no backoff** and a refusal throws
+> `Db\DbError` carrying `kind`; `nvs.toml` now opens `[db.main]` and grants `db.connect` to the two
+> fixtures; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and §
+> 9's five structured columns build the `Core\Time`/`Core\Uuid` instance both `Row`'s four typed
+> readers and a `#[Db\Derive]` field answer with, so `examples/db.nvs` runs all of that end to end
+> and branches on a real refusal's § 8 `kind`, as `examples/transaction.nvs` reads a real
+> `rollBack`'s `$reason`. Stages 3 and 4 are green in `-p nvs-db` and Stage 5 four of its seven, two
+> of them in `-p nvs-stdlib`, the pool is 5 to 7, and **ADR 0132 has claimed the goal's one ADR
+> slot**. **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** — `Core`'s
+> capability-bearing half in full. Conformance 1415, differential 250, its gate met, migration
+> 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

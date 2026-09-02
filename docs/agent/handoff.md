@@ -2,70 +2,63 @@
 
 ## State
 
-**A pending throw's extra slot is readable without consuming the throw, and ADR 0067 § 7's retry
-now re-runs the closure's own conflict.** `Ctx::pending_slot(class, slot)`
-(`crates/nvs-runtime/src/ctx.rs:3499`) is `take_thrown`'s borrowing half: it answers `None` unless
-the pending failure conforms to the class named, which is the whole of what keeps `KIND_SLOT` from
-reading a `ParseError`'s `issues` back as an `ErrorKind` — the two are the same slot number. It
-reads through `Thrown::field` (`crates/nvs-runtime/src/throwable.rs:459`), guarded by the same
-`count > slot` bound `new_as` writes under, and takes no reference: the value is good only while
-the failure is still pending, which is all a decide-then-re-raise caller needs.
+**§ 8's `kind` and `RolledBack`'s `$reason` are now pinned in programs, not only in `-p` unit
+tests.** `examples/db.nvs:146` writes row 1 of `people` a second time inside a `try`, catches
+`Core\Db\DbError` and `match`es `$refused->kind` against `Core\Db\ErrorKind::UniqueViolation`; it
+prints `kind=UniqueViolation` against `tests/db/compose.yaml`'s PostgreSQL, so the whole path — the
+server's `23505`, `nvs_db`'s normalisation, `Fault::thrown_with_slot` at
+`crates/nvs-stdlib/src/db.rs:2637`, `KIND_SLOT`, and the compiler's enum-typed property — is held by
+one line of output. `examples/transaction.nvs:62` reads `$rolled->reason` off the `Db\RolledBack`
+that `rollBack("…")` threw and prints it. Both lines are frozen in `docs/agent/loop-goal.toml` (the
+`examples/db.nvs` check under stage 9, the `examples/transaction.nvs` one under stage 5) and in
+`docs/agent/goals/5-database.toml` beside it — the second copy is not optional, because
+`goal-switch.py` restores the live file from it.
 
-**`transaction` retries both conflicts** (`crates/nvs-stdlib/src/db.rs:3561`). The commit's refusal
-is an `io::Error` carrying its `nvs_db::ServerError`; the closure's is a pending `Db\DbError`, so
-its kind is read off the object and turned back into a `nvs_db::DbErrorKind` by `error_kind_of`
-(`crates/nvs-stdlib/src/db.rs:2662`) — the inverse of `error_kind_value`, computed *through* it
-rather than as a second name table. Both then ask `is_retryable`, and the four conditions are
-unchanged. A retry clears the pending first, because the decision is that the throw did not happen.
-Module gap 9 now holds only the backoff.
+**§ 8's four raw values are still a decision, not a fill-in.** `sqlState`, `driverCode`,
+`constraint` and `sql` are four more slots on `Core\Db\DbError`, and `Fault::ThrownWithSlot`
+(`crates/nvs-runtime/src/abi.rs:108`) carries exactly one — deliberately. Widening it, seeding the
+rest at `Thrown::new_as`, or leaving three of them unlanded are three different answers with
+different costs, and the next group's first slice is to pick one and write it down. Nothing about
+`kind` moves either way: `crates/nvs-hir/src/errors.rs:186` already says `KIND_SLOT` stays 0
+relative to the root as the four land after it.
 
-**A natively thrown `Core\Db\RolledBack` carries its `$reason`.** `Thrown::new_as` seeds it from the
-message (`crates/nvs-runtime/src/throwable.rs:335`), which is the same text `nvs_ir`'s
-`ExtraInit::Message` gives a hand-built one, so the two ways of building that class no longer
-disagree. `nvs_runtime::REASON_SLOT` is the compiler's `nvs_hir::errors::REASON_SLOT`, held to it by
-`the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
+**Unchanged and still true.** The driver's acceptance line names `examples/queue.nvs` — Stage 8's
+unlanded `Core\Queue` (ADR 0084), not a regression; its `[[check]]` block is
+`docs/agent/loop-goal.toml:2927`. Stage 5's `args = ["test", "-p", "nvs-db"]`
+(`docs/agent/loop-goal.toml:2830`) still cannot see the two `nvs-stdlib` tests, and is still the
+user's call. The CA is still not in git; `nvs_host::tls`'s module doc owns why.
 
-**Nothing pins any of this in a program.** All three are held by `-p` unit tests only. The `kind` on
-a live refusal and the `$reason` on a real `rollBack` both need a database, so their home is a
-program leg beside `examples/db.nvs` rather than `tests/conformance/`, which CI runs on three
-runners with no PostgreSQL. That is the next group's first two slices.
-
-**§ 8's four raw values still owe more than a seeded type.** `sqlState`, `driverCode`, `constraint`
-and `sql` are four more slots, and `Fault::ThrownWithSlot` (`crates/nvs-runtime/src/abi.rs:96`)
-carries exactly one — deliberately, one session ago. Widening it is a decision, not a fill-in.
-
-The driver's acceptance line still names `examples/queue.nvs` — Stage 8's unlanded `Core\Queue`
-(ADR 0084), not a regression; its `[[check]]` block is `docs/agent/loop-goal.toml:2927`. Stage 5's
-`args = ["test", "-p", "nvs-db"]` (`docs/agent/loop-goal.toml:2830`) still cannot see the two
-`nvs-stdlib` tests, and is still the user's call. The CA is still not in git; `nvs_host::tls`'s
-module doc owns why.
-
-**`orient.py` printed ADR 0067 §§ 1, 9 and 13 — not § 7 or § 8, which specify every slice of this
-group and the last one's.** Four handoffs have now asked: add `0067 § 7` and `0067 § 8` to
-`[context] adrs` in `docs/agent/loop-goal.toml`.
+**`orient.py` printed ADR 0067 §§ 1, 9 and 13 — not § 7 or § 8, which specify this group and the
+last two.** Five handoffs have now asked: add `0067 § 7` and `0067 § 8` to `[context] adrs` in
+`docs/agent/loop-goal.toml`.
 
 ## Next group
 
-**Prove the two properties in a program, then decide what a wider throw costs. The file set is
-`examples/db.nvs`, `examples/transaction.nvs` and `crates/nvs-stdlib/src/db.rs`.**
+**Decide what a wider throw costs, then land the two raw values that pay for themselves. The file
+set is `crates/nvs-runtime/src/abi.rs`, `crates/nvs-hir/src/errors.rs`,
+`crates/nvs-types/src/error_lib.rs` and `crates/nvs-stdlib/src/db.rs`.**
 
-- [ ] **A leg pinning `kind` on a real refusal** — append to `examples/db.nvs:143`: insert a row
-      twice inside a `try`, `catch (Core\Db\DbError $e)` and `match ($e->kind)` against
-      `Core\Db\ErrorKind::UniqueViolation`. It runs against `tests/db/compose.yaml`'s PostgreSQL,
-      which is up. ADR 0067 § 8.
-- [ ] **A leg pinning `$reason` on a real `rollBack`** — `examples/transaction.nvs:62` already
-      catches `Core\Db\RolledBack`; echo `$rolled->reason` beside the message it prints, which is
-      the seeded value and was `null` before this session. ADR 0067 § 7.
-- [ ] **Decide what § 8's four raw values cost** — `crates/nvs-runtime/src/abi.rs:96`'s
-      `Fault::ThrownWithSlot` carries one slot and `sqlState`, `driverCode`, `constraint` and `sql`
-      are four. Record the shape (a small slice of pairs, or a `DbError`-specific carrier) in the
-      module doc at `crates/nvs-stdlib/src/db.rs:85` before writing any of it. ADR 0067 § 8.
+- [ ] **Decide what § 8's four raw values cost, and record the decision** — `Fault::ThrownWithSlot`
+      at `crates/nvs-runtime/src/abi.rs:108` carries one `(slot, value)` pair and
+      `Fault::thrown_with_slot` at `crates/nvs-runtime/src/abi.rs:157` is its only constructor. The
+      choice is a second variant carrying a slice, a wider tuple, or seeding the extra slots inside
+      `Thrown::new_as` (`crates/nvs-runtime/src/throwable.rs:335`) the way `RolledBack`'s `$reason`
+      already is. Weigh it as ADR 0002's cost on the ordinary throw path, not `Core\Db`'s alone, and
+      write the answer into ADR 0067 § 8's body. ADR 0067 § 8.
+- [ ] **`sqlState` and `driverCode` become slots 1 and 2** — append to `KIND` at
+      `crates/nvs-hir/src/errors.rs:155`, give each a seeded type beside `"kind"` at
+      `crates/nvs-types/src/error_lib.rs:124` (both are `string`; a row without an arm there
+      `panic!`s at seed time), and fill them at the raiser,
+      `crates/nvs-stdlib/src/db.rs:2637`. ADR 0067 § 8.
+- [ ] **A leg pinning `sqlState` beside `kind`** — extend the `catch` at `examples/db.nvs:155` to
+      echo the raw code as well, and add the line to both `want` lists. Only once the slice above
+      lands. ADR 0067 § 8.
 
 ## Backlog
 
-- Stage 8's `Core\Queue` is what the failing acceptance check wants — ADR 0084.
-- `stream`/`streamAs`, `close` and `Connection`'s three readonly properties — db module gap 5.
-- `open` waits on a shape-parameter type — db module gap 1.
-- § 7's backoff needs a helper that can suspend — db module gap 9, `nvs-runtime` gap 3.
-- `queryAs<T>`'s three run-time refusals want a diagnostic band — db module gap 8.
-- Only PostgreSQL opens; the other four drivers are Stage 6 — db module gap 2.
+- The `transaction` retry has no backoff — `crates/nvs-stdlib/src/db.rs` module gap 9 owns it.
+- The pool, ADR 0067 § 13 — stages 5 to 7 of `docs/agent/loop-goal.toml`.
+- `open` still waits on a shape-parameter type — `docs/implementation-plan.md`, Open now.
+- `constraint` and `sql`, § 8's other two raw values — ADR 0067 § 8.
+- The four drivers that are not PostgreSQL — stage 6, `tools/db-matrix.py --all`.
+- The CA is not in git; `crates/nvs-host/src/tls.rs`'s module doc owns why.
