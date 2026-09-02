@@ -6184,6 +6184,12 @@ sibling in the same namespace unqualified.
   too, so a `{queue?: string}` written as `CoreTy::Str` fails exactly as a positional one would — an
   option's type needs `CoreTy::Text(Qual::…)`/`Blob(Qual::…)` like everything else, and the failure
   names the member without saying which of its parameters it meant.
+- **An `#[expect(dead_code)]` on an item whose only reader is `mod tests` warns under `cargo test`.**
+  The expectation is unfulfilled there — the tests *are* a use — so the build that has to stay quiet is
+  the other one: `#[cfg_attr(not(test), expect(dead_code, reason = "…"))]`. Worth the ceremony over a
+  plain `allow` when the item is landed ahead of its caller (a statement written beside the ones it
+  belongs with, a helper the next slice calls), because the expectation fires the moment the real
+  reader lands and the attribute removes itself instead of sitting there forever.
 
 ## Divergences and refusals already pinned
 
