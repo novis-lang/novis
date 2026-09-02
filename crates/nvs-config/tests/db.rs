@@ -1,6 +1,6 @@
-//! ADR 0067 § 13's pool bounds, as the boot reads them: one key in two shapes, four bounds that are
-//! finite with nothing configured (ADR 0074), and the three values that parse and still cannot
-//! describe a pool.
+//! ADR 0067 § 13's pool bounds and § 11's `slow_query` threshold, as the boot reads them: one key in
+//! two shapes, four bounds that are finite with nothing configured (ADR 0074), the three values that
+//! parse and still cannot describe a pool, and a threshold that is off until an operator writes one.
 //!
 //! The refusals are asserted by **counting**, not by reading one off a line: a reader that grew a
 //! hole in one of its four checks still answers plausibly for the other three.
@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use nvs_config::Config;
-use nvs_config::db::{PoolBounds, pool_for};
+use nvs_config::db::{PoolBounds, pool_for, slow_query_for, validate};
 use nvs_config::tree::Database;
 use nvs_diagnostics::{Diagnostic, SourceMap, code};
 
@@ -31,6 +31,12 @@ fn block(text: &str) -> Database {
 /// The bounds `text`'s block resolves to, panicking when it is refused instead.
 fn bounds(text: &str) -> PoolBounds {
     pool_for("main", &block(text), &BTreeMap::new())
+        .unwrap_or_else(|err| panic!("{text}\n-- refused: {}", err.message))
+}
+
+/// § 11's threshold `text`'s block resolves to, panicking when it is refused instead.
+fn threshold(text: &str) -> Option<Duration> {
+    slow_query_for("main", &block(text), &BTreeMap::new())
         .unwrap_or_else(|err| panic!("{text}\n-- refused: {}", err.message))
 }
 
@@ -186,5 +192,71 @@ fn an_unknown_key_in_the_pool_table_is_refused_by_name() {
         diagnostic.message.contains("maximum"),
         "the refusal should name the key that does not exist: {:?}",
         diagnostic.message,
+    );
+}
+
+/// ADR 0067 § 11's threshold, on both sides of the boundary that matters: unwritten is off, which is
+/// the ADR's own default and the reason a deployment gets no slow-query log it did not ask for, and
+/// a written `0` is a threshold every statement passes rather than a second spelling of off.
+///
+/// The spellings are asserted as **agreement** for [`the_spellings_of_one_duration_agree`]'s reason:
+/// this reader is `crate::value`'s parse and not a suffix table of its own.
+#[test]
+fn a_slow_query_threshold_is_off_until_a_block_writes_one() {
+    let written = |slow: &str| threshold(&format!("{MAIN}slow_query = {slow}\n"));
+
+    assert_eq!(threshold(MAIN), None, "unwritten is off, and off is silent");
+    assert_eq!(written("\"2s\""), Some(Duration::from_secs(2)));
+    assert_eq!(written("\"2000ms\""), written("\"2s\""));
+    assert_eq!(
+        written("2"),
+        written("\"2s\""),
+        "a bare number is seconds here too",
+    );
+    assert_eq!(
+        written("0"),
+        Some(Duration::ZERO),
+        "a written zero logs every statement, which is what `slower than nothing` means",
+    );
+}
+
+/// A `slow_query` nothing can read is a refusal at boot rather than a statement path that quietly
+/// times nothing — and it arrives through `validate`, which is the call the boot actually makes, so
+/// this fails if the reader is written and never wired up.
+///
+/// `false` is refused for the same reason `lifetime = false` is: it removes a ceiling everywhere
+/// else in this tree, and a threshold is not a ceiling. The help says so in the threshold's own
+/// words, not the pool's.
+#[test]
+fn a_slow_query_that_is_not_a_duration_is_refused_at_boot() {
+    for slow in ["false", "\"200 milliseconds\""] {
+        let text = format!("{MAIN}slow_query = {slow}\n");
+        let mut sources = SourceMap::new();
+        let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", &text);
+        let config = parsed.unwrap_or_else(|err| panic!("{text}\n-- refused: {}", err.message));
+
+        let diagnostic = validate(&config, &BTreeMap::new())
+            .expect_err("a threshold nothing can read is not a boot that may continue");
+        assert_eq!(diagnostic.code, Some(code::E_BAD_DIRECTIVE), "{slow}");
+        assert!(
+            diagnostic.message.contains("db.main.slow_query"),
+            "the message should name the key: {:?}",
+            diagnostic.message,
+        );
+    }
+
+    let diagnostic = slow_query_for(
+        "main",
+        &block(&format!("{MAIN}slow_query = false\n")),
+        &BTreeMap::new(),
+    )
+    .expect_err("and the reader refuses it on its own too");
+    assert!(
+        diagnostic
+            .notes
+            .iter()
+            .any(|note| note.starts_with("help: ") && note.contains("leave the key out")),
+        "the help names the threshold's own way out and never `pool = false`: {:?}",
+        diagnostic.notes,
     );
 }

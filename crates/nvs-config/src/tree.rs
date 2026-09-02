@@ -505,7 +505,8 @@ pub struct StorageDisk {
 /// **Recorded gap: ADR 0067 states `Db\Settings` as a language type and never writes the config
 /// block out**, so this roster is every field that ADR names in prose (§ 2's "SQLite takes a `path`
 /// and has no `host`, `port`, `user` or `password`", § 4's `Settings.database` and `.user`,
-/// § 3a's `password_file`, § 1's `statement_cache`, § 9's `time_zone`, § 13's `pool`) plus the
+/// § 3a's `password_file`, § 1's `statement_cache`, § 9's `time_zone`, § 11's `slow_query`,
+/// § 13's `pool`) plus the
 /// `driver` a discriminated union needs to be discriminated on.
 /// A field the ADR turns out to have meant and this list omits is a boot refusal naming the line,
 /// which is loud and one edit to fix; the fix is to add the field here *and* the example to 0067.
@@ -552,6 +553,17 @@ pub struct Database {
     /// § 1's cache existed. The reader is `nvs_db::sql::StatementCache::capacity_for`, which is
     /// also where the default lives — this crate names no driver's constant.
     pub statement_cache: Option<u32>,
+    /// How long a statement on this connection may take before it is also written to `Core\Log`
+    /// (ADR 0067 § 11), as `200ms` or `1s`.
+    ///
+    /// Unset is off, and that is the ADR's own default rather than a number: § 11 gives the
+    /// threshold no value, and a slow-query log every deployment gets without asking would be the
+    /// ungated output that section refuses. A written `0` is legal and logs every statement, which
+    /// is the honest reading of "slower than nothing" and the spelling an operator debugging one
+    /// request reaches for. `nvs_config::db::slow_query_for` is the reader, and the line itself is
+    /// `Core\Db`'s — it carries the span ADR 0041's `query` event carries, which is what § 11 means
+    /// by *the same facts*.
+    pub slow_query: Option<Setting>,
     /// The zone this database's zone-less `DATETIME`/`TIMESTAMP` columns are written in
     /// (ADR 0067 § 9), defaulting to UTC.
     ///

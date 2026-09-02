@@ -1,5 +1,6 @@
 //! What a `[db.<name>]` block still owes once it has deserialized: the path that names a file,
-//! resolved and trust-checked, and ADR 0067 § 13's pool bounds, read into numbers. Both at boot.
+//! resolved and trust-checked, and the two durations ADR 0067 states in prose — § 13's pool bounds
+//! and § 11's `slow_query` threshold — read into numbers. All of it at boot.
 //!
 //! The path is one field — [`Database::tls_ca_file`](crate::tree::Database::tls_ca_file), the PEM bundle
 //! ADR 0067 § 3's TLS leg verifies a server's certificate against. It is here rather than in
@@ -130,18 +131,20 @@ impl Default for PoolBounds {
     }
 }
 
-/// Every `[db.<name>]` block's pool resolves — the boot half of [`pool_for`], which is where an
-/// unwritable bound becomes a refusal naming its own file.
+/// Every `[db.<name>]` block's pool and § 11 threshold resolve — the boot half of [`pool_for`] and
+/// [`slow_query_for`], which is where an unwritable setting becomes a refusal naming its own file.
 ///
 /// It runs over the merged tree for [`canonicalize`]'s reason: which `pool` is in force is a
 /// question only the merge has answered.
 ///
 /// # Errors
 ///
-/// The first block whose bounds do not describe a pool, as [`pool_for`] refuses it.
+/// The first block whose bounds do not describe a pool or whose `slow_query` is not a duration, as
+/// [`pool_for`] and [`slow_query_for`] refuse it.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     for (name, db) in &config.db {
         pool_for(name, db, origins)?;
+        slow_query_for(name, db, origins)?;
     }
     Ok(())
 }
@@ -199,7 +202,12 @@ pub fn pool_for(
     }
 
     let lifetime = match (
-        duration(&key("lifetime"), written.lifetime.as_ref(), origins)?,
+        duration(
+            &key("lifetime"),
+            written.lifetime.as_ref(),
+            origins,
+            POOL_HELP,
+        )?,
         written.lifetime.as_ref(),
     ) {
         // Zero is only reachable when the block wrote it, so the refusal always has the spelling to
@@ -219,8 +227,13 @@ pub fn pool_for(
         (None, _) => PoolBounds::DEFAULT.lifetime,
     };
 
-    let acquire = duration(&key("acquire"), written.acquire.as_ref(), origins)?
-        .unwrap_or(PoolBounds::DEFAULT.acquire);
+    let acquire = duration(
+        &key("acquire"),
+        written.acquire.as_ref(),
+        origins,
+        POOL_HELP,
+    )?
+    .unwrap_or(PoolBounds::DEFAULT.acquire);
 
     Ok(PoolBounds {
         enabled: true,
@@ -231,14 +244,58 @@ pub fn pool_for(
     })
 }
 
+/// What a refused pool bound is told to write instead. Held once because two bounds share it, and
+/// named because [`slow_query_for`] deliberately does not: `pool = false` is this family's way out
+/// and a threshold has its own.
+const POOL_HELP: &str = "write a duration, as `30m`, or `pool = false` if the pool is not wanted at \
+                         all";
+
+/// [ADR 0067 § 11](../../../docs/adr/0067-core-db.md)'s `slow_query` threshold for `name`'s block,
+/// or `Ok(None)` for the block that writes none — which is off, and the ADR's own default rather
+/// than a number this crate picks.
+///
+/// Not part of [`PoolBounds`] and not read by [`pool_for`], because it is not a bound on the pool:
+/// it is a property of the statements that run on the connection, and § 13's four bounds are
+/// resolved once per acquire where this is asked once per statement.
+///
+/// **The unwritten case costs a lookup and nothing else**, which is why the setting is tested before
+/// the key is built: `Core\Db` asks this per statement, so the deployment that never opted in must
+/// not pay a `String` for the question, and the one that did pays a parse it asked for.
+///
+/// # Errors
+///
+/// A `slow_query` that is not a duration, in [`mod@crate::value`]'s own words. [`validate`] asks at
+/// boot, so the per-statement reader downstream is reading a value already proven to parse.
+pub fn slow_query_for(
+    name: &str,
+    db: &Database,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Option<Duration>, Diagnostic> {
+    let Some(setting) = db.slow_query.as_ref() else {
+        return Ok(None);
+    };
+    duration(
+        &format!("db.{name}.slow_query"),
+        Some(setting),
+        origins,
+        "write how long a statement may take before it is logged, as `200ms`, or leave the key out \
+         and none is",
+    )
+}
+
 /// One written duration bound, and `Ok(None)` for one the block left out.
 ///
 /// [`mod@crate::value`] is the parser, so `"30m"`, `"1800s"` and a bare `1800` all read the same and
 /// a suffix it does not know is refused in its own words rather than in this module's.
+///
+/// `help` is the caller's because the settings this reads are not one family: a pool bound is
+/// answered by `pool = false` and § 11's `slow_query` by leaving the key out, and a shared line
+/// would name the wrong escape for one of them.
 fn duration(
     key: &str,
     written: Option<&Setting>,
     origins: &BTreeMap<String, Origin>,
+    help: &str,
 ) -> Result<Option<Duration>, Diagnostic> {
     let Some(setting) = written else {
         return Ok(None);
@@ -253,8 +310,8 @@ fn duration(
         _ => Err(refuse(
             key,
             &crate::value::as_written(setting),
-            "a pool bound is finite — `false` removes a ceiling, and this is not one",
-            "write a duration, as `30m`, or `pool = false` if the pool is not wanted at all",
+            "a duration setting is finite — `false` removes a ceiling, and this is not one",
+            help,
             origins,
         )),
     }
@@ -274,7 +331,7 @@ fn refuse(
 ) -> Diagnostic {
     Diagnostic::error(
         code::E_BAD_DIRECTIVE,
-        format!("`{key}` is `{what}`, which is not a bound a pool can hold"),
+        format!("`{key}` is `{what}`, which is not a value that key can hold"),
     )
     .with_note(format!("{why}{}", origin_note(origins.get(key))))
     .with_help(help.to_string())
