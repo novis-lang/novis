@@ -1396,9 +1396,9 @@ pub const CLASSES: &[CoreClass] = &[
     // the eleven answer only their refusal until § 9's structured columns land.
     crate::db::ROW,
     // What `execute` answers with: § 4's two counts and the id a `RETURNING`
-    // clause handed back, as three readers rather than § 18's three readonly
-    // properties — for the reason [`CoreTy::Instance`] states, that a `Core`
-    // instance has no property a program can reach.
+    // clause handed back, as the three readers § 18 now writes — for the reason
+    // [`CoreTy::Instance`] states, that a `Core` instance has no property a
+    // program can reach, which that section's own preamble records.
     crate::db::WRITE,
     // What `inList` answers with: ADR 0067 § 5's explicit expansion marker,
     // memberless because § 18's own table accepts it nowhere but a bound
@@ -1991,6 +1991,10 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // And the second, for the same reason: an entry of a walked tree is a
     // `string` whatever the tree held.
     (crate::io::WALK_NAME, &CoreTy::Str),
+    // ADR 0067 § 18's `foreach ($rows as Row $row)`: a result set walks the
+    // rows it is already holding, and a row is a `Core\Db\Row` whatever the
+    // statement selected.
+    (crate::db::ROWS_NAME, &CoreTy::Instance(crate::db::ROW_NAME)),
 ];
 
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is

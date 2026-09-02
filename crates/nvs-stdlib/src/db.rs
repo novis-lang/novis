@@ -90,17 +90,15 @@
 //!    `nvs_runtime::ThrownClass::DbRolledBack` is what a helper names to raise
 //!    one — nothing in this module raises one yet, because § 7's
 //!    `transaction` is what would.
-//! 5. **`query`, `execute` and `executeMany` are what has landed of
-//!    `Core\Db\Queryable`.** `queryAs`, `stream`, `streamAs` and `transaction`
-//!    are owed, and so are `close` and § 18's three readonly properties on
-//!    `Connection`. On the result side [`ROWS`] owes one member of six —
+//! 5. **`query`, `execute`, `executeMany` and `transaction` are what has landed
+//!    of `Core\Db\Queryable`.** `queryAs`, `stream` and `streamAs` are owed, and
+//!    so are `close` and § 18's three readonly properties on `Connection`. On
+//!    the result side [`ROWS`] owes one member of six —
 //!    `columns(): array<Column>`, which needs three things at once: a
 //!    `Core\Db\Column` class, a `Core\ColumnType` enum for § 18's own fourteen
 //!    cases, and a classification of a `PgColumn`'s type OID that `nvs-db` does
 //!    not expose (`PgColumn::decode` maps an OID to a *value*, which is a
-//!    different question from what a NULL column's declared type is). `Rows`
-//!    is not `Iterable<Row>` either, for a reason that is not about databases:
-//!    no row in this registry declares an iterable return.
+//!    different question from what a NULL column's declared type is).
 //! 6. **§ 9's five structured rows do not read back.** A `DATE`, `TIME`,
 //!    `TIMESTAMP`, `TIMESTAMPTZ` or `UUID` column is a `Core\Time` or
 //!    `Core\Uuid` *instance*, which only this crate can allocate;
@@ -196,7 +194,12 @@ const SCOPE_AT: usize = 2;
 const REASON_AT: usize = 3;
 
 /// `Core\Db\Rows`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
-const ROWS_NAME: &str = r"Core\Db\Rows";
+pub(crate) const ROWS_NAME: &str = r"Core\Db\Rows";
+
+/// The symbol behind `Iterable<Row>::iterate()`, reached by name through this
+/// class's method table rather than as a registered member — [`crate::cursor`]
+/// and [`crate::instance`]'s dispatch roster own that protocol.
+pub(crate) const ROWS_ITERATE_SYMBOL: &str = "nvs_core_db_rows_iterate";
 
 /// The one slot a [`ROWS`] holds: every row the statement answered, in the
 /// server's order, each one a string-keyed array of its own columns.
@@ -206,7 +209,7 @@ const ROWS_SLOT: &str = "rows";
 const ROWS_AT: usize = 0;
 
 /// `Core\Db\Row`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
-const ROW_NAME: &str = r"Core\Db\Row";
+pub(crate) const ROW_NAME: &str = r"Core\Db\Row";
 
 /// The one slot a [`ROW`] holds: that row's own columns, string-keyed and in
 /// the server's order — **the very array [`ROWS_SLOT`] already holds one of per
@@ -563,9 +566,14 @@ const ISOLATION_DOC: EnumDoc = EnumDoc {
 /// `array<Column>`, which needs three things this slot has not got: a
 /// `Core\Db\Column`, a `Core\ColumnType` enum for spec § 18's own fourteen
 /// cases, and a classification of a `PgColumn`'s type OID that `nvs-db` does not
-/// yet expose. This module's known gap 5 is that list. `Iterable<Row>` is owed
-/// with it, for a separate reason — nothing in this registry spells an iterable
-/// return yet — and `foreach` over `all()` is the same loop until it does.
+/// yet expose. This module's known gap 5 is that list.
+///
+/// **It is `Iterable<Row>`, so a `foreach` walks it directly** — the row in
+/// [`crate::registry::ITERABLES`] is what lets the checker compile one, and
+/// [`nvs_core_db_rows_iterate`] is what the receiver answers the protocol with.
+/// ADR 0053 § 3 takes exactly three subjects and this is the second of them
+/// rather than a fourth, so `foreach ($rows as Row $row)` and `all()` are one
+/// walk over one array of rows: neither copies what the other already holds.
 ///
 /// **Buffered is ADR 0067 § 4's default and this is what it spends**: a result
 /// set is held whole, per request, and the connection is free the moment
@@ -2754,6 +2762,42 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Iterable<Row>::iterate(): Iterator<Row>` — a cursor over one [`ROW`]
+    /// per row this value is holding.
+    ///
+    /// Not a registered member: it is reached by name through this class's
+    /// method table, so its receiver is **transferred** rather than borrowed,
+    /// which is why this body releases it and [`nvs_core_db_rows_all`] does
+    /// not. [`crate::cursor`]'s module docs own both halves of that.
+    ///
+    /// The objects are built here rather than shared with a previous `all()`,
+    /// because there need not have been one — and it costs no more than `all()`
+    /// does for the same reason: a [`ROW`]'s slot takes a reference to the row
+    /// [`ROWS`] already holds, so a `foreach` over a thousand rows allocates a
+    /// thousand small objects and not a second thousand arrays. The snapshot
+    /// every § 9 collection's `iterate()` has to take is free here as well:
+    /// [`ROWS`] has no mutating member, so the array was already frozen when
+    /// [`nvs_core_db_connection_query`] built it.
+    fn nvs_core_db_rows_iterate(_ctx, args: [1]) {
+        let cursor = (|| {
+            let rows = result_rows(args, nvs_runtime::sequence::ITERATE)?;
+            let mut all = NvsArray::new();
+            let mut from = 0usize;
+            while let Some(slot) = rows.next_slot(from) {
+                let row = rows
+                    .value_at(slot)
+                    .expect("next_slot only names live entries");
+                all.append(crate::instance::build(&ROW, [owned(row)]));
+                from = slot + 1;
+            }
+            Ok(crate::cursor::over(all))
+        })();
+        crate::cursor::consume(args[0]);
+        cursor
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `$rows->first(): ?Db\Row` — the first row, or `null` for none.
     ///
     /// `null` rather than a throw, and rather than PHP's `false`: ADR 0063 R5
@@ -3157,6 +3201,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_db_transaction_roll_back as *const ()).cast()
         }
         "nvs_core_db_rows_all" => (nvs_core_db_rows_all as *const ()).cast(),
+        ROWS_ITERATE_SYMBOL => (nvs_core_db_rows_iterate as *const ()).cast(),
         "nvs_core_db_rows_first" => (nvs_core_db_rows_first as *const ()).cast(),
         "nvs_core_db_rows_value" => (nvs_core_db_rows_value as *const ()).cast(),
         "nvs_core_db_rows_column" => (nvs_core_db_rows_column as *const ()).cast(),

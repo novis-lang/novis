@@ -134,6 +134,10 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
         &[(sequence::ITERATE, crate::io::WALK_ITERATE_SYMBOL)],
     ),
     (
+        crate::db::ROWS_NAME,
+        &[(sequence::ITERATE, crate::db::ROWS_ITERATE_SYMBOL)],
+    ),
+    (
         crate::cursor::NAME,
         &[
             (sequence::ADVANCE, crate::cursor::ADVANCE_SYMBOL),
