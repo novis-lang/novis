@@ -12,8 +12,8 @@ So this is batching as a *tool*. One call, N targets, N answers -- and the batch
 whether or not anyone thought about it.
 
     python tools/peek.py crates/nvs-ir/src/lower/expr.rs:3065-3120 \\
-                         crates/nvs-types/src/expr/members.rs:@lower_shape_property_access \\
-                         docs/adr/0036-shapes.md:"## 4" \\
+                         crates/nvs-types/src/expr/members.rs:@public_property_names \\
+                         docs/adr/0036-anonymous-object-shapes.md:"### 4" \\
                          "crates/nvs-runtime/src/*.rs:/slot_get/"
 
 Target forms, all of them `path` followed by `:` and a locator:
