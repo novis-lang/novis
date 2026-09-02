@@ -564,7 +564,11 @@ pub mod code {
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.
     pub const E_TYPE_MISMATCH: Code = Code::new("E0401");
-    /// Wrong number of arguments.
+    /// Wrong number of arguments — including a **shape key** a member
+    /// requires and a written literal does not carry. ADR 0135 § 3 flattens
+    /// each key of a shape parameter into one argument of its own, so an
+    /// omitted required key is a call one argument short rather than a
+    /// separate kind of mistake.
     pub const E_ARITY_MISMATCH: Code = Code::new("E0402");
     /// A return type that no return statement can satisfy.
     pub const E_BAD_RETURN_TYPE: Code = Code::new("E0403");
@@ -826,12 +830,20 @@ pub mod code {
     /// member's trailing options-bag parameter (ADR 0063 R2). The bag has no
     /// runtime representation — it flattens into one argument per declared
     /// option at the call site — so it must be written out there or omitted
-    /// entirely; a variable holding one cannot be passed.
+    /// entirely; a variable holding one cannot be passed. ADR 0135 § 3's
+    /// **shape key** parameter is refused here on the same terms and for the
+    /// same reason — one flatten, one rule — and the message says "options"
+    /// for either, the bag being the all-optional case of the shape.
     pub const E_OPTIONS_NOT_A_LITERAL: Code = Code::new("E0453");
     /// A field name in an options bag that the member does not declare —
     /// usually a typo. Unlike ADR 0036 § 3's width subtyping, which accepts an
     /// extra field on purpose, an options bag refuses one: a misspelled option
     /// that is silently ignored is the failure ADR 0063 R2 exists to prevent.
+    /// A **shape key** no arm of an ADR 0135 § 1 shape parameter declares is
+    /// this same code: the merged list is the whole key set either way. A key
+    /// belonging to an arm the literal did not otherwise select is *not*
+    /// caught here yet — `nvs_types::ty::Ty::CoreShape`'s known gap owns that,
+    /// and the missing half is § 2's arm selection rather than this refusal.
     pub const E_UNKNOWN_OPTION: Code = Code::new("E0454");
     /// `decimal ⊕ float` arithmetic, or `**` with a `decimal` base — ADR 0054
     /// § 3. The same rule and the same reason as [`E_INT_UINT_ARITHMETIC`]:

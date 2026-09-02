@@ -278,11 +278,17 @@ pub enum Ty {
     /// two members whose keys differ only in order are genuinely two different
     /// types and must not intern to one.
     ///
-    /// **Known gap.** A merged list cannot state ADR 0135 § 2's *exactly one
-    /// arm accepts it*: a two-arm shape reaches here as the union of its arms'
-    /// keys, so a literal drawing keys from both arms would be accepted. No row
-    /// declares a second arm yet, and the slice that writes the arm-selection
-    /// check is the one that has to widen this variant to carry the arms.
+    /// A key this list marks [`CoreShapeField::required`] must be written, and
+    /// a key it does not declare at all is refused —
+    /// `crate::expr::args::check_options_arg` reports both, one code each.
+    ///
+    /// **Known gap.** What a merged list cannot state is ADR 0135 § 2's
+    /// *exactly one arm accepts it*: a two-arm shape reaches here as the union
+    /// of its arms' keys, so a literal drawing keys from both arms is accepted,
+    /// and a key required by only one arm is required by neither (see
+    /// `core_lib::merge_shape_arms`). No row declares a second arm yet, and the
+    /// slice that writes the arm-selection check is the one that has to widen
+    /// this variant to carry the arms.
     CoreShape(Vec<CoreShapeField>),
     /// `A|B|...` — flattened, deduplicated, and sorted by member `TypeId`.
     /// Always at least two members; a one-member union collapses to that

@@ -583,6 +583,13 @@ pub(crate) fn carries_contagion(
 /// an option the member declares, and each field's value must be assignable to
 /// that option's own declared type.
 ///
+/// **And ADR 0135 § 3's shape parameter, on the same terms.** Both intern to
+/// [`Ty::CoreShape`](crate::ty::Ty::CoreShape), so both are checked here; the
+/// one rule a bag never reaches is the missing-required-key refusal below,
+/// because a bag's every field is optional. What is still not checked is
+/// § 2's *exactly one arm accepts it* — a merged list cannot state it, and
+/// `Ty::CoreShape`'s own known gap owns that.
+///
 /// Returns the bag's own type either way, so one malformed bag never also
 /// produces an `E_TYPE_MISMATCH` for the same span.
 ///
@@ -649,7 +656,56 @@ pub(crate) fn check_options_arg(
         }
         seen.push(name);
     }
+    // The other half of the exact-key check, and the half only ADR 0135's
+    // shape parameter reaches: a key the merged list requires and the literal
+    // did not carry. A bag never reports one — `TypeInterner::options` marks
+    // every option optional, which is what makes ADR 0063 R2's bag the
+    // all-optional special case of a shape rather than a second rule.
+    //
+    // `E_ARITY_MISMATCH` rather than a code of its own: § 3 flattens each key
+    // into one ABI argument, so a literal missing a required key is a call one
+    // argument short, which is what this module already reports that code for.
+    for name in missing_required_keys(options, &seen) {
+        let required = required_key_names(options);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ARITY_MISMATCH,
+                format!("this member requires the shape key `{name}`"),
+            )
+            .with_primary(value.span, format!("`{name}` is not given"))
+            .with_help(format!("the keys this member requires are: {required}")),
+        );
+    }
     options_ty
+}
+
+/// The keys the merged field list requires that a written literal does not
+/// carry, in the list's own declaration order.
+///
+/// Pure, and separated from [`check_options_arg`] for that: the rule is
+/// testable without a registry row declaring a shape parameter, which no row
+/// does yet.
+fn missing_required_keys<'a>(
+    options: &'a [crate::ty::CoreShapeField],
+    written: &[&str],
+) -> Vec<&'a str> {
+    options
+        .iter()
+        .filter(|option| option.required && !written.contains(&option.name.as_str()))
+        .map(|option| option.name.as_str())
+        .collect()
+}
+
+/// [`missing_required_keys`]' answer as the list a diagnostic names — the
+/// required keys only, where [`option_names`] names every key the member
+/// declares.
+fn required_key_names(options: &[crate::ty::CoreShapeField]) -> String {
+    options
+        .iter()
+        .filter(|option| option.required)
+        .map(|option| option.name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// ADR 0074 § 7 at its compile-time half: a request member whose verb repeats
@@ -1294,4 +1350,47 @@ pub(crate) fn substitute_receiver_args(
         .zip(args)
         .collect();
     sig.clone().substituted(&bindings, env.interner)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ty::CoreShapeField;
+
+    /// ADR 0135 § 3's required half, asked of the rule itself: no registry row
+    /// declares a shape parameter yet, so the call-site case that reports this
+    /// arrives with `Core\Db::open` and this is what holds the rule until then.
+    /// Both directions in one test on purpose — a bag is the all-optional
+    /// special case, so a rule that reported a missing key correctly and also
+    /// reported one for every bag would look right on either half alone.
+    #[test]
+    fn a_required_key_is_missing_only_when_the_literal_omits_it() {
+        let mut interner = crate::ty::TypeInterner::new();
+        let ty = interner.mixed();
+        let key = |name: &str, required: bool| CoreShapeField {
+            name: name.to_owned(),
+            ty,
+            required,
+        };
+        let shape = [key("driver", true), key("host", true), key("port", false)];
+
+        assert_eq!(
+            missing_required_keys(&shape, &["driver"]),
+            ["host"],
+            "an optional key is never missing, and a written one is not either",
+        );
+        assert_eq!(
+            missing_required_keys(&shape, &["port"]),
+            ["driver", "host"],
+            "reported in the merged list's own order, not the literal's",
+        );
+        assert!(missing_required_keys(&shape, &["host", "driver"]).is_empty());
+        assert_eq!(required_key_names(&shape), "driver, host");
+
+        // ADR 0063 R2's bag: every field optional, so this rule has nothing to
+        // say about one however little the call site wrote.
+        let bag = [key("by", false), key("comparator", false)];
+        assert!(missing_required_keys(&bag, &[]).is_empty());
+        assert_eq!(required_key_names(&bag), "");
+    }
 }
