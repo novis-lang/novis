@@ -878,6 +878,53 @@ mod tests {
         );
     }
 
+    /// § 5's reuse asserted as an agreement across the four dialects rather
+    /// than one line each: whatever the marker, the one argument is consumed
+    /// exactly once — never refused as unused, never bound to a second
+    /// argument — and the arity § 1's cache keys on is the number of markers
+    /// that dialect actually wrote, not the argument count.
+    #[test]
+    fn a_named_parameter_used_twice_binds_one_value_once() {
+        let sql = "select * from t where a = :id or b = :id";
+        for dialect in [
+            Dialect::PostgreSql,
+            Dialect::MySql,
+            Dialect::Sqlite,
+            Dialect::SqlServer,
+        ] {
+            let statement = rewrite(sql, Params::Named(&[("id", Binding::One)]), dialect)
+                .expect("one argument, named twice");
+            assert!(
+                statement
+                    .binds
+                    .iter()
+                    .all(|bind| *bind == Source { arg: 0, element: 0 }),
+                "{dialect:?}: {:?}",
+                statement.binds
+            );
+            assert_eq!(
+                statement.arity(),
+                if dialect.numbered() { 1 } else { 2 },
+                "{dialect:?}"
+            );
+            assert!(statement.sql.contains(&dialect.marker(1)), "{dialect:?}");
+            // A numbered dialect never reaches a second marker at all, which is
+            // the whole of why its arity is one.
+            assert_eq!(
+                statement.sql.contains(&dialect.marker(2)),
+                !dialect.numbered(),
+                "{dialect:?}"
+            );
+        }
+        // And the reuse is what makes the cache key differ: the same shape
+        // spelled with two names binds two values and is a second entry.
+        let two = pg_named(
+            "select * from t where a = :id or b = :other",
+            &[("id", Binding::One), ("other", Binding::One)],
+        );
+        assert_ne!(two.arity(), pg_named(sql, &[("id", Binding::One)]).arity());
+    }
+
     #[test]
     fn in_list_expands_to_a_parenthesised_run_and_moves_the_arity() {
         let statement = rewrite(
@@ -933,6 +980,41 @@ mod tests {
         assert!(message.contains("NOT IN"), "{message}");
     }
 
+    /// § 5's expansion at the bound it stops accepting, both sides named
+    /// together: a list of one is the shortest length that still expands —
+    /// parentheses and all — and zero is the first one refused, over the same
+    /// statement text. A rewriter that special-cased the single element prints
+    /// plausibly against either half alone.
+    #[test]
+    fn in_list_expands_and_an_empty_list_throws() {
+        let sql = "select * from t where id in ?";
+        let one = rewrite(
+            sql,
+            Params::Positional(&[Binding::List(1)]),
+            Dialect::PostgreSql,
+        )
+        .expect("a list of one expands");
+        assert_eq!(one.sql, "select * from t where id in ($1)");
+        assert_eq!(one.binds, [Source { arg: 0, element: 0 }]);
+        assert_eq!(one.arity(), 1);
+
+        let message = refused(sql, Params::Positional(&[Binding::List(0)]));
+        assert!(message.contains("empty `inList`"), "{message}");
+        // The classification, not just the refusal: an empty list is a mistake
+        // in the call, so it is `InvalidInput` and becomes a `LogicError` at
+        // the `Core\Db` boundary rather than a fault of this crate's own.
+        assert_eq!(
+            rewrite(
+                sql,
+                Params::Positional(&[Binding::List(0)]),
+                Dialect::PostgreSql
+            )
+            .expect_err("an empty list is refused")
+            .kind(),
+            std::io::ErrorKind::InvalidInput
+        );
+    }
+
     #[test]
     fn a_question_mark_inside_a_literal_or_a_comment_is_text() {
         assert_eq!(
@@ -968,6 +1050,51 @@ mod tests {
         let statement = pg_named("select ':id', -- :id\n :id", &[("id", Binding::One)]);
         assert_eq!(statement.sql, "select ':id', -- :id\n $1");
         assert_eq!(statement.arity(), 1);
+    }
+
+    /// § 5's scanner as one sweep rather than one line per construct, and
+    /// asserted by counting: what a naive rewriter gets wrong is never the
+    /// hider it knows about but the one it has not heard of, so the claim is
+    /// that *every* construct hides *both* spellings of a placeholder and that
+    /// the whole sweep binds one value per row and no more.
+    #[test]
+    fn the_rewriter_skips_string_literals_and_comments() {
+        let hidden = [
+            "'a ? b :id'",
+            "'it''s ? :id'",
+            "\"a ? b :id\"",
+            "$$ ? :id $$",
+            "$fn$ ? :id $fn$",
+            "-- ? :id\n",
+            "/* ? :id */",
+            "/* /* ? :id */ ? :id */",
+        ];
+        let mut bound = 0usize;
+        for text in hidden {
+            let positional = rewrite(
+                &format!("select {text}, ?"),
+                Params::Positional(&[Binding::One]),
+                Dialect::PostgreSql,
+            )
+            .expect("one placeholder, outside the hidden text");
+            assert_eq!(positional.sql, format!("select {text}, $1"), "{text}");
+            // The same bytes read the other way: a `:name` inside a hider is
+            // not a name either, so the one argument is neither left unbound
+            // nor bound a second time.
+            let named = rewrite(
+                &format!("select {text}, :id"),
+                Params::Named(&[("id", Binding::One)]),
+                Dialect::PostgreSql,
+            )
+            .expect("one name, outside the hidden text");
+            assert_eq!(named.sql, format!("select {text}, $1"), "{text}");
+            bound += positional.arity() + named.arity();
+        }
+        assert_eq!(
+            bound,
+            hidden.len() * 2,
+            "every construct hides both spellings, and nothing else binds"
+        );
     }
 
     #[test]
@@ -1028,6 +1155,28 @@ mod tests {
     fn a_cast_is_not_a_name() {
         let statement = pg_named("select :id::text", &[("id", Binding::One)]);
         assert_eq!(statement.sql, "select $1::text");
+    }
+
+    /// § 5's two PostgreSQL-only exceptions in one statement, because they are
+    /// one scan and not two passes: `::` must not open a name, `?|` must not
+    /// be a placeholder, `??` must render as jsonb's own one-byte operator,
+    /// and the real markers between them must still be numbered in the order
+    /// they were written.
+    #[test]
+    fn a_postgres_cast_and_a_jsonb_question_mark_survive_the_rewrite() {
+        let statement = pg_named(
+            "select :id::text from t where doc ?| array['a'] and doc ?? :key and n = :id::int",
+            &[("id", Binding::One), ("key", Binding::One)],
+        );
+        assert_eq!(
+            statement.sql,
+            "select $1::text from t where doc ?| array['a'] and doc ? $2 and n = $1::int"
+        );
+        assert_eq!(
+            statement.binds,
+            [Source { arg: 0, element: 0 }, Source { arg: 1, element: 0 },]
+        );
+        assert_eq!(statement.arity(), 2);
     }
 
     #[test]
