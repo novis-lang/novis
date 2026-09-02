@@ -1536,6 +1536,16 @@ is why" — is this file.
   every remaining word as a symbol, so `peek.py a.rs:120-160 --locate foo` prints locations for
   `foo` and never reads `a.rs` — it does not warn, it just answers the smaller question. Ask for
   bodies in one call and anchors in another.
+- **`git commit -F .agent-tmp/<name>.txt` can silently commit a *previous* session's message.**
+  `.agent-tmp/` is not cleaned between sessions and every session reaches for the same obvious file
+  names, so a `-F` naming one you have not written this session succeeds — with someone else's
+  subject line — and the only tell is `git log` afterwards. Chaining it as
+  `git commit -F msg.txt 2>/dev/null || true` hides even the missing-file case, which is how a
+  commit reading *"the reference carries § 14's four new members"* landed on a `docs/novis.md`
+  regenerated for `Core\Db\ErrorKind`. Write the message file in the same call sequence you commit
+  it in, and never mask a `git commit`'s exit status. `session.py --wrap` is immune — it writes and
+  commits from one validated file — so this only bites the hand-rolled commit for something the
+  wrap did not name, such as the reference leg's regenerated `docs/novis.md`.
 
 ## Running things
 
