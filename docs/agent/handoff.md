@@ -2,57 +2,61 @@
 
 ## State
 
-**MariaDB is a driver, not a leg that skips.** `crates/nvs-db/src/maria.rs` is new and holds
-`MariaTarget`, `MariaConn::connect`, MariaDB's authentication roster and MariaDB's own ADR 0067 § 8 code
-table. `MariaConn` carries MySQL's fields (wire, capabilities, § 1 cache, § 9 zone, § 7 depth) and the
-statement, transaction and reset paths are two-line delegations into `crate::mysql`'s free functions —
-one protocol is framed once. The module doc owns what is shared and what is not.
+**ADR 0133's carrier has landed and the goal's stage 0 item 1 is closed.**
+`Core\Html::escape(tainted string): Core\Html\Markup` — the row, the body's lift into
+`crate::instance::build(&MARKUP, …)` on both paths, and `Core\Html::toSource(Markup, string
+$reason): string` as § 3's one way back out. The five tests `docs/agent/loop-goal.toml`'s
+`0 html carrier` stage names all exist and pass; the driver's failing acceptance check should be
+green from this commit.
 
-**What the split looks like in code**: `crate::mysql::Backend` is a `{name, kind_of}` descriptor carried
-on the `Wire`, so a refusal anywhere reports `mariadb` and reads MariaDB's table without any reader
-growing a parameter; `crate::mysql::Login` is the credential plus the plugin gate, so `authenticate` is
-shared and the *roster* is each driver's own. That is the one place the two drivers touch, and
-`maria.rs`'s module doc argues why it is not the MariaDB-as-a-flag design ADR 0067 rejects.
+**The language half was missing and is now a rule, not a signature.** `Markup` renders — `echo
+$m` writes it raw, which is the whole reason the type exists — so `require_stringable_object`
+admitted it everywhere text was wanted, and both `"x" . $m` and `$m as string` compiled.
+`nvs_types::expr::operators::reject_carrier_as_text` is the refusal, called from `.`, `.=`, an
+interpolated piece and `as string`, and **not** from `echo`/`print`. Its doc comment owns why
+`Core\Cli\Text` is deliberately not refused: ADR 0133 § 1's table, the terminal's escape being
+idempotent.
 
-**`Cargo.toml` now takes `mysql_common` with `client_ed25519` and `client_parsec`** — pure Rust, which is
-ADR 0051 § 4's first allowed outcome for the two plugins it names in advance. The manifest comment owns
-that reasoning. Without the features the plugins still *parse*, so the gate would accept a plugin whose
-handshake then fails with a Cargo message; `the_mariadb_auth_plugins_are_implemented_in_rust_or_refused_by_name`
-in `maria.rs` is what holds the features in place.
+**One half of § 3 is not enforced and it is recorded in `crates/nvs-stdlib/src/html.rs`'s *Known
+gaps*.** An empty `$reason` is refused at run time by the body; "the reason is a source literal"
+is a compile-time judgement needing a diagnostic code, and both type bands are full (`E0499`,
+`E0799`) — see the new playbook bullet. `Core\Secret::reveal` does not require a literal either,
+so the surface is at least consistent.
 
-**Nothing asserts MariaDB over a socket yet.** `crates/nvs-db/tests/handshake.rs` still has no
-`mariadb()` fixture, so the matrix's MariaDB leg proves the container and not the driver — the next
-group's first item, and the reason it is first.
+**The MariaDB socket work is untouched** — it was the previous handoff's next group and the
+acceptance check outranked it. It is the group below, unchanged.
 
-**The driver's stage-2 acceptance check is unchanged and still open**:
-`a_db_open_target_in_a_denied_range_fails` waits on `Core\Db::open`, blocked on a registry type for a
-shape **parameter** (`nvs_stdlib::db` known gap 1) — a language-surface decision that wants its own ADR,
-not a slice. Untouched this session.
+**The driver's stage-2 check is unchanged and still open**:
+`a_db_open_target_in_a_denied_range_fails` waits on `Core\Db::open`, blocked on a registry type
+for a shape **parameter** (`nvs_stdlib::db` known gap 1) — a language-surface decision that wants
+its own ADR, not a slice.
 
-**`orient.py` gaps: none**, though `[context] adrs` would have paid for ADR 0051 § 4 (it printed only as
-a ground-rules bullet, and the slice turned on its two-outcome sentence).
+**`orient.py` gaps: none.** The pack's ADR 0133 §§ 1–3 was exactly what the slice turned on.
 
 ## Next group
 
 **MariaDB over a real socket, one file set: `crates/nvs-db/tests/handshake.rs`,
-`crates/nvs-db/tests/pool_reuse.rs` and `crates/nvs-db/src/maria.rs`. `mysql()`/`mysql_connect_as` at
-`crates/nvs-db/tests/handshake.rs:187` is the worked example for the first two.**
+`crates/nvs-db/tests/pool_reuse.rs` and `crates/nvs-db/src/maria.rs`. `mysql()`/`mysql_connect_as`
+at `crates/nvs-db/tests/handshake.rs:187` is the worked example for the first two.**
 
-- [ ] **A `mariadb()` fixture and a handshake case** — the twin of `mysql()`, so the matrix's MariaDB leg
-      asserts the driver rather than the container: § 3's upgrade completes, a wrong password is refused
-      as `Permission`, and § 9's zone round-trips. `crates/nvs-db/tests/handshake.rs:187`,
-      `crates/nvs-db/tests/handshake.rs:203`, `crates/nvs-db/src/maria.rs:@connect`.
-- [ ] **`pool_reuse.rs` twinned a fourth way** — § 13's `COM_RESET_CONNECTION` over MariaDB, the same
-      three assertions the MySQL leg makes. `crates/nvs-db/tests/pool_reuse.rs:1`,
-      `crates/nvs-db/src/maria.rs:@reset`.
-- [ ] **`mariadb_returning_is_available_and_mysqls_is_not`** — ADR 0067's `RETURNING`, which is the first
-      thing MariaDB's statement path does that MySQL's cannot. `crates/nvs-db/src/maria.rs:@query`,
-      `crates/nvs-db/src/sql.rs:89`.
+- [ ] **A `mariadb()` fixture and a handshake case** — the twin of `mysql()`, so the matrix's
+      MariaDB leg asserts the driver rather than the container: § 3's upgrade completes, a wrong
+      password is refused as `Permission`, and § 9's zone round-trips.
+      `crates/nvs-db/tests/handshake.rs:187`, `crates/nvs-db/tests/handshake.rs:203`,
+      `crates/nvs-db/src/maria.rs:321`.
+- [ ] **`pool_reuse.rs` twinned a fourth way** — ADR 0067 § 13's `COM_RESET_CONNECTION` over
+      MariaDB, the same three bounds the MySQL leg already asserts.
+      `crates/nvs-db/tests/pool_reuse.rs:90`, `crates/nvs-db/tests/pool_reuse.rs:463`,
+      `crates/nvs-db/tests/pool_reuse.rs:524`.
+- [ ] **`mariadb_returning_is_available_and_mysqls_is_not`** — ADR 0067's `RETURNING`, the first
+      thing the two drivers genuinely disagree about, so it is what makes the split pay.
+      `crates/nvs-db/src/maria.rs:383`, `crates/nvs-db/src/mysql.rs:1919`.
 
 ## Backlog
 
-- `Core\Db::open`'s shape-parameter registry type — `nvs_stdlib::db` known gap 1, wants an ADR.
-- `MariaConn` is not yet reachable from `nvs-stdlib`: `db.rs`'s connect path has no MariaDB arm.
-- `COM_STMT_BULK_EXECUTE` for `executeMany` on MariaDB — ADR 0067 § 4, `crates/nvs-db/src/maria.rs`.
-- `TdsConn::connect` — ADR 0067 § 3's TLS-inside-TDS handshake, the largest remaining wire slice.
-- SQLite's driver, the last of the five — `docs/plan/m8.md`.
+- `Core\Db::open` waits on a registry type for a shape parameter — `nvs_stdlib::db` known gap 1.
+- ADR 0133 § 3's source-literal `$reason` waits on the diagnostic-band decision —
+  `crates/nvs-stdlib/src/html.rs`'s *Known gaps*.
+- `Core\Cli\Text` is still concatenable and `as string`-able; ADR 0086 owns whether it should be.
+- The HTML sink's *automatic* escape-and-lift waits on `Core\Request` — `crates/nvs-stdlib/src/html.rs`.
+- `docs/novis.md` is generated by `tools/reference.py` and still prints `escape(...): string`.

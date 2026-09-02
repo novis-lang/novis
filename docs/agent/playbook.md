@@ -6387,6 +6387,15 @@ sibling in the same namespace unqualified.
   driver crate still green. A refusal the server worded is `io::Error::other(ServerError { … })`, and
   `ServerError::of` is what tells it from a wire failure — never the `ErrorKind`, which has no room
   to say which of § 8's eleven conditions this was.
+- **Both type diagnostic bands are full, so a new type rule cannot have its own code.** `E04xx`
+  is full at `E0499` and `E07xx` — the band that was opened when `E04xx` filled — is full at
+  `E0799`, and `python tools/brief.py` prints both as `FULL` rather than as a next number, which
+  is easy to read past when you are scanning for one. A rule the checker has to enforce therefore
+  either reuses an existing code whose message it can honestly rewrite (ADR 0133's carrier refusal
+  reuses `E_CORE_CLASS_NOT_STRINGABLE`, whose subject really is "this class is not text") or waits
+  on a decision about the band layout, which is an ADR and not a line in a checker. Do not invent
+  an `E08xx`: `E09xx` is internal compiler errors, so a third types band is a change to
+  `crates/nvs-diagnostics/src/lib.rs`'s legend and to every tool that groups by band.
 
 ## Divergences and refusals already pinned
 
