@@ -1960,6 +1960,20 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 /// `transaction(fn ($tx) => $tx->executeMany(…))`, which is § 4's answer on
 /// either driver.
 ///
+/// **This is the loop on MariaDB too, and `COM_STMT_BULK_EXECUTE` is the thing
+/// it is deliberately not.** That command carries every set at once and would
+/// turn this member's N round trips into one, which is the only reason to want
+/// it — and § 4 refuses the trade because two of the three ways it diverges are
+/// in what a caller observes rather than in what the wire costs. A bulk command
+/// **ends** at a refusal where the paragraph above has the batch carry on, and
+/// no driver can hide the difference: PostgreSQL's flush is already gone by the
+/// time it reads the error, so the loop cannot be made to stop, and MariaDB's
+/// command cannot be made to continue. And a set that answers with rows — a
+/// `CALL` — is not something the command takes, while nothing here can route
+/// one to this loop in advance, a prepare reporting `0` columns for any
+/// statement whose result set depends on the data ([`Prepared`] says so). ADR
+/// 0067 § 4 owns that decision and names what would reopen it.
+///
 /// A wire failure is the one thing that does end it: a poisoned connection is
 /// one nothing can find a packet boundary in, so the remaining sets are not
 /// written and that error is the answer even where a server refusal came first.
@@ -5539,6 +5553,85 @@ mod tests {
             State::Idle,
             "a refusal the server worded arrived whole, so the connection is \
              still at a packet boundary"
+        );
+    }
+
+    /// ADR 0067 § 4 on MariaDB, which is the driver that could do this in one
+    /// command and does not: the batch is N executions and never
+    /// `COM_STMT_BULK_EXECUTE`.
+    ///
+    /// **The permission is asserted first, and that is what makes this a
+    /// decision rather than a gap.** A test that only counted commands would
+    /// pass just as well on a driver that never negotiated the capability at
+    /// all, and would then be pinning an absence — so the first assertion is
+    /// that this driver *may* send `0xFA`, and everything after it is that it
+    /// does not.
+    ///
+    /// The batch refuses a set for the same reason
+    /// [`a_refused_set_does_not_end_the_batch_and_the_first_refusal_is_reported`]
+    /// does, because that is the observable § 4 spends the round trips on: a
+    /// bulk command ends at a refusal, so a batch that carries past one is the
+    /// evidence the loop is what ran. Counting `0xFA` alone would still pass on
+    /// a driver that sent the bulk command and stopped.
+    #[test]
+    fn execute_many_on_mariadb_is_n_executions_and_not_the_bulk_command() {
+        const SQL: &str = "INSERT INTO t (a) VALUES (?)";
+        /// `COM_STMT_BULK_EXECUTE`, the command this test is about not seeing.
+        const COM_STMT_BULK_EXECUTE: u8 = 0xFA;
+
+        assert!(
+            EXTENDED_CAPABILITIES
+                .contains(MariadbCapabilities::MARIADB_CLIENT_STMT_BULK_OPERATIONS),
+            "this driver stopped claiming the capability, so what follows would \
+             assert an absence rather than ADR 0067 § 4's decision"
+        );
+
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(&COM_STMT_BULK_EXECUTE) => {
+                panic!("MariaDB's batch sent COM_STMT_BULK_EXECUTE, which ADR 0067 § 4 refuses")
+            }
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(17, 0, 1));
+                out.extend_from_slice(&packet(2, &column_def("a")));
+                out
+            }
+            Some(0x17) if contains(sent, b"boom") => {
+                packet(1, &error_packet(1062, "23000", "duplicate boom"))
+            }
+            Some(0x17) => packet(1, &ok_packet(1, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+        let mut cache = sized_cache(2);
+
+        let bound: [[Option<&[u8]>; 1]; 3] = [[Some(b"x")], [Some(b"boom")], [Some(b"z")]];
+        let sets: [&[Option<&[u8]>]; 3] = [&bound[0], &bound[1], &bound[2]];
+
+        let refused = execute_many(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut cache,
+            SQL,
+            &sets,
+        )
+        .expect_err("the middle set was refused");
+        assert!(
+            refused.to_string().contains("duplicate boom"),
+            "the batch answers the refusal it drew: {refused}"
+        );
+
+        let sent = commands(&wire.peer().sent);
+        assert!(
+            !sent.contains(&Some(COM_STMT_BULK_EXECUTE)),
+            "§ 4 runs executeMany as N executions on every driver: {sent:?}"
+        );
+        assert_eq!(
+            sent,
+            [Some(0x16), Some(0x17), Some(0x17), Some(0x17)],
+            "one prepare and one execution per set, the third of them written \
+             after the second was refused — which is the half of § 4's \
+             semantics a bulk command cannot reproduce"
         );
     }
 
