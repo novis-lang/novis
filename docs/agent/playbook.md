@@ -1552,6 +1552,13 @@ is why" — is this file.
   reads for the same cost. A session that reaches for `--help` to learn the format pays a call and
   still does not have it, then guesses; a guessed format is refused block by block. The `--help` text
   is deliberately short because the tool is used far more often than it is learned.
+- **A `peek.py` window's first printed line is a bad `splice.py` anchor when it lands inside a doc
+  comment.** The window starts at the line you asked for, and a wrapped `///` sentence almost always
+  began on the line above it — so the anchor you copy starts mid-sentence (`/// declares § 8's
+  ...`), reads perfectly, and `splice.py` refuses it with "the anchor matches for its first 7
+  character(s)" because it silently prefixed the `It` that lives at the end of the previous line.
+  The tell is that the reported prefix length is tiny while the block looks verbatim. Ask for one
+  line more than you think you need whenever the region is prose.
 
 ## Running things
 
