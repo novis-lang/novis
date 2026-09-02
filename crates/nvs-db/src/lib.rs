@@ -113,11 +113,14 @@
 //! dialects, holding the bind order a driver cannot recover by counting, and
 //! § 1's [`StatementCache`] keyed by SQL text plus that expansion's arity.
 //! [`pg`] is the first driver to spend it: a hit drops the `Parse` from the
-//! batch, and an eviction's `Close` rides in the batch that replaced it. The
-//! pool and its acquire path, and the Novis side of ADR 0067 § 9's type map,
-//! are still to come — PostgreSQL first throughout, because its extended
-//! protocol pays nothing extra for a prepare and so exercises the design rather
-//! than the driver's own quirks.
+//! batch, and an eviction's `Close` rides in the batch that replaced it. § 13's
+//! pool is above this crate — `nvs_runtime::pool` is the store and `nvs-stdlib`
+//! the acquire path — so what is here is the halves only a driver can hold:
+//! [`Connection::is_poolable`]'s release gate and [`pg`]'s reset, met over a
+//! real server in `tests/pool_reuse.rs`. The other four drivers are what is
+//! still to come, PostgreSQL first throughout because its extended protocol
+//! pays nothing extra for a prepare and so exercises the design rather than the
+//! driver's own quirks.
 //!
 //! **The anchor seam ADR 0132 § 3 anticipated exists**, so a handshake against
 //! `tests/db/compose.yaml`'s PostgreSQL completes: `NvsTls::over_bundle`
