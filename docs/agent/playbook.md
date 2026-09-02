@@ -4414,7 +4414,7 @@ is why" — is this file.
   and — through `corpus::Attribution::arrow` — the per-class attribution behind both, none of which can
   match `->queryAs<Person>(` since that is the member's *only* legal spelling. The static loop in
   `conformance_coverage.rs` already had the answer (`method.written().is_empty()` picks `<` over `(` as
-  the boundary); the instance loop and the `arrow` regex in `tests/corpus/mod.rs` each needed the same
+  the boundary); the instance loop and the `arrow` regex in `crates/nvs-stdlib/tests/corpus/mod.rs` each needed the same
   three lines. Expect to touch all three the next time a generic member lands, and note that the
   attribution one is what makes a case count toward the *floor* rather than merely toward coverage.
 - **A new `Fault::` site whose message opens with literal text owes a conformance case, and for a
