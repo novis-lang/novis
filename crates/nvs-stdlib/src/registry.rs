@@ -1407,9 +1407,10 @@ pub const CLASSES: &[CoreClass] = &[
     // runtime — plus `rollBack`, the one member of the pair that is a
     // transaction's alone.
     crate::db::TRANSACTION,
-    // What `query` answers with — ADR 0067 § 4's buffered result set, and five
-    // of § 18's six readers over it. `columns()` is the one owed, and
-    // [`crate::db`]'s known gaps own the three things it needs.
+    // What `query` answers with — ADR 0067 § 4's buffered result set, and all
+    // six of § 18's readers over it. Five read the rows it holds and
+    // `columns()` reads the description beside them, which is why it is
+    // readable before a row is.
     crate::db::ROWS,
     // One row of that set: § 18's associative reading plus the eleven typed
     // readers ADR 0067 § 6 puts in place of PHP's three fetch modes. Four of
@@ -1420,6 +1421,11 @@ pub const CLASSES: &[CoreClass] = &[
     // [`CoreTy::Instance`] states, that a `Core` instance has no property a
     // program can reach, which that section's own preamble records.
     crate::db::WRITE,
+    // One column of what a statement described — § 18's three readers in place
+    // of `getColumnMeta`'s per-driver array, reached through `Rows::columns`
+    // and produced nowhere else. Its `type()` is what gives `crate::db`'s
+    // `COLUMN_TYPE` a member that answers one.
+    crate::db::COLUMN,
     // What `inList` answers with: ADR 0067 § 5's explicit expansion marker,
     // memberless because § 18's own table accepts it nowhere but a bound
     // parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.

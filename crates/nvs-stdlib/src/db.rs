@@ -94,16 +94,10 @@
 //!    has landed of `Core\Db\Queryable`** (gap 8 is what `queryAs` still owes).
 //!    `stream` and `streamAs` are owed whole, and so are
 //!    `close` and § 18's three readonly properties on `Connection`. On
-//!    the result side [`ROWS`] owes one member of six —
-//!    `columns(): array<Column>`, which now needs two things rather than
-//!    three: a `Core\Db\Column` class and a `Core\Db\ColumnType` enum, over a
-//!    slot that holds the descriptions at all — [`ROWS`]'s holds decoded rows
-//!    and nothing else, and [`nvs_db::PgRows::columns`] is what would fill it.
-//!    The classification is landed: [`nvs_db::PgColumn::column_type`] answers
-//!    what a column *is*, which its own doc separates from what
-//!    [`nvs_db::PgColumn::decode`] reads out of a body. The enum's cases are
-//!    the spec's own and are not ADR 0067 § 9's type map read as an enum;
-//!    [`ROWS`]' doc comment is where that is written down.
+//!    the result side [`ROWS`] owes nothing: all six of § 18's members are
+//!    registered, `columns()` among them. What that member cannot answer is
+//!    one field rather than a member — [`COLUMN_NULLABLE_DOC`] states it — and
+//!    it is a property of the PostgreSQL wire and not a gap in this module.
 //! 6. **Neither `query` nor `execute` declares a `{timeout?: Duration}`.**
 //!    § 4's option is in both spec signatures and is deliberately in neither
 //!    registry row, for one reason on both: a deadline
@@ -237,6 +231,22 @@ const ROWS_CLASS_SLOT: &str = "class";
 /// Where [`ROWS_CLASS_SLOT`] sits. See [`ROWS_AT`].
 const ROWS_CLASS_AT: usize = 1;
 
+/// Its third: what the statement described, one [`COLUMN`] per column and in
+/// the server's own order.
+///
+/// **Built with the result rather than on demand**, which is the opposite of
+/// [`ROWS_CLASS_SLOT`] above and differs because the work does: a description
+/// is per *statement* and bounded by the `select` list, while hydration is per
+/// row and bounded by the traffic. It is also the only moment the material
+/// exists — [`nvs_db::PgRows`] lends its row description out of the same borrow
+/// the rows are read from — so keeping it for later would mean copying it
+/// anyway, and copying it into anything but the objects it becomes would be
+/// copying it twice.
+const ROWS_COLUMNS_SLOT: &str = "columns";
+
+/// Where [`ROWS_COLUMNS_SLOT`] sits. See [`ROWS_AT`].
+const ROWS_COLUMNS_AT: usize = 2;
+
 /// `Core\Db\Row`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const ROW_NAME: &str = r"Core\Db\Row";
 
@@ -274,6 +284,32 @@ const CHANGED_AT: usize = 1;
 
 /// Where [`LAST_ID_SLOT`] sits. See [`AFFECTED_AT`].
 const LAST_ID_AT: usize = 2;
+
+/// `Core\Db\Column`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
+const COLUMN_NAME: &str = r"Core\Db\Column";
+
+/// A [`COLUMN`]'s first slot: the label the server described the column with.
+const LABEL_SLOT: &str = "name";
+
+/// Its second: [`COLUMN_TYPE`]'s case for that column, held as the ordinal an
+/// enum *is* at runtime ([ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)).
+/// [`column_type_value`] is where a [`nvs_db::ColumnType`] becomes one.
+const DECLARED_SLOT: &str = "type";
+
+/// Its third: whether the column may hold NULL, which on this driver is always
+/// `true` — [`COLUMN_NULLABLE_DOC`] owns why. A slot rather than a constant
+/// because a backend whose description carries the flag fills it here without
+/// the member moving.
+const NULLABLE_SLOT: &str = "nullable";
+
+/// Where [`LABEL_SLOT`] sits, for the reader that answers it.
+const LABEL_AT: usize = 0;
+
+/// Where [`DECLARED_SLOT`] sits. See [`LABEL_AT`].
+const DECLARED_AT: usize = 1;
+
+/// Where [`NULLABLE_SLOT`] sits. See [`LABEL_AT`].
+const NULLABLE_AT: usize = 2;
 
 /// Where [`VALUES_SLOT`] sits inside an [`IN_LIST`], for the bind that expands
 /// it.
@@ -760,15 +796,14 @@ const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// string-keyed array of its columns** — which is `Row::toArray`'s own shape, so
 /// every member below is a reader over it and never a second decoder.
 ///
-/// **Five of § 18's six members, and `columns()` is the one owed.** It answers
-/// `array<Column>`, and what is left to build is a `Core\Db\Column` and a slot
-/// that holds the descriptions — [`nvs_db::PgRows::columns`] answers them and
-/// this slot keeps only the rows, so they are captured at query time or not at
-/// all. Both halves under that are landed: [`nvs_db::PgColumn::column_type`]
-/// classifies a column, and [`COLUMN_TYPE`] is what a program matches the
-/// answer on, its own doc owning why a description of a column is not a summary
-/// of the value a read of it produces. This module's known gap 5 is what is
-/// left.
+/// **All six of § 18's members, and the sixth reads a second slot.**
+/// `columns()` answers what the *statement* described rather than anything a
+/// row holds, so [`ROWS_COLUMNS_SLOT`] is filled beside the rows at query time:
+/// [`nvs_db::PgRows`] lends its row description out of the borrow the rows are
+/// read from, so it is captured there or not at all. What a program
+/// matches the answer on is [`COLUMN_TYPE`], whose own doc owns why a
+/// description of a column is not a summary of the value a read of it
+/// produces.
 ///
 /// **It is generic at `T`, and § 18's `Rows` and `Rows<T>` are this one class.**
 /// The roster row is in [`crate::registry::GENERIC_CLASSES`], `all`/`first`
@@ -852,8 +887,21 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             symbol: "nvs_core_db_rows_count",
             doc: Some(&ROWS_COUNT_DOC),
         },
+        CoreMethod {
+            name: "columns",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // § 18's `array<Column>` and deliberately not `array<T>`: a
+            // description belongs to the statement, so `queryAs<Person>`
+            // describes the same columns `query` does and the class variable
+            // has nothing to say about it.
+            return_ty: CoreTy::Array(&CoreTy::Instance(COLUMN_NAME)),
+            symbol: "nvs_core_db_rows_columns",
+            doc: Some(&ROWS_COLUMNS_DOC),
+        },
     ],
-    slots: &[ROWS_SLOT, ROWS_CLASS_SLOT],
+    slots: &[ROWS_SLOT, ROWS_CLASS_SLOT, ROWS_COLUMNS_SLOT],
     constants: &[],
 };
 
@@ -1086,6 +1134,73 @@ pub(crate) const WRITE: CoreClass = CoreClass {
         },
     ],
     slots: &[AFFECTED_SLOT, CHANGED_SLOT, LAST_ID_SLOT],
+    constants: &[],
+};
+
+/// Spec § 18's `Core\Db\Column` — one column of what a statement described,
+/// and the whole of what ADR 0067 puts in place of `getColumnMeta` and
+/// `mysqli_fetch_field`.
+///
+/// **A description belongs to the statement and not to a row**, which is why
+/// one of these is reached through [`ROWS`] and never through [`ROW`]: a
+/// `select` that matched nothing still described the columns it would have
+/// answered, and that is most of what the class is for — a caller rendering a
+/// table has its headings before it knows whether there is anything under
+/// them.
+///
+/// **Three readers rather than § 18's three properties**, for the reason
+/// [`WRITE`]'s own docs give: a `Core`-owned instance has no property a program
+/// can reach.
+///
+/// **What `getColumnMeta` also carried is deliberately absent.** No vendor type
+/// name, no `pdo_type`, no `len`, no `precision`, no table name and no flag
+/// list. A vendor type name is the string every backend spells differently,
+/// which is the thing [`COLUMN_TYPE`] exists to replace; the rest is either a
+/// property of the wire encoding rather than of the column, or a second catalog
+/// round trip per statement — and PHP's own answer for it is an array whose keys
+/// differ per driver, which is the shape [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
+/// R11 removes.
+pub(crate) const COLUMN: CoreClass = CoreClass {
+    name: COLUMN_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "name",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // Unqualified, and § 18's table writes it that way: a label is
+            // described by the server out of the statement *this* program
+            // wrote, so it is not one of § 9's `tainted` reads — those are the
+            // column's values, which is what a request can put bytes into.
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_db_column_name",
+            doc: Some(&COLUMN_LABEL_DOC),
+        },
+        CoreMethod {
+            name: "type",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Enum(COLUMN_TYPE_NAME),
+            symbol: "nvs_core_db_column_type",
+            doc: Some(&COLUMN_DECLARED_DOC),
+        },
+        CoreMethod {
+            name: "nullable",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // `bool` and not `?bool`, which is the decision worth naming: an
+            // absence would be a third answer every caller has to branch on to
+            // learn nothing, and [`COLUMN_NULLABLE_DOC`] says instead what the
+            // one answer this driver can give means.
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_db_column_nullable",
+            doc: Some(&COLUMN_NULLABLE_DOC),
+        },
+    ],
+    slots: &[LABEL_SLOT, DECLARED_SLOT, NULLABLE_SLOT],
     constants: &[],
 };
 
@@ -1502,6 +1617,55 @@ const ROWS_COUNT_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "The number of rows held, which is exact because § 4's default read all of them before \
           `query` returned.",
+    errors: &[],
+};
+
+/// `Core\Db\Rows::columns`'s reference card — ADR 0117.
+const ROWS_COLUMNS_DOC: MethodDoc = MethodDoc {
+    short: "What the statement described, one `Core\\Db\\Column` per column and in the server's \
+            own order — `PDOStatement::getColumnMeta` asked once for the whole row description \
+            rather than once per column, and `mysqli_fetch_fields`.",
+    params: &[],
+    ret: "The columns. An empty result set has them too: a `select` that matched nothing still \
+          described what it would have answered, which is what makes this readable before the \
+          rows are.",
+    errors: &[],
+};
+
+/// `Core\Db\Column::name`'s reference card — ADR 0117.
+const COLUMN_LABEL_DOC: MethodDoc = MethodDoc {
+    short: "The column's label, as the server described it — `getColumnMeta`'s `name`. It is the \
+            alias wherever the `select` list wrote one, because an alias is what the server \
+            describes.",
+    params: &[],
+    ret: "The label, and not a key: `select a, a` describes two columns under one label, so the \
+          answer is read by position in the array `columns()` handed back.",
+    errors: &[],
+};
+
+/// `Core\Db\Column::type`'s reference card — ADR 0117.
+const COLUMN_DECLARED_DOC: MethodDoc = MethodDoc {
+    short: "What the column was declared as, as a `Core\\Db\\ColumnType` case rather than the \
+            vendor type name `getColumnMeta` hands back — so a program branches on something the \
+            backends agree about.",
+    params: &[],
+    ret: "The case. It describes the column rather than summarising the value a read of it \
+          produces — a `JSON` column and a `TEXT` one both read back as `tainted string` and are \
+          told apart here — and a type with no Novis type of its own is `Other`, which includes \
+          every array and, on PostgreSQL, every `ENUM`.",
+    errors: &[],
+};
+
+/// `Core\Db\Column::nullable`'s reference card — ADR 0117.
+const COLUMN_NULLABLE_DOC: MethodDoc = MethodDoc {
+    short: "Whether the column may hold NULL. On PostgreSQL this is always `true`, because a row \
+            description carries no NOT NULL flag: the only way to learn it is a catalog query per \
+            statement, and this driver makes none.",
+    params: &[],
+    ret: "`true` on every column this driver describes, so a program reading it treats every \
+          column as nullable — which is what the typed readers of `Core\\Db\\Row` already do, \
+          each answering `?T`. A backend whose description carries the flag answers it here \
+          instead.",
     errors: &[],
 };
 
@@ -2559,17 +2723,37 @@ nvs_runtime::nvs_helper! {
     /// placeholders itself and why an `inList`'s expansion needs no second
     /// pass.
     fn nvs_core_db_connection_query(ctx, args: [3]) {
-        let rows = queried_rows(ctx, args, "query", QUERY)?;
+        let answered = queried_rows(ctx, args, "query", QUERY)?;
         Ok(crate::instance::build(
             &ROWS,
-            [Value::array(rows), Value::null()],
+            [
+                Value::array(answered.rows),
+                Value::null(),
+                Value::array(answered.columns),
+            ],
         ))
     }
 }
 
-/// One statement's rows, as the array a [`ROWS`] holds in [`ROWS_SLOT`] — the
-/// whole of what `query` and `queryAs` share, which is everything except which
-/// class the result carries.
+/// What one statement answered, in the two shapes a [`ROWS`] holds it in.
+///
+/// The pair rather than the rows alone because they come out of one borrow and
+/// are wanted at one place: [`ROWS_COLUMNS_SLOT`] says why the description is
+/// built at query time, and the alternative — handing back a `Vec<PgColumn>`
+/// for the caller to build objects from — would put half of that at each of
+/// [`nvs_core_db_connection_query`] and
+/// [`nvs_core_db_connection_query_as`] instead of neither.
+struct Answered {
+    /// Every row, as [`ROWS_SLOT`] holds them.
+    rows: NvsArray,
+    /// One [`COLUMN`] per described column, as [`ROWS_COLUMNS_SLOT`] holds
+    /// them.
+    columns: NvsArray,
+}
+
+/// One statement's rows and the columns it described, as the two arrays a
+/// [`ROWS`] holds — the whole of what `query` and `queryAs` share, which is
+/// everything except which class the result carries.
 ///
 /// **`args` starts at the receiver**, so `queryAs` hands over the slice past
 /// [`crate::registry::WRITTEN_CLASS_MEMBERS`]' two leading constants and both
@@ -2587,7 +2771,7 @@ fn queried_rows(
     args: &[Value],
     member: &str,
     named: &str,
-) -> Result<NvsArray, Fault> {
+) -> Result<Answered, Fault> {
     let statement = statement_of(args, member, named)?;
     let sending: Vec<Option<&[u8]>> = statement.binds.iter().map(|one| one.as_deref()).collect();
     let postgres = postgres_of(ctx, statement.key, &statement.block, named)?;
@@ -2602,6 +2786,7 @@ fn queried_rows(
     // Taken before the first row: a `PgRows` lends its columns and its rows
     // out of one borrow, and the rows are read with it held mutably.
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
+    let described = described_columns(&columns);
 
     let mut rows = NvsArray::new();
     loop {
@@ -2627,7 +2812,83 @@ fn queried_rows(
         }
         rows.append(Value::array(one));
     }
-    Ok(rows)
+    Ok(Answered {
+        rows,
+        columns: described,
+    })
+}
+
+/// The row description as spec § 18's `array<Column>`: one [`COLUMN`] per
+/// column, in the server's own order and never keyed by label — `select a, a`
+/// describes two columns under one name, and a keyed array would answer one.
+///
+/// **One object per column, built whether or not the program asks.** What that
+/// spends is bounded by the statement's `select` list rather than by its
+/// result, so it is a few objects beside the one-array-per-row the decode above
+/// already allocates; the alternative — keeping the labels and the OIDs in a
+/// pair of arrays and building the objects in `columns()` — buys nothing back
+/// on the path that never calls it and costs a second representation of the
+/// same fact on the path that does.
+fn described_columns(columns: &[nvs_db::PgColumn]) -> NvsArray {
+    let mut described = NvsArray::new();
+    for column in columns {
+        described.append(crate::instance::build(
+            &COLUMN,
+            [
+                Value::str(NvsStr::new(column.name.as_bytes())),
+                column_type_value(column.column_type()),
+                // ADR 0067 § 9's own answer, stated at the one place that can
+                // state it: [`COLUMN_NULLABLE_DOC`] is where a program's author
+                // reads what the `true` means.
+                Value::bool(true),
+            ],
+        ));
+    }
+    described
+}
+
+/// A [`nvs_db::ColumnType`] as the [`COLUMN_TYPE`] case a program matches on,
+/// which at runtime is that case's ordinal
+/// ([ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)).
+///
+/// **The ordinal is looked up rather than written a second time.** The two
+/// halves of the enum are one enum and [`COLUMN_TYPE`]'s doc says which half is
+/// authoritative; a `match` answering numbers here would be a third place the
+/// fourteen cases are written down, and the one that goes wrong silently. What
+/// is written here is the *name* correspondence, which is the only thing this
+/// crate knows that neither half does — and `every_column_type_case_is_named`
+/// holds it total in both directions.
+fn column_type_value(of: nvs_db::ColumnType) -> Value {
+    let case = column_type_case(of);
+    let (_, ordinal) = COLUMN_TYPE
+        .cases
+        .iter()
+        .find(|(name, _)| *name == case)
+        .expect("every `nvs_db::ColumnType` names a case `COLUMN_TYPE` registers");
+    Value::int(*ordinal)
+}
+
+/// The [`COLUMN_TYPE`] case one [`nvs_db::ColumnType`] is, by name.
+///
+/// Exhaustive on purpose — a variant added over there arrives here as a
+/// non-exhaustive `match` rather than as a column that describes wrongly.
+fn column_type_case(of: nvs_db::ColumnType) -> &'static str {
+    match of {
+        nvs_db::ColumnType::Int => "Int",
+        nvs_db::ColumnType::Uint => "Uint",
+        nvs_db::ColumnType::Float => "Float",
+        nvs_db::ColumnType::Decimal => "Decimal",
+        nvs_db::ColumnType::Text => "Text",
+        nvs_db::ColumnType::Bytes => "Bytes",
+        nvs_db::ColumnType::Bool => "Bool",
+        nvs_db::ColumnType::Date => "Date",
+        nvs_db::ColumnType::Time => "Time",
+        nvs_db::ColumnType::DateTime => "DateTime",
+        nvs_db::ColumnType::Instant => "Instant",
+        nvs_db::ColumnType::Uuid => "Uuid",
+        nvs_db::ColumnType::Json => "Json",
+        nvs_db::ColumnType::Other => "Other",
+    }
 }
 
 /// One column's Novis value: ADR 0067 § 9's whole type map, with the five rows
@@ -2760,12 +3021,16 @@ nvs_runtime::nvs_helper! {
         }
         // The receiver and the two value parameters, past the pair
         // `WRITTEN_CLASS_MEMBERS` puts ahead of everything.
-        let rows = queried_rows(ctx, &args[2..], "queryAs", QUERY_AS)?;
+        let answered = queried_rows(ctx, &args[2..], "queryAs", QUERY_AS)?;
         // `args[0]` carries no reference — a descriptor rides in the payload
         // half of an otherwise-`null` value — so the slot takes it as it is.
         Ok(crate::instance::build(
             &ROWS,
-            [Value::array(rows), args[0]],
+            [
+                Value::array(answered.rows),
+                args[0],
+                Value::array(answered.columns),
+            ],
         ))
     }
 }
@@ -3017,12 +3282,13 @@ fn discard(value: Value) {
     }
 }
 
-/// A value read out of an array, with a reference of the caller's own.
+/// A value read out of an array or a slot, with a reference of the caller's
+/// own.
 ///
-/// Every read below borrows — [`NvsArray::get`] and `value_at` both hand back a
-/// reference the array still owns — so this is the one place the second one is
-/// taken, rather than an `unsafe` block at each of the fourteen members that
-/// hands a slot's value out.
+/// Every read below borrows — [`NvsArray::get`], `value_at` and
+/// [`crate::instance::slot`] all hand back a reference the holder still owns —
+/// so this is the one place the second one is taken, rather than an `unsafe`
+/// block at each of the members that hands a held value out.
 fn owned(value: Value) -> Value {
     #[expect(
         unsafe_code,
@@ -3746,6 +4012,55 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `$rows->columns(): array<Db\Column>` — what the statement described,
+    /// replacing `PDOStatement::getColumnMeta` and `mysqli_fetch_fields`.
+    ///
+    /// A reader over [`ROWS_COLUMNS_SLOT`] and nothing more: the objects were
+    /// built when the result was ([`described_columns`]), so this hands that
+    /// array on under a second reference exactly as a [`ROW`] takes one of the
+    /// row it reads. Two calls answer the same columns rather than two
+    /// descriptions of them, and a result set that matched no rows answers the
+    /// same thing a matching one would.
+    fn nvs_core_db_rows_columns(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &ROWS, "columns")?;
+        Ok(owned(crate::instance::slot(receiver, ROWS_COLUMNS_AT)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$column->name(): string` — the label the server described this column
+    /// with, replacing `getColumnMeta`'s `name` key.
+    fn nvs_core_db_column_name(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &COLUMN, "name")?;
+        Ok(owned(crate::instance::slot(receiver, LABEL_AT)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$column->type(): Db\ColumnType` — what the column was declared as, as
+    /// the case [`COLUMN_TYPE`] registers rather than the vendor type name
+    /// `getColumnMeta` answers.
+    ///
+    /// The slot already holds the ordinal an enum is at runtime, written there
+    /// by [`column_type_value`], so nothing is classified here: a description
+    /// is of the statement and a statement is described once.
+    fn nvs_core_db_column_type(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &COLUMN, "type")?;
+        Ok(crate::instance::slot(receiver, DECLARED_AT))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$column->nullable(): bool` — whether the column may hold NULL, which
+    /// on this driver is always `true` and [`COLUMN_NULLABLE_DOC`] is where a
+    /// program's author reads why.
+    fn nvs_core_db_column_nullable(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &COLUMN, "nullable")?;
+        Ok(crate::instance::slot(receiver, NULLABLE_AT))
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `$row->has(string $name): bool` — whether the row carries this column.
     ///
     /// A NULL column is present, which is the whole point of asking: the
@@ -4052,6 +4367,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_rows_value" => (nvs_core_db_rows_value as *const ()).cast(),
         "nvs_core_db_rows_column" => (nvs_core_db_rows_column as *const ()).cast(),
         "nvs_core_db_rows_count" => (nvs_core_db_rows_count as *const ()).cast(),
+        "nvs_core_db_rows_columns" => (nvs_core_db_rows_columns as *const ()).cast(),
+        "nvs_core_db_column_name" => (nvs_core_db_column_name as *const ()).cast(),
+        "nvs_core_db_column_type" => (nvs_core_db_column_type as *const ()).cast(),
+        "nvs_core_db_column_nullable" => (nvs_core_db_column_nullable as *const ()).cast(),
         "nvs_core_db_row_has" => (nvs_core_db_row_has as *const ()).cast(),
         "nvs_core_db_row_get" => (nvs_core_db_row_get as *const ()).cast(),
         "nvs_core_db_row_to_array" => (nvs_core_db_row_to_array as *const ()).cast(),
@@ -4071,4 +4390,60 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_write_last_id" => (nvs_core_db_write_last_id as *const ()).cast(),
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The two halves of one enum name the same fourteen cases —
+    /// [`COLUMN_TYPE`]'s doc is where "the wire one is authoritative" is
+    /// written, and this is what keeps the registry half from drifting off it.
+    ///
+    /// Both directions, because they fail differently: a case
+    /// [`column_type_case`] never names is a value a program can match on and
+    /// never receive, while a name it produces that [`COLUMN_TYPE`] does not
+    /// register is [`column_type_value`]'s `expect` firing on a real query —
+    /// the one of the two that reaches a request.
+    #[test]
+    fn every_column_type_case_is_named() {
+        let described: Vec<&'static str> = [
+            nvs_db::ColumnType::Int,
+            nvs_db::ColumnType::Uint,
+            nvs_db::ColumnType::Float,
+            nvs_db::ColumnType::Decimal,
+            nvs_db::ColumnType::Text,
+            nvs_db::ColumnType::Bytes,
+            nvs_db::ColumnType::Bool,
+            nvs_db::ColumnType::Date,
+            nvs_db::ColumnType::Time,
+            nvs_db::ColumnType::DateTime,
+            nvs_db::ColumnType::Instant,
+            nvs_db::ColumnType::Uuid,
+            nvs_db::ColumnType::Json,
+            nvs_db::ColumnType::Other,
+        ]
+        .into_iter()
+        .map(column_type_case)
+        .collect();
+        let registered: Vec<&'static str> =
+            COLUMN_TYPE.cases.iter().map(|(name, _)| *name).collect();
+        assert_eq!(
+            described, registered,
+            "`nvs_db::ColumnType` and `{COLUMN_TYPE_NAME}` are one enum, in the spec's own \
+             order — a case added to either belongs in both, and in the same place"
+        );
+    }
+
+    /// A described column is the three slots [`COLUMN`] declares, in the order
+    /// its readers name — a paste error [`crate::instance::build`]'s arity
+    /// assertion cannot catch, since all three are one class's.
+    #[test]
+    fn a_column_holds_its_label_its_type_and_its_nullability() {
+        assert_eq!(COLUMN.slots, [LABEL_SLOT, DECLARED_SLOT, NULLABLE_SLOT]);
+        assert_eq!(COLUMN.slot(LABEL_SLOT), LABEL_AT);
+        assert_eq!(COLUMN.slot(DECLARED_SLOT), DECLARED_AT);
+        assert_eq!(COLUMN.slot(NULLABLE_SLOT), NULLABLE_AT);
+        assert_eq!(ROWS.slot(ROWS_COLUMNS_SLOT), ROWS_COLUMNS_AT);
+    }
 }

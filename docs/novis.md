@@ -143,6 +143,7 @@ Conventions the whole file uses:
 | [`Core\Db\Rows<T>`](#core-core-db-rows) |  |
 | [`Core\Db\Row`](#core-core-db-row) |  |
 | [`Core\Db\Write`](#core-core-db-write) |  |
+| [`Core\Db\Column`](#core-core-db-column) |  |
 | [`Core\Db\InList`](#core-core-db-inlist) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
@@ -17428,7 +17429,7 @@ Gives up on this transaction: records `$reason`, and throws `Core\Db\RolledBack`
 <a id="core-core-db-rows"></a>
 ### `Core\Db\Rows<T>`
 
-Keywords: all, first, value, column, count
+Keywords: all, first, value, column, count, columns
 
 | Member | Signature |
 |---|---|
@@ -17437,6 +17438,7 @@ Keywords: all, first, value, column, count
 | [`Core\Db\Rows->value`](#core-core-db-rows-value) | `value(): mixed` |
 | [`Core\Db\Rows->column`](#core-core-db-rows-column) | `column(int\|string $key): array<mixed>` |
 | [`Core\Db\Rows->count`](#core-core-db-rows-count) | `count(): uint` |
+| [`Core\Db\Rows->columns`](#core-core-db-rows-columns) | `columns(): array<Core\Db\Column>` |
 
 <a id="core-core-db-rows-all"></a>
 #### `Core\Db\Rows->all`
@@ -17498,6 +17500,17 @@ $rows->count(): uint
 How many rows the statement answered — `PDOStatement::rowCount` on a select, which is the use of that member this replaces. A write's count is `Core\Db\Write::affected`.
 
 **Returns** `uint` — The number of rows held, which is exact because § 4's default read all of them before `query` returned.
+
+<a id="core-core-db-rows-columns"></a>
+#### `Core\Db\Rows->columns`
+
+```nvs skip
+$rows->columns(): array<Core\Db\Column>
+```
+
+What the statement described, one `Core\Db\Column` per column and in the server's own order — `PDOStatement::getColumnMeta` asked once for the whole row description rather than once per column, and `mysqli_fetch_fields`.
+
+**Returns** `array<Core\Db\Column>` — The columns. An empty result set has them too: a `select` that matched nothing still described what it would have answered, which is what makes this readable before the rows are.
 
 <a id="core-core-db-row"></a>
 ### `Core\Db\Row`
@@ -17794,6 +17807,50 @@ $write->lastId(): ?uint
 The key the statement handed back, read off the write that produced it rather than off the connection — `lastInsertId` and `mysqli_insert_id` without their stale-after-an-unrelated-statement hazard.
 
 **Returns** `?uint` — A `?uint`: the first column of the last row the statement returned, where that column was declared an integer, and `null` otherwise. On PostgreSQL that means a `RETURNING` clause — the protocol has no last-insert-id of its own, and an `insert`'s tag carries an OID that is `0` on every supported server.
+
+<a id="core-core-db-column"></a>
+### `Core\Db\Column`
+
+Keywords: name, type, nullable
+
+| Member | Signature |
+|---|---|
+| [`Core\Db\Column->name`](#core-core-db-column-name) | `name(): string` |
+| [`Core\Db\Column->type`](#core-core-db-column-type) | `type(): Core\Db\ColumnType` |
+| [`Core\Db\Column->nullable`](#core-core-db-column-nullable) | `nullable(): bool` |
+
+<a id="core-core-db-column-name"></a>
+#### `Core\Db\Column->name`
+
+```nvs skip
+$column->name(): string
+```
+
+The column's label, as the server described it — `getColumnMeta`'s `name`. It is the alias wherever the `select` list wrote one, because an alias is what the server describes.
+
+**Returns** `string` — The label, and not a key: `select a, a` describes two columns under one label, so the answer is read by position in the array `columns()` handed back.
+
+<a id="core-core-db-column-type"></a>
+#### `Core\Db\Column->type`
+
+```nvs skip
+$column->type(): Core\Db\ColumnType
+```
+
+What the column was declared as, as a `Core\Db\ColumnType` case rather than the vendor type name `getColumnMeta` hands back — so a program branches on something the backends agree about.
+
+**Returns** `Core\Db\ColumnType` — The case. It describes the column rather than summarising the value a read of it produces — a `JSON` column and a `TEXT` one both read back as `tainted string` and are told apart here — and a type with no Novis type of its own is `Other`, which includes every array and, on PostgreSQL, every `ENUM`.
+
+<a id="core-core-db-column-nullable"></a>
+#### `Core\Db\Column->nullable`
+
+```nvs skip
+$column->nullable(): bool
+```
+
+Whether the column may hold NULL. On PostgreSQL this is always `true`, because a row description carries no NOT NULL flag: the only way to learn it is a catalog query per statement, and this driver makes none.
+
+**Returns** `bool` — `true` on every column this driver describes, so a program reading it treats every column as nullable — which is what the typed readers of `Core\Db\Row` already do, each answering `?T`. A backend whose description carries the flag answers it here instead.
 
 <a id="core-core-db-inlist"></a>
 ### `Core\Db\InList`
