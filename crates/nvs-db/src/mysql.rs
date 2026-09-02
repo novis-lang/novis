@@ -163,6 +163,7 @@ use nvs_host::tls::NvsTls;
 use nvs_runtime::{Decimal, NvsStr, Tag, Value};
 
 use crate::conn::{BlockError, ColumnType, Driver, MySqlConn, State, written_value};
+use crate::span::QuerySpan;
 use crate::sql::{StatementCache, statement_cache_for, time_zone_for};
 
 /// MySQL's own port, which an absent `port` in a `[db.<name>]` block means.
@@ -1272,6 +1273,25 @@ impl MySqlConn {
         )
     }
 
+    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s `executeMany`: one
+    /// prepare, N executions, and the affected counts summed.
+    ///
+    /// The two-line delegation [`MySqlConn::query`] gives its reason for.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_many`].
+    pub fn execute_many(&mut self, sql: &str, sets: &[&[Option<&[u8]>]]) -> io::Result<u64> {
+        execute_many(
+            &mut self.wire,
+            &self.state,
+            self.capabilities,
+            &mut self.cache,
+            sql,
+            sets,
+        )
+    }
+
     /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, before this
     /// connection may be handed to another request.
     ///
@@ -1573,6 +1593,13 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
         return Err(crate::pg::second_statement(state));
     }
 
+    // ADR 0067 § 11's span, opened before the prepare rather than around the
+    // execute alone: § 1 says a statement's first run on this connection costs
+    // two round trips, and what the caller waited is both of them. It is handed
+    // `sql` and never `params`, which is the whole of § 11's "never parameters"
+    // — `crate::span`'s module doc owns why that is a signature and not a rule.
+    let mut span = QuerySpan::opened(Driver::MySql, sql);
+
     state.set(State::Executing);
     let stmt = match cached_statement(wire, capabilities, cache, sql, params.len()) {
         Ok(stmt) => stmt,
@@ -1585,6 +1612,10 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 
     match answer {
         Answer::Done { affected, last_id } => {
+            // A statement with no result set has already ended, so its span
+            // ends here with the count the status packet carried — there is no
+            // stream left to reach [`MySqlRows::next_row`]'s terminator.
+            span.finished(Some(affected));
             state.set(State::Idle);
             Ok(MySqlRows {
                 wire,
@@ -1595,6 +1626,7 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
                 affected,
                 last_id,
                 ended: true,
+                span,
             })
         }
         Answer::Columns(count) => match read_columns(wire, count) {
@@ -1609,11 +1641,126 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
                     affected: 0,
                     last_id: 0,
                     ended: false,
+                    span,
                 })
             }
             Err(e) => Err(poison_on_write(state, e)),
         },
     }
+}
+
+/// ADR 0067 § 4's `executeMany`: one prepare, N `COM_STMT_EXECUTE`s, and the
+/// affected counts summed.
+///
+/// **N round trips where [`crate::pg`]'s batch costs one, and the protocol is
+/// what decides that.** PostgreSQL's extended query puts every `Bind`/`Execute`
+/// pair in one flush because the replies are self-describing messages on a
+/// stream with no per-command numbering. A MySQL command restarts the packet
+/// sequence id ([`Wire::codec`]'s `reset_seq_id`), so two commands in flight are
+/// two packet runs numbered from the same 0 and nothing framing them tells the
+/// second reply from the first. What § 4 buys here is therefore § 1's prepare —
+/// paid once for the whole batch, which is what the cache gives a loop of
+/// [`start_statement`] anyway — and one member's worth of round trips is the
+/// honest price rather than a hidden one: ADR 0067 § 1 records the cost of this
+/// protocol rather than hiding it, and this is the same account.
+///
+/// **The batch is not a transaction, and a refusal does not end it**, which is
+/// [`crate::pg`]'s `execute_many` semantics reached a different way: there each
+/// execution carries its own `Sync` and the server resumes at the next one, here
+/// each execution is its own command and the one after a refusal still goes out.
+/// So the two drivers agree on what a caller observes — the writes before a
+/// failure stand, the ones after are still attempted, and the **first** error is
+/// what the batch reports. A caller who wants all-or-nothing writes
+/// `transaction(fn ($tx) => $tx->executeMany(…))`, which is § 4's answer on
+/// either driver.
+///
+/// A wire failure is the one thing that does end it: a poisoned connection is
+/// one nothing can find a packet boundary in, so the remaining sets are not
+/// written and that error is the answer even where a server refusal came first.
+///
+/// A set that answered with a result set — MySQL has no `RETURNING`, but a
+/// `CALL` does it — is drained and contributes the rows it produced, which is
+/// the number [`MySqlRows::affected`] reports for one and the number
+/// PostgreSQL's `SELECT n` tag contributes to the other driver's sum.
+///
+/// An empty `sets` is § 4's no-op answering `0`, with the busy check still ahead
+/// of it for [`crate::pg`]'s reason: § 4's refusal is a property of the
+/// connection and not of the payload.
+///
+/// # Errors
+///
+/// `InvalidInput` for a statement written to a connection that is not idle, and
+/// for a `sets` whose members do not all bind the same number of parameters —
+/// one prepare has one parameter count, and it is what § 1's cache is keyed on
+/// beside the SQL. Otherwise the first error any execution drew, or the wire
+/// failure that stopped the batch.
+pub(crate) fn execute_many<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    capabilities: CapabilityFlags,
+    cache: &mut StatementCache<Prepared>,
+    sql: &str,
+    sets: &[&[Option<&[u8]>]],
+) -> io::Result<u64> {
+    if !state.get().may_start_statement() {
+        return Err(crate::pg::second_statement(state));
+    }
+
+    let Some(first) = sets.first() else {
+        return Ok(0);
+    };
+    let arity = first.len();
+    if let Some(odd) = sets.iter().find(|set| set.len() != arity) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "one executeMany bound {arity} parameters in its first set and {} in another, and \
+                 ADR 0067 § 4's one prepare has one parameter count",
+                odd.len()
+            ),
+        ));
+    }
+
+    let mut affected = 0_u64;
+    let mut refused: Option<io::Error> = None;
+    for set in sets {
+        match execute_one(wire, state, capabilities, cache, sql, set) {
+            Ok(count) => affected += count,
+            Err(e) => {
+                if state.get() == State::Poisoned {
+                    return Err(e);
+                }
+                refused.get_or_insert(e);
+            }
+        }
+    }
+
+    match refused {
+        Some(e) => Err(e),
+        None => Ok(affected),
+    }
+}
+
+/// One of [`execute_many`]'s sets, drained, and what it changed.
+///
+/// Split out so the batch's own accounting is a `match` on one result rather
+/// than a stream held across the next iteration: a [`MySqlRows`] borrows the
+/// wire, and the count has to be read before it is dropped.
+///
+/// # Errors
+///
+/// As [`start_statement`] and [`MySqlRows::next_row`].
+fn execute_one<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    capabilities: CapabilityFlags,
+    cache: &mut StatementCache<Prepared>,
+    sql: &str,
+    set: &[Option<&[u8]>],
+) -> io::Result<u64> {
+    let mut rows = start_statement(wire, state, capabilities, cache, sql, set)?;
+    while rows.next_row()?.is_some() {}
+    Ok(rows.affected().unwrap_or(0))
 }
 
 /// One row, already decoded out of the packet the wire framed it from.
@@ -2183,6 +2330,11 @@ pub struct MySqlRows<'a, S: Read + Write = NvsTls<NvsTcp>> {
     affected: u64,
     last_id: u64,
     ended: bool,
+    /// ADR 0067 § 11's trace event for this statement, opened when it went out
+    /// and ended by whatever ends the stream — [`crate::PgRows`]' field, for
+    /// [`crate::span`]'s reasons, and the reason § 11 reads across drivers at
+    /// all.
+    span: QuerySpan,
 }
 
 impl<S: Read + Write> std::fmt::Debug for MySqlRows<'_, S> {
@@ -2208,6 +2360,24 @@ impl<S: Read + Write> MySqlRows<'_, S> {
     #[must_use]
     pub fn column_type(&self, index: usize) -> Option<ColumnType> {
         self.columns.get(index).map(column_type)
+    }
+
+    /// [ADR 0067 § 11](../../../docs/adr/0067-core-db.md)'s trace event for this
+    /// statement.
+    ///
+    /// Borrowed rather than taken, for [`crate::PgRows::span`]'s reason: a
+    /// caller reading it mid-stream is asking a running statement how far it has
+    /// got, and [`QuerySpan::duration`] answers from the clock until the stream
+    /// ends and freezes it.
+    #[must_use]
+    pub fn span(&self) -> &QuerySpan {
+        &self.span
+    }
+
+    /// Names the `[db.<name>]` block this statement ran on, for the layer that
+    /// resolved it — [`QuerySpan::name`] owns why the driver cannot.
+    pub fn name_connection(&mut self, connection: &str) {
+        self.span.name(connection);
     }
 
     /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s affected-row count,
@@ -2273,6 +2443,7 @@ impl<S: Read + Write> MySqlRows<'_, S> {
                 let row = decode_row(&self.columns, &packet)
                     .map_err(|e| poison_on_write(self.state, e))?;
                 self.rows += 1;
+                self.span.row();
                 Ok(Some(row))
             }
             Some(0xFE) => {
@@ -2284,6 +2455,11 @@ impl<S: Read + Write> MySqlRows<'_, S> {
                 .into_inner();
                 self.ended = true;
                 self.affected = self.rows;
+                // [`MySqlRows::affected`]'s two numbers under one name, and the
+                // span takes the same one: for a result set that is the rows
+                // that came back, which is what PostgreSQL's `SELECT 2` tag
+                // puts in the other driver's span.
+                self.span.finished(Some(self.affected));
                 if terminator
                     .status_flags()
                     .contains(StatusFlags::SERVER_MORE_RESULTS_EXISTS)
@@ -2313,6 +2489,11 @@ impl<S: Read + Write> MySqlRows<'_, S> {
                 // poisoned.
                 self.ended = true;
                 self.affected = self.rows;
+                // No affected count on the span, as [`crate::PgRows::next_row`]
+                // does it: § 11 gives a span no success field to lose, so a
+                // refused statement reports the rows that did arrive and the
+                // error is the caller's own return value.
+                self.span.finished(None);
                 Err(poison_on_write(
                     self.state,
                     server_refusal(&packet, self.capabilities),
@@ -2383,8 +2564,8 @@ mod tests {
 
     use super::{
         AuthContext, CLIENT_CAPABILITIES, COLLATION, Greeting, MySqlTarget, MyValue, NvsStr,
-        Prepared, State, Value, Wire, authenticate, column_type, encode, execute, offset_literal,
-        read_greeting, read_ok, request_tls, scalar, start_statement,
+        Prepared, State, Value, Wire, authenticate, column_type, encode, execute, execute_many,
+        offset_literal, read_greeting, read_ok, request_tls, scalar, start_statement,
     };
     use crate::conn::ColumnType as NovisType;
     use crate::conn::{BlockError, Driver};
@@ -4028,6 +4209,298 @@ mod tests {
             State::Idle,
             "two unread rows and a terminator were drained, so the connection is \
              reusable rather than destroyed"
+        );
+    }
+
+    /// § 11's span over this driver, and the property that makes it exportable
+    /// at all: the bound value goes out on the wire and appears in no field of
+    /// the span, in neither of its renderings, and in nothing a field added
+    /// later could carry, since the `Debug` it is asserted over is derived.
+    ///
+    /// `crate::pg`'s `a_query_span_contains_no_parameter_value_anywhere` asks
+    /// the same question of the other driver, and the two are deliberately
+    /// separate cases: what survives in the text is this driver's **own**
+    /// placeholder — a `?` where PostgreSQL keeps `$1` — so one case over both
+    /// would have to stop asserting the thing § 5's rewrite decides.
+    ///
+    /// The positive half is asserted first and is not decoration: "contains no
+    /// parameter value" is trivially true of a span that carries nothing, so
+    /// the driver, the row count, the affected count and the SQL are named
+    /// before the absence is.
+    #[test]
+    fn a_mysql_query_span_contains_no_parameter_value_anywhere() {
+        const BOUND: &str = "correct-horse-battery-staple";
+        const SQL: &str = "SELECT greeting FROM greetings WHERE token = ?";
+
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(9, 1, 1));
+                // One parameter definition, then one column definition: a
+                // prepare describes both halves and the driver reads past all
+                // of them or starts its execution mid-stream.
+                out.extend_from_slice(&packet(2, &column_def("token")));
+                out.extend_from_slice(&packet(3, &column_def("greeting")));
+                out
+            }
+            Some(0x17) => {
+                let mut out = packet(1, &[0x01]);
+                out.extend_from_slice(&packet(2, &column_def("greeting")));
+                out.extend_from_slice(&packet(
+                    3,
+                    &[0x00, 0x00, 0x05, b'h', b'e', b'l', b'l', b'o'],
+                ));
+                out.extend_from_slice(&packet(
+                    4,
+                    &[0x00, 0x00, 0x05, b'w', b'o', b'r', b'l', b'd'],
+                ));
+                out.extend_from_slice(&packet(5, &result_set_end(0x0002)));
+                out
+            }
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+
+        let mut rows = start_statement(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut no_cache(),
+            SQL,
+            &[Some(BOUND.as_bytes())],
+        )
+        .expect("a result set the server described");
+        while rows.next_row().expect("the stream drained").is_some() {}
+        // Cloned and the stream dropped, so the wire is readable below: the
+        // value having reached the server is what makes this about where it
+        // stopped rather than about a parameter nobody sent.
+        let span = rows.span().clone();
+        drop(rows);
+
+        assert!(
+            wire.peer()
+                .sent
+                .iter()
+                .any(|flushed| contains(flushed, BOUND.as_bytes())),
+            "the bound value never reached the wire"
+        );
+
+        assert_eq!(span.driver(), Driver::MySql);
+        assert_eq!(span.rows(), 2);
+        assert_eq!(
+            span.affected(),
+            Some(2),
+            "a result set's affected count is the rows that came back, which is \
+             what PostgreSQL's `SELECT 2` tag says on the other driver"
+        );
+        assert_eq!(span.sql(), SQL);
+        assert!(!span.is_truncated());
+        assert!(span.connection().is_none(), "the driver names no block");
+        assert!(span.sql().contains('?'), "{}", span.sql());
+
+        let shown = span.to_string();
+        assert!(!shown.contains(BOUND), "{shown}");
+        assert!(shown.contains("driver=mysql"), "{shown}");
+        assert!(shown.contains("rows=2"), "{shown}");
+
+        let traced = format!("{span:?}");
+        assert!(!traced.contains(BOUND), "{traced}");
+
+        // The one field the driver does not fill, filled: a named connection
+        // adds the block's name and still no value.
+        let mut named = span.clone();
+        named.name("main");
+        let shown = named.to_string();
+        assert!(shown.contains("connection=main"), "{shown}");
+        assert!(!shown.contains(BOUND), "{shown}");
+        assert!(!format!("{named:?}").contains(BOUND));
+    }
+
+    /// A statement with no result set ends its span at the status packet.
+    ///
+    /// The arm that would otherwise be missed: there is no terminator to reach
+    /// and no row to count, so a driver that only ended a span in `next_row`
+    /// would file a write's event with the duration still running and no
+    /// affected count at all — and § 11's whole point on a write is that count.
+    #[test]
+    fn a_statement_with_no_result_set_ends_its_span_at_the_status_packet() {
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => packet(1, &prepare_ok(3, 0, 0)),
+            Some(0x17) => packet(1, &ok_packet(4, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+
+        let rows = start_statement(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut no_cache(),
+            "DELETE FROM t",
+            &[],
+        )
+        .expect("a statement the server answered with a status packet");
+
+        let span = rows.span();
+        assert_eq!(span.rows(), 0);
+        assert_eq!(
+            span.affected(),
+            Some(4),
+            "the status packet's own count, and its presence is what says the \
+             span ended rather than that it is still running"
+        );
+        let took = span.duration();
+        assert_eq!(
+            took,
+            span.duration(),
+            "a frozen duration reads the same twice; a running one reads the clock"
+        );
+    }
+
+    /// An `ERR` packet as `CLIENT_PROTOCOL_41` words one: the header, the error
+    /// code, the `#`-prefixed `SQLSTATE` and the message.
+    fn error_packet(code: u16, sql_state: &str, message: &str) -> Vec<u8> {
+        let mut body = vec![0xFF];
+        body.extend_from_slice(&code.to_le_bytes());
+        body.push(b'#');
+        body.extend_from_slice(sql_state.as_bytes());
+        body.extend_from_slice(message.as_bytes());
+        body
+    }
+
+    /// ADR 0067 § 4's batch priced in round trips, which is the only thing about
+    /// it a caller cannot see from a loop of `execute`: one prepare for the
+    /// whole batch and one execution per set.
+    ///
+    /// **The count of commands is the assertion**, as § 1's cache case does it.
+    /// A batch that re-prepared per set answers the same sum and costs twice
+    /// what § 1 prices it at, and this driver's N executions are the protocol's
+    /// price rather than an oversight — `execute_many`'s own doc owns why one
+    /// flush is not available here.
+    ///
+    /// The empty batch is asserted first and on the same wire: § 4's no-op
+    /// answers `0` and must not prepare a statement for executions that will
+    /// not happen.
+    #[test]
+    fn a_batch_prepares_once_and_costs_one_execution_per_set() {
+        const SQL: &str = "INSERT INTO t (a) VALUES (?)";
+
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(11, 0, 1));
+                out.extend_from_slice(&packet(2, &column_def("a")));
+                out
+            }
+            Some(0x17) => packet(1, &ok_packet(2, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+        let mut cache = sized_cache(2);
+
+        assert_eq!(
+            execute_many(&mut wire, &state, CLIENT_CAPABILITIES, &mut cache, SQL, &[])
+                .expect("§ 4's no-op"),
+            0
+        );
+        assert!(
+            wire.peer().sent.is_empty(),
+            "an empty batch prepares nothing, because nothing is going to run"
+        );
+
+        let bound: [[Option<&[u8]>; 1]; 3] = [[Some(b"x")], [Some(b"y")], [Some(b"z")]];
+        let sets: [&[Option<&[u8]>]; 3] = [&bound[0], &bound[1], &bound[2]];
+
+        let written = execute_many(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut cache,
+            SQL,
+            &sets,
+        )
+        .expect("three executions the server answered");
+
+        assert_eq!(
+            written, 6,
+            "§ 4's answer is the sum of what each execution changed"
+        );
+        assert_eq!(
+            commands(&wire.peer().sent),
+            [Some(0x16), Some(0x17), Some(0x17), Some(0x17)],
+            "ADR 0067 § 4: one prepare for the batch, and one execution per set"
+        );
+        assert_eq!(
+            state.get(),
+            State::Idle,
+            "a batch that ended leaves the connection reusable"
+        );
+    }
+
+    /// § 4's batch is not a transaction, asserted where it is visible: a set the
+    /// server refuses does not end the batch, and the **first** refusal is what
+    /// the batch reports.
+    ///
+    /// Two sets are refused so that "first" is a claim with something to be
+    /// wrong about — a driver reporting the last one answers a case with one
+    /// refusal identically. The command count is the other half: the execution
+    /// after a refused one still goes out, which is the observable
+    /// `crate::pg`'s own batch reaches by letting the server resume at the next
+    /// `Sync`.
+    #[test]
+    fn a_refused_set_does_not_end_the_batch_and_the_first_refusal_is_reported() {
+        const SQL: &str = "INSERT INTO t (a) VALUES (?)";
+
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(13, 0, 1));
+                out.extend_from_slice(&packet(2, &column_def("a")));
+                out
+            }
+            Some(0x17) if contains(sent, b"boom") => {
+                packet(1, &error_packet(1062, "23000", "duplicate boom"))
+            }
+            Some(0x17) if contains(sent, b"bang") => {
+                packet(1, &error_packet(1213, "40001", "deadlock bang"))
+            }
+            Some(0x17) => packet(1, &ok_packet(1, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+        let mut cache = sized_cache(2);
+
+        let bound: [[Option<&[u8]>; 1]; 4] =
+            [[Some(b"x")], [Some(b"boom")], [Some(b"bang")], [Some(b"z")]];
+        let sets: [&[Option<&[u8]>]; 4] = [&bound[0], &bound[1], &bound[2], &bound[3]];
+
+        let refused = execute_many(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut cache,
+            SQL,
+            &sets,
+        )
+        .expect_err("two of the four sets were refused");
+
+        assert_eq!(refused.kind(), io::ErrorKind::PermissionDenied);
+        assert!(
+            refused.to_string().contains("duplicate boom"),
+            "the first refusal is the batch's answer: {refused}"
+        );
+        assert!(
+            !refused.to_string().contains("deadlock bang"),
+            "and the second is not: {refused}"
+        );
+        assert_eq!(
+            commands(&wire.peer().sent),
+            [Some(0x16), Some(0x17), Some(0x17), Some(0x17), Some(0x17)],
+            "every set was attempted: § 4's batch is not a transaction, so a \
+             refusal does not cancel the writes after it"
+        );
+        assert_eq!(
+            state.get(),
+            State::Idle,
+            "a refusal the server worded arrived whole, so the connection is \
+             still at a packet boundary"
         );
     }
 

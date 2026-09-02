@@ -87,11 +87,11 @@
 //!    so a MySQL statement is rewritten to `?` and bound as MySQL reads a
 //!    parameter. Sending is not: [`queried_rows`] branches on the connection
 //!    and [`mysql_rows`] drains a binary result set through § 9's decode, so
-//!    `query` and `queryAs` answer on either driver — but `execute`,
-//!    `executeMany` and `transaction` still go through [`postgres_of`] and
-//!    refuse a MySQL connection, and a MySQL `query` files no § 11 event
-//!    because a `MySqlRows` carries no span. MariaDB binds and then has
-//!    nowhere to send, which is the arm [`queried_rows`] refuses on.
+//!    `query`, `queryAs`, `execute` and `executeMany` answer on either driver,
+//!    § 11's event included — but `transaction` still goes through
+//!    [`postgres_of`] and refuses a MySQL connection, because § 7's commands
+//!    and its nesting depth are on `nvs_db::PgConn` alone. MariaDB binds and
+//!    then has nowhere to send, which is the arm [`driverless`] refuses on.
 //! 3. **Only the two drivers that open are pooled.** ADR 0067 § 13's pool is
 //!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
 //!    teardown under the ticket `Core\Db::connect` files, and
@@ -3552,13 +3552,16 @@ fn filed_connection<'a>(
         })
 }
 
-/// The connection a [`Statement`] or a [`Batch`] names, as the one driver that
-/// runs a statement so far.
+/// The connection a member that is still PostgreSQL-only names: ADR 0067 § 7's
+/// `transaction`, whose commands and nesting depth are on `nvs_db::PgConn`
+/// alone, and [`crate::queue`]'s four, whose statements are that ADR's own.
 ///
-/// The key and the block are passed rather than either of those types, because
-/// they are the only two fields it reads and a batch is not a statement — the
-/// alternative is a `Statement` built with an empty `binds` purely to reach
-/// this, which would be a shape nothing else in this module means.
+/// The key and the block are passed rather than a [`Statement`] or a [`Batch`],
+/// because they are the only two fields it reads and a batch is not a statement
+/// — the alternative is a `Statement` built with an empty `binds` purely to
+/// reach this, which would be a shape nothing else in this module means. The
+/// statement members no longer come through here at all: they branch on
+/// [`filed_connection`] and refuse through [`driverless`].
 ///
 /// # Errors
 ///
@@ -3575,8 +3578,8 @@ fn postgres_of<'a>(
     let driver = connection.driver();
     let nvs_db::Connection::Postgres(postgres) = connection else {
         return Err(Fault::thrown(format!(
-            "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL runs a \
-             statement so far — this module's known gap 2 is the list",
+            "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL runs this member \
+             so far — this module's known gap 2 is the list",
             block.as_text().unwrap_or("?")
         )));
     };
@@ -3668,26 +3671,46 @@ fn queried_rows(
     // rows borrow the connection and the connection borrows the context — so
     // the arm that read the span is still holding the thing the span is filed
     // on. Each arm hands back what [`QueryWatch::taken`] took, which is `None`
-    // for a driver whose rows carry no span yet.
+    // where nothing is reading rather than where a driver has no span.
     let (answered, taken) = match filed_connection(ctx, statement.key, named)? {
         nvs_db::Connection::Postgres(postgres) => {
             postgres_rows(postgres, &statement, &sending, source, watch, named)?
         }
-        nvs_db::Connection::MySql(mysql) => (
-            mysql_rows(mysql, &statement, &sending, source, named)?,
-            None,
-        ),
-        other => {
-            let driver = other.driver();
-            return Err(Fault::thrown(format!(
-                "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL and MySQL run \
-                 a statement so far — this module's known gap 2 is the list",
-                statement.block.as_text().unwrap_or("?")
-            )));
+        nvs_db::Connection::MySql(mysql) => {
+            mysql_rows(mysql, &statement, &sending, source, watch, named)?
         }
+        other => return Err(driverless(named, &statement.block, other.driver())),
     };
     watch.file(ctx, taken);
     Ok(answered)
+}
+
+/// The refusal a connection whose driver has no send path draws — this module's
+/// known gap 2, worded once.
+///
+/// Three members reach it ([`queried_rows`], `execute`, `executeMany`) and a
+/// message per member would be three sentences to keep agreeing as the list
+/// shortens. It names the driver the block actually resolved to, because "this
+/// one is not supported" without saying which is what an operator cannot act on.
+fn driverless(named: &str, block: &Value, driver: nvs_db::Driver) -> Fault {
+    Fault::thrown(format!(
+        "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL and MySQL run a \
+         statement so far — this module's known gap 2 is the list",
+        block.as_text().unwrap_or("?")
+    ))
+}
+
+/// ADR 0067 § 4's `Write`, as the driver answered it and before it becomes the
+/// instance.
+///
+/// Two `Option`s and not two numbers: § 4 gives both fields `?uint`, and the
+/// absence is a different fact from a zero on both drivers — a command that
+/// carries no affected count at all, and a statement that generated no id.
+struct Written {
+    /// The server's own affected count, `None` for a command that carries none.
+    changed: Option<u64>,
+    /// § 4's `lastId`, `None` where the statement generated no id.
+    last_id: Option<u64>,
 }
 
 /// [`queried_rows`] over the PostgreSQL driver: the extended-query stream, § 9's
@@ -3768,9 +3791,10 @@ fn postgres_rows(
 /// `UUID` and no array type. A trait over that would be four abstract methods
 /// standing for eight concrete lines.
 ///
-/// **No § 11 event yet**, which is why it hands back no span: a `MySqlRows`
-/// carries none, where a `PgRows` opens one itself. That is the last of this
-/// member's driver work and is its own slice.
+/// **§ 11's event is the one thing the two do share**, down to the line: a
+/// `MySqlRows` opens its own span exactly as a `PgRows` does, so the pair this
+/// hands back is [`postgres_rows`]' pair and a trace reads across the two
+/// drivers without a field being spelled twice.
 ///
 /// # Errors
 ///
@@ -3783,14 +3807,16 @@ fn mysql_rows(
     statement: &Statement,
     sending: &[Option<&[u8]>],
     source: Option<&str>,
+    watch: QueryWatch,
     named: &str,
-) -> Result<Answered, Fault> {
+) -> Result<(Answered, Option<(String, std::time::Duration)>), Fault> {
     // As [`postgres_rows`], and § 9's zone rule is the connection's on both
     // drivers.
     let zone = mysql.time_zone();
     let mut answered = mysql
         .query(&statement.sql, sending)
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    name_span(&mut answered, statement.block.as_text());
     // Described before the first row, because the description is read out of a
     // shared borrow of the stream and the rows out of a mutable one — the same
     // ordering `postgres_rows` gets by cloning its columns, and here the clone
@@ -3828,10 +3854,97 @@ fn mysql_rows(
         }
         rows.append(Value::array(one));
     }
-    Ok(Answered {
-        rows,
-        columns: described,
-    })
+    // After the drain, as [`postgres_rows`]: the terminator is what freezes the
+    // duration, and the rows counted are the ones that came back.
+    let taken = watch.taken(answered.span());
+    Ok((
+        Answered {
+            rows,
+            columns: described,
+        },
+        taken,
+    ))
+}
+
+/// `execute` over the PostgreSQL driver: the same stream [`postgres_rows`]
+/// drains, read for its counts rather than its rows.
+///
+/// **The rows are drained and discarded, not skipped.** § 4 gives `execute` no
+/// way to hand a `RETURNING` clause's rows back, and the completion tag that
+/// carries the affected count is on the far side of them — so a member that
+/// walked away would leave the connection mid-stream and would have no count to
+/// answer with either.
+///
+/// # Errors
+///
+/// [`statement_failure`] for anything the server refused.
+fn postgres_write(
+    postgres: &mut nvs_db::PgConn,
+    statement: &Statement,
+    sending: &[Option<&[u8]>],
+    source: Option<&str>,
+    watch: QueryWatch,
+    named: &str,
+) -> Result<(Written, Option<(String, std::time::Duration)>), Fault> {
+    let mut answered = postgres
+        .query(&statement.sql, sending)
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    name_span(&mut answered, statement.block.as_text());
+    while answered
+        .next_row()
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
+        .is_some()
+    {}
+
+    let written = Written {
+        changed: answered.affected(),
+        last_id: answered.last_id(),
+    };
+    // § 11's event is a *statement's*, not a reader's: a write files one on the
+    // same terms as `query`, carrying the affected count `finished` froze on
+    // the span above.
+    let taken = watch.taken(answered.span());
+    Ok((written, taken))
+}
+
+/// `execute` over the MySQL driver: [`postgres_write`]'s shape, and § 4's two
+/// counts read out of the status packet rather than out of a completion tag.
+///
+/// **`lastId` is where the two drivers differ and § 4 does not.** MySQL answers
+/// `0` for a statement that generated no `AUTO_INCREMENT` value, and § 4's field
+/// is `?uint` — so the zero is mapped to null here rather than handed to a
+/// caller who would have to know to read it as absence. PostgreSQL reaches the
+/// same answer by having no `RETURNING` id to read at all.
+///
+/// # Errors
+///
+/// [`statement_failure`] for anything the server refused.
+fn mysql_write(
+    mysql: &mut nvs_db::MySqlConn,
+    statement: &Statement,
+    sending: &[Option<&[u8]>],
+    source: Option<&str>,
+    watch: QueryWatch,
+    named: &str,
+) -> Result<(Written, Option<(String, std::time::Duration)>), Fault> {
+    let mut answered = mysql
+        .query(&statement.sql, sending)
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    name_span(&mut answered, statement.block.as_text());
+    // A write answers no result set, but a `CALL` does — and draining is what
+    // ends the statement on this driver, as [`postgres_write`]'s does there.
+    while answered
+        .next_row()
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
+        .is_some()
+    {}
+
+    let written = Written {
+        changed: answered.affected(),
+        last_id: answered.last_id().filter(|id| *id != 0),
+    };
+    let taken = watch.taken(answered.span());
+    Ok((written, taken))
 }
 
 /// What is reading this statement's span — [ADR 0041](../../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
@@ -3980,9 +4093,34 @@ fn file_span(
 /// It takes the name and not the `Value`, so [`crate::queue`]'s statements —
 /// whose block is `[queue] connection`'s name — put it on their spans through
 /// this one rule rather than a second spelling of it.
-pub(crate) fn name_span(rows: &mut nvs_db::PgRows<'_>, block: Option<&str>) {
+pub(crate) fn name_span<R: NamesConnection>(rows: &mut R, block: Option<&str>) {
     if let Some(name) = block {
         rows.name_connection(name);
+    }
+}
+
+/// A running statement's handle, on whichever driver — joined by the one method
+/// [`name_span`] needs of it.
+///
+/// **One method and not a result-set trait**, which [`mysql_rows`] argues at
+/// length for the walk above: the two handles agree on nothing else, and what is
+/// shared here is the *rule* that a block names its own span, not the reading of
+/// a row. Written as a trait rather than as two calls so a third driver's
+/// statement cannot quietly file a nameless span.
+pub(crate) trait NamesConnection {
+    /// Puts `connection` on this statement's span.
+    fn name_connection(&mut self, connection: &str);
+}
+
+impl NamesConnection for nvs_db::PgRows<'_> {
+    fn name_connection(&mut self, connection: &str) {
+        nvs_db::PgRows::name_connection(self, connection);
+    }
+}
+
+impl NamesConnection for nvs_db::MySqlRows<'_> {
+    fn name_connection(&mut self, connection: &str) {
+        nvs_db::MySqlRows::name_connection(self, connection);
     }
 }
 
@@ -4345,32 +4483,25 @@ nvs_runtime::nvs_helper! {
             statement.binds.iter().map(|one| one.as_deref()).collect();
         // As `query`, and for the reason [`QueryWatch`] gives.
         let watch = QueryWatch::of(ctx, &statement.block);
-        let postgres = postgres_of(ctx, statement.key, &statement.block, EXECUTE)?;
-        let mut answered = postgres
-            .query(&statement.sql, &sending)
-            .map_err(|refused| statement_failure(EXECUTE, &statement.block, source, &refused))?;
-        name_span(&mut answered, statement.block.as_text());
-        while answered
-            .next_row()
-            .map_err(|refused| statement_failure(EXECUTE, &statement.block, source, &refused))?
-            .is_some()
-        {}
-
-        let changed = answered.affected();
-        let last_id = answered.last_id();
-        // § 11's event is a *statement's*, not a reader's: a write files one on
-        // the same terms as `query`, carrying the affected count `finished`
-        // froze on the span above.
-        let taken = watch.taken(answered.span());
-        // As `query`, and for the same borrow reason given there.
-        drop(answered);
+        // Branched as [`queried_rows`] is, and the arms hand the event back for
+        // the same borrow reason: the rows hold the connection, which holds the
+        // context the span is filed on.
+        let (written, taken) = match filed_connection(ctx, statement.key, EXECUTE)? {
+            nvs_db::Connection::Postgres(postgres) => {
+                postgres_write(postgres, &statement, &sending, source, watch, EXECUTE)?
+            }
+            nvs_db::Connection::MySql(mysql) => {
+                mysql_write(mysql, &statement, &sending, source, watch, EXECUTE)?
+            }
+            other => return Err(driverless(EXECUTE, &statement.block, other.driver())),
+        };
         watch.file(ctx, taken);
         Ok(crate::instance::build(
             &WRITE,
             [
-                Value::uint(changed.unwrap_or(0)),
-                changed.map_or_else(Value::null, Value::uint),
-                last_id.map_or_else(Value::null, Value::uint),
+                Value::uint(written.changed.unwrap_or(0)),
+                written.changed.map_or_else(Value::null, Value::uint),
+                written.last_id.map_or_else(Value::null, Value::uint),
             ],
         ))
     }
@@ -4393,11 +4524,11 @@ nvs_runtime::nvs_helper! {
     ///
     /// **The batch opens and files ADR 0067 § 11's span itself**, which is the
     /// one thing it does that `execute` leaves to the driver.
-    /// [`nvs_db::PgConn::execute_many`] answers with a count and lends no
-    /// `PgRows` out, so there is no handle a driver-built span could ride on
-    /// and be read off afterwards — the span is opened here, around the same
-    /// round trips, and finished with the batch's sum as its affected count and
-    /// no rows at all, which is what a batch contributes to a trace.
+    /// Either driver's `execute_many` answers with a count and lends no row
+    /// handle out, so there is no handle a driver-built span could ride on and
+    /// be read off afterwards — the span is opened here, around the same round
+    /// trips, and finished with the batch's sum as its affected count and no
+    /// rows at all, which is what a batch contributes to a trace.
     /// `nvs_db::QuerySpan` owns the field set and why a bound value is not in
     /// it, and `Ctx::record_query` owns why what crosses is a rendering.
     ///
@@ -4405,10 +4536,12 @@ nvs_runtime::nvs_helper! {
     /// a sum, because `changed` and `lastId` would each have to pick one
     /// execution to be about — and the sum is what a caller writing the loop by
     /// hand would have accumulated anyway. The batch is also **not** a
-    /// transaction: each execution carries its own `Sync`
-    /// ([`nvs_db::PgConn::execute_many`] is where that is argued), so a failure
-    /// part way through leaves the writes before it standing, and `transaction`
-    /// is the member that asks for all or nothing.
+    /// transaction: a failure part way through leaves the writes before it
+    /// standing and the sets after it still attempted, and `transaction` is the
+    /// member that asks for all or nothing. The two drivers reach that one
+    /// observable from opposite ends of their protocols — a `Sync` per execution
+    /// on PostgreSQL, a command per execution on MySQL — and each
+    /// `execute_many`'s own doc argues its half.
     fn nvs_core_db_connection_execute_many(ctx, args: [3]) {
         let batch = batch_of(ctx, args, "executeMany", EXECUTE_MANY)?;
         // Two hops rather than one: the driver borrows each set as a slice, so
@@ -4422,19 +4555,27 @@ nvs_runtime::nvs_helper! {
 
         // As `execute`, and for the reason [`QueryWatch`] gives.
         let watch = QueryWatch::of(ctx, &batch.block);
-        let postgres = postgres_of(ctx, batch.key, &batch.block, EXECUTE_MANY)?;
+        let connection = filed_connection(ctx, batch.key, EXECUTE_MANY)?;
+        let driver = connection.driver();
         // § 11's span, opened where the driver opens `execute`'s: after the
         // connection is in hand, so the duration is the statement's wait and
         // not the pool's. It carries the rewritten text, which is what reaches
-        // the wire and what a driver-opened span would have been handed.
-        let mut span = nvs_db::QuerySpan::opened(nvs_db::Driver::Postgres, &batch.sql);
+        // the wire and what a driver-opened span would have been handed, and the
+        // connection's own driver, so a trace reads the batch beside the
+        // statements around it rather than as PostgreSQL's whatever ran it.
+        let mut span = nvs_db::QuerySpan::opened(driver, &batch.sql);
         // One statement over many parameter sets, so the batch has exactly the
-        // one text to name and it is the caller's, as `execute`'s is.
-        let written = postgres
-            .execute_many(&batch.sql, &sets)
-            .map_err(|refused| {
-                statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), &refused)
-            })?;
+        // one text to name and it is the caller's, as `execute`'s is. What the
+        // two drivers do with the sets differs and what a caller observes does
+        // not — `nvs_db::mysql`'s own `execute_many` is where that is argued.
+        let written = match connection {
+            nvs_db::Connection::Postgres(postgres) => postgres.execute_many(&batch.sql, &sets),
+            nvs_db::Connection::MySql(mysql) => mysql.execute_many(&batch.sql, &sets),
+            other => return Err(driverless(EXECUTE_MANY, &batch.block, other.driver())),
+        }
+        .map_err(|refused| {
+            statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), &refused)
+        })?;
         // § 4's sum is the batch's affected count, and the span's rows stay at
         // zero: nothing was handed back, and a batch that inserted a thousand
         // rows reporting a thousand rows *returned* would read as a select.

@@ -2,63 +2,69 @@
 
 ## State
 
-**ADR 0067 § 4's `query` answers on a MySQL connection.** `queried_rows`
-(`crates/nvs-stdlib/src/db.rs:3650`) branches on the filed connection rather than demanding a
-`PgConn`: `postgres_rows` is the old body moved whole, `mysql_rows`
-(`crates/nvs-stdlib/src/db.rs:3781`) drains a binary result set through § 9's `mysql_column_value`
-and `mysql_described_columns`, and all three `#[expect(dead_code)]`s over that decode are gone. The
-two halves are deliberately not shared — `mysql_rows`' own doc says what the drivers agree on and
-what they do not.
+**ADR 0067 § 11's `query` event is filed on either driver.** `MySqlRows`
+(`crates/nvs-db/src/mysql.rs:2174`) carries a `QuerySpan` opened in
+`start_statement` before the prepare — § 1's first round trip is part of what the caller waited —
+counted per row in `next_row`, and finished at the result-set terminator or, for a statement with no
+result set, at the status packet the execution answered with. `nvs-stdlib`'s `mysql_rows` hands back
+`QueryWatch::taken`'s pair exactly as `postgres_rows` does, and `name_span` is now generic over the
+`NamesConnection` trait so the block-naming rule has one home rather than one per driver.
 
-**A statement is rewritten and bound in its connection's own dialect.** `rendering_for`
-(`crates/nvs-stdlib/src/db.rs:3484`) pairs § 5's `nvs_db::Dialect` with § 9's encoder in one place,
-`rendering_of` reads the driver off the connection through the new `filed_connection`, and
-`statement_in` is the old `statement_of` body with that pair passed in — so `executeMany` asks once
-per batch rather than once per set. MariaDB renders as MySQL does; SQL Server and SQLite throw
-gap 2's message *before* the rewrite instead of after the bind.
+**§ 4's `execute` and `executeMany` answer on a MySQL connection.** `execute` branches on
+`filed_connection` into `postgres_write`/`mysql_write` (`crates/nvs-stdlib/src/db.rs:3701`), which
+answer a `Written` pair — and MySQL's `lastId` of `0` maps to null, because § 4's field is `?uint`
+and the zero is the protocol's spelling of absence. `executeMany` opens § 11's span at the
+connection's own driver and calls either `execute_many`. `nvs_db::mysql::execute_many` costs one
+prepare and **N round trips**, not PostgreSQL's one flush: a MySQL command restarts the packet
+sequence id, so two in flight cannot be framed apart. What a caller observes is the same on both —
+the writes before a failure stand, the sets after it are still attempted, the *first* refusal is the
+answer — and a wire failure is the one thing that ends the batch early.
 
-**Still PostgreSQL-only, and this is the module's known gap 2 in full**: `execute`, `executeMany`
-and `transaction` go through `postgres_of` (`crates/nvs-stdlib/src/db.rs:3568`), and a MySQL `query`
-files no § 11 event because a `MySqlRows` carries no span where a `PgRows` opens one.
+**Still PostgreSQL-only, and this is now all of the module's known gap 2**: § 7's `transaction`
+(`postgres_of`, `crates/nvs-stdlib/src/db.rs:3568`) and `crate::queue`'s four members. MariaDB,
+SQL Server and SQLite are refused by `driverless` before anything is sent.
 
-**The MySQL read path has not met a server.** `verify.py` has no matrix leg, so what holds it is the
-type checker plus two new unit tests over `rendering_for`; `tools/db-matrix.py` and
-`crates/nvs-db/src/matrix.rs` are the leg that would, and that is the third item below.
+**No MySQL path has met a server.** `verify.py` has no matrix leg, so what holds all of this is the
+type checker plus six unit tests against `mysql.rs`'s scripted `Peer`; `tools/db-matrix.py` and
+`crates/nvs-db/src/matrix.rs` are the leg that would.
 
 **The driver's stage-2 acceptance check is unchanged and still open**:
 `a_db_open_target_in_a_denied_range_fails` waits on `Core\Db::open`, blocked on a registry type for
-a shape **parameter** (`nvs_stdlib::db` known gap 1) — a language-surface decision that wants its own
-ADR, not a slice. Untouched this session.
+a shape **parameter** (`nvs_stdlib::db` known gap 1) — a language-surface decision that wants its
+own ADR, not a slice. Untouched this session.
 
-**`orient.py` gaps:** `[context] adrs` wants ADR 0067 § 2, § 4, § 5, § 11 and § 18. § 4 and § 5
-specified both of this session's slices and neither was printed; § 11 specifies the next item.
+**`orient.py` gaps:** `[context] adrs` wants ADR 0067 § 4 and § 11 — both slices this session were
+specified by sections the pack did not print, for the second session running. § 7 is the next
+group's.
 
 ## Next group
 
-**§ 11 and § 4's two writes, one file set: `crates/nvs-stdlib/src/db.rs`, against
-`crates/nvs-db/src/mysql.rs` and `crates/nvs-db/src/span.rs`. The span first — `execute` will want
-to file the same event, and doing it after means writing that arm twice.**
+**§ 7's `transaction` over a MySQL connection, one file set:
+`crates/nvs-db/src/mysql.rs` and `crates/nvs-stdlib/src/db.rs`, against
+`crates/nvs-db/src/pg.rs`'s § 7 half. The driver first — the stdlib arm has nothing to call
+until the three commands and the depth exist.**
 
-- [ ] **§ 11's `query` event over a MySQL statement** — ADR 0067 § 11.
-      `crates/nvs-stdlib/src/db.rs:3650` is where the MySQL arm hands back `None` where the
-      PostgreSQL one hands `QueryWatch::taken`'s pair, and `crates/nvs-stdlib/src/db.rs:3781` is the
-      drain that would open the span. `crates/nvs-db/src/mysql.rs:2174` (`MySqlRows`) carries no
-      span field, `crates/nvs-db/src/mysql.rs:1564` (`start_statement`) is where `PgRows`' opens,
-      and `crates/nvs-db/src/span.rs:86` is `QuerySpan` itself.
-- [ ] **`execute` and `executeMany` over a MySQL connection** — ADR 0067 § 4.
-      `crates/nvs-stdlib/src/db.rs:4339` and `crates/nvs-stdlib/src/db.rs:4412` both still reach
-      `crates/nvs-stdlib/src/db.rs:3568` (`postgres_of`); § 4's two counts are
-      `nvs_db::MySqlRows::affected` and `::last_id` (`crates/nvs-db/src/mysql.rs:2174`), and MySQL's
-      `lastId` comes off the status packet with no `RETURNING` to ask for. `executeMany`'s span is
-      still `QuerySpan::opened(nvs_db::Driver::Postgres, …)` at that second anchor.
-- [ ] **The MySQL read path against a live server** — `crates/nvs-db/src/matrix.rs:1` names the
-      `NVS_DB_MATRIX_*` fields and `tools/db-matrix.py` sets them; `examples/db.nvs` is the program
-      shape a `[db.<name>] driver = "mysql"` block would run.
+- [ ] **§ 7's `BEGIN`/`COMMIT`/`ROLLBACK` and the `SAVEPOINT` nesting on `MySqlConn`** — ADR 0067
+      § 7. `crates/nvs-db/src/pg.rs:2963` (`begin`), `crates/nvs-db/src/pg.rs:3008` (`commit`),
+      `crates/nvs-db/src/pg.rs:3053` (`roll_back`), `crates/nvs-db/src/pg.rs:3128`
+      (`begin_command`, which renders the two options) and `crates/nvs-db/src/pg.rs:3168`
+      (`simple_command`, which opens the span each answers with) are the shapes;
+      `crates/nvs-db/src/pg.rs:608` is `depth`. MySQL has no `COM_QUERY` path in this driver yet,
+      so the first question is whether these go out as `COM_QUERY` or as prepared statements —
+      `crates/nvs-db/src/mysql.rs:1571` (`start_statement`) is the only send path there is today.
+- [ ] **`transaction` branches on the connection instead of demanding a `PgConn`** — ADR 0067 § 7.
+      `crates/nvs-stdlib/src/db.rs:4709`, `:4716`, `:4765` and `:4788` are the four `postgres_of`
+      calls the member makes; `crates/nvs-stdlib/src/db.rs:3568` is `postgres_of` itself, which
+      after this owes only `crate::queue`.
+- [ ] **A `.nvst` or matrix case over a MySQL write** — `crates/nvs-db/src/matrix.rs:1` names the
+      `NVS_DB_MATRIX_*` fields and `tools/db-matrix.py` brings a server up. Nothing in this
+      session's work has met one.
 
 ## Backlog
 
-- `Core\Db::open` — `nvs_stdlib::db` known gap 1, and the shape-parameter registry type it waits on
+- `Core\Db::open`'s shape parameter needs a registry type — `nvs_stdlib::db` known gap 1, and it
   wants its own ADR.
-- `transaction` over MySQL — ADR 0067 § 7, after `execute` lands.
-- MariaDB has no connect path at all — ADR 0067 § 2; it binds and then has nowhere to send.
-- `crates/nvs-stdlib/src/queue.rs:1295`'s own `postgres_of` stays PostgreSQL's — ADR 0084 § 2.
+- `crate::queue`'s four members are PostgreSQL-only — `nvs_stdlib::queue`.
+- SQL Server and SQLite have no connect path — `nvs_db` module doc.
+- The MySQL statement cache is invalidated by § 13's reset, untested against a server —
+  `nvs_db::mysql`.
