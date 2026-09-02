@@ -2775,24 +2775,32 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "2 first driver"
-name = "nvs-stdlib (§ 2's memo, where `Core\\Db::connect` lives)"
+name = "nvs-stdlib (§ 2's memo and § 3's two capabilities)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
   # § 2 -- a second connect under one name in one request is one connection and one handshake.
   "a_named_connection_is_memoized_for_the_request",
+  # § 3 -- the two capabilities answer different questions and collapsing them is the mistake.
+  # Both names were filed against `-p nvs-types` and neither can be asked there: `nvs_types::
+  # intrinsics`' own known gap 6 is that checking has no configuration in front of it at all --
+  # `nvs_types::Env` carries no capability set and no capability is checked at check time -- so a
+  # question about what a deployment granted has no `-p nvs-types` asker. The first is landed; the
+  # second waits on `Core\\Db::open`, which `nvs_stdlib::db`'s known gap 1 blocks on a registry type
+  # for a shape parameter.
+  "a_connect_named_private_endpoint_needs_no_net_connect_grant",
+  "a_db_open_target_in_a_denied_range_fails",
 ]
 
 [[check]]
 kind = "cargo-named"
 stage = "2 first driver"
-name = "nvs-types (the settings shape and the two capabilities)"
+name = "nvs-types (the settings shape)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # § 2 -- SQLite has no host, and a host on its settings literal is a compile error.
+  # § 2 -- SQLite has no host, and a host on its settings literal is a compile error. This one is
+  # nvs-types' by rights: it is a claim about a literal and not about a deployment. It waits on
+  # `Db\\Settings` existing at all, which `nvs_stdlib::db`'s known gap 1 owns.
   "a_host_on_a_sqlite_settings_literal_is_a_compile_error",
-  # § 3 -- the two capabilities answer different questions and collapsing them is the mistake.
-  "a_connect_named_private_endpoint_needs_no_net_connect_grant",
-  "a_db_open_target_in_a_denied_range_fails",
 ]
 
 

@@ -5830,4 +5830,88 @@ mod tests {
             "and the name still resolves to the connection the first call opened"
         );
     }
+
+    /// ADR 0067 § 3's asymmetry, asserted as the **contrast** it is: the very
+    /// loopback address ADR 0058 § 3's door refuses is the address
+    /// `Core\Db::connect` opens to, on a deployment that grants `db.connect`
+    /// and writes nothing under `[capabilities.net]` at all.
+    ///
+    /// On its own, "`connect` reached `127.0.0.1`" is not the claim — an
+    /// address nobody denies prints the same line. So the door is asked first,
+    /// twice, and both of its refusals are pinned: with no `net.connect` the
+    /// host never reaches the range table, and with `net.connect` but no
+    /// `net.internal` the range table is what refuses. Only then is
+    /// [`address_of`] asked, and it answers.
+    ///
+    /// The deepest half is a signature rather than an assertion, and is worth
+    /// saying because no `assert!` can reach it: [`address_of`] takes no
+    /// [`Ctx`], so there is no configuration in front of that path to consult.
+    /// The pre-approval is structural, and adding a check to it later would
+    /// have to change what the function is handed first.
+    #[test]
+    fn a_connect_named_private_endpoint_needs_no_net_connect_grant() {
+        const HOST: &str = "127.0.0.1";
+
+        // What the operator wrote: one block may be opened by name, and this
+        // deployment reaches no host and excepts no address.
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_config(crate::tests::granting(
+            "[capabilities.db]\nconnect = [\"main\"]\n",
+        ));
+
+        // § 3's two capabilities answer different questions: the one this path
+        // asks, and the neighbour it does not.
+        nvs_runtime::capability::require(
+            &ctx,
+            nvs_config::Cap::DbConnect,
+            nvs_config::capability::Scope::Name("main"),
+            CONNECT,
+        )
+        .expect("`db.connect` grants the block by name, and this deployment granted it");
+        let ungranted = nvs_runtime::capability::require(
+            &ctx,
+            nvs_config::Cap::NetConnect,
+            nvs_config::capability::Scope::Host(HOST),
+            CONNECT,
+        )
+        .expect_err("and nothing here grants `net.connect` for any host at all");
+
+        // ADR 0058's door on that same deployment, refusing the host before it
+        // is resolved — the first of the two ways a database on loopback would
+        // be unreachable if a named endpoint went through it.
+        let by_door = nvs_runtime::capability::pin_host(&ctx, HOST, CONNECT)
+            .expect_err("the door asks `net.connect` first — ADR 0058 § 3");
+        assert_eq!(
+            format!("{by_door:?}"),
+            format!("{ungranted:?}"),
+            "the door's first question is the capability's own, unchanged"
+        );
+
+        // And the second way: buy the host back, and § 3's range table is what
+        // refuses. That is the check ADR 0067 § 3 says a named endpoint is not
+        // additionally put through — where every database on `10/8`, a
+        // container network or loopback lives.
+        let mut reachable = Ctx::new(OutputSink::Sink);
+        reachable.set_config(crate::tests::granting(
+            "[capabilities.db]\nconnect = [\"main\"]\n\
+             [capabilities.net]\nconnect = [\"127.0.0.1\"]\n",
+        ));
+        let by_range = nvs_runtime::capability::pin_host(&reachable, HOST, CONNECT)
+            .expect_err("loopback is the first range § 3 denies");
+        assert!(
+            format!("{by_range:?}").contains("net.internal"),
+            "the range half names the key that would except it: {by_range:?}"
+        );
+
+        // The path `Core\Db::connect` actually takes, on the deployment that
+        // granted neither `net` key: it answers the address both refusals above
+        // just named.
+        let pinned = address_of(HOST, Some(5432), "main")
+            .expect("a `connect`-named endpoint is pre-approved — ADR 0067 § 3");
+        assert_eq!(
+            pinned,
+            SocketAddr::from(([127, 0, 0, 1], 5432)),
+            "and it is the written host's own address, resolved once"
+        );
+    }
 }
