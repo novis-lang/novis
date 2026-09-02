@@ -90,9 +90,9 @@
 //!    `nvs_runtime::ThrownClass::DbRolledBack` is what a helper names to raise
 //!    one — nothing in this module raises one yet, because § 7's
 //!    `transaction` is what would.
-//! 5. **`query`, `execute`, `executeMany` and `transaction` are what has landed
-//!    of `Core\Db\Queryable`,** with `queryAs`'s *row* landed and its body
-//!    owed (gap 9). `stream` and `streamAs` are owed whole, and so are
+//! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
+//!    has landed of `Core\Db\Queryable`** (gap 9 is what `queryAs` still owes).
+//!    `stream` and `streamAs` are owed whole, and so are
 //!    `close` and § 18's three readonly properties on `Connection`. On
 //!    the result side [`ROWS`] owes one member of six —
 //!    `columns(): array<Column>`, which needs three things at once: a
@@ -119,16 +119,21 @@
 //!    and not here — that is the only place a dialect exists. § 18 does not ask
 //!    for one, and this module's second decision above is why adding it to
 //!    `Core\Db` cannot be the answer.
-//! 9. **`queryAs<T>` is declared and does not hydrate.** The row is on both
-//!    classes, the call site's class reaches the helper
-//!    ([`crate::registry::WRITTEN_CLASS_MEMBERS`]) and the return type is
-//!    § 18's `Rows<T>`; what is owed is the walk over
-//!    [`nvs_runtime::ClassDesc::db_codec`] that turns one row into one `T`,
-//!    plus the two refusals a compile-time home would be better for — a `T`
-//!    that carries no `#[Db\Derive]` codec, and a `queryAs<array<C>>` whose
-//!    list form means nothing here. Both bands the checker would take a code
+//! 9. **`queryAs<T>` hydrates, and three of its refusals are at run time that
+//!    should be at compile time.** [`hydrate`] is the walk over
+//!    [`nvs_runtime::ClassDesc::db_codec`] and it lands; what is owed is where
+//!    the *no* is said. A `T` carrying no `#[Db\Derive]` codec and a
+//!    `queryAs<array<C>>` whose list form means nothing here are both
+//!    properties of the call site alone, and a field whose declared type the
+//!    derive pass erased to [`nvs_runtime::CodecTy::Opaque`] — a `decimal`, a
+//!    `bytes`, an inline shape — is a property of the class alone; all three
+//!    are refused per row instead. Both bands the checker would take a code
 //!    from (`E04xx`, `E07xx`) are full, so they are the helper's until a band
-//!    is opened.
+//!    is opened. Two smaller ones ride with them: a constructor parameter no
+//!    codec field fills is a fatal rather than ADR 0071 § 3's default, for
+//!    `crate::json`'s reason, and the refusals carry § 5's `issues` on a
+//!    `ParseError` because gap 4's `Db\DbError` is not in the tree to carry
+//!    them.
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 
@@ -1127,10 +1132,25 @@ const QUERY_AS_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "A `Core\\Db\\Rows<T>` holding one `T` per row, in the server's order. **The hydration \
-          itself is `nvs_stdlib::db`'s known gap 9**: the member is declared, generic and \
-          callable, and calling it faults naming that gap rather than answering.",
-    errors: &[],
+    ret: "A `Core\\Db\\Rows<T>` holding one `T` per row, in the server's order. A row is built \
+          when it is handed out — by `all`, by `first` or by a `foreach` — so a result that is \
+          only counted constructs nothing.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The type argument is an `array<...>`, which a result set already is one row \
+                   per row of; or `T` carries no `#[Db\\Derive]`, so there is no column mapping \
+                   to build it from. Both are properties of the call site and would be \
+                   compile-time diagnostics if either type band had a code left.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "A row did not match `T`: a column missing, a column of another type than the \
+                   field declares, a SQL NULL in a field that is not `?T`, or a field whose \
+                   declared type has no column mapping at all. Every bad column of the row is \
+                   reported at once, in `issues`, each `path` the column's name.",
+        },
+    ],
 };
 
 /// `Core\Db\Connection::execute`'s reference card — ADR 0117.
@@ -2490,10 +2510,10 @@ nvs_runtime::nvs_helper! {
     /// [`ROWS_CLASS_SLOT`] and is read only when a row is handed out, so a
     /// caller that just counts pays for no construction.
     ///
-    /// **The construction itself is this module's known gap 9**, and it is
-    /// owed by [`row_object`] rather than by this body: a `Rows<Person>` that
-    /// handed out `Core\Db\Row`s would be typed as one thing and hold another,
-    /// so the refusal sits where the row would be built.
+    /// **The construction is [`hydrate`]'s**, reached through [`row_object`]
+    /// when `all`, `first` or a `foreach` asks for a row — so this body's own
+    /// refusals are the two that are about the *call site* rather than about a
+    /// row, and they are raised before the statement goes out.
     fn nvs_core_db_connection_query_as(ctx, args: [5]) {
         // Unreachable from source, exactly as `Core\Json::decodeAs`'s own
         // reading of these two slots is: `nvs_ir::lower` writes the descriptor
@@ -2846,24 +2866,340 @@ fn rows_class(
 ///
 /// # Errors
 ///
-/// The hydrating half is this module's known gap 9, so a named class is a
-/// [`Fault::fatal`] spelled through [`QUERY_AS`]: it is that member's promise
-/// that is unkept, whichever reader was asked.
+/// [`hydrate`]'s, for the second shape, and a [`Fault::fatal`] for a row slot
+/// holding anything but an array, which is [`row_at`]'s paste error.
 fn row_object(
+    ctx: &mut nvs_runtime::Ctx,
     row: Value,
     class: Option<*const nvs_runtime::ClassDesc>,
     member: &str,
 ) -> Result<Value, Fault> {
-    let Some(_class) = class else {
+    let Some(class) = class else {
         return Ok(crate::instance::build(&ROW, [owned(row)]));
     };
-    Err(Fault::fatal(format!(
-        "{QUERY_AS}: building a row into the class written at the call site is \
-         `nvs_stdlib::db`'s known gap 9, and `{member}` is where it would be built — the \
-         member's row, its `Rows<T>` return, the descriptor its call site hands over and the \
-         statement itself are all in place, and the walk over `ClassDesc::db_codec` that ADR \
-         0071 § 5 specifies is owed"
-    )))
+    let held = row.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{ROWS_NAME}::{member} found tag {} where a row should be",
+            row.tag_byte()
+        ))
+    })?;
+    let columns = crate::arr::borrowed(held);
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor came out of a `ClassDescConst` the compiled unit \
+                  owns, written into this receiver's own slot by \
+                  `nvs_core_db_connection_query_as`, so it outlives this call"
+    )]
+    unsafe {
+        hydrate(ctx, class, &columns)
+    }
+}
+
+/// One row built into the class `queryAs<T>`'s call site wrote — ADR 0071 § 5's
+/// accumulate-then-construct, over a row whose columns ADR 0067 § 9's type map
+/// has already decoded.
+///
+/// **Every field is a check and not a parse**, which is the whole difference
+/// from [`crate::json`]'s walk over the same [`nvs_runtime::CodecField`] list:
+/// a column arrives as the Novis value § 9 names for its SQL type, so what is
+/// left is whether that value is the one the field declares — and § 6's
+/// "losslessly or throws" is what decides the two integer types against each
+/// other, exactly as [`ROW`]'s own typed readers do.
+///
+/// **§ 5's `path` is the column name**, which that section says outright for
+/// the `Db` half, so a list element's position rides in its message rather
+/// than in a dotted path.
+///
+/// # Errors
+///
+/// A `ParseError` carrying every bad column at once — `ParseError` rather than
+/// § 8's `DbError` because this module's known gap 4 is that the latter is not
+/// in spec § 10's tree, and because `issues` is a property only the former
+/// declares. A class carrying no `#[Db\Derive]` is a `LogicError` instead: it
+/// is the program's mistake rather than the row's, and gap 9 owns why it is not
+/// the compile-time diagnostic it should be.
+///
+/// # Safety
+///
+/// `class` must refer to a live descriptor whose method table `nvs-codegen` has
+/// filled.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn hydrate(
+    ctx: &mut nvs_runtime::Ctx,
+    class: *const nvs_runtime::ClassDesc,
+    row: &NvsArray,
+) -> Result<Value, Fault> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let desc = unsafe { &*class };
+    let fields = desc.db_codec();
+    if fields.is_empty() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{QUERY_AS}: `{}` carries no `#[Db\\Derive]`, so there is no column mapping to \
+                 build one from — ADR 0071 § 1's opt-in is that attribute, and this is the \
+                 refusal a compile-time diagnostic would be better at (`nvs_stdlib::db`'s known \
+                 gap 9)",
+                desc.name()
+            ),
+        ));
+    }
+    let mut ctor_args = vec![Value::null(); desc.ctor_arity()];
+    let mut filled = vec![false; desc.ctor_arity()];
+    let mut issues: Vec<(String, String)> = Vec::new();
+    for field in fields {
+        let Some(held) = row.get(field.key.as_bytes()) else {
+            issues.push((
+                field.key.clone(),
+                format!(
+                    "the result has no column `{}` — a `#[Db\\Field(name: \"…\")]` is how a field \
+                     reads one under another name",
+                    field.key
+                ),
+            ));
+            continue;
+        };
+        match hydrated(field, held) {
+            Ok(value) => match ctor_args.get_mut(field.param) {
+                Some(slot) => {
+                    *slot = owned(value);
+                    filled[field.param] = true;
+                }
+                None => {
+                    release_all(&ctor_args);
+                    // Unreachable from source with no diagnostic to name:
+                    // `field.param` and `desc.ctor_arity()` are two readings of
+                    // one class's own constructor, both written while compiling
+                    // that class.
+                    return Err(Fault::fatal(format!(
+                        "internal error: `{}`'s `{}` field names constructor parameter {} of {}",
+                        desc.name(),
+                        field.key,
+                        field.param,
+                        desc.ctor_arity()
+                    )));
+                }
+            },
+            Err(why) => issues.push((field.key.clone(), why)),
+        }
+    }
+
+    if !issues.is_empty() {
+        release_all(&ctor_args);
+        return Err(Fault::thrown_with_issues(
+            ThrownClass::Parse,
+            format!(
+                "{QUERY_AS}: {} column(s) of `{}` did not match the row",
+                issues.len(),
+                desc.name()
+            ),
+            crate::issue::list(
+                issues
+                    .iter()
+                    .map(|(path, message)| (path.as_str(), message.as_str())),
+            ),
+        ));
+    }
+    // ADR 0071 § 3's skipped field with a constructor default, exactly as
+    // `Core\Json::decodeAs` meets it: the default is a constant the *call site*
+    // emits and there is no call site here, so this is loud rather than a
+    // `null` that would be right for one declaration in ten.
+    if let Some(index) = filled.iter().position(|done| !done) {
+        release_all(&ctor_args);
+        return Err(Fault::fatal(format!(
+            "{QUERY_AS}: `{}`'s constructor parameter {index} is not a codec field, and a \
+             skipped field's default is `nvs_stdlib::db`'s own known gap 9",
+            desc.name()
+        )));
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor, and every argument is one this frame \
+                  owns and hands over"
+    )]
+    unsafe {
+        nvs_runtime::construct(ctx, class, &ctor_args)
+    }
+}
+
+/// One column as the value one [`nvs_runtime::CodecField`] takes, borrowed from
+/// the row — or § 5's message for why it is not that value.
+///
+/// The reference is *not* taken here: [`hydrate`] does that with [`owned`] on
+/// the one value it keeps, so a list's element checks below cost nothing and
+/// leak nothing.
+fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<Value, String> {
+    if held.tag() == Some(Tag::Null) {
+        return if field.nullable {
+            Ok(held)
+        } else {
+            Err(
+                "the column is SQL NULL and the field is not declared `?T` — ADR 0067 § 9 reads a \
+                 NULL back as `null` whatever the column's type is"
+                    .to_owned(),
+            )
+        };
+    }
+    let nvs_runtime::CodecTy::List = field.ty else {
+        return converted(field.ty, field.cases.as_ref(), held);
+    };
+    let Some(element) = field.element else {
+        return Err(
+            "this field is a list whose element type the derive pass did not record".to_owned(),
+        );
+    };
+    let held_ptr = held
+        .array_ptr()
+        .ok_or_else(|| wanted("an `array<T>` column", held))?;
+    let elements = crate::arr::borrowed(held_ptr);
+    let mut from = 0usize;
+    while let Some(slot) = elements.next_slot(from) {
+        let one = elements
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        // A NULL element is taken as it comes: a list field's element carries
+        // no nullability of its own on `CodecField`, and PostgreSQL's array
+        // types all admit one.
+        if one.tag() != Some(Tag::Null) {
+            converted(element, field.cases.as_ref(), one)
+                .map_err(|why| format!("element {slot}: {why}"))?;
+        }
+        from = slot + 1;
+    }
+    Ok(held)
+}
+
+/// One value against one wire type: itself where it already is that type, the
+/// same number under the other integer tag where ADR 0067 § 6's "losslessly or
+/// throws" allows it, and § 5's message otherwise.
+///
+/// Never a heap value it did not receive, so nothing here allocates or takes a
+/// reference — see [`hydrated`].
+fn converted(
+    ty: nvs_runtime::CodecTy,
+    cases: Option<&nvs_runtime::EnumCases>,
+    held: Value,
+) -> Result<Value, String> {
+    use nvs_runtime::CodecTy;
+
+    match ty {
+        // ADR 0007's `mixed`: whatever the column held, unchecked.
+        CodecTy::Mixed => Ok(held),
+        CodecTy::Bool => match held.tag() {
+            Some(Tag::Bool) => Ok(held),
+            _ => Err(wanted("`bool`", held)),
+        },
+        CodecTy::Int => match held.as_uint() {
+            Some(unsigned) => i64::try_from(unsigned).map(Value::int).map_err(|_| {
+                format!("the column holds {unsigned}, which is not an `int` — ADR 0067 § 6")
+            }),
+            None if held.tag() == Some(Tag::Int) => Ok(held),
+            None => Err(wanted("`int`", held)),
+        },
+        CodecTy::Uint => match held.as_int() {
+            Some(signed) => u64::try_from(signed).map(Value::uint).map_err(|_| {
+                format!("the column holds {signed}, which is not a `uint` — ADR 0067 § 6")
+            }),
+            None if held.tag() == Some(Tag::Uint) => Ok(held),
+            None => Err(wanted("`uint`", held)),
+        },
+        CodecTy::Float => match held.tag() {
+            Some(Tag::Float) => Ok(held),
+            _ => Err(wanted("`float`", held)),
+        },
+        CodecTy::Str => match held.tag() {
+            Some(Tag::Str) => Ok(held),
+            _ => Err(wanted("`string`", held)),
+        },
+        // ADR 0010 § 6: a case *is* the integer behind it by the time it is a
+        // `Value`, so this is a membership test and not a construction.
+        CodecTy::Enum => {
+            let Some(cases) = cases else {
+                return Err(
+                    "this field is an enum whose cases the derive pass did not record".to_owned(),
+                );
+            };
+            let backing = held
+                .as_int()
+                .map(i128::from)
+                .or_else(|| held.as_uint().map(i128::from))
+                .ok_or_else(|| wanted("an enum's backing integer", held))?;
+            if cases.values.binary_search(&backing).is_err() {
+                return Err(format!(
+                    "the column holds {backing}, which this enum declares no case for"
+                ));
+            }
+            Ok(if cases.unsigned {
+                #[expect(
+                    clippy::cast_sign_loss,
+                    clippy::cast_possible_truncation,
+                    reason = "the value is one of the declared cases, which a `uint`-backed \
+                              enum's are all `u64`"
+                )]
+                Value::uint(backing as u64)
+            } else {
+                #[expect(
+                    clippy::cast_possible_truncation,
+                    reason = "the value is one of the declared cases, which an `int`-backed \
+                              enum's are all `i64`"
+                )]
+                Value::int(backing as i64)
+            })
+        }
+        // A row is a flat list of columns and `nvs_types::derive`'s own
+        // `db_reachable` maps none of them to a nested class, so this arm is
+        // § 9's five value types — and those are the very columns
+        // [`structured_column`] refuses further up, before a row is ever built.
+        CodecTy::Class => Err(
+            "ADR 0067 § 9's `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMPTZ` and \
+                               `UUID` columns do not decode into their `Core\\Time` and \
+                               `Core\\Uuid` instances yet — `nvs_stdlib::db`'s known gap 3"
+                .to_owned(),
+        ),
+        // `nvs_types::derive` erases `decimal`, `bytes` and every inline shape
+        // to this, and its own gap 1 owns the erasure.
+        CodecTy::Opaque => Err(
+            "this field's declared type is one the derive pass has no wire \
+                                type for — a `decimal`, a `bytes` or an inline shape"
+                .to_owned(),
+        ),
+        // Unreachable: [`hydrated`] takes the list arm before this is called,
+        // and a list's element is never itself a list (`CodecTy::List`).
+        CodecTy::List => Err("a list of lists is not a column type".to_owned()),
+    }
+}
+
+/// § 5's message for a column that came back as something else, said with what
+/// it actually is — [`wrong_column_type`]'s shape, for the walk that has a
+/// field's declared type in hand rather than a reader's name.
+fn wanted(want: &str, held: Value) -> String {
+    format!(
+        "the column came back as {} and this field declares {want} — ADR 0067 § 9's type map is \
+         what each column reads back as",
+        held.tag().map_or_else(
+            || format!("tag {}", held.tag_byte()),
+            |tag| tag.describe().to_owned()
+        )
+    )
+}
+
+/// Releases every reference in `values` — [`nvs_runtime::construct`]'s "an
+/// argument is consumed whether or not the constructor ran", owed by every path
+/// out of [`hydrate`] that does not reach it.
+fn release_all(values: &[Value]) {
+    for value in values {
+        #[expect(
+            unsafe_code,
+            reason = "each entry is either `null` or a value this frame took a \
+                      reference to in `hydrate`"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
 }
 
 /// One row of a [`ROWS`], borrowed — see [`result_rows`] for the refusal.
@@ -3002,7 +3338,7 @@ nvs_runtime::nvs_helper! {
     /// One object per row and no second array: a [`ROW`]'s slot takes a
     /// reference to the row [`ROWS`] already holds ([`COLUMNS_SLOT`]), so what
     /// this spends over a result already in memory is one small object each.
-    fn nvs_core_db_rows_all(_ctx, args: [1]) {
+    fn nvs_core_db_rows_all(ctx, args: [1]) {
         let rows = result_rows(args, "all")?;
         let class = rows_class(args, "all")?;
         let mut all = NvsArray::new();
@@ -3011,7 +3347,7 @@ nvs_runtime::nvs_helper! {
             let row = rows
                 .value_at(slot)
                 .expect("next_slot only names live entries");
-            all.append(row_object(row, class, "all")?);
+            all.append(row_object(ctx, row, class, "all")?);
             from = slot + 1;
         }
         Ok(Value::array(all))
@@ -3035,7 +3371,7 @@ nvs_runtime::nvs_helper! {
     /// every § 9 collection's `iterate()` has to take is free here as well:
     /// [`ROWS`] has no mutating member, so the array was already frozen when
     /// [`nvs_core_db_connection_query`] built it.
-    fn nvs_core_db_rows_iterate(_ctx, args: [1]) {
+    fn nvs_core_db_rows_iterate(ctx, args: [1]) {
         let cursor = (|| {
             let rows = result_rows(args, nvs_runtime::sequence::ITERATE)?;
             let class = rows_class(args, nvs_runtime::sequence::ITERATE)?;
@@ -3045,7 +3381,7 @@ nvs_runtime::nvs_helper! {
                 let row = rows
                     .value_at(slot)
                     .expect("next_slot only names live entries");
-                all.append(row_object(row, class, nvs_runtime::sequence::ITERATE)?);
+                all.append(row_object(ctx, row, class, nvs_runtime::sequence::ITERATE)?);
                 from = slot + 1;
             }
             Ok(crate::cursor::over(all))
@@ -3063,7 +3399,7 @@ nvs_runtime::nvs_helper! {
     /// nothing is an answer rather than a failure. There is no cursor a second
     /// call would move past, either — this is the first row every time, which
     /// is what makes it safe to write in a condition.
-    fn nvs_core_db_rows_first(_ctx, args: [1]) {
+    fn nvs_core_db_rows_first(ctx, args: [1]) {
         let rows = result_rows(args, "first")?;
         let Some(slot) = rows.next_slot(0) else {
             return Ok(Value::null());
@@ -3072,7 +3408,7 @@ nvs_runtime::nvs_helper! {
         let row = rows
             .value_at(slot)
             .expect("next_slot only names live entries");
-        row_object(row, class, "first")
+        row_object(ctx, row, class, "first")
     }
 }
 
