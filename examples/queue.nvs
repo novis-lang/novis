@@ -56,8 +56,8 @@ echo "enqueued", "\n";
 
 // § 4: the claim is the worker's, not ours, and `stats` is how a program sees
 // that it happened. One job was pushed to this queue, so one is claimed.
-Poll::until(fn (): bool => { return Queue::stats("default")->claimed > 0; });
-echo "claimed ", Queue::stats("default")->claimed, "\n";
+Poll::until(fn (): bool => { return Queue::stats("default")->claimed() > 0; });
+echo "claimed ", Queue::stats("default")->claimed(), "\n";
 
 // § 6: at-least-once, so "it ran" is a state and not a callback.
 Poll::until(fn (): bool => { return Queue::status($receipt) == State::Succeeded; });
@@ -76,11 +76,11 @@ var $doomed = Queue::push("examples/queue/flaky.nvs", {
 // is claimed again after its backoff. A job exceeding its memory, CPU or time
 // budget arrives here too, reported as a failed attempt rather than as an
 // out-of-memory.
-Poll::until(fn (): bool => { return Queue::stats("flaky")->attempts > 1; });
+Poll::until(fn (): bool => { return Queue::stats("flaky")->attempts() > 1; });
 echo "retried", "\n";
 
 // And the floor under it. The row moves to the dead-letter table with its
 // payload, every attempt's error and its timing, and stays there — `stats`
 // reports the depth, and ADR 0076 exports it as a default series.
-Poll::until(fn (): bool => { return Queue::stats("flaky")->deadLettered > 0; });
+Poll::until(fn (): bool => { return Queue::stats("flaky")->deadLettered() > 0; });
 echo "dead-lettered", "\n";

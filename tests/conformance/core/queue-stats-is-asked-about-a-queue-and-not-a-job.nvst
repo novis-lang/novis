@@ -1,0 +1,25 @@
+--TEST--
+`stats` is the one member of § 1's four asked about a whole queue, so a receipt is not something it takes — ADR 0084 §§ 1 and 6
+--FILE--
+<?nvs
+// `cancel` and `status` are about one row and take the receipt that names it.
+// `stats` is about a population — § 6 asks for the dead-letter table to be
+// watched, and a table is not watched one job at a time — so what it takes is
+// the queue's own name, the same string `push`'s `queue` option carries.
+var $counts = Core\Queue::stats("default");
+
+uint $pending = $counts->pending();
+uint $claimed = $counts->claimed();
+uint $attempts = $counts->attempts();
+uint $dead = $counts->deadLettered();
+
+// So the two arguments are not interchangeable in either direction, and this
+// is the direction a caller reaches for by habit after holding a receipt.
+var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
+var $wrong = Core\Queue::stats($receipt);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `Core\Queue\Id`
+%A
+error: aborting due to 1 error
