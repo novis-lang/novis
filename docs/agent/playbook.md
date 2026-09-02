@@ -6068,6 +6068,16 @@ sibling in the same namespace unqualified.
   unchanged" — which is true of the binary it asked and false of the tree. `python
   tools/verify.py` rebuilds first, so the honest order is verify, then regenerate, then
   `--check`.
+- **Giving a spec § 10 exception class a property of its own is six edits across four crates, and
+  the two that are not `match` arms are the ones that bite.** `nvs_hir::errors::OWN_PROPERTIES` and
+  a `*_SLOT` beside it are the obvious half; `nvs_types::error_lib::own_properties` `panic!`s at
+  seed time on a property with no type arm, which is loud and fine. The quiet ones are that
+  `declares_constructor` is *derived* from `OWN_PROPERTIES`, so the row alone makes the checker
+  promise a constructor `nvs_ir::lower::exception::synthesized_exception_constructors` does not
+  build — a hand-kept `vec!` in a crate that depends on neither `nvs-hir` nor `nvs-types`, so
+  nothing fails to compile — and that landing the row without the constructor leaves an ADR 0022
+  slot never definitely assigned. Add both in one change. The tell that you got it right is five
+  `nvs-ir` whole-program snapshots going red with only the new constructor in the diff.
 
 ## Divergences and refusals already pinned
 

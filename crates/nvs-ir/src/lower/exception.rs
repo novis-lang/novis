@@ -668,6 +668,21 @@ pub(crate) const ROLLED_BACK: &str = "Core\\Db\\RolledBack";
 /// `Core\Db\RolledBack::$reason`.
 pub(crate) const REASON_FIELD: &str = "reason";
 
+/// `Core\Db\DbError`, the third such class — spec § 18's `kind`, written by
+/// every refusal [ADR 0067](../../../../docs/adr/0067-core-db.md) § 8 gives a
+/// normalised kind. Restated here for [`PARSE_ERROR`]'s reason.
+pub(crate) const DB_ERROR: &str = "Core\\Db\\DbError";
+
+/// `Core\Db\DbError::$kind`.
+pub(crate) const KIND_FIELD: &str = "kind";
+
+/// The `Core\Db\ErrorKind::Other` ordinal — `nvs_stdlib::db::ERROR_KIND` is
+/// that roster's home and this crate depends on it no more than it depends on
+/// `nvs-hir`, so the one value it needs is restated for [`PARSE_ERROR`]'s
+/// reason. `nvs_types::error_lib`'s `the_kind_property_names_a_registered_enum`
+/// pins the ordinal against that roster, being the one crate that can see both.
+pub(crate) const ERROR_KIND_OTHER: i64 = 10;
+
 /// The Novis functions with no source text: one constructor per exception class
 /// that declares state of its own.
 ///
@@ -684,27 +699,36 @@ pub(crate) const REASON_FIELD: &str = "reason";
 /// `null` default — so the slot is written on every path and ADR 0022's
 /// definite assignment holds without a branch here.
 ///
-/// `ParseError` and `Core\Db\RolledBack` each get one of their own rather than
-/// inheriting the root's, because each declares a property the root's
-/// constructor never touches — ADR 0022 makes every property definitely
-/// assigned, and such a slot would read `null` out of a type that cannot be
-/// one. Each writes all five slots rather than chaining, which costs three
-/// duplicated instructions and buys not needing a call at all on a path that
-/// allocates an exception.
+/// `ParseError`, `Core\Db\DbError` and `Core\Db\RolledBack` each get one of
+/// their own rather than inheriting the root's, because each declares a
+/// property the root's constructor never touches — ADR 0022 makes every
+/// property definitely assigned, and such a slot would read `null` out of a
+/// type that cannot be one. Each writes all five slots rather than chaining,
+/// which costs three duplicated instructions and buys not needing a call at all
+/// on a path that allocates an exception.
 ///
 /// **What each extra slot is initialized to is [`ExtraInit`]'s decision**, and
-/// the two differ: `ParseError::$issues` starts empty, because a `ParseError`
+/// the three differ: `ParseError::$issues` starts empty, because a `ParseError`
 /// raised by hand has no field list to report and
 /// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's decoder fills
 /// it from native code. `Core\Db\RolledBack::$reason` starts as **the message**,
 /// because spec § 18 gives that class nothing else to carry: the one string a
 /// caller passes is the reason, so `new Core\Db\RolledBack("cart is empty")`
 /// and ADR 0067 § 7's `rollBack("cart is empty")` agree without the thrower
-/// having to write a second slot.
+/// having to write a second slot. `Core\Db\DbError::$kind` starts at
+/// [`ERROR_KIND_OTHER`], which is the honest answer for an error no server
+/// classified: ADR 0067 § 8 defines `Other` as the condition a driver's own
+/// code table does not name, and a `DbError` a program constructed itself has
+/// no code table behind it at all. `nvs_stdlib::db`'s `statement_failure`
+/// overwrites the slot on the path that *does* have one.
 pub(crate) fn synthesized_exception_constructors() -> Vec<Function> {
     vec![
         exception_constructor(THROWABLE_ROOT, &[]),
         exception_constructor(PARSE_ERROR, &[(ISSUES_FIELD, ExtraInit::EmptyArray)]),
+        exception_constructor(
+            DB_ERROR,
+            &[(KIND_FIELD, ExtraInit::EnumCase(ERROR_KIND_OTHER))],
+        ),
         exception_constructor(ROLLED_BACK, &[(REASON_FIELD, ExtraInit::Message)]),
     ]
 }
@@ -724,6 +748,10 @@ enum ExtraInit {
     /// The `$message` parameter, retained a second time — the slot is a second
     /// durable owner of the same string.
     Message,
+    /// One enum case, by its ordinal. ADR 0010 § 2 represents an enum as its
+    /// backing integer and [`Ty::Enum`] is that representation, so there is
+    /// nothing to retain and nothing to release: the slot owns a scalar.
+    EnumCase(i64),
 }
 
 /// One such constructor: the root's four slots, then one per `(field, init)`
@@ -797,6 +825,15 @@ fn exception_constructor(class: &str, extra: &[(&str, ExtraInit)]) -> Function {
             ExtraInit::Message => {
                 insts.push(plain(InstKind::Retain { operand: message }));
                 insts.push(store(field, message));
+            }
+            ExtraInit::EnumCase(ordinal) => {
+                let value = ids.next_value();
+                insts.push(defines(
+                    value,
+                    Ty::Enum(EnumRepr::Int),
+                    InstKind::ConstInt(ordinal),
+                ));
+                insts.push(store(field, value));
             }
         }
     }

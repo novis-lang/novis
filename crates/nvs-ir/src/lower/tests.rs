@@ -3097,6 +3097,7 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
             "<script>",
             "Throwable::constructor",
             "ParseError::constructor",
+            "Core\\Db\\DbError::constructor",
             "Core\\Db\\RolledBack::constructor"
         ]
     );
