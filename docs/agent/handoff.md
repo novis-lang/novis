@@ -2,63 +2,58 @@
 
 ## State
 
-**`Core\Db\ColumnType` is registered** — spec § 18's fourteen cases, in the spec's own order and with
-their ordinals written out, at `crates/nvs-stdlib/src/db.rs:637` beside `ISOLATION` and under the same
-two-halves rule: `nvs_db::ColumnType` is authoritative and this table is what a program matches on. Its
-`EnumDoc` is where the value/description split now reads for a program's author — a case says what the
-column was *declared* as, never what a read of it produces — so `ROWS`' doc points at it instead of
-restating the three places ADR 0067 § 9 disagrees.
+**`Core\Db\Column` is registered and `Core\Db\Rows::columns()` answers it**, so spec § 18's Results
+table is landed whole for a buffered result: three readers over three slots, built one object per
+described column beside the rows at query time. `ROWS_COLUMNS_SLOT`'s doc comment owns why that is
+eager where the hydration class in the slot before it is lazy — a description is per *statement* and
+bounded by the `select` list, and `nvs_db::PgRows` lends its row description out of the borrow the
+rows are read from, so it is captured there or not at all.
 
-**What is left of gap 5 is `Core\Db\Column` and the slot, and those are one slice rather than two.**
-The coverage gate matches a case's *source text*, so a class registered before anything can produce an
-instance has three uncovered members and sits under the floor of three; the new playbook bullet under
-*Writing a test case* owns the mechanism.
+**A `Core` enum needed no new machinery, which was the open question and is now answered by three
+cases rather than by a decision.** An enum *is* its case's ordinal at runtime (ADR 0010), which
+`Core\Cli::colorDepth` already answered with; `column_type_value` looks that ordinal up in the
+registered table rather than writing the fourteen numbers a third time, and
+`every_column_type_case_is_named` holds the two halves total in both directions. A conformance case
+can spell `Core\Db\ColumnType::Json` and compare it with `==` — the first in the corpus to spell a
+`Core` enum case at all, so that spelling is now known to compile.
 
-**Settle first, because nothing in the tree answers it: a `Core` enum has no runtime value yet.** No
-conformance case anywhere spells a `Core\…\Case`, `Core\Db\Isolation` has been registered since the
-transaction slice with nothing that takes one, and § 7's `isolation` option is still unlanded — so what
-`Column::type()` hands back is a decision that slice makes, not a shape to copy from a sibling.
-
-**The material `columns()` needs is already in hand.** `crates/nvs-stdlib/src/db.rs:2604` already takes
-the `Vec<PgColumn>` before the first row is read, `PgColumn`'s `name`/`type_oid`/`type_modifier` are
-public and `column_type()` classifies, and `crate::instance::build` asserts slot arity — so a third
-`ROWS` slot is a compile error at both build sites until both are edited, which is the cheap way to
-find them.
+**`nullable()` answers `true` on every column and says so on its own card.** A PostgreSQL
+`RowDescription` carries no NOT NULL flag, and the catalog lookup that would is the per-statement
+round trip ADR 0067 § 9's type map is written to avoid. The alternative — dropping a reader § 18
+names, or answering `?bool` — would put a third answer in front of every caller to tell them
+nothing.
 
 **The driver's acceptance line still names `examples/queue.nvs`**, which is Stage 8's unlanded
-`Core\Queue` (ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s module
-doc owns why.
+`Core\Queue` (ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s
+module doc owns why.
 
 ## Next group
 
-**`columns()` end to end, and the file set is `crates/nvs-stdlib/src/db.rs`,
-`crates/nvs-stdlib/src/registry.rs` and `tests/conformance/core/`.** Nothing in `nvs-db` moves.
+**Stage 3's two named `nvs-db` tests — § 4's streaming half — and the file set is
+`crates/nvs-db/src/pg.rs` alone.** Nothing in `nvs-stdlib` moves; `stream`'s registry rows are the
+group after this one, and they are a bigger question (a cursor that holds the connection).
 
-- [ ] **`Core\Db\Column` registers and `ROWS` gains its sixth member — one slice, because the coverage
-      gate binds them.** Three readers per `docs/spec/01-core-library.md:1200` over three slots, with
-      `crates/nvs-stdlib/src/db.rs:1056`'s `WRITE` as the template it copies exactly; the slot-name
-      consts go beside `crates/nvs-stdlib/src/db.rs:248`, the class row beside
-      `crates/nvs-stdlib/src/registry.rs:1413`, the symbols beside
-      `crates/nvs-stdlib/src/db.rs:4029`. `ROWS` then takes a third slot filled at both build sites —
-      `crates/nvs-stdlib/src/db.rs:2563` and `crates/nvs-stdlib/src/db.rs:2766` — off the columns
-      `crates/nvs-stdlib/src/db.rs:2604` already holds, and `columns()` is a reader over it.
-      **`nullable()` has no source**: a PostgreSQL `RowDescription` carries no NOT NULL flag and the
-      catalog lookup that would is what § 9's table avoids, so answer `true` and say so on the member.
-      ADR 0063, ADR 0067 § 9, spec § 18.
-- [ ] **Three `.nvst` cases, type-level as every landed db case is.**
-      `tests/conformance/core/db-rows-answers-the-types-the-results-table-names.nvst` is the shape to
-      follow, and `crates/nvs-stdlib/src/db.rs:756`'s `ROWS` doc is what they pin: `columns()` answers
-      `array<Core\Db\Column>`, `type()` an enum case and not a string, and a column list describes
-      every column rather than only the ones a row happened to fill. The claim only a server can show
-      — a column whose every row is NULL still has a type — goes in `examples/db.nvs` instead.
+- [ ] **`a_large_result_streams_at_constant_memory`** — § 4's one member that does not buffer,
+      asserted as a memory bound rather than as a row count. `crates/nvs-db/src/pg.rs:2374` is
+      `PgRows` and `crates/nvs-db/src/pg.rs:2514` its `next_row`, which is already the
+      row-at-a-time read `queried_rows` drains; what the test needs is the bound on both sides,
+      measured the way `crates/nvs-stdlib/tests/allocation_policy.rs` measures one — the playbook's
+      bullet on `nvs_runtime::budget` is why a second `#[global_allocator]` is not it. ADR 0067 § 4.
+- [ ] **`a_second_statement_on_a_busy_connection_is_a_logic_error`** — and **read the `[[check]]`
+      block at `docs/agent/loop-goal.toml:2791` before writing anything**:
+      `crates/nvs-db/src/pg.rs:4383` already holds
+      `a_second_statement_on_a_busy_connection_writes_nothing_and_is_refused`, which pins the same
+      claim under another name, and the playbook's bullet on stage 2's comment header is the trap
+      that renaming one to the check's spelling is forbidden where that block says so. ADR 0067 § 4.
 
 ## Backlog
 
-- Gap 2: only PostgreSQL runs a statement; the other four drivers are `crates/nvs-stdlib/src/db.rs`'s
-  own known-gap list.
-- The pool is Stages 3 to 7 of the goal — ADR 0067 § 13.
-- `open` waits on a shape-parameter type — `docs/implementation-plan.md`'s *Open now*.
-- Stage 8's `Core\Queue` is what the acceptance line has been naming — ADR 0084.
-- `[context] modules` still lacks `nvs-runtime/src/object.rs`; this session also read
-  `crates/nvs-stdlib/src/instance.rs` and `crates/nvs-stdlib/tests/conformance_coverage.rs`, neither
-  of which the pack prints.
+- `stream`/`streamAs` in `nvs-stdlib` — the cursor that holds the connection; spec § 18, ADR 0067 § 4.
+- `close` and `Connection`'s three readonly properties as readers — `crates/nvs-stdlib/src/db.rs`'s
+  known gap 5 is the list of what § 18 still owes there.
+- The pool, ADR 0067 § 13 — Stage 7's five named `nvs-db` tests, and the reset is a security boundary.
+- `Core\Queue`, ADR 0084 — Stage 8, and what the driver's acceptance line names.
+- `queryAs<T>`'s three run-time refusals want compile-time codes — `crates/nvs-stdlib/src/db.rs`'s
+  known gap 8; both bands the checker would take one from are full.
+- `open` waits on a shape-*parameter* `CoreTy` — gap 1, and a language-surface decision rather than
+  a database one.

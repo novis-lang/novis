@@ -4424,6 +4424,15 @@ is why" — is this file.
   `tests/conformance/core/db-rows-answers-the-types-the-results-table-names.nvst` assigns each
   member's answer to a declared type and pins the one mismatch as an `--EXPECTF-ERROR--`, which is
   what a member whose value only a live PostgreSQL could produce is asserted with.
+- **A refusal case over an unknown instance member has *two* errors unless the assignment takes
+  `mixed`, and the wording is "method" whatever the registry calls it.** `$row->columns()` on a
+  class with no such member is `error[E0405]: `Core\Db\Row` has no method named `columns``, and
+  the checker then places the call as `mixed` — so `array<Core\Db\Column> $x = $row->columns();`
+  fails `E0401` on the same line as well and the frozen tail reads `aborting due to 2 errors`,
+  which pins the consequence rather than the claim. Assign to `mixed` where the claim is the
+  missing member. `python tools/try.py <case>.nvst` prints the exact wording, line and column of
+  the block to freeze, for every case in one call, and it reads a `.nvst` in place — there is no
+  scratch copy to keep in step.
 
 ## Splitting a file that got too big
 
@@ -5997,6 +6006,21 @@ sibling in the same namespace unqualified.
   adding a row, grep the bare spelling across `tests/`, `examples/` and `docs/spec/` and budget an
   edit per hit. There is no defaulted type parameter in `Core`, so "leave the old bare form legal" is
   not an option to weigh — the only question is whether every write site should carry the argument.
+- **A reference card may not cite an ADR, and the doc comment two lines above it must.** The two
+  sit together in one `const` block and read as one register, so a `MethodDoc` field arrives
+  carrying "the round trip ADR 0067 § 9's type map is written to avoid" — which
+  `registry::tests::no_registry_card_cites_an_adr` refuses, because `nvs meta --json` ships that
+  string verbatim to a reader with no ADR tree, and from there into `docs/novis.md`. State the
+  fact instead ("the only way to learn it is a catalog query per statement, and this driver makes
+  none") and leave the citation in the doc comment, where a contributor is the reader. The check
+  covers `short`, `ret`, every `ParamDoc`/shape `desc`, every `ErrorDoc`, every `CoreConst::desc`
+  and every `EnumDoc` case, so it is the whole card and not just the summary.
+- **`docs/novis.md` is generated from the *built binary*, so regenerating it before rebuilding
+  writes nothing and says so.** `python tools/reference.py --no-examples` reads `nvs meta --json`
+  out of `target/debug/nvs.exe`; run it after a source edit and it prints "docs/novis.md
+  unchanged" — which is true of the binary it asked and false of the tree. `python
+  tools/verify.py` rebuilds first, so the honest order is verify, then regenerate, then
+  `--check`.
 
 ## Divergences and refusals already pinned
 
