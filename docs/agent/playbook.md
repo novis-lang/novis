@@ -2090,6 +2090,13 @@ is why" — is this file.
   `docker` saw it. Every argument that starts with `/` is affected, so a `docker compose exec`, a
   `cp` of `/certs/ca.crt` and an `--entrypoint` all need the prefix; a relative `-f
   tests/db/compose.yaml` does not.
+- `tests/db/compose.yaml`'s header claimed MariaDB 11.4 turns TLS on by itself, and the running
+  container disagrees: `show variables like 'ssl_%'` comes back entirely empty on `mariadb:11.4.13`
+  as that file configures it, and there is no `*.pem` anywhere in the image's own tree. MySQL 8.4
+  does generate one, at `/var/lib/mysql/ca.pem`, and SQL Server keeps its inside the instance rather
+  than on the filesystem. Ask the running container what it serves — `docker compose exec <svc>` —
+  before writing anything that verifies a certificate against it; a compose comment is a claim about
+  the image, not about the service as configured, and the header is now the corrected one.
 
 ## Writing a test case
 
