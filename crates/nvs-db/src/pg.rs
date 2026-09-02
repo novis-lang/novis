@@ -5583,6 +5583,312 @@ mod tests {
         }
     }
 
+    /// § 9's table, one row per constant the [`oid`] module names: the OID,
+    /// its modifier, a body the server would really write, spec § 18's
+    /// description of the column, and § 9's decoded value as [`rendered`]
+    /// spells it.
+    ///
+    /// Shared rather than local because two tests below sweep it, and sharing
+    /// it is what makes the second one's coverage follow the first's: a type
+    /// this driver gains is asked both questions from one row, and
+    /// [`every_row_of_the_type_map_round_trips`]'s count against
+    /// [`oid_constants`] is what says the table is whole.
+    const TYPE_MAP: &[(Oid, i32, &[u8], ColumnType, &str)] = &[
+        (oid::BOOL, -1, b"t", ColumnType::Bool, "bool true"),
+        (
+            oid::BYTEA,
+            -1,
+            br"\x00ff",
+            ColumnType::Bytes,
+            "bytes [0, 255]",
+        ),
+        (oid::CHAR, -1, b"c", ColumnType::Text, "text c"),
+        (
+            oid::NAME,
+            -1,
+            b"pg_class",
+            ColumnType::Text,
+            "text pg_class",
+        ),
+        (
+            oid::INT8,
+            -1,
+            b"-9223372036854775808",
+            ColumnType::Int,
+            "int -9223372036854775808",
+        ),
+        (oid::INT2, -1, b"-32768", ColumnType::Int, "int -32768"),
+        (
+            oid::INT4,
+            -1,
+            b"2147483647",
+            ColumnType::Int,
+            "int 2147483647",
+        ),
+        (oid::TEXT, -1, b"hi", ColumnType::Text, "text hi"),
+        (
+            oid::OID,
+            -1,
+            b"4294967295",
+            ColumnType::Uint,
+            "uint 4294967295",
+        ),
+        (oid::JSON, -1, b"{}", ColumnType::Json, "text {}"),
+        (oid::FLOAT4, -1, b"1.5", ColumnType::Float, "float 1.5"),
+        (
+            oid::FLOAT8,
+            -1,
+            b"-Infinity",
+            ColumnType::Float,
+            "float -inf",
+        ),
+        (
+            oid::MONEY,
+            -1,
+            b"$1,234.56",
+            ColumnType::Decimal,
+            "decimal 1234.56",
+        ),
+        (oid::BPCHAR, -1, b"ab", ColumnType::Text, "text ab"),
+        (oid::VARCHAR, -1, b"ab", ColumnType::Text, "text ab"),
+        (
+            oid::DATE,
+            -1,
+            b"2024-01-02",
+            ColumnType::Date,
+            "date 2024-01-02",
+        ),
+        (
+            oid::TIME,
+            -1,
+            b"03:04:05",
+            ColumnType::Time,
+            "time 03:04:05.000000000",
+        ),
+        (
+            oid::TIMESTAMP,
+            -1,
+            b"2024-01-02 03:04:05.5",
+            ColumnType::DateTime,
+            "timestamp 2024-01-02 03:04:05.500000000",
+        ),
+        (
+            oid::TIMESTAMPTZ,
+            -1,
+            b"2024-01-02 03:04:05+02",
+            ColumnType::Instant,
+            "instant 2024-01-02 03:04:05.000000000 +7200",
+        ),
+        // § 9's `BIT(1)` row, the one place a modifier rather than an OID
+        // decides which row of the table a column is on. The wider bit
+        // string is the test above's, whose subject is that boundary.
+        (oid::BIT, 1, b"1", ColumnType::Bool, "bool true"),
+        (oid::VARBIT, 1, b"0", ColumnType::Bool, "bool false"),
+        (
+            oid::NUMERIC,
+            -1,
+            b"0.000001",
+            ColumnType::Decimal,
+            "decimal 0.000001",
+        ),
+        (
+            oid::UUID,
+            -1,
+            b"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            ColumnType::Uuid,
+            "uuid [a0, ee, bc, 99, 9c, 0b, 4e, f8, bb, 6d, 6b, b9, bd, 38, 0a, 11]",
+        ),
+        (oid::JSONB, -1, b"{}", ColumnType::Json, "text {}"),
+    ];
+
+    /// § 9's whole table in one sweep, bounded by the OID table's own length
+    /// rather than by what an author remembered to list.
+    ///
+    /// The two tests above split the table in half and read it a line at a
+    /// time, so an OID this driver names and neither of them covers is
+    /// invisible to both — the one failure a per-row table cannot see. Here
+    /// the rows are counted against the number of constants the [`oid`] module
+    /// declares, read out of this file's own source by [`oid_constants`]: a
+    /// type added to the driver without a row here fails, and so does one
+    /// given two rows.
+    ///
+    /// Each row asserts the round trip § 9 specifies end to end — the
+    /// description `columns()` gives the column, the scalar a decode of a body
+    /// the server would really write produces, and, through
+    /// [`row_of_the_type_map`], that those two name the **same** row of the
+    /// table. That last assertion is the one the halves cannot make: a driver
+    /// that described a column as one type and decoded it as another passes
+    /// both of them, a line each, looking right.
+    #[test]
+    fn every_row_of_the_type_map_round_trips() {
+        for &(type_oid, type_modifier, body, described, decoded) in TYPE_MAP {
+            let subject = column(type_oid, type_modifier);
+            assert_eq!(subject.column_type(), described, "OID {type_oid} described");
+
+            let scalar = subject
+                .scalar(Some(body))
+                .unwrap_or_else(|error| panic!("OID {type_oid} did not decode: {error}"));
+            assert_eq!(rendered(&scalar), decoded, "OID {type_oid} decoded");
+
+            assert_eq!(
+                decoded.split(' ').next(),
+                Some(row_of_the_type_map(described)),
+                "OID {type_oid} describes as one row of § 9 and decodes as another"
+            );
+        }
+
+        let mut covered: Vec<Oid> = TYPE_MAP.iter().map(|row| row.0).collect();
+        covered.sort_unstable();
+        covered.dedup();
+        assert_eq!(
+            covered.len(),
+            TYPE_MAP.len(),
+            "one OID has two rows in the sweep"
+        );
+        assert_eq!(
+            covered.len(),
+            oid_constants(),
+            "the sweep and the `oid` module disagree about how many types this driver names"
+        );
+    }
+
+    /// [ADR 0067](../../../docs/adr/0067-core-db.md)'s § *Context* defect,
+    /// pinned: **no column § 9 gives a number decodes to a string**, whatever
+    /// the value.
+    ///
+    /// This is a thing `Core\Db` exists to remove rather than a row of the
+    /// map. PDO hands `DECIMAL` back as a string on every driver it has, and
+    /// `pgsql` hands back *every* column as one, so PHP code compares a price
+    /// with `==` and gets away with it until a value stops surviving the float
+    /// it is silently coerced through — § 9's `decimal` row says exactly that,
+    /// in the column beside it.
+    ///
+    /// Three parts, and the first is why this is not a second copy of the
+    /// sweep above: it takes its OIDs from [`TYPE_MAP`], so a numeric type
+    /// this driver gains is asked this question too without being listed here
+    /// again. The values then are the ones at which *a number as a string* and
+    /// *a number as a `float`* stop being the same answer as a number, so a
+    /// driver that went through either loses digits rather than an assertion.
+    /// The last part is the other side of the bound: the rule is the column's
+    /// declared type and never the body, so a `text` column holding digits
+    /// stays a string — which is what a driver that fixed the defect by
+    /// sniffing bodies would fail.
+    #[test]
+    fn no_driver_returns_a_number_as_a_string() {
+        for &(type_oid, type_modifier, body, described, _) in TYPE_MAP {
+            if !matches!(
+                described,
+                ColumnType::Int | ColumnType::Uint | ColumnType::Float | ColumnType::Decimal
+            ) {
+                continue;
+            }
+
+            let scalar = column(type_oid, type_modifier)
+                .scalar(Some(body))
+                .unwrap_or_else(|error| panic!("OID {type_oid} did not decode: {error}"));
+
+            assert!(
+                matches!(
+                    scalar,
+                    PgScalar::Int(_)
+                        | PgScalar::UInt(_)
+                        | PgScalar::Float(_)
+                        | PgScalar::Decimal(_)
+                ),
+                "OID {type_oid} describes as a number and decoded as {}",
+                rendered(&scalar)
+            );
+        }
+
+        // 2^53 + 1 is the first integer a `float` cannot hold, `i64::MAX` is
+        // where PHP's own `int` stops, and the `NUMERIC` here carries twenty
+        // significant digits no `float` has room for. Each is a value whose
+        // string and whose number are still the same characters, and whose
+        // float is not.
+        for (type_oid, body, expected) in [
+            (oid::INT8, &b"9007199254740993"[..], "int 9007199254740993"),
+            (oid::INT8, b"9223372036854775807", "int 9223372036854775807"),
+            (oid::OID, b"4294967295", "uint 4294967295"),
+            (
+                oid::NUMERIC,
+                b"-12345678901234567890.12",
+                "decimal -12345678901234567890.12",
+            ),
+            (oid::MONEY, b"($1,234.56)", "decimal -1234.56"),
+            (oid::FLOAT8, b"0.1", "float 0.1"),
+        ] {
+            let scalar = column(type_oid, -1)
+                .scalar(Some(body))
+                .unwrap_or_else(|error| panic!("OID {type_oid} did not decode: {error}"));
+
+            assert_eq!(rendered(&scalar), expected, "OID {type_oid}");
+        }
+
+        // The other side: what makes a value a number is the column's declared
+        // type and never the body. A driver reading the body instead would
+        // answer an int for `select code from …` and be right often enough to
+        // ship — the same defect, fixed in the direction that loses a string.
+        for type_oid in [oid::TEXT, oid::VARCHAR, oid::BPCHAR, oid::CHAR, oid::NAME] {
+            let scalar = column(type_oid, -1)
+                .scalar(Some(&b"12"[..]))
+                .unwrap_or_else(|error| panic!("OID {type_oid} did not decode: {error}"));
+
+            assert_eq!(rendered(&scalar), "text 12", "OID {type_oid}");
+        }
+    }
+
+    /// The [`PgScalar`] § 9 pairs with a description, spelled as [`rendered`]
+    /// spells it.
+    ///
+    /// Exhaustive on purpose: a [`ColumnType`] added to spec § 18 has to be
+    /// given its row of § 9 here, and that is the one thing a table of OIDs
+    /// cannot be made to notice on its own.
+    fn row_of_the_type_map(column_type: ColumnType) -> &'static str {
+        match column_type {
+            ColumnType::Int => "int",
+            ColumnType::Uint => "uint",
+            ColumnType::Float => "float",
+            ColumnType::Decimal => "decimal",
+            ColumnType::Text => "text",
+            ColumnType::Bytes => "bytes",
+            ColumnType::Bool => "bool",
+            ColumnType::Date => "date",
+            ColumnType::Time => "time",
+            ColumnType::DateTime => "timestamp",
+            ColumnType::Instant => "instant",
+            ColumnType::Uuid => "uuid",
+            // § 9's `JSON`/`JSONB` row is `tainted string` — JSON is never
+            // auto-decoded — so this pairing is what agreement *is* for a JSON
+            // column, not an exception to it.
+            ColumnType::Json => "text",
+            // § 9's last row. An array describes as `Other` too and decodes to
+            // an `Array`, so this pairing is the one the sweep does not reach:
+            // every OID the driver names that lands on `Other` is text, and
+            // the test above owns the array direction.
+            ColumnType::Other => "text",
+        }
+    }
+
+    /// How many types the [`oid`] module names, read out of this file rather
+    /// than written down beside it.
+    ///
+    /// A number kept by hand agrees with the table until the session that adds
+    /// a type, which is precisely the session it has to disagree in. The slice
+    /// runs from the module's own line to [`oid::element`], the first thing in
+    /// it that is not a constant.
+    fn oid_constants() -> usize {
+        let source = include_str!("pg.rs");
+        let start = source
+            .find("\nmod oid {")
+            .expect("the OID table is in this file");
+        let end = start
+            + source[start..]
+                .find("pub(super) fn element")
+                .expect("the OID table ends where `element` begins");
+
+        source[start..end].matches("pub(super) const ").count()
+    }
+
     /// § 4's `lastId` on PostgreSQL is the id a `RETURNING` clause handed back:
     /// the last returned row's first column, and never the tag.
     ///
