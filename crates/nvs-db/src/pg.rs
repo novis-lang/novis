@@ -955,6 +955,7 @@ fn server_error(body: &backend::ErrorResponseBody) -> io::Error {
         severity,
         message,
         constraint,
+        driver_code: None,
         backend: "postgres",
     })
 }

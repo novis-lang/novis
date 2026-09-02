@@ -470,7 +470,9 @@ pub enum ColumnType {
 /// than on a vendor string: PDO exposes only a `SQLSTATE` and a vendor integer,
 /// which is why real PHP matches on `"Duplicate entry"` or hard-codes `1062`.
 /// Each driver maps its own codes onto this set and MariaDB needs its own table
-/// rather than MySQL's; PostgreSQL's is `pg.rs`'s `kind_of`. The raw code stays
+/// rather than MySQL's; PostgreSQL's is `pg.rs`'s `kind_of` and MySQL's is
+/// `mysql.rs`'s, keyed on the vendor integer where PostgreSQL's is keyed on the
+/// `SQLSTATE`, because that is the specified half on each. The raw code stays
 /// on [`ServerError`] for the conditions normalising does not reach.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DbErrorKind {
@@ -529,10 +531,10 @@ impl DbErrorKind {
 /// that must branch — § 7's retry rule is the first of them — asks
 /// [`ServerError::of`] rather than matching on the text.
 ///
-/// § 8's `driverCode` has no field here and PostgreSQL will always answer
-/// `None` for it: the `SQLSTATE` *is* this server's code, and a second integer
-/// invented to fill a shape would be a value with no meaning. MySQL has a real
-/// one.
+/// § 8's `driverCode` is a field PostgreSQL will always answer `None` for: the
+/// `SQLSTATE` *is* that server's code, and a second integer invented to fill a
+/// shape would be a value with no meaning. MySQL sends a real one beside the
+/// `SQLSTATE`, and it is the half that server's code table is keyed on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerError {
     /// § 8's normalised kind, from the driver's own code table.
@@ -545,6 +547,13 @@ pub struct ServerError {
     pub message: String,
     /// The constraint the condition names, where it names one.
     pub constraint: Option<String>,
+    /// § 8's `driverCode`: the server's own integer, on a backend that sends
+    /// one beside the `SQLSTATE`.
+    ///
+    /// `u16` is the width MySQL's `ERR` packet carries it in, and it is the
+    /// input its code table is keyed on — the raw value stays here for the
+    /// conditions [`DbErrorKind`] does not name, exactly as `sql_state` does.
+    pub driver_code: Option<u16>,
     /// What the rendered sentence calls this backend.
     ///
     /// [`Driver::matrix_name`] is deliberately not this: those are harness keys

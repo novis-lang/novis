@@ -163,7 +163,10 @@ use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 use nvs_runtime::{Decimal, NvsStr, Tag, Value};
 
-use crate::conn::{BlockError, ColumnType, Driver, Isolation, MySqlConn, State, written_value};
+use crate::conn::{
+    BlockError, ColumnType, DbErrorKind, Driver, Isolation, MySqlConn, ServerError, State,
+    written_value,
+};
 use crate::span::QuerySpan;
 use crate::sql::{StatementCache, statement_cache_for, time_zone_for};
 
@@ -733,11 +736,11 @@ impl AuthContextTrait for AuthContext<'_> {
 ///
 /// # Errors
 ///
-/// `ConnectionRefused` for a plugin this driver does not answer,
-/// `PermissionDenied` for the server's own refusal — a wrong password, a schema
-/// that does not exist — carrying its `SQLSTATE` and message, `InvalidData` for
-/// a packet the protocol does not allow at that point, and whatever the stream
-/// reported.
+/// `ConnectionRefused` for a plugin this driver does not answer, an `Other`
+/// carrying a [`ServerError`] for the server's own refusal — a wrong password, a
+/// schema that does not exist — with § 8's kind, its `SQLSTATE` and its message,
+/// `InvalidData` for a packet the protocol does not allow at that point, and
+/// whatever the stream reported.
 fn authenticate<S: Read + Write>(
     wire: &mut Wire<S>,
     target: &MySqlTarget<'_>,
@@ -834,13 +837,24 @@ fn auth_failed(error: mysql_common::auth::plugins::Error) -> io::Error {
     )
 }
 
-/// The server's `ERR` packet, worded as this crate's callers read it.
+/// The server's `ERR` packet, worded as this crate's callers read it and
+/// carrying [ADR 0067 § 8](../../../docs/adr/0067-core-db.md)'s normalised kind.
 ///
-/// `PermissionDenied` rather than `Other` because every refusal that reaches
-/// this path during a handshake is one: the credentials, the schema, or the
-/// host's right to connect at all. The code and `SQLSTATE` are carried because
-/// they are what an operator greps for; ADR 0067 § 8's mapping to a
-/// `DbErrorKind` is a table this driver does not have yet.
+/// An `Other` holding a [`ServerError`], which is [`crate::pg`]'s `server_error`
+/// and its reasons: a caller that prints the sentence is unchanged, and one that
+/// branches — § 7's retry rule is the first — asks [`ServerError::of`] rather
+/// than matching on the text. It is deliberately no longer a `PermissionDenied`.
+/// That kind was this driver's way of saying "the server worded this" to the one
+/// caller ([`poison_on_write`]) that had to know, and it said it about a
+/// duplicate key as loudly as about a rejected credential — a classification
+/// only § 8's table can make, and one `io::ErrorKind` has no room to hold. It
+/// also put every MySQL refusal outside the arm `nvs_stdlib::db` throws
+/// `Db\DbError` from, which reads `Other`.
+///
+/// Both raw values ride along, because they are what an operator greps for and
+/// § 8 keeps them available for the conditions normalising does not reach. MySQL
+/// sends neither a severity nor a constraint name, so the first is the constant
+/// the packet means and the second is `None`.
 fn server_refusal(packet: &[u8], capabilities: CapabilityFlags) -> io::Error {
     let Ok(err) = ErrPacket::deserialize(capabilities, &mut ParseBuf(packet)) else {
         return io::Error::new(
@@ -855,18 +869,89 @@ fn server_refusal(packet: &[u8], capabilities: CapabilityFlags) -> io::Error {
         );
     }
     let error = err.server_error();
-    let state = error
+    let sql_state = error
         .sql_state_ref()
         .map(|s| String::from_utf8_lossy(&s.as_bytes()).into_owned())
         .unwrap_or_else(|| "HY000".to_owned());
-    io::Error::new(
-        io::ErrorKind::PermissionDenied,
-        format!(
-            "MySQL {} (SQLSTATE {state}): {}",
-            error.error_code(),
-            error.message_str()
-        ),
-    )
+    let code = error.error_code();
+    io::Error::other(ServerError {
+        kind: kind_of(code, &sql_state),
+        sql_state,
+        severity: String::from("ERROR"),
+        message: error.message_str().into_owned(),
+        constraint: None,
+        driver_code: Some(code),
+        backend: "mysql",
+    })
+}
+
+/// The § 8 kind a MySQL error code means.
+///
+/// **Keyed on the vendor integer where [`crate::pg`]'s table is keyed on the
+/// `SQLSTATE`**, because the two servers specify opposite halves. MySQL's
+/// `SQLSTATE` is a compatibility field it fills with `HY000` for every condition
+/// it has no ODBC class for, so that one string covers a deadlock, a lock
+/// timeout and a shutdown alike, while the integer names each of them exactly.
+/// The `SQLSTATE` is still read, as the fallback for a code this table does not
+/// name: the classes MySQL does fill mean what PostgreSQL's mean.
+///
+/// Everything unnamed is [`DbErrorKind::Other`] rather than a guess, as on the
+/// other driver — § 8 normalises the conditions applications branch on, and a
+/// code outside that set is one they read `driverCode` for. MariaDB's codes
+/// diverge above 1900 and it is its own driver with its own table, so none of
+/// them is here.
+fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
+    match code {
+        // `ER_DUP_ENTRY` and the three siblings that word the same condition
+        // for a write, a unique index and a named key.
+        1022 | 1062 | 1169 | 1586 => DbErrorKind::UniqueViolation,
+        // The parent row is missing, or the child row still points at this one.
+        1216 | 1217 | 1451 | 1452 => DbErrorKind::ForeignKeyViolation,
+        1048 | 1263 => DbErrorKind::NotNullViolation,
+        // `ER_CHECK_CONSTRAINT_VIOLATED`, which is MySQL 8.0.16 and later; a
+        // server that does not enforce `CHECK` cannot raise it.
+        3819 => DbErrorKind::CheckViolation,
+        // `ER_LOCK_DEADLOCK`: InnoDB rolled this transaction back whole to break
+        // the cycle, so the closure § 7 re-runs starts from nothing.
+        1213 => DbErrorKind::Deadlock,
+        // **`ER_LOCK_WAIT_TIMEOUT` is a `Timeout` and not a `Deadlock`**, which
+        // is the row of this table worth arguing: it is the other code an
+        // application reads while deciding to retry, and it is not one
+        // [`DbErrorKind::is_retryable`] may name. A retry is sound only where
+        // the server aborted the *transaction*, and InnoDB rolls back only the
+        // statement on a lock wait timeout unless `innodb_rollback_on_timeout`
+        // is set — the transaction is still open and still holding its locks, so
+        // re-running the closure would run its earlier statements a second time
+        // inside it. `ER_QUERY_INTERRUPTED` and `ER_QUERY_TIMEOUT` are a
+        // `KILL QUERY` and `max_execution_time`, which is `57014` on the other
+        // driver and the same thing from the statement's point of view.
+        1205 | 1317 | 3024 => DbErrorKind::Timeout,
+        // The server going away or refusing to take work: the connection
+        // ceiling, a shutdown in progress, an aborted connection, a `KILL`.
+        1040 | 1053 | 1152 | 1927 => DbErrorKind::ConnectionLost,
+        // Access denied — to the server, to a schema, a table, a column, a
+        // routine, or to the privilege the statement itself needs.
+        1044 | 1045 | 1130 | 1142 | 1143 | 1227 | 1370 | 1698 => DbErrorKind::Permission,
+        // A parse error and the four "no such thing" codes, which § 8 makes one
+        // kind: an undefined table and a malformed statement are the same bug to
+        // a caller.
+        1049 | 1051 | 1054 | 1064 | 1146 => DbErrorKind::Syntax,
+        _ => match sql_state.get(..2) {
+            // Class 08 — connection exception, every member of it.
+            Some("08") => DbErrorKind::ConnectionLost,
+            // Class 28 — invalid authorization specification.
+            Some("28") => DbErrorKind::Permission,
+            // Class 40 — the transaction the server itself rolled back. MySQL
+            // spells `ER_LOCK_DEADLOCK` `40001` and that code is named above, so
+            // an unnamed member is a condition of the same shape: the work is
+            // undone and re-running it is sound.
+            Some("40") => DbErrorKind::SerializationFailure,
+            // Class 42 — syntax error or access rule violation, § 8's `Syntax`
+            // being the half an application branches on.
+            Some("42") => DbErrorKind::Syntax,
+            _ => DbErrorKind::Other,
+        },
+    }
 }
 
 /// Reads the answer to a command that returns no rows — the handshake's
@@ -956,8 +1041,9 @@ pub enum Answer {
 ///
 /// # Errors
 ///
-/// `PermissionDenied` for the server's own error and for a `LOCAL INFILE`
-/// request, `InvalidData` for anything else.
+/// An `Other` carrying a [`ServerError`] for the server's own error,
+/// `PermissionDenied` for a `LOCAL INFILE` request, `InvalidData` for anything
+/// else.
 pub(crate) fn read_answer<S: Read + Write>(
     wire: &mut Wire<S>,
     capabilities: CapabilityFlags,
@@ -1186,7 +1272,8 @@ impl MySqlConn {
     ///
     /// `ConnectionRefused` when the server will not upgrade to TLS, offers none
     /// of [`REQUIRED_CAPABILITIES`], or names an authentication plugin this
-    /// driver does not answer; `PermissionDenied` for the server's own refusal;
+    /// driver does not answer; an `Other` carrying a [`ServerError`] for the
+    /// server's own refusal;
     /// `InvalidData` for a packet the protocol does not allow at that point —
     /// or for a `tls_ca_file` that holds no certificate — `TimedOut` when the
     /// deadline passes, and whatever the socket or the TLS handshake itself
@@ -1949,11 +2036,15 @@ fn isolation_command(level: Isolation) -> &'static str {
 /// transaction back, so that level really is gone and the depth goes to 0 — a
 /// caller that opens the next transaction on the connection, which § 7's
 /// `{retries: n}` is, must get a `START TRANSACTION` and not a `SAVEPOINT`
-/// against nothing. Which refusals those are is [`poison_on_write`]'s split,
-/// read back off the state it left rather than re-tested here: only a refusal
-/// the server worded leaves the connection [`State::Idle`], while § 4's busy
-/// check never reached the wire and a wire failure poisons. A refused `RELEASE
-/// SAVEPOINT` says nothing of the kind and moves nothing, as in [`roll_back`].
+/// against nothing. Which refusals those are is asked of the error itself —
+/// [`ServerError::of`], the same question [`poison_on_write`] asks — and not
+/// read back off the [`State`] that answer left. The state is a *summary* of it,
+/// two calls apart and writable by anything else holding the connection, so
+/// reading it here made a claim about the transaction out of a fact about the
+/// wire. § 4's busy check never reached the server and a wire failure was never
+/// worded by one, so neither carries a [`ServerError`] and neither moves the
+/// depth. A refused `RELEASE SAVEPOINT` says nothing of the kind and moves
+/// nothing either, as in [`roll_back`].
 fn commit<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
@@ -1973,7 +2064,7 @@ fn commit<S: Read + Write>(
     let span = match simple_command(wire, state, capabilities, &command) {
         Ok(span) => span,
         Err(refused) => {
-            if open == 1 && state.get() == State::Idle {
+            if open == 1 && ServerError::of(&refused).is_some() {
                 depth.set(0);
             }
             return Err(refused);
@@ -2869,13 +2960,19 @@ impl<S: Read + Write> Drop for MySqlRows<'_, S> {
 /// one the server worded.
 ///
 /// The split is the difference between "this statement did not work" and "this
-/// wire is no longer a sequence of packets". A `PermissionDenied` is the
-/// server's own error packet, which arrived whole and left the connection at a
-/// boundary — the next statement on it is fine. Anything else reached here with
-/// the stream in a position nothing has proven, and § 4's answer to a boundary
-/// that cannot be proven is poison.
+/// wire is no longer a sequence of packets". A [`ServerError`] is the server's
+/// own `ERR` packet, which arrived whole and left the connection at a boundary —
+/// the next statement on it is fine. Anything else reached here with the stream
+/// in a position nothing has proven, and § 4's answer to a boundary that cannot
+/// be proven is poison.
+///
+/// Asking [`ServerError::of`] rather than the `io::ErrorKind` also moves the
+/// `LOCAL INFILE` refusal to the poisoning side, where it belongs: [`read_answer`]
+/// answers that one itself, having written the empty transfer packet and *not*
+/// read the status the server sends back, so the next packet on that wire is one
+/// nobody has accounted for.
 fn poison_on_write(state: &Cell<State>, error: io::Error) -> io::Error {
-    if error.kind() == io::ErrorKind::PermissionDenied {
+    if ServerError::of(&error).is_some() {
         state.set(State::Idle);
     } else {
         state.set(State::Poisoned);
@@ -2899,10 +2996,10 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        AuthContext, CLIENT_CAPABILITIES, COLLATION, COM_QUERY, Greeting, MySqlTarget, MyValue,
-        NvsStr, Prepared, State, Value, Wire, authenticate, begin, column_type, commit, encode,
-        execute, execute_many, offset_literal, read_greeting, read_ok, request_tls, roll_back,
-        scalar, start_statement,
+        AuthContext, CLIENT_CAPABILITIES, COLLATION, COM_QUERY, DbErrorKind, Greeting, MySqlTarget,
+        MyValue, NvsStr, Prepared, ServerError, State, Value, Wire, authenticate, begin,
+        column_type, commit, encode, execute, execute_many, kind_of, offset_literal, read_greeting,
+        read_ok, request_tls, roll_back, scalar, server_refusal, start_statement,
     };
     use crate::conn::ColumnType as NovisType;
     use crate::conn::{BlockError, Driver, Isolation};
@@ -3851,6 +3948,40 @@ mod tests {
             !state.get().is_poolable(),
             "the session is holding an isolation level nothing can clear, so \
              this connection is closed rather than handed to another request"
+        );
+    }
+
+    /// The other half of that first bound: a `COMMIT` that failed with no
+    /// refusal from the server leaves the level open.
+    ///
+    /// Nothing came back to say the transaction was rolled back, so its fate is
+    /// unknown and the depth stays where it was — while the connection, whose
+    /// next packet nobody can name, is poisoned rather than pooled. The pair is
+    /// worth more than either half: [`commit`] tells the two apart by asking
+    /// [`ServerError::of`], and a version that read "the server refused it" off
+    /// anything coarser would pass the case above and drop this level on the
+    /// floor.
+    #[test]
+    fn a_commit_that_failed_on_the_wire_leaves_the_level_open() {
+        let mut wire = Wire::new(Peer::new(|_sent: &[u8]| Vec::new()));
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(1);
+
+        let refused = commit(&mut wire, &state, CLIENT_CAPABILITIES, &depth)
+            .expect_err("a commit the server never answered");
+
+        assert!(
+            ServerError::of(&refused).is_none(),
+            "a wire failure is nobody's refusal: {refused}"
+        );
+        assert_eq!(
+            depth.get(),
+            1,
+            "the level is still open until something says otherwise"
+        );
+        assert!(
+            !state.get().is_poolable(),
+            "and the connection is closed rather than handed to another request"
         );
     }
 
@@ -4927,6 +5058,85 @@ mod tests {
         body
     }
 
+    /// ADR 0067 § 8 over MySQL's `ERR` packet: the normalised kind rides inside
+    /// the error, and both raw values ride beside it.
+    ///
+    /// The `io::ErrorKind` is asserted too, and it is the half a reader is most
+    /// likely to think is incidental: `nvs_stdlib::db`'s `statement_failure`
+    /// throws `Db\DbError` from its `Other` arm alone, so a refusal answered
+    /// under any other kind reaches a program as an `IoError` with no `kind`,
+    /// no `sqlState` and no `driverCode` on it whatever this function filled in.
+    #[test]
+    fn a_server_refusal_carries_the_kind_and_both_raw_codes() {
+        let refused = server_refusal(
+            &error_packet(1213, "40001", "Deadlock found when trying to get lock"),
+            CLIENT_CAPABILITIES,
+        );
+
+        assert_eq!(refused.kind(), io::ErrorKind::Other);
+        let server = ServerError::of(&refused).expect("a refusal the server worded");
+        assert_eq!(server.kind, DbErrorKind::Deadlock);
+        assert_eq!(server.driver_code, Some(1213));
+        assert_eq!(server.sql_state, "40001");
+        assert_eq!(server.backend, "mysql");
+        assert!(
+            refused.to_string().contains("Deadlock found"),
+            "the server's own sentence is still what a caller prints: {refused}"
+        );
+    }
+
+    /// The code table, asserted as a table — and the two codes § 7's
+    /// `{retries: n}` turns on named against each other.
+    ///
+    /// `1213` and `1205` are the pair worth pinning together: they are what an
+    /// application reads when it is deciding whether to retry, they are one
+    /// letter apart in a table of forty, and a driver that mapped the lock wait
+    /// timeout to `Deadlock` would re-run a closure inside a transaction the
+    /// server never rolled back. Asserting `is_retryable` on both sides is the
+    /// claim; asserting the kind alone would let that swap read green against
+    /// either row on its own.
+    ///
+    /// The last two rows are the fallback: a code this table does not name is
+    /// classified by its `SQLSTATE` class where MySQL fills one, and is
+    /// `Other` — never a guess — where it does not.
+    #[test]
+    fn the_code_table_names_the_kind_and_the_retryable_pair_disagree() {
+        for (code, sql_state, expected) in [
+            (1062_u16, "23000", DbErrorKind::UniqueViolation),
+            (1452, "23000", DbErrorKind::ForeignKeyViolation),
+            (1048, "23000", DbErrorKind::NotNullViolation),
+            (3819, "HY000", DbErrorKind::CheckViolation),
+            (1213, "40001", DbErrorKind::Deadlock),
+            (1205, "HY000", DbErrorKind::Timeout),
+            (1053, "08S01", DbErrorKind::ConnectionLost),
+            (1045, "28000", DbErrorKind::Permission),
+            (1064, "42000", DbErrorKind::Syntax),
+            // Unnamed codes: the class decides where MySQL filled one, and
+            // `HY000` — the class it fills for everything else — decides
+            // nothing.
+            (1049, "42000", DbErrorKind::Syntax),
+            (9999, "42S02", DbErrorKind::Syntax),
+            (9999, "HY000", DbErrorKind::Other),
+        ] {
+            assert_eq!(
+                kind_of(code, sql_state),
+                expected,
+                "MySQL {code} (SQLSTATE {sql_state}) is not the § 8 kind it means"
+            );
+        }
+
+        assert!(
+            kind_of(1213, "40001").is_retryable(),
+            "§ 7 re-runs the closure over a deadlock: the server rolled the \
+             transaction back and there is nothing left of it to run twice"
+        );
+        assert!(
+            !kind_of(1205, "HY000").is_retryable(),
+            "and not over a lock wait timeout, which rolls back the statement \
+             and leaves the transaction open and holding its locks"
+        );
+    }
+
     /// ADR 0067 § 4's batch priced in round trips, which is the only thing about
     /// it a caller cannot see from a loop of `execute`: one prepare for the
     /// whole batch and one execution per set.
@@ -5041,7 +5251,11 @@ mod tests {
         )
         .expect_err("two of the four sets were refused");
 
-        assert_eq!(refused.kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(
+            ServerError::of(&refused).map(|server| server.kind),
+            Some(DbErrorKind::UniqueViolation),
+            "the batch answers the server's own refusal, § 8's kind and all: {refused}"
+        );
         assert!(
             refused.to_string().contains("duplicate boom"),
             "the first refusal is the batch's answer: {refused}"
