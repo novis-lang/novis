@@ -2,59 +2,57 @@
 
 ## State
 
-**Both servers the matrix could not verify now present a certificate a client can anchor, and both legs
-run.** MariaDB takes `--ssl-ca`/`--ssl-cert`/`--ssl-key` at `/certs/…` exactly as the `mysql` service
-does. SQL Server has neither a flag nor an environment variable for one, so its entrypoint is overridden
-to write an `mssql.conf` `[network]` section and then `exec` the image's own `sqlservr`; the `certs` job
-emits `mssql.key`, the same key under a second name owned by uid 10001, because one file cannot be 0600
-for two uids. `tests/db/compose.yaml`'s two block comments own both pieces of reasoning. Verified here:
-a MariaDB client completes TLS 1.3 verifying against `/certs/ca.crt`, SQL Server's errorlog names
-`/certs/server.crt` as what it loaded, and `python tools/db-matrix.py --driver mariadb --driver mssql`
-is `2/2 drivers ok`.
+**MariaDB is a driver, not a leg that skips.** `crates/nvs-db/src/maria.rs` is new and holds
+`MariaTarget`, `MariaConn::connect`, MariaDB's authentication roster and MariaDB's own ADR 0067 § 8 code
+table. `MariaConn` carries MySQL's fields (wire, capabilities, § 1 cache, § 9 zone, § 7 depth) and the
+statement, transaction and reset paths are two-line delegations into `crate::mysql`'s free functions —
+one protocol is framed once. The module doc owns what is shared and what is not.
 
-**Those two legs assert nothing yet.** `MariaConn` and `MssqlConn` have no `connect`, so every case in
-`crates/nvs-db/tests/handshake.rs` returns early for them — the leg proves the fixture, not the driver.
-Stage 6's comment in `docs/agent/loop-goal.toml` says so and no longer claims either server is
-unverifiable; a leg reporting `n/a` again is now a fixture regression rather than the expected state.
+**What the split looks like in code**: `crate::mysql::Backend` is a `{name, kind_of}` descriptor carried
+on the `Wire`, so a refusal anywhere reports `mariadb` and reads MariaDB's table without any reader
+growing a parameter; `crate::mysql::Login` is the credential plus the plugin gate, so `authenticate` is
+shared and the *roster* is each driver's own. That is the one place the two drivers touch, and
+`maria.rs`'s module doc argues why it is not the MariaDB-as-a-flag design ADR 0067 rejects.
 
-**MySQL's real-server coverage is unchanged**: § 3, § 7, § 8 and § 13 across five cases in
-`crates/nvs-db/tests/handshake.rs`, whose `mysql()` fixture helper at :187 is what a `mariadb()` mirrors,
-plus `crates/nvs-db/tests/pool_reuse.rs` twinned three ways.
+**`Cargo.toml` now takes `mysql_common` with `client_ed25519` and `client_parsec`** — pure Rust, which is
+ADR 0051 § 4's first allowed outcome for the two plugins it names in advance. The manifest comment owns
+that reasoning. Without the features the plugins still *parse*, so the gate would accept a plugin whose
+handshake then fails with a Cargo message; `the_mariadb_auth_plugins_are_implemented_in_rust_or_refused_by_name`
+in `maria.rs` is what holds the features in place.
+
+**Nothing asserts MariaDB over a socket yet.** `crates/nvs-db/tests/handshake.rs` still has no
+`mariadb()` fixture, so the matrix's MariaDB leg proves the container and not the driver — the next
+group's first item, and the reason it is first.
 
 **The driver's stage-2 acceptance check is unchanged and still open**:
 `a_db_open_target_in_a_denied_range_fails` waits on `Core\Db::open`, blocked on a registry type for a
 shape **parameter** (`nvs_stdlib::db` known gap 1) — a language-surface decision that wants its own ADR,
 not a slice. Untouched this session.
 
-**`docs/agent/goals/5-database.toml` had drifted** from the live `loop-goal.toml` by the previous
-session's three `[context] adrs` additions; it is byte-identical again, so the chain's next
-`goal-switch.py` no longer reverts them.
-
-**`orient.py` gaps: none.**
+**`orient.py` gaps: none**, though `[context] adrs` would have paid for ADR 0051 § 4 (it printed only as
+a ground-rules bullet, and the slice turned on its two-outcome sentence).
 
 ## Next group
 
-**The MariaDB driver, one file set: `crates/nvs-db/src/conn.rs`, `crates/nvs-db/src/mysql.rs` and
-`crates/nvs-db/tests/handshake.rs`. `MySqlConn` is the worked example for all three slices, and none of
-them touches the compose file again.**
+**MariaDB over a real socket, one file set: `crates/nvs-db/tests/handshake.rs`,
+`crates/nvs-db/tests/pool_reuse.rs` and `crates/nvs-db/src/maria.rs`. `mysql()`/`mysql_connect_as` at
+`crates/nvs-db/tests/handshake.rs:187` is the worked example for the first two.**
 
-- [ ] **`MariaConn::connect`** — `mysql.rs`'s codec with MariaDB's own auth plugins and its own error
-      table, over the same `NvsTls` parking stream. ADR 0067 § 3 for the handshake, § 8 for the code
-      table that is not MySQL's. `crates/nvs-db/src/conn.rs:707`, `crates/nvs-db/src/mysql.rs:1281`,
-      `crates/nvs-db/src/lib.rs:153`.
-- [ ] **`the_mariadb_auth_plugins_are_implemented_in_rust_or_refused_by_name`** — ADR 0051 § 4 named
-      this case in advance so the answer would come from a test rather than from convenience: a plugin
-      is implemented here or refused by name, never shelled out to. `docs/agent/loop-goal.toml:2916`,
-      `crates/nvs-db/tests/handshake.rs:424`.
-- [ ] **`mariadb_returning_is_available_and_mysqls_is_not` and
-      `execute_many_uses_the_bulk_protocol_on_mariadb`** — the two behaviours that make MariaDB its own
-      driver rather than a MySQL flag, one test each, over a `mariadb()` fixture helper mirroring
-      `mysql()`. `docs/agent/loop-goal.toml:2913`, `crates/nvs-db/tests/handshake.rs:187`.
+- [ ] **A `mariadb()` fixture and a handshake case** — the twin of `mysql()`, so the matrix's MariaDB leg
+      asserts the driver rather than the container: § 3's upgrade completes, a wrong password is refused
+      as `Permission`, and § 9's zone round-trips. `crates/nvs-db/tests/handshake.rs:187`,
+      `crates/nvs-db/tests/handshake.rs:203`, `crates/nvs-db/src/maria.rs:@connect`.
+- [ ] **`pool_reuse.rs` twinned a fourth way** — § 13's `COM_RESET_CONNECTION` over MariaDB, the same
+      three assertions the MySQL leg makes. `crates/nvs-db/tests/pool_reuse.rs:1`,
+      `crates/nvs-db/src/maria.rs:@reset`.
+- [ ] **`mariadb_returning_is_available_and_mysqls_is_not`** — ADR 0067's `RETURNING`, which is the first
+      thing MariaDB's statement path does that MySQL's cannot. `crates/nvs-db/src/maria.rs:@query`,
+      `crates/nvs-db/src/sql.rs:89`.
 
 ## Backlog
 
 - `Core\Db::open`'s shape-parameter registry type — `nvs_stdlib::db` known gap 1, wants an ADR.
-- `pool = false` has no MySQL twin in `pool_reuse.rs`; the other three bounds do.
-- `MssqlConn::connect` — TDS 7.4, the largest piece of new wire code; `crates/nvs-db/src/conn.rs:712`.
-- The SQLite leg of the matrix — stage 6's `want` list.
-- § 11's `slow_query` line against a real server — stage 9.
+- `MariaConn` is not yet reachable from `nvs-stdlib`: `db.rs`'s connect path has no MariaDB arm.
+- `COM_STMT_BULK_EXECUTE` for `executeMany` on MariaDB — ADR 0067 § 4, `crates/nvs-db/src/maria.rs`.
+- `TdsConn::connect` — ADR 0067 § 3's TLS-inside-TDS handshake, the largest remaining wire slice.
+- SQLite's driver, the last of the five — `docs/plan/m8.md`.
