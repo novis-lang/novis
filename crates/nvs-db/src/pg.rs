@@ -613,8 +613,23 @@ impl PgConn {
             // this path takes a number and has no opinion about where an
             // unwritten field's default comes from.
             cache: StatementCache::new(target.statement_cache),
+            // § 9's zone-less row is decoded a layer up, and the target is
+            // gone by then — see the field.
+            time_zone: target.time_zone,
             depth: Cell::new(0),
         })
+    }
+
+    /// The zone a zone-less `TIMESTAMP` off this connection is read in, as
+    /// seconds east of UTC — [`PgTarget::time_zone`], and the same number the
+    /// handshake sent the server.
+    ///
+    /// `nvs-stdlib` asks: [`PgScalar::Timestamp`] carries the civil fields the
+    /// server rendered and no offset at all, because § 9 reads that row in the
+    /// zone the *connection* declared rather than one the column carries.
+    #[must_use]
+    pub fn time_zone(&self) -> i32 {
+        self.time_zone
     }
 
     /// What a second connection needs to cancel this one's running statement.

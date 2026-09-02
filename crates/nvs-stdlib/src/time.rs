@@ -3001,6 +3001,105 @@ pub(crate) fn instant_at_system_time(at: SystemTime) -> Option<Value> {
     Timestamp::try_from(at).ok().map(instant_built)
 }
 
+/// A civil date and time as an outside reader rendered it, carrying no zone —
+/// the shape [`datetime_at`] and [`instant_at`] take.
+///
+/// The widths are a *renderer's* rather than [`civil`]'s, so that a caller
+/// hands over what it read and every range check happens here. `nvs_db`'s
+/// `TIMESTAMP` and `TIMESTAMPTZ` columns are the first of them, and
+/// PostgreSQL's `24:00:00` — a reading no `Core\Time\TimeOfDay` has — is
+/// refused by this module rather than by a driver that would otherwise have to
+/// know these bounds to refuse it.
+pub(crate) struct Civil {
+    /// The astronomical year, so `1 BC` is `0`.
+    pub year: i32,
+    /// The month, 1 to 12.
+    pub month: u8,
+    /// The day of the month, 1 to 31.
+    pub day: u8,
+    /// The hour, 0 to 23.
+    pub hour: u8,
+    /// The minute, 0 to 59.
+    pub minute: u8,
+    /// The second, 0 to 59.
+    pub second: u8,
+    /// The nanosecond within the second.
+    pub nanosecond: u32,
+}
+
+/// A `Core\Time\Date` on that year, month and day, for a member **outside this
+/// module** holding a rendered date — ADR 0067 § 9's `DATE` column is the
+/// first.
+///
+/// `None` for a combination no calendar has, which is
+/// [`instant_at_system_time`]'s answer and for its reason: the caller holds
+/// the name of the thing that produced it, and this seam does not.
+pub(crate) fn date_at(year: i32, month: u8, day: u8) -> Option<Value> {
+    civil_date(year, month, day).map(date_built)
+}
+
+/// A `Core\Time\TimeOfDay` at that reading — [`date_at`]'s twin, for § 9's
+/// `TIME` column.
+///
+/// `None` for a reading no clock has, PostgreSQL's `24:00:00` included.
+pub(crate) fn time_of_day_at(hour: u8, minute: u8, second: u8, nanosecond: u32) -> Option<Value> {
+    civil_time(hour, minute, second, nanosecond).map(clock_built)
+}
+
+/// A `Core\Time\DateTime` reading `at` in the fixed zone `offset` seconds east
+/// of UTC — § 9's zone-less `TIMESTAMP`, in the zone its connection declared.
+///
+/// The zone is an offset and never a name, so the stored id is
+/// [`render_offset`]'s `±HH:MM[:SS]` and the reading is unambiguous: a fixed
+/// offset has no gap or fold for a civil time to land in, which is why this
+/// seam has no ambiguity policy to state.
+///
+/// `None` for [`Civil`]'s refusals, and for an `offset` that is not one.
+pub(crate) fn datetime_at(at: &Civil, offset: i32) -> Option<Value> {
+    zoned_at(at, offset).map(|at| datetime_built(&at))
+}
+
+/// A `Core\Time\Instant` at `at` read `offset` seconds east of UTC — § 9's
+/// `TIMESTAMPTZ`, whose rendering carries that offset itself.
+///
+/// `None` on [`datetime_at`]'s conditions, plus a point outside
+/// [`Timestamp`]'s range.
+pub(crate) fn instant_at(at: &Civil, offset: i32) -> Option<Value> {
+    zoned_at(at, offset).map(|at| instant_built(at.timestamp()))
+}
+
+/// The [`Zoned`] `at` names at a fixed offset, which is the whole of what the
+/// two seams above share.
+fn zoned_at(at: &Civil, offset: i32) -> Option<Zoned> {
+    let date = civil_date(at.year, at.month, at.day)?;
+    let time = civil_time(at.hour, at.minute, at.second, at.nanosecond)?;
+    let zone = TimeZone::fixed(Offset::from_seconds(offset).ok()?);
+    civil::DateTime::from_parts(date, time).to_zoned(zone).ok()
+}
+
+/// The [`civil::Date`] those three fields name, or `None` for a date no
+/// calendar has — a year past this crate's range included.
+fn civil_date(year: i32, month: u8, day: u8) -> Option<civil::Date> {
+    civil::Date::new(
+        i16::try_from(year).ok()?,
+        i8::try_from(month).ok()?,
+        i8::try_from(day).ok()?,
+    )
+    .ok()
+}
+
+/// The [`civil::Time`] those four fields name, or `None` for a reading no
+/// clock has.
+fn civil_time(hour: u8, minute: u8, second: u8, nanosecond: u32) -> Option<civil::Time> {
+    civil::Time::new(
+        i8::try_from(hour).ok()?,
+        i8::try_from(minute).ok()?,
+        i8::try_from(second).ok()?,
+        i32::try_from(nanosecond).ok()?,
+    )
+    .ok()
+}
+
 /// A fresh `Instant` at `at`.
 fn instant_built(at: Timestamp) -> Value {
     crate::instance::build(
@@ -4706,6 +4805,57 @@ mod tests {
         assert_eq!(CLOCK_SECOND_SLOT, TIME_OF_DAY.slot("second"));
         assert_eq!(CLOCK_NANOS_SLOT, TIME_OF_DAY.slot("nanos"));
         assert_eq!(TIME_OF_DAY.slots.len(), 4);
+    }
+
+    /// The seams a rendered date or time arrives through refuse exactly the
+    /// renderings no `Core\Time` type has, and accept the last value on the
+    /// other side of each bound.
+    ///
+    /// Asserted on the components rather than on a built instance, so the case
+    /// allocates nothing: what the four seams add over the landed builders is
+    /// the range check, and this is all of it.
+    #[test]
+    fn a_rendering_no_core_time_type_has_is_refused_where_it_is_read() {
+        assert!(civil_date(2024, 3, 5).is_some());
+        assert!(civil_date(9999, 12, 31).is_some());
+        assert!(civil_date(10_000, 1, 1).is_none());
+        assert!(civil_date(2023, 2, 29).is_none());
+        assert!(civil_date(2024, 13, 1).is_none());
+
+        assert!(civil_time(23, 59, 59, 999_999_999).is_some());
+        // PostgreSQL renders a `TIME` of `24:00:00`, and `Core\Time\TimeOfDay`
+        // is the one type with no value for it — ADR 0067 § 9's row stops here
+        // rather than folding to the midnight that follows it.
+        assert!(civil_time(24, 0, 0, 0).is_none());
+        assert!(civil_time(0, 60, 0, 0).is_none());
+    }
+
+    /// A civil rendering plus a declared offset is one point in time, and the
+    /// offset is the whole of the difference — ADR 0067 § 9's zone-less
+    /// `TIMESTAMP` read in the zone its connection declared.
+    #[test]
+    fn a_civil_rendering_is_read_at_the_offset_it_is_given() {
+        let at = Civil {
+            year: 2024,
+            month: 3,
+            day: 5,
+            hour: 12,
+            minute: 30,
+            second: 15,
+            nanosecond: 123_456_000,
+        };
+        let utc = zoned_at(&at, 0).expect("a civil rendering at UTC is a point in time");
+        let east = zoned_at(&at, 2 * 3600).expect("and so is the same one two hours east");
+        assert_eq!(
+            utc.timestamp().as_second() - east.timestamp().as_second(),
+            2 * 3600
+        );
+        assert_eq!(utc.timestamp().subsec_nanosecond(), 123_456_000);
+        // A fixed offset has no IANA name, so the `DateTime` this builds
+        // stores `render_offset`'s spelling — `ZONE`'s rule for a zone that is
+        // an offset, reached here without allocating the instance.
+        assert_eq!(east.time_zone().iana_name(), None);
+        assert_eq!(render_offset(east.offset().seconds()), "+02:00");
     }
 
     /// Every symbol this module's classes register resolves in its own

@@ -100,14 +100,15 @@
 //!    cases, and a classification of a `PgColumn`'s type OID that `nvs-db` does
 //!    not expose (`PgColumn::decode` maps an OID to a *value*, which is a
 //!    different question from what a NULL column's declared type is).
-//! 6. **§ 9's five structured rows do not read back.** A `DATE`, `TIME`,
-//!    `TIMESTAMP`, `TIMESTAMPTZ` or `UUID` column is a `Core\Time` or
-//!    `Core\Uuid` *instance*, which only this crate can allocate;
-//!    [`structured_column`] refuses one by name in the *decoder*. `Core\Db\Row`
-//!    has carried the four readers that would answer with them since its own
-//!    members landed, so what is left is building the instance from
-//!    [`nvs_db::PgScalar`]'s parsed components. Every other row of that table
-//!    decodes now.
+//! 6. **§ 9's five structured rows do not reach a `#[Db\Derive]` field.** The
+//!    columns themselves read back: a `DATE`, `TIME`, `TIMESTAMP`,
+//!    `TIMESTAMPTZ` or `UUID` is built into its `Core\Time` or `Core\Uuid`
+//!    instance out of [`nvs_db::PgScalar`]'s components ([`column_value`]),
+//!    which only this crate can do, so `query` answers with one and
+//!    `Core\Db\Row`'s four typed readers answer off it. What is left is the
+//!    hydration's `CodecTy::Class` arm: a derived field declared as one of
+//!    those classes has nothing to check the built instance against, so
+//!    `queryAs<T>` refuses it there rather than placing it.
 //! 7. **Neither `query` nor `execute` declares a `{timeout?: Duration}`.**
 //!    § 4's option is in both spec signatures and is deliberately in neither
 //!    registry row, for one reason on both: a deadline
@@ -759,12 +760,17 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 /// universal path § 18 names — `->get()` plus `as` — is what a program that
 /// means a conversion writes.
 ///
-/// **Four of the eleven cannot yet answer anything but their refusal**, because
-/// `instant`, `date`, `time` and `uuid` read back a `Core\Time`/`Core\Uuid`
-/// instance and [`nvs_core_db_connection_query`] throws on the five columns that
-/// would carry one ([`structured_column`]). They are written as the lookups they
-/// will always be rather than left out, so that landing § 9's structured columns
-/// changes the decoder and not this class.
+/// **Four of the eleven answer with an instance**: `instant`, `date`, `time`
+/// and `uuid` read back the `Core\Time`/`Core\Uuid` value [`column_value`]
+/// built out of § 9's five structured columns. They were written as the lookups
+/// they always would be while that decoder still refused those columns, which
+/// is why landing it changed the decoder and not one line of this class.
+///
+/// **The fifth structured row has no reader of its own**: a zone-less
+/// `TIMESTAMP` is a `Core\Time\DateTime`, and § 6's roster of eleven — which
+/// this list is exactly — names no `dateTime`. It is reached through `get`,
+/// which is § 18's universal path and what that roster means by leaving it
+/// out.
 pub(crate) const ROW: CoreClass = CoreClass {
     name: ROW_NAME,
     methods: &[],
@@ -2113,16 +2119,21 @@ fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fa
     }
 }
 
-/// The refusal for a column whose Novis type is one of ADR 0067 § 9's five
-/// class instances — the gap `Core\Db\Row`'s typed readers close.
-fn structured_column(named: &str, column: &str) -> Fault {
+/// The refusal for a column of one of ADR 0067 § 9's five class-typed rows
+/// holding a value the `Core\Time` type it maps to has no representation for.
+///
+/// § 9's last paragraph is the rule: a structured column that does not parse
+/// throws rather than reading back as something else. Two values reach it in
+/// practice — PostgreSQL's `TIME` of `24:00:00`, which is a reading
+/// `Core\Time\TimeOfDay` deliberately does not have, and a year outside the
+/// calendar `Core\Time`'s types count. `crate::time`'s seams own both bounds
+/// and answer `None`; naming the column is this side's half, since that is
+/// what the program's next act needs.
+fn unrepresentable_column(named: &str, column: &str, row: &str) -> Fault {
     Fault::thrown(format!(
-        "{named}: the column `{column}` is a `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMPTZ` or \
-         `UUID`, and ADR 0067 § 9 reads those back as `Core\\Time` and `Core\\Uuid` instances \
-         rather than as text — which this decoder does not build yet, though \
-         `Core\\Db\\Row`'s `date`, `time`, `instant` and `uuid` are already waiting for one. \
-         Every other row of § 9's table reads back now, and a `::text` cast in the statement is \
-         the way to have one of these until then"
+        "{named}: the column `{column}` holds a {row} that no `Core\\Time` type has a value for \
+         — PostgreSQL's `24:00:00` and a year outside the calendar `Core\\Time\\Date` counts are \
+         the two — and a `::text` cast in the statement reads one back as the server rendered it"
     ))
 }
 
@@ -2449,8 +2460,8 @@ nvs_runtime::nvs_helper! {
 /// # Errors
 ///
 /// [`statement_of`]'s and [`postgres_of`]'s refusals, [`statement_failure`] for
-/// anything the server refused, and [`structured_column`] for one of § 9's five
-/// class-typed columns this decoder does not build yet.
+/// anything the server refused, and [`column_value`]'s for a column whose value
+/// has no Novis representation.
 fn queried_rows(
     ctx: &mut nvs_runtime::Ctx,
     args: &[Value],
@@ -2460,6 +2471,11 @@ fn queried_rows(
     let statement = statement_of(args, member, named)?;
     let sending: Vec<Option<&[u8]>> = statement.binds.iter().map(|one| one.as_deref()).collect();
     let postgres = postgres_of(ctx, statement.key, &statement.block, named)?;
+    // Read before the statement borrows the connection, and once for the whole
+    // result: § 9's zone-less `TIMESTAMP` is decoded in the zone this
+    // connection declared, and that is a property of the connection rather
+    // than of the row.
+    let zone = postgres.time_zone();
     let mut answered = postgres
         .query(&statement.sql, &sending)
         .map_err(|refused| statement_failure(named, &statement.block, &refused))?;
@@ -2483,15 +2499,93 @@ fn queried_rows(
             let body = row
                 .column(index)
                 .map_err(|refused| statement_failure(named, &statement.block, &refused))?;
-            let value = column
-                .decode(body)
-                .map_err(|refused| statement_failure(named, &statement.block, &refused))?
-                .ok_or_else(|| structured_column(named, &column.name))?;
+            let scalar = column
+                .scalar(body)
+                .map_err(|refused| statement_failure(named, &statement.block, &refused))?;
+            let value = column_value(scalar, zone, named, &column.name)?;
             one.set(NvsStr::new(column.name.as_bytes()), value);
         }
         rows.append(Value::array(one));
     }
     Ok(rows)
+}
+
+/// One column's Novis value: ADR 0067 § 9's whole type map, with the five rows
+/// whose Novis type is a class instance built here.
+///
+/// This is the second half of one decode and not a second decode. `nvs-db`
+/// reads every column to a [`nvs_db::PgScalar`] and mints a [`Value`] for the
+/// rows that are values; the five that are class instances arrive as the
+/// components the server rendered, because a `Core\Time\Date` is an instance
+/// of a class *this* crate declares and that one cannot allocate — see
+/// [`nvs_db::PgDate`]. So nothing here parses a body, and the only thing left
+/// that can go wrong is a rendered value no `Core\Time` type has.
+///
+/// `zone` is the connection's declared zone, § 9's answer for the one row that
+/// carries no offset of its own.
+///
+/// An array is this function again per element, so an `array<Core\Uuid>` and
+/// an `array<array<Core\Time\Date>>` need nothing of their own. Each is built
+/// into an [`NvsArray`] that a later element's refusal drops — releasing what
+/// it already holds — which is the rule the row itself is built under.
+///
+/// # Errors
+///
+/// [`unrepresentable_column`] for a value with no Novis representation, and a
+/// [`Fault::fatal`] for a row `nvs-db` answers no value for and this function
+/// does not build, which is a variant added there with no arm here.
+fn column_value(
+    scalar: nvs_db::PgScalar<'_>,
+    zone: i32,
+    named: &str,
+    column: &str,
+) -> Result<Value, Fault> {
+    let refused = |row| unrepresentable_column(named, column, row);
+    Ok(match scalar {
+        nvs_db::PgScalar::Date(date) => {
+            crate::time::date_at(date.year, date.month, date.day).ok_or_else(|| refused("date"))?
+        }
+        nvs_db::PgScalar::Time(time) => {
+            crate::time::time_of_day_at(time.hour, time.minute, time.second, time.nanosecond)
+                .ok_or_else(|| refused("time of day"))?
+        }
+        nvs_db::PgScalar::Timestamp { date, time } => {
+            crate::time::datetime_at(&civil_of(date, time), zone)
+                .ok_or_else(|| refused("date and time"))?
+        }
+        nvs_db::PgScalar::Instant { date, time, offset } => {
+            crate::time::instant_at(&civil_of(date, time), offset)
+                .ok_or_else(|| refused("date and time"))?
+        }
+        nvs_db::PgScalar::Uuid(octets) => crate::uuid::of_octets(octets),
+        nvs_db::PgScalar::Array(items) => {
+            let mut array = NvsArray::new();
+            for item in items {
+                array.append(column_value(item, zone, named, column)?);
+            }
+            Value::array(array)
+        }
+        row => row.into_value().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{named}: `nvs-db` answered no value for the column `{column}`, and this decoder \
+                 builds no instance for it either"
+            ))
+        })?,
+    })
+}
+
+/// The civil fields a `TIMESTAMP` or a `TIMESTAMPTZ` was rendered with, in the
+/// shape [`crate::time`]'s two seams read.
+fn civil_of(date: nvs_db::PgDate, time: nvs_db::PgTime) -> crate::time::Civil {
+    crate::time::Civil {
+        year: date.year,
+        month: date.month,
+        day: date.day,
+        hour: time.hour,
+        minute: time.minute,
+        second: time.second,
+        nanosecond: time.nanosecond,
+    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -2570,9 +2664,9 @@ nvs_runtime::nvs_helper! {
     /// PostgreSQL statement is a stream either way, ending it is what returns
     /// the connection to idle, and `lastId` is taken as each row goes past
     /// ([`nvs_db::PgRows::last_id`]) — so the drain is also what finds it.
-    /// Nothing is decoded, which is why an `insert … returning` of a `UUID`
-    /// column answers here while the same column refuses in `query`
-    /// ([`structured_column`]).
+    /// Nothing is decoded, so an `insert … returning` costs no column work at
+    /// all here, which is the one thing this member does differently with the
+    /// same stream `query` reads.
     ///
     /// **Both counts come off `CommandComplete`**, so neither exists until that
     /// stream has ended, and the pair is § 4's own: `affected` folds a command
@@ -3151,12 +3245,16 @@ fn converted(
         }
         // A row is a flat list of columns and `nvs_types::derive`'s own
         // `db_reachable` maps none of them to a nested class, so this arm is
-        // § 9's five value types — and those are the very columns
-        // [`structured_column`] refuses further up, before a row is ever built.
+        // § 9's five value types. Those decode now — the row holds a built
+        // `Core\Time` or `Core\Uuid` instance by the time hydration reads it —
+        // and what this arm still cannot do is the check every other arm is:
+        // asking *which* class the instance is, against the one the field
+        // declared. That is this module's known gap 6.
         CodecTy::Class => Err(
             "ADR 0067 § 9's `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMPTZ` and \
-                               `UUID` columns do not decode into their `Core\\Time` and \
-                               `Core\\Uuid` instances yet — `nvs_stdlib::db`'s known gap 3"
+                               `UUID` columns read back as `Core\\Time` and `Core\\Uuid` \
+                               instances, and a `#[Db\\Derive]` field declared as one is not \
+                               checked against them yet — `nvs_stdlib::db`'s known gap 6"
                 .to_owned(),
         ),
         // `nvs_types::derive` erases `decimal`, `bytes` and every inline shape
@@ -3656,9 +3754,9 @@ nvs_runtime::nvs_helper! {
     /// `$row->instant(string $name): ?Core\Time\Instant` — `TIMESTAMPTZ` and
     /// `datetimeoffset`.
     ///
-    /// One of the four [`ROW`]'s docs name as refusing everything until § 9's
-    /// structured columns land: [`structured_column`] is where such a column
-    /// stops today, so nothing reaches this slot yet.
+    /// One of the four [`ROW`]'s docs name: the value is the `Core\Time\Instant`
+    /// [`column_value`] built out of the column, so this member is the lookup
+    /// and the class check and nothing else.
     fn nvs_core_db_row_instant(_ctx, args: [2]) {
         let (name, found) = typed_column(args, "instant")?;
         let Some(value) = found else {

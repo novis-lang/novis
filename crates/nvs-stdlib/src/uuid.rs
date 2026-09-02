@@ -258,6 +258,17 @@ fn built(value: Uuid) -> Value {
     crate::instance::build(&CLASS, [Value::uint(high), Value::uint(low)])
 }
 
+/// A `Core\Uuid` holding those sixteen octets, in the order the canonical text
+/// spells them, for a member **outside this module** holding the bytes.
+///
+/// ADR 0067 § 9's `UUID` column is the first: `nvs-db` reads the row and hands
+/// the octets over, because the instance is this crate's to allocate. There is
+/// nothing to refuse — every 128-bit pattern is a UUID, including the nil and
+/// the max, and this module's own docs say which of them `parse` accepts.
+pub(crate) fn of_octets(octets: [u8; 16]) -> Value {
+    built(Uuid::from_bytes(octets))
+}
+
 /// The `Uuid` `text` spells, or `None` if it is not the canonical form.
 ///
 /// The length check is what narrows `uuid`'s four accepted spellings to the one

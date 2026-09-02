@@ -370,6 +370,14 @@ pub struct PgConn {
     /// other's server has never heard of. It survives this driver's reset,
     /// which is § 13's whole reason for not sending `DISCARD ALL`.
     pub(crate) cache: StatementCache,
+    /// ADR 0067 § 9's declared zone, as seconds east of UTC — what a zone-less
+    /// `TIMESTAMP` column off this connection is read in.
+    ///
+    /// Held rather than re-derived because the decode of that row happens in
+    /// `nvs-stdlib`, the only crate that can build the `Core\Time\DateTime` it
+    /// becomes, and [`PgTarget`](crate::pg::PgTarget) does not outlive the
+    /// handshake. Four bytes a connection, against a config lookup a column.
+    pub(crate) time_zone: i32,
     /// How many of ADR 0067 § 7's transactions are open on this connection: 0
     /// for none, 1 for the outermost `BEGIN`, and one more per nested
     /// `transaction()` — each of which is a `SAVEPOINT` named by the depth it
