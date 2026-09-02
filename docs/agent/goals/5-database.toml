@@ -2845,14 +2845,25 @@ name = "nvs-db (every row of § 9)"
 args = ["test", "-p", "nvs-db"]
 tests = [
   "every_row_of_the_type_map_round_trips",
-  # The rows that are rules rather than mappings.
-  "tinyint_one_reads_int_and_bool_and_throws_for_a_stored_seven",
-  "bigint_unsigned_past_i64_max_reads_uint_and_throws_for_int",
-  "a_decimal_into_a_float_field_throws",
   "a_zoneless_column_reads_in_the_declared_zone_and_a_timestamptz_ignores_it",
   "affected_is_the_matched_count_and_changed_is_mysql_only",
   # § Context -- the defect this API exists to remove.
   "no_driver_returns_a_number_as_a_string",
+]
+
+# § 9's rows that are RULES rather than mappings, and none of them is this crate's: § 6 makes the
+# *requested* type drive the conversion, and nothing in `nvs-db` is ever asked for a type -- it decodes a
+# column into the one natural value § 9 gives it and stops. The asker is `Core\Db\Row`'s typed reader and
+# `queryAs<T>`'s field, both of which live in `nvs_stdlib::db`, so these are filed there.
+[[check]]
+kind = "cargo-named"
+stage = "4 type map"
+name = "nvs-stdlib (the rows that are rules)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "tinyint_one_reads_int_and_bool_and_throws_for_a_stored_seven",
+  "bigint_unsigned_past_i64_max_reads_uint_and_throws_for_int",
+  "a_decimal_into_a_float_field_throws",
   # § 6 -- naming the column is the item; a mapper that throws without one is unusable at 40 columns.
   "query_as_throws_naming_the_column_for_a_mismatch_a_missing_column_and_a_null",
 ]

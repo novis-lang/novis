@@ -47,11 +47,11 @@
 > opened in `nvs-stdlib`**: § 18's `connect` over a memoized connection, `inList`, `quoteIdentifier`
 > and § 4's `query`, `execute` and `executeMany` ,  **`open` is live** over a shape parameter whose
 > arms select. **§ 7's `transaction` is on both classes with all three options, retrying either
-> conflict, no backoff** and a refusal throws `Db\DbError` carrying four of § 8's five; `Rows` is
-> generic at `T` and **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and § 9's five structured
-> columns build the `Core\Time`/`Core\Uuid` instance `Row`'s typed readers and a `#[Db\Derive]`
-> field answer with, so `examples/db.nvs` runs end to end.  **§ 13's pool is complete, every bound
-> and the park live**, **ADR 0084 § 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue
+> conflict, no backoff** and a refusal throws `Db\DbError` carrying four of § 8's five;
+> **`queryAs<T>` hydrates** over `ClassDesc::db_codec` into the `Core\Time`/`Core\Uuid` instances
+> `Row`'s typed readers answer with, and § 6's *request* converts — a `TINYINT(1)` reads as `bool`
+> and a stored `7` throws; `examples/db.nvs` runs end to end.  **§ 13's pool is complete, every
+> bound and the park live**, **ADR 0084 § 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue
 > migrate` applies § 2's schema, a worker claims, runs, reports and dead-letters it**, **all four of
 > § 1's members are live**, and **a shape encodes as a JSON object**. **MariaDB is its own driver**:
 > `maria.rs`, its own auth roster and its own § 8 table over MySQL's framing, and a real MariaDB

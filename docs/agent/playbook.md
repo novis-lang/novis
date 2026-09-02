@@ -1644,6 +1644,16 @@ is why" — is this file.
   shorter run on one side of the anomaly, or two runs as two pairs, rather than re-reading the
   field for a typo you did not make: `python tools/plan.py --get 'Open now'` prints the joined
   field, and the double space is invisible in it.
+- **A `loop-goal.toml` check can name a test whose crate is wrong because the *rule* is in another
+  layer, not because the test was misfiled by hand.** Stage 4's `-p nvs-db` check listed § 9's four
+  "rows that are rules" beside four real wire-level ones, and the four read as ordinary open work for
+  a long time. They are not `nvs-db` questions at all: § 6 makes the **requested** type drive the
+  conversion, and nothing in `nvs-db` is ever asked for a type — it decodes a column into the one
+  natural value § 9 gives it and stops. The asker is `Core\Db\Row`'s typed reader and `queryAs<T>`'s
+  field, both `nvs_stdlib::db`. The tell is not the `args` here but the ADR section the check's own
+  comment cites: a check citing § 6 under a crate that only implements § 9 is filed one layer down.
+  Read the cited section before writing the test, and split the check rather than moving all of it —
+  half of that list really was `nvs-db`'s.
 
 ## Running things
 
