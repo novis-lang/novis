@@ -9377,11 +9377,11 @@ invalid
 Core\Json::encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string
 ```
 
-Serializes `$value` as JSON text — scalars, arrays and instances of classes carrying `#[Json\Derive]` — on one line unless `pretty` is set.
+Serializes `$value` as JSON text — scalars, arrays, shape literals and instances of classes carrying `#[Json\Derive]` — on one line unless `pretty` is set.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `mixed` | The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, or an instance of a class carrying `#[Json\Derive]`. |
+| `$value` | `mixed` | The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{name: value}` shape, or an instance of a class carrying `#[Json\Derive]`. |
 | `{pretty: …}` | `bool` (default `false`) | Indent the output across lines, as `JSON_PRETTY_PRINT` does; the default is one line. |
 | `{escapeUnicode: …}` | `bool` (default `false`) | Write every non-ASCII character as a `\uXXXX` escape, as `json_encode` does by default; the default here keeps UTF-8 as it is. |
 
