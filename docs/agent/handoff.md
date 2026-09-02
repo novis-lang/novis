@@ -2,59 +2,55 @@
 
 ## State
 
-**Stage 8's live half is landed.** `crates/nvs-stdlib/tests/queue.rs` runs ADR 0084 § 1's `INSERT`,
-§ 4's `CLAIM` and § 6's `DEAD_LETTER` against `tests/db/compose.yaml`'s PostgreSQL and asserts three
-of the stage 8 check's six names: the dead-letter move from both sides (the row is in one table
-rather than in neither), the visibility bound from both sides (held inside the window, returned with
-an attempt spent past it), and `skip locked` against a second connection inside an open transaction,
-where `statement_timeout` turns a block into a failure instead of a hung leg.
+**Stage 8's `cargo-named` check is closed.** All six names it lists exist in
+`crates/nvs-stdlib/tests/queue.rs` and assert against `tests/db/compose.yaml`'s PostgreSQL —
+`python tools/db-matrix.py --driver postgres` is green, and with `NVS_DB_MATRIX_DRIVER` unset
+every case there skips, so `python tools/verify.py` is unchanged on a machine with no containers.
 
-**Those cases are in `nvs-stdlib`, not the `nvs-db` the check named, and two things forced it.** ADR
-0132 § 1 fixes the crate edge — a test target in `nvs-db` cannot name `nvs_stdlib::queue` — and
-`tools/db-matrix.py` ran only `-p nvs-db`, so a case anywhere else silently skipped on every driver
-leg. It now runs a `SUITES` list, and stage 8's check is `-p nvs-stdlib` with the reason in its
-comment. The playbook bullet owns the trap.
+**ADR 0084 § 3 is asserted as the pair it is, over one connection.** Each of the two cases writes an
+application row beside the job inside the same transaction: `orders` creates that table and `landed`
+reads both counts in one statement, because "one exists without the other" is a state two separate
+reads can each miss. A commit lands both, a rollback leaves neither, and the id `INSERT` answered
+with then names nothing — a sequence does not roll back, and the row is all § 3 ever promised.
 
-**Stage 2's `-p nvs-db` check cannot go green in this goal-run, and its ledger line is not this
-session's failure.** `local_infile_is_refused_and_no_file_is_sent` is MySQL's, and stage 2's own
-comment forbids a second driver until PostgreSQL is green end to end — so that check reports "did
-not run" permanently, and closing the name it currently reports only moves the report to that one.
-The name it reports now, `a_named_connection_is_memoized_for_the_request`, has no test anywhere and
-is `Core\Db::connect`'s, so `nvs-stdlib`'s; it is the third item below.
+**§ 6's arithmetic is not asserted twice.** `crates/nvs-stdlib/src/queue.rs`'s
+`a_retry_is_exponential_jittered_and_capped` walks the ladder as the pure function it is; the live
+case adds only what a server can say — the backoff is a wait the claim enforces, two jobs failing in
+one moment are armed for two different ones, and the ladder ends, counted as four claims for two
+jobs at two attempts and then a queue with nothing in it however far ahead the worker asks.
 
-**The `errors` array is one entry deep by decision, not by omission** — `MIGRATION`'s doc comment
-owns the trade and `crates/nvs-stdlib/src/queue.rs:400`'s `dead_errors` owns the entry's shape.
+**What is open is stage 2, and that check's `args` is half of it.**
+`a_named_connection_is_memoized_for_the_request` is `Core\Db::connect`'s, so `nvs-stdlib`'s, and it
+sits in the `-p nvs-db` block: writing the test alone leaves the check reporting it forever.
+`local_infile_is_refused_and_no_file_is_sent` reports "did not run" permanently in this goal-run —
+it is MySQL's, and stage 2's own comment forbids a second driver until PostgreSQL is green end to
+end — so closing the first two names moves the ledger's report to that one rather than clearing it.
 
 ## Next group
 
-**The file this session created, plus one statement's home — `crates/nvs-stdlib/tests/queue.rs`
-(helpers: `push` at :175, `claim` at :198, `rows`/`one`/`apply` at :128, :156 and :166) and
-`crates/nvs-stdlib/src/queue.rs`. The third item leaves that set for `crates/nvs-stdlib/src/db.rs`.**
+**Stage 2's three unwritten names. The first is `crates/nvs-stdlib/src/db.rs` plus the check block;
+the other two share `crates/nvs-db/src/pg.rs`, so take them together and the first on its own.**
 
-- [ ] **An enqueue commits with the write that made it, and a rolled-back write leaves no job** —
-      ADR 0084 § 3, two names in `docs/agent/loop-goal.toml:2964`. Push with
-      `crates/nvs-stdlib/src/queue.rs:249` inside a transaction opened by
-      `crates/nvs-db/src/pg.rs:698`, close it with `crates/nvs-db/src/pg.rs:735`, and count the rows;
-      then the same push under § 7's `ROLLBACK` (`crates/nvs-db/src/pg.rs:739`) and count zero. The
-      property is § 3's whole reason for the design, so assert it over one connection — a second one
-      would be testing a different design.
-- [ ] **Retries are bounded and the backoff is jittered** — § 6,
-      `docs/agent/loop-goal.toml:2969`. `crates/nvs-stdlib/src/queue.rs:434`'s `retry_at` and :457's
-      `jitter` are pure, so this one needs no server: assert the ladder doubles, that it stops at
-      `RETRY_CAP_MS` (:416), and that two ids at the same attempt land on different delays. It
-      belongs in that module's own `#[cfg(test)]` block at :1764, not in the live file.
-- [ ] **A named connection is memoized for the request** — ADR 0067 § 2, the name stage 2's check
-      reports (`docs/agent/loop-goal.toml:2764`). `crates/nvs-runtime/src/ctx.rs:3129`'s
-      `memoized_connection` is the mechanism and `crates/nvs-stdlib/src/db.rs`'s `open_named` is the
-      caller; the check's `args` is `-p nvs-db`, which cannot host it, so the name moves to a
-      `-p nvs-stdlib` check in the same edit — and `docs/agent/goals/5-database.toml` is copied from
-      the live file afterwards.
+- [ ] **A named connection is memoized for the request** — ADR 0067 § 2, the name the driver's
+      acceptance check reports. Assert that two `Core\Db::connect("main")` calls in one request are
+      one connection and one handshake: `crates/nvs-stdlib/src/db.rs:2298` is the helper and
+      `crates/nvs-stdlib/src/db.rs:2163` the name it resolves. **Then move the name out of the
+      `-p nvs-db` block at `docs/agent/loop-goal.toml:2764`** — ADR 0132 § 1 means `nvs-db` cannot
+      host it — into a stage 2 `-p nvs-stdlib` check of its own, and mirror the edit into
+      `docs/agent/goals/5-database.toml:2764` or the next `goal-switch.py` restores the old one.
+- [ ] **No driver path interpolates a value into SQL** — ADR 0067 § 1's "emulated prepares do not
+      exist in any form", and genuinely `-p nvs-db`'s. The rewriter is
+      `crates/nvs-db/src/sql.rs:423`, which answers with a `Statement` and never with text carrying
+      a value, and the statement path it feeds is `crates/nvs-db/src/pg.rs:586`.
+- [ ] **The connection charset is forced to UTF-8** — ADR 0067 § 9's "connection charset forces
+      UTF-8". PostgreSQL's is a startup parameter, so it is set where the handshake is built:
+      `crates/nvs-db/src/pg.rs:586`. Nothing in the crate mentions `client_encoding` yet.
 
 ## Backlog
 
-- `no_driver_path_interpolates_a_value_into_sql` — stage 2's remaining writable name, ADR 0067 § 1.
-- `local_infile_is_refused_and_no_file_is_sent` — MySQL's, and blocked on that driver existing.
-- Stage 5's other three names — `docs/agent/loop-goal.toml`, stage 5's block.
-- `Core\Db::open` and `Core\Queue`'s `limits`/`grants` wait on a shape-parameter type —
-  `crates/nvs-stdlib/src/queue.rs`'s *Known gaps* 1.
-- `$args` is `mixed` and so does not refuse a `secret` — same gap list, 2.
+- The other four drivers' queue statements — ADR 0084 § 2; `tools/db-matrix.py`'s `SUITES` already
+  points this suite at whichever server a leg brought up.
+- `Core\Db::open` waits on a shape-parameter type — `docs/implementation-plan.md`, `Open now`.
+- Stage 5, three of seven still open — `docs/agent/loop-goal.toml`, that stage's blocks.
+- `nvs_stdlib_tests_orders` is this suite's own table and no migration owns it; if a second case
+  ever needs an application table, it is `crates/nvs-stdlib/tests/queue.rs`'s `orders` to widen.

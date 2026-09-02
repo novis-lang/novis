@@ -1582,6 +1582,15 @@ is why" — is this file.
   by the driver (`Goal.release_cli`, in the same background thread as the release test profile), so
   a stale one has stopped being the answer — but nothing else in the loop produces it, and
   `bench.py` deliberately builds nothing.
+- **`peek.py --locate` answers `NOT FOUND` for a target it cannot take, and that reads exactly like a
+  name which is nowhere in the tree.** `--locate` takes *symbols* and paths; hand it a
+  `path:re:pattern` target — the form the same tool accepts happily in its ordinary mode — and it
+  prints `docs/agent/loop-goal.toml:re:a_named_connection_is_memoized: NOT FOUND` rather than
+  refusing the argument. That is the same line it prints for a symbol that genuinely does not exist,
+  so the answer read as "this acceptance check names a test nobody ever filed anywhere" while the
+  name was sitting at `docs/agent/loop-goal.toml:2764` the whole time. Mix the two forms in one call
+  and only the `re:` targets lie, which is the part that makes it convincing. Use `--locate` for
+  symbols and an ordinary `peek.py` target or a `grep` for a pattern.
 
 ## Running things
 
