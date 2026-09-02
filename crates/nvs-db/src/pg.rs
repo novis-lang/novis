@@ -128,7 +128,10 @@ use postgres_protocol::authentication::sasl::{ChannelBinding, ScramSha256};
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
 
-use crate::conn::{ColumnType, DbErrorKind, Driver, Isolation, PgConn, ServerError, State};
+use crate::conn::{
+    BlockError, ColumnType, DbErrorKind, Driver, Isolation, PgConn, ServerError, State,
+    written_value,
+};
 use crate::span::QuerySpan;
 use crate::sql::{Prepared, StatementCache, time_zone_for};
 
@@ -223,132 +226,6 @@ impl std::fmt::Debug for PgTarget<'_> {
     }
 }
 
-/// Why a `[db.<name>]` block is not a PostgreSQL connection —
-/// [`PgTarget::resolve`]'s refusal.
-///
-/// **A value, not a rendered message**: it names the *field* that is wrong and
-/// borrows what the block wrote, so the caller composing the operator-facing
-/// text decides the wording around it. [`BlockError::refusal`] is that text for
-/// a caller that has nothing better to say, and it is the one place a block's
-/// name is joined to a field's fault.
-///
-/// A block is read once, when a connection is opened, so a refusal here is a
-/// boot-shaped error arriving at the first `Core\Db::connect` rather than a
-/// per-request condition: nothing about it depends on the request, and the same
-/// block refuses the same way every time until an operator edits the file.
-///
-/// A second driver either shares this type — moved to
-/// [`mod@crate::conn`] beside [`Driver`] — or is refusing something PostgreSQL
-/// has no field for. It is deliberately not copied.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BlockError<'a> {
-    /// The block names no `driver` at all, so nothing decides which of ADR
-    /// 0067 § 12's five backends it is.
-    NoDriver,
-    /// `driver` names one of the five, and it is not this one.
-    OtherDriver {
-        /// What the block wrote.
-        written: &'a str,
-        /// The driver that spelling names.
-        driver: Driver,
-    },
-    /// `driver` names no driver Novis has.
-    UnknownDriver {
-        /// What the block wrote.
-        written: &'a str,
-    },
-    /// A field the startup exchange sends, absent from the block.
-    Missing {
-        /// The block's key, as an operator wrote it.
-        field: &'static str,
-    },
-    /// The same field, written with no value in it.
-    Blank {
-        /// The block's key, as an operator wrote it.
-        field: &'static str,
-    },
-    /// `password_file` is set and no password was materialized from it — the
-    /// block was read without `nvs_config::secret`'s pass over the tree, which
-    /// is a caller's bug rather than an operator's.
-    SecretUnread,
-    /// A field belonging to another driver, written on this one. Silently
-    /// ignoring it is ADR 0067 § 2's discriminated union giving way.
-    Unusable {
-        /// The block's key, as an operator wrote it.
-        field: &'static str,
-    },
-    /// `time_zone` is written and is not one of § 9's offsets — the `None`
-    /// [`crate::sql::time_zone_for`] answers with, turned into a refusal here
-    /// rather than folded into UTC.
-    TimeZone {
-        /// What the block wrote.
-        written: &'a str,
-    },
-}
-
-impl BlockError<'_> {
-    /// The refusal as an operator reads it, naming the block it is about.
-    ///
-    /// `name` is the `[db.<name>]` key, which the block itself does not carry:
-    /// a `Database` is the block's *fields*, and which name they were written
-    /// under is the map's key in `nvs_config`.
-    #[must_use]
-    pub fn refusal(&self, name: &str) -> String {
-        format!("[db.{name}]: {self}")
-    }
-}
-
-impl std::fmt::Display for BlockError<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BlockError::NoDriver => {
-                write!(
-                    f,
-                    "the block names no `driver`, so nothing says which database it is"
-                )
-            }
-            BlockError::OtherDriver { written, driver } => write!(
-                f,
-                "`driver` is `{written}`, which is the {} driver and not PostgreSQL",
-                driver.matrix_name()
-            ),
-            BlockError::UnknownDriver { written } => write!(
-                f,
-                "`driver` is `{written}`, which is none of `postgres`, `mysql`, `mariadb`, \
-                 `mssql` or `sqlite`"
-            ),
-            BlockError::Missing { field } => write!(
-                f,
-                "the block names no `{field}`, which a PostgreSQL connection cannot be opened \
-                 without"
-            ),
-            BlockError::Blank { field } => {
-                write!(
-                    f,
-                    "`{field}` is written empty, which is not a value to open a connection with"
-                )
-            }
-            BlockError::SecretUnread => write!(
-                f,
-                "`password_file` is set and no password was read from it, so this tree was never \
-                 handed to `nvs_config::secret`"
-            ),
-            BlockError::Unusable { field } => write!(
-                f,
-                "`{field}` belongs to another driver, and a PostgreSQL connection reads nothing \
-                 from it"
-            ),
-            BlockError::TimeZone { written } => write!(
-                f,
-                "`time_zone` is `{written}`, which is not an offset: write `+02:00`, `-05:30` or \
-                 `UTC`, or leave it unset for UTC"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for BlockError<'_> {}
-
 impl<'a> PgTarget<'a> {
     /// One `[db.<name>]` block as this driver's target, or why it is not one.
     ///
@@ -387,12 +264,21 @@ impl<'a> PgTarget<'a> {
         let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
         match Driver::from_config_name(written) {
             Some(Driver::Postgres) => {}
-            Some(driver) => return Err(BlockError::OtherDriver { written, driver }),
+            Some(driver) => {
+                return Err(BlockError::OtherDriver {
+                    written,
+                    driver,
+                    expected: Driver::Postgres,
+                });
+            }
             None => return Err(BlockError::UnknownDriver { written }),
         }
 
         if block.path.is_some() {
-            return Err(BlockError::Unusable { field: "path" });
+            return Err(BlockError::Unusable {
+                field: "path",
+                expected: Driver::Postgres,
+            });
         }
 
         let password = match (block.password.as_deref(), block.password_file.is_some()) {
@@ -405,12 +291,17 @@ impl<'a> PgTarget<'a> {
             // one field is empty only when it is *empty*.
             (Some(""), _) => return Err(BlockError::Blank { field: "password" }),
             (Some(password), _) => password,
-            (None, false) => return Err(BlockError::Missing { field: "password" }),
+            (None, false) => {
+                return Err(BlockError::Missing {
+                    field: "password",
+                    expected: Driver::Postgres,
+                });
+            }
         };
 
-        let host = written_value(block.host.as_deref(), "host")?;
-        let user = written_value(block.user.as_deref(), "user")?;
-        let database = written_value(block.database.as_deref(), "database")?;
+        let host = written_value(block.host.as_deref(), "host", Driver::Postgres)?;
+        let user = written_value(block.user.as_deref(), "user", Driver::Postgres)?;
+        let database = written_value(block.database.as_deref(), "database", Driver::Postgres)?;
 
         let Some(time_zone) = time_zone_for(block) else {
             return Err(BlockError::TimeZone {
@@ -432,24 +323,6 @@ impl<'a> PgTarget<'a> {
             time_zone,
             statement_cache: StatementCache::capacity_for(block),
         })
-    }
-}
-
-/// One written field of a `[db.<name>]` block, refused by its own key when it
-/// is absent or holds nothing.
-///
-/// Whitespace-only counts as nothing here — a hostname or a role of two spaces
-/// is a field an editor left half-written, and sending it would fail against
-/// the server with a message about neither. The password does not come through
-/// this function, for the opposite reason.
-fn written_value<'a>(
-    value: Option<&'a str>,
-    field: &'static str,
-) -> Result<&'a str, BlockError<'a>> {
-    match value {
-        None => Err(BlockError::Missing { field }),
-        Some(value) if value.trim().is_empty() => Err(BlockError::Blank { field }),
-        Some(value) => Ok(value),
     }
 }
 
@@ -3735,7 +3608,10 @@ mod tests {
             write(&mut absent, None);
             assert_eq!(
                 PgTarget::resolve(&absent).unwrap_err(),
-                BlockError::Missing { field }
+                BlockError::Missing {
+                    field,
+                    expected: Driver::Postgres
+                }
             );
 
             let mut empty = block();
@@ -3819,7 +3695,8 @@ mod tests {
             PgTarget::resolve(&block).unwrap_err(),
             BlockError::OtherDriver {
                 written: "mysql",
-                driver: Driver::MySql
+                driver: Driver::MySql,
+                expected: Driver::Postgres
             }
         );
 
@@ -3837,7 +3714,10 @@ mod tests {
         block.path = Some("app.db".to_owned());
         assert_eq!(
             PgTarget::resolve(&block).unwrap_err(),
-            BlockError::Unusable { field: "path" }
+            BlockError::Unusable {
+                field: "path",
+                expected: Driver::Postgres
+            }
         );
     }
 

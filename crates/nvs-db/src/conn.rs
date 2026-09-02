@@ -123,6 +123,185 @@ impl Driver {
             .into_iter()
             .find(|d| written.eq_ignore_ascii_case(d.matrix_name()))
     }
+
+    /// This backend as its vendor spells it, for a sentence an operator reads.
+    ///
+    /// [`Driver::matrix_name`]'s opposite: that one is the identifier a file
+    /// and a harness write, this one is prose and appears only inside a
+    /// [`BlockError`]'s message. Nothing parses it, and nothing may — a second
+    /// roster that something matched on is exactly what that method's doc
+    /// warns about.
+    #[must_use]
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Driver::Postgres => "PostgreSQL",
+            Driver::MySql => "MySQL",
+            Driver::MariaDb => "MariaDB",
+            Driver::SqlServer => "SQL Server",
+            Driver::Sqlite => "SQLite",
+        }
+    }
+}
+
+/// Why a `[db.<name>]` block is not a connection of the driver that read it —
+/// [`crate::PgTarget::resolve`]'s refusal and [`crate::MySqlTarget::resolve`]'s
+/// alike.
+///
+/// **A value, not a rendered message**: it names the *field* that is wrong and
+/// borrows what the block wrote, so the caller composing the operator-facing
+/// text decides the wording around it. [`BlockError::refusal`] is that text for
+/// a caller that has nothing better to say, and it is the one place a block's
+/// name is joined to a field's fault.
+///
+/// A block is read once, when a connection is opened, so a refusal here is a
+/// boot-shaped error arriving at the first `Core\Db::connect` rather than a
+/// per-request condition: nothing about it depends on the request, and the same
+/// block refuses the same way every time until an operator edits the file.
+///
+/// **It is here rather than in a driver because every driver refuses the same
+/// eight things**, differing only in which backend was expected — that is the
+/// `expected` field on the three variants whose sentence names one. A driver
+/// with a fault none of these covers adds a variant here; it does not grow an
+/// error type of its own, because an operator reading two of those would be
+/// reading two vocabularies for one file format.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BlockError<'a> {
+    /// The block names no `driver` at all, so nothing decides which of ADR
+    /// 0067 § 12's five backends it is.
+    NoDriver,
+    /// `driver` names one of the five, and it is not the one that read it.
+    OtherDriver {
+        /// What the block wrote.
+        written: &'a str,
+        /// The driver that spelling names.
+        driver: Driver,
+        /// The driver whose resolver read the block.
+        expected: Driver,
+    },
+    /// `driver` names no driver Novis has.
+    UnknownDriver {
+        /// What the block wrote.
+        written: &'a str,
+    },
+    /// A field the startup exchange sends, absent from the block.
+    Missing {
+        /// The block's key, as an operator wrote it.
+        field: &'static str,
+        /// The driver whose resolver read the block.
+        expected: Driver,
+    },
+    /// The same field, written with no value in it.
+    Blank {
+        /// The block's key, as an operator wrote it.
+        field: &'static str,
+    },
+    /// `password_file` is set and no password was materialized from it — the
+    /// block was read without `nvs_config::secret`'s pass over the tree, which
+    /// is a caller's bug rather than an operator's.
+    SecretUnread,
+    /// A field belonging to another driver, written on this one. Silently
+    /// ignoring it is ADR 0067 § 2's discriminated union giving way.
+    Unusable {
+        /// The block's key, as an operator wrote it.
+        field: &'static str,
+        /// The driver whose resolver read the block.
+        expected: Driver,
+    },
+    /// `time_zone` is written and is not one of § 9's offsets — the `None`
+    /// [`crate::sql::time_zone_for`] answers with, turned into a refusal here
+    /// rather than folded into UTC.
+    TimeZone {
+        /// What the block wrote.
+        written: &'a str,
+    },
+}
+
+impl BlockError<'_> {
+    /// The refusal as an operator reads it, naming the block it is about.
+    ///
+    /// `name` is the `[db.<name>]` key, which the block itself does not carry:
+    /// a `Database` is the block's *fields*, and which name they were written
+    /// under is the map's key in `nvs_config`.
+    #[must_use]
+    pub fn refusal(&self, name: &str) -> String {
+        format!("[db.{name}]: {self}")
+    }
+}
+
+impl std::fmt::Display for BlockError<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BlockError::NoDriver => {
+                write!(
+                    f,
+                    "the block names no `driver`, so nothing says which database it is"
+                )
+            }
+            BlockError::OtherDriver {
+                written,
+                driver,
+                expected,
+            } => write!(
+                f,
+                "`driver` is `{written}`, which is the {} driver and not {}",
+                driver.matrix_name(),
+                expected.display_name()
+            ),
+            BlockError::UnknownDriver { written } => write!(
+                f,
+                "`driver` is `{written}`, which is none of `postgres`, `mysql`, `mariadb`, \
+                 `mssql` or `sqlite`"
+            ),
+            BlockError::Missing { field, expected } => write!(
+                f,
+                "the block names no `{field}`, which a {} connection cannot be opened without",
+                expected.display_name()
+            ),
+            BlockError::Blank { field } => {
+                write!(
+                    f,
+                    "`{field}` is written empty, which is not a value to open a connection with"
+                )
+            }
+            BlockError::SecretUnread => write!(
+                f,
+                "`password_file` is set and no password was read from it, so this tree was never \
+                 handed to `nvs_config::secret`"
+            ),
+            BlockError::Unusable { field, expected } => write!(
+                f,
+                "`{field}` belongs to another driver, and a {} connection reads nothing from it",
+                expected.display_name()
+            ),
+            BlockError::TimeZone { written } => write!(
+                f,
+                "`time_zone` is `{written}`, which is not an offset: write `+02:00`, `-05:30` or \
+                 `UTC`, or leave it unset for UTC"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BlockError<'_> {}
+
+/// One written field of a `[db.<name>]` block, refused by its own key when it
+/// is absent or holds nothing.
+///
+/// Whitespace-only counts as nothing here — a hostname or a user of two spaces
+/// is a field an editor left half-written, and sending it would fail against
+/// the server with a message about neither. A password does not come through
+/// this function, for the opposite reason: `nvs_config::secret` trims nothing
+/// off a secret file, so a password of spaces is a password.
+pub(crate) fn written_value<'a>(
+    value: Option<&'a str>,
+    field: &'static str,
+    expected: Driver,
+) -> Result<&'a str, BlockError<'a>> {
+    match value {
+        None => Err(BlockError::Missing { field, expected }),
+        Some(value) if value.trim().is_empty() => Err(BlockError::Blank { field }),
+        Some(value) => Ok(value),
+    }
 }
 
 /// Where a connection's wire is, between commands —

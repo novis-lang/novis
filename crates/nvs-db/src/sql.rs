@@ -804,7 +804,7 @@ fn skip_dollar(bytes: &[u8], start: usize) -> Option<usize> {
 /// field precisely because UTC is not what the columns mean. Turning the
 /// `None` into a refusal naming the block is the resolver's job:
 /// [`PgTarget::resolve`](crate::pg::PgTarget::resolve) answers
-/// [`BlockError::TimeZone`](crate::pg::BlockError::TimeZone) for it, and every
+/// [`BlockError::TimeZone`](crate::conn::BlockError::TimeZone) for it, and every
 /// driver added later owes the same refusal rather than a default.
 #[must_use]
 pub fn time_zone_for(block: &Database) -> Option<i32> {
