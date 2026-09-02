@@ -2,59 +2,62 @@
 
 ## State
 
-**ADR 0135's checker and IR halves are both on disk.** `Ty::CoreShape` carries a `required` flag per
-key; `nvs_types::core_lib` records § 3's fill list for a shape parameter — the merged list's order,
-each slot's own default or `Const::Null` — and `nvs_ir::lower::shape_fills` reads it, so a written
-shape literal flattens into one ABI argument per slot exactly as a bag does. The fills ride a second
-`ConstArg` variant, `RequiredShape`, which `MethodSig::required` skips: a shape parameter records
-what its unwritten slots pass **and** stays required, which one `ConstArg::Options` entry could not
-express (`crates/nvs-types/src/defaults.rs`'s variant doc owns why). `check_options_arg` now also
-refuses a key the merged list requires and the literal omits, as `E0402` — § 3 flattens a key into
-an argument, so a missing one is a call one argument short.
+**`Core\Db::open` is live, and `Db\Settings` is the first shape parameter in the registry.**
+`nvs_stdlib::db::SETTINGS` is ADR 0135 § 1's two arms — the server arm's ten fields, the SQLite
+arm's `path` — and § 3's merged twelve slots arrive at `nvs_core_db_open` as one ordinary
+`args: [12]`. ADR 0067 § 3's asymmetry is now stated on both sides: `connect` pre-approves an
+operator-written endpoint through `address_of`, and `open` asks `db.open` about the host and then
+puts the resolved address through ADR 0058 § 3's table. `nvs_runtime::capability::pinned_address`
+is that second half split out of `pin_host`, so the range rule has one home and `open` does not
+have to demand `net.connect` as well.
 
-**Two things are still missing, and only one is a gap.** `Core\Db::open` has no registry row yet
-(`nvs_stdlib::db` known gap 1), which is the next group's first slice and the reason the goal's one
-open acceptance check, `a_db_open_target_in_a_denied_range_fails`, still does not run — an item
-still open, not a regression. § 2's *exactly one arm accepts it* remains unwritten and unstatable on
-a merged list; `Ty::CoreShape`'s own known gap owns it, and it also swallows "a key required by only
-one arm is required by neither".
+**Two enums § 18 declares are registered for the first time**: `Core\Db\Driver`, whose cases are
+what make the two arms disjoint, and `Core\Db\Tls`, whose weaker three are **refused at the call**
+rather than honoured — this runtime opens every TCP connection at `VerifyFull` and `settings_tls`
+words that refusal.
 
-**The refusal landed with a unit test, not a call-site test.** No registry row declares a required
-shape key, so nothing can write `Core\Foo::bar({...})` and watch it fail; the rule is held by
-`missing_required_keys`' own test in `expr/args.rs`, and the `.nvst` and `core_members.rs` cases are
-owed by the `open` slice below.
-
-`[context] adrs` in `docs/agent/loop-goal.toml` now names `0135 §1/§2/§3`, in both that file and
-`docs/agent/goals/5-database.toml` — the two had already diverged over the `0133` entries, which
-this session did not touch.
+**Two halves of `open` are still owed and both are in `nvs_stdlib::db`'s known gap 1.** It files
+its connection with no lease, so § 13's pool never sees it: that section's key is a hash of every
+settings field and `nvs_runtime::pool::Ticket::for_block` takes a block *name*. Within a request
+§ 2's memo does hold, keyed on `settings_key`'s hash under a NUL-prefixed name no config block can
+have. And ADR 0135 § 2's *exactly one arm accepts it* is not the checker's rule: a literal is
+checked against the **merged** list, so `E0402` fires only for a key **every** arm requires
+(`driver`), and a missing `host` reaches the helper as a `Tag::Null` — `settings_text` throws a
+catchable `RuntimeError` there rather than a `FATAL`, which is the honest reading until § 2 lands.
 
 ## Next group
 
-**`Core\Db::open`, its tests, then § 2's arms. File set: `crates/nvs-stdlib/src/db.rs` with
-`crates/nvs-types/tests/core_members.rs` and `tests/conformance/core/`, then
-`crates/nvs-types/src/ty.rs` with `crates/nvs-types/src/core_lib.rs`.** The first two items share
-one build and one file set; the third is its own session and its own ADR reading.
+**ADR 0135 § 2's arm selection, then `open`'s pool ticket. File set:
+`crates/nvs-types/src/ty.rs` with `crates/nvs-types/src/core_lib.rs` and
+`crates/nvs-types/src/expr/args.rs`, then `crates/nvs-runtime/src/pool.rs` with
+`crates/nvs-stdlib/src/db.rs`.** The first two items are one file set and one build; the third is
+its own.
 
-- [ ] **`Core\Db::open`'s five edits** (0067 § 3, 0135 §§ 1 and 3).
-      `crates/nvs-stdlib/src/db.rs:501` is `connect`'s row and the block the `Db\Settings` arms go
-      beside; `crates/nvs-stdlib/src/db.rs:66` is known gap 1, to delete with the row. The merged
-      list is the server arm's fields, then the SQLite arm's `path`, then the trailing bag's
-      `shared` — so the helper is one ordinary `args: [N]` over that order, and § 3's `host` is
-      `Qual::Sink` on the *field*.
-- [ ] **The cases that row makes writable** (0135 §§ 2 and 3, 0067 § 3).
-      `a_db_open_target_in_a_denied_range_fails` is the goal's open check;
-      `crates/nvs-types/tests/core_members.rs:150` is the shape the unknown-key case already takes,
-      and a missing required key is now `E0402` from
-      `crates/nvs-types/src/expr/args.rs:688`. Three `.nvst` cases make the member reachable.
-- [ ] **§ 2's arm selection** (0135 § 2). `crates/nvs-types/src/ty.rs:292` is `CoreShape` and the
-      known gap to close by carrying the arms (or per-field masks);
-      `crates/nvs-types/src/core_lib.rs:568` is `merge_shape_arms`, which would then keep both the
-      merged list and the arms, and `crates/nvs-types/src/expr/args.rs:603` is the one reader.
+- [ ] **Arm selection: check a literal against one arm, not the merged list** (0135 § 2).
+      `crates/nvs-types/src/ty.rs:292` is `Ty::CoreShape` and its known gap;
+      `crates/nvs-types/src/core_lib.rs:628` is `shape_fills`, which is where the arms are
+      flattened and so where the per-arm list has to survive to. "Exactly one arm accepts it" —
+      zero accepting is the call site's error, two is a registry bug the static test already
+      refuses.
+- [ ] **The two refusals that rule makes writable, as `.nvst` cases** (0135 § 2, 0067 § 3).
+      A `host` beside `Driver::Sqlite` is a compile error, and a server literal missing `host` is
+      `E0402` rather than the runtime throw `crates/nvs-stdlib/src/db.rs:3100`'s `settings_text`
+      words today. Both are one edit away from
+      `tests/conformance/core/db-open-refuses-a-settings-literal-that-names-no-driver.nvst`.
+- [ ] **§ 13's pool for `open`, keyed on the settings hash** (0067 § 13).
+      `crates/nvs-runtime/src/pool.rs:152` is `Ticket::for_block`, which needs a sibling taking a
+      key rather than a block name; `crates/nvs-stdlib/src/db.rs:3129` is `settings_key`, already
+      the hash § 13 asks for, and `crates/nvs-stdlib/src/db.rs:3281` is the `None` lease to
+      replace.
 
 ## Backlog
 
-- § 2's disjointness proof `a_shapes_arms_are_pairwise_disjoint`, a static registry check (ADR 0135 § 2).
-- `a_shape_is_only_ever_a_whole_parameter` and `a_shape_field_is_never_nullable` (ADR 0135 §§ 1, 3).
-- `ParamDoc::shape` for a union's merged key set, each `desc` naming its arm (ADR 0135 § 4).
-- The four MySQL/MariaDB/SQL Server drivers past PostgreSQL (docs/plan/m8.md).
-- ADR 0067 § 5's `inList` expansion arity in the statement-cache key, over a real server (0067 § 1).
+- `Core\Db\Tls`'s weaker three are refused, not honoured — if a `Tls` mode is ever to mean
+  something, it is `nvs_db::PgTarget`/`MySqlTarget` that gain the knob (`nvs_stdlib::db::TLS`).
+- MariaDB and SQL Server settings reach `open`'s refusal, not a handshake — `nvs_stdlib::db` known
+  gap 2.
+- `stream`/`streamAs` are the last two § 18 members with no row
+  (`crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`).
+- `Core\Db::open`'s `timeZone` is resolved to a fixed offset at open time
+  (`crate::time::zone_offset_now`); a session that outlives a DST change keeps the offset it
+  opened with, as a `[db.<name>]` block's own `time_zone` already does.
