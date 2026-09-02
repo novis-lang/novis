@@ -4453,6 +4453,14 @@ is why" — is this file.
   (`byte_char_slices`), and the failure arrives three minutes into `verify.py` rather than from
   `cargo test`. Write the tags as `*b"DHqW"` — iterating a dereferenced byte-string literal yields the
   same `u8`s — and the same lint is waiting for any protocol case that sweeps field or message tags.
+- **`nvs_runtime::call` hands a test back `Result<Value, i32>`, not the helper's `Fault`** — the
+  status is the ABI's, and the exception itself is already on the `Ctx`, so a case asserting *what*
+  a member threw reads `ctx.pending_class()` (`Core\Db\RolledBack`, and it falls back to
+  `ThrownClass::name` when no class table is installed, which is every unit test) and
+  `ctx.pending()` for the message. Matching on the `Err` looks like the obvious spelling and is
+  `expected i32, found Fault`. The pair is worth more than the shorter route: `ctx.take_pending()`
+  **is** a `catch (Throwable)` — it clears the pending exception and nothing else — so a case that
+  has to prove something survives a catch performs one rather than describing one.
 
 ## Splitting a file that got too big
 
