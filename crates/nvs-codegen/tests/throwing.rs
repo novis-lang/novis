@@ -80,16 +80,27 @@ class MyError extends IOError {
         assert_eq!(&class.fields[..PROPERTIES.len()], PROPERTIES, "{label}");
     }
 
-    // ADR 0071 § 5's `issues` is the one property any class below the root
-    // declares, and the runtime writes it by index too — so its slot is held
-    // by the same agreement the four above are.
+    // ADR 0071 § 5's `issues` and ADR 0067 § 8's `kind` are properties classes
+    // below the root declare, and the runtime writes each by index too — so
+    // their slots are held by the same agreement the four above are. Both
+    // constants are equal, and are asserted against their own class rather
+    // than against each other: two sibling classes each declaring one property
+    // is why, and a third class declaring two would break the coincidence
+    // without breaking either line.
     assert_eq!(nvs_hir::errors::ISSUES_SLOT, nvs_runtime::ISSUES_SLOT);
+    assert_eq!(nvs_hir::errors::KIND_SLOT, nvs_runtime::KIND_SLOT);
     let parse = program
         .classes
         .iter()
         .find(|c| c.label == "ParseError")
         .expect("ParseError should be in the class table");
     assert_eq!(parse.fields[nvs_runtime::ISSUES_SLOT], "issues");
+    let db_error = program
+        .classes
+        .iter()
+        .find(|c| c.label == "Core\\Db\\DbError")
+        .expect("Core\\Db\\DbError should be in the class table");
+    assert_eq!(db_error.fields[nvs_runtime::KIND_SLOT], "kind");
 }
 
 #[test]

@@ -348,8 +348,8 @@ pub use string::{
     nvs_str_retain,
 };
 pub use throwable::{
-    BACKTRACE_SLOT, ISSUES_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT, Thrown,
-    ThrownClass, nvs_raise, nvs_raise_new, nvs_take_thrown, nvs_trace_push,
+    BACKTRACE_SLOT, ISSUES_SLOT, KIND_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT,
+    Thrown, ThrownClass, nvs_raise, nvs_raise_new, nvs_take_thrown, nvs_trace_push,
 };
 pub use trace_context::TraceContext;
 pub use value::{Tag, Value, nvs_value_release, nvs_value_retain};

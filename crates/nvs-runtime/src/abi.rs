@@ -82,20 +82,33 @@ pub enum Fault {
     /// [`Fault::thrown`] means [`crate::ThrownClass::Runtime`], which is what a
     /// failure with nothing more specific to say is.
     Thrown(crate::ThrownClass, std::borrow::Cow<'static, str>),
-    /// [`Self::Thrown`], plus
-    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's issue list —
-    /// what a member that found *several* things wrong with one input reports,
-    /// so a form is told about all four bad fields rather than the first.
+    /// [`Self::Thrown`], plus one value for a property the thrown class
+    /// declares beyond `Throwable`'s four — named by its slot index, so every
+    /// such property reaches its slot through this one variant.
     ///
-    /// The value is an owned `array<Core\Issue>`, and this variant is the one
-    /// place a [`Fault`] carries a reference at all: it is transferred into the
-    /// exception object's `issues` slot the moment the fault is recorded, and
-    /// released if there is no slot to hand it to. Building it eagerly is what
-    /// keeps [`Ctx`]'s pending state free of a reference it would have to
-    /// release on every replacement path.
-    ThrownWithIssues(
+    /// Two fill it today, and a third owes a caller rather than a variant:
+    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's `issues` on
+    /// `ParseError`, so a member that found *several* things wrong with one
+    /// input tells a form about all four bad fields rather than the first, and
+    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8's `kind` on
+    /// `Core\Db\DbError`, so a `catch` branches on the condition the server
+    /// named rather than on the wording of the message. A sibling variant per
+    /// property was the alternative and was rejected: each one costs an arm in
+    /// [`record_fault`], another in `nvs_stdlib::task`'s `call_child` and one in
+    /// every reader added later, all to say the same thing with a different
+    /// constant in it. The slot index is passed rather than derived from the
+    /// class because deriving it would bake "one own property per class" into
+    /// the ABI, which is true of all three classes today and of neither ADR.
+    ///
+    /// This variant is the one place a [`Fault`] carries a reference at all: the
+    /// value is transferred into that slot the moment the fault is recorded, and
+    /// released where the class is too narrow to have the slot. Building it
+    /// eagerly is what keeps [`Ctx`]'s pending state free of a reference it
+    /// would have to release on every replacement path.
+    ThrownWithSlot(
         crate::ThrownClass,
         std::borrow::Cow<'static, str>,
+        usize,
         crate::Value,
     ),
     /// Unrecoverable; becomes [`FATAL`].
@@ -129,16 +142,35 @@ impl Fault {
         Self::Thrown(class, message.into())
     }
 
-    /// A [`Fault::ThrownWithIssues`] — ADR 0071 § 5's "report every field".
+    /// A [`Fault::ThrownWithSlot`] filling `slot` on the object the throw
+    /// builds — the one route from a native member to a property below
+    /// `Throwable`'s four.
     ///
-    /// Takes over `issues`' reference; see that variant for where it goes.
+    /// Takes over `value`'s reference; see that variant for where it goes.
+    #[must_use]
+    pub fn thrown_with_slot(
+        class: crate::ThrownClass,
+        message: impl Into<std::borrow::Cow<'static, str>>,
+        slot: usize,
+        value: crate::Value,
+    ) -> Self {
+        Self::ThrownWithSlot(class, message.into(), slot, value)
+    }
+
+    /// [`Self::thrown_with_slot`] at [`crate::ISSUES_SLOT`] — ADR 0071 § 5's
+    /// "report every bad field at once", which is the caller this shape was
+    /// first written for. Spelled once here rather than at each of
+    /// `nvs_stdlib::json`'s five sites, none of which should have to name a
+    /// slot index to throw a `ParseError`.
+    ///
+    /// Takes over `issues`' reference.
     #[must_use]
     pub fn thrown_with_issues(
         class: crate::ThrownClass,
         message: impl Into<std::borrow::Cow<'static, str>>,
         issues: crate::Value,
     ) -> Self {
-        Self::ThrownWithIssues(class, message.into(), issues)
+        Self::thrown_with_slot(class, message, crate::ISSUES_SLOT, issues)
     }
 
     /// A [`Fault::Fatal`] with a message.
@@ -412,15 +444,15 @@ pub(crate) fn record_fault(ctx: &mut Ctx, fault: Fault) -> i32 {
             ctx.set_pending_as(class, message);
             THROWN
         }
-        Fault::ThrownWithIssues(class, message, issues) => {
+        Fault::ThrownWithSlot(class, message, slot, value) => {
             #[expect(
                 unsafe_code,
                 reason = "the helper body transferred this reference, and \
-                          `raise_with_issues` transfers it on into the \
-                          exception object's slot or releases it"
+                          `raise_with_slot` transfers it on into the exception \
+                          object's slot or releases it"
             )]
             unsafe {
-                ctx.raise_with_issues(class, &message, issues);
+                ctx.raise_with_slot(class, &message, slot, value);
             }
             THROWN
         }

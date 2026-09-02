@@ -71,6 +71,19 @@ pub const SLOT_COUNT: usize = 4;
 /// is what holds the two together.
 pub const ISSUES_SLOT: usize = SLOT_COUNT;
 
+/// The slot `Core\Db\DbError::$kind` occupies —
+/// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8's normalised condition,
+/// which `nvs_stdlib::db`'s `statement_failure` fills through
+/// [`Ctx::raise_with_slot`].
+///
+/// Equal to [`ISSUES_SLOT`] and derived the same way rather than from it: the
+/// two classes are unrelated siblings that each declare one property beyond the
+/// root's four, so both first own slots land immediately after [`SLOT_COUNT`],
+/// and writing either in terms of the other would make an accident look like a
+/// rule. `nvs_hir::errors::KIND_SLOT` is the compiler's copy, held to this one
+/// by `nvs-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
+pub const KIND_SLOT: usize = SLOT_COUNT;
+
 /// Which of [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
 /// § 10's classes a runtime helper's failure lands in.
 ///
@@ -231,26 +244,29 @@ impl Thrown {
         }
     }
 
-    /// [`Self::new`], plus the one property a class below the root declares:
-    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's `issues` on
-    /// `ParseError`, which is filled with `issues` — or with an empty array
-    /// when a thrower has none to report, since the property is declared
-    /// `array<Issue>` rather than `?array<Issue>` and reading `null` out of it
-    /// would be a type the checker ruled out.
+    /// [`Self::new`], plus one property a class below the root declares:
+    /// `extra` names the slot and the value, and the value is written there
+    /// when the descriptor is wide enough to have it.
     ///
+    /// A thrower with nothing to put in the slot passes `None`, and the class
+    /// then seeds its own: `ParseError::$issues` becomes an empty array, since
+    /// the property is declared `array<Issue>` rather than `?array<Issue>` and
+    /// reading `null` out of it would be a type the checker ruled out.
     /// `thrown` rather than the descriptor's name decides that: a name compare
     /// on every promotion would put a string equality on the throw path, and a
     /// user's `class ConfigError extends Throwable { public int $code; }` also
-    /// has a fifth slot — one that must **not** be written here.
+    /// has a fifth slot — one that must **not** be seeded here. An `extra` that
+    /// names a slot is the caller's own statement about a class it resolved,
+    /// so it is written without consulting `thrown` at all.
     ///
-    /// Takes over `issues`' reference; releases it if there is no slot to put
-    /// it in (a null or too-narrow descriptor, which is
+    /// Takes over the value's reference; releases it if there is no such slot
+    /// to put it in (a null or too-narrow descriptor, which is
     /// [`Ctx::set_runtime_error_class`]'s "nothing installed" case).
     ///
     /// # Safety
     ///
     /// `class` must be null or refer to a live class descriptor that outlives
-    /// every instance made from it, and `issues` must be a value whose
+    /// every instance made from it, and `extra`'s value must be one whose
     /// reference is being transferred here.
     #[must_use]
     #[expect(
@@ -262,7 +278,7 @@ impl Thrown {
         class: *const ClassDesc,
         thrown: ThrownClass,
         message: &str,
-        issues: Option<Value>,
+        extra: Option<(usize, Value)>,
     ) -> Self {
         let count = if class.is_null() {
             0
@@ -273,14 +289,14 @@ impl Thrown {
             }
         };
         if count < SLOT_COUNT {
-            if let Some(issues) = issues {
+            if let Some((_, value)) = extra {
                 #[expect(
                     unsafe_code,
                     reason = "the caller transferred this reference and there is \
                               no slot to hand it on to"
                 )]
                 unsafe {
-                    issues.release();
+                    value.release();
                 }
             }
             return Self::none();
@@ -293,20 +309,22 @@ impl Thrown {
         obj.set_field(MESSAGE_SLOT, Value::str(NvsStr::new(message.as_bytes())));
         obj.set_field(BACKTRACE_SLOT, Value::array(NvsArray::new()));
         obj.set_field(LOCATION_SLOT, Value::str(NvsStr::new(b"")));
-        if thrown == ThrownClass::Parse && count > ISSUES_SLOT {
-            obj.set_field(
-                ISSUES_SLOT,
-                issues.unwrap_or_else(|| Value::array(NvsArray::new())),
-            );
-        } else if let Some(issues) = issues {
-            #[expect(
-                unsafe_code,
-                reason = "the caller transferred this reference and this class \
-                          declares no slot to hand it on to"
-            )]
-            unsafe {
-                issues.release();
+        match extra {
+            Some((slot, value)) if count > slot => obj.set_field(slot, value),
+            Some((_, value)) => {
+                #[expect(
+                    unsafe_code,
+                    reason = "the caller transferred this reference and this class \
+                              declares no slot to hand it on to"
+                )]
+                unsafe {
+                    value.release();
+                }
             }
+            None if thrown == ThrownClass::Parse && count > ISSUES_SLOT => {
+                obj.set_field(ISSUES_SLOT, Value::array(NvsArray::new()));
+            }
+            None => {}
         }
         Self {
             ptr: obj.into_raw(),

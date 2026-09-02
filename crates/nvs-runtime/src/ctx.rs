@@ -3371,31 +3371,38 @@ impl Ctx {
         self.pending = Some(Pending::Thrown(thrown));
     }
 
-    /// Records a `THROWN` of `class` carrying `message` and
-    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's `issues`
-    /// list — [`crate::Fault::ThrownWithIssues`]'s one destination.
+    /// Records a `THROWN` of `class` carrying `message`, with `value` written
+    /// into slot `slot` of the object it builds —
+    /// [`crate::Fault::ThrownWithSlot`]'s one destination, and so the whole of
+    /// how a native member fills a property below `Throwable`'s four
+    /// (`ParseError::$issues`, `Core\Db\DbError::$kind`).
     ///
     /// The object is built **here** rather than left as a [`Pending::Message`]
     /// to be promoted later, which is what keeps the pending state free of an
     /// owned reference: every path that replaces or discards a pending failure
     /// would otherwise have to release one, and exactly one of those paths
-    /// being missed is the shape a refcount leak takes. Only a member that
-    /// actually recorded an issue reaches this, so the eager allocation is on
+    /// being missed is the shape a refcount leak takes. Only a member with
+    /// something to put in the slot reaches this, so the eager allocation is on
     /// a path that has already allocated.
+    ///
+    /// A `class` whose descriptor is too narrow for `slot` releases `value` and
+    /// throws without it — [`Thrown::new_as`] owns that, and it is the same
+    /// "nothing installed" case a null descriptor is.
     ///
     /// # Safety
     ///
-    /// `issues` must be a value whose reference is being transferred here.
+    /// `value` must be a value whose reference is being transferred here.
     #[expect(
         unsafe_code,
         reason = "the value's reference and the installed descriptor's liveness \
                   are both obligations the signature cannot express"
     )]
-    pub unsafe fn raise_with_issues(
+    pub unsafe fn raise_with_slot(
         &mut self,
         class: ThrownClass,
         message: &str,
-        issues: crate::Value,
+        slot: usize,
+        value: crate::Value,
     ) {
         let desc = self.error_desc(class);
         #[expect(
@@ -3404,7 +3411,7 @@ impl Ctx {
                       context holds, so it outlives the instance; the value's \
                       reference is forwarded"
         )]
-        let thrown = unsafe { Thrown::new_as(desc, class, message, Some(issues)) };
+        let thrown = unsafe { Thrown::new_as(desc, class, message, Some((slot, value))) };
         self.raise(thrown);
     }
 
