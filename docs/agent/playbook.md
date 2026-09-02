@@ -1654,6 +1654,15 @@ is why" — is this file.
   comment cites: a check citing § 6 under a crate that only implements § 9 is filed one layer down.
   Read the cited section before writing the test, and split the check rather than moving all of it —
   half of that list really was `nvs-db`'s.
+- **When a `loop-goal.toml` check names a test the tree pins under a different name, grep the *drafted*
+  name before deciding which side to fix — a `///` in a third file may already have voted.** Stage 5's
+  check named `mariadb_uses_its_own_code_table_and_not_mysqls`, which `crates/nvs-db/src/maria.rs` had
+  landed as `mariadbs_own_codes_normalise_where_mysqls_table_has_nothing`; the obvious fix is to correct
+  the check, and it is the wrong one here, because `crates/nvs-db/tests/handshake.rs:828` links the
+  drafted name too. Two references to one definition means renaming the *test* is the one edit that
+  leaves nothing dangling, where correcting the check leaves a doc link pointing at a test that does not
+  exist — and a broken link in a `///` is invisible to every gate this repo runs. One
+  `grep -rn '<drafted name>' crates/` is the whole decision.
 
 ## Running things
 
