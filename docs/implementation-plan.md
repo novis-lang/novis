@@ -44,9 +44,9 @@
 > **Open now:** **Goal 5 of the parity program — `Core\Db`, M8 — is running.**  **`crates/nvs-db`'s
 > PostgreSQL is whole**, § 3's upgrade through § 13's reset.  § 9's whole type map decodes over it.
 > § 7's `BEGIN`/`COMMIT`/`ROLLBACK` is on it, nesting as a `SAVEPOINT` to any depth. **`Core\Db` has
-> opened in `nvs-stdlib`**: § 18's `connect` over a request-held, memoized connection, `inList`,
-> `quoteIdentifier` and § 4's `query`, `execute` and `executeMany` ,  **`open` is live** over a
-> shape parameter. **§ 7's `transaction` is on both classes with all three options, retrying either
+> opened in `nvs-stdlib`**: § 18's `connect` over a memoized connection, `inList`, `quoteIdentifier`
+> and § 4's `query`, `execute` and `executeMany` ,  **`open` is live** over a shape parameter whose
+> arms select. **§ 7's `transaction` is on both classes with all three options, retrying either
 > conflict, no backoff** and a refusal throws `Db\DbError` carrying four of § 8's five; `Rows` is
 > generic at `T` and **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and § 9's five structured
 > columns build the `Core\Time`/`Core\Uuid` instance `Row`'s typed readers and a `#[Db\Derive]`
@@ -60,7 +60,7 @@
 > § 3's park, § 7, § 8 and § 13's pool. **Stage 9 is § 10's three diagnostics, ADR 0024 § 4's pair,
 > and § 11 whole: a `query` event per statement and a `slow_query` log line.** **ADR 0133's carrier
 > landed**: `Core\Html::escape` answers `Core\Html\Markup`, `toSource` is the one way out, and `.`,
-> `.=`, interpolation and `as string` refuse one. **Goals 1-4 and M4 are closed**. Conformance 1431,
+> `.=`, interpolation and `as string` refuse one. **Goals 1-4 and M4 are closed**. Conformance 1436,
 > differential 250, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized

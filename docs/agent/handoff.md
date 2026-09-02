@@ -2,62 +2,46 @@
 
 ## State
 
-**`Core\Db::open` is live, and `Db\Settings` is the first shape parameter in the registry.**
-`nvs_stdlib::db::SETTINGS` is ADR 0135 § 1's two arms — the server arm's ten fields, the SQLite
-arm's `path` — and § 3's merged twelve slots arrive at `nvs_core_db_open` as one ordinary
-`args: [12]`. ADR 0067 § 3's asymmetry is now stated on both sides: `connect` pre-approves an
-operator-written endpoint through `address_of`, and `open` asks `db.open` about the host and then
-puts the resolved address through ADR 0058 § 3's table. `nvs_runtime::capability::pinned_address`
-is that second half split out of `pin_host`, so the range rule has one home and `open` does not
-have to demand `net.connect` as well.
+**ADR 0135 § 2's arm selection is the checker's rule.** `Ty::CoreShape` carries a
+`CoreShape { fields, arms }` — § 3's merged list, which is the ABI, beside § 2's arms, which are
+what a written literal is held to. `nvs_types::expr::args` checks in two passes: every value
+against its merged slot (the union of the arms' declarations, so a value some arm accepts is not
+refused before its arm is known), then `select_arm` picks the arm that accepts on keys *and*
+values, then `report_against_arm` reports against that one. Where no arm accepts, the arm with the
+fewest mistakes is the one named, which is what makes `{driver: Sqlite, path, host}` read as
+"`host` is not a key of this form" rather than as the server arm's four missing keys. No new
+diagnostic code: E0454 for a key outside the selected arm, E0402 for one it requires, E0401 for a
+value it refuses — and the E04xx/E07xx bands are both full, so reuse was forced as well as right.
 
-**Two enums § 18 declares are registered for the first time**: `Core\Db\Driver`, whose cases are
-what make the two arms disjoint, and `Core\Db\Tls`, whose weaker three are **refused at the call**
-rather than honoured — this runtime opens every TCP connection at `VerifyFull` and `settings_tls`
-words that refusal.
+**A bag is the one-arm case and takes the same path**, its single arm being the merged list
+itself, so nothing about ADR 0063 R2 changed. `nvs-ir` still flattens the merged list alone: which
+arm was selected is a checking question, and § 3's ABI is one argument per merged slot either way.
 
-**Two halves of `open` are still owed and both are in `nvs_stdlib::db`'s known gap 1.** It files
-its connection with no lease, so § 13's pool never sees it: that section's key is a hash of every
-settings field and `nvs_runtime::pool::Ticket::for_block` takes a block *name*. Within a request
-§ 2's memo does hold, keyed on `settings_key`'s hash under a NUL-prefixed name no config block can
-have. And ADR 0135 § 2's *exactly one arm accepts it* is not the checker's rule: a literal is
-checked against the **merged** list, so `E0402` fires only for a key **every** arm requires
-(`driver`), and a missing `host` reaches the helper as a `Tag::Null` — `settings_text` throws a
-catchable `RuntimeError` there rather than a `FATAL`, which is the honest reading until § 2 lands.
+**`nvs_stdlib::db`'s known gap 1 is now one half, not two**: `open` still files its connection
+with no lease, because § 13 keys an `open` pool on a hash of every settings field and
+`nvs_runtime::pool::Ticket::for_block` takes a block *name*. Within a request § 2's memo holds.
 
 ## Next group
 
-**ADR 0135 § 2's arm selection, then `open`'s pool ticket. File set:
-`crates/nvs-types/src/ty.rs` with `crates/nvs-types/src/core_lib.rs` and
-`crates/nvs-types/src/expr/args.rs`, then `crates/nvs-runtime/src/pool.rs` with
-`crates/nvs-stdlib/src/db.rs`.** The first two items are one file set and one build; the third is
-its own.
+**§ 13's pool for `open`, then the two arms' own conformance depth. File set:
+`crates/nvs-runtime/src/pool.rs` with `crates/nvs-stdlib/src/db.rs`.** The first item is the
+group's weight; the second is over landed work and shares the second file.
 
-- [ ] **Arm selection: check a literal against one arm, not the merged list** (0135 § 2).
-      `crates/nvs-types/src/ty.rs:292` is `Ty::CoreShape` and its known gap;
-      `crates/nvs-types/src/core_lib.rs:628` is `shape_fills`, which is where the arms are
-      flattened and so where the per-arm list has to survive to. "Exactly one arm accepts it" —
-      zero accepting is the call site's error, two is a registry bug the static test already
-      refuses.
-- [ ] **The two refusals that rule makes writable, as `.nvst` cases** (0135 § 2, 0067 § 3).
-      A `host` beside `Driver::Sqlite` is a compile error, and a server literal missing `host` is
-      `E0402` rather than the runtime throw `crates/nvs-stdlib/src/db.rs:3100`'s `settings_text`
-      words today. Both are one edit away from
-      `tests/conformance/core/db-open-refuses-a-settings-literal-that-names-no-driver.nvst`.
-- [ ] **§ 13's pool for `open`, keyed on the settings hash** (0067 § 13).
-      `crates/nvs-runtime/src/pool.rs:152` is `Ticket::for_block`, which needs a sibling taking a
-      key rather than a block name; `crates/nvs-stdlib/src/db.rs:3129` is `settings_key`, already
-      the hash § 13 asks for, and `crates/nvs-stdlib/src/db.rs:3281` is the `None` lease to
-      replace.
+- [ ] **A ticket keyed on the settings hash, so `open` pools** (0067 § 13).
+      `crates/nvs-runtime/src/pool.rs:1` is the pool and `Ticket::for_block`'s block-name key;
+      `crates/nvs-stdlib/src/db.rs:2995` is the merged-slot list `settings_key` hashes, and
+      `crates/nvs-stdlib/src/db.rs:64` is known gap 1, which this closes. The key is § 2's — the
+      hash, scoped to the configuration generation it was read from, exactly as a named block's is.
+- [ ] **`{shared: false}` still draws from and returns to that pool** (0067 § 13).
+      `crates/nvs-stdlib/src/db.rs:64` — § 13 says the option bypasses memoization within the
+      request, never pooling across requests, and nothing asserts the second half.
+- [ ] **`open`'s reset is the one a failed reset destroys** (0067 § 13).
+      `crates/nvs-stdlib/src/db.rs:64` — a `.nvst` case over the connection an `open` returned,
+      beside the `connect` cases that already hold it.
 
 ## Backlog
 
-- `Core\Db\Tls`'s weaker three are refused, not honoured — if a `Tls` mode is ever to mean
-  something, it is `nvs_db::PgTarget`/`MySqlTarget` that gain the knob (`nvs_stdlib::db::TLS`).
-- MariaDB and SQL Server settings reach `open`'s refusal, not a handshake — `nvs_stdlib::db` known
-  gap 2.
-- `stream`/`streamAs` are the last two § 18 members with no row
-  (`crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`).
-- `Core\Db::open`'s `timeZone` is resolved to a fixed offset at open time
-  (`crate::time::zone_offset_now`); a session that outlives a DST change keeps the offset it
-  opened with, as a `[db.<name>]` block's own `time_zone` already does.
+- `Core\Db::open`'s SQLite arm opens no file — `nvs_stdlib::db` known gap 2.
+- `queryAs`'s body over an `open`ed connection — `nvs_stdlib::db` known gap 8.
+- `stream`/`streamAs`, `close` and § 18's three readonly properties — `nvs_stdlib::db`'s `CONNECTION`.
+- Spec § 18's `open` row and its Q column against the landed arms — docs/spec/01-core-library.md.

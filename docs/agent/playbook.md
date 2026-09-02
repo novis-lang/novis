@@ -1635,6 +1635,15 @@ is why" — is this file.
   the one row for the ADR you just added, directly after the highest-numbered row. The other two findings a
   new ADR raises (`no bullet in ground-rules.md`, `no row in README.md § *Where to look*`) are hand edits
   too and say so plainly; only this one names a tool that looks like it will do the work.
+- **A `## plan-edit:` `--- old` fragment cannot span a run of two spaces in the field, and
+  the refusal reads as if the words were wrong.** `session.py` runs its fragments through
+  `normalize` — `" ".join(text.split())` — but `plan.py`'s `find_fields` joins the field's
+  *lines* and leaves whatever spacing sits inside one, so `Open now`'s stray `` `executeMany` ,
+  **`open` `` keeps its double space and no normalized quote of that run can match. The tell is
+  a refusal quoting your fragment back word for word as the thing it could not find. Quote a
+  shorter run on one side of the anomaly, or two runs as two pairs, rather than re-reading the
+  field for a typo you did not make: `python tools/plan.py --get 'Open now'` prints the joined
+  field, and the double space is invisible in it.
 
 ## Running things
 
