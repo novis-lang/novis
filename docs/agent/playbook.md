@@ -1532,6 +1532,10 @@ is why" — is this file.
   *nothing else* — the two windows are silently dropped rather than printed above them, so it reads
   as "those files have no such region" and costs a second call to re-issue them. Ask for anchors in
   their own call, or read the windows in their own; do not mix the two modes.
+- `python tools/peek.py --locate` cannot be mixed with read targets in one call. `--locate` takes
+  every remaining word as a symbol, so `peek.py a.rs:120-160 --locate foo` prints locations for
+  `foo` and never reads `a.rs` — it does not warn, it just answers the smaller question. Ask for
+  bodies in one call and anchors in another.
 
 ## Running things
 

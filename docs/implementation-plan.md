@@ -52,8 +52,8 @@
 > 18's `connect` over a request-held connection, `inList`, `quoteIdentifier` and § 4's `query`,
 > `execute` and `executeMany` — bound in § 5's rewriter's order — and § 18's readers: all six of
 > `Rows`', all fourteen of `Row`, `Write`'s three, and `Db\Column`'s three. `open` waits on a
-> shape-parameter type. **§ 7's `transaction` is on both classes with its options bag, `retries`
-> excepted** and `Core\Db\Isolation` and `ColumnType` are registered; `nvs.toml` now opens
+> shape-parameter type. **§ 7's `transaction` is on both classes with all three options, retried
+> with no backoff** and `Core\Db\Isolation` and `ColumnType` are registered; `nvs.toml` now opens
 > `[db.main]` and grants `db.connect` to the two fixtures; `Rows` is generic at `T` and
 > **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and § 9's five structured columns build the
 > `Core\Time`/`Core\Uuid` instance both `Row`'s four typed readers and a `#[Db\Derive]` field answer

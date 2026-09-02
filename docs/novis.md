@@ -17303,7 +17303,7 @@ Runs `$fn` inside a transaction and answers whatever it answered: returning comm
 | `$fn` | `callable` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. |
 | `{isolation: …}` | `Core\Db\Isolation` (default `null`) | What this transaction may see of the work running beside it. Left out, it runs at the level the server was configured with. A nested call may not ask for one at all — the level belongs to the whole transaction, not to a savepoint inside it. |
 | `{readOnly: …}` | `bool` (default `false`) | Refuses writes for the length of the transaction, which lets the server plan for a reader. False by default, and a nested call may not ask for it for the reason `isolation` may not. |
-| `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure may re-run `$fn`. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried. |
+| `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure the commit reports may re-run `$fn`, outermost transactions only. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside `$fn` raised is thrown rather than re-run. |
 
 **Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
 
@@ -17409,7 +17409,7 @@ Runs `$fn` inside a transaction and answers whatever it answered: returning comm
 | `$fn` | `callable` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. |
 | `{isolation: …}` | `Core\Db\Isolation` (default `null`) | What this transaction may see of the work running beside it. Left out, it runs at the level the server was configured with. A nested call may not ask for one at all — the level belongs to the whole transaction, not to a savepoint inside it. |
 | `{readOnly: …}` | `bool` (default `false`) | Refuses writes for the length of the transaction, which lets the server plan for a reader. False by default, and a nested call may not ask for it for the reason `isolation` may not. |
-| `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure may re-run `$fn`. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried. |
+| `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure the commit reports may re-run `$fn`, outermost transactions only. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside `$fn` raised is thrown rather than re-run. |
 
 **Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
 

@@ -123,22 +123,36 @@
 //!    `crate::json`'s reason, and the refusals carry § 5's `issues` on a
 //!    `ParseError` because gap 4's `Db\DbError` is not in the tree to carry
 //!    them.
-//! 9. **`transaction` declares `{retries: n}` and re-runs nothing.** Two of the
-//!    three things § 7's rule needs are here — [`ISOLATION`] and `readOnly`
-//!    reach the `BEGIN`, and [`nvs_db::DbErrorKind::is_retryable`] already
-//!    answers which two failures may be re-run, that being the half only a
-//!    driver can answer. What is missing is the *waiting*: § 7 specifies
-//!    exponential backoff with jitter that suspends the coroutine rather than
-//!    blocking the core, and `nvs-runtime`'s own known gap 3 is that a helper
-//!    cannot suspend yet. Sleeping on `nvs_host::blocking` instead would keep
-//!    the core free but hold a pool worker for the backoff, which is a
-//!    different bargain than the one § 7 struck and not one to make by
-//!    accident. The declared default of 0 is what a call that does not ask for
-//!    the option already gets, so the gap is reached only by a call site that
-//!    wrote `{retries: n}` and is answered with the conflict itself — weaker
-//!    than § 7, never wrong about what happened. Landing it also wants a
-//!    `depth` reader on [`nvs_db::PgConn`], since § 7 retries outermost
-//!    transactions only and nothing outside that crate can tell.
+//! 9. **`transaction` re-runs the closure with no wait between attempts**, and
+//!    that is a deliberate narrowing of § 7 rather than an omission. Everything
+//!    else the rule needs is here — [`ISOLATION`] and `readOnly` reach the
+//!    `BEGIN`, [`nvs_db::PgConn::depth`] says which call is the outermost one,
+//!    and [`nvs_db::DbErrorKind::is_retryable`] names the two failures that may
+//!    be re-run, that being the half only a driver can answer. What is missing
+//!    is the *backoff*: § 7 specifies exponential backoff with jitter that
+//!    **suspends the coroutine**, and `nvs-runtime`'s own known gap 3 is that a
+//!    helper cannot suspend yet.
+//!
+//!    Of the two ways to wait without a yielder, neither is § 7's and the
+//!    cheaper one is no wait at all. Sleeping on the core is out — that is the
+//!    one thing § 7 forbids. Sleeping on `nvs_host::blocking` keeps the core
+//!    free but parks a pool worker for the whole backoff, and a retry storm is
+//!    by definition many requests waiting at once: the conflicts that make
+//!    retries fire are correlated, so the pool every other request needs for
+//!    real blocking work — a `Core\Process` wait, a file read — is drained by
+//!    calls doing nothing. That is priority 3 paid across the whole core to buy
+//!    one request's politeness, and it is the bargain § 7 explicitly did not
+//!    strike. Retrying immediately spends nothing shared: PostgreSQL reports a
+//!    deadlock or a serialization failure only once it has already resolved the
+//!    conflict, so the second attempt is not spinning against a lock still
+//!    held. What it loses is the de-correlation the jitter bought, and the
+//!    bound on that is `retries` itself, which defaults to 0.
+//!
+//!    **A conflict raised by a statement *inside* the closure is still not
+//!    retried**, because gap 4 is that a refusal reaches Novis as a `Fault`
+//!    with no kind on it; what this reads is the commit's own `io::Error`,
+//!    which is where PostgreSQL surfaces a `REPEATABLE READ`/`SERIALIZABLE`
+//!    conflict. Giving `Db\DbError` its `kind` closes both gaps at once.
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 
@@ -527,15 +541,15 @@ const TRANSACTION_OPTIONS: &[CoreOption] = &[
 /// row is `Core\Db\Queryable`'s and both [`CONNECTION`] and [`TRANSACTION`]
 /// carry it, a nested call on the second being the savepoint § 7 asks for.
 ///
-/// **Two of [`TRANSACTION_OPTIONS`]' three reach the `BEGIN` and the third does
-/// not yet.** [`nvs_db::PgConn::begin`] takes the level and the read-only flag
-/// and renders the command from them, and refuses a *nested* call that carries
-/// either rather than running it at the outer transaction's level. `retries` is
-/// declared here and read by nothing: the re-run § 7 asks for backs off between
-/// attempts by suspending the coroutine, and `nvs-runtime` has no yielder to
-/// suspend it with. This module's known gap 9 carries what is left, and the
-/// declared default of 0 is what every call that does not ask for the missing
-/// half already gets.
+/// **Two of [`TRANSACTION_OPTIONS`]' three reach the `BEGIN` and the third is
+/// the loop around it.** [`nvs_db::PgConn::begin`] takes the level and the
+/// read-only flag and renders the command from them, and refuses a *nested*
+/// call that carries either rather than running it at the outer transaction's
+/// level. `retries` is read by the helper instead, which re-runs the closure on
+/// a conflict the driver says may be re-run — with no wait between attempts,
+/// since § 7's backoff suspends the coroutine and `nvs-runtime` has no yielder.
+/// This module's known gap 9 is that narrowing and why it is the safe half of
+/// it; the declared default of 0 is what every call that does not ask gets.
 const TRANSACTION_ROW: CoreMethod = CoreMethod {
     name: "transaction",
     names: &["fn"],
@@ -1573,9 +1587,11 @@ const TRANSACTION_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "retries",
-            desc: "How many times a deadlock or a serialization failure may re-run `$fn`. Zero by \
-                   default, because a closure with side effects should not be re-run without \
-                   being asked for; nothing else is ever retried.",
+            desc: "How many times a deadlock or a serialization failure the commit reports may \
+                   re-run `$fn`, outermost transactions only. Zero by default, because a closure \
+                   with side effects should not be re-run without being asked for; nothing else \
+                   is ever retried, there is no wait between attempts, and a conflict a statement \
+                   inside `$fn` raised is thrown rather than re-run.",
             shape: &[],
         },
     ],
@@ -2052,11 +2068,11 @@ const TIMEOUT_ARG: usize = 2;
 /// the row's one positional parameter, then [`TRANSACTION_OPTIONS`] flattened
 /// in declaration order.
 ///
-/// `retries` is slot 4 and has no constant because nothing reads it: this
-/// module's known gap 9 is the re-run that would.
 const ISOLATION_ARG: usize = 2;
 /// See [`ISOLATION_ARG`].
 const READ_ONLY_ARG: usize = 3;
+/// See [`ISOLATION_ARG`].
+const RETRIES_ARG: usize = 4;
 
 /// The instant the handshake must be done by, or `None` for a call that named
 /// no `timeout`.
@@ -3292,6 +3308,15 @@ nvs_runtime::nvs_helper! {
     /// driver's question, and [`TRANSACTION_OPTIONS`] owns what their defaults
     /// mean.
     ///
+    /// **`{retries: n}` goes around the whole block and not inside it.** Each
+    /// attempt gets its own `BEGIN` and its own scope object, because the one
+    /// above is closed and discarded on every path already — a re-run that
+    /// reused either would be handing the closure a `$tx` that is refusing.
+    /// What is re-run is the *commit's* conflict: a deadlock or serialization
+    /// failure raised by a statement inside the closure reaches here as a
+    /// `Fault` with no kind on it, which is this module's known gap 4, and gap 9
+    /// carries that and the missing backoff together.
+    ///
     /// **Rolling back after a throw discards its own failure.** The exception
     /// the closure raised is what the request is about, and a connection whose
     /// `ROLLBACK` was refused is one § 13's reset destroys rather than pools —
@@ -3309,64 +3334,103 @@ nvs_runtime::nvs_helper! {
                 args[READ_ONLY_ARG].tag_byte()
             ))
         })?;
-        postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?
-            .begin(isolation, read_only)
-            .map_err(|refused| statement_failure(TRANSACTION_MEMBER, &block, &refused))?;
+        // As `readOnly`: the option is declared `uint` and defaults to 0.
+        let mut left = args[RETRIES_ARG].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{TRANSACTION_MEMBER} expected a `uint` for `retries`, got tag {}",
+                args[RETRIES_ARG].tag_byte()
+            ))
+        })?;
 
-        // The block name is handed on rather than looked up again: a
-        // transaction refuses under the same `[db.<name>]` its connection does,
-        // and the slot is the only place that name lives.
-        let scope = crate::instance::build(
-            &TRANSACTION,
-            [
-                Value::uint(key),
-                owned(block),
-                Value::bool(true),
-                Value::null(),
-            ],
-        );
-        let outcome = nvs_runtime::call_closure(ctx, args[1], &[scope]);
+        loop {
+            // § 7 retries **outermost transactions only**, and the depth before
+            // the `BEGIN` is the only thing that says which this call is —
+            // re-running a nested closure would re-run it inside an outer
+            // transaction the conflict has already aborted.
+            let outermost = postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?.depth() == 0;
+            postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?
+                .begin(isolation, read_only)
+                .map_err(|refused| statement_failure(TRANSACTION_MEMBER, &block, &refused))?;
 
-        // Closed before the outcome is acted on, so that a `$tx` the closure
-        // stored somewhere is already refusing by the time this call returns —
-        // and closed on every path, which is why it is not inside a branch.
-        let receiver = crate::instance::receiver(scope, &TRANSACTION, "transaction")?;
-        crate::instance::set_slot(receiver, SCOPE_AT, Value::bool(false));
-        let held = crate::instance::slot(receiver, REASON_AT);
-        let abandoned = held.as_text().map(str::to_owned);
-        discard(scope);
+            // The block name is handed on rather than looked up again: a
+            // transaction refuses under the same `[db.<name>]` its connection
+            // does, and the slot is the only place that name lives.
+            let scope = crate::instance::build(
+                &TRANSACTION,
+                [
+                    Value::uint(key),
+                    owned(block),
+                    Value::bool(true),
+                    Value::null(),
+                ],
+            );
+            let outcome = nvs_runtime::call_closure(ctx, args[1], &[scope]);
 
-        let answered = match outcome {
-            Ok(value) => value,
-            Err(fault) => {
-                if let Ok(postgres) = postgres_of(ctx, key, &block, TRANSACTION_MEMBER) {
-                    let _ = postgres.roll_back();
+            // Closed before the outcome is acted on, so that a `$tx` the closure
+            // stored somewhere is already refusing by the time this call returns
+            // — and closed on every path, which is why it is not inside a
+            // branch. An attempt that retries gets its own scope object below,
+            // for the same reason it gets its own `BEGIN`.
+            let receiver = crate::instance::receiver(scope, &TRANSACTION, "transaction")?;
+            crate::instance::set_slot(receiver, SCOPE_AT, Value::bool(false));
+            let held = crate::instance::slot(receiver, REASON_AT);
+            let abandoned = held.as_text().map(str::to_owned);
+            discard(scope);
+
+            let answered = match outcome {
+                Ok(value) => value,
+                Err(fault) => {
+                    if let Ok(postgres) = postgres_of(ctx, key, &block, TRANSACTION_MEMBER) {
+                        let _ = postgres.roll_back();
+                    }
+                    return Err(fault);
                 }
-                return Err(fault);
-            }
-        };
-
-        let closed = postgres_of(ctx, key, &block, TRANSACTION_MEMBER).and_then(|postgres| {
-            let ended = if abandoned.is_some() {
-                postgres.roll_back()
-            } else {
-                postgres.commit()
             };
-            ended.map_err(|refused| statement_failure(TRANSACTION_MEMBER, &block, &refused))
-        });
 
-        // On two of the three paths the closure's answer is not this call's, and
-        // this frame owns the only reference to it.
-        match (abandoned, closed) {
-            (_, Err(fault)) => {
-                discard(answered);
-                Err(fault)
+            // The driver's own error rather than the `Fault` it renders to: the
+            // retry rule branches on § 8's kind, which only [`nvs_db`] can put
+            // there and only this shape still carries.
+            let closed = match postgres_of(ctx, key, &block, TRANSACTION_MEMBER) {
+                Ok(postgres) => {
+                    if abandoned.is_some() {
+                        postgres.roll_back()
+                    } else {
+                        postgres.commit()
+                    }
+                }
+                Err(fault) => {
+                    discard(answered);
+                    return Err(fault);
+                }
+            };
+
+            // On two of the three paths the closure's answer is not this call's,
+            // and this frame owns the only reference to it.
+            let refused = match closed {
+                Ok(()) => {
+                    return match abandoned {
+                        Some(reason) => {
+                            discard(answered);
+                            Err(Fault::thrown_as(ThrownClass::DbRolledBack, reason))
+                        }
+                        None => Ok(answered),
+                    };
+                }
+                Err(refused) => refused,
+            };
+            discard(answered);
+
+            // § 7's `{retries: n}`, and the four conditions are all of it: an
+            // outermost transaction, an attempt left, nothing that asked to be
+            // rolled back, and a conflict the driver says may be re-run. The
+            // wait § 7 also asks for is this module's known gap 9.
+            let conflicted = nvs_db::ServerError::of(&refused)
+                .is_some_and(|server| server.kind.is_retryable());
+            if outermost && left > 0 && abandoned.is_none() && conflicted {
+                left -= 1;
+                continue;
             }
-            (Some(reason), Ok(())) => {
-                discard(answered);
-                Err(Fault::thrown_as(ThrownClass::DbRolledBack, reason))
-            }
-            (None, Ok(())) => Ok(answered),
+            return Err(statement_failure(TRANSACTION_MEMBER, &block, &refused));
         }
     }
 }
