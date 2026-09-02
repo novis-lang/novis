@@ -2,65 +2,72 @@
 
 ## State
 
-**ADR 0067 § 13's configuration half is on disk.** `[db.<name>.pool]`'s four bounds and the
-`pool = false` switch are declared in `crates/nvs-config/src/tree.rs:567` and resolved at boot by
-`crate::db::pool_for` (`crates/nvs-config/src/db.rs:162`), which `crate::db::validate`
-(`:142`) runs over every block from `resolve.rs:307`. Nothing builds a pool yet: the bounds have no
-reader outside that check, and the next two slices are what give them one.
+**ADR 0067 § 13's pool is on disk end to end.** `crates/nvs-runtime/src/pool.rs` is the per-core
+store — a `thread_local!` `Vec`, so the acquire path takes no lock — released into from `Ctx`'s own
+`Drop` (`crates/nvs-runtime/src/ctx.rs:1242`) and drawn from by `Core\Db::connect` through
+`warm_connection` (`crates/nvs-stdlib/src/db.rs:3096`). § 13's PostgreSQL reset was already landed
+and needed no work: `reset_session` (`crates/nvs-db/src/pg.rs:2958`) is six simple queries in one
+pipelined batch, and `PgConn::reset` takes `self` **by value**, which is destroy-on-failure itself —
+a caller gets a connection back only where every command succeeded.
 
-**One key in two shapes, and the `Deserialize` is hand-written for it.** § 13 writes `pool = false`
-and `[db.<name>.pool] max = 16` against the same TOML key, so `tree::Pool` is a switch-or-bounds
-enum. It is not `#[serde(untagged)]`: untagged buffers through `serde`'s `Content` and reports *data
-did not match any variant* for a typo inside the table, throwing away the unknown-key refusal
-`tree.rs`'s own module doc calls its security-relevant half. The visitor at `tree.rs:576` and
-`crates/nvs-config/tests/db.rs`'s last case are that decision's two homes.
+**The reset is at the acquire end, not the release end**, and `pool.rs`'s module doc § *Where the
+reset is* is that decision's home: release happens inside `Drop`, where no driver may do I/O, and a
+`Ctx` is also dropped by a CLI and by a test with neither a core to hand back nor a deadline to wait
+against. What that costs is stated there — a pooled connection waits carrying session state, never
+an open transaction (`HeldConnection::is_poolable` refuses that at release), until the next acquire
+clears it.
 
-**The default set is § 13's own example** — `max = 16`, `idle = 2`, `lifetime = 30m`,
-`acquire = 5s`, transcribed into `PoolBounds::DEFAULT` (`crates/nvs-config/src/db.rs:90`) rather
-than chosen, so ADR 0074's finite-with-nothing-configured is a copy and not a judgement. `OFF` is
-that set with `enabled: false`, deliberately still finite, so a caller that consults a bound on an
-off pool reads a number rather than a zero.
+**The pool key is generation-scoped, and § 13 now says so.** `Ticket::for_block`
+(`crates/nvs-runtime/src/pool.rs:81`) keys on the snapshot's address plus the block name, and the
+ticket holds that `Arc<Snapshot>` so the address cannot be reused under it. Without the scoping, ADR
+0078 § 1's reload could publish a `[db.main]` naming a different database user and the pool would
+hand the new generation's request the old one's connection — exactly the sharing § 13 forbids.
 
-**Three values parse and are still refused, each `E0601`**: `max = 0` (helps toward `pool = false`,
-§ 13's one spelling of off), an `idle` above `max`, and a `lifetime` of `0` or `false`. `acquire = 0`
-is *accepted* and means never wait — its field doc says so. That split is `pool_for`'s `# Errors`.
+**`max` and `acquire` are the two bounds nothing reads yet**, and `pool.rs`'s module doc § *The two
+bounds this module does not read yet* says what a core does meanwhile: it opens as many connections
+as its requests ask for, as it did before the pool. They are a ceiling on *live* connections and the
+wait at it, and a wait needs the core's scheduler rather than a `Vec`. `idle` and `lifetime` are
+honoured, and `enabled` is § 13's `pool = false`.
 
 **Unchanged and still true.** The driver's acceptance line names `examples/queue.nvs` — Stage 8's
 unlanded `Core\Queue` (ADR 0084), not a regression; its `[[check]]` is
 `docs/agent/loop-goal.toml:2927`. § 7's backoff is still blocked on `nvs-runtime`'s known gap 3
-(`crates/nvs-stdlib/src/db.rs:139` argues it — do not re-derive). Stage 5's
+(`crates/nvs-stdlib/src/db.rs:149` argues it — do not re-derive). Stage 5's
 `args = ["test", "-p", "nvs-db"]` (`docs/agent/loop-goal.toml:2830`) still cannot see the two
 `nvs-stdlib` tests, and is still the user's call. The CA is still not in git.
 
-**`orient.py` printed ADR 0067 §§ 1, 9 and 13, which was exactly right for this slice.** The next
-two need **§ 2** — the memoization key the pool keys on — so add `0067 § 2` to `[context] adrs` in
-`docs/agent/loop-goal.toml`. §§ 7 and 8 are no longer worth asking for; § 8 is closed.
+**`orient.py`'s pack was right for both slices** — § 2 was in `[context] adrs` and was what the key
+needed. The one file it could not have printed is `pg.rs`'s own reset, which the item predicted as
+unwritten and which was already there.
 
 ## Next group
 
-**Stage 7's pool, the two slices this session did not reach. The file set is
-`crates/nvs-runtime/src/ctx.rs`, `crates/nvs-stdlib/src/db.rs`, `crates/nvs-db/src/pg.rs` and
-`crates/nvs-config/src/db.rs`** — the last of which is landed and read-only for both.
+**§ 13's remaining half: the ceiling, the wait at it, and the proof that reuse is real and clean.
+The file set is `crates/nvs-runtime/src/pool.rs`, `crates/nvs-stdlib/src/db.rs` and
+`crates/nvs-db/src/matrix.rs`.**
 
-- [ ] **The per-core store, keyed as § 2 already keys** — a request's connection is released to a
-      per-core pool at teardown instead of being dropped, under the key § 2 already computes. The
-      held connection is `crates/nvs-runtime/src/ctx.rs:295` and the key
-      `crates/nvs-runtime/src/ctx.rs:2983`; `crates/nvs-stdlib/src/db.rs:2327` is the `connect` that
-      memoizes one, and `crates/nvs-config/src/db.rs:162` hands over `max`, `idle`, `lifetime` and
-      `acquire`. Per core and never shared between cores, so the acquire path takes no lock.
+- [ ] **`max` is a ceiling on live connections per key, not on idle ones** — the pool counts what it
+      has handed out and not yet taken back, so a deployment's ceiling on the server is
+      `cores × max` and the handbook can say so in those terms. `crates/nvs-runtime/src/pool.rs:217`
+      is `take`, the checkout to count; `crates/nvs-runtime/src/pool.rs:81` is the ticket carrying
+      the bound; `crates/nvs-runtime/src/ctx.rs:1242` is the release that gives one back.
       ADR 0067 § 13.
-- [ ] **The reset is the gate, and a failed reset destroys the connection** — PostgreSQL's targeted
-      reset already exists as `crates/nvs-db/src/pg.rs:769` over
-      `crates/nvs-db/src/pg.rs:2958`; what is missing is that release runs it and that anything but
-      success closes the connection rather than returning it, which is a standing decision and not a
-      call to make. Deliberately not `DISCARD ALL` — it would deallocate § 1's statement cache.
+- [ ] **`acquire` is how long a request waits at that ceiling before it throws** — zero is legal and
+      means never wait (`crates/nvs-config/src/db.rs:102` is that field's doc). This is the slice
+      that decides whether the pool parks on `nvs-host` or refuses outright, since a wait needs the
+      core; `crates/nvs-stdlib/src/db.rs:3096` is the one acquire site there is.
       ADR 0067 § 13.
+- [ ] **A matrix test that reuse is real and clean** — two requests on one core, the second getting
+      the first's connection and seeing none of its session state: a temp table, a `SET`, an
+      advisory lock. `crates/nvs-db/src/matrix.rs:91` is `endpoint()`, which is how a test finds a
+      live server, and `crates/nvs-db/src/pg.rs:2958` is the reset whose property list the case
+      asserts. ADR 0067 § 13.
 
 ## Backlog
 
-- `pool = false` has no `.nvst` or example fixture — `docs/agent/loop-goal.toml` Stage 5.
-- § 7's backoff, blocked on `nvs-runtime` known gap 3 — `crates/nvs-stdlib/src/db.rs:139`.
-- Stage 5's `-p nvs-db` check cannot see the two `nvs-stdlib` tests — `docs/agent/loop-goal.toml:2830`.
-- Stage 8's `Core\Queue` is unlanded and holds the acceptance line — ADR 0084.
-- `driverCode` is written nowhere on PostgreSQL and never will be — `nvs_db::ServerError`'s doc.
-- The CA bundle is not in git — `nvs_host::tls`'s module doc owns why.
+- Stage 5's remaining three of seven — `docs/agent/loop-goal.toml:2830`.
+- `Core\Queue::push` and the rest of Stage 8 — ADR 0084, and the acceptance line that fails on it.
+- § 7's backoff, blocked on `nvs-runtime`'s known gap 3 — `crates/nvs-stdlib/src/db.rs:149`.
+- `open` waits on a registry shape parameter — `nvs-stdlib`'s db module doc, known gap 1.
+- The four drivers that are not PostgreSQL, none of them poolable — `crates/nvs-db/src/conn.rs`.
+- The TLS CA is still not in git, so a fresh clone cannot run the fixtures — `nvs.toml`.
