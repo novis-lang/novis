@@ -94,6 +94,7 @@ mod config;
 mod info;
 mod meta;
 mod openapi;
+mod queue;
 mod runner;
 mod script;
 
@@ -273,6 +274,16 @@ enum Command {
         #[command(subcommand)]
         command: ConfigCommand,
     },
+    /// Build and inspect the durable job queue's own tables.
+    ///
+    /// A namespace of the operator's rather than the program's:
+    /// [ADR 0084](../../../docs/adr/0084-durable-background-jobs.md) § 2 gives
+    /// the runtime the queue's schema and has it created by an explicit command,
+    /// never at boot and never from a request. See [`queue`].
+    Queue {
+        #[command(subcommand)]
+        command: QueueCommand,
+    },
     /// Print build, host and third-party licensing information.
     ///
     /// One call answers what this binary is and what is compiled into it,
@@ -360,6 +371,36 @@ enum ConfigCommand {
         /// instead, for diffing two environments.
         #[arg(long, conflicts_with = "origin")]
         toml: bool,
+    },
+}
+
+/// `nvs queue`'s own subcommands.
+///
+/// One today, and `migrate` is the one ADR 0084 § 2 names outright. Everything
+/// else an operator might want of a queue — its depth, a job retried by hand —
+/// is a question `Core\Queue::stats` already answers from inside a request, and
+/// a second answer here would need this binary to open a connection for it,
+/// which is the same wall [`queue`]'s own module doc describes.
+#[derive(Subcommand)]
+enum QueueCommand {
+    /// Create ADR 0084 § 2's jobs and dead-letter tables in the queue's
+    /// database.
+    ///
+    /// The statements are the runtime's own — `nvs_stdlib::queue::MIGRATION`,
+    /// beside the members that read the columns — and this command is what
+    /// makes issuing them an operator's act rather than a request's. What it
+    /// can and cannot do today is [`queue`]'s module doc.
+    Migrate {
+        /// The root files to read, in order — `config check`'s list, read the
+        /// same way.
+        files: Vec<PathBuf>,
+        /// Migrate this `[db.<name>]` block instead of the one `[queue]
+        /// connection` names.
+        #[arg(long)]
+        connection: Option<String>,
+        /// Print the statements without running them, and succeed.
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -455,6 +496,14 @@ fn main() -> ExitCode {
                     toml,
                 },
         } => config::dump(&cli.config, &files, origin, toml),
+        Command::Queue {
+            command:
+                QueueCommand::Migrate {
+                    files,
+                    connection,
+                    dry_run,
+                },
+        } => queue::migrate(&cli.config, &files, connection.as_deref(), dry_run),
         Command::Info { licenses } => info::run(licenses),
         Command::Meta { json: _ } => meta::run(),
     }

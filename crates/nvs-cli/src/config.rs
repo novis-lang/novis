@@ -113,7 +113,7 @@ impl nvs_config::resolve::Files for LocalFiles {
 /// Both entry points below need it — ADR 0103 § 5 resolves a `--config` against
 /// it and § 1 step 2 looks for `./nvs.toml` in it — and neither can proceed
 /// without it, so the failure is one shape rather than two.
-fn working_directory() -> Result<PathBuf, Diagnostic> {
+pub(crate) fn working_directory() -> Result<PathBuf, Diagnostic> {
     std::env::current_dir().map_err(|err| {
         Diagnostic::error(
             nvs_diagnostics::code::E_UNREADABLE_CONFIG,
@@ -403,7 +403,7 @@ fn flatten(out: &mut Vec<(String, String)>, prefix: String, value: &toml::Value)
 /// spelling. The positional list is the shorthand a person types at a prompt.
 /// Naming both reads both, flag first, because that is the order a copied
 /// server argv wants to keep.
-fn named_roots(config: &[PathBuf], paths: &[PathBuf]) -> Vec<PathBuf> {
+pub(crate) fn named_roots(config: &[PathBuf], paths: &[PathBuf]) -> Vec<PathBuf> {
     config.iter().chain(paths).cloned().collect()
 }
 

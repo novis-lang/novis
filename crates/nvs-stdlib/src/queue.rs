@@ -20,12 +20,11 @@
 //! boot ([`nvs_config::queue::queue_for`]), and `$queue` is a column value rather than a block. There
 //! is no name for a capability to be about, so ADR 0084 § 1 states none and this module invents one.
 //!
-//! **The schema is this module's until `nvs queue migrate` exists.** § 2 makes the runtime own one
+//! **The schema is this module's, and `nvs queue migrate` reads it.** § 2 makes the runtime own one
 //! jobs table and one dead-letter table, created by an explicit operator command — DDL is an
 //! injection sink and never issued from a request — so `push` writes into a table it does not create.
-//! [`JOBS_TABLE`], [`DEAD_TABLE`] and the statements beside them are the one home for what those
-//! tables' columns are, and the migrate command will be read off them rather than the other way
-//! round. Two choices in it are worth their
+//! [`MIGRATION`] is that command's whole schema and the one home for what those tables' columns are;
+//! `nvs-cli`'s `queue` module runs it and decides nothing about it. Two choices in it are worth their
 //! sentence: every instant is a `bigint` of epoch milliseconds rather than a timestamp, because § 2
 //! supports all five of ADR 0067's backends and five timestamp dialects is exactly the cost a
 //! runtime-owned table should not carry; and `state` is the ordinal `Core\Queue\State` already is at
@@ -45,12 +44,14 @@
 //! 2. **`$args` is `mixed` and so does not refuse a `secret`**, which § 1 asks for. A durable row is
 //!    an output and ADR 0033's five sinks are the shape of the eventual answer; `CoreTy::Mixed`
 //!    carries no qualifier, so saying it needs a spelling the registry has not got.
-//! 3. **`key`'s "at most one pending job per key" is enforced by the statement and not yet by an
-//!    index.** [`INSERT`]'s `existing` arm reads the table inside the same statement that writes it,
-//!    which is correct against every other `push` on a *serialized* transaction and racy against a
-//!    concurrent one at `read committed`. The partial unique index over `(dedupe_key) where state =
-//!    0` is `nvs queue migrate`'s to create, and when it exists the statement below becomes race-free
-//!    without changing shape.
+//! 3. **`key`'s "at most one pending job per key" is enforced by the statement, and by the index
+//!    only where the migration has been applied.** [`INSERT`]'s `existing` arm reads the table
+//!    inside the same statement that writes it, which is correct against every other `push` on a
+//!    *serialized* transaction and racy against a concurrent one at `read committed`. The partial
+//!    unique index over `(dedupe_key) where state = 0` is [`MIGRATION`]'s `jobs.dedupe`, and the
+//!    statement is race-free against a schema carrying it without changing shape — so what is left
+//!    of this gap is `nvs queue migrate`'s own, which is that it cannot yet apply what it prints
+//!    (`nvs-cli`'s `queue` module owns why).
 //! 4. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
 //!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
@@ -103,11 +104,13 @@ const JOBS_TABLE: &str = "nvs_jobs";
 
 /// § 6's dead-letter table, unqualified for [`JOBS_TABLE`]'s reason.
 ///
-/// **Only two of its columns are decided here**, and they are the two [`STATUS`] reads: a job keeps
-/// the `id` and the `queue` it had in [`JOBS_TABLE`], so a `Core\Queue\Id` handed out before the job
-/// exhausted its attempts still names it afterwards. What else the row carries — § 6's payload,
-/// every attempt's error and its timing — belongs to the member that writes one, which is the
-/// worker, and deciding it here would be deciding it twice.
+/// **Two of its columns are all this module reads, and [`MIGRATION`] is where every one of them is
+/// written down.** A job keeps the `id` and the `queue` it had in [`JOBS_TABLE`], so a
+/// `Core\Queue\Id` handed out before the job exhausted its attempts still names it afterwards, and
+/// that pair is the whole of what [`STATUS`] and [`COUNTS`] ask of the table. What else the row
+/// carries — § 6's payload, every attempt's error and its timing — is decided by the DDL below and
+/// not by the worker that will write one: a column has to exist before anything can move a row into
+/// it, so the migration is the earlier of the two decisions and the only one there is room for.
 const DEAD_TABLE: &str = "nvs_dead_jobs";
 
 /// `Core\Queue\State::Pending`'s ordinal, which is what a freshly pushed row's `state` is.
@@ -118,6 +121,110 @@ const DEAD_TABLE: &str = "nvs_dead_jobs";
 /// that spelling: it holds this constant and the ordinals inside [`INSERT`] and [`STATUS`] to
 /// [`STATE`]'s own cases.
 const PENDING: i16 = 0;
+
+/// One statement of § 2's schema, under the name an operator sees it by.
+///
+/// A **label** rather than a table name, because three of the five statements below are indexes on a
+/// table an earlier one created, and the question an operator reading `nvs queue migrate` has is
+/// which of § 2's *two* tables a statement belongs to. So the label is that table's role in the ADR
+/// — `jobs` or `dead_letter` — dotted with what the statement adds when it is not the `create table`
+/// itself, and what those tables are actually called stays [`JOBS_TABLE`]'s and [`DEAD_TABLE`]'s
+/// business for the reason those two constants give.
+#[derive(Debug)]
+pub struct Migration {
+    /// Which of § 2's two tables this statement builds, dotted with what it adds to it.
+    pub label: &'static str,
+    /// The statement, carrying no separator: a driver is handed one statement at a time, and the
+    /// `;` belongs to whatever is printing them for a human instead.
+    pub sql: &'static str,
+}
+
+/// ADR 0084 § 2's schema, in the order `nvs queue migrate` runs it.
+///
+/// **This is the one home for what the queue's tables are**, and the command reads it rather than
+/// carrying a copy: every column below is one a statement in this module binds or reads, and
+/// `the_ddl_creates_every_column_the_statements_name` holds the two lists together — a column
+/// renamed here and nowhere else fails that test rather than a deployment.
+///
+/// **PostgreSQL's dialect, because it is the only driver with a statement path at all** (gap 5). A
+/// second backend brings its own list rather than a dialect switch inside these strings: the
+/// identity column, the partial index and `if not exists` are each spelt differently across § 2's
+/// five, and a string with three holes in it has stopped being a statement.
+///
+/// **`if not exists` on every one, because § 2 says *created and upgraded*.** Running the command
+/// twice is not an error and running it against a half-built schema completes it, which is what
+/// makes it an operator's ordinary answer to "is this deployment's queue ready" rather than a
+/// one-shot they have to remember having run.
+///
+/// Three things in it are decisions rather than transcription:
+///
+/// - **Every instant is a `bigint` of epoch milliseconds** and never a timestamp — this module's own
+///   doc owns why, and it is the dialect argument above applied to the type map.
+/// - **`claimed_at` is when the claim was taken, not when it expires.** § 4's visibility timeout is
+///   `[queue] visibility` measured from it, so the bound stays in configuration where
+///   [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md) § 1's reload can move
+///   it; a stored deadline would freeze the superseded bound onto every job already claimed.
+/// - **The dead-letter row is the job's own columns plus `failed_at` and `errors`**, where `errors`
+///   is the JSON array § 6 asks for — one entry per attempt, each carrying when it ran and what it
+///   threw. There is no `state`: a row is `Dead` by being in that table, which is exactly what
+///   [`STATUS`]'s second arm asserts by answering the ordinal as a literal.
+pub const MIGRATION: &[Migration] = &[
+    Migration {
+        label: "jobs",
+        sql: "create table if not exists nvs_jobs (\
+              id bigint generated always as identity primary key, \
+              queue text not null, \
+              script text not null, \
+              args text, \
+              state smallint not null, \
+              attempts int not null, \
+              max_attempts int not null, \
+              backoff_ms bigint not null, \
+              run_at bigint not null, \
+              dedupe_key text, \
+              created_at bigint not null, \
+              claimed_at bigint)",
+    },
+    Migration {
+        // Gap 3's index, and the one statement here that changes what a member *means*: with it in
+        // place `INSERT`'s `existing` arm is race-free against a concurrent push at `read
+        // committed`, because the second insert is refused by the index rather than admitted by a
+        // guard that read the table a moment earlier.
+        label: "jobs.dedupe",
+        sql: "create unique index if not exists nvs_jobs_dedupe \
+              on nvs_jobs (dedupe_key) where state = 0",
+    },
+    Migration {
+        // § 4's claim order, as the index the claim statement will read: the oldest due job of one
+        // queue that nothing holds. A row with no `dedupe_key` is indexed here and not above,
+        // which is the ordinary case and the reason these are two indexes.
+        label: "jobs.due",
+        sql: "create index if not exists nvs_jobs_due on nvs_jobs (queue, state, run_at)",
+    },
+    Migration {
+        label: "dead_letter",
+        sql: "create table if not exists nvs_dead_jobs (\
+              id bigint primary key, \
+              queue text not null, \
+              script text not null, \
+              args text, \
+              attempts int not null, \
+              max_attempts int not null, \
+              backoff_ms bigint not null, \
+              run_at bigint not null, \
+              dedupe_key text, \
+              created_at bigint not null, \
+              failed_at bigint not null, \
+              errors text not null)",
+    },
+    Migration {
+        // `COUNTS`'s fourth counter is a scalar subquery over this table, keyed on the queue and on
+        // nothing else, so the depth of one queue's dead letters costs a lookup rather than a scan
+        // of every queue's.
+        label: "dead_letter.queue",
+        sql: "create index if not exists nvs_dead_jobs_queue on nvs_dead_jobs (queue)",
+    },
+];
 
 /// ADR 0084 § 1's `push`, as one statement.
 ///
@@ -1406,10 +1513,79 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL, COUNTS, DEAD_TABLE, INSERT, JOBS_TABLE, PENDING, STATE, STATS, STATS_ATTEMPTS_AT,
-        STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT,
-        STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS,
+        CANCEL, COUNTS, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING, STATE, STATS,
+        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
+        STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS,
     };
+
+    /// The statement with that label, or the test fails naming it: every assertion below is about
+    /// one of § 2's two tables, and a label typed differently in the DDL than in the command's
+    /// output contract is exactly the drift this file is holding.
+    fn labelled(label: &str) -> &'static str {
+        MIGRATION
+            .iter()
+            .find(|one| one.label == label)
+            .unwrap_or_else(|| panic!("`MIGRATION` carries no `{label}` statement"))
+            .sql
+    }
+
+    /// [`MIGRATION`] is the only place the queue's columns exist and the statements above are their
+    /// only readers — two lists in one file, with nothing but this test between them. A column
+    /// renamed in the DDL and nowhere else still compiles, still migrates, and fails on the first
+    /// `push` against a database an operator has already built.
+    #[test]
+    fn the_ddl_creates_every_column_the_statements_name() {
+        let jobs = labelled("jobs");
+        let dead = labelled("dead_letter");
+        assert!(
+            jobs.contains(JOBS_TABLE) && dead.contains(DEAD_TABLE),
+            "each `create table` builds the table its own constant names"
+        );
+
+        // `INSERT`'s parenthesised column list is the widest claim any statement makes about
+        // `nvs_jobs`: every other one reads a subset of it.
+        let list = INSERT
+            .split_once(&format!("insert into {JOBS_TABLE} ("))
+            .and_then(|(_, rest)| rest.split_once(')'))
+            .expect("`INSERT` names its columns as one parenthesised list")
+            .0;
+        for column in list.split(',').map(str::trim) {
+            assert!(
+                jobs.contains(&format!("{column} ")),
+                "the `jobs` DDL creates `{column}`, which `INSERT` binds"
+            );
+        }
+        for column in ["state ", "attempts ", "queue "] {
+            assert!(
+                jobs.contains(column),
+                "the `jobs` DDL creates the column `STATUS` and `COUNTS` read as `{column}`"
+            );
+        }
+        for column in ["id ", "queue "] {
+            assert!(
+                dead.contains(column),
+                "the `dead_letter` DDL creates `{column}`, which is what `DEAD_TABLE`'s doc says \
+                 this module reads of it"
+            );
+        }
+
+        assert!(
+            labelled("jobs.dedupe").contains(&format!("where state = {PENDING}")),
+            "gap 3's index covers pending rows by `PENDING`'s own ordinal, as `INSERT` does"
+        );
+        for step in MIGRATION {
+            let table = step
+                .label
+                .split_once('.')
+                .map_or(step.label, |(head, _)| head);
+            assert!(
+                matches!(table, "jobs" | "dead_letter"),
+                "`{}` is labelled under one of § 2's two tables, which is what `nvs queue \
+                 migrate`'s output promises",
+                step.label
+            );
+        }
+    }
 
     /// The two statements above write and read [`STATE`]'s ordinals as SQL literals, which no
     /// `const` can reach into. This is the assertion [`PENDING`]'s doc comment owes: the enum a

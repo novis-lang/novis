@@ -253,7 +253,10 @@ mod password;
 pub mod path;
 mod process;
 mod program;
-mod queue;
+// `pub` for [`queue::MIGRATION`] alone: ADR 0084 § 2's schema is written beside the statements that
+// read its columns, and `nvs queue migrate` in `nvs-cli` is a second crate that has to run it. The
+// members themselves are reached the way every other class's are, through [`registry`].
+pub mod queue;
 pub mod random;
 mod ratelimit;
 mod reflect;
