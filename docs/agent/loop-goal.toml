@@ -2915,6 +2915,12 @@ tests = [
   # The switch, asked the same question over the same socket: `pool = false` files nothing, so the
   # next request draws nothing and opens a backend of its own.
   "a_pool_that_is_off_hands_the_next_request_nothing",
+  # The two bounds that decide what a pool *keeps*, over that same socket. `nvs-runtime`'s own cases
+  # move a clock and count a store's entries over a `Fake`; what a server adds is that the retirement
+  # and the release past `idle` are a **close**, so the next request is answered by a different
+  # backend and the connection kept is the one released under the bound rather than the one past it.
+  "a_connection_past_its_lifetime_is_not_the_one_the_next_request_draws",
+  "a_release_past_the_idle_bound_closes_the_second_connection",
 ]
 
 # § 13's other two bounds, from a program: `max` is a ceiling a request can *reach*, and `acquire` is

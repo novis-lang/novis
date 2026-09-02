@@ -1,8 +1,10 @@
 //! [ADR 0067](../../../docs/adr/0067-core-db.md) § 13's pool against a real
 //! server: two requests on one core share one connection, and it is the *same*
-//! connection rather than a second one that answers as well — and with
+//! connection rather than a second one that answers as well; with
 //! `pool = false` they share nothing, which is the same question asked of the
-//! switch that turns the whole thing off.
+//! switch that turns the whole thing off; and the two bounds that decide what a
+//! pool keeps — `lifetime` and `idle` — close a socket rather than only drop a
+//! row from a store.
 //!
 //! An integration test rather than a `mod tests` beside the driver, because
 //! what it needs is exactly what a unit test in this crate deliberately does
@@ -231,5 +233,129 @@ fn a_pool_that_is_off_hands_the_next_request_nothing() {
     assert_ne!(
         first, again,
         "connect-per-request means this request is talking to a backend of its own",
+    );
+}
+
+/// § 13: a connection past its `lifetime` is retired rather than handed on, so
+/// the request that follows opens a backend of its own.
+///
+/// The live double of `nvs_runtime::pool`'s
+/// `a_connection_past_its_lifetime_is_never_handed_out`, which moves a clock
+/// over a `Fake` and can therefore say only that the store stopped offering the
+/// entry. What a socket adds is the other half: the retirement is a *close*, and
+/// the pid the next request reads is the inverse of the assertion
+/// [`two_requests_on_one_core_share_one_connection`] makes on the same query.
+///
+/// **The clock moves, not the bound.** `release` and `take` are each handed the
+/// `Instant` they compare against, so § 13's real 30-minute `lifetime` is what
+/// is under test here rather than a short one written to make the test finish —
+/// which is also why this case costs no wall time.
+#[test]
+fn a_connection_past_its_lifetime_is_not_the_one_the_next_request_draws() {
+    let Some(server) = postgres() else {
+        return;
+    };
+
+    let generation = Arc::new(Snapshot::default());
+    let ticket = Ticket::for_block(&generation, "main", PoolBounds::DEFAULT);
+    let now = Instant::now();
+
+    // The first request, exactly as the reuse case above leaves it: a healthy
+    // connection filed under the key at teardown.
+    let lease = pool::admit(ticket.clone()).expect("an unused key is under `max`");
+    let mut opened = open(&server);
+    let first = one_value(&mut opened, "SELECT pg_backend_pid()").expect("a backend has a pid");
+    pool::release(lease, now, Box::new(Connection::Postgres(opened)));
+
+    // The second request arrives past that entry's retirement, which is the one
+    // difference between this case and the one above.
+    let expired = now + PoolBounds::DEFAULT.lifetime + Duration::from_secs(1);
+    let lease = pool::admit(ticket).expect("the released connection gave its slot back");
+    assert!(
+        pool::take(&lease, expired).is_none(),
+        "a connection past its `lifetime` is retired by the scan that walks it, not handed on",
+    );
+
+    // So it opens its own, and the backend answering it is not the one the first
+    // request left behind: the retired connection was closed, not parked.
+    let mut second = open(&server);
+    let again = one_value(&mut second, "SELECT pg_backend_pid()").expect("a backend has a pid");
+    assert_ne!(
+        first, again,
+        "a retired connection is gone, so this request is talking to a backend of its own",
+    );
+}
+
+/// § 13: `idle` bounds what a pool keeps, and the release past that bound closes
+/// the connection instead of filing it.
+///
+/// The live double of `nvs_runtime::pool`'s
+/// `a_release_past_the_idle_bound_closes_the_connection`. The `Fake` half can
+/// say the store ends up holding one entry; only a server can say *which*
+/// connection that entry is, and `pg_backend_pid()` is what tells them apart.
+/// `idle = 1` because one is the smallest bound that still keeps something, so
+/// the question has an answer: `release` refuses the second connection before it
+/// is ever filed, which makes the survivor the first one released.
+///
+/// This is the bound that makes § 13's footprint O(in-flight) rather than
+/// O(requests served) — `nvs_runtime::pool`'s module doc owns that argument —
+/// and a socket is the only thing that can show the difference between a
+/// connection dropped from the store and a connection actually closed.
+#[test]
+fn a_release_past_the_idle_bound_closes_the_second_connection() {
+    let Some(server) = postgres() else {
+        return;
+    };
+
+    let generation = Arc::new(Snapshot::default());
+    let ticket = Ticket::for_block(
+        &generation,
+        "main",
+        PoolBounds {
+            idle: 1,
+            ..PoolBounds::DEFAULT
+        },
+    );
+    let now = Instant::now();
+
+    // Two requests on this core at once, each holding its own connection. `max`
+    // is the default 16, so both are admitted and the only bound in play below
+    // is the one under test.
+    let first_lease = pool::admit(ticket.clone()).expect("an unused key is under `max`");
+    let second_lease = pool::admit(ticket.clone()).expect("two live connections are under `max`");
+    let mut kept = open(&server);
+    let mut spare = open(&server);
+    let kept_pid = one_value(&mut kept, "SELECT pg_backend_pid()").expect("a backend has a pid");
+    let spare_pid = one_value(&mut spare, "SELECT pg_backend_pid()").expect("a backend has a pid");
+    assert_ne!(kept_pid, spare_pid, "two connections are two backends");
+
+    pool::release(first_lease, now, Box::new(Connection::Postgres(kept)));
+    pool::release(second_lease, now, Box::new(Connection::Postgres(spare)));
+
+    // What the pool kept is the first release, and the assertion is that pid:
+    // a case that only counted the store's entries would pass just as well if
+    // the bound had thrown away the wrong one.
+    let lease = pool::admit(ticket.clone()).expect("both releases gave their slots back");
+    let held = pool::take(&lease, now).expect("the first release is filed under this key");
+    let held = held
+        .into_any()
+        .downcast::<Connection>()
+        .expect("this crate filed it, so this crate's type is what comes back");
+    let Connection::Postgres(warm) = *held else {
+        panic!("the driver under test on this leg is PostgreSQL")
+    };
+    let mut warm = warm.reset().expect("a healthy connection resets");
+    assert_eq!(
+        one_value(&mut warm, "SELECT pg_backend_pid()").as_deref(),
+        Some(kept_pid.as_str()),
+        "the connection kept is the one released under the bound, not the one past it",
+    );
+
+    // And there is nothing behind it: the second release closed its socket with
+    // the request that opened it, exactly as `pool = false` does with every one.
+    let lease = pool::admit(ticket).expect("an unused slot");
+    assert!(
+        pool::take(&lease, now).is_none(),
+        "`idle = 1` keeps one connection under a key, so this request draws nothing",
     );
 }
