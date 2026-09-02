@@ -4487,7 +4487,7 @@ class, not an interface: a user class extends it directly. The tree is fixed and
 | `ArithmeticError` | `Throwable` | — |
 | `Core\Test\Failure` | `Throwable` | — |
 | `Core\Cli\NotInteractive` | `RuntimeError` | — |
-| `Core\Db\DbError` | `RuntimeError` | — |
+| `Core\Db\DbError` | `RuntimeError` | `$kind` |
 | `Core\Db\RolledBack` | `RuntimeError` | `$reason` |
 
 - PHP's `Exception` and `Error` do not exist. `class E extends Exception`, `catch (Exception $e)`
@@ -18156,6 +18156,25 @@ What a result column was declared as, which is a description of the column and n
 | `Core\Db\ColumnType::Uuid` | A `UUID` or a `uniqueidentifier`, which a read answers with a `Core\Uuid`. |
 | `Core\Db\ColumnType::Json` | A column the backend types as JSON. The value still reads back as a `tainted string`, since JSON is never decoded for you; a backend that has no JSON type of its own reports the column as `Text` instead. |
 | `Core\Db\ColumnType::Other` | Every other column: one with no Novis type of its own, and every array. This is the total case rather than a failure, so a column list describes every column a server can send. |
+
+<a id="enum-core-db-errorkind"></a>
+#### `Core\Db\ErrorKind`
+
+Why the server refused a statement, normalised across the drivers so that a program branches on the condition rather than on a vendor code. `Core\Db\DbError::$kind` answers with one of these, and the raw `SQLSTATE` beside it covers what normalising does not reach.
+
+| Case | Meaning |
+|---|---|
+| `Core\Db\ErrorKind::UniqueViolation` | A row with this key already exists. |
+| `Core\Db\ErrorKind::ForeignKeyViolation` | A referenced row does not exist, or a referencing one still does. |
+| `Core\Db\ErrorKind::NotNullViolation` | A column that may not be null was written null. |
+| `Core\Db\ErrorKind::CheckViolation` | A `CHECK` constraint refused the row. |
+| `Core\Db\ErrorKind::Deadlock` | Two transactions each hold what the other waits for, and the server aborted this one to break it. SQLite's `SQLITE_BUSY` and `SQLITE_LOCKED` arrive here too, so that a retry works there as well. |
+| `Core\Db\ErrorKind::SerializationFailure` | The transaction could not be serialised against a concurrent one and was aborted — the ordinary outcome under `REPEATABLE READ` or stronger. |
+| `Core\Db\ErrorKind::ConnectionLost` | The connection is gone, or the server is going away. |
+| `Core\Db\ErrorKind::Timeout` | A statement or an idle transaction ran past a bound and was cancelled. |
+| `Core\Db\ErrorKind::Syntax` | The statement is not something the server will run: a syntax error, an undefined table, a type it cannot resolve. |
+| `Core\Db\ErrorKind::Permission` | The role may not do this. |
+| `Core\Db\ErrorKind::Other` | Anything the driver's own table does not name, including a condition one backend has and the others do not. It is also what a `Core\Db\DbError` constructed by hand carries, no server having classified it. |
 
 # Part C — The toolchain
 
