@@ -82,9 +82,11 @@ foreach ($rows as Row $row) {
 // A write answers with `affected`, `changed` and `lastId` on one value, so
 // `rowCount`, `lastInsertId` and `mysqli_info` are one member. `affected` is
 // the rows the `where` matched; `changed` is the narrower question and is
-// `?uint` because three of the five backends cannot answer it.
+// `?uint` because three of the five backends cannot answer it. All three are
+// *readers* and not properties: a `Core` instance has no property a program can
+// reach, which `nvs_stdlib::registry::CoreTy::Instance` owns.
 var $write = $db->execute("update people set name = ? where id = ?", ["ada", 1]);
-echo "affected=", $write->affected, "\n";
+echo "affected=", $write->affected(), "\n";
 
 // The typed read. `queryAs<Person>` hydrates through the derived codec's
 // `fromRow`, and a column the class cannot accept throws naming the column

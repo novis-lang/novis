@@ -1496,6 +1496,17 @@ is why" — is this file.
   flag, so anything after `--window`/`--in` is orphaned. It reads as a rejected *path* (a
   dotfile, a glob the shell ate) and the second guess is wrong too. Put all targets first, then the
   options.
+- **A program-leg acceptance failure can name a fixture from a *later, wholly unlanded stage*, and
+  that is not the regression the driver's wording implies.** The program legs run in the goal file's
+  own order across every stage and the sweep stops at the first one that fails, so the moment a stage's
+  fixture goes green the line jumps to the next `kind = "exact"` check in the file — which may be a
+  stage nobody has started. Stage 5's `examples/transaction.nvs` passing moved it to Stage 8's
+  `examples/queue.nvs`, whose `error[E0405]: Core\Queue has no member named push` reads exactly like a
+  break in landed work; `Core\Queue` has never existed at all (no row in `nvs_stdlib::registry`, no
+  ADR 0084 implementation anywhere). The tell is one `grep -rn` for the name it refuses: a *regression*
+  names something the tree still holds. It also means every check behind that fixture — the cargo
+  checks, the WSL leg, the valgrind sweep, the corpus floors — is dark until the whole stage lands, so
+  a session's own guard tests are `python tools/verify.py`'s job and never the driver's.
 
 ## Running things
 

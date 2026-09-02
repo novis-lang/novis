@@ -20,6 +20,13 @@ it would at a user-declared method, and a trailing options shape is addressable 
 [ADR 0063](../adr/0063-core-api-conventions.md) R2, which is also why a parameter's name is versioned here
 like its type.
 
+**A `Core` value object's readonly members are reached as readers** — `$write->affected()`, never
+`$write->affected` — because a `Core` instance has no property a program can reach: its slots are
+`nvs-stdlib`'s layout rather than a surface, which `nvs_stdlib::registry::CoreTy::Instance` owns. An entry
+below written `readonly x: T` means the reader `->x(): T`, and the same rule is why `Core\RateLimit`'s
+`Decision` and `Core\Script`'s `ExitReport` answer through members. The exception classes of § 10 are the
+other roster and do have properties, which is what the entry at that section says.
+
 The **Replaces** column names the PHP built-ins an entry subsumes. It is one of the two inputs to
 [02-php-migration.md](02-php-migration.md), which is the complete PHP-name → outcome table `nvs convert`
 (M11) is generated from and the only place that can answer "did we drop something real": this file states
@@ -1168,7 +1175,7 @@ string-keyed for `:name`, mixing throws.
 
 | Type | Members beyond `Queryable` |
 |---|---|
-| `Connection` | `$c->close(): void`; readonly `driver: Driver`, `serverVersion: string`, `isOpen: bool` |
+| `Connection` | `$c->close(): void`; `->driver(): Driver`, `->serverVersion(): string`, `->isOpen(): bool` |
 | `Transaction` | `$t->rollBack(string $reason): void` — sets the rollback-only flag and throws `Db\RolledBack` |
 
 There is no `commit`, no connection-level `rollBack`, no `inTransaction`, no explicit savepoint member and
@@ -1190,8 +1197,8 @@ the call site naming the field.
 | `Rows` | `->all(): array<Row>`, `->first(): ?Row`, `->value(): mixed`, `->column(int\|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<Row>` | `fetchAll`, `fetch`, `fetchColumn`, `rowCount` on a select, `getColumnMeta` |
 | `Rows<T>` | `->all(): array<T>`, `->first(): ?T`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<T>` | `FETCH_CLASS`, `fetchObject` |
 | `Row` | `->has(string $name): bool` *(neutral)*, `->get(string $name): mixed`, `->toArray(): array<string, mixed>`, and the typed readers below | `FETCH_ASSOC`, `FETCH_NUM`, `FETCH_OBJ` |
-| `Write` | readonly `affected: uint`, `changed: ?uint`, `lastId: ?uint` | `rowCount` on a write, `lastInsertId`, `mysqli_info` |
-| `Column` | readonly `name: string`, `type: ColumnType`, `nullable: bool` | `getColumnMeta`, `mysqli_fetch_field` |
+| `Write` | `->affected(): uint`, `->changed(): ?uint`, `->lastId(): ?uint` | `rowCount` on a write, `lastInsertId`, `mysqli_info` |
+| `Column` | `->name(): string`, `->type(): ColumnType`, `->nullable(): bool` | `getColumnMeta`, `mysqli_fetch_field` |
 | `InList` | opaque; produced by `Db::inList`, accepted only as a bound parameter | — |
 
 `Row`'s typed readers each take `(string $name)` and return `?T`, a `null` being a NULL column: `string`,
