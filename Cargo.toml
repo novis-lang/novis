@@ -532,7 +532,24 @@ fluent-uri = "0.4"
 # so `nvs-db` writes TDS 7.4 by hand.
 postgres-protocol = "0.6"
 postgres-types = "0.2"
-mysql_common = "0.38"
+# `default-features = false` is load-bearing and not tidiness: this crate's
+# default set contains `flate2/zlib`, which resolves `flate2` onto `libz-sys` and
+# would put a C library in the default binary's graph. `tools/gen-attribution.py`
+# would then fail on an unrecorded C dependency, and recording it would be
+# recording one nothing asked for -- the protocol's optional compression is a
+# feature ADR 0067 does not offer. With the default off, `flate2` is
+# `miniz-oxide` and the whole graph stays pure Rust; `derive` goes with it, and
+# nothing here derives a row from a struct.
+mysql_common = { version = "0.38", default-features = false }
+# Not a codec of ours and not one we call: this entry exists to *choose*
+# `mysql_common`'s compression backend. That crate takes `flate2` with no
+# default features and selects one through its own `default` set, which names
+# `flate2/zlib` -- so turning its defaults off leaves `flate2` with no backend
+# at all and a `compile_error!`. Naming it here with `rust_backend` picks the
+# `miniz-oxide` one by feature unification, which is the answer this project
+# wants anyway: `zlib` would resolve onto `libz-sys` and put C in the default
+# binary's graph.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # The two crates a sans-IO codec is *called through*, rather than codecs of their
 # own. `postgres-protocol` frames into a `BytesMut` and hands back its message
 # bodies as fallible iterators, so a caller that does not name these two cannot

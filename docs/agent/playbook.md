@@ -2150,6 +2150,15 @@ is why" — is this file.
   why a failed open reports one line and returns instead of retrying. The same shape bites anything
   else read out of a root table at `nvs run`: grep for the table's own `[[app]]` twin before
   assuming a block only reaches the program it was written for.
+- A crate taken with `default-features = false` can lose a *backend* its own defaults were
+  choosing, and the failure is a `compile_error!` inside a dependency you never named.
+  `mysql_common`'s `default` set is `["flate2/zlib", "derive"]`, so turning it off — which this
+  project must, since `zlib` resolves onto `libz-sys` and puts C in the graph — leaves `flate2`
+  with no compression backend at all and the build stops in `flate2/src/lib.rs`. There is no
+  `mysql_common` feature that selects the pure-Rust one, so the fix is a *direct* workspace entry
+  for `flate2` with `features = ["rust_backend"]`, which unifies onto `miniz-oxide`. Read the
+  vendored crate's own `[features] default` before assuming `default-features = false` is only a
+  slimming.
 
 ## Writing a test case
 
@@ -4607,6 +4616,12 @@ is why" — is this file.
   `nvs-runtime`'s own cases cannot assert because they file a `Fake` and never exercise the
   `HeldConnection::into_any` downcast `warm_connection` performs. Read the crate's `Cargo.toml`
   `[dependencies]` before concluding a name is filed against the wrong crate.
+- A hand-built MySQL greeting must give `scramble_2` its trailing NUL, or the plugin name comes
+  back one byte short. `HandshakePacket::new` writes `auth_plugin_data_len = scramble_2.len() + 8`
+  while the deserializer reads back `max(13, len - 8)` bytes, so a 12-byte tail round-trips as 13
+  and eats the first character of `auth_plugin_name` — the symptom is a refusal naming
+  `aching_sha2_password`, which reads like a typo in the driver rather than in the fixture. Pass
+  `NONCE[8..]` plus a `0` byte; `HandshakePacket::nonce()` trims it back off.
 
 ## Splitting a file that got too big
 

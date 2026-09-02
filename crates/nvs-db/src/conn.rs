@@ -33,6 +33,9 @@
 
 use std::cell::Cell;
 
+use mysql_common::constants::CapabilityFlags;
+
+use crate::mysql::Wire as MyWire;
 use crate::pg::{CancelKey, Wire};
 use crate::sql::StatementCache;
 
@@ -462,8 +465,29 @@ pub struct PgConn {
 /// protocol's and not a choice.
 #[derive(Debug)]
 pub struct MySqlConn {
+    /// The stream and the bytes read off it that are not yet a whole packet,
+    /// once [`crate::mysql::MySqlConn::connect`] has upgraded it.
+    ///
+    /// It carries the sequence counter too, which PostgreSQL's has no analogue
+    /// of: MySQL numbers the packets of one command and a mismatch is a wire
+    /// nothing can find a boundary in.
+    pub(crate) wire: MyWire,
     /// ADR 0132 § 4's busy state; the reasoning is on [`PgConn`].
     pub(crate) state: Cell<State>,
+    /// What the two ends agreed this connection can do — the client's set
+    /// intersected with the server's greeting.
+    ///
+    /// Held because MySQL's packets are not self-describing: whether an `OK`
+    /// carries session-state changes, and whether a result set is terminated by
+    /// an `EOF` packet or by an `OK`, are read off these bits. A driver that
+    /// re-derived them per packet would be deciding it twice.
+    pub(crate) capabilities: CapabilityFlags,
+    /// ADR 0067 § 9's declared zone, as seconds east of UTC — what a zone-less
+    /// `DATETIME` or `TIMESTAMP` off this connection is read in.
+    ///
+    /// Held for [`PgConn::time_zone`]'s reason: the decode of that row happens
+    /// in `nvs-stdlib`, and the target does not outlive the handshake.
+    pub(crate) time_zone: i32,
 }
 
 /// A MariaDB connection: `mysql_common`'s codec, its own auth plugins and its
@@ -627,7 +651,7 @@ mod tests {
     use nvs_config::snapshot::Snapshot;
     use nvs_runtime::pool::{Lease, Ticket, admit, release, take};
 
-    use super::{Connection, Driver, MySqlConn, State};
+    use super::{Connection, Driver, SqliteConn, State};
 
     /// The slot a request holds while one connection under `key` is open.
     ///
@@ -649,11 +673,14 @@ mod tests {
     /// A connection at a message boundary, which is the state § 13's release
     /// gate lets into the pool.
     ///
-    /// MySQL's variant because it is the one this crate can build without a
-    /// server — a `PgConn` carries a `Wire` — and the pool reads the variant no
-    /// more than it reads the wire: it asks `is_poolable` and stores the box.
+    /// SQLite's variant because it is the one this crate can *always* build
+    /// without a server: ADR 0132 § 3 gives it no bytes on any wire, so it is
+    /// the one connection type that will never grow a stream a unit test cannot
+    /// open. The pool reads the variant no more than it reads the wire — it
+    /// asks `is_poolable` and stores the box — so which variant this is says
+    /// nothing about the property below.
     fn idle_connection() -> Box<Connection> {
-        Box::new(Connection::MySql(MySqlConn {
+        Box::new(Connection::Sqlite(SqliteConn {
             state: Cell::new(State::Idle),
         }))
     }
@@ -719,7 +746,7 @@ mod tests {
         let Ok(connection) = taken.into_any().downcast::<Connection>() else {
             panic!("the pool handed back something that is not a `Connection`");
         };
-        assert!(matches!(&*connection, Connection::MySql(_)));
+        assert!(matches!(&*connection, Connection::Sqlite(_)));
         assert!(connection.is_poolable());
     }
 

@@ -44,6 +44,21 @@ nvs-config.workspace = true
 # and the startup sequence, the `SSLRequest` upgrade and the extended-query
 # state machine in `pg.rs` are written here.
 postgres-protocol.workspace = true
+# MySQL's half of the same rule, and MariaDB's when its driver lands: packet
+# framing, the sequence-id discipline and every authentication plugin are
+# borrowed, and the handshake's *sequencing* -- what the greeting's capability
+# bits must contain before a credential goes anywhere, which plugins this driver
+# will answer at all, and where the TLS upgrade sits inside the packet stream --
+# is written in `mysql.rs`. The workspace manifest takes it with its default
+# features off, which is what keeps `flate2` off `libz-sys` and this crate's
+# graph free of C.
+mysql_common.workspace = true
+# Named only to select the backend `mysql_common` compresses with -- the
+# workspace manifest owns why, and nothing in this crate calls it. ADR 0067
+# offers no compressed connection, so the code behind this is unreachable; what
+# the entry buys is that the unreachable half is `miniz-oxide` rather than
+# `libz-sys`.
+flate2.workspace = true
 # What that codec is called through: it frames into a `BytesMut` and hands its
 # message bodies back as fallible iterators, so these are the spelling of
 # `postgres-protocol`'s own surface rather than two more dependencies of ours.

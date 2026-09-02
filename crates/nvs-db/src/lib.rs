@@ -113,7 +113,16 @@
 //! dialects, holding the bind order a driver cannot recover by counting, and
 //! § 1's [`StatementCache`] keyed by SQL text plus that expansion's arity.
 //! [`pg`] is the first driver to spend it: a hit drops the `Parse` from the
-//! batch, and an eviction's `Close` rides in the batch that replaced it. § 13's
+//! batch, and an eviction's `Close` rides in the batch that replaced it.
+//!
+//! [`mysql`] is the second driver and has its opening only: the greeting, § 3's
+//! `CLIENT_SSL` upgrade, the authentication exchange over `mysql_common`'s
+//! plugins, the forced `utf8mb4` collation, § 9's declared zone as a session
+//! variable and § 13's `COM_RESET_CONNECTION`. Its statement path —
+//! `COM_STMT_PREPARE`/`COM_STMT_EXECUTE`, the two round trips § 1 records the
+//! cost of — is what it still owes, and until it lands nothing above this crate
+//! can name a MySQL connection: there is no `MySqlTarget::resolve`, so a
+//! `[db.<name>]` block with `driver = "mysql"` reaches no opener. § 13's
 //! pool is above this crate — `nvs_runtime::pool` is the store and `nvs-stdlib`
 //! the acquire path — so what is here is the halves only a driver can hold:
 //! [`Connection::is_poolable`]'s release gate and [`pg`]'s reset, met over a
@@ -138,6 +147,7 @@
 
 pub mod conn;
 pub mod matrix;
+pub mod mysql;
 pub mod pg;
 pub mod span;
 pub mod sql;
@@ -146,6 +156,7 @@ pub use conn::{
     ColumnType, Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn, PgConn,
     ServerError, SqliteConn, State, TdsConn,
 };
+pub use mysql::MySqlTarget;
 pub use pg::{
     BlockError, CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode,
 };
