@@ -6212,6 +6212,15 @@ sibling in the same namespace unqualified.
   plain `allow` when the item is landed ahead of its caller (a statement written beside the ones it
   belongs with, a helper the next slice calls), because the expectation fires the moment the real
   reader lands and the attribute removes itself instead of sitting there forever.
+- **A job whose program *threw* is `Ok` from `nvs_host::Isolate::run`, and the judgement is
+  `Completion::ok`.** `run(ctx)` answers `Result<Completion, GraphError>`, and the `Err` half is only
+  the argument graph refusing to cross — a fixture that throws on purpose therefore reads as a
+  successful attempt to any `if let Err(…)` around it, which is what `examples/queue.nvs`'s
+  `flaky.nvs` was quietly doing: its row landed in `Succeeded` with one attempt, so the `retried` and
+  `dead-lettered` lines waited out their polls and looked like unwritten work rather than a wrong
+  reading. `Completion` carries `ok`, `value`, `output` and `error`, and `ok` is already false for a
+  throw *and* for a budget teardown — ADR 0084 § 6's "a job exceeding its memory, CPU or time budget
+  is a failed attempt" needs no second reading beside it.
 
 ## Divergences and refusals already pinned
 
