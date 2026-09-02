@@ -3226,6 +3226,27 @@ fn zone_of(args: &[Value], at: usize, member: &str) -> Result<TimeZone, Fault> {
     })
 }
 
+/// The `Zone` in argument slot `at` as **seconds east of UTC, right now** —
+/// what a database connection's declared zone is, per ADR 0067 § 9.
+///
+/// A zone is not an offset and [`nvs_core_time_zone_offset_at`] takes an
+/// instant for exactly that reason, so this picks one: the moment the
+/// connection is opened. That is the honest reading of what the number is for
+/// — it is sent to the server as a numeric offset for the length of the
+/// session, because a named zone needs `mysql.time_zone` populated and usually
+/// is not — and a session that outlives a DST change reads the offset it
+/// opened with, which is the same thing the `time_zone` field of a
+/// `[db.<name>]` block already means: that field accepts an offset spelling
+/// and nothing else.
+///
+/// # Errors
+///
+/// [`zone_of`]'s, unchanged.
+pub(crate) fn zone_offset_now(args: &[Value], at: usize, member: &str) -> Result<i32, Fault> {
+    let zone = zone_of(args, at, member)?;
+    Ok(zone.to_offset(Timestamp::now()).seconds())
+}
+
 /// The [`TimeZone`] an id names, or `None` for one nothing does.
 ///
 /// The whole of the two-spellings rule [`ZONE`] describes: no IANA identifier

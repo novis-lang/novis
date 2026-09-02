@@ -1,0 +1,51 @@
+--TEST--
+Core\Db::open asks `db.open` about the host a settings literal wrote, and then puts the address it resolves to through the denied ranges in full — the check a `connect`-named endpoint is exempt from, ADR 0067 § 3 and ADR 0058 § 3
+--FILE--
+<?nvs
+// The host this deployment does not grant. The refusal is the capability's,
+// and nothing here resolved a name or opened a socket to produce it: `db.open`
+// names hosts where `db.connect` names blocks, which is the whole reason there
+// are two grants.
+try {
+    var $far = Core\Db::open({
+        driver: Core\Db\Driver::Postgres,
+        host: "db.example.test",
+        database: "shop",
+        user: "app",
+        password: "hunter2",
+    });
+    echo "opened db.example.test", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// And the host it does grant, which is the asymmetry stated as a contrast:
+// this is the very address `Core\Db::connect` reaches with no `net` key
+// written at all, and `open` still cannot have it. A program-supplied address
+// stays subject to ADR 0058's table, so the grant is not the last word --
+// `net.internal` would be, and this deployment writes none.
+try {
+    var $near = Core\Db::open({
+        driver: Core\Db\Driver::Postgres,
+        host: "127.0.0.1",
+        database: "shop",
+        user: "app",
+        password: "hunter2",
+    });
+    echo "opened 127.0.0.1", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// ADR 0118 § 5: a denial is the world refusing a call, and the program is
+// still running underneath it.
+echo "still running", "\n";
+--FILE nvs.toml--
+# One host granted, and no `[capabilities.net]` at all -- so the second call
+# above is past the grant and refused by the range table instead.
+[capabilities.db]
+open = ["127.0.0.1"]
+--EXPECT--
+Core\Db::open needs the capability `db.open` for db.example.test, which is not granted
+Core\Db::open refuses 127.0.0.1: it is loopback (127.0.0.0/8), which `net.internal` does not except
+still running

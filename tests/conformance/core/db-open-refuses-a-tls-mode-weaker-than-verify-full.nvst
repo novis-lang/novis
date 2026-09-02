@@ -1,0 +1,47 @@
+--TEST--
+A settings literal may ask for a weaker `tls` and is refused rather than quietly given the stronger one, and the SQLite arm is a shape the checker accepts and this build cannot open — ADR 0067 § 3, ADR 0135 § 2
+--FILE--
+<?nvs
+// ADR 0067 § 3's third closed hole. PHP's `pdo_pgsql` defaults to
+// `sslmode=prefer` and connects in plaintext whenever the server says so; here
+// the weak spelling exists, is writable, and is answered by a refusal that
+// names what it asked for. Verifying more than a caller asked for would be a
+// promise made quietly, which is the failure mode this is the opposite of.
+try {
+    var $plain = Core\Db::open({
+        driver: Core\Db\Driver::Postgres,
+        host: "db.example.test",
+        database: "shop",
+        user: "app",
+        password: "hunter2",
+        tls: Core\Db\Tls::Disabled,
+    });
+    echo "opened without TLS", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The refusal above landed before the `db.open` grant was consulted, and this
+// deployment grants nothing at all -- so the ordering is the assertion: what a
+// settings literal *says* is judged before what a deployment allows, exactly as
+// `Core\Db::connect` judges its options before it consults the grant.
+
+// The other arm of `Db\Settings`, which takes a `path` and declares no `host`
+// at all. It type-checks, which is what makes it an arm; it does not open,
+// which is `nvs_stdlib::db`'s known gap 2 and is said as a driver that has no
+// path here rather than as a settings error.
+try {
+    var $file = Core\Db::open({
+        driver: Core\Db\Driver::Sqlite,
+        path: "/srv/shop/shop.db",
+    });
+    echo "opened a file", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+echo "still running", "\n";
+--EXPECT--
+Core\Db::open: `tls` asks for `Tls::Disabled`, and this runtime opens every TCP connection at `Tls::VerifyFull` — ADR 0067 § 3 has no spelling for verifying less. A private certificate authority is a `tls_ca_file` on a `[db.<name>]` block, which changes whose certificates are believed and not whether they are checked
+Core\Db::open: `SQLite` is a driver this build has no connection path for yet, so the settings naming `/srv/shop/shop.db` cannot be opened
+still running

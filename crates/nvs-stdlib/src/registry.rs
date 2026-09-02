@@ -1789,6 +1789,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // program-supplied and reach ADR 0058's address policy in full, which is
     // the whole difference between the two grants — and why they are two.
     (crate::db::NAME, "connect", Some(nvs_config::Cap::DbConnect)),
+    (crate::db::NAME, "open", Some(nvs_config::Cap::DbOpen)),
     // The two connectionless members reach no effect at all: they are pure
     // functions of their arguments, and the `None` rows are what make this
     // table's claim total rather than "all but a list".
@@ -1966,6 +1967,8 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::io::FILE_MODE,
     crate::cldr::PLURAL_CATEGORY,
     crate::script::EXIT_REASON,
+    crate::db::DRIVER,
+    crate::db::TLS,
     crate::db::ISOLATION,
     crate::db::COLUMN_TYPE,
     crate::db::ERROR_KIND,

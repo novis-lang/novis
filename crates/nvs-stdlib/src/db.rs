@@ -63,27 +63,27 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`open` is not here, and what is missing is a type rather than a body.**
-//!    § 18 writes `open(Db\Settings $settings, {shared?: bool})`, and
-//!    `Db\Settings` is a *discriminated union of two shapes* over ADR 0047's
-//!    enum-case types — the SQLite arm has a `path` and no `host`, and no row
-//!    in this crate has ever declared a fixed-key shape argument.
-//!
-//!    **How that type works is settled and its registry half is built:**
+//! 1. **`open` opens outside ADR 0067 § 13's pool, and arm selection is still
+//!    the merged list's.** [`SETTINGS`] is the shape parameter § 18 writes —
 //!    [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
-//!    makes it one [`CoreTy::Shape`] carrying its *arms*, and that variant and
-//!    its [`crate::registry::CoreField`] are on disk with the three invariants
-//!    ADR 0135 §§ 1-3 state held by tests. **The checker's half is built too:**
-//!    `nvs_types::ty::Ty::CoreShape` carries per-field required-ness and
-//!    `nvs_types::core_lib` interns a `CoreTy::Shape` into it as § 3's merged,
-//!    name-deduplicated field list. What is left is `nvs_ir::lower`'s
-//!    `lower_call_args` flattening one of those into one argument per merged
-//!    field, and ADR 0135 § 2's *exactly one arm accepts it* selection, which
-//!    the merged list cannot state — `Ty::CoreShape`'s own doc owns that gap.
-//!    After both, `open`'s helper is an ordinary `args: [12]`, and the union
-//!    needs no declared discriminant because ADR 0047's enum-case types already
-//!    make the two arms disjoint. `open` stays blocked on that half rather than
-//!    on anything about databases.
+//!    § 1's two arms, § 3's twelve merged slots, and `nvs_core_db_open` reading
+//!    them — so the member is here and reachable. Two halves of it are not.
+//!
+//!    **The connection is held by the request and never pooled.** § 13 keys an
+//!    `open` pool on a hash of every settings field, and
+//!    [`nvs_runtime::pool::Ticket::for_block`] takes a config block's *name*;
+//!    until there is a ticket for a hash, this member files its connection with
+//!    no lease, which closes it at teardown rather than returning it to a pool
+//!    under a key that would be wrong. Within the request § 2's memo does hold
+//!    — [`settings_key`] is that hash, and it is what `{shared: false}` opts
+//!    out of.
+//!
+//!    **ADR 0135 § 2's *exactly one arm accepts it* is not the checker's rule
+//!    yet**: a literal is checked against the merged list, so a `host` written
+//!    beside `Driver::Sqlite` is accepted where § 18 says it is a compile
+//!    error, and a key only one arm requires is required by neither.
+//!    `nvs_types::ty::Ty::CoreShape`'s own known gap owns that, and it is why
+//!    [`settings_driver`] reads the discriminant before it reads anything else.
 //! 2. **Two drivers open, and MySQL runs only `query` of the four members that
 //!    send.** `connect`
 //!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block
@@ -206,8 +206,8 @@ use std::net::{SocketAddr, ToSocketAddrs as _};
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreEnum, CoreField, CoreMethod, CoreOption, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
 };
 
 /// The class name, once, for the messages and the rows that all name it —
@@ -492,9 +492,124 @@ pub fn check_literal_query(sql: &str, params: LiteralParams<'_>) -> Result<(), S
     Err(stated)
 }
 
-/// Spec § 18's `Core\Db` — `connect` and the two connectionless entry points,
-/// in the spec's own order. `open` joins them once a shape *parameter* is
-/// expressible in this registry; this module's known gaps own that.
+/// Spec § 18's `Db\Settings` — the two arms `open` takes, in the spec's own
+/// order, per [ADR 0135](../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+/// § 1.
+///
+/// **The arms are separated by their `driver` and by nothing else that is
+/// declared.** § 2's arm selection is "exactly one arm accepts it", and ADR
+/// 0047's enum-case types are what make these two disjoint: a literal naming
+/// `Driver::Sqlite` cannot satisfy the server arm's required `driver`, and one
+/// naming any other case cannot satisfy the SQLite arm's. Nothing here says
+/// `driver` *is* a discriminant, because saying so would be a second, weaker
+/// spelling of the disjointness the types already carry, and
+/// `a_shapes_arms_are_pairwise_disjoint` proves it from the types rather than
+/// from a declaration.
+///
+/// **Every qualifier classification lands on a field**, § 3's rule: `host` is
+/// a [`Qual::Sink`] because ADR 0067 § 3 makes an address one and gives it no
+/// launderer, `path` is one because a program-supplied SQLite file is a path
+/// sink, `database` and `user` accept `tainted` freely as length-prefixed
+/// protocol fields, and `password` is `secret tainted string`. The parameter
+/// as a whole classifies nothing.
+///
+/// **The merged list is twelve slots long**, § 3's ABI: these ten in order,
+/// then the SQLite arm's `path` — `driver`, `timeZone` and `timeout` are
+/// already spoken for — then the trailing bag's `shared`. [`DRIVER_ARG`] and
+/// the eleven consts under it are that list as slot indices, and they are the
+/// only place the numbers are written.
+const SETTINGS: &[&[CoreField]] = &[
+    &[
+        CoreField {
+            name: "driver",
+            // The four backends that take a host. Written as the union of the
+            // cases rather than as the bare enum, because the bare enum would
+            // admit `Driver::Sqlite` here and the two arms would stop being
+            // disjoint — the arm below is the one that spells that case.
+            ty: CoreTy::Union(&[
+                CoreTy::EnumCase(DRIVER_NAME, "MySql"),
+                CoreTy::EnumCase(DRIVER_NAME, "MariaDb"),
+                CoreTy::EnumCase(DRIVER_NAME, "Postgres"),
+                CoreTy::EnumCase(DRIVER_NAME, "SqlServer"),
+            ]),
+            default: None,
+        },
+        CoreField {
+            name: "host",
+            ty: CoreTy::Text(Qual::Sink),
+            default: None,
+        },
+        CoreField {
+            name: "port",
+            // `Const::Null` and not a number: which port an absent one means
+            // is the *driver's*, and there is no one answer to write here —
+            // 5432 and 3306 are different servers. The helper reads the
+            // driver first and falls back to its own default.
+            ty: CoreTy::Uint,
+            default: Some(Const::Null),
+        },
+        CoreField {
+            name: "database",
+            ty: CoreTy::TaintedStr,
+            default: None,
+        },
+        CoreField {
+            name: "user",
+            ty: CoreTy::TaintedStr,
+            default: None,
+        },
+        CoreField {
+            name: "password",
+            ty: CoreTy::SecretTaintedStr,
+            default: None,
+        },
+        CoreField {
+            name: "tls",
+            ty: CoreTy::Enum(TLS_NAME),
+            default: Some(Const::Null),
+        },
+        CoreField {
+            name: "timeZone",
+            ty: CoreTy::Instance(crate::time::ZONE_NAME),
+            default: Some(Const::Null),
+        },
+        CoreField {
+            name: "timeout",
+            ty: CoreTy::Instance(crate::time::DURATION_NAME),
+            default: Some(Const::Null),
+        },
+        CoreField {
+            name: "statementCache",
+            ty: CoreTy::Uint,
+            default: Some(Const::Null),
+        },
+    ],
+    &[
+        CoreField {
+            name: "driver",
+            ty: CoreTy::EnumCase(DRIVER_NAME, "Sqlite"),
+            default: None,
+        },
+        CoreField {
+            name: "path",
+            ty: CoreTy::Text(Qual::Sink),
+            default: None,
+        },
+        CoreField {
+            name: "timeZone",
+            ty: CoreTy::Instance(crate::time::ZONE_NAME),
+            default: Some(Const::Null),
+        },
+        CoreField {
+            name: "timeout",
+            ty: CoreTy::Instance(crate::time::DURATION_NAME),
+            default: Some(Const::Null),
+        },
+    ],
+];
+
+/// Spec § 18's `Core\Db` — `connect`, `open`, and the two connectionless entry
+/// points, in the spec's own order.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -525,6 +640,26 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(CONNECTION_NAME),
             symbol: "nvs_core_db_connect",
             doc: Some(&CONNECT_DOC),
+        },
+        CoreMethod {
+            name: "open",
+            names: &["settings"],
+            params: &[
+                // § 18's Q column reads **sink (host)**, and that is where the
+                // classification sits: on [`SETTINGS`]' own field, not here.
+                CoreTy::Shape(SETTINGS),
+                CoreTy::Options(&[CoreOption {
+                    name: "shared",
+                    ty: CoreTy::Bool,
+                    // `connect`'s default, for `connect`'s reason — ADR 0067
+                    // § 2 memoizes by default and the option only turns it off.
+                    default: Const::Bool(true),
+                }]),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(CONNECTION_NAME),
+            symbol: "nvs_core_db_open",
+            doc: Some(&OPEN_DOC),
         },
         CoreMethod {
             name: "inList",
@@ -816,6 +951,133 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
     ],
     slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT, SCOPE_SLOT, REASON_SLOT],
     constants: &[],
+};
+
+/// [`DRIVER`]'s fully-qualified name, written once so the two arms of
+/// [`SETTINGS`] and every message quoting one cannot drift apart.
+pub(crate) const DRIVER_NAME: &str = r"Core\Db\Driver";
+
+/// Spec § 18's `Driver` — ADR 0067's five backends, as the registry half of
+/// [`nvs_db::Driver`].
+///
+/// **The two halves are one enum and the wire one is authoritative.** This
+/// table is what a program writes into a `Db\Settings` literal;
+/// `nvs_db::Driver` is what a connection reports and what
+/// `nvs_db::Driver::from_config_name` reads a `[db.<name>]` block's `driver`
+/// as. Nothing about a backend is decided here.
+///
+/// **The cases are what make `Db\Settings` a discriminated union**, and they
+/// are the whole of the mechanism: ADR 0135 § 2 selects an arm by asking which
+/// one accepts the literal, and ADR 0047's enum-case types make
+/// `Driver::Sqlite` and the other four disjoint sets. No field is declared to
+/// be a discriminant, here or anywhere.
+///
+/// **The values are declaration ordinals and mean nothing else.** They are
+/// § 18's own order, so `MySql` is 0 and `SqlServer` is 4, and they are not a
+/// rank — writing them out rather than leaning on ADR 0010 § 1's
+/// auto-increment is [`CoreEnum::cases`]' rule for every enum here.
+pub(crate) const DRIVER: CoreEnum = CoreEnum {
+    name: DRIVER_NAME,
+    cases: &[
+        ("MySql", 0),
+        ("MariaDb", 1),
+        ("Postgres", 2),
+        ("Sqlite", 3),
+        ("SqlServer", 4),
+    ],
+    doc: Some(&DRIVER_DOC),
+};
+
+/// [`DRIVER`]'s reference card — ADR 0117.
+const DRIVER_DOC: EnumDoc = EnumDoc {
+    short: "Which backend a connection speaks to. It is what a `Core\\Db::open` settings literal \
+            names first, and naming it is what decides which of the two shapes the rest of that \
+            literal has to be — a server takes a `host`, SQLite takes a `path`.",
+    cases: &[
+        CaseDoc {
+            name: "MySql",
+            desc: "MySQL, over its own client protocol.",
+        },
+        CaseDoc {
+            name: "MariaDb",
+            desc: "MariaDB, which is its own driver and not a MySQL flag — its authentication \
+                   roster and its error codes are its own.",
+        },
+        CaseDoc {
+            name: "Postgres",
+            desc: "PostgreSQL, over the extended-query protocol.",
+        },
+        CaseDoc {
+            name: "Sqlite",
+            desc: "SQLite, over a file named by `path` rather than a host.",
+        },
+        CaseDoc {
+            name: "SqlServer",
+            desc: "Microsoft SQL Server, over TDS.",
+        },
+    ],
+};
+
+/// [`TLS`]'s fully-qualified name, written once for the same reason
+/// [`DRIVER_NAME`] is.
+pub(crate) const TLS_NAME: &str = r"Core\Db\Tls";
+
+/// Spec § 18's `Tls` — how much of the server's certificate a TCP connection
+/// checks.
+///
+/// **`VerifyFull` is the default and it is the only mode this runtime
+/// implements**, which is ADR 0067 § 3's third closed hole: PHP's `pdo_pgsql`
+/// defaults to `sslmode=prefer` and connects in plaintext whenever the server
+/// says so, and none of § 3's three defaults is configurable to the unsafe
+/// value. The other three cases are declared because § 18 declares them and a
+/// program that writes one is refused *at the call*, naming what it asked for
+/// — which is an honest answer, where accepting `Disabled` and quietly
+/// verifying anyway would be a second, silent one. [`settings_tls`] is where
+/// that refusal is worded.
+///
+/// What a deployment *can* change is whose certificates are believed, and that
+/// is a different field: a `tls_ca_file` on the block, or the compiled-in
+/// Mozilla anchor set — [`nvs_db::PgTarget::tls_ca_file`] owns that reading.
+///
+/// **The values are declaration ordinals**, § 18's own order, weakest first.
+pub(crate) const TLS: CoreEnum = CoreEnum {
+    name: TLS_NAME,
+    cases: &[
+        ("Disabled", 0),
+        ("Required", 1),
+        ("VerifyCa", 2),
+        ("VerifyFull", 3),
+    ],
+    doc: Some(&TLS_DOC),
+};
+
+/// [`TLS`]'s reference card — ADR 0117.
+const TLS_DOC: EnumDoc = EnumDoc {
+    short: "How much of a server's identity a TCP connection establishes before it sends a \
+            credential. `VerifyFull` is what every connection does and what a settings literal \
+            that names nothing gets; the weaker three are refused rather than honoured, because \
+            a connection that verified less than it promised is the hole this enum exists to \
+            close.",
+    cases: &[
+        CaseDoc {
+            name: "Disabled",
+            desc: "No TLS at all. Refused.",
+        },
+        CaseDoc {
+            name: "Required",
+            desc: "TLS, with the certificate unchecked. Refused.",
+        },
+        CaseDoc {
+            name: "VerifyCa",
+            desc: "The certificate must chain to a trusted anchor, but its name is not checked. \
+                   Refused.",
+        },
+        CaseDoc {
+            name: "VerifyFull",
+            desc: "The certificate must chain to a trusted anchor and must be issued for the \
+                   host that was written. The default, and the only mode a connection runs in.",
+        },
+    ],
 };
 
 /// [`ISOLATION`]'s fully-qualified name, written once so the row, the option
@@ -1590,6 +1852,116 @@ const CONNECT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Db::open`'s reference card — ADR 0117.
+///
+/// `shape` is filled here and empty on every other card in this module,
+/// because this is the one parameter that is a written shape rather than a
+/// value: [`SETTINGS`]' merged key list, in the order the ABI flattens it.
+const OPEN_DOC: MethodDoc = MethodDoc {
+    short: "Opens a connection to a server the program itself names, for the case a `[db.<name>]` \
+            block cannot cover — a tenant whose database is a row in another one, or an \
+            administration tool a human types a host into. Needs the `db.open` capability for \
+            that host, and unlike `connect` the address is checked against the denied ranges in \
+            full.",
+    params: &[
+        ParamDoc {
+            name: "settings",
+            desc: "Everything the connection is made of. It is one of two shapes and the \
+                   `driver` decides which: four of the five backends take a host, and SQLite \
+                   takes a file path instead.",
+            shape: &[
+                ShapeKeyDoc {
+                    key: "driver",
+                    ty: "Driver",
+                    desc: "Which backend this is, and so which of the two shapes the rest of \
+                           the literal has to be.",
+                },
+                ShapeKeyDoc {
+                    key: "host",
+                    ty: "string",
+                    desc: "The server to open, and the name its certificate is checked \
+                           against. It is a sink with no launderer: no check on a string can \
+                           establish that a host is safe to send a credential to.",
+                },
+                ShapeKeyDoc {
+                    key: "port",
+                    ty: "uint",
+                    desc: "The port to open. Left out, the driver's own — 5432 for PostgreSQL, \
+                           3306 for MySQL and MariaDB.",
+                },
+                ShapeKeyDoc {
+                    key: "database",
+                    ty: "tainted string",
+                    desc: "The database or schema to attach to. `tainted` is accepted: it is a \
+                           length-prefixed protocol field and never parsed text.",
+                },
+                ShapeKeyDoc {
+                    key: "user",
+                    ty: "tainted string",
+                    desc: "The role to log in as, accepted `tainted` for the same reason.",
+                },
+                ShapeKeyDoc {
+                    key: "password",
+                    ty: "secret tainted string",
+                    desc: "The role's password. It is `secret`, so it cannot reach a log line, \
+                           a message or a trace.",
+                },
+                ShapeKeyDoc {
+                    key: "tls",
+                    ty: "Tls",
+                    desc: "How much of the certificate is checked. Only `VerifyFull` runs, and \
+                           it is what an absent key means; the weaker three are refused.",
+                },
+                ShapeKeyDoc {
+                    key: "timeZone",
+                    ty: "Core\\Time\\Zone",
+                    desc: "The zone a column with no zone of its own is read in, and the one \
+                           the server is told to use. UTC where it is absent.",
+                },
+                ShapeKeyDoc {
+                    key: "timeout",
+                    ty: "Core\\Time\\Duration",
+                    desc: "How long the handshake may take, resolution and TLS included.",
+                },
+                ShapeKeyDoc {
+                    key: "statementCache",
+                    ty: "uint",
+                    desc: "How many prepared statements this connection may keep on the \
+                           server. `0` turns the cache off.",
+                },
+                ShapeKeyDoc {
+                    key: "path",
+                    ty: "string",
+                    desc: "SQLite's file, in place of a host. It is a path sink, and reaching \
+                           it needs `fs.read` and `fs.write` as well.",
+                },
+            ],
+        },
+        ParamDoc {
+            name: "shared",
+            desc: "Whether this call may answer with the connection an earlier one opened from \
+                   the same settings. `false` opens a dedicated connection instead.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Db\\Connection`, closed when the request ends. Two calls with settings that \
+          agree in every field answer the same object unless `shared` is `false`.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`db.open` does not grant the host, the address it resolves to is a private \
+                   range that `net.internal` does not except, the settings do not describe a \
+                   connection this build can open, or `tls` asks for a mode weaker than \
+                   `VerifyFull`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The host does not resolve, or the connection, the TLS handshake or the login \
+                   itself failed.",
+        },
+    ],
+};
+
 /// `Core\Db::inList`'s reference card — ADR 0117.
 const IN_LIST_DOC: MethodDoc = MethodDoc {
     short: "Marks `$values` as a run of bound values rather than one, so the placeholder it is \
@@ -2290,6 +2662,10 @@ const WRITE_LAST_ID_DOC: MethodDoc = MethodDoc {
 /// `Core\Db::connect`, as its own refusals spell it.
 const CONNECT: &str = r"Core\Db::connect";
 
+/// `Core\Db::open`, as its own refusals spell it — including the two ADR 0067
+/// § 3 gives it and gives `connect` no equivalent of.
+const OPEN: &str = r"Core\Db::open";
+
 /// `Core\Db\Connection::query`, as its own refusals spell it.
 const QUERY: &str = r"Core\Db\Connection::query";
 
@@ -2614,6 +2990,333 @@ pub(crate) fn open_named(
         Box::new(opened),
     );
     Ok(key)
+}
+
+/// ADR 0135 § 3's merged field list of [`SETTINGS`], as ABI slots: the server
+/// arm's ten fields in order, then the SQLite arm's `path` — `driver`,
+/// `timeZone` and `timeout` are already spoken for — then the trailing bag's
+/// `shared`. Twelve, which is what `nvs_core_db_open` declares.
+///
+/// A slot belonging to an arm the caller did not write arrives as `Tag::Null`,
+/// which is why the reads below check the driver first and then look only at
+/// the slots that arm declares.
+const DRIVER_ARG: usize = 0;
+/// See [`DRIVER_ARG`].
+const HOST_ARG: usize = 1;
+/// See [`DRIVER_ARG`].
+const PORT_ARG: usize = 2;
+/// See [`DRIVER_ARG`].
+const DATABASE_ARG: usize = 3;
+/// See [`DRIVER_ARG`].
+const USER_ARG: usize = 4;
+/// See [`DRIVER_ARG`].
+const PASSWORD_ARG: usize = 5;
+/// See [`DRIVER_ARG`].
+const TLS_ARG: usize = 6;
+/// See [`DRIVER_ARG`].
+const TIME_ZONE_ARG: usize = 7;
+/// See [`DRIVER_ARG`].
+const OPEN_TIMEOUT_ARG: usize = 8;
+/// See [`DRIVER_ARG`].
+const STATEMENT_CACHE_ARG: usize = 9;
+/// See [`DRIVER_ARG`].
+const PATH_ARG: usize = 10;
+/// See [`DRIVER_ARG`].
+const OPEN_SHARED_ARG: usize = 11;
+
+/// The backend a `driver` slot names.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot that is not one of [`DRIVER`]'s ordinals,
+/// which the shape's own type rules out — [`isolation_of`] states the same
+/// judgement at length.
+fn settings_driver(value: &Value) -> Result<nvs_db::Driver, Fault> {
+    match value.as_int() {
+        Some(0) => Ok(nvs_db::Driver::MySql),
+        Some(1) => Ok(nvs_db::Driver::MariaDb),
+        Some(2) => Ok(nvs_db::Driver::Postgres),
+        Some(3) => Ok(nvs_db::Driver::Sqlite),
+        Some(4) => Ok(nvs_db::Driver::SqlServer),
+        _ => Err(Fault::fatal(format!(
+            "{OPEN} expected a `{DRIVER_NAME}` case for `driver`, got tag {}",
+            value.tag_byte()
+        ))),
+    }
+}
+
+/// What a written `tls` key means, which is either "the only mode there is" or
+/// a refusal naming what was asked for.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for any of [`TLS`]'s weaker three. That enum's doc
+/// owns why they are refused rather than honoured; the short of it is that
+/// ADR 0067 § 3's TLS default is not configurable to the unsafe value, and a
+/// connection that verified more than it was asked to would be a promise made
+/// quietly.
+fn settings_tls(value: &Value) -> Result<(), Fault> {
+    let asked = match value.as_int() {
+        None => return Ok(()),
+        Some(3) => return Ok(()),
+        Some(0) => "Disabled",
+        Some(1) => "Required",
+        Some(2) => "VerifyCa",
+        Some(_) => {
+            return Err(Fault::fatal(format!(
+                "{OPEN} expected a `{TLS_NAME}` case for `tls`, got tag {}",
+                value.tag_byte()
+            )));
+        }
+    };
+    Err(Fault::thrown(format!(
+        "{OPEN}: `tls` asks for `Tls::{asked}`, and this runtime opens every TCP connection at \
+         `Tls::VerifyFull` — ADR 0067 § 3 has no spelling for verifying less. A private \
+         certificate authority is a `tls_ca_file` on a `[db.<name>]` block, which changes whose \
+         certificates are believed and not whether they are checked"
+    )))
+}
+
+/// A `uint` slot as its number, or `None` for the [`Const::Null`] an omitting
+/// call site passed.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot that is neither, which the shape's own type
+/// rules out.
+fn settings_uint(value: &Value, key: &str) -> Result<Option<u64>, Fault> {
+    if matches!(value.tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    value.as_uint().map(Some).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{OPEN} expected a `uint` for `{key}`, got tag {}",
+            value.tag_byte()
+        ))
+    })
+}
+
+/// A text slot the *written arm* requires.
+///
+/// **Thrown and not [`Fault::fatal`], which the two members either side of it
+/// would be.** `E0402` refuses a literal that omits a key the merged list
+/// requires, and the merged list can only require a key **every** arm does:
+/// `driver` is one, `host` is not, because the SQLite arm does not declare it.
+/// So a missing `host` reaches here as a `Tag::Null`, and until ADR 0135 § 2's
+/// arm selection lands — this module's known gap 1 — it is a program error and
+/// a catchable one, rather than an impossible state worth a `FATAL`.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` naming the key the written `driver` needed.
+fn settings_text<'a>(args: &'a [Value], at: usize, key: &str) -> Result<&'a str, Fault> {
+    args[at].as_text().ok_or_else(|| {
+        Fault::thrown(format!(
+            "{OPEN}: this `driver` needs a `{key}`, and the settings do not give one"
+        ))
+    })
+}
+
+/// The memo key one settings literal opens under — ADR 0067 § 2's "a hash of
+/// every settings field", where `connect`'s key is the name an operator wrote.
+///
+/// **It cannot collide with a `connect` key**, which is the one property this
+/// spelling has to have: both members file into the same per-request table, and
+/// a `[db.<name>]` block's name is a configuration key and so can never begin
+/// with a NUL byte. Two calls whose fields all agree share a connection, which
+/// is what § 2 promises, and two that differ anywhere — including in the
+/// password — do not.
+fn settings_key(fields: &[&str], port: Option<u64>) -> String {
+    use std::hash::{Hash as _, Hasher as _};
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for field in fields {
+        field.hash(&mut hasher);
+    }
+    port.hash(&mut hasher);
+    format!("\u{0}open:{:016x}", hasher.finish())
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Db::open(Db\Settings $settings, {shared?: bool}): Db\Connection`
+    /// — ADR 0067 § 2's connection the *program* describes.
+    ///
+    /// **The whole difference from `connect` is which authority wrote the
+    /// endpoint**, and § 3 turns that into two checks this body makes and that
+    /// one does not. `db.open` is asked about the host rather than a block
+    /// name, because a host is what a settings literal chooses; and the
+    /// address it resolves to is then put through
+    /// [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 3's
+    /// denied ranges in full, which is the check a `connect`-named endpoint is
+    /// deliberately exempt from — [`address_of`]'s doc owns that asymmetry from
+    /// the other side.
+    ///
+    /// **The settings become a `[db.<name>]` block and are resolved as one.**
+    /// The two drivers' resolvers already own every refusal a set of fields can
+    /// earn — a field belonging to another driver, a blank password, a zone
+    /// that is not an offset — and re-deciding any of it here would be a second
+    /// answer to a question ADR 0067 § 2 has one of. What this body decides is
+    /// only what the config path has no equivalent of: the two checks above,
+    /// and the `tls` key, which no block has.
+    ///
+    /// **What it spends:** one connection per distinct set of settings a
+    /// request opens, held by the request and closed with it. It is *not*
+    /// pooled across requests — § 13's key is a hash of every settings field
+    /// and `nvs_runtime::pool` has no such ticket yet, which is this module's
+    /// known gap 1.
+    fn nvs_core_db_open(ctx, args: [12]) {
+        let driver = settings_driver(&args[DRIVER_ARG])?;
+        // The SQLite arm, whole: its `path` is the field that says the caller
+        // wrote it, and there is no SQLite driver to hand it to — known gap 2's
+        // roster, worded here rather than through `driverless` because that one
+        // names the block a program did not write.
+        if driver == nvs_db::Driver::Sqlite {
+            let path = settings_text(args, PATH_ARG, "path")?;
+            return Err(Fault::thrown(format!(
+                "{OPEN}: `{}` is a driver this build has no connection path for yet, so the \
+                 settings naming `{path}` cannot be opened",
+                driver.display_name()
+            )));
+        }
+
+        let host = settings_text(args, HOST_ARG, "host")?;
+        let user = settings_text(args, USER_ARG, "user")?;
+        let database = settings_text(args, DATABASE_ARG, "database")?;
+        let password = settings_text(args, PASSWORD_ARG, "password")?;
+        let port = settings_uint(&args[PORT_ARG], "port")?;
+        let statement_cache = settings_uint(&args[STATEMENT_CACHE_ARG], "statementCache")?;
+        settings_tls(&args[TLS_ARG])?;
+        let shared = args[OPEN_SHARED_ARG].as_bool().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{OPEN} expected a `bool` for `shared`, got tag {}",
+                args[OPEN_SHARED_ARG].tag_byte()
+            ))
+        })?;
+
+        // § 3's grant, asked before anything is resolved or opened: a host
+        // outside it is refused whether or not it exists.
+        nvs_runtime::capability::require(
+            ctx,
+            nvs_config::Cap::DbOpen,
+            nvs_config::capability::Scope::Host(host),
+            OPEN,
+        )?;
+        // And § 3's other half — ADR 0058's table, which is what a
+        // program-supplied address is subject to and an operator-written one is
+        // not. The name is resolved once, here, and the socket below opens to
+        // exactly the address that was checked.
+        let pinned = nvs_runtime::capability::pinned_address(ctx, host, OPEN)?;
+
+        let memo = settings_key(&[host, user, database, password, driver.matrix_name()], port);
+        if shared && let Some(key) = ctx.memoized_connection(&memo) {
+            return Ok(crate::instance::build(
+                &CONNECTION,
+                [Value::uint(key), Value::str(NvsStr::new(host.as_bytes()))],
+            ));
+        }
+
+        // The block the two resolvers read. Every field is one the settings
+        // literal wrote, so what comes back out is the same target a
+        // `[db.<name>]` block of the same content would resolve to — including
+        // its refusals, which is the point of going through them.
+        let block = nvs_config::tree::Database {
+            driver: Some(driver.matrix_name().to_owned()),
+            host: Some(host.to_owned()),
+            port: port.and_then(|written| u16::try_from(written).ok()),
+            user: Some(user.to_owned()),
+            password: Some(password.to_owned()),
+            database: Some(database.to_owned()),
+            statement_cache: statement_cache.and_then(|held| u32::try_from(held).ok()),
+            ..nvs_config::tree::Database::default()
+        };
+        // § 9's declared zone. It is set on the resolved target rather than
+        // written into the block above, because the block's field is an offset
+        // *spelling* and this arrives as a `Core\Time\Zone`: rendering it to
+        // text for the resolver to parse back would be two conversions and one
+        // more place for the two to disagree.
+        let zone = if matches!(args[TIME_ZONE_ARG].tag(), Some(Tag::Null)) {
+            0
+        } else {
+            crate::time::zone_offset_now(args, TIME_ZONE_ARG, "open")?
+        };
+        let deadline = open_deadline(args)?;
+        let refused = |refusal: nvs_db::BlockError<'_>| {
+            Fault::thrown(format!("{OPEN}: {}", refusal.refusal("<settings>")))
+        };
+        let opening = |address: SocketAddr, err: &std::io::Error| {
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!("{OPEN}: {address} did not open: {err}"),
+            )
+        };
+        let opened = match driver {
+            nvs_db::Driver::MySql => {
+                let mut target = nvs_db::MySqlTarget::resolve(&block).map_err(refused)?;
+                target.time_zone = zone;
+                let address =
+                    SocketAddr::new(pinned, port_of(port, nvs_db::mysql::DEFAULT_PORT));
+                let conn = nvs_db::MySqlConn::connect(address, &target, deadline)
+                    .map_err(|err| opening(address, &err))?;
+                nvs_db::Connection::MySql(conn)
+            }
+            nvs_db::Driver::Postgres => {
+                let mut target = nvs_db::PgTarget::resolve(&block).map_err(refused)?;
+                target.time_zone = zone;
+                let address = SocketAddr::new(pinned, port_of(port, nvs_db::pg::DEFAULT_PORT));
+                let conn = nvs_db::PgConn::connect(address, &target, deadline)
+                    .map_err(|err| opening(address, &err))?;
+                nvs_db::Connection::Postgres(conn)
+            }
+            // MariaDB and SQL Server, which bind and decode but have no
+            // handshake here — known gap 2's list, and the same refusal a block
+            // naming one earns.
+            other => {
+                return Err(Fault::thrown(format!(
+                    "{OPEN}: `{}` is a driver this build has no connection path for yet, so the \
+                     settings naming it cannot be opened",
+                    other.display_name()
+                )));
+            }
+        };
+        let key = ctx.hold_open_connection(shared.then_some(memo), None, Box::new(opened));
+        Ok(crate::instance::build(
+            &CONNECTION,
+            [Value::uint(key), Value::str(NvsStr::new(host.as_bytes()))],
+        ))
+    }
+}
+
+/// Which port a settings literal reaches: the one it wrote, or the driver's.
+///
+/// [`address_of`]'s rule, applied to the member that resolved its host
+/// somewhere else: a written port that does not fit a `u16` cannot be a port at
+/// all, so it falls back rather than truncating into one.
+fn port_of(written: Option<u64>, default_port: u16) -> u16 {
+    written
+        .and_then(|held| u16::try_from(held).ok())
+        .unwrap_or(default_port)
+}
+
+/// [`deadline_of`]'s twin for `open`, whose `timeout` is a *shape field* and so
+/// arrives in a slot of its own.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a duration that is zero or negative, and a
+/// [`Fault::fatal`] for a slot that is neither a `Duration` nor `Tag::Null`.
+fn open_deadline(args: &[Value]) -> Result<Option<std::time::Instant>, Fault> {
+    if matches!(args[OPEN_TIMEOUT_ARG].tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    let nanos = crate::time::nanos_of(args, OPEN_TIMEOUT_ARG, "timeout")?;
+    if nanos <= 0 {
+        return Err(Fault::thrown(format!(
+            "{OPEN}: `timeout` must be a positive duration, and this one is {nanos}ns"
+        )));
+    }
+    Ok(Some(
+        std::time::Instant::now() + std::time::Duration::from_nanos(nanos.unsigned_abs()),
+    ))
 }
 
 nvs_runtime::nvs_helper! {
@@ -6033,6 +6736,7 @@ nvs_runtime::nvs_helper! {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_db_connect" => (nvs_core_db_connect as *const ()).cast(),
+        "nvs_core_db_open" => (nvs_core_db_open as *const ()).cast(),
         "nvs_core_db_in_list" => (nvs_core_db_in_list as *const ()).cast(),
         "nvs_core_db_quote_identifier" => (nvs_core_db_quote_identifier as *const ()).cast(),
         "nvs_core_db_connection_query" => (nvs_core_db_connection_query as *const ()).cast(),
@@ -6659,6 +7363,63 @@ mod tests {
             pinned,
             SocketAddr::from(([127, 0, 0, 1], 5432)),
             "and it is the written host's own address, resolved once"
+        );
+    }
+
+    /// ADR 0067 § 3's other side, and the same address: a target
+    /// `Core\Db::open` was *granted* is still refused when it resolves into one
+    /// of ADR 0058 § 3's denied ranges, because a program-supplied address
+    /// stays subject to that policy in full.
+    ///
+    /// The claim is the pair, not either half. `db.open` granting the host is
+    /// asserted first, so the refusal that follows cannot be read as an
+    /// ungranted one; and [`address_of`] — the path `connect` takes to the very
+    /// same address — is asked last and answers, so the refusal cannot be read
+    /// as "this runtime will not open loopback". What separates them is which
+    /// authority wrote the endpoint, and that is the whole of § 3.
+    ///
+    /// The deepest half is again a signature: `pinned_address` takes the
+    /// [`Ctx`], so the policy has a deployment's `net.internal` in front of it,
+    /// where [`address_of`] has nothing in front of it at all.
+    #[test]
+    fn a_db_open_target_in_a_denied_range_fails() {
+        const HOST: &str = "127.0.0.1";
+
+        // What the operator wrote: this program may open a database at that
+        // host, and nothing excepts any address from § 3's table.
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_config(crate::tests::granting(
+            "[capabilities.db]\nopen = [\"127.0.0.1\"]\n",
+        ));
+
+        nvs_runtime::capability::require(
+            &ctx,
+            nvs_config::Cap::DbOpen,
+            nvs_config::capability::Scope::Host(HOST),
+            OPEN,
+        )
+        .expect("`db.open` grants the host by name, and this deployment granted it");
+
+        let by_range = nvs_runtime::capability::pinned_address(&ctx, HOST, OPEN)
+            .expect_err("a granted host is not a permitted address — ADR 0067 § 3");
+        let said = format!("{by_range:?}");
+        assert!(
+            // `::open` and not [`OPEN`] itself: this is the `Debug` rendering
+            // and it escapes the class's own backslash.
+            said.contains("net.internal") && said.contains("::open"),
+            "the refusal names the key that would except the range, and the member that \
+             asked: {said}"
+        );
+
+        // And the same address down `connect`'s path, on a deployment that
+        // grants no `net` key either: pre-approved, because an operator wrote
+        // the endpoint into root-owned configuration.
+        let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main")
+            .expect("a `connect`-named endpoint is pre-approved — ADR 0067 § 3");
+        assert_eq!(
+            pinned,
+            SocketAddr::from(([127, 0, 0, 1], 5432)),
+            "so the two members differ in the check and not in the address"
         );
     }
 

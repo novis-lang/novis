@@ -17169,11 +17169,12 @@ Every node this one contains, however deeply — `children` closed transitively,
 <a id="core-core-db"></a>
 ### `Core\Db`
 
-Keywords: connect, inList, quoteIdentifier
+Keywords: connect, open, inList, quoteIdentifier
 
 | Member | Signature |
 |---|---|
 | [`Core\Db::connect`](#core-core-db-connect) | `connect(string $name, {shared?: bool, timeout?: Core\Time\Duration}): Core\Db\Connection` |
+| [`Core\Db::open`](#core-core-db-open) | `open(? $settings, {shared?: bool}): Core\Db\Connection` |
 | [`Core\Db::inList`](#core-core-db-inlist) | `inList(array<mixed> $values): Core\Db\InList` |
 | [`Core\Db::quoteIdentifier`](#core-core-db-quoteidentifier) | `quoteIdentifier(string $name): string` |
 
@@ -17195,6 +17196,24 @@ Opens the connection an operator named in a `[db.<name>]` block of `nvs.toml`, a
 **Returns** `Core\Db\Connection` — A `Core\Db\Connection`. The same call twice in one request answers the same object unless `shared` is `false`, and the connection is closed when the request ends.
 
 **Throws** `RuntimeError` — `db.connect` does not grant `$name`, no `[db.<name>]` block of that name exists, or the block cannot be read as a connection — a missing `driver`, a field belonging to another driver, or a `time_zone` that is not an offset.; `IOError` — The host does not resolve, or the connection, the TLS handshake or the login itself failed. A refusal the server worded carries its own message.
+
+<a id="core-core-db-open"></a>
+#### `Core\Db::open`
+
+```nvs skip
+Core\Db::open(? $settings, {shared?: bool}): Core\Db\Connection
+```
+
+Opens a connection to a server the program itself names, for the case a `[db.<name>]` block cannot cover — a tenant whose database is a row in another one, or an administration tool a human types a host into. Needs the `db.open` capability for that host, and unlike `connect` the address is checked against the denied ranges in full.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$settings` | `?` | Everything the connection is made of. It is one of two shapes and the `driver` decides which: four of the five backends take a host, and SQLite takes a file path instead. Keys: `driver` (Driver) Which backend this is, and so which of the two shapes the rest of the literal has to be.; `host` (string) The server to open, and the name its certificate is checked against. It is a sink with no launderer: no check on a string can establish that a host is safe to send a credential to.; `port` (uint) The port to open. Left out, the driver's own — 5432 for PostgreSQL, 3306 for MySQL and MariaDB.; `database` (tainted string) The database or schema to attach to. `tainted` is accepted: it is a length-prefixed protocol field and never parsed text.; `user` (tainted string) The role to log in as, accepted `tainted` for the same reason.; `password` (secret tainted string) The role's password. It is `secret`, so it cannot reach a log line, a message or a trace.; `tls` (Tls) How much of the certificate is checked. Only `VerifyFull` runs, and it is what an absent key means; the weaker three are refused.; `timeZone` (Core\Time\Zone) The zone a column with no zone of its own is read in, and the one the server is told to use. UTC where it is absent.; `timeout` (Core\Time\Duration) How long the handshake may take, resolution and TLS included.; `statementCache` (uint) How many prepared statements this connection may keep on the server. `0` turns the cache off.; `path` (string) SQLite's file, in place of a host. It is a path sink, and reaching it needs `fs.read` and `fs.write` as well. |
+| `{shared: …}` | `bool` (default `true`) | Whether this call may answer with the connection an earlier one opened from the same settings. `false` opens a dedicated connection instead. |
+
+**Returns** `Core\Db\Connection` — A `Core\Db\Connection`, closed when the request ends. Two calls with settings that agree in every field answer the same object unless `shared` is `false`.
+
+**Throws** `RuntimeError` — `db.open` does not grant the host, the address it resolves to is a private range that `net.internal` does not except, the settings do not describe a connection this build can open, or `tls` asks for a mode weaker than `VerifyFull`.; `IOError` — The host does not resolve, or the connection, the TLS handshake or the login itself failed.
 
 <a id="core-core-db-inlist"></a>
 #### `Core\Db::inList`
@@ -18296,6 +18315,31 @@ Which of the three endings ran the exit hooks. A `FATAL` and a cancellation have
 | `Core\Script\ExitReason::Normal` | The last top-level statement ran and the script ended of its own accord. |
 | `Core\Script\ExitReason::ExitCall` | `exit`, `exit($n)` or `exit("msg")` ended the script — the one ending no `finally` observes. |
 | `Core\Script\ExitReason::UncaughtThrow` | A throw reached the root of the script with nothing left to catch it; the report carries the `Throwable` itself. |
+
+<a id="enum-core-db-driver"></a>
+#### `Core\Db\Driver`
+
+Which backend a connection speaks to. It is what a `Core\Db::open` settings literal names first, and naming it is what decides which of the two shapes the rest of that literal has to be — a server takes a `host`, SQLite takes a `path`.
+
+| Case | Meaning |
+|---|---|
+| `Core\Db\Driver::MySql` | MySQL, over its own client protocol. |
+| `Core\Db\Driver::MariaDb` | MariaDB, which is its own driver and not a MySQL flag — its authentication roster and its error codes are its own. |
+| `Core\Db\Driver::Postgres` | PostgreSQL, over the extended-query protocol. |
+| `Core\Db\Driver::Sqlite` | SQLite, over a file named by `path` rather than a host. |
+| `Core\Db\Driver::SqlServer` | Microsoft SQL Server, over TDS. |
+
+<a id="enum-core-db-tls"></a>
+#### `Core\Db\Tls`
+
+How much of a server's identity a TCP connection establishes before it sends a credential. `VerifyFull` is what every connection does and what a settings literal that names nothing gets; the weaker three are refused rather than honoured, because a connection that verified less than it promised is the hole this enum exists to close.
+
+| Case | Meaning |
+|---|---|
+| `Core\Db\Tls::Disabled` | No TLS at all. Refused. |
+| `Core\Db\Tls::Required` | TLS, with the certificate unchecked. Refused. |
+| `Core\Db\Tls::VerifyCa` | The certificate must chain to a trusted anchor, but its name is not checked. Refused. |
+| `Core\Db\Tls::VerifyFull` | The certificate must chain to a trusted anchor and must be issued for the host that was written. The default, and the only mode a connection runs in. |
 
 <a id="enum-core-db-isolation"></a>
 #### `Core\Db\Isolation`
@@ -20330,6 +20374,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `iptcparse` | dropped | IPTC metadata out of an APP13 marker the caller sliced out by hand. Image metadata is read by the component already holding the decoded file ([ADR 0120](adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 11) |
 | `iptcembed` | dropped | writes it back by splicing bytes into a JPEG, same owner and the same reason |
 | `hash_hmac_file` | member | `Core\Hash::hmac` over the bytes `Core\IO::read` returns, or over the digest stream where the file does not fit — the same R17 split `hash_file` takes above |
+| `mysqli_connect` | member | `Core\Db::connect`, which names a root-owned `[db.<name>]` block rather than carrying a host, a user and a password in program source ([ADR 0067](adr/0067-core-db.md) § 2). A connection built at request time — one database per tenant — is `Core\Db::open` |
 | `mysqli_init` | dropped | half a connection: an object that exists only to be configured before `mysqli_real_connect` opens it. There is no unopened `Db\Connection`, so there is no gap between the two calls to configure anything in |
 | `mysqli_real_connect` | dropped | the other half of that two-step, and the only one of the pair that takes flags. `Core\Db::connect` is the whole of it |
 | `mysqli_options` | dropped | sets `MYSQLI_OPT_*` between those two calls. Every option that survives is a key an operator writes — the connection's own `[db.<name>]` block, or `[db.<name>.pool]` for the bounds ([ADR 0067](adr/0067-core-db.md) §§ 2, 13) — and the runtime reads it, not the program |

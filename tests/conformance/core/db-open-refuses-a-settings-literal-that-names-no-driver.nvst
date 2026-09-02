@@ -1,0 +1,25 @@
+--TEST--
+A shape key `Core\Db::open` requires and the settings literal omits is refused at the call, because ADR 0135 § 3 flattens a key into an argument and a missing one is a call an argument short — E0402
+--FILE--
+<?nvs
+// `driver` is the one key both arms of `Db\Settings` require, so it is the one
+// the merged list requires: the server arm and the SQLite arm disagree about
+// every other field, and a key only one arm needs is not a key the call is
+// short of. ADR 0135 § 2's arm selection is what will sharpen that, and until
+// it lands this is the boundary.
+Core\Db::open({
+    host: "db.example.test",
+    database: "shop",
+    user: "app",
+    password: "hunter2",
+});
+--EXPECTF-ERROR--
+error[E0402]: this member requires the shape key `driver`
+   --> %s:7:15
+   |
+ 7 | Core\Db::open({
+   |               ^... `driver` is not given
+   | (continues to line 12)
+   = help: the keys this member requires are: driver
+
+error: aborting due to 1 error
