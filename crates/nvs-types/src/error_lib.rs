@@ -66,6 +66,7 @@ use nvs_hir::errors::{PROPERTIES, ROOT, TREE};
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
+use crate::enums::EnumBacking;
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
@@ -113,12 +114,28 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                 // its caller passed, and the synthesized constructor writes
                 // the message into it (`nvs_ir::lower::exception`).
                 "reason" => interner.string(),
+                // `Core\Db\DbError::$kind` — ADR 0067 § 8's normalised
+                // `ErrorKind`, which is a registered enum and not a string:
+                // the eleven conditions are a closed set the compiler can
+                // check a `match` against, and `nvs_stdlib::db::ERROR_KIND` is
+                // the row that declares them. `EnumBacking::Int` is what every
+                // `Core` enum is backed by (`crate::core_lib`'s `CoreTy::Enum`
+                // arm interns exactly this).
+                "kind" => interner.enum_(QName::parse(ERROR_KIND), EnumBacking::Int),
                 other => panic!("no type seeded for `{name}::{other}`"),
             };
             ((*property).to_owned(), ty)
         })
         .collect()
 }
+
+/// `Core\Db\DbError::$kind`'s enum, by name.
+///
+/// `nvs_stdlib::db::ERROR_KIND_NAME` is the home of this spelling and this is
+/// a second copy of it, because that const is `pub(crate)` and the module is
+/// private — `the_kind_property_names_a_registered_enum` is what stops the two
+/// drifting.
+const ERROR_KIND: &str = r"Core\Db\ErrorKind";
 
 /// `type Core\Issue = {path: string, message: string}` —
 /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's one shape.
@@ -320,6 +337,47 @@ mod tests {
             .expect("IOError inherits the root's");
         assert_eq!(owner.to_string(), ROOT);
         assert!(resolve_property(&QName::parse("IOError"), "issues", &table, &graph).is_none());
+    }
+
+    #[test]
+    fn the_kind_property_names_a_registered_enum() {
+        // Three spellings of one enum meet here and nothing but this test
+        // holds them together: `ERROR_KIND` above, `nvs_stdlib::db`'s
+        // `ERROR_KIND_NAME` (which declares the cases), and
+        // `nvs_ir::lower::exception`'s `ERROR_KIND_OTHER` ordinal, which the
+        // synthesized constructor writes into the slot. The third crate
+        // depends on neither of the other two, so the ordinal is pinned here
+        // rather than compared there.
+        let registered = nvs_stdlib::registry::ENUMS
+            .iter()
+            .find(|entry| entry.name == ERROR_KIND)
+            .expect("`Core\\Db\\ErrorKind` is a registered enum");
+        assert_eq!(
+            registered.cases.iter().find(|(name, _)| *name == "Other"),
+            Some(&("Other", 10)),
+            "`nvs_ir::lower::exception::ERROR_KIND_OTHER` restates this ordinal"
+        );
+
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+        let graph = tree_graph();
+        let ty = resolve_property(&QName::parse("Core\\Db\\DbError"), "kind", &table, &graph)
+            .expect("`kind` is DbError's own property");
+        assert_eq!(
+            ty,
+            interner.enum_(QName::parse(ERROR_KIND), EnumBacking::Int)
+        );
+        // A sibling under `RuntimeError` gains nothing from it.
+        assert!(
+            resolve_property(
+                &QName::parse("Core\\Db\\RolledBack"),
+                "kind",
+                &table,
+                &graph
+            )
+            .is_none()
+        );
     }
 
     #[test]

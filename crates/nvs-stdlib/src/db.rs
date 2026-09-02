@@ -82,19 +82,21 @@
 //!    per-core pool is what would change that, and it may only do so behind
 //!    that section's reset; [`nvs_runtime::Ctx::hold_open_connection`] is where
 //!    that is written down.
-//! 4. **`Db\DbError` is in spec § 10's tree and carries none of § 18's five
-//!    properties.** A refusal the server itself made is thrown as
+//! 4. **`Db\DbError` declares § 18's `kind` and none of its four raw values.**
+//!    A refusal the server itself made is thrown as
 //!    `nvs_runtime::ThrownClass::DbError` ([`statement_failure`]), so a `catch`
 //!    can name the database instead of `RuntimeError` — which it still is,
 //!    being its parent, so nothing written against the old class stops
-//!    working. What a program cannot do is read `kind`, `sqlState`,
-//!    `driverCode`, `constraint` or `sql` off the object: the class declares no
-//!    slot of its own, and `nvs_hir::errors::OWN_PROPERTIES` says what each of
-//!    the five owes before it can. This crate holds the `kind` at the instant
-//!    it throws — `nvs_db::ServerError::of` reads it out of the driver's error
-//!    — and drops it, which is also the half of gap 9 the retry loop is still
-//!    missing. A failure of the *wire* rather than of the statement stays an
-//!    `IOError`: § 8's class is the server's answer, not the socket's.
+//!    working. `kind` is a slot now: `nvs_hir::errors::OWN_PROPERTIES` declares
+//!    it, `nvs_types::error_lib` types it as the registered enum [`ERROR_KIND`]
+//!    and the synthesized constructor writes `Other` into it. What a program
+//!    cannot do is read `sqlState`, `driverCode`, `constraint` or `sql`, each
+//!    of which owes a seeded type first, **and cannot yet read a `kind` the
+//!    server actually chose**: a native throw carries a class and a message and
+//!    has no way to set a slot, so [`statement_failure`] still drops the kind
+//!    it holds. That is the half of gap 9 the retry loop is missing too. A
+//!    failure of the *wire* rather than of the statement stays an `IOError`:
+//!    § 8's class is the server's answer, not the socket's.
 //! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
 //!    has landed of `Core\Db\Queryable`** (gap 8 is what `queryAs` still owes).
 //!    `stream` and `streamAs` are owed whole, and so are
@@ -739,6 +741,117 @@ const ISOLATION_DOC: EnumDoc = EnumDoc {
             name: "Serializable",
             desc: "Concurrent transactions produce a result some serial order of them would have \
                    produced, and a transaction that cannot is rolled back for the caller to retry.",
+        },
+    ],
+};
+
+/// [`ERROR_KIND`]'s fully-qualified name, written once so the row, the property
+/// that answers with it and every message quoting it cannot drift apart.
+///
+/// `nvs_types::error_lib` spells it a second time, because that crate seeds
+/// `Core\Db\DbError::$kind`'s type and cannot reach a `pub(crate)` const here;
+/// `the_kind_property_names_a_registered_enum` is what holds the two spellings
+/// together rather than this sentence.
+pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\ErrorKind";
+
+/// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8's `ErrorKind` — the
+/// eleven conditions an application branches on, as the registry half of
+/// [`nvs_db::DbErrorKind`].
+///
+/// **The two halves are one enum and the wire one is authoritative.** This
+/// table is what a program matches on; `nvs_db::DbErrorKind` is what a driver
+/// maps its own codes onto, and its doc comment owns why the set is normalised
+/// at all — PDO exposes a `SQLSTATE` and a vendor integer, so real PHP matches
+/// on `"Duplicate entry"` or hard-codes `1062`. `nvs_db::DbErrorKind::is_retryable`
+/// owns which two of these § 7's `{retries: n}` re-runs a closure over, and
+/// nothing about that rule is decided here.
+///
+/// **A class per condition was rejected** — § 8's own *Alternatives*: ten more
+/// types in the deliberately small closed exception set
+/// [0063 § 4](../../../docs/adr/0063-core-api-conventions.md) fixes, for
+/// boundaries that are driver-dependent anyway. What normalising does not
+/// reach stays readable as the raw `sqlState` and `driverCode` beside it.
+///
+/// **The values are declaration ordinals and mean nothing else.** They are
+/// § 8's own order, so `UniqueViolation` is 0 and `Other` is 10, but they are
+/// not a rank a program may compare: a kind is a set and not a scale, which is
+/// why `nvs_db::DbErrorKind` derives no `Ord` either. Writing them out rather
+/// than leaning on ADR 0010 § 1's auto-increment is [`CoreEnum::cases`]' rule
+/// for every enum here.
+pub(crate) const ERROR_KIND: CoreEnum = CoreEnum {
+    name: ERROR_KIND_NAME,
+    cases: &[
+        ("UniqueViolation", 0),
+        ("ForeignKeyViolation", 1),
+        ("NotNullViolation", 2),
+        ("CheckViolation", 3),
+        ("Deadlock", 4),
+        ("SerializationFailure", 5),
+        ("ConnectionLost", 6),
+        ("Timeout", 7),
+        ("Syntax", 8),
+        ("Permission", 9),
+        ("Other", 10),
+    ],
+    doc: Some(&ERROR_KIND_DOC),
+};
+
+/// [`ERROR_KIND`]'s reference card — ADR 0117.
+const ERROR_KIND_DOC: EnumDoc = EnumDoc {
+    short: "Why the server refused a statement, normalised across the drivers so that a program \
+            branches on the condition rather than on a vendor code. `Core\\Db\\DbError::$kind` \
+            answers with one of these, and the raw `SQLSTATE` beside it covers what normalising \
+            does not reach.",
+    cases: &[
+        CaseDoc {
+            name: "UniqueViolation",
+            desc: "A row with this key already exists.",
+        },
+        CaseDoc {
+            name: "ForeignKeyViolation",
+            desc: "A referenced row does not exist, or a referencing one still does.",
+        },
+        CaseDoc {
+            name: "NotNullViolation",
+            desc: "A column that may not be null was written null.",
+        },
+        CaseDoc {
+            name: "CheckViolation",
+            desc: "A `CHECK` constraint refused the row.",
+        },
+        CaseDoc {
+            name: "Deadlock",
+            desc: "Two transactions each hold what the other waits for, and the server aborted \
+                   this one to break it. SQLite's `SQLITE_BUSY` and `SQLITE_LOCKED` arrive here \
+                   too, so that a retry works there as well.",
+        },
+        CaseDoc {
+            name: "SerializationFailure",
+            desc: "The transaction could not be serialised against a concurrent one and was \
+                   aborted — the ordinary outcome under `REPEATABLE READ` or stronger.",
+        },
+        CaseDoc {
+            name: "ConnectionLost",
+            desc: "The connection is gone, or the server is going away.",
+        },
+        CaseDoc {
+            name: "Timeout",
+            desc: "A statement or an idle transaction ran past a bound and was cancelled.",
+        },
+        CaseDoc {
+            name: "Syntax",
+            desc: "The statement is not something the server will run: a syntax error, an \
+                   undefined table, a type it cannot resolve.",
+        },
+        CaseDoc {
+            name: "Permission",
+            desc: "The role may not do this.",
+        },
+        CaseDoc {
+            name: "Other",
+            desc: "Anything the driver's own table does not name, including a condition one \
+                   backend has and the others do not. It is also what a `Core\\Db\\DbError` \
+                   constructed by hand carries, no server having classified it.",
         },
     ],
 };
@@ -2502,9 +2615,13 @@ fn bound_of(value: Value) -> Bound {
 ///
 /// What the throw still cannot carry is § 8's `kind`, which this crate has
 /// right here — `nvs_db::ServerError::of(refused)` reads it back out of the
-/// error this function is handed — and drops for want of a slot to write it to.
-/// That is this module's known gap 4, and it is why `transaction`'s retry rule
-/// branches on the *commit's* refusal and not on the closure's (gap 9).
+/// error this function is handed. The slot exists now; what is missing is a way
+/// to reach it, because `Fault::thrown_as` carries a class and a message and
+/// nothing else. `Fault::ThrownWithIssues` is the shape that already writes one
+/// extra slot on a thrown object, for `ParseError::$issues`, and generalising
+/// it is what this owes. That is this module's known gap 4, and it is why
+/// `transaction`'s retry rule branches on the *commit's* refusal and not on the
+/// closure's (gap 9).
 fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fault {
     let name = block.as_text().unwrap_or("?");
     match refused.kind() {
