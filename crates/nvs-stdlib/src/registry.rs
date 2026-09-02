@@ -1868,6 +1868,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::cldr::PLURAL_CATEGORY,
     crate::script::EXIT_REASON,
     crate::db::ISOLATION,
+    crate::db::COLUMN_TYPE,
 ];
 
 /// Looks a class up by its fully-qualified name.

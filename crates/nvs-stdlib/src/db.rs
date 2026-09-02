@@ -632,6 +632,127 @@ const ISOLATION_DOC: EnumDoc = EnumDoc {
     ],
 };
 
+/// [`COLUMN_TYPE`]'s fully-qualified name, written once so the row, the member
+/// that answers with it and every message quoting it cannot drift apart.
+pub(crate) const COLUMN_TYPE_NAME: &str = r"Core\Db\ColumnType";
+
+/// Spec § 18's `ColumnType` — the fourteen types a result column can be
+/// declared as, as the registry half of [`nvs_db::ColumnType`].
+///
+/// **The two halves are one enum and the wire one is authoritative.** This
+/// table is what a program matches on; `nvs_db::ColumnType` is what a driver
+/// classifies a column into, and its doc comment owns the rule every
+/// description below is written to: **a case says what the column was
+/// *declared* as, never what a read of it produces.** That is why `Json` is a
+/// case of its own although [ADR 0067](../../../docs/adr/0067-core-db.md) § 9
+/// decodes a `JSON` column to the same `tainted string` a `TEXT` one decodes
+/// to, and why there is no array case at all — § 9 reads a PostgreSQL array as
+/// `array<T>` and MySQL's `SET` as `array<string>`, and both *describe* as
+/// `Other`. [`ROWS`] records the same split from the reader's side.
+///
+/// **The values are declaration ordinals and mean nothing else.** They are the
+/// spec's own order at `docs/spec/01-core-library.md:1223`, so `Int` is 0 and
+/// `Other` is 13, but they are not a rank a program may compare: these are a
+/// set and not a scale, which is why `nvs_db::ColumnType` derives no `Ord`
+/// either. Writing them out rather than leaning on ADR 0010 § 1's
+/// auto-increment is [`CoreEnum::cases`]' rule for every enum here.
+pub(crate) const COLUMN_TYPE: CoreEnum = CoreEnum {
+    name: COLUMN_TYPE_NAME,
+    cases: &[
+        ("Int", 0),
+        ("Uint", 1),
+        ("Float", 2),
+        ("Decimal", 3),
+        ("Text", 4),
+        ("Bytes", 5),
+        ("Bool", 6),
+        ("Date", 7),
+        ("Time", 8),
+        ("DateTime", 9),
+        ("Instant", 10),
+        ("Uuid", 11),
+        ("Json", 12),
+        ("Other", 13),
+    ],
+    doc: Some(&COLUMN_TYPE_DOC),
+};
+
+/// [`COLUMN_TYPE`]'s reference card — ADR 0117.
+const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
+    short: "What a result column was declared as, which is a description of the column and not a \
+            summary of the value a read of it produces: a `JSON` column and a `TEXT` one both read \
+            back as `tainted string` and are told apart here, wherever the backend has a type of \
+            its own to tell them apart by.",
+    cases: &[
+        CaseDoc {
+            name: "Int",
+            desc: "A signed integer column — `SMALLINT`, `INTEGER` or `BIGINT`. MySQL's and \
+                   MariaDB's `TINYINT(1)` is one of these rather than a `Bool`.",
+        },
+        CaseDoc {
+            name: "Uint",
+            desc: "An unsigned integer column: an `UNSIGNED` integer on MySQL and MariaDB, an \
+                   `oid` on PostgreSQL.",
+        },
+        CaseDoc {
+            name: "Float",
+            desc: "`FLOAT`, `REAL` or `DOUBLE`.",
+        },
+        CaseDoc {
+            name: "Decimal",
+            desc: "An exact numeric column — `DECIMAL`, `NUMERIC` or `MONEY`.",
+        },
+        CaseDoc {
+            name: "Text",
+            desc: "A text-family column: `CHAR`, `VARCHAR`, `TEXT` or `ENUM`, and a JSON column \
+                   on a backend where JSON is an aliased text type rather than a type of its own.",
+        },
+        CaseDoc {
+            name: "Bytes",
+            desc: "A binary column — `BINARY`, `BLOB` or `BYTEA`, including the `BINARY(16)` a \
+                   MySQL schema stores a UUID in.",
+        },
+        CaseDoc {
+            name: "Bool",
+            desc: "`BOOLEAN`, and `BIT(1)`.",
+        },
+        CaseDoc {
+            name: "Date",
+            desc: "A `DATE`, which a read answers with a `Core\\Time\\Date`.",
+        },
+        CaseDoc {
+            name: "Time",
+            desc: "A `TIME`, which a read answers with a `Core\\Time\\TimeOfDay`.",
+        },
+        CaseDoc {
+            name: "DateTime",
+            desc: "A zone-less `DATETIME` or `TIMESTAMP`, which a read answers with a \
+                   `Core\\Time\\DateTime` in the zone the connection declared.",
+        },
+        CaseDoc {
+            name: "Instant",
+            desc: "A column carrying its own offset — `TIMESTAMPTZ`, or SQL Server's \
+                   `datetimeoffset` — which a read answers with a `Core\\Time\\Instant`.",
+        },
+        CaseDoc {
+            name: "Uuid",
+            desc: "A `UUID` or a `uniqueidentifier`, which a read answers with a `Core\\Uuid`.",
+        },
+        CaseDoc {
+            name: "Json",
+            desc: "A column the backend types as JSON. The value still reads back as a `tainted \
+                   string`, since JSON is never decoded for you; a backend that has no JSON type \
+                   of its own reports the column as `Text` instead.",
+        },
+        CaseDoc {
+            name: "Other",
+            desc: "Every other column: one with no Novis type of its own, and every array. This \
+                   is the total case rather than a failure, so a column list describes every \
+                   column a server can send.",
+        },
+    ],
+};
+
 /// Spec § 18's `Core\Db\Rows` — what a buffered statement answers with.
 ///
 /// What the slot holds is the whole of what the members read, decided here
@@ -640,30 +761,14 @@ const ISOLATION_DOC: EnumDoc = EnumDoc {
 /// every member below is a reader over it and never a second decoder.
 ///
 /// **Five of § 18's six members, and `columns()` is the one owed.** It answers
-/// `array<Column>`, and what is left to build is a `Core\Db\Column`, a
-/// `Core\Db\ColumnType`, and a slot that holds the descriptions —
-/// [`nvs_db::PgRows::columns`] answers them and this slot keeps only the rows,
-/// so they are captured at query time or not at all. The classification under
-/// them is landed: [`nvs_db::PgColumn::column_type`]. This module's known gap 5
-/// is that list.
-///
-/// **The enum's fourteen cases are the spec's, not this slot's to invent.**
-/// `docs/spec/01-core-library.md:1223` writes every one of them out — `Int`,
-/// `Uint`, `Float`, `Decimal`, `Text`, `Bytes`, `Bool`, `Date`, `Time`,
-/// `DateTime`, `Instant`, `Uuid`, `Json`, `Other` — in § 18's *Enums, settings
-/// and errors* block, the same block [`ISOLATION`] is the landed half of, so the
-/// name is `Core\Db\ColumnType` for the reason [`ISOLATION_NAME`] is namespaced.
-///
-/// **It is not ADR 0067 § 9's type map read as an enum**, and building it that
-/// way is the thing to avoid: § 9 says what *value* a read answers with, and
-/// this says what the column was declared as. The two disagree in three places
-/// at once — § 9 hands back `tainted string` for `JSON`/`JSONB` as well as for
-/// `TEXT`, where the enum keeps `Json` a case of its own; it hands back
-/// `array<T>` for a PostgreSQL array and `array<string>` for MySQL's `SET`,
-/// where the enum has no array case at all; and its final row collapses `inet`,
-/// ranges, `hstore`, geometry and `interval` into `tainted string`, which is
-/// `Other`. A classification that walked § 9 would therefore answer `Text` for a
-/// `JSONB` column and have nowhere to put an array.
+/// `array<Column>`, and what is left to build is a `Core\Db\Column` and a slot
+/// that holds the descriptions — [`nvs_db::PgRows::columns`] answers them and
+/// this slot keeps only the rows, so they are captured at query time or not at
+/// all. Both halves under that are landed: [`nvs_db::PgColumn::column_type`]
+/// classifies a column, and [`COLUMN_TYPE`] is what a program matches the
+/// answer on, its own doc owning why a description of a column is not a summary
+/// of the value a read of it produces. This module's known gap 5 is what is
+/// left.
 ///
 /// **It is generic at `T`, and § 18's `Rows` and `Rows<T>` are this one class.**
 /// The roster row is in [`crate::registry::GENERIC_CLASSES`], `all`/`first`
