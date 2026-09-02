@@ -89,6 +89,7 @@ class MyError extends IOError {
     // without breaking either line.
     assert_eq!(nvs_hir::errors::ISSUES_SLOT, nvs_runtime::ISSUES_SLOT);
     assert_eq!(nvs_hir::errors::KIND_SLOT, nvs_runtime::KIND_SLOT);
+    assert_eq!(nvs_hir::errors::REASON_SLOT, nvs_runtime::REASON_SLOT);
     let parse = program
         .classes
         .iter()
@@ -101,6 +102,12 @@ class MyError extends IOError {
         .find(|c| c.label == "Core\\Db\\DbError")
         .expect("Core\\Db\\DbError should be in the class table");
     assert_eq!(db_error.fields[nvs_runtime::KIND_SLOT], "kind");
+    let rolled_back = program
+        .classes
+        .iter()
+        .find(|c| c.label == "Core\\Db\\RolledBack")
+        .expect("Core\\Db\\RolledBack should be in the class table");
+    assert_eq!(rolled_back.fields[nvs_runtime::REASON_SLOT], "reason");
 }
 
 #[test]

@@ -1077,8 +1077,8 @@ impl Pending {
     unsafe fn into_thrown(self, class: *const ClassDesc) -> Thrown {
         match self {
             // The class is passed through rather than dropped: it is what
-            // decides whether ADR 0071 § 5's `issues` slot exists to fill —
-            // see `Thrown::new_as`.
+            // decides which slot this promotion seeds — ADR 0071 § 5's
+            // `issues`, ADR 0067 § 7's `reason` — see `Thrown::new_as`.
             #[expect(unsafe_code, reason = "forwarding this function's own contract")]
             Self::Message(thrown, message) => unsafe {
                 Thrown::new_as(class, thrown, &message, None)
@@ -3496,6 +3496,40 @@ impl Ctx {
         }
     }
 
+    /// One extra slot of the pending failure's exception object, read
+    /// **without clearing it** — [`Self::take_thrown`]'s borrowing half, for a
+    /// caller that has to decide something about a throw it may still re-raise
+    /// unchanged.
+    ///
+    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8's retry loop is why
+    /// this exists: it has to know whether the closure's own refusal was a
+    /// deadlock or a serialization failure before it decides to run the
+    /// closure again, and `take_thrown` would clear the very failure it is
+    /// still deciding about — a decision that came out "do not retry" would
+    /// then have to re-raise a throw it had already consumed.
+    ///
+    /// `class` is not decoration. `KIND_SLOT` and `ISSUES_SLOT` are the same
+    /// number, so a slot index alone would read a `ParseError`'s issue array
+    /// as a `Core\Db\ErrorKind`; the answer is `None` unless the pending
+    /// failure is an instance of `class`, by [`Self::pending_conforms_to`]'s
+    /// reading of that word — the one a `catch` naming it would bind.
+    ///
+    /// `None` also where nothing is pending, where the failure is a bare
+    /// [`Pending::Message`] with no object behind it at all, and where the
+    /// class declares too few fields to hold that slot
+    /// ([`Thrown::field`]). The value is borrowed, not retained: it is good
+    /// only while the failure is still pending.
+    #[must_use]
+    pub fn pending_slot(&self, class: &str, slot: usize) -> Option<Value> {
+        if !self.pending_conforms_to(class) {
+            return None;
+        }
+        match self.pending.as_ref()? {
+            Pending::Message(_, _) => None,
+            Pending::Thrown(thrown) => thrown.field(slot),
+        }
+    }
+
     /// Takes the pending message, clearing it — and dropping the exception
     /// object behind it, if there was one.
     #[must_use]
@@ -4309,6 +4343,59 @@ pub unsafe extern "C" fn nvs_probe_call_exit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ADR 0067 § 8's retry loop reads a refusal's `kind` off a failure it has
+    /// not decided about yet, so the read leaves the pending exactly as it
+    /// found it — and the class it names is the whole of what keeps
+    /// `KIND_SLOT` from reading a `ParseError`'s `issues` back as an
+    /// `ErrorKind`, the two being the same slot number.
+    #[test]
+    fn a_pending_refusals_kind_reads_back_without_disturbing_it() {
+        const WIDE: [&str; 5] = ["message", "previous", "backtrace", "location", "kind"];
+        const NARROW: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut table = ClassTable::new();
+        let root = table.define("RuntimeError", &NARROW, &[]);
+        table.define("Core\\Db\\DbError", &WIDE, &[root]);
+        table.define("ParseError", &WIDE, &[root]);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_runtime_error_class(ErrorClass::new(std::rc::Rc::new(table), root));
+        #[expect(
+            unsafe_code,
+            reason = "an `int` carries no reference for the slot to take over"
+        )]
+        unsafe {
+            ctx.raise_with_slot(
+                ThrownClass::DbError,
+                "refused",
+                crate::KIND_SLOT,
+                Value::int(5),
+            );
+        }
+
+        assert_eq!(
+            ctx.pending_slot("Core\\Db\\DbError", crate::KIND_SLOT)
+                .and_then(Value::as_int),
+            Some(5)
+        );
+        assert!(
+            ctx.pending_slot("ParseError", crate::KIND_SLOT).is_none(),
+            "the slot number is the same one; only the class tells them apart"
+        );
+        assert_eq!(
+            ctx.pending_class().as_deref(),
+            Some("Core\\Db\\DbError"),
+            "reading a slot decides nothing and clears nothing"
+        );
+
+        let taken = ctx.take_thrown();
+        assert_eq!(taken.message(), "refused");
+        assert!(
+            ctx.pending_slot("Core\\Db\\DbError", crate::KIND_SLOT)
+                .is_none(),
+            "nothing is pending once it has been taken"
+        );
+    }
 
     /// ADR 0020 § 1's first resource limit, as far as this slice goes: the
     /// counter follows what the request holds *now*, so a breach that is

@@ -84,6 +84,23 @@ pub const ISSUES_SLOT: usize = SLOT_COUNT;
 /// by `nvs-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
 pub const KIND_SLOT: usize = SLOT_COUNT;
 
+/// The slot `Core\Db\RolledBack::$reason` occupies —
+/// [ADR 0067](../../../docs/adr/0067-core-db.md) § 7's abandoned transaction,
+/// worded by the program that abandoned it.
+///
+/// Equal to [`ISSUES_SLOT`] and [`KIND_SLOT`], and derived the same way rather
+/// than from either: three unrelated classes each declaring one property beyond
+/// the root's four is a coincidence of arithmetic, not a rule any of them
+/// shares. `nvs_hir::errors::REASON_SLOT` is the compiler's copy, held to this
+/// one by `nvs-codegen`'s
+/// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
+///
+/// Unlike the other two this slot's value **is the message**: § 7 gives
+/// `rollBack` one string and it is both what the exception says and what the
+/// property holds, so [`Thrown::new_as`] seeds it rather than making every
+/// thrower pass the same text twice.
+pub const REASON_SLOT: usize = SLOT_COUNT;
+
 /// Which of [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
 /// § 10's classes a runtime helper's failure lands in.
 ///
@@ -249,9 +266,14 @@ impl Thrown {
     /// when the descriptor is wide enough to have it.
     ///
     /// A thrower with nothing to put in the slot passes `None`, and the class
-    /// then seeds its own: `ParseError::$issues` becomes an empty array, since
+    /// then seeds its own. `ParseError::$issues` becomes an empty array, since
     /// the property is declared `array<Issue>` rather than `?array<Issue>` and
-    /// reading `null` out of it would be a type the checker ruled out.
+    /// reading `null` out of it would be a type the checker ruled out;
+    /// `Core\Db\RolledBack::$reason` becomes the message, which is the same
+    /// text its synthesized constructor stores (`nvs_ir`'s `ExtraInit::Message`)
+    /// and so the only value at which the two ways of building that class
+    /// agree. **A seeded default is not a missing value**: every property in
+    /// the tree that is not `?T` is written on every path out of here.
     /// `thrown` rather than the descriptor's name decides that: a name compare
     /// on every promotion would put a string equality on the throw path, and a
     /// user's `class ConfigError extends Throwable { public int $code; }` also
@@ -323,6 +345,14 @@ impl Thrown {
             }
             None if thrown == ThrownClass::Parse && count > ISSUES_SLOT => {
                 obj.set_field(ISSUES_SLOT, Value::array(NvsArray::new()));
+            }
+            // The property is the message, so a thrower that has one has both.
+            // Without this a `Core\Db\RolledBack` raised here reads `$reason`
+            // as `null` while a hand-built one carries the text, which is
+            // `nvs_ir`'s `ExtraInit::Message` seeding the synthesized
+            // constructor — two spellings of one class answering differently.
+            None if thrown == ThrownClass::DbRolledBack && count > REASON_SLOT => {
+                obj.set_field(REASON_SLOT, Value::str(NvsStr::new(message.as_bytes())));
             }
             None => {}
         }
@@ -454,6 +484,30 @@ impl Thrown {
         slot.as_str_bytes()
             .map(|bytes| String::from_utf8_lossy(bytes).into_owned())
             .unwrap_or_default()
+    }
+
+    /// Field slot `slot` of this exception, or `None` where there is nothing
+    /// to read it from — the borrow-shaped read of a property beyond the four
+    /// [`SLOT_COUNT`] every `Throwable` has.
+    ///
+    /// The bound is the **same `count > slot` guard [`Self::new_as`] writes
+    /// through**, and for the same reason: a class narrower than the property
+    /// being asked about never had it, so the answer is "nothing here" rather
+    /// than the panic [`NvsObj::field`] raises on an out-of-range slot. A slot
+    /// index is only meaningful against a class that declares it — `KIND_SLOT`
+    /// and `ISSUES_SLOT` are the same number — so a caller reaches this
+    /// through [`crate::Ctx::pending_slot`], which asks the class question
+    /// first.
+    ///
+    /// **No reference is taken.** The value is good only while this `Thrown`
+    /// is alive, exactly as [`NvsObj::field`] states it; a caller keeping one
+    /// past that owes a [`Value::retain`] of its own. Handing the reference
+    /// out instead would make the one caller that reads an `int` back release
+    /// a scalar to stay balanced.
+    #[must_use]
+    pub fn field(&self, slot: usize) -> Option<Value> {
+        let obj = self.borrow()?;
+        (obj.field_count() > slot).then(|| obj.field(slot))
     }
 
     /// The `backtrace` property rendered `#0`-first, the form
@@ -783,6 +837,72 @@ mod tests {
         assert_eq!(none.trace_as_string(), "");
         assert!(none.frames().is_empty());
         none.push_frame("ignored");
+    }
+
+    /// [`Thrown::field`] answers under the same bound [`Thrown::new_as`]
+    /// writes under, so the two agree about which classes have a fifth slot:
+    /// what was written can be read back, and a class that never had one says
+    /// so rather than panicking.
+    #[test]
+    fn a_fifth_slot_reads_back_only_where_the_class_declares_one() {
+        const WIDE: [&str; SLOT_COUNT + 1] =
+            ["message", "previous", "backtrace", "location", "kind"];
+        let mut table = ClassTable::new();
+        let root = table.define("Throwable", &SLOT_NAMES, &[]);
+        let wide = table.define("Core\\Db\\DbError", &WIDE, &[root]);
+        let narrow = table.define("LogicError", &SLOT_NAMES, &[root]);
+        let (wide, narrow) = (table.desc(wide), table.desc(narrow));
+        #[expect(unsafe_code, reason = "the table outlives both instances")]
+        let (refused, plain) = unsafe {
+            (
+                Thrown::new_as(
+                    wide,
+                    ThrownClass::DbError,
+                    "refused",
+                    Some((KIND_SLOT, Value::int(5))),
+                ),
+                Thrown::new_as(narrow, ThrownClass::Logic, "bad call", None),
+            )
+        };
+        assert_eq!(refused.field(KIND_SLOT).and_then(Value::as_int), Some(5));
+        assert!(
+            plain.field(KIND_SLOT).is_none(),
+            "a class with only the four slots has nothing at the fifth"
+        );
+        assert!(Thrown::none().field(KIND_SLOT).is_none());
+        assert_eq!(refused.field(MESSAGE_SLOT).and_then(Value::as_int), None);
+    }
+
+    /// A thrower with nothing to hand over still leaves every non-`?T`
+    /// property written: `Core\Db\RolledBack::$reason` is the message, which
+    /// is what its synthesized constructor stores, and the class next to it
+    /// with the same slot number is left alone.
+    #[test]
+    fn a_class_that_seeds_its_own_slot_gets_it_without_a_thrower_naming_one() {
+        const WIDE: [&str; SLOT_COUNT + 1] =
+            ["message", "previous", "backtrace", "location", "reason"];
+        let mut table = ClassTable::new();
+        let root = table.define("Throwable", &SLOT_NAMES, &[]);
+        let rolled_back = table.define("Core\\Db\\RolledBack", &WIDE, &[root]);
+        let db_error = table.define("Core\\Db\\DbError", &WIDE, &[root]);
+        let (rolled_back, db_error) = (table.desc(rolled_back), table.desc(db_error));
+        #[expect(unsafe_code, reason = "the table outlives both instances")]
+        let (abandoned, refused) = unsafe {
+            (
+                Thrown::new_as(rolled_back, ThrownClass::DbRolledBack, "no stock", None),
+                Thrown::new_as(db_error, ThrownClass::DbError, "no stock", None),
+            )
+        };
+        let reason = abandoned
+            .field(REASON_SLOT)
+            .expect("the class declares a fifth slot");
+        assert_eq!(reason.as_str_bytes(), Some(&b"no stock"[..]));
+        assert!(
+            refused
+                .field(KIND_SLOT)
+                .is_some_and(|kind| kind.as_int().is_none()),
+            "a kind is the thrower's to pass; nothing seeds it"
+        );
     }
 
     #[test]
