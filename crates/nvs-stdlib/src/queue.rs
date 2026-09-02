@@ -243,7 +243,10 @@ pub const MIGRATION: &[Migration] = &[
 ///
 /// The trailing `union all` is what makes the answer one row in both cases: a deduped push answers
 /// with the pending job's own id, which is what a caller that wanted "at most one" asked for.
-const INSERT: &str = "with existing as (\
+/// `pub` for the reason [`CLAIM`] is, with a different caller: `crates/nvs-stdlib/tests/queue.rs`
+/// pushes a job with this statement and then claims and dead-letters it against a real server, and a
+/// test target is another crate. A copy of the text there would assert over the copy.
+pub const INSERT: &str = "with existing as (\
      select id from nvs_jobs where dedupe_key = $1::text and state = 0 limit 1\
  ), inserted as (\
      insert into nvs_jobs \
