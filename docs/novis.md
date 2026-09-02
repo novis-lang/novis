@@ -16513,17 +16513,18 @@ Answers the claims `$token` carries, having checked that this key signed it and 
 <a id="core-core-html"></a>
 ### `Core\Html`
 
-Keywords: escape
+Keywords: escape, toSource
 
 | Member | Signature |
 |---|---|
-| [`Core\Html::escape`](#core-core-html-escape) | `escape(string $text): string` |
+| [`Core\Html::escape`](#core-core-html-escape) | `escape(string $text): Core\Html\Markup` |
+| [`Core\Html::toSource`](#core-core-html-tosource) | `toSource(Core\Html\Markup $markup, string $reason): string` |
 
 <a id="core-core-html-escape"></a>
 #### `Core\Html::escape`
 
 ```nvs skip
-Core\Html::escape(string $text): string
+Core\Html::escape(string $text): Core\Html\Markup
 ```
 
 Writes `&`, `<`, `>`, `"` and `'` in `$text` as character references, and replaces every unterminated bidirectional control with `�` — the launderer for the HTML sink, so its result is accepted where a `tainted` string is not.
@@ -16532,7 +16533,25 @@ Writes `&`, `<`, `>`, `"` and `'` in `$text` as character references, and replac
 |---|---|---|
 | `$text` | `string` (launder) | The text to write into an HTML document, as text rather than as markup. |
 
-**Returns** `string` — The escaped text, safe in element content and in an attribute value quoted either way. Text with none of the five characters and no unterminated control comes back unchanged. The five are escaped unconditionally: there is no flag, and an input that already reads as a reference is escaped again, since `&amp;` in the input is text that said `&amp;`.
+**Returns** `Core\Html\Markup` — A `Core\Html\Markup` carrying the escaped text, safe in element content and in an attribute value quoted either way. It is not a `string`, which is what stops the sink escaping it a second time; `toSource` is the way back to the bytes. Text with none of the five characters and no unterminated control is carried through unchanged. The five are escaped unconditionally: there is no flag, and an input that already reads as a reference is escaped again, since `&amp;` in the input is text that said `&amp;`.
+
+<a id="core-core-html-tosource"></a>
+#### `Core\Html::toSource`
+
+```nvs skip
+Core\Html::toSource(Core\Html\Markup $markup, string $reason): string
+```
+
+Hands back the source text a `Core\Html\Markup` carries — the one way out of the carrier, since there is no `Markup as string` conversion. Rare, greppable, and it carries a written reason at the site.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$markup` | `Core\Html\Markup` | The markup whose bytes are wanted rather than its guarantee. |
+| `$reason` | `string` (neutral) | Why this call site needs the text and not the carrier, written for the next reader. Nothing else reads it, and an empty one is refused. |
+
+**Returns** `string` — The markup's source text, as a plain `string`. Caching a rendered fragment, storing one in a column, writing one to a file and handing one to a sink that is not this one are the legitimate callers.
+
+**Throws** `LogicError` — `$reason` is empty. A reason nobody had to write is a reason nobody wrote, so the hatch refuses to open without one.
 
 <a id="core-core-html-markup"></a>
 ### `Core\Html\Markup`
