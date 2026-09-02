@@ -2370,21 +2370,14 @@ nvs_runtime::nvs_helper! {
         // every failure path between here and there — `Lease`'s own `Drop` is
         // what makes that true, so no path below has to remember it.
         //
-        // Thrown as an I/O failure, beside the handshake that "did not open"
-        // below: what a program can do about either is the same, and § 8's
-        // `Db\DbError` is for a refusal the *server* made, which this is not.
-        let lease = nvs_runtime::pool::admit(ticket).ok_or_else(|| {
-            Fault::thrown_as(
-                ThrownClass::Io,
-                format!(
-                    "{CONNECT}: `[db.{name}]` already holds its `max` of {} connections on this \
-                     core, and a request that arrives at that ceiling is refused rather than \
-                     queued behind it — raise `[db.{name}.pool] max`, or hold fewer connections \
-                     open at once",
-                    bounds.max
-                ),
-            )
-        })?;
+        // The clone is the price of asking without queueing first: a slot is
+        // there on all but the busiest request, and paying one short `String`
+        // for the case that has to wait beats a queue registration — a boxed
+        // wake and a `Vec` push — on every `connect` that never waits at all.
+        let lease = match nvs_runtime::pool::admit(ticket.clone()) {
+            Some(lease) => lease,
+            None => wait_for_slot(ctx, ticket, &name, deadline)?,
+        };
 
         // § 13's acquire: this core's pool first, and what comes out of it is
         // reset before this request may use it. `warm_connection` is where a
@@ -3125,6 +3118,101 @@ fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::PgConn> {
         return None;
     };
     postgres.reset().ok()
+}
+
+/// Waits for a slot under `ticket`'s key — ADR 0067 § 13's `acquire` — or
+/// throws because the wait ran out.
+///
+/// Reached only once `nvs_runtime::pool::admit` has already said the key is
+/// full, so the first thing it does is join the line: looking before queueing
+/// is the one ordering that can miss a hand-over, and that module's `queue`
+/// owns why.
+///
+/// **Which bound wins: whichever comes first, and the refusal says which.**
+/// `acquire` is the operator's, written in `[db.<name>.pool]` and sized against
+/// the server's own connection limit; `timeout` is this call's, already an
+/// instant by the time `connect` reaches here and covering the call as a whole
+/// rather than the handshake alone. Neither is a budget the other may spend: a
+/// program that asked for an answer within two seconds does not get five
+/// because the pool was allowed to wait that long, and a pool told to wait one
+/// second does not wait thirty because its caller was patient. Both are
+/// ceilings, so the earlier instant is the deadline — and because the handshake
+/// below is measured against the same `timeout` instant, a wait that ate most
+/// of it leaves the rest for opening, which is what a caller asking for a whole
+/// answer by an instant meant.
+///
+/// **`acquire = 0` never parks.** § 13 makes it legal and defines it as
+/// refusing rather than queueing, and so does a call with no task beneath it: a
+/// `nvs run` of a CLI program is one task, so there is no peer that could free
+/// a slot and waiting could only be this core standing still —
+/// [ADR 0106](../../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// § 6's tier-B failure.
+///
+/// # Errors
+///
+/// A thrown `IOError` for the ceiling reached, which is where every ending but
+/// one lands: it is the refusal that stood beside the handshake that "did not
+/// open" before there was any waiting, on the same reading — what a program can
+/// do about either is the same, and § 8's `Db\DbError` is for a refusal the
+/// *server* made, which this is not. The one other ending is [`Ctx::cancel`]'s
+/// status for a task cancelled while it waited, which no `catch` sees.
+fn wait_for_slot(
+    ctx: &mut nvs_runtime::Ctx,
+    ticket: nvs_runtime::pool::Ticket,
+    name: &str,
+    timeout: Option<std::time::Instant>,
+) -> Result<nvs_runtime::pool::Lease, Fault> {
+    let max = ticket.bounds.max;
+    let full = |waited: &str| {
+        Fault::thrown_as(
+            ThrownClass::Io,
+            format!(
+                "{CONNECT}: `[db.{name}]` already holds its `max` of {max} connections on this \
+                 core, and {waited} — raise `[db.{name}.pool] max`, or hold fewer connections \
+                 open at once"
+            ),
+        )
+    };
+    let acquire = std::time::Instant::now().checked_add(ticket.bounds.acquire);
+    let Some(acquire) = acquire.filter(|_| !ticket.bounds.acquire.is_zero()) else {
+        return Err(full(
+            "`acquire` is `0`, so a request that arrives at that ceiling is refused rather than \
+             queued behind one",
+        ));
+    };
+    let (until, bound) = match timeout {
+        Some(timeout) if timeout < acquire => (timeout, "this call's own `timeout`"),
+        _ => (acquire, "`acquire`"),
+    };
+    // In hand before the pool is looked at again, which is `Host::waker`'s own
+    // rule: a handle taken after the look could be registered by a peer that
+    // has already released, and that is the one way this becomes a hang.
+    let waker = nvs_runtime::host::with_current(|host| host.waker()).flatten();
+    let Some(waker) = waker else {
+        return Err(full(
+            "there is no scheduler on this thread for a request to wait on, so `acquire` would \
+             be this core standing still rather than a queue",
+        ));
+    };
+    let mut waiting = nvs_runtime::pool::queue(ticket, waker);
+    loop {
+        if let Some(lease) = waiting.slot() {
+            return Ok(lease);
+        }
+        // The clock, not the wake, is what ends the wait: a wake is a hint the
+        // seam does not promise means anything, so the deadline is read here
+        // where it is a fact.
+        if std::time::Instant::now() >= until {
+            return Err(full(&format!(
+                "no connection came free before {bound} was up"
+            )));
+        }
+        if let Some(nvs_runtime::host::Woken::Cancelled) =
+            nvs_runtime::host::with_current(|host| host.park(Some(until)))
+        {
+            return Err(ctx.cancel());
+        }
+    }
 }
 
 /// The connection a [`Statement`] or a [`Batch`] names, as the one driver that
