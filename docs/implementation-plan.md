@@ -53,11 +53,11 @@
 > — and § 18's readers: all six of `Rows`', all fourteen of `Row`, `Write`'s three, and
 > `Db\Column`'s three. `open` waits on a shape-parameter type. **§ 7's `transaction` is on both
 > classes with all three options, retrying either conflict, no backoff** and a refusal throws
-> `Db\DbError` carrying `kind` and the raw `sqlState`; `nvs.toml` now opens `[db.main]` and grants
-> `db.connect` to the two fixtures; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over
-> `ClassDesc::db_codec`, and § 9's five structured columns build the `Core\Time`/`Core\Uuid`
+> `Db\DbError` carrying `kind`, `sqlState` and `constraint`; `nvs.toml` now opens `[db.main]` and
+> grants `db.connect` to the two fixtures; `Rows` is generic at `T` and **`queryAs<T>` hydrates**
+> over `ClassDesc::db_codec`, and § 9's five structured columns build the `Core\Time`/`Core\Uuid`
 > instance both `Row`'s four typed readers and a `#[Db\Derive]` field answer with, so
-> `examples/db.nvs` runs that end to end and branches on a real refusal's § 8 `kind`, as
+> `examples/db.nvs` runs that end to end and pins a real refusal's § 8 values, as
 > `examples/transaction.nvs` reads a real `rollBack`'s `$reason`. Stages 3 and 4 are green in `-p
 > nvs-db` and Stage 5 four of its seven, two of them in `-p nvs-stdlib`, the pool is 5 to 7, and
 > **ADR 0132 has claimed the goal's one ADR slot**. **Goals 1-4 and M4 are closed and are this
