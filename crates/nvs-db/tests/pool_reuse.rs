@@ -1,6 +1,8 @@
 //! [ADR 0067](../../../docs/adr/0067-core-db.md) § 13's pool against a real
 //! server: two requests on one core share one connection, and it is the *same*
-//! connection rather than a second one that answers as well.
+//! connection rather than a second one that answers as well — and with
+//! `pool = false` they share nothing, which is the same question asked of the
+//! switch that turns the whole thing off.
 //!
 //! An integration test rather than a `mod tests` beside the driver, because
 //! what it needs is exactly what a unit test in this crate deliberately does
@@ -179,5 +181,55 @@ fn two_requests_on_one_core_share_one_connection() {
         one_value(&mut warm, "SELECT to_regclass('novis_pool_marker')"),
         None,
         "§ 13's reset removed the session state the first request left behind",
+    );
+}
+
+/// § 13: `pool = false` restores connect-per-request **exactly** — nothing is
+/// taken back, so the next request on this core opens its own connection.
+///
+/// The same shape as the case above with one field changed, which is the point:
+/// an operator who cannot accept a reused connection has a supported answer
+/// rather than a workaround, and what makes it supported is that the switch
+/// changes this one thing and no other. `nvs_runtime::pool`'s own cases hold
+/// the half a `Fake` can answer — that a pool which is off refuses no admission
+/// — and this holds the half only a socket can: the connection a request
+/// released is *gone*, not merely unreferenced by the store.
+#[test]
+fn a_pool_that_is_off_hands_the_next_request_nothing() {
+    let Some(server) = postgres() else {
+        return;
+    };
+
+    let generation = Arc::new(Snapshot::default());
+    let ticket = Ticket::for_block(&generation, "main", PoolBounds::OFF);
+
+    // A pool that is off still leases: `max` is a ceiling on connections held
+    // live and not on pooling, so the ask is answered here exactly as it is
+    // under `DEFAULT`, and only the release below parts company.
+    let lease = pool::admit(ticket.clone()).expect("a pool that is off refuses nothing");
+    let mut opened = open(&server);
+    let first = one_value(&mut opened, "SELECT pg_backend_pid()").expect("a backend has a pid");
+    pool::release(
+        lease,
+        Instant::now(),
+        Box::new(Connection::Postgres(opened)),
+    );
+
+    // The second request. Its `take` is the assertion: `None` here is the store
+    // holding nothing under this key, which is `release` having closed the
+    // socket with the request that opened it rather than filing it.
+    let lease = pool::admit(ticket).expect("an unused key is under `max`");
+    assert!(
+        pool::take(&lease, Instant::now()).is_none(),
+        "`pool = false` files nothing, so there is nothing for this request to draw",
+    );
+
+    // And the connection it opens instead is a different backend — the observable
+    // half, and the same `pg_backend_pid()` reading the case above turns around.
+    let mut second = open(&server);
+    let again = one_value(&mut second, "SELECT pg_backend_pid()").expect("a backend has a pid");
+    assert_ne!(
+        first, again,
+        "connect-per-request means this request is talking to a backend of its own",
     );
 }

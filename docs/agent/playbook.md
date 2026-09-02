@@ -4523,6 +4523,17 @@ is why" — is this file.
   `tests/conformance/error/a-db-error-is-in-the-tree-beside-a-rolled-back.nvst` is the shape, and
   `nvs-ir`'s `two_catch_clauses_lower_to_an_instanceof_chain_ending_in_a_rethrow` is the assurance
   that a multi-clause `try` is otherwise fine.
+- **A `Core\Task` child cannot do anything a capability gates, so a fixture that reaches for
+  `Core\Task::all` to get two concurrent requests does not work.** `Ctx::child`
+  (`crates/nvs-runtime/src/ctx.rs:2734`) copies the statics, the debug flags, the origin, the error
+  class table and the deadline word, and **not `config`** — so `ctx.config()` is `None` in the child,
+  and `nvs_runtime::capability::granted` reads exactly that, so every door refuses with
+  "needs the capability `x` for `y`, which is not granted" however the app block is written. The tell
+  is that the *same call* succeeds one line above the `fn` literal and fails inside it, which reads
+  like a grant-scoping bug in the member rather than a missing field in a constructor two crates
+  away. Task children are real tasks otherwise — `nvs_host::Wake::current` answers inside one, so
+  parking and `Core\Time::sleep` work — and statics *are* shared, which is what makes the missing
+  field look deliberate when it is not.
 
 ## Splitting a file that got too big
 
