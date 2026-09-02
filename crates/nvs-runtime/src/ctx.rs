@@ -343,19 +343,19 @@ pub trait HeldConnection: std::fmt::Debug + std::any::Any {
 /// One connection a request has open: how it is reached again within the
 /// request, where it goes when the request ends, and the connection itself.
 ///
-/// The ticket is `None` for a connection that is closed with the request and
-/// never pooled — an embedder's, or a driver whose block resolved to
-/// [ADR 0067](../../../docs/adr/0067-core-db.md) § 13's `pool = false`, in which
-/// case there is nothing for [`crate::pool`] to be handed.
+/// The lease is `None` for a connection that is closed with the request and
+/// never pooled — an embedder's, in which case there is nothing for
+/// [`crate::pool`] to be handed and nothing it is counted against.
 #[derive(Debug)]
 struct OpenConnection {
     /// § 2's memoization key, or `None` for a `{shared: false}` call — see
-    /// [`Ctx::hold_open_connection`]. Distinct from the ticket's key on
+    /// [`Ctx::hold_open_connection`]. Distinct from the lease's key on
     /// purpose: `{shared: false}` bypasses memoization *within* the request and
     /// is still drawn from and returned to the pool.
     memo: Option<String>,
-    /// What the pool needs to take it back at teardown.
-    ticket: Option<crate::pool::Ticket>,
+    /// The slot this connection is live under, holding the key and the bounds
+    /// the pool needs to take it back at teardown.
+    lease: Option<crate::pool::Lease>,
     /// The connection, held as the trait object for the reason
     /// [`HeldConnection`]'s own doc gives.
     connection: Box<dyn HeldConnection>,
@@ -975,7 +975,7 @@ pub struct Ctx {
     /// `Core\IO\File` carries — see [`Ctx::hold_open_file`].
     open_files: Vec<Option<std::fs::File>>,
     /// The database connections this request has opened, each with the
-    /// memoization key it was reached by and the pool ticket it goes home on —
+    /// memoization key it was reached by and the pool lease it goes home on —
     /// see [`Ctx::hold_open_connection`].
     open_connections: Vec<OpenConnection>,
     /// Every object this context has allocated and not yet dismantled — ADR
@@ -1230,16 +1230,17 @@ impl Drop for Ctx {
             }
         }
         // ADR 0067 § 13: a connection the request is still holding is released
-        // to this core's pool under the ticket it was filed with, rather than
+        // to this core's pool under the lease it was filed with, rather than
         // closed here — `crate::pool` decides which of those two happens, and
         // its module doc owns why the reset is the acquiring request's job and
-        // not this one's. The clock is read once for the whole set and not at
-        // all for a request that opened no connection.
+        // not this one's. Either way the lease is consumed, which is what gives
+        // the key's `max` slot back. The clock is read once for the whole set
+        // and not at all for a request that opened no connection.
         if !self.open_connections.is_empty() {
             let now = std::time::Instant::now();
             for held in std::mem::take(&mut self.open_connections) {
-                match held.ticket {
-                    Some(ticket) => crate::pool::release(&ticket, now, held.connection),
+                match held.lease {
+                    Some(lease) => crate::pool::release(lease, now, held.connection),
                     None => drop(held.connection),
                 }
             }
@@ -3052,13 +3053,14 @@ impl Ctx {
     /// because a request opens a handful of connections at most, so a linear
     /// scan is the whole lookup and an empty request pays no allocation for it.
     ///
-    /// `ticket` is the other half, and it is § 13's: it names the pool this
-    /// connection rejoins when the request ends, instead of being closed. It is
-    /// **not** the memoization key even though `connect` computes both from the
-    /// block's name — a `{shared: false}` call is `None` here and still carries
-    /// a ticket, because what that option bypasses is memoization within the
+    /// `lease` is the other half, and it is § 13's: it is the slot this
+    /// connection is live under, and it names the pool the connection rejoins
+    /// when the request ends instead of being closed. It is **not** the
+    /// memoization key even though `connect` computes both from the block's
+    /// name — a `{shared: false}` call is `None` for `memo` and still carries a
+    /// lease, because what that option bypasses is memoization within the
     /// request and never pooling across requests. `None` is a connection closed
-    /// with the request: an embedder's, or a block whose `pool = false`.
+    /// with the request and counted against nothing: an embedder's.
     ///
     /// **What it spends:** one connection — a socket, a TLS session and its
     /// statement cache — per distinct `connect` a request performs, and at
@@ -3067,12 +3069,12 @@ impl Ctx {
     pub fn hold_open_connection(
         &mut self,
         memo: Option<String>,
-        ticket: Option<crate::pool::Ticket>,
+        lease: Option<crate::pool::Lease>,
         connection: Box<dyn HeldConnection>,
     ) -> u64 {
         self.open_connections.push(OpenConnection {
             memo,
-            ticket,
+            lease,
             connection,
         });
         // The index, one-based, so that a handle slot never holds a key a

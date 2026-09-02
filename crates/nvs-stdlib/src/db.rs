@@ -2364,6 +2364,27 @@ nvs_runtime::nvs_helper! {
         let bounds = nvs_config::db::pool_for(&name, block, &std::collections::BTreeMap::new())
             .unwrap_or(nvs_config::db::PoolBounds::OFF);
         let ticket = nvs_runtime::pool::Ticket::for_block(&snapshot, &name, bounds);
+        // § 13's ceiling, taken before the handshake so that `max` bounds every
+        // connection this core has live under the key and not only the ones the
+        // pool itself supplied. The slot goes back when the request ends and on
+        // every failure path between here and there — `Lease`'s own `Drop` is
+        // what makes that true, so no path below has to remember it.
+        //
+        // Thrown as an I/O failure, beside the handshake that "did not open"
+        // below: what a program can do about either is the same, and § 8's
+        // `Db\DbError` is for a refusal the *server* made, which this is not.
+        let lease = nvs_runtime::pool::admit(ticket).ok_or_else(|| {
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{CONNECT}: `[db.{name}]` already holds its `max` of {} connections on this \
+                     core, and a request that arrives at that ceiling is refused rather than \
+                     queued behind it — raise `[db.{name}.pool] max`, or hold fewer connections \
+                     open at once",
+                    bounds.max
+                ),
+            )
+        })?;
 
         // § 13's acquire: this core's pool first, and what comes out of it is
         // reset before this request may use it. `warm_connection` is where a
@@ -2373,7 +2394,7 @@ nvs_runtime::nvs_helper! {
         // a pool at all.
         let pooled = bounds
             .enabled
-            .then(|| warm_connection(&ticket.key))
+            .then(|| warm_connection(&lease))
             .flatten();
         let opened = match pooled {
             Some(warm) => warm,
@@ -2390,13 +2411,13 @@ nvs_runtime::nvs_helper! {
                 })?
             }
         };
-        // The ticket is filed even for `{shared: false}`, whose `None` memo is
+        // The lease is filed even for `{shared: false}`, whose `None` memo is
         // the slot beside it: that option bypasses memoization *within* the
         // request and never pooling across requests — § 13 says so in as many
         // words.
         let key = ctx.hold_open_connection(
             shared.then(|| name.clone()),
-            Some(ticket),
+            Some(lease),
             Box::new(nvs_db::Connection::Postgres(opened)),
         );
         Ok(crate::instance::build(
@@ -3079,8 +3100,12 @@ fn batch_of(args: &[Value], member: &str, named: &str) -> Result<Batch, Fault> {
     })
 }
 
-/// A connection out of this core's pool under `key`, reset and ready to run a
-/// statement — ADR 0067 § 13's acquire, where the reset is the gate.
+/// A connection out of this core's pool under `lease`'s key, reset and ready to
+/// run a statement — ADR 0067 § 13's acquire, where the reset is the gate.
+///
+/// The lease is what the caller already holds a `max` slot on, and drawing
+/// against it is how § 13's ceiling counts a warm connection the same as a
+/// fresh one — `nvs_runtime::pool`'s *What `max` counts* owns that rule.
 ///
 /// **A failed reset destroys the connection.** `nvs_db::PgConn::reset` takes
 /// `self` by value and hands it back only on the path where every one of § 13's
@@ -3093,8 +3118,8 @@ fn batch_of(args: &[Value], member: &str, named: &str) -> Result<Batch, Fault> {
 /// A connection filed by another driver is dropped here for the same reason —
 /// `nvs_db::Connection`'s other four variants have no reset behind them yet, so
 /// they are not poolable and this is the one place that is enforced.
-fn warm_connection(key: &str) -> Option<nvs_db::PgConn> {
-    let held = nvs_runtime::pool::take(key, std::time::Instant::now())?;
+fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::PgConn> {
+    let held = nvs_runtime::pool::take(lease, std::time::Instant::now())?;
     let connection = held.into_any().downcast::<nvs_db::Connection>().ok()?;
     let nvs_db::Connection::Postgres(postgres) = *connection else {
         return None;
