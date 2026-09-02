@@ -140,6 +140,17 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                     let null = interner.null();
                     interner.make_union([code, null])
                 }
+                // `Core\Db\DbError::$constraint` — the same `?string` as
+                // `sqlState`, and absent far more often: § 8's kinds are
+                // conditions, and only some of them — a unique, foreign-key,
+                // not-null or check violation — have a constraint to name at
+                // all. A syntax error or a permission answers `null` on every
+                // driver there will ever be.
+                "constraint" => {
+                    let text = interner.string();
+                    let null = interner.null();
+                    interner.make_union([text, null])
+                }
                 other => panic!("no type seeded for `{name}::{other}`"),
             };
             ((*property).to_owned(), ty)

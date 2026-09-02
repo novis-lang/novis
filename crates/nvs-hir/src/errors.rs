@@ -152,9 +152,9 @@ pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[
 const ISSUES: &[&str] = &["issues"];
 
 /// `Core\Db\DbError`'s own row of [`OWN_PROPERTIES`] — ADR 0067 § 8's five
-/// properties, narrowed to the three that have a seeded type, in § 8's own
+/// properties, narrowed to the four that have a seeded type, in § 8's own
 /// order so that a value landing later is appended and moves nothing.
-const KIND: &[&str] = &["kind", "sqlState", "driverCode"];
+const KIND: &[&str] = &["kind", "sqlState", "driverCode", "constraint"];
 
 /// `Core\Db\RolledBack`'s own row of [`OWN_PROPERTIES`].
 const REASON: &[&str] = &["reason"];
@@ -186,8 +186,8 @@ pub const REASON_SLOT: usize = PROPERTIES.len();
 /// other's. `db_error_s_own_slot_starts_after_the_root_s` holds it.
 ///
 /// It stays 0-relative-to-the-root as § 8's raw values land after it: each is
-/// appended to [`KIND`], so `kind` keeps this index. Two of the four have —
-/// [`SQL_STATE_SLOT`] and [`DRIVER_CODE_SLOT`].
+/// appended to [`KIND`], so `kind` keeps this index. Three of the four have —
+/// [`SQL_STATE_SLOT`], [`DRIVER_CODE_SLOT`] and [`CONSTRAINT_SLOT`].
 pub const KIND_SLOT: usize = PROPERTIES.len();
 
 /// The slot `Core\Db\DbError::$sqlState` occupies — ADR 0067 § 8's raw
@@ -203,6 +203,16 @@ pub const SQL_STATE_SLOT: usize = KIND_SLOT + 1;
 /// integer, which is `null` wherever the driver has no code the `SQLSTATE` does
 /// not already carry. `nvs_runtime::DRIVER_CODE_SLOT` is the runtime's copy.
 pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
+
+/// The slot `Core\Db\DbError::$constraint` occupies — ADR 0067 § 8's name of
+/// the constraint the condition violated, where the condition names one.
+///
+/// Derived from [`KIND_SLOT`] like its two siblings above, and `?string` for a
+/// reason of its own rather than theirs: most of § 8's eleven kinds name no
+/// constraint at all — a syntax error, a permission, a timeout — so the absent
+/// case here is the common one and not a driver's gap.
+/// `nvs_runtime::CONSTRAINT_SLOT` is the runtime's copy.
+pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 
 /// `name`'s own instance properties, in slot order — empty for a class that
 /// declares none, and for a name that is not in [`TREE`] at all.
@@ -310,15 +320,16 @@ mod tests {
         let inherited: usize = above.iter().map(|name| own_properties(name).len()).sum();
         assert_eq!(inherited, KIND_SLOT);
         // The one class in the tree declaring more than one property, so it is
-        // also the only place the *order* of a row is load-bearing: § 8's two
+        // also the only place the *order* of a row is load-bearing: § 8's three
         // raw values are appended, which is what keeps `kind` at slot 0
-        // relative to the root as `constraint` and `sql` land after them.
+        // relative to the root as `sql` lands after them.
         assert_eq!(
             own_properties("Core\\Db\\DbError"),
-            &["kind", "sqlState", "driverCode"]
+            &["kind", "sqlState", "driverCode", "constraint"]
         );
         assert_eq!(inherited + 1, SQL_STATE_SLOT);
         assert_eq!(inherited + 2, DRIVER_CODE_SLOT);
+        assert_eq!(inherited + 3, CONSTRAINT_SLOT);
         assert_eq!(above, vec!["RuntimeError", "Throwable"]);
     }
 

@@ -95,6 +95,10 @@ class MyError extends IOError {
         nvs_hir::errors::DRIVER_CODE_SLOT,
         nvs_runtime::DRIVER_CODE_SLOT
     );
+    assert_eq!(
+        nvs_hir::errors::CONSTRAINT_SLOT,
+        nvs_runtime::CONSTRAINT_SLOT
+    );
     let parse = program
         .classes
         .iter()
@@ -109,6 +113,7 @@ class MyError extends IOError {
     assert_eq!(db_error.fields[nvs_runtime::KIND_SLOT], "kind");
     assert_eq!(db_error.fields[nvs_runtime::SQL_STATE_SLOT], "sqlState");
     assert_eq!(db_error.fields[nvs_runtime::DRIVER_CODE_SLOT], "driverCode");
+    assert_eq!(db_error.fields[nvs_runtime::CONSTRAINT_SLOT], "constraint");
     let rolled_back = program
         .classes
         .iter()

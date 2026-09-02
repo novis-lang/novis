@@ -107,6 +107,20 @@ pub const SQL_STATE_SLOT: usize = KIND_SLOT + 1;
 /// `nvs_hir::errors::DRIVER_CODE_SLOT` is the compiler's copy.
 pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 
+/// The slot `Core\Db\DbError::$constraint` occupies — the constraint the
+/// server's condition names, where it names one
+/// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 8).
+///
+/// `nvs_db::ServerError::constraint` is where PostgreSQL's comes from, and it
+/// is `Option` there for the same reason this is `?string` here: a unique
+/// violation names the index it broke, where a syntax error or a permission
+/// has no constraint to name. So `null` is the ordinary answer rather than a
+/// driver that has not caught up.
+/// `nvs_hir::errors::CONSTRAINT_SLOT` is the compiler's copy, held to this one
+/// by `nvs-codegen`'s
+/// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
+pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
+
 /// The slot `Core\Db\RolledBack::$reason` occupies —
 /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 7's abandoned transaction,
 /// worded by the program that abandoned it.

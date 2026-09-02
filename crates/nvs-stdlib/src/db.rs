@@ -93,10 +93,11 @@
 //!    constructor seeds `Other` for a `DbError` a program built itself, and
 //!    [`statement_failure`] writes the driver's own classification over it
 //!    through `nvs_runtime::Fault::thrown_with_slots`, and the raw `sqlState`
-//!    beside it where a server worded the refusal. `driverCode` is declared and
-//!    stays `null` on PostgreSQL, whose `SQLSTATE` is its only code. What a
-//!    program cannot do is read `constraint` or `sql`, each of which owes a
-//!    seeded type first. A failure of the *wire* rather than of the
+//!    and `constraint` beside it where a server worded the refusal — the second
+//!    only where the condition names one, since most do not. `driverCode` is
+//!    declared and stays `null` on PostgreSQL, whose `SQLSTATE` is its only
+//!    code. What a program cannot do is read `sql`, which owes a seeded type
+//!    first. A failure of the *wire* rather than of the
 //!    statement stays an `IOError`: § 8's class is the server's answer, not the
 //!    socket's.
 //! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
@@ -776,7 +777,8 @@ pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\ErrorKind";
 /// types in the deliberately small closed exception set
 /// [0063 § 4](../../../docs/adr/0063-core-api-conventions.md) fixes, for
 /// boundaries that are driver-dependent anyway. What normalising does not
-/// reach stays readable as the raw `sqlState` and `driverCode` beside it.
+/// reach stays readable as the raw `sqlState`, `constraint` and `driverCode`
+/// beside it.
 ///
 /// **The values are declaration ordinals and mean nothing else.** They are
 /// § 8's own order, so `UniqueViolation` is 0 and `Other` is 10, but they are
@@ -2642,17 +2644,27 @@ fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fa
                 // widen that enum. `driverCode` is left `null` here rather than
                 // filled with the `SQLSTATE` again — `nvs_db::ServerError` owns
                 // why PostgreSQL has no second code.
-                Some(server) => Fault::thrown_with_slots(
-                    ThrownClass::DbError,
-                    message,
-                    vec![
+                Some(server) => {
+                    let mut slots = vec![
                         (nvs_runtime::KIND_SLOT, error_kind_value(server.kind)),
                         (
                             nvs_runtime::SQL_STATE_SLOT,
                             Value::str(NvsStr::new(server.sql_state.as_bytes())),
                         ),
-                    ],
-                ),
+                    ];
+                    // `constraint` joins them only where the condition named
+                    // one, which most conditions do not. An unwritten slot
+                    // already reads `null`, so the absent case costs no value
+                    // here and no branch in the program that reads it — the
+                    // same reason `driverCode` above is written nowhere at all.
+                    if let Some(constraint) = &server.constraint {
+                        slots.push((
+                            nvs_runtime::CONSTRAINT_SLOT,
+                            Value::str(NvsStr::new(constraint.as_bytes())),
+                        ));
+                    }
+                    Fault::thrown_with_slots(ThrownClass::DbError, message, slots)
+                }
                 None => Fault::thrown_with_slot(
                     ThrownClass::DbError,
                     message,
