@@ -2,50 +2,58 @@
 
 ## State
 
-**Stage 2's § 2 check is closed, and the name now sits in the crate that can host it.**
-`a_named_connection_is_memoized_for_the_request` is a `-p nvs-stdlib` unit test in
-`crates/nvs-stdlib/src/db.rs`, and `docs/agent/loop-goal.toml` (mirrored into
-`docs/agent/goals/5-database.toml`) reaches it through a stage 2 `nvs-stdlib (§ 2's memo …)` check of
-its own rather than through the `-p nvs-db` block, per ADR 0132 § 1's crate edge.
+**Stage 2's two PostgreSQL names are closed, both in `crates/nvs-db/src/pg.rs`'s `mod tests`.**
+`no_driver_path_interpolates_a_value_into_sql` sweeps every way a value reaches the wire — `query`
+cached and uncached, `executeMany` cached and uncached — and reads the flushes back for the *tag of
+every message carrying the value*, asserting each is a `Bind` and counting one per execution. A path
+added later that renders a value into statement text fails it without anyone remembering to look.
 
-**It asserts § 2 without a server, and the test's own doc comment owns how.** The context is set up as
-the first `connect` leaves it — one connection filed under `main` — and then carries *no configuration
-at all*, so a shared call answering a key is proof it returned at the memo, while `{shared: false}` on
-the same context refuses for want of a `[db.main]` block. One connection is counted, not read off the
-key: the next name filed lands at the very next slot.
+`the_connection_charset_is_forced_to_utf8` asserts both halves of ADR 0067 § 9's charset row: the
+startup message's parameter list is parsed into pairs and `client_encoding` is `UTF8` exactly once,
+and every OID that reads back as text refuses a Latin-1 body while `BYTEA` accepts the same bytes.
+The `client_encoding` assertion that used to sit inside
+`scram_sha_256_authenticates_and_the_cancellation_key_survives_startup` moved here; that test keeps
+§ 9's `DateStyle` and `TimeZone`, which are the handshake's.
 
-**What is open is the rest of stage 2, and it is `crates/nvs-db/src/pg.rs`'s.** Both remaining names
-are behaviours of the PostgreSQL driver itself, and neither has a test under its own name yet — the
-charset one has a landed *assertion* inside another test, which is not what a `cargo-named` check
-matches. `local_infile_is_refused_and_no_file_is_sent` still reports "did not run" permanently in this
-goal-run: it is MySQL's, and stage 2 forbids a second driver until PostgreSQL is green end to end, so
-closing the two below moves the ledger's report to that name rather than clearing it.
+**Stage 2's check still fails, and permanently.** Its remaining name,
+`local_infile_is_refused_and_no_file_is_sent`, is MySQL's, and the stage forbids a second driver
+until PostgreSQL is green end to end — stage 5 still has three names open. The ledger's report is
+that name from now on; it is not a regression and no session should try to close it.
 
 ## Next group
 
-**Stage 2's two remaining `-p nvs-db` names. Both are `crates/nvs-db/src/pg.rs` — the wire it writes
-and the `mod tests` at the foot of the same file — so take them together.**
+**Stage 7's reset half — § 13's reset is the security boundary, and all three are unit tests over
+landed code in `crates/nvs-db/src/pg.rs`: `reset_session` and the four reset cases already in that
+file's `mod tests`.**
 
-- [ ] **No driver path interpolates a value into SQL** — ADR 0067 § 1's "emulated prepares do not
-      exist in any form", as `no_driver_path_interpolates_a_value_into_sql`. Every path that reaches
-      the wire binds through the extended protocol: `crates/nvs-db/src/pg.rs:4139` is the landed
-      single-statement assertion and `crates/nvs-db/src/pg.rs:4107` the `binds` helper that reads a
-      flush back, `crates/nvs-db/src/pg.rs:2779` is `execute_many`'s wire half and
-      `crates/nvs-db/src/pg.rs:681` its entry point. Assert it as a sweep over *every* way in —
-      a value that would be catastrophic interpolated (a quote, a `--`, a `;`) reaches the server as a
-      Bind parameter and never as statement text, so a path added later fails here.
-- [ ] **The connection charset is forced to UTF-8** — ADR 0067 § 9's "connection charset forces
-      UTF-8", as `the_connection_charset_is_forced_to_utf8`. The parameter is written at
-      `crates/nvs-db/src/pg.rs:886`; `crates/nvs-db/src/pg.rs:3851` already asserts the startup bytes
-      *inside* `scram_sha_256_authenticates_and_the_cancellation_key_survives_startup`, so the work is
-      a test under the check's own name — do not rename that one, it pins the handshake. The second
-      half is `crates/nvs-db/src/pg.rs:1821`, where a text field is validated as UTF-8 on the way in
-      because, per `crates/nvs-db/src/pg.rs:104`, `client_encoding` is not what makes that safe.
+- [ ] **PostgreSQL resets without losing its statement cache** — ADR 0067 § 13's "deliberately not
+      `DISCARD ALL`, which also deallocates prepared statements", as
+      `postgres_resets_without_losing_its_statement_cache`. `crates/nvs-db/src/pg.rs:2958` is
+      `reset_session` and `crates/nvs-db/src/pg.rs:5187` the landed assertion that its six commands
+      are one flush. It takes no cache, so the claim is asserted around it: `start_statement` over a
+      `StatementCache` twice with a reset in between, the second still a cache hit (`tags` shows
+      `BDES`, no `P`), and no `DEALLOCATE`/`DISCARD` in the reset's own flush.
+- [ ] **A failed reset destroys the connection** — § 13, as
+      `a_failed_reset_destroys_the_connection_rather_than_returning_it`.
+      `crates/nvs-db/src/pg.rs:5223` and `crates/nvs-db/src/pg.rs:5250` already pin that a refused
+      reset reports and that a wire failure poisons; what has no name is that the connection is
+      *dropped* rather than handed back. If the drop is the pool's, the pool is
+      `crates/nvs-stdlib/src/db.rs` and this is the § 2 memo's crate edge again — decide it, move
+      the name to a `-p nvs-stdlib` check of its own as ADR 0132 § 1 did, and say so.
+- [ ] **No session state survives a return to the pool** — § 13's property list (no transaction, no
+      temp table, no session variable, no `SET ROLE`, no advisory lock, no listener, no open
+      cursor), as `no_session_state_survives_a_return_to_the_pool`. Assert it as a sweep over that
+      list against the commands `crates/nvs-db/src/pg.rs:2958` writes, counted, so a property with
+      no command fails — `crates/nvs-db/src/pg.rs:5187` reads the flush back already.
 
 ## Backlog
 
-- `local_infile_is_refused_and_no_file_is_sent` — MySQL's, and stage 2 forbids a second driver
-  (`docs/agent/loop-goal.toml`, the stage 2 header).
+- `local_infile_is_refused_and_no_file_is_sent` — MySQL's, permanent stage 2 report above.
+- `the_pool_is_per_core_and_keyed_as_connect_and_open_key` — stage 7's fourth name, and its `args`
+  is `-p nvs-db` while the pool is `crates/nvs-stdlib/src/db.rs`'s.
+- `retries_recover_an_induced_deadlock` and `every_driver_normalises_its_codes_to_one_error_kind` —
+  stage 5's open names; the retry ladder is § 7's closure in `nvs-stdlib`, `kind_of` is
+  `crates/nvs-db/src/pg.rs:1073`.
+- Stage 9's seven `check and trace` names — all diagnostics, none in the tree yet.
 - `open` waits on a shape *parameter* in the registry — `crates/nvs-stdlib/src/db.rs`'s module doc
   owns that gap.
-- Stages 6-8's remaining names, `docs/agent/loop-goal.toml`.
