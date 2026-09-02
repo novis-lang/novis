@@ -141,10 +141,12 @@ class Driver:
 
 
 DRIVERS: tuple[Driver, ...] = (
-    # MySQL generates its own CA into the data directory at first boot, and serves a leaf signed by
-    # it; nothing else vouches for that certificate.
+    # MySQL is served the `certs` volume's leaf rather than the one it generates into its data
+    # directory at first boot: that one carries no `subjectAltName`, so it is unverifiable by name
+    # however good its CA is, and `compose.yaml`'s MySQL block says so at length. The anchor is
+    # therefore PostgreSQL's.
     Driver("mysql", "mysql", 3306, "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE",
-           anchor="/var/lib/mysql/ca.pem"),
+           anchor="/certs/ca.crt"),
     # MariaDB serves no certificate as `compose.yaml` configures it -- `ssl_cert` is empty in the
     # running server -- so there is nothing to anchor to and nothing to connect to. Stage 6 owes it
     # the same `certs` volume PostgreSQL mounts.
