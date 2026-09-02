@@ -1,0 +1,16 @@
+--TEST--
+`status` is asked with the receipt `push` answered rather than with the row's number, so nothing has to carry the queue name beside it — ADR 0084 § 1, ADR 0063
+--FILE--
+<?nvs
+// A job is identified by a row *and* a queue, which is the pair
+// `Core\Queue\Id` is the name for. A member taking a bare number would have to
+// take the queue beside it or search every queue for the row, and sparing the
+// caller the first is the whole reason `push` answers a class instead of the
+// primary key it already has in hand.
+Core\Queue::status(7);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Queue\Id`, found `int`
+%A
+error: aborting due to 1 error

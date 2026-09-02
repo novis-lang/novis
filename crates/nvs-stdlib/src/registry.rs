@@ -1887,6 +1887,12 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::db::ISOLATION,
     crate::db::COLUMN_TYPE,
     crate::db::ERROR_KIND,
+    // ADR 0084 §§ 4 and 6's job lifecycle, immediately after the database enums
+    // for the reason [`crate::queue::CLASS`] sits after the database classes: a
+    // job is a row, and this enum is one of that row's columns as well as what
+    // `Core\Queue::status` answers. [`crate::queue`]'s own docs own why there
+    // are four cases and no `Failed`.
+    crate::queue::STATE,
 ];
 
 /// Looks a class up by its fully-qualified name.

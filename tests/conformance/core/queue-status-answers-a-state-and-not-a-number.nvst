@@ -1,0 +1,18 @@
+--TEST--
+`status` answers a `Core\Queue\State` and not the ordinal the row stores it as, so a program reads a state rather than a magic integer — ADR 0084 §§ 1 and 6, ADR 0010
+--FILE--
+<?nvs
+// The `state` column *is* an ordinal — the enum and the column are one
+// representation rather than two, which is `crate::queue`'s own module doc —
+// but that is the runtime's business and not the program's. What `status`
+// hands back is the closed type ADR 0010 gives an enum, so `Pending` is a name
+// a program writes and `0` is never something it has to know.
+var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
+
+int $wrong = Core\Queue::status($receipt);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `int`, found `Core\Queue\State`
+%A
+error: aborting due to 1 error
