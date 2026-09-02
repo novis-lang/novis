@@ -319,6 +319,96 @@ pub const CLAIM: &str = "with due as (\
 pub const QUEUES: &str = "select distinct queue from nvs_jobs \
     where (state = 0 and run_at <= $1::bigint) or (state = 1 and claimed_at <= $2::bigint)";
 
+/// ADR 0084 § 6's write-back for an attempt that returned, and [`CLAIM`]'s other half.
+///
+/// **Keyed on the lease and not only on the id.** `claimed_at` is the instant the worker's own
+/// claim wrote, so a write-back whose row has since been handed to another worker by § 4's
+/// visibility timeout matches nothing and changes nothing — which is the only reading of
+/// at-least-once that does not let a slow worker's late acknowledgement cancel the attempt that
+/// replaced it. A statement matching no row is therefore an ordinary outcome here rather than an
+/// error, and the affected count is what says which happened.
+///
+/// `claimed_at` is cleared with the state for the same reason [`CLAIM`] sets it: it means *this
+/// claim*, and a finished job holds none.
+///
+/// The `2` is `Core\Queue\State::Succeeded`'s ordinal, a literal for [`PENDING`]'s reason and held
+/// to the enum by `queue_statements_agree_with_the_state_enum`.
+///
+/// `pub` for [`CLAIM`]'s reason: the worker that writes it lives in `nvs-cli`, and § 2's schema has
+/// one home.
+pub const SUCCEEDED: &str = "update nvs_jobs set state = 2, claimed_at = null \
+    where id = $1::bigint and claimed_at = $2::bigint";
+
+/// § 6's other write-back: the attempt did not return, and the job is armed for the next one.
+///
+/// Back to `Pending` — the `0` is that ordinal — with `run_at` pushed out to what [`retry_at`]
+/// computed, which is why the delay is a bound parameter rather than arithmetic in the statement:
+/// § 6's ladder is exponential *and jittered*, and neither the previous rungs nor the jitter is
+/// something SQL should be deciding on a row it is already updating.
+///
+/// Keyed on the lease exactly as [`SUCCEEDED`] is, and for the same reason.
+pub const RETRY: &str = "update nvs_jobs set state = 0, run_at = $3::bigint, claimed_at = null \
+    where id = $1::bigint and claimed_at = $2::bigint";
+
+/// The ceiling ADR 0084 § 6 asks for and names no number for.
+///
+/// Five minutes, and the two directions it is chosen between: a cap long enough to be worth having
+/// spares a queue nothing once the outage it is waiting out is over, and a cap short enough to
+/// retry promptly costs a persistently failing job one attempt every cap rather than a doubling
+/// sequence that reaches days. Five minutes is the longest delay an operator watching a recovered
+/// dependency would still call prompt, and the rung a one-second base reaches on its ninth attempt
+/// — past `[queue] max_attempts`'s own default, so an ordinary job never meets it at all.
+const RETRY_CAP_MS: i64 = 300_000;
+
+/// When a job whose attempt failed becomes due again: § 6's exponential backoff, jittered and
+/// capped, over the base `push` recorded on the row.
+///
+/// **Exponential in the attempts already made**, so the base is the *first* retry's delay and each
+/// one after it doubles until [`RETRY_CAP_MS`]. `attempts` is the column [`CLAIM`] returns, which
+/// the claim itself has already incremented, so the first failed attempt arrives here as `1` and
+/// waits one base.
+///
+/// **Jittered by the job's own id rather than by a clock or a random source.** § 6 asks for jitter
+/// because the failure that matters is the shared one — a hundred jobs against an endpoint that
+/// went down retry at the instant it comes back, and land on it together. Spreading them needs
+/// their delays to *differ*, not to be unpredictable, and the id is the one thing they do not
+/// share; deriving the spread from it keeps this a pure function, which is what lets
+/// `a_retry_is_exponential_jittered_and_capped` assert the ladder rather than sample it. The result
+/// lies in the top half of the rung — `[full/2, full]`, the "equal jitter" shape — so the ladder
+/// still grows with every attempt instead of a late rung landing before an early one.
+pub fn retry_at(now: i64, attempts: i64, backoff_ms: i64, id: i64) -> i64 {
+    // Clamped before the shift rather than after: 30 rungs is already past the cap for any base a
+    // `push` could write, and a shift by 64 is undefined rather than saturating.
+    let rungs = u32::try_from(attempts.saturating_sub(1))
+        .unwrap_or(0)
+        .min(30);
+    let full = backoff_ms
+        .max(0)
+        .saturating_mul(1_i64 << rungs)
+        .min(RETRY_CAP_MS);
+    let half = full / 2;
+    let span = u64::try_from(half).unwrap_or(0).saturating_add(1);
+    let spread = i64::try_from(jitter(id, attempts) % span).unwrap_or(0);
+    now.saturating_add(half).saturating_add(spread)
+}
+
+/// The spread [`retry_at`] takes off one job's id, as SplitMix64's finalizer.
+///
+/// A mixing function and not a hash of anything: what it owes is that two adjacent ids land far
+/// apart, which the shift-multiply-shift sequence gives and `id % span` — the obvious spelling —
+/// does not, since a queue's ids are consecutive and would then retry in the order they were
+/// pushed. The attempt is mixed in with it so that two jobs colliding on one rung do not collide on
+/// the next.
+fn jitter(id: i64, attempts: i64) -> u64 {
+    let mut z = id
+        .unsigned_abs()
+        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        .wrapping_add(attempts.unsigned_abs());
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
 /// ADR 0084 §§ 1 and 6's `status`, as one statement over both of § 2's tables.
 ///
 /// **Two tables and not one**, because § 6 *moves* a job that has exhausted its attempts into the
@@ -1619,9 +1709,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL, CLAIM, COUNTS, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING, QUEUES, STATE,
-        STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
-        STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS,
+        CANCEL, CLAIM, COUNTS, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING, QUEUES, RETRY,
+        RETRY_CAP_MS, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
+        STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
+        STATUS, SUCCEEDED, retry_at,
     };
 
     /// The statement with that label, or the test fails naming it: every assertion below is about
@@ -1713,7 +1804,56 @@ mod tests {
         }
     }
 
-    /// The two statements above write and read [`STATE`]'s ordinals as SQL literals, which no
+    /// [`retry_at`] is ADR 0084 § 6's ladder and this is what makes it one: the delay doubles, it
+    /// stops at [`RETRY_CAP_MS`], and two jobs on the same rung are not due at the same instant.
+    ///
+    /// Asserted as bounds over the whole ladder rather than as numbers, because the jitter has no
+    /// number to assert — what it owes is a *spread inside its rung*, which is exactly what the
+    /// containment check below says and what a fixed expectation could not.
+    #[test]
+    fn a_retry_is_exponential_jittered_and_capped() {
+        // The three properties § 6 names, each asserted over the whole ladder rather than on one
+        // rung: a delay read off a single call would pass for a function that had lost the shift.
+        for attempt in 1..=12_i64 {
+            let full = 1_000_i64
+                .saturating_mul(1 << (attempt - 1))
+                .min(RETRY_CAP_MS);
+            for id in 1..=64 {
+                let due = retry_at(0, attempt, 1_000, id);
+                assert!(
+                    (full / 2..=full).contains(&due),
+                    "attempt {attempt} of job {id} is due at {due}, outside its rung's own half"
+                );
+            }
+        }
+
+        // A rung never lands before the one under it, whichever way the two were jittered, which is
+        // what the top-half spread buys over a `[0, full]` one. Only up to the cap: past it the two
+        // rungs are the same rung, and the jitter is then free to order them either way — which is
+        // the cap doing its job rather than the ladder failing.
+        for attempt in 1..=8_i64 {
+            assert!(
+                retry_at(0, attempt + 1, 1_000, 7) >= retry_at(0, attempt, 1_000, 11),
+                "attempt {attempt}'s jitter reached past the rung above it"
+            );
+        }
+
+        // The cap, from far past it: an attempt count no `max_attempts` would allow still answers a
+        // delay rather than an overflow, and a base that would overflow the shift by itself does
+        // too.
+        assert!((RETRY_CAP_MS / 2..=RETRY_CAP_MS).contains(&retry_at(0, 40, 1_000, 3)));
+        assert!((RETRY_CAP_MS / 2..=RETRY_CAP_MS).contains(&retry_at(0, 3, i64::MAX, 3)));
+
+        // And the jitter is a spread and not a constant: the whole point is that jobs failing
+        // together do not come back together.
+        let first = retry_at(0, 4, 1_000, 1);
+        assert!(
+            (2..=200).any(|id| retry_at(0, 4, 1_000, id) != first),
+            "every job on one rung is due at the same instant, so nothing was jittered"
+        );
+    }
+
+    /// The statements in this module write and read [`STATE`]'s ordinals as SQL literals, which no
     /// `const` can reach into. This is the assertion [`PENDING`]'s doc comment owes: the enum a
     /// program compares against and the column a worker claims from are one representation, and
     /// nothing else would notice them drifting apart.
@@ -1758,6 +1898,19 @@ mod tests {
         assert!(
             CANCEL.contains("set state = 4") && CANCEL.contains("and state = 0"),
             "`CANCEL` moves a job from the ordinal above to the one before it, and only that one"
+        );
+        assert_eq!(
+            case("Succeeded"),
+            2,
+            "`SUCCEEDED` writes this ordinal for an attempt that returned"
+        );
+        assert!(
+            SUCCEEDED.contains("set state = 2"),
+            "the write-back for a job that ran spells the ordinal above"
+        );
+        assert!(
+            RETRY.contains("set state = 0"),
+            "a retried job goes back to `Pending`'s own ordinal, which is what makes it claimable"
         );
         assert!(
             COUNTS.contains("filter (where state = 0)"),

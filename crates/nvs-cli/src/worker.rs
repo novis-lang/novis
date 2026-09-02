@@ -65,11 +65,12 @@
 //!
 //! ## Known gap
 //!
-//! **The attempt is not reported.** [`run`] is § 5's isolate and nothing past it: whatever the job
-//! answered is dropped, so the row stays `Claimed` until § 4's visibility timeout hands it back —
-//! including the row of a job that succeeded. § 6's write-back, its retry ladder and its
-//! dead-letter move are the two slices after this one, and both are additions beside [`run`]
-//! rather than changes to it.
+//! **An exhausted job is left claimed rather than dead-lettered.** [`report`] writes back every
+//! attempt — `Succeeded`, or back to `Pending` on § 6's ladder — but the branch where a job has
+//! used its last attempt only says so on standard error: § 6's move into `nvs_dead_jobs` is the
+//! next slice, and `nvs_stdlib::queue::MIGRATION`'s dead-letter table is already waiting for it.
+//! Until it lands such a row stays `Claimed` and becomes visible again on § 4's timeout, which is
+//! where every unreported attempt used to end up.
 //!
 //! [ADR 0067]: ../../../docs/adr/0067-core-db.md
 //! [ADR 0084]: ../../../docs/adr/0084-durable-background-jobs.md
@@ -211,8 +212,11 @@ fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut nvs_db::PgConn, window: i64) -> i
         if let Some(job) = claim(conn, &queue, now, cutoff)? {
             // Run before the next queue is claimed against, rather than after the roster has been
             // walked: a claim this worker is holding is a job nothing else may take, so the
-            // shortest time between the two is the one that costs a fleet the least.
-            run(ctx, &job);
+            // shortest time between the two is the one that costs a fleet the least. The write-back
+            // rides with it for the same reason — the row is released by [`report`] and not by the
+            // end of the turn.
+            let ok = run(ctx, &job);
+            report(conn, &job, now, ok)?;
             claimed = true;
         }
     }
@@ -240,17 +244,31 @@ fn roster(conn: &mut nvs_db::PgConn, now: i64, cutoff: i64) -> io::Result<Vec<St
 }
 
 /// What a worker reads off [`nvs_stdlib::queue::CLAIM`]'s `returning` list, and what running one
-/// needs.
+/// and reporting it needs.
 ///
-/// Two columns of the six for now — the four the retry ladder judges against are the next slice's,
-/// and a field nothing reads is a field whose decode nothing checks.
+/// All six columns: two say what to run, and the four below them are what § 6's ladder is judged
+/// against, which [`report`] does the moment [`run`] returns.
 struct Job {
+    /// The primary key, which is what the write-back names the row by.
+    id: i64,
     /// The file § 1 says a job names. `spawn script`'s own spelling, resolved the same way.
     script: String,
     /// The `args` column as it is stored: the document `Core\Queue::push` encoded, or `None` for a
     /// job pushed without one. Decoded at the last moment, in [`run`], so a job whose script is
     /// refused never pays for it.
     args: Option<String>,
+    /// Attempts made *including this one* — [`nvs_stdlib::queue::CLAIM`] increments the column in
+    /// the same statement it returns it from, so a job being run for the first time reads `1`.
+    attempts: i64,
+    /// § 6's bound on the above, as `Core\Queue::push` recorded it from `{maxAttempts: …}` or from
+    /// `[queue] max_attempts`.
+    max_attempts: i64,
+    /// The base delay of § 6's ladder for this job, in milliseconds.
+    ///
+    /// `i64` for all four, whatever width the DDL gave the column: they arrive as
+    /// [`nvs_db::PgScalar::Int`], which is one variant for `smallint`, `integer` and `bigint`
+    /// alike, so narrowing here would be a conversion this crate has no use for.
+    backoff_ms: i64,
 }
 
 /// One claim against one queue, answering with the row it took.
@@ -285,23 +303,62 @@ fn claim(conn: &mut nvs_db::PgConn, queue: &str, now: i64, cutoff: i64) -> io::R
             nvs_db::PgScalar::Text(args) => Some(args.into_owned()),
             _ => None,
         };
+        // The four the write-back judges against, and every one of them is `not null` in the
+        // migration: a row missing any of them is one no `Core\Queue::push` wrote, so the claim is
+        // dropped rather than run on a guess. It stays claimed until § 4's visibility timeout, which
+        // is where a row this worker cannot make sense of belongs.
+        let [Some(id), Some(attempts), Some(max_attempts), Some(backoff)] =
+            [ID, ATTEMPTS, MAX_ATTEMPTS, BACKOFF].map(|at| columns.get(at))
+        else {
+            continue;
+        };
+        let (
+            nvs_db::PgScalar::Int(id),
+            nvs_db::PgScalar::Int(attempts),
+            nvs_db::PgScalar::Int(max_attempts),
+            nvs_db::PgScalar::Int(backoff_ms),
+        ) = (
+            id.scalar(row.column(ID)?)?,
+            attempts.scalar(row.column(ATTEMPTS)?)?,
+            max_attempts.scalar(row.column(MAX_ATTEMPTS)?)?,
+            backoff.scalar(row.column(BACKOFF)?)?,
+        )
+        else {
+            continue;
+        };
         took = Some(Job {
+            id,
             script: script.into_owned(),
             args,
+            attempts,
+            max_attempts,
+            backoff_ms,
         });
     }
     Ok(took)
 }
 
-/// `script`'s position in [`nvs_stdlib::queue::CLAIM`]'s `returning` list, which that constant's
-/// doc calls what running a job needs.
+/// `id`'s position in [`nvs_stdlib::queue::CLAIM`]'s `returning` list, which that constant's doc
+/// calls what running a job needs.
+const ID: usize = 0;
+
+/// `script`'s position in the same list.
 const SCRIPT: usize = 1;
 
 /// `args`'s position in the same list.
 const ARGS: usize = 2;
 
+/// `attempts`'s position in the same list.
+const ATTEMPTS: usize = 3;
+
+/// `max_attempts`'s position in the same list.
+const MAX_ATTEMPTS: usize = 4;
+
+/// `backoff_ms`'s position in the same list, and the last of the six.
+const BACKOFF: usize = 5;
+
 /// Runs one claimed job as ADR 0084 § 5's root isolate: its own arena, its own budget, sharing only
-/// compiled code.
+/// compiled code, answering whether the attempt is one [`report`] writes back as `Succeeded`.
 ///
 /// **The same `Isolate` a `spawn script` builds, through the same door**, which is § 5's "there is
 /// no second execution path" taken literally: a job is resolved by
@@ -311,9 +368,10 @@ const ARGS: usize = 2;
 /// writing is exactly the mixing that option exists to prevent.
 ///
 /// A refusal is written to standard error rather than answered, because there is nobody to answer:
-/// a worker has no caller. One line per refused job, and the job stays claimed either way — the
-/// module doc's *Known gap* owns what the next slice writes back.
-fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) {
+/// a worker has no caller. One line per refused job, and the answer is `false` either way — a job
+/// whose script does not resolve is a failed attempt like any other, so § 6's ladder is what
+/// bounds it rather than a second policy written here.
+fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> bool {
     let program = match nvs_runtime::script::resolve(ctx, &job.script) {
         Ok(program) => program,
         Err(refused) => {
@@ -321,7 +379,7 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) {
                 "warning: the queued job `{}` was not run: {refused}",
                 job.script
             );
-            return;
+            return false;
         }
     };
     // Ownership: `payload` hands over one reference and `Isolate::new` consumes exactly one, so
@@ -332,16 +390,96 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) {
         .as_deref()
         .and_then(nvs_stdlib::queue::payload)
         .unwrap_or_else(nvs_runtime::Value::null);
-    if let Err(refused) = nvs_host::Isolate::new(program, args, nvs_host::Output::Capture).run(ctx)
-    {
-        // The argument refusing to cross, which is the graph copy's answer and not the job's — a
-        // payload from JSON is a tree of scalars, arrays and strings, so this is unreachable for a
-        // row this deployment wrote and is reported rather than asserted.
-        eprintln!(
-            "warning: the queued job `{}` was not run: its payload could not cross: {refused}",
-            job.script
+    match nvs_host::Isolate::new(program, args, nvs_host::Output::Capture).run(ctx) {
+        // `ok` and not "it returned": an isolate whose program threw, or that was torn down over a
+        // budget, answers here exactly as one that returned — which is § 6's "a job exceeding its
+        // memory, CPU or time budget is a failed attempt, reported as that rather than as an
+        // out-of-memory". So the flag the isolate already computed is the whole judgement, and
+        // there is no second reading of the completion beside it.
+        Ok(completion) => {
+            if let Some(failure) = &completion.error {
+                // Until § 6's dead-letter row carries every attempt's error, this line is the only
+                // place a failed attempt is visible at all, and a queue whose failures are silent
+                // is the one thing that section exists to prevent.
+                eprintln!(
+                    "warning: the queued job `{}` threw {}: {}",
+                    job.script, failure.class, failure.message
+                );
+            }
+            completion.ok
+        }
+        Err(refused) => {
+            // The argument refusing to cross, which is the graph copy's answer and not the job's —
+            // a payload from JSON is a tree of scalars, arrays and strings, so this is unreachable
+            // for a row this deployment wrote and is reported rather than asserted.
+            eprintln!(
+                "warning: the queued job `{}` was not run: its payload could not cross: {refused}",
+                job.script
+            );
+            false
+        }
+    }
+}
+
+/// ADR 0084 § 6's write-back: the row the claim took, told what the attempt did.
+///
+/// **Keyed on the lease `held_at`**, which is the `claimed_at` this worker's own claim wrote —
+/// [`nvs_stdlib::queue::SUCCEEDED`]'s doc owns why, and it is why this takes the turn's instant
+/// rather than reading the clock again. A statement that matches no row is the ordinary shape of a
+/// worker that overran § 4's visibility window, not an error, so the affected count is deliberately
+/// not judged: another worker owns the job by then and has its own attempt to report.
+///
+/// The retry's own `run_at` is computed against a *fresh* instant, because the attempt has just
+/// spent however long it spent: a backoff measured from the claim would already be part-elapsed,
+/// and for a job that ran longer than its own base delay it would be wholly elapsed, which is
+/// § 6's ladder collapsed to a busy loop.
+fn report(conn: &mut nvs_db::PgConn, job: &Job, held_at: i64, ok: bool) -> io::Result<()> {
+    let id = job.id.to_string().into_bytes();
+    let held = millis(held_at);
+    if ok {
+        return apply(
+            conn,
+            nvs_stdlib::queue::SUCCEEDED,
+            &[Some(id.as_slice()), Some(held.as_slice())],
         );
     }
+    if job.attempts >= job.max_attempts {
+        // § 6's dead-letter move is the next slice, and until it lands an exhausted job is left
+        // exactly as this worker found it: claimed, and so invisible until § 4's timeout. Said out
+        // loud rather than swallowed, because a job that has stopped making progress and cannot be
+        // seen in `nvs_dead_jobs` yet is otherwise a queue that quietly lost work.
+        eprintln!(
+            "warning: the queued job `{}` has used all {} of its attempts; it is left claimed \
+             until the dead-letter move lands",
+            job.script, job.max_attempts
+        );
+        return Ok(());
+    }
+    let due = millis(nvs_stdlib::queue::retry_at(
+        nvs_stdlib::queue::now_millis(),
+        job.attempts,
+        job.backoff_ms,
+        job.id,
+    ));
+    apply(
+        conn,
+        nvs_stdlib::queue::RETRY,
+        &[
+            Some(id.as_slice()),
+            Some(held.as_slice()),
+            Some(due.as_slice()),
+        ],
+    )
+}
+
+/// One statement that answers with no rows, run for its effect.
+///
+/// [`nvs_db::PgConn::execute_many`] with a single set is what a driver spells that as — there is no
+/// second door for a one-set write — and it leaves the connection at a message boundary, which is
+/// what the next claim on it needs.
+fn apply(conn: &mut nvs_db::PgConn, sql: &str, bound: &[Option<&[u8]>]) -> io::Result<()> {
+    conn.execute_many(sql, &[bound])?;
+    Ok(())
 }
 
 /// An epoch-millisecond instant as the text a `$n::bigint` placeholder is sent as.
