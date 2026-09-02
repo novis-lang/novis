@@ -78,10 +78,13 @@
 //!    `nvs_db::PgTarget::resolve` with the message that names the driver it is,
 //!    which is the honest answer while `nvs_db::Connection`'s other four
 //!    variants have no connect path behind them.
-//! 3. **A connection is never reused across requests.** ADR 0067 § 13's
-//!    per-core pool is what would change that, and it may only do so behind
-//!    that section's reset; [`nvs_runtime::Ctx::hold_open_connection`] is where
-//!    that is written down.
+//! 3. **A connection is not reused across requests yet, but it is kept.** ADR
+//!    0067 § 13's pool is on disk as [`nvs_runtime::pool`] and a connection is
+//!    *released* to it at teardown under the ticket `Core\Db::connect` files.
+//!    Nothing takes one back out: a pooled connection may only be handed to
+//!    another request behind that section's reset, and the reset is the slice
+//!    after this one. Until it lands, every request still opens its own
+//!    connection and the pool holds up to `idle` per block per core.
 //! 4. **`Db\DbError` declares all five of § 18's values.**
 //!    A refusal the server itself made is thrown as
 //!    `nvs_runtime::ThrownClass::DbError` ([`statement_failure`]), so a `catch`
@@ -2354,17 +2357,46 @@ nvs_runtime::nvs_helper! {
                  connection up — the grant names a block an operator has not written yet"
             ))
         })?;
-        let target = nvs_db::PgTarget::resolve(block)
-            .map_err(|refused| Fault::thrown(format!("{CONNECT}: {}", refused.refusal(&name))))?;
-        let address = address_of(target.host, block.port, &name)?;
-        let opened = nvs_db::PgConn::connect(address, &target, deadline).map_err(|err| {
-            Fault::thrown_as(
-                ThrownClass::Io,
-                format!("{CONNECT}: `[db.{name}]` at {address} did not open: {err}"),
-            )
-        })?;
+        // ADR 0067 § 13's ticket. The bounds were validated at boot by
+        // `nvs_config::db::validate`, so the refusal below cannot fire; if it
+        // ever did, `OFF` is the answer that closes this connection with the
+        // request rather than pooling it under bounds nobody could resolve.
+        let bounds = nvs_config::db::pool_for(&name, block, &std::collections::BTreeMap::new())
+            .unwrap_or(nvs_config::db::PoolBounds::OFF);
+        let ticket = nvs_runtime::pool::Ticket::for_block(&snapshot, &name, bounds);
+
+        // § 13's acquire: this core's pool first, and what comes out of it is
+        // reset before this request may use it. `warm_connection` is where a
+        // failed reset destroys the connection, and `None` from it is
+        // indistinguishable here from an empty pool — either way the fall-back
+        // is the handshake below, which is what a request did before there was
+        // a pool at all.
+        let pooled = bounds
+            .enabled
+            .then(|| warm_connection(&ticket.key))
+            .flatten();
+        let opened = match pooled {
+            Some(warm) => warm,
+            None => {
+                let target = nvs_db::PgTarget::resolve(block).map_err(|refused| {
+                    Fault::thrown(format!("{CONNECT}: {}", refused.refusal(&name)))
+                })?;
+                let address = address_of(target.host, block.port, &name)?;
+                nvs_db::PgConn::connect(address, &target, deadline).map_err(|err| {
+                    Fault::thrown_as(
+                        ThrownClass::Io,
+                        format!("{CONNECT}: `[db.{name}]` at {address} did not open: {err}"),
+                    )
+                })?
+            }
+        };
+        // The ticket is filed even for `{shared: false}`, whose `None` memo is
+        // the slot beside it: that option bypasses memoization *within* the
+        // request and never pooling across requests — § 13 says so in as many
+        // words.
         let key = ctx.hold_open_connection(
             shared.then(|| name.clone()),
+            Some(ticket),
             Box::new(nvs_db::Connection::Postgres(opened)),
         );
         Ok(crate::instance::build(
@@ -3045,6 +3077,29 @@ fn batch_of(args: &[Value], member: &str, named: &str) -> Result<Batch, Fault> {
         sql: text.unwrap_or_else(|| sql.to_owned()),
         binds,
     })
+}
+
+/// A connection out of this core's pool under `key`, reset and ready to run a
+/// statement — ADR 0067 § 13's acquire, where the reset is the gate.
+///
+/// **A failed reset destroys the connection.** `nvs_db::PgConn::reset` takes
+/// `self` by value and hands it back only on the path where every one of § 13's
+/// commands succeeded, so a connection that could not be proven clean is closed
+/// before this returns and there is no shape in which one request reads
+/// another's session state. That is also why the caller cannot tell a failed
+/// reset from an empty pool: both are `None`, and both mean open a fresh
+/// connection, which is what a request did before there was a pool at all.
+///
+/// A connection filed by another driver is dropped here for the same reason —
+/// `nvs_db::Connection`'s other four variants have no reset behind them yet, so
+/// they are not poolable and this is the one place that is enforced.
+fn warm_connection(key: &str) -> Option<nvs_db::PgConn> {
+    let held = nvs_runtime::pool::take(key, std::time::Instant::now())?;
+    let connection = held.into_any().downcast::<nvs_db::Connection>().ok()?;
+    let nvs_db::Connection::Postgres(postgres) = *connection else {
+        return None;
+    };
+    postgres.reset().ok()
 }
 
 /// The connection a [`Statement`] or a [`Batch`] names, as the one driver that
