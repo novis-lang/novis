@@ -83,7 +83,10 @@
 //!    those variants have no connect path behind them. Past the handshake the
 //!    list is shorter than that: [`postgres_of`] is what a statement goes
 //!    through, so a MySQL connection opens, pools and resets, and refuses
-//!    every member that would run something on it.
+//!    every member that would run something on it. § 9's own half of that path
+//!    is already here — [`mysql_column_value`] and [`mysql_described_columns`]
+//!    read a MySQL row and its description — and both carry an
+//!    `#[expect(dead_code)]` that the branch calling them takes off by itself.
 //! 3. **Only the two drivers that open are pooled.** ADR 0067 § 13's pool is
 //!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
 //!    teardown under the ticket `Core\Db::connect` files, and
@@ -3014,17 +3017,20 @@ fn error_kind_case(of: nvs_db::DbErrorKind) -> &'static str {
 /// holding a value the `Core\Time` type it maps to has no representation for.
 ///
 /// § 9's last paragraph is the rule: a structured column that does not parse
-/// throws rather than reading back as something else. Two values reach it in
+/// throws rather than reading back as something else. Three values reach it in
 /// practice — PostgreSQL's `TIME` of `24:00:00`, which is a reading
-/// `Core\Time\TimeOfDay` deliberately does not have, and a year outside the
-/// calendar `Core\Time`'s types count. `crate::time`'s seams own both bounds
-/// and answer `None`; naming the column is this side's half, since that is
-/// what the program's next act needs.
+/// `Core\Time\TimeOfDay` deliberately does not have, MySQL's zero date
+/// `0000-00-00`, which its own driver hands over unchecked because the calendar
+/// is over here ([`nvs_db::MySqlDate`]), and a year outside the calendar
+/// `Core\Time`'s types count. `crate::time`'s seams own every one of those
+/// bounds and answer `None`; naming the column is this side's half, since that
+/// is what the program's next act needs.
 fn unrepresentable_column(named: &str, column: &str, row: &str) -> Fault {
     Fault::thrown(format!(
         "{named}: the column `{column}` holds a {row} that no `Core\\Time` type has a value for \
-         — PostgreSQL's `24:00:00` and a year outside the calendar `Core\\Time\\Date` counts are \
-         the two — and a `::text` cast in the statement reads one back as the server rendered it"
+         — PostgreSQL's `24:00:00`, MySQL's zero date and a year outside the calendar \
+         `Core\\Time\\Date` counts are the three — and a cast to text in the statement reads one \
+         back as the server rendered it"
     ))
 }
 
@@ -3759,6 +3765,48 @@ fn described_columns(columns: &[nvs_db::PgColumn]) -> NvsArray {
     described
 }
 
+/// The same description for a MySQL result set: [`described_columns`]'s twin,
+/// building the same [`COLUMN`] objects out of the other driver's metadata.
+///
+/// **A twin and not one function over both**, because the two descriptions have
+/// no type in common. A [`nvs_db::PgColumn`] is `nvs-db`'s own row description,
+/// carrying its label as a `String` and its § 9 row as a field; a MySQL column
+/// definition is `mysql_common`'s `Column`, whose label is octets in the packet
+/// and whose § 9 row is read off its type and its `UNSIGNED` flag together. So
+/// the two loops share their shape and not one line of their bodies, and a
+/// trait over the pair would be a third name for two fields.
+///
+/// **The type is asked of the result set rather than read off the definition**,
+/// because which § 9 row a definition names is `nvs-db`'s reading and not this
+/// module's — the same division [`nvs_db::mysql::scalar`] draws for a value.
+/// The label is taken as octets for [`described_columns`]'s reason: a column
+/// name is a key in the row array, and a lossy decode would rename a column
+/// rather than refuse it.
+#[expect(
+    dead_code,
+    reason = "§ 9's decode is landed ahead of the read path that calls it — `queried_rows` \
+              still goes through `postgres_of`, which is this module's known gap 2"
+)]
+fn mysql_described_columns(rows: &nvs_db::MySqlRows<'_>) -> NvsArray {
+    let mut described = NvsArray::new();
+    for (index, column) in rows.columns().iter().enumerate() {
+        let column_type = rows
+            .column_type(index)
+            .expect("a column this loop is walking is one the result set described");
+        described.append(crate::instance::build(
+            &COLUMN,
+            [
+                Value::str(NvsStr::new(column.name_ref())),
+                column_type_value(column_type),
+                // As [`described_columns`]: § 9's own answer, and
+                // [`COLUMN_NULLABLE_DOC`] is where it is written down.
+                Value::bool(true),
+            ],
+        ));
+    }
+    described
+}
+
 /// A [`nvs_db::ColumnType`] as the [`COLUMN_TYPE`] case a program matches on,
 /// which at runtime is that case's ordinal
 /// ([ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)).
@@ -3870,6 +3918,88 @@ fn column_value(
 /// The civil fields a `TIMESTAMP` or a `TIMESTAMPTZ` was rendered with, in the
 /// shape [`crate::time`]'s two seams read.
 fn civil_of(date: nvs_db::PgDate, time: nvs_db::PgTime) -> crate::time::Civil {
+    crate::time::Civil {
+        year: date.year,
+        month: date.month,
+        day: date.day,
+        hour: time.hour,
+        minute: time.minute,
+        second: time.second,
+        nanosecond: time.nanosecond,
+    }
+}
+
+/// One MySQL column's Novis value: [`column_value`]'s twin over the other
+/// driver's scalar.
+///
+/// The division is the same one, for the same reason: `nvs-db` reads a column
+/// to a [`nvs_db::MySqlScalar`] and mints a [`Value`] for the rows that are
+/// values, and § 9's structured rows arrive as the components the server sent,
+/// because the classes they become are declared in *this* crate and that one
+/// cannot allocate an instance — [`nvs_db::MySqlDate`] owns that half.
+///
+/// **Three rows and not five**, which is why this is a shorter `match` rather
+/// than a copy of [`column_value`]'s. MySQL has no `UUID` column type — § 9
+/// sends its `BINARY(16)` to the `bytes` row and MariaDB, which does have the
+/// type, is its own driver — and no array type either, so the recursion a
+/// PostgreSQL `array<T>` needs has nothing here to recur over. What is left is
+/// `DATE`, `TIME` and the zone-less `DATETIME`/`TIMESTAMP` pair.
+///
+/// `zone` is the connection's declared zone: § 9's answer for the row that
+/// carries no offset of its own, and the offset the connection told the server
+/// at connect so that `CURRENT_TIMESTAMP` agrees with what is read back here.
+///
+/// # Errors
+///
+/// [`unrepresentable_column`] for a value no `Core\Time` type has — on this
+/// driver the zero date, which its own decoder deliberately does not check —
+/// and a [`Fault::fatal`] for a row `nvs-db` answers no value for and this
+/// function does not build, which is a variant added there with no arm here.
+#[expect(
+    dead_code,
+    reason = "§ 9's decode is landed ahead of the read path that calls it — `queried_rows` \
+              still goes through `postgres_of`, which is this module's known gap 2"
+)]
+fn mysql_column_value(
+    scalar: nvs_db::MySqlScalar<'_>,
+    zone: i32,
+    named: &str,
+    column: &str,
+) -> Result<Value, Fault> {
+    let refused = |row| unrepresentable_column(named, column, row);
+    Ok(match scalar {
+        nvs_db::MySqlScalar::Date(date) => {
+            crate::time::date_at(date.year, date.month, date.day).ok_or_else(|| refused("date"))?
+        }
+        nvs_db::MySqlScalar::Time(time) => {
+            crate::time::time_of_day_at(time.hour, time.minute, time.second, time.nanosecond)
+                .ok_or_else(|| refused("time of day"))?
+        }
+        nvs_db::MySqlScalar::DateTime { date, time } => {
+            crate::time::datetime_at(&mysql_civil_of(date, time), zone)
+                .ok_or_else(|| refused("date and time"))?
+        }
+        row => row.into_value().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{named}: `nvs-db` answered no value for the column `{column}`, and this decoder \
+                 builds no instance for it either"
+            ))
+        })?,
+    })
+}
+
+/// The civil fields a `DATETIME` or a `TIMESTAMP` was sent with, in the shape
+/// [`crate::time`]'s seams read — [`civil_of`] for the other driver.
+///
+/// Two functions over two field-identical structs, because the structs belong
+/// to two protocols: PostgreSQL's components are parsed out of a rendering and
+/// MySQL's arrive as integers, and one type standing for both would say they
+/// are the same fact when only their shape is the same.
+#[expect(
+    dead_code,
+    reason = "as `mysql_column_value`, whose only caller this is"
+)]
+fn mysql_civil_of(date: nvs_db::MySqlDate, time: nvs_db::MySqlTime) -> crate::time::Civil {
     crate::time::Civil {
         year: date.year,
         month: date.month,
