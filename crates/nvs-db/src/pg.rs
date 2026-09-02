@@ -5529,6 +5529,74 @@ mod tests {
         assert_eq!(affected_rows("REINDEX 3"), None);
     }
 
+    /// § 4's count on this protocol is the rows **matched**, and `changed` is
+    /// that same number.
+    ///
+    /// The statement is the one where the two answers diverge everywhere they
+    /// can: `UPDATE t SET a = a` matches every row its `WHERE` selects and
+    /// alters none of them, which is where MySQL answers zero affected while
+    /// reporting three matched out of the same execution. PostgreSQL's tag is
+    /// `UPDATE 3` either way — the protocol carries the matched count and
+    /// carries nothing else — so § 4's `changed` reads this same number, and
+    /// the doc on `PgRows::affected` owns why inventing a second one would be
+    /// worse than having none.
+    ///
+    /// Tag parsing is not asked again here: the case above owns every tag
+    /// shape, and this one asks only which of the two numbers the one field
+    /// holds. The zero row is the half that matters — a statement that matched
+    /// nothing and a statement that altered nothing carry the same tag, so a
+    /// driver reporting rows *changed* would be right on it by accident.
+    #[test]
+    fn affected_is_the_matched_count_and_changed_is_mysql_only() {
+        for matched in [0_u64, 1, 3] {
+            let state = Cell::new(State::Idle);
+            let completion = format!("UPDATE {matched}\0");
+            let mut wire = Wire::new(Peer::new(move |_: &[u8]| {
+                let mut out = message(b'1', b""); // ParseComplete
+                out.extend_from_slice(&message(b'2', b"")); // BindComplete
+                // An `UPDATE` with no `RETURNING` clause describes as no data
+                // at all, so the completion is the only thing that carries a
+                // number in the whole answer.
+                out.extend_from_slice(&message(b'n', b"")); // NoData
+                out.extend_from_slice(&message(b'C', completion.as_bytes()));
+                out.extend_from_slice(&message(b'Z', b"I"));
+                out
+            }));
+
+            let mut rows = start_statement(
+                &mut wire,
+                &state,
+                &mut no_cache(),
+                "update t set a = a where id > 0",
+                &[],
+            )
+            .expect("the portal opened");
+            assert!(rows.columns().is_empty(), "an UPDATE described rows");
+            assert_eq!(
+                rows.affected(),
+                None,
+                "a count was answered before the completion arrived"
+            );
+
+            assert!(rows.next_row().expect("the stream drained").is_none());
+
+            let tag = format!("UPDATE {matched}");
+            assert_eq!(rows.command_tag(), Some(tag.as_str()));
+            assert_eq!(rows.affected(), Some(matched));
+        }
+
+        // The other half of the claim, and the only place in this crate that
+        // can state it: there is no second count on the PostgreSQL half for
+        // § 4's `changed` to read, so it reads `affected` or it reads nothing.
+        // The needle is assembled rather than written out, because a literal
+        // would itself be a line of this file's source and the scan would then
+        // find nothing but itself.
+        assert!(
+            !include_str!("pg.rs").contains(concat!("fn ", "changed")),
+            "a second row count appeared on this driver; § 4 has one number"
+        );
+    }
+
     /// § 9's structured rows: the five whose Novis type is a class instance,
     /// and so are components here rather than a value.
     ///
@@ -5581,6 +5649,76 @@ mod tests {
 
             assert_eq!(rendered(&decoded), expected, "OID {type_oid}");
         }
+    }
+
+    /// § 9's two timestamp rows, and the zone each of them is read in.
+    ///
+    /// A zone-less `TIMESTAMP` reads in the zone the *connection* declared —
+    /// `time_zone` in the block, `PgConn::time_zone` to the caller — while a
+    /// `TIMESTAMPTZ` carries its own offset and ignores that declaration
+    /// entirely. Both halves are asserted over a sweep of declared zones,
+    /// because the failure worth pinning is a decode that **moves** with one:
+    /// the zone-less row hands back civil fields and no offset at all, leaving
+    /// the caller nothing to read the zone off but `time_zone()`, and the
+    /// zoned row hands back the offset its own body carried.
+    ///
+    /// The `+00` body against a `+02:00` connection is the bound. A driver
+    /// that applied the declared zone to a `TIMESTAMPTZ` answers `+7200`
+    /// there — the same wall clock two hours out, and right on every row whose
+    /// connection happens to be UTC, which is most of them in a test suite.
+    #[test]
+    fn a_zoneless_column_reads_in_the_declared_zone_and_a_timestamptz_ignores_it() {
+        for (written, declared) in [
+            (None, 0),
+            (Some("+02:00"), 2 * 3600),
+            (Some("-05:00"), -5 * 3600),
+            (Some("+05:45"), 5 * 3600 + 45 * 60),
+        ] {
+            let block = Database {
+                time_zone: written.map(str::to_owned),
+                ..block()
+            };
+            let target = PgTarget::resolve(&block).expect("a zone that is an offset resolves");
+            assert_eq!(target.time_zone, declared, "{written:?}");
+
+            for (type_oid, body, expected) in [
+                (
+                    oid::TIMESTAMP,
+                    b"2024-01-02 03:04:05".as_slice(),
+                    "timestamp 2024-01-02 03:04:05.000000000",
+                ),
+                (
+                    oid::TIMESTAMPTZ,
+                    b"2024-01-02 03:04:05+00".as_slice(),
+                    "instant 2024-01-02 03:04:05.000000000 +0",
+                ),
+                (
+                    oid::TIMESTAMPTZ,
+                    b"2024-01-02 03:04:05-05:30".as_slice(),
+                    "instant 2024-01-02 03:04:05.000000000 -19800",
+                ),
+            ] {
+                let decoded = column(type_oid, -1)
+                    .scalar(Some(body))
+                    .unwrap_or_else(|error| panic!("OID {type_oid} did not decode: {error}"));
+
+                assert_eq!(
+                    rendered(&decoded),
+                    expected,
+                    "OID {type_oid} moved with a declared zone of {declared}"
+                );
+            }
+        }
+
+        // The other direction, and what stops the rule above from being
+        // satisfied by a truncation: a zone-less column whose body carries an
+        // offset is refused rather than read with the suffix dropped.
+        assert!(
+            column(oid::TIMESTAMP, -1)
+                .scalar(Some(b"2024-01-02 03:04:05+02"))
+                .is_err(),
+            "an offset was dropped off a TIMESTAMP rather than refused"
+        );
     }
 
     /// § 9's table, one row per constant the [`oid`] module names: the OID,
