@@ -249,7 +249,10 @@ fn run(conn: &mut nvs_db::PgConn, sql: &str) -> std::io::Result<()> {
 /// so a deployment naming an address never depends on a resolver being reachable. This is
 /// `nvs_stdlib::db`'s `address_of` without the capability half, for the reason this module's doc
 /// gives; the two are small enough that a shared helper would only move the duplication.
-fn address_of(host: &str, port: Option<u16>) -> Option<SocketAddr> {
+///
+/// Shared with [`crate::worker`] within this crate, which resolves the same block for the same
+/// reason and is the second reader rather than a second copy.
+pub(crate) fn address_of(host: &str, port: Option<u16>) -> Option<SocketAddr> {
     let port = port.unwrap_or(nvs_db::pg::DEFAULT_PORT);
     let bare = host
         .strip_prefix('[')

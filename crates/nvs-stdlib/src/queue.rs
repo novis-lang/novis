@@ -50,8 +50,8 @@
 //!    *serialized* transaction and racy against a concurrent one at `read committed`. The partial
 //!    unique index over `(dedupe_key) where state = 0` is [`MIGRATION`]'s `jobs.dedupe`, and the
 //!    statement is race-free against a schema carrying it without changing shape — so what is left
-//!    of this gap is `nvs queue migrate`'s own, which is that it cannot yet apply what it prints
-//!    (`nvs-cli`'s `queue` module owns why).
+//!    of this gap is a deployment that never ran `nvs queue migrate`, which is the one case the
+//!    index is absent in.
 //! 4. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
 //!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
@@ -277,21 +277,16 @@ const INSERT: &str = "with existing as (\
 ///
 /// **Keyed on one queue**, as every other statement here is and as [`MIGRATION`]'s `jobs.due` index
 /// is built for: `(queue, state, run_at)` is read leftmost-first, so a claim naming no queue would
-/// scan what this one seeks. Which queues one worker asks about is § 2's question and not this
-/// statement's.
+/// scan what this one seeks. Which queues one worker asks about is [`QUEUES`]'s question, asked one
+/// statement earlier and against the same two arms.
 ///
 /// The `returning` list is what running a job needs and nothing else: `queue` is `$1` and the row's
 /// other columns are the migration's business.
-// The worker `[queue] workers` starts is the next slice; this is the statement it will claim with,
-// landed beside `INSERT` where § 4's columns are and already held to the schema by the two tests
-// below. `not(test)` because those tests are its only reader today, so an unconditional `expect`
-// would be unfulfilled under `cargo test` — and it is `expect` rather than `allow` so that the
-// worker's first use of `CLAIM` reports this line instead of leaving it behind.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "read by the worker slice and by the tests")
-)]
-const CLAIM: &str = "with due as (\
+///
+/// `pub` because the worker that claims with it lives in `nvs-cli` — the crate that owns the
+/// scheduler a worker is a task on — and § 2's schema has one home, which is here beside the
+/// `insert` that writes the columns this reads back.
+pub const CLAIM: &str = "with due as (\
      select id from nvs_jobs \
      where queue = $1::text \
      and ((state = 0 and run_at <= $2::bigint) or (state = 1 and claimed_at <= $3::bigint)) \
@@ -300,6 +295,29 @@ const CLAIM: &str = "with due as (\
  ) update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = $2::bigint \
    where id in (select id from due) \
    returning id, script, args, attempts, max_attempts, backoff_ms";
+
+/// ADR 0084 § 2's unanswered question — *which* queues a worker asks about — answered by the table
+/// rather than by a key.
+///
+/// **§ 2's block names no roster and this module does not invent one.** `connection`, `workers`,
+/// `max_attempts` and `visibility` are the whole of what an operator writes, so a worker's queues
+/// cannot come from configuration without adding a fifth key that ADR would then have to mean. The
+/// honest reading of a block that says nothing is *every queue*, and a queue exists exactly when a
+/// row names it: `push` writes the name as a column value and no queue is declared anywhere else,
+/// which is what makes the table the only place the roster could be read from.
+///
+/// **The two arms are [`CLAIM`]'s, so the roster is due work and not every name the table has ever
+/// held.** A queue whose rows are all finished, cancelled or claimed-and-still-within-visibility
+/// answers nothing here, so a worker spends no claim on it. `$1` and `$2` are that statement's `$2`
+/// and `$3` — now, and the instant `[queue] visibility` before it.
+///
+/// **What it costs, and the gap it leaves.** `distinct` over `(queue, state, run_at)` is a scan
+/// PostgreSQL will not turn into a skip-scan, so this is O(due rows) per idle turn rather than
+/// O(queues). That is the right trade while the alternative is a configuration key: a deployment
+/// whose due backlog is large enough for it to matter is one that wants a roster written down, and
+/// the roster is where this should move when § 2 grows one.
+pub const QUEUES: &str = "select distinct queue from nvs_jobs \
+    where (state = 0 and run_at <= $1::bigint) or (state = 1 and claimed_at <= $2::bigint)";
 
 /// ADR 0084 §§ 1 and 6's `status`, as one statement over both of § 2's tables.
 ///
@@ -886,7 +904,8 @@ const STATE_DOC: EnumDoc = EnumDoc {
 /// Saturating rather than fallible: a clock before 1970 is not a condition an enqueue should refuse
 /// over, and the row it would write is `run_at` in the past, which means *claimable immediately* —
 /// the same answer the caller asked for.
-fn now_millis() -> i64 {
+#[must_use]
+pub fn now_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()
@@ -1579,8 +1598,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL, CLAIM, COUNTS, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING, STATE, STATS,
-        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
+        CANCEL, CLAIM, COUNTS, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING, QUEUES, STATE,
+        STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
         STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS,
     };
 
@@ -1640,6 +1659,12 @@ mod tests {
         assert!(
             labelled("jobs.due").contains("(queue, state, run_at)"),
             "`CLAIM` seeks by queue, then state, then due-ness, which is the order of this index"
+        );
+        // The roster is read off the same table and the same column `CLAIM` is then keyed on, which
+        // is the whole of why § 2 needs no fifth key to name a worker's queues.
+        assert!(
+            QUEUES.contains(JOBS_TABLE) && QUEUES.contains("distinct queue"),
+            "`QUEUES` reads the roster off the column `INSERT` writes the queue name into"
         );
         for column in ["id ", "queue "] {
             assert!(
@@ -1729,6 +1754,10 @@ mod tests {
         assert!(
             CLAIM.contains("state = 0 and run_at"),
             "`CLAIM`'s first arm takes pending rows by `Pending`'s own ordinal"
+        );
+        assert!(
+            QUEUES.contains("state = 0 and run_at") && QUEUES.contains("state = 1 and claimed_at"),
+            "`QUEUES` asks `CLAIM`'s two arms, so a roster entry is a queue with due work in it"
         );
         assert!(
             COUNTS.contains("filter (where state = 1)"),

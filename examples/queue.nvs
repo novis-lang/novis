@@ -45,19 +45,46 @@ class Poll {
         }
         return false;
     }
+
+    // The same wait, answering with the count it saw rather than with whether
+    // it saw one. A counter this fixture prints must be *read* by the wait that
+    // waited for it: `claimed` is a state a job passes through, so asking again
+    // after the wait returned is a second instant, and a worker that has since
+    // finished the job answers `0` to a question that was already true.
+    public static function counted(callable $test): uint {
+        var $turns = 0;
+        while ($turns < 200) {
+            var $seen = $test() as uint;
+            if ($seen > 0) {
+                return $seen;
+            }
+            Core\Time::sleep(25ms);
+            $turns = $turns + 1;
+        }
+        return 0;
+    }
 }
+
+// Every run owns its queues, and the names are drawn rather than written.
+// `stats` counts rows, and § 2's tables are the deployment's rather than this
+// program's — nothing empties them between runs, and `nvs queue migrate` is
+// explicitly idempotent — so a fixture naming a fixed queue would count its own
+// previous runs. A queue is created by a row naming it (`Core\Queue`'s own
+// module doc: no queue is declared anywhere else), so a fresh name is a fresh
+// counter and costs nothing.
+var $queue = Core\Uuid::v4()->toString();
+var $flaky = Core\Uuid::v4()->toString();
 
 // § 1: subject first, one trailing options shape. `args` is copied by ADR
 // 0023's graph copy and refuses `secret` — a durable row is an output, and a
 // job needing a credential reads it from configuration at run time, which is
 // where credentials live anyway.
-var $receipt = Queue::push("examples/queue/receipt.nvs", {args: {order: 7}});
+var $receipt = Queue::push("examples/queue/receipt.nvs", {args: {order: 7}, queue: $queue});
 echo "enqueued", "\n";
 
 // § 4: the claim is the worker's, not ours, and `stats` is how a program sees
 // that it happened. One job was pushed to this queue, so one is claimed.
-Poll::until(fn (): bool => { return Queue::stats("default")->claimed() > 0; });
-echo "claimed ", Queue::stats("default")->claimed(), "\n";
+echo "claimed ", Poll::counted(fn (): uint => { return Queue::stats($queue)->claimed(); }), "\n";
 
 // § 6: at-least-once, so "it ran" is a state and not a callback.
 Poll::until(fn (): bool => { return Queue::status($receipt) == State::Succeeded; });
@@ -67,7 +94,7 @@ echo "ran", "\n";
 // attempts and a short backoff, because the fixture asserts the *shape* of
 // the retry ladder rather than the operator's default depth.
 var $doomed = Queue::push("examples/queue/flaky.nvs", {
-    queue: "flaky",
+    queue: $flaky,
     maxAttempts: 2,
     backoff: 50ms,
 });
@@ -76,11 +103,11 @@ var $doomed = Queue::push("examples/queue/flaky.nvs", {
 // is claimed again after its backoff. A job exceeding its memory, CPU or time
 // budget arrives here too, reported as a failed attempt rather than as an
 // out-of-memory.
-Poll::until(fn (): bool => { return Queue::stats("flaky")->attempts() > 1; });
+Poll::until(fn (): bool => { return Queue::stats($flaky)->attempts() > 1; });
 echo "retried", "\n";
 
 // And the floor under it. The row moves to the dead-letter table with its
 // payload, every attempt's error and its timing, and stays there — `stats`
 // reports the depth, and ADR 0076 exports it as a default series.
-Poll::until(fn (): bool => { return Queue::stats("flaky")->deadLettered() > 0; });
+Poll::until(fn (): bool => { return Queue::stats($flaky)->deadLettered() > 0; });
 echo "dead-lettered", "\n";

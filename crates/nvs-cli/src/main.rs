@@ -97,6 +97,7 @@ mod openapi;
 mod queue;
 mod runner;
 mod script;
+mod worker;
 
 #[derive(ClapParser)]
 #[command(
@@ -874,6 +875,23 @@ fn run_run(
         render_diagnostics(&mut diags, &config_sources);
     }
 
+    // ADR 0084 § 2's `workers` is per *instance*, and a CLI run is one — so a
+    // run of this tree claims jobs beside its script, including ones another
+    // instance enqueued and never finished. Read here rather than inside the
+    // worker because the snapshot is moved onto the context a dozen lines
+    // below, and `queue_for` is the same resolution boot already accepted
+    // (`nvs_config::queue`), so a refusal is impossible by the time this runs
+    // and `.ok()` is not swallowing one. `workers = 0` is § 2's enqueue-only
+    // deployment and starts nothing.
+    let queued = nvs_config::queue::queue_for(&snapshot.config, &std::collections::BTreeMap::new())
+        .ok()
+        .flatten()
+        .filter(|bounds| bounds.workers > 0)
+        .and_then(|bounds| {
+            let block = snapshot.config.db.get(&bounds.connection)?.clone();
+            Some((bounds, block))
+        });
+
     // The script's own frame is the request, for a CLI run: one `Ctx` writing
     // to the process's standard output.
     let mut ctx = nvs_runtime::Ctx::stdout();
@@ -925,6 +943,12 @@ fn run_run(
     // being told it. One task, one core, and no thread is pinned — a CLI run
     // wants the tree, not the fan-out.
     let mut sched = nvs_host::Scheduler::new();
+    // Spawned before the script's task and stopped by it: `worker`'s module doc
+    // owns both halves, and the second is why this is held rather than dropped
+    // — a worker polls forever, so `run_until_idle` would never return.
+    let workers = queued
+        .as_ref()
+        .map(|(bounds, block)| worker::start(&mut sched, bounds, block));
     // Two things have to come back out of the task, and they come back by
     // different routes. The call's status is written into a cell the body
     // captures, since a task's body returns nothing; the `Ctx` arrives in the
@@ -996,6 +1020,14 @@ fn run_run(
                 nvs_stdlib::script::run_exit_hooks(ctx, outcome, None);
             }
             status.set(Some(outcome));
+            // The script is the run, so its end is the workers' end too — and
+            // it is said from inside the task because that is where the end
+            // actually is: the code below this spawn does not run until the
+            // scheduler is idle, which is a state a polling worker never
+            // reaches.
+            if let Some(workers) = &workers {
+                workers.stop();
+            }
         }
     });
 
