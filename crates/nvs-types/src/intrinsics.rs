@@ -66,6 +66,25 @@
 //!    Refusing it here would be the one thing this pass refuses that the
 //!    rewriter does not, which is § 4 read backwards. It waits on which of the
 //!    two docs is right, not on a scan.
+//! 6. **ADR 0067 § 10's second sentence — a literal `Db::open` host against the
+//!    `db.open` grants — is three missing things and not one**, which is worth
+//!    stating because the shape of this table makes it look like one row.
+//!    First, `Core\Db::open` has no registry row at all:
+//!    `nvs_stdlib::db`'s own known gap 1 owns why, and until there is one there
+//!    is no call site a host can be written at. Second, [`Intrinsic`] addresses
+//!    a **written argument position** — `at` is an index into the call's
+//!    arguments — and § 18 puts the host inside a `Db\Settings` *shape*, so
+//!    even a callable `open` would need this table to name a field of an
+//!    argument rather than an argument. Third, and the deepest: checking has no
+//!    configuration in front of it at all. [`crate::Env`] carries no capability
+//!    set, and **no capability is checked at check time today** — `net.connect`
+//!    included, where `nvs_runtime::capability::require` is the only asker — so
+//!    § 10's "`nvs.toml` is read at boot on the machine that compiles" names a
+//!    channel that does not exist yet rather than one this pass declines to
+//!    use. ADR 0058's tainted-host half
+//!    (`a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted`) is
+//!    gated on the first two of the three and not on the last, since taint is a
+//!    fact about the program rather than about the machine.
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;

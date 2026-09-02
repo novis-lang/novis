@@ -6249,6 +6249,18 @@ sibling in the same namespace unqualified.
   reading. `Completion` carries `ok`, `value`, `output` and `error`, and `ok` is already false for a
   throw *and* for a budget teardown — ADR 0084 § 6's "a job exceeding its memory, CPU or time budget
   is a failed attempt" needs no second reading beside it.
+- **A module's known-gap bullet names the blocker its author hit, not every blocker between there
+  and the feature.** `nvs_stdlib::db`'s gap 1 says `Core\Db::open` waits on a registry shape
+  *parameter*, which reads as one missing type and so as one slice's work; ADR 0067 § 10's
+  literal-host check needs two more things behind it, and neither is mentioned there.
+  `nvs_types::intrinsics`'s table addresses a **written argument position** and § 18 puts the host
+  inside a `Db\Settings` shape, so a callable `open` still would not give that table anything to
+  name; and checking has no configuration in front of it at all — `nvs_types::Env` carries no
+  capability set, and **no capability is checked at check time today**, `net.connect` included,
+  where `nvs_runtime::capability::require` is the only asker. Three greps, one per layer — is the
+  member callable, can the pass name the thing, does the pass have the input — cost less than
+  reading one gap bullet as a work estimate. The finding is now gap 6 of
+  `crates/nvs-types/src/intrinsics.rs`.
 
 ## Divergences and refusals already pinned
 
