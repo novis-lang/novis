@@ -117,9 +117,9 @@
 //!    only where the condition names one, since most do not. `sql` is the
 //!    statement as the caller spelled it, absent only where the member had no
 //!    caller-written statement to name — § 7's `BEGIN` and `COMMIT`.
-//!    `driverCode` is
-//!    declared and stays `null` on PostgreSQL, whose `SQLSTATE` is its only
-//!    code. A failure of the *wire* rather than of the
+//!    `driverCode` is the vendor integer a server sends beside its `SQLSTATE` —
+//!    MySQL's `1062` — and stays `null` on PostgreSQL, whose `SQLSTATE` is its
+//!    only code. A failure of the *wire* rather than of the
 //!    statement stays an `IOError`: § 8's class is the server's answer, not the
 //!    socket's.
 //! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
@@ -2898,12 +2898,13 @@ fn statement_failure(
                 )
             });
             match nvs_db::ServerError::of(refused) {
-                // The raw code rides beside the kind normalised from it, so an
+                // The raw codes ride beside the kind normalised from them, so an
                 // application that § 8's eleven conditions do not cover reads
                 // what the server actually said without the driver having to
-                // widen that enum. `driverCode` is left `null` here rather than
-                // filled with the `SQLSTATE` again — `nvs_db::ServerError` owns
-                // why PostgreSQL has no second code.
+                // widen that enum. `driverCode` joins the `SQLSTATE` only on a
+                // backend that sends a vendor integer as well — MySQL does and
+                // PostgreSQL does not, and `nvs_db::ServerError` owns why. It is
+                // never the `SQLSTATE` again under a second name.
                 Some(server) => {
                     let mut slots = vec![
                         (nvs_runtime::KIND_SLOT, error_kind_value(server.kind)),
@@ -2912,11 +2913,15 @@ fn statement_failure(
                             Value::str(NvsStr::new(server.sql_state.as_bytes())),
                         ),
                     ];
+                    if let Some(code) = server.driver_code {
+                        slots.push((nvs_runtime::DRIVER_CODE_SLOT, Value::int(i64::from(code))));
+                    }
                     // `constraint` joins them only where the condition named
                     // one, which most conditions do not. An unwritten slot
                     // already reads `null`, so the absent case costs no value
                     // here and no branch in the program that reads it — the
-                    // same reason `driverCode` above is written nowhere at all.
+                    // same reason `driverCode` above is written only where a
+                    // server sends one.
                     if let Some(constraint) = &server.constraint {
                         slots.push((
                             nvs_runtime::CONSTRAINT_SLOT,
@@ -6210,6 +6215,52 @@ mod tests {
             error_kind_of(Value::int(past_the_end)),
             None,
             "one past the last ordinal is no case at all"
+        );
+    }
+
+    /// § 8's `driverCode` reaches the throw where the server sent one, and is
+    /// left unwritten where it did not.
+    ///
+    /// **Both sides, because the drivers disagree and the slot cannot be
+    /// decided by the class.** MySQL words a refusal with a vendor integer
+    /// beside its `SQLSTATE`; PostgreSQL's `SQLSTATE` is its only code, so a
+    /// slot filled unconditionally would invent one for it — the failure this
+    /// asserts against — and a slot never filled loses the other's, which is
+    /// what a program hard-coding `1062` reads. `nvs_db::ServerError` owns why
+    /// only one of them has it.
+    #[test]
+    fn a_driver_code_reaches_the_throw_only_where_the_server_sent_one() {
+        let block = Value::str(NvsStr::new(b"main"));
+        let refusal = |driver_code| {
+            std::io::Error::other(nvs_db::ServerError {
+                kind: nvs_db::DbErrorKind::UniqueViolation,
+                sql_state: String::from("23000"),
+                severity: String::from("ERROR"),
+                message: String::from("duplicate"),
+                constraint: None,
+                driver_code,
+                backend: "mysql",
+            })
+        };
+        let code_in = |fault| match fault {
+            Fault::ThrownWithSlots(ThrownClass::DbError, _, slots) => slots
+                .iter()
+                .find(|(slot, _)| *slot == nvs_runtime::DRIVER_CODE_SLOT)
+                .map(|(_, value)| value.as_int()),
+            other => panic!("§ 8 makes a server's refusal a `Db\\DbError`: {other:?}"),
+        };
+
+        assert_eq!(
+            code_in(statement_failure(QUERY, &block, None, &refusal(Some(1062)))),
+            Some(Some(1062)),
+            "MySQL's own integer is what an application reads when § 8's kind is \
+             not specific enough for it"
+        );
+        assert_eq!(
+            code_in(statement_failure(QUERY, &block, None, &refusal(None))),
+            None,
+            "and an unwritten slot already reads `null`, which is the whole of \
+             what PostgreSQL has to say here"
         );
     }
 
