@@ -2,64 +2,66 @@
 
 ## State
 
-**ADR 0067 § 11 is closed for `Core\Db`.** Every statement routine files ADR 0041's `query`
-event — `query`, `queryAs`, `execute` and now `executeMany` — and a `[db.<name>] slow_query`
-writes the same span to `Core\Log` as one `Warn` record. `QueryWatch`
-(`crates/nvs-stdlib/src/db.rs:3526`) is the single reader of both halves, so a statement
-renders its span at most once however many readers there are, and an unwatched statement pays
-neither the rendering nor the clock.
+**ADR 0067 § 11 now covers every statement path there is.** `Core\Db`'s four members already filed
+ADR 0041's `query` event; this session added `Core\Queue`'s four (`push`, `status`, `cancel`,
+`stats`) and § 7's three commands, so a trace of a request shows the `BEGIN`, the statements inside
+it and the `COMMIT` that closed them, and the `slow_query` half comes with each of them.
 
-**`executeMany` opens its own span** because `nvs_db::PgConn::execute_many` answers with a
-count and lends no `PgRows` out; `crates/nvs-db/src/span.rs`'s module doc owns why
-`QuerySpan::opened` is `pub` rather than `crate::pg`'s alone.
+**`QueryWatch` is `pub(crate)` and keyed on a block *name*** — `crates/nvs-stdlib/src/db.rs:3556`'s
+`QueryWatch::named` takes `Option<&str>`, and `of` is the `Value`-holding caller's spelling of it.
+`name_span` took the same turn. That is the whole of what the queue needed: its block comes from
+ADR 0084 § 2's `[queue] connection` and there is no `Core\Db\Connection` to read a name off.
 
-**The threshold is `nvs_config::db::slow_query_for`**, refused at boot by `nvs_config::db::validate`
-and read per statement off the config snapshot. Unwritten costs a map lookup and nothing else —
-`Setting` is only parsed for the block that opted in — and `Core\Db::open`, which has no config
-block at all, is therefore never timed. `crates/nvs-config/src/tree.rs`'s field doc is the home
-for what the key means.
+**A span with no `PgRows` behind it is filed by `file_span`**
+(`crates/nvs-stdlib/src/db.rs:3638`) — `executeMany` and § 7's commands share it. § 7's three go the
+other way from `executeMany`: `nvs_db::PgConn::begin`/`commit`/`roll_back` now answer
+`io::Result<QuerySpan>`, because which command a nesting depth gets is the connection's answer and
+`Core\Db` cannot spell `SAVEPOINT nvs_2` for itself. `crates/nvs-db/src/span.rs`'s module doc is the
+home for both shapes.
 
-**Two statement paths still bypass § 11**, both in the group below: `Core\Queue`'s own reads and
-`transaction`'s `BEGIN`/`COMMIT`/`ROLLBACK`.
+**Nothing in the queue's half is asserted by a test**, and cannot be until the matrix runs a case:
+a `-p nvs-stdlib` test cannot build a `PgConn`. The driver's half is —
+`a_transaction_command_answers_the_span_of_the_command_it_sent`
+(`crates/nvs-db/src/pg.rs:5949`) pins all three commands' text over the fake wire.
 
-**Stage 9's other two items stay blocked three deep** — known gap 6 of
-`crates/nvs-types/src/intrinsics.rs` — and stage 2's `local_infile_is_refused_and_no_file_is_sent`
-still fails acceptance and always will until MySQL's driver exists.
+**Stage 2's `local_infile_is_refused_and_no_file_is_sent` still fails acceptance** and will until
+MySQL's driver exists, which is the next group. Stage 9's other two items stay blocked three deep —
+known gap 6 of `crates/nvs-types/src/intrinsics.rs`.
 
-**`orient.py` gaps:** `[context] modules` still wants an `nvs-runtime/src/ctx.rs` pattern, and now
-also `nvs-config/src/db.rs` (plus its test file) and `nvs-stdlib/src/log.rs`, all of which this
-session had to peek; `adrs` still wants `0041 § 1` beside ADR 0067 § 11.
+**`orient.py` gaps:** `[context] modules` wants `nvs-db/src/conn.rs` (it holds `Driver` and the five
+connection structs, and the next group lives in it); `adrs` wants ADR 0132 §§ 2 and 5 and ADR 0067
+§ 3, which are what the MySQL slices are specified by.
 
 ## Next group
 
-**The two statement paths § 11 does not reach yet — one file set:
-`crates/nvs-stdlib/src/queue.rs` and `crates/nvs-stdlib/src/db.rs`, with `QueryWatch` at
-`crates/nvs-stdlib/src/db.rs:3526` read by both.**
+**MySQL's first connection — one file set: `crates/nvs-db/src/conn.rs`, a new
+`crates/nvs-db/src/mysql.rs` beside `crates/nvs-db/src/pg.rs`, and `crates/nvs-db/src/lib.rs`'s
+module list. `crates/nvs-db/src/pg.rs` is the shape all three slices copy.**
 
-- [ ] **`Core\Queue`'s statements file a `query` event** — ADR 0067 § 11 over ADR 0084's tables.
-      `statusOf` at `crates/nvs-stdlib/src/queue.rs:1465` and `statsOf` at
-      `crates/nvs-stdlib/src/queue.rs:1636` drive `PgRows` directly rather than through
-      `Core\Db`'s members, so a trace that shows every application query shows none of the
-      queue's. Both hold the block name already — `crates/nvs-stdlib/src/queue.rs:1315` is where
-      it is resolved — so `QueryWatch::of` takes it as `Core\Db`'s own reader does, and the
-      `slow_query` half comes with it. `QueryWatch` is `pub(crate)`-able from `db.rs` or moves
-      beside `postgres_of`; the queue's `push` and the worker's claim/report run their statements
-      through the same helper and want the same treatment.
-- [ ] **`transaction`'s three commands file nothing** — ADR 0067 § 7's `BEGIN`, `COMMIT`,
-      `ROLLBACK` and the `SAVEPOINT` a nested call is, at
-      `crates/nvs-stdlib/src/db.rs:4076`, go out over `nvs_db::PgConn::begin` and never reach a
-      span, so a trace shows a transaction's statements with no transaction around them. Decide
-      first whether § 11 means them at all — the ADR says *a query is a trace event* and a
-      `COMMIT` is a statement — and record the answer on `QueryWatch` either way.
+- [ ] **The handshake, authenticated and UTF-8 forced** — ADR 0132 § 2 (which protocol crate backs
+      this driver) and § 3 (the parking stream), ADR 0067 § 3. `MySqlConn` is the placeholder at
+      `crates/nvs-db/src/conn.rs:464` and `Driver::MySql` at `crates/nvs-db/src/conn.rs:52`;
+      `crates/nvs-db/src/pg.rs:898` is `authenticate`, the routine this one mirrors, and
+      `crates/nvs-db/src/matrix.rs` is where a live case finds a server. Read ADR 0132 § 2 before
+      picking anything: the crate is already chosen there.
+- [ ] **`local_infile` is refused and no file is sent** — ADR 0067 § 3, and this is the one check
+      the driver has failed every iteration of the loop. It is a property of the *client*: the
+      capability flag is never set, and a server that asks anyway is answered with an empty packet
+      rather than a file. The test name acceptance looks for is
+      `local_infile_is_refused_and_no_file_is_sent`, `-p nvs-db`; `crates/nvs-db/src/pg.rs:5961` is
+      the fake-wire harness (`Peer::new`) a case like it is written over.
+- [ ] **One statement over `COM_STMT_PREPARE`/`COM_STMT_EXECUTE`** — ADR 0067 § 1's two round trips
+      on the first execution and one on a cached re-execution, § 5's placeholder rewrite. The entry
+      points are the `Connection` enum's arms at `crates/nvs-db/src/conn.rs:523`, and § 11's span
+      rides on it from the start: `crates/nvs-db/src/pg.rs:2679` is where PostgreSQL opens one.
 
 ## Backlog
 
-- MySQL's driver, which is what `local_infile_is_refused_and_no_file_is_sent` waits on — ADR
-  0067's *Verification* section.
 - `Core\Db::open`'s registry row and the shape-field intrinsic behind it — known gap 6 of
   `crates/nvs-types/src/intrinsics.rs`.
+- A live proof of the `slow_query` line and of the queue's `query` events, which need the matrix
+  rather than a unit test — `crates/nvs-db/src/matrix.rs` is where a case finds a server.
 - ADR 0041 § 4's speedscope export, and § 2/§ 3's `gc`/`spawn` emitters — that ADR.
 - ADR 0018's trace sink, which is what makes `Ctx::trace`'s vector and the text-rendered span
   temporary — `crates/nvs-runtime/src/ctx.rs:899`.
-- A live proof of the `slow_query` line, which needs the matrix rather than a unit test —
-  `crates/nvs-db/src/matrix.rs` is where a case finds a server.
+- § 7's retry has no wait between attempts — known gap 9 of `crates/nvs-stdlib/src/db.rs`.

@@ -1591,6 +1591,13 @@ is why" — is this file.
   name was sitting at `docs/agent/loop-goal.toml:2764` the whole time. Mix the two forms in one call
   and only the `re:` targets lie, which is the part that makes it convincing. Use `--locate` for
   symbols and an ordinary `peek.py` target or a `grep` for a pattern.
+- **`peek.py --locate` swallows the positional targets in the same call.** A call spelling both —
+  `python tools/peek.py a.rs:120-160 b.rs:@sym --locate postgres_of QueryWatch` — prints the anchor
+  list and *nothing else*, so the two windows you asked for silently do not arrive and it reads as
+  two empty files rather than as a mode that took over. The fix is one call for the windows and, if
+  you still need bodiless anchors, a second for `--locate`; usually the `re:` target form
+  (`file.rs:re:fn postgres_of`) is what you actually wanted, because it prints `file:line` *and* the
+  matching line in the same call as the windows.
 
 ## Running things
 
