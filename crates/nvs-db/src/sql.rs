@@ -32,10 +32,10 @@
 //! decision on all five drivers, so it is plain data with no wire in it. Which
 //! messages the answer turns into is each driver's own.
 //!
-//! [`StatementCache::capacity_for`] and [`time_zone_for`] are here on that same
-//! test and no other: they read the two `[db.<name>]` fields whose meaning is a
-//! decision rather than a string — how large § 1's cache is, and what § 9's
-//! declared zone is in seconds — and they answer identically for every driver.
+//! [`statement_cache_for`] and [`time_zone_for`] are here on that same test and
+//! no other: they read the two `[db.<name>]` fields whose meaning is a decision
+//! rather than a string — how large § 1's cache is, and what § 9's declared
+//! zone is in seconds — and they answer identically for every driver.
 //! A driver takes the *answer* on its target, so no connect path reaches into a
 //! config tree and every one of these is testable with neither a socket nor a
 //! configuration file.
@@ -205,6 +205,41 @@ impl Statement {
     }
 }
 
+/// What a `[db.<name>]` block that names no `statement_cache` is sized by.
+///
+/// A request runs a handful of distinct statements, and this holds them all
+/// without asking a server to keep a hundred plans alive for a connection that
+/// is idle in a pool.
+pub const DEFAULT_STATEMENT_CACHE: usize = 16;
+
+/// § 1's size for one connection, read from its `[db.<name>]` block.
+///
+/// The whole of the field's meaning is here, so nothing else has to decide what
+/// an absent one means: an unset `statement_cache` is
+/// [`DEFAULT_STATEMENT_CACHE`], and a written `0` is honoured rather than
+/// treated as unset — that is § 1's cache turned off, not a block that forgot
+/// to size it. `nvs-config` deliberately names no driver's constant, which is
+/// why the default lives on this side of the edge.
+///
+/// Free rather than an associated function, and beside [`time_zone_for`]
+/// because it is the same kind of thing: one `[db.<name>]` field, read the same
+/// way for all five drivers, with no wire in it. It also has nothing to do with
+/// what a driver's [`StatementCache`] holds — PostgreSQL's handle is a name it
+/// mints and MySQL's is the server's own id — so hanging it off that type would
+/// mean writing a handle down to ask a question about a number.
+///
+/// A number too large for a `usize` saturates instead of wrapping. It is not
+/// reachable on any target this runs on, and the cache holds what the server
+/// accepts rather than what the number claims.
+#[must_use]
+pub fn statement_cache_for(block: &Database) -> usize {
+    block
+        .statement_cache
+        .map_or(DEFAULT_STATEMENT_CACHE, |size| {
+            usize::try_from(size).unwrap_or(usize::MAX)
+        })
+}
+
 /// [ADR 0067 § 1](../../../docs/adr/0067-core-db.md)'s per-connection LRU of
 /// server-side prepared statements.
 ///
@@ -224,34 +259,49 @@ impl Statement {
 /// # Its size, and why it is a parameter here
 ///
 /// § 1 sizes it by `statement_cache` in the connection's config block, and
-/// [`capacity_for`](StatementCache::capacity_for) is that field's reader:
-/// it answers the block's number, or
-/// [`DEFAULT_CAPACITY`](StatementCache::DEFAULT_CAPACITY) for a block that
-/// omits it. A driver takes the *answer* on its target — `PgTarget` carries
-/// it beside the zone, for the reason that type's doc gives — rather than
-/// reaching into a config tree from the connect path, so the capacity is
-/// still a plain parameter of [`StatementCache::new`] and a test can size one
-/// with no configuration at all. A capacity of `0` is not a broken cache: it
-/// is the unnamed statement every time, which is the behaviour PostgreSQL had
-/// before this type existed.
+/// [`statement_cache_for`] is that field's reader. A driver takes the *answer*
+/// on its target — `PgTarget` carries it beside the zone, for the reason that
+/// type's doc gives — rather than reaching into a config tree from the connect
+/// path, so the capacity is still a plain parameter of [`StatementCache::new`]
+/// and a test can size one with no configuration at all. A capacity of `0` is
+/// not a broken cache: it is the unnamed statement every time, which is the
+/// behaviour PostgreSQL had before this type existed.
+///
+/// # `H` is the handle, and only its owner knows what one is
+///
+/// What a driver holds a cached statement *by* is the protocol's business, and
+/// the two shapes are genuinely different rather than one shape spelled twice.
+/// PostgreSQL **mints** the name and the server accepts it, so `H` is a
+/// `String` this type generates ([`StatementCache::prepare`], the only place
+/// [`Prepared`] is answered). MySQL **receives** a handle: the statement id
+/// comes back from `COM_STMT_PREPARE` and nothing this side chooses it, so `H`
+/// is that id and the driver drives the cache through [`Self::lookup`],
+/// [`Self::make_room`] and [`Self::commit`] instead.
+///
+/// Everything above the handle is shared, which is the reason for the type
+/// parameter rather than a second cache: the key, the LRU order, the capacity
+/// and the eviction are one set of rules, and § 1 states them once.
 #[derive(Debug)]
-pub struct StatementCache {
+pub struct StatementCache<H = String> {
     /// Most recently used first. A `Vec` rather than a map because the capacity
     /// is a handful: a linear scan over that beats hashing the SQL text, and
     /// the LRU order is then the vector's own with nothing to maintain.
-    entries: Vec<Entry>,
+    entries: Vec<Entry<H>>,
     capacity: usize,
     /// Names are minted and never reused, so a `Close` still in flight can
     /// never collide with a `Parse` that follows it.
+    ///
+    /// Only a driver that names its own statements moves this: MySQL's handle
+    /// is the server's, so its cache leaves the counter at zero.
     next: u64,
 }
 
 /// One statement the server is holding for us.
 #[derive(Debug)]
-struct Entry {
+struct Entry<H> {
     sql: String,
     arity: usize,
-    name: String,
+    handle: H,
 }
 
 /// What the cache says about a statement that is about to be sent.
@@ -289,38 +339,10 @@ impl Prepared {
     }
 }
 
-impl StatementCache {
-    /// What a `[db.<name>]` block that names no `statement_cache` is sized by.
-    ///
-    /// A request runs a handful of distinct statements, and this holds them all
-    /// without asking a server to keep a hundred plans alive for a connection
-    /// that is idle in a pool.
-    pub const DEFAULT_CAPACITY: usize = 16;
-
-    /// § 1's size for one connection, read from its `[db.<name>]` block.
-    ///
-    /// The whole of the field's meaning is here, so nothing else has to decide
-    /// what an absent one means: an unset `statement_cache` is
-    /// [`Self::DEFAULT_CAPACITY`], and a written `0` is honoured rather than
-    /// treated as unset — that is § 1's cache turned off, not a block that
-    /// forgot to size it. `nvs-config` deliberately names no driver's constant,
-    /// which is why the default lives on this side of the edge.
-    ///
-    /// A number too large for a `usize` saturates instead of wrapping. It is
-    /// not reachable on any target this runs on, and the cache holds what the
-    /// server accepts rather than what the number claims.
-    #[must_use]
-    pub fn capacity_for(block: &Database) -> usize {
-        block
-            .statement_cache
-            .map_or(Self::DEFAULT_CAPACITY, |size| {
-                usize::try_from(size).unwrap_or(usize::MAX)
-            })
-    }
-
+impl<H: Clone> StatementCache<H> {
     /// An empty cache holding at most `capacity` statements; `0` disables it.
     #[must_use]
-    pub fn new(capacity: usize) -> StatementCache {
+    pub fn new(capacity: usize) -> StatementCache<H> {
         StatementCache {
             entries: Vec::with_capacity(capacity.min(64)),
             capacity,
@@ -346,41 +368,44 @@ impl StatementCache {
         self.entries.is_empty()
     }
 
-    /// Answers what the batch for this statement has to carry, promoting a hit
-    /// to most-recently-used and minting a name for a miss.
+    /// The handle the server is already holding this statement under, promoted
+    /// to most-recently-used, or `None` for one it has never seen.
     ///
-    /// A miss's entry is **not** recorded here: the statement does not exist on
-    /// the server until it has parsed, and a driver calls [`Self::commit`] once
-    /// it has. Forgetting to commit costs a round trip and nothing else, which
-    /// is the direction this split is biased in.
-    pub fn prepare(&mut self, sql: &str, arity: usize) -> Prepared {
-        if self.capacity == 0 {
-            return Prepared::Unnamed;
-        }
-        if let Some(at) = self
+    /// A miss records nothing: the statement does not exist on the server until
+    /// it has been prepared, and a driver calls [`Self::commit`] once it has.
+    /// Forgetting to commit costs a round trip and nothing else, which is the
+    /// direction this split is biased in.
+    pub fn lookup(&mut self, sql: &str, arity: usize) -> Option<H> {
+        let at = self
             .entries
             .iter()
-            .position(|entry| entry.arity == arity && entry.sql == sql)
-        {
-            let entry = self.entries.remove(at);
-            let name = entry.name.clone();
-            self.entries.insert(0, entry);
-            return Prepared::Hit(name);
-        }
-        let evicted = (self.entries.len() >= self.capacity)
-            .then(|| self.entries.pop().map(|entry| entry.name))
-            .flatten();
-        let name = format!("s{}", self.next);
-        self.next += 1;
-        Prepared::Miss { name, evicted }
+            .position(|entry| entry.arity == arity && entry.sql == sql)?;
+        let entry = self.entries.remove(at);
+        let handle = entry.handle.clone();
+        self.entries.insert(0, entry);
+        Some(handle)
     }
 
-    /// Records a statement the server has now parsed, as most-recently-used.
+    /// The handle that has to leave before one more statement can be recorded,
+    /// dropped from the cache here and deallocated on the server by its caller.
     ///
-    /// Only ever called with the name from a [`Prepared::Miss`] that reached
-    /// its `ParseComplete`, and once per miss: ADR 0067 § 4 allows one statement
-    /// at a time, so nothing can have touched the cache in between.
-    pub fn commit(&mut self, sql: &str, arity: usize, name: String) {
+    /// `None` when there is already room, which is the common answer. It is the
+    /// *caller's* job to close what this hands back, and calling it without
+    /// closing leaks a server-side statement for the life of the connection —
+    /// which is why it is spelled as a question about room rather than as a
+    /// side effect of [`Self::commit`].
+    pub fn make_room(&mut self) -> Option<H> {
+        (self.entries.len() >= self.capacity)
+            .then(|| self.entries.pop().map(|entry| entry.handle))
+            .flatten()
+    }
+
+    /// Records a statement the server has now prepared, as most-recently-used.
+    ///
+    /// Only ever called for a statement whose prepare has landed, and once per
+    /// miss: ADR 0067 § 4 allows one statement at a time, so nothing can have
+    /// touched the cache in between.
+    pub fn commit(&mut self, sql: &str, arity: usize, handle: H) {
         if self.capacity == 0 {
             return;
         }
@@ -389,7 +414,7 @@ impl StatementCache {
             Entry {
                 sql: sql.to_string(),
                 arity,
-                name,
+                handle,
             },
         );
     }
@@ -402,6 +427,28 @@ impl StatementCache {
     /// whose reset is deliberately not `DISCARD ALL` — never does.
     pub fn clear(&mut self) {
         self.entries.clear();
+    }
+}
+
+impl StatementCache<String> {
+    /// Answers what the batch for this statement has to carry, promoting a hit
+    /// to most-recently-used and minting a name for a miss.
+    ///
+    /// The name is this side's to choose, which is what makes a whole batch
+    /// answerable in one call — a driver that is *handed* its handle has to
+    /// wait for the prepare and drives [`Self::lookup`] and [`Self::commit`]
+    /// itself instead.
+    pub fn prepare(&mut self, sql: &str, arity: usize) -> Prepared {
+        if self.capacity == 0 {
+            return Prepared::Unnamed;
+        }
+        if let Some(name) = self.lookup(sql, arity) {
+            return Prepared::Hit(name);
+        }
+        let evicted = self.make_room();
+        let name = format!("s{}", self.next);
+        self.next += 1;
+        Prepared::Miss { name, evicted }
     }
 }
 
@@ -850,8 +897,8 @@ fn two_digits(field: &str) -> Option<i32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Binding, Database, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite,
-        time_zone_for,
+        Binding, DEFAULT_STATEMENT_CACHE, Database, Dialect, Params, Prepared, Source, Statement,
+        StatementCache, rewrite, statement_cache_for, time_zone_for,
     };
     use crate::conn::Driver;
 
@@ -1441,22 +1488,16 @@ mod tests {
     #[test]
     fn an_unset_statement_cache_is_the_default_and_a_written_zero_is_not() {
         let mut block = Database::default();
-        assert_eq!(
-            StatementCache::capacity_for(&block),
-            StatementCache::DEFAULT_CAPACITY
-        );
+        assert_eq!(statement_cache_for(&block), DEFAULT_STATEMENT_CACHE);
 
         block.statement_cache = Some(4);
-        assert_eq!(StatementCache::capacity_for(&block), 4);
+        assert_eq!(statement_cache_for(&block), 4);
 
         block.statement_cache = Some(0);
-        assert_eq!(StatementCache::capacity_for(&block), 0);
-        assert_ne!(
-            StatementCache::capacity_for(&block),
-            StatementCache::DEFAULT_CAPACITY
-        );
+        assert_eq!(statement_cache_for(&block), 0);
+        assert_ne!(statement_cache_for(&block), DEFAULT_STATEMENT_CACHE);
         assert_eq!(
-            StatementCache::new(StatementCache::capacity_for(&block)).prepare("select 1", 0),
+            StatementCache::new(statement_cache_for(&block)).prepare("select 1", 0),
             Prepared::Unnamed
         );
     }

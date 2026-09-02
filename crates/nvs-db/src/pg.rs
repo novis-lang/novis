@@ -133,7 +133,7 @@ use crate::conn::{
     written_value,
 };
 use crate::span::QuerySpan;
-use crate::sql::{Prepared, StatementCache, time_zone_for};
+use crate::sql::{Prepared, StatementCache, statement_cache_for, time_zone_for};
 
 /// The one mechanism this driver authenticates with.
 const SCRAM_SHA_256: &str = "SCRAM-SHA-256";
@@ -195,8 +195,8 @@ pub struct PgTarget<'a> {
     /// `statement_cache`.
     ///
     /// Resolved the same way the zone is, and by the same rule about who
-    /// decides: [`StatementCache::capacity_for`] reads the `[db.<name>]` block
-    /// and answers a number, so the connect path below never sees an absent
+    /// decides: [`statement_cache_for`] reads the `[db.<name>]` block and
+    /// answers a number, so the connect path below never sees an absent
     /// field. `0` is the cache off, which is a supported size and not a
     /// caller that forgot to fill this in.
     pub statement_cache: usize,
@@ -240,7 +240,7 @@ impl<'a> PgTarget<'a> {
     /// one.
     ///
     /// **Every field is decided here and none of it in the connect path.**
-    /// [`StatementCache::capacity_for`] and [`crate::sql::time_zone_for`] are
+    /// [`statement_cache_for`] and [`crate::sql::time_zone_for`] are
     /// the two readers that own what an absent field means, and this is where
     /// their answers become a number; § 9's `None` — a zone that is not an
     /// offset — becomes [`BlockError::TimeZone`] rather than UTC, which is the
@@ -321,7 +321,7 @@ impl<'a> PgTarget<'a> {
             // written or not written is the whole of it.
             tls_ca_file: block.tls_ca_file.as_deref().map(Path::new),
             time_zone,
-            statement_cache: StatementCache::capacity_for(block),
+            statement_cache: statement_cache_for(block),
         })
     }
 }
@@ -483,7 +483,7 @@ impl PgConn {
             state: Cell::new(State::Idle),
             cancel,
             // ADR 0067 § 1's size, already read off the `[db.<name>]` block by
-            // `StatementCache::capacity_for` and carried here on the target —
+            // `statement_cache_for` and carried here on the target —
             // this path takes a number and has no opinion about where an
             // unwritten field's default comes from.
             cache: StatementCache::new(target.statement_cache),
@@ -3342,7 +3342,7 @@ mod tests {
         start_statement,
     };
     use crate::conn::{ColumnType, DbErrorKind, Driver, Isolation, ServerError};
-    use crate::sql::StatementCache;
+    use crate::sql::{DEFAULT_STATEMENT_CACHE, StatementCache};
 
     /// A cache that never caches, so a test about the wire asserts the unnamed
     /// statement it has always asserted. The cached path has its own case.
@@ -3547,7 +3547,7 @@ mod tests {
             // startup message only when it is not the default of every field
             // around it.
             time_zone: 2 * 3600,
-            statement_cache: StatementCache::DEFAULT_CAPACITY,
+            statement_cache: DEFAULT_STATEMENT_CACHE,
         }
     }
 
@@ -3578,7 +3578,7 @@ mod tests {
         assert_eq!(target.password, "hunter2");
         assert_eq!(target.database, "novis_test");
         assert_eq!(target.time_zone, 2 * 3600);
-        assert_eq!(target.statement_cache, StatementCache::DEFAULT_CAPACITY);
+        assert_eq!(target.statement_cache, DEFAULT_STATEMENT_CACHE);
 
         block.statement_cache = Some(0);
         let sized = PgTarget::resolve(&block).expect("a block that turns the cache off resolves");

@@ -121,8 +121,11 @@
 //! `mysql_common`'s plugins, the forced `utf8mb4` collation, § 9's declared
 //! zone as a session variable, § 13's `COM_RESET_CONNECTION`, and § 1's two
 //! round trips over `COM_STMT_PREPARE`/`COM_STMT_EXECUTE` with § 9's whole type
-//! map decoded off the binary rows. What it still owes is § 1's *cache*, so
-//! every statement pays those two round trips and none pays one. § 13's
+//! map decoded off the binary rows. § 1's cache is on it as well, keyed the
+//! same way and holding the id the server hands back rather than a name this
+//! side mints, so a statement a connection has run before costs one round trip
+//! and not two — and § 13's `COM_RESET_CONNECTION` empties it, which is the
+//! asymmetry with PostgreSQL that § 13 calls the protocol's. § 13's
 //! pool is above this crate — `nvs_runtime::pool` is the store and `nvs-stdlib`
 //! the acquire path — so what is here is the halves only a driver can hold:
 //! [`Connection::is_poolable`]'s release gate and [`pg`]'s reset, met over a

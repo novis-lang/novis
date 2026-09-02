@@ -661,6 +661,16 @@ pub struct MySqlConn {
     /// an `EOF` packet or by an `OK`, are read off these bits. A driver that
     /// re-derived them per packet would be deciding it twice.
     pub(crate) capabilities: CapabilityFlags,
+    /// ADR 0067 § 1's LRU of server-side prepared statements, keyed by SQL text
+    /// plus expansion arity.
+    ///
+    /// [`PgConn::cache`]'s twin, holding the handle this protocol hands back:
+    /// the statement id `COM_STMT_PREPARE` answers with, where PostgreSQL's is
+    /// a name that driver mints. It does **not** survive this connection's
+    /// reset — § 13's `COM_RESET_CONNECTION` drops the statements themselves —
+    /// and `crate::mysql`'s `reset_session` is where the two are emptied
+    /// together, so no caller can invalidate one and forget the other.
+    pub(crate) cache: StatementCache<crate::mysql::Prepared>,
     /// ADR 0067 § 9's declared zone, as seconds east of UTC — what a zone-less
     /// `DATETIME` or `TIMESTAMP` off this connection is read in.
     ///

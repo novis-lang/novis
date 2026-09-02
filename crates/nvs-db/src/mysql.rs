@@ -1,14 +1,18 @@
 //! MySQL: reading a `[db.<name>]` block, reading the server's greeting,
 //! upgrading the socket in band, authenticating with a proof rather than a
 //! password, forcing the connection's charset to `utf8mb4`, and running one
-//! statement over `COM_STMT_PREPARE` and `COM_STMT_EXECUTE`.
+//! statement over `COM_STMT_PREPARE` and `COM_STMT_EXECUTE` — the prepare only
+//! the first time, which is § 1's cache.
 //!
 //! **The statement path runs to the end of the result set.**
 //! [`start_statement`] answers a [`MySqlRows`], and [`MySqlRows::next_row`]
 //! takes one binary row packet at a time until the terminator returns the
-//! connection to [`State::Idle`]. § 1's statement cache is not here, which is
-//! why every statement costs the two round trips § 1 prices it at rather than
-//! the one a cache hit would.
+//! connection to [`State::Idle`]. [`cached_statement`] is what sits in front of
+//! the prepare: a statement this connection has already run costs the single
+//! round trip § 1 prices a cached re-execution at, and § 13's
+//! `COM_RESET_CONNECTION` empties the cache along with the statements it names
+//! — the asymmetry with PostgreSQL that § 13 calls the protocol's rather than a
+//! choice.
 //!
 //! **A value is finished in two places, and § 9's table says which.**
 //! [`scalar`] reads one column against its definition and answers a
@@ -159,7 +163,7 @@ use nvs_host::tls::NvsTls;
 use nvs_runtime::{Decimal, NvsStr, Value};
 
 use crate::conn::{BlockError, ColumnType, Driver, MySqlConn, State, written_value};
-use crate::sql::time_zone_for;
+use crate::sql::{StatementCache, statement_cache_for, time_zone_for};
 
 /// MySQL's own port, which an absent `port` in a `[db.<name>]` block means.
 ///
@@ -187,10 +191,21 @@ const COM_RESET_CONNECTION: u8 = 0x1F;
 
 /// `COM_STMT_PREPARE` — ADR 0067 § 1's first round trip.
 ///
-/// `COM_STMT_EXECUTE` and `COM_STMT_CLOSE` have no constant beside this one
-/// because `mysql_common` builds those two packets header and all, and a second
-/// spelling of a byte it already writes is a place for the two to disagree.
+/// `COM_STMT_EXECUTE` has no constant beside this one because `mysql_common`
+/// builds that packet header and all, and a second spelling of a byte it
+/// already writes is a place for the two to disagree.
 const COM_STMT_PREPARE: u8 = 0x16;
+
+/// `COM_STMT_CLOSE`, which an eviction from § 1's statement cache sends.
+///
+/// It has a constant where `COM_STMT_EXECUTE` does not because this module
+/// writes the packet itself — a command byte and a handle, with no builder in
+/// `mysql_common` to disagree with.
+///
+/// **The one command here the server does not answer.** It deallocates the
+/// statement and writes nothing back, so a driver that read for an `OK` after
+/// it would take the next command's answer as this one's.
+const COM_STMT_CLOSE: u8 = 0x19;
 
 /// How much room a read is given when the inbox holds no whole packet.
 ///
@@ -279,6 +294,15 @@ pub struct MySqlTarget<'a> {
     /// rather than a name because named zones need `mysql.time_zone` populated
     /// and it usually is not.
     pub time_zone: i32,
+    /// How many prepared statements this connection may keep alive on the
+    /// server, [ADR 0067 § 1](../../../docs/adr/0067-core-db.md)'s
+    /// `statement_cache`.
+    ///
+    /// [`crate::PgTarget::statement_cache`]'s twin: the same reader answers it
+    /// and the number means the same thing. What differs is what it buys — a
+    /// hit on this driver drops a whole round trip, where PostgreSQL's extended
+    /// protocol was paying nothing extra for the parse in the first place.
+    pub statement_cache: usize,
 }
 
 impl<'a> MySqlTarget<'a> {
@@ -302,9 +326,9 @@ impl<'a> MySqlTarget<'a> {
     /// the name the certificate is checked against, and resolving it to a
     /// [`SocketAddr`] belongs to whoever checked the `db.connect` capability.
     ///
-    /// § 1's `statement_cache` is not read yet — this driver has no cache to
-    /// size, and the field is [`crate::PgTarget::statement_cache`] until it
-    /// does.
+    /// § 1's `statement_cache` goes through [`statement_cache_for`], the reader
+    /// PostgreSQL's block goes through, so a block sized for either driver is
+    /// sized by one rule and neither connect path reaches into a config tree.
     ///
     /// # Errors
     ///
@@ -380,6 +404,7 @@ impl<'a> MySqlTarget<'a> {
             // written or not written is the whole of it.
             tls_ca_file: block.tls_ca_file.as_deref().map(Path::new),
             time_zone,
+            statement_cache: statement_cache_for(block),
         })
     }
 }
@@ -393,6 +418,7 @@ impl std::fmt::Debug for MySqlTarget<'_> {
             .field("user", &self.user)
             .field("database", &self.database)
             .field("time_zone", &self.time_zone)
+            .field("statement_cache", &self.statement_cache)
             .finish_non_exhaustive()
     }
 }
@@ -1195,6 +1221,11 @@ impl MySqlConn {
             wire,
             state: Cell::new(State::Idle),
             capabilities,
+            // ADR 0067 § 1's size, already read off the `[db.<name>]` block by
+            // `statement_cache_for` and carried here on the target — this path
+            // takes a number and has no opinion about where an unwritten
+            // field's default comes from.
+            cache: StatementCache::new(target.statement_cache),
             // § 9's zone-less row is decoded a layer up, where the target is
             // gone — see the field.
             time_zone: target.time_zone,
@@ -1209,8 +1240,9 @@ impl MySqlConn {
         self.time_zone
     }
 
-    /// ADR 0067 § 1's two round trips for one statement, and the columns its
-    /// result set turned out to have.
+    /// ADR 0067 § 1's round trips for one statement — two the first time this
+    /// connection runs it, one every time after — and the columns its result
+    /// set turned out to have.
     ///
     /// The two-line delegation the playbook prescribes: [`start_statement`] is
     /// where the sequencing lives, because a method on `MySqlConn` can only be
@@ -1230,7 +1262,14 @@ impl MySqlConn {
         sql: &str,
         params: &[Option<&[u8]>],
     ) -> io::Result<MySqlRows<'_, NvsTls<NvsTcp>>> {
-        start_statement(&mut self.wire, &self.state, self.capabilities, sql, params)
+        start_statement(
+            &mut self.wire,
+            &self.state,
+            self.capabilities,
+            &mut self.cache,
+            sql,
+            params,
+        )
     }
 
     /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, before this
@@ -1244,7 +1283,12 @@ impl MySqlConn {
     ///
     /// As [`read_ok`]. The connection is consumed either way.
     pub fn reset(mut self) -> io::Result<MySqlConn> {
-        reset_session(&mut self.wire, self.capabilities, self.time_zone)?;
+        reset_session(
+            &mut self.wire,
+            self.capabilities,
+            self.time_zone,
+            &mut self.cache,
+        )?;
         Ok(self)
     }
 }
@@ -1277,10 +1321,18 @@ fn reset_session<S: Read + Write>(
     wire: &mut Wire<S>,
     capabilities: CapabilityFlags,
     seconds_east: i32,
+    cache: &mut StatementCache<Prepared>,
 ) -> io::Result<()> {
     wire.codec.reset_seq_id();
     wire.send(&[COM_RESET_CONNECTION])?;
     read_ok(wire, capabilities)?;
+    // Emptied here rather than by the caller so the invalidation cannot be
+    // forgotten by whoever pools the connection: the statements are gone from
+    // the server the moment that `OK` arrives, and a cache still naming them
+    // would bind the next request against handles this session no longer has. A
+    // reset that failed destroys the connection (§ 13), so what the cache holds
+    // on that path is nobody's business.
+    cache.clear();
     set_session_time_zone(wire, capabilities, seconds_east)
 }
 
@@ -1303,11 +1355,12 @@ pub struct Prepared {
 /// ADR 0067 § 1's first round trip: `COM_STMT_PREPARE`.
 ///
 /// **This is the round trip § 1 says is recorded rather than hidden.** A
-/// statement's first execution in a request costs two — this one and
-/// [`execute`] — where PostgreSQL's extended protocol pays nothing extra, and
-/// the honest answer to that asymmetry is a statement cache (§ 1, and this
-/// crate's own next slice), never an emulated prepare that interpolates the
-/// value into the SQL to save a packet.
+/// statement's first execution on a connection costs two — this one and
+/// [`execute`] — where PostgreSQL's extended protocol pays nothing extra. The
+/// honest answer to that asymmetry is [`cached_statement`], which is why this
+/// function runs once per statement per connection rather than once per
+/// execution; an emulated prepare that spliced the value into the SQL to save
+/// the packet is the thing § 1 removes and was never the other option.
 ///
 /// The prepare's own column and parameter definition packets are read and
 /// dropped. They have to be read — they are packets in the stream and the next
@@ -1430,7 +1483,66 @@ pub(crate) fn execute<S: Read + Write>(
     read_answer(wire, capabilities)
 }
 
-/// One statement, end to end: prepare, execute, and stop at the first row.
+/// § 1's cache in front of [`prepare`]: the statement this connection is
+/// already holding for `sql`, or a fresh one recorded under it.
+///
+/// **This is where the first of § 1's two round trips is skipped.** The key is
+/// the SQL text plus the parameter count — [`crate::StatementCache`]'s own key,
+/// so `IN` over three ids and over four stay two statements — and the handle is
+/// what MySQL *hands back* rather than a name this side minted. That is the
+/// whole reason this driver drives the cache through `lookup`/`make_room`/
+/// `commit` instead of answering a batch the way `crate::pg`'s `start_statement`
+/// does: the id arrives with the prepare, so there is nothing to write down
+/// until it has.
+///
+/// **An eviction is closed before the prepare that needed the room**, so the
+/// server never holds more statements than `statement_cache` allows, not even
+/// for the length of one round trip. The commit is after the prepare landed: a
+/// prepare that failed leaves a cache naming only statements the server has.
+///
+/// # Errors
+///
+/// As [`prepare`], plus whatever the eviction's write reported.
+fn cached_statement<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+    cache: &mut StatementCache<Prepared>,
+    sql: &str,
+    arity: usize,
+) -> io::Result<Prepared> {
+    if let Some(stmt) = cache.lookup(sql, arity) {
+        return Ok(stmt);
+    }
+    if let Some(evicted) = cache.make_room() {
+        close_statement(wire, evicted)?;
+    }
+    let stmt = prepare(wire, capabilities, sql)?;
+    cache.commit(sql, arity, stmt);
+    Ok(stmt)
+}
+
+/// `COM_STMT_CLOSE` for a statement the cache evicted.
+///
+/// Nothing is read afterwards, because nothing is sent: a read here would block
+/// until the *next* command's reply arrived and then take it as this one's. A
+/// write that fails is reported and the caller poisons the connection, which is
+/// every half-written packet's treatment — there is no boundary to be found
+/// after one.
+///
+/// # Errors
+///
+/// Whatever the write reported.
+fn close_statement<S: Read + Write>(wire: &mut Wire<S>, stmt: Prepared) -> io::Result<()> {
+    let mut payload = vec![COM_STMT_CLOSE];
+    payload.extend_from_slice(&stmt.statement_id.to_le_bytes());
+    // Every command starts a new packet sequence, and a stale counter is a wire
+    // the codec cannot find a boundary in.
+    wire.codec.reset_seq_id();
+    wire.send(&payload)
+}
+
+/// One statement, end to end: the cache or a prepare, execute, and stop at the
+/// first row.
 ///
 /// The shape is [`crate::pg`]'s `start_statement` and for its reasons — free
 /// and generic in the stream so a unit test can script a server for it, and
@@ -1453,6 +1565,7 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
     wire: &'a mut Wire<S>,
     state: &'a Cell<State>,
     capabilities: CapabilityFlags,
+    cache: &mut StatementCache<Prepared>,
     sql: &str,
     params: &[Option<&[u8]>],
 ) -> io::Result<MySqlRows<'a, S>> {
@@ -1461,7 +1574,7 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
     }
 
     state.set(State::Executing);
-    let stmt = match prepare(wire, capabilities, sql) {
+    let stmt = match cached_statement(wire, capabilities, cache, sql, params.len()) {
         Ok(stmt) => stmt,
         Err(e) => return Err(poison_on_write(state, e)),
     };
@@ -2202,6 +2315,18 @@ mod tests {
     const NONCE: &[u8; 20] = b"NR3HP:qIYa_9=db?Sd{`";
     const PASSWORD: &str = "correct-horse-battery";
 
+    /// A cache that never caches, so a case about the wire asserts the two
+    /// round trips it has always asserted rather than one.
+    fn no_cache() -> crate::sql::StatementCache<Prepared> {
+        sized_cache(0)
+    }
+
+    /// A cache of `capacity` statements, for the cases that are about § 1's
+    /// cache itself.
+    fn sized_cache(capacity: usize) -> crate::sql::StatementCache<Prepared> {
+        crate::sql::StatementCache::new(capacity)
+    }
+
     /// A server that answers the client rather than a script.
     ///
     /// [`crate::pg`]'s `Peer` and for its reason: an authentication exchange's
@@ -2304,6 +2429,7 @@ mod tests {
             database: "shop",
             tls_ca_file: None,
             time_zone: 0,
+            statement_cache: crate::sql::DEFAULT_STATEMENT_CACHE,
         }
     }
 
@@ -2695,6 +2821,7 @@ mod tests {
                 &mut wire,
                 &state,
                 CLIENT_CAPABILITIES,
+                &mut no_cache(),
                 SQL,
                 &[Some(INJECTION)],
             )
@@ -2735,6 +2862,169 @@ mod tests {
             "the execution carried the parameter and must carry no SQL — a value \
              spliced into the statement is what ADR 0067 § 1 removes"
         );
+    }
+
+    /// ADR 0067 § 1's cache, priced in round trips: the second execution of a
+    /// statement this connection has already run sends `COM_STMT_EXECUTE` and
+    /// nothing else.
+    ///
+    /// **The count of commands is the assertion**, because a driver that
+    /// re-prepared every time answers every row of every case above correctly
+    /// and still costs twice what § 1 prices a cached re-execution at. The two
+    /// executions also have to name the *same* handle: a cache that kept the
+    /// SQL but not the id would send the server a statement it never issued.
+    #[test]
+    fn a_second_execution_of_a_cached_statement_skips_the_prepare() {
+        const SQL: &str = "SELECT a FROM t WHERE b = ?";
+
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(9, 0, 1));
+                out.extend_from_slice(&packet(2, &column_def("b")));
+                out
+            }
+            Some(0x17) => packet(1, &ok_packet(0, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+        let mut cache = sized_cache(2);
+
+        for _ in 0..2 {
+            drop(
+                start_statement(
+                    &mut wire,
+                    &state,
+                    CLIENT_CAPABILITIES,
+                    &mut cache,
+                    SQL,
+                    &[Some(b"x")],
+                )
+                .expect("a statement the server answered"),
+            );
+        }
+
+        assert_eq!(
+            commands(&wire.peer().sent),
+            [Some(0x16), Some(0x17), Some(0x17)],
+            "ADR 0067 § 1: a statement's first execution costs two round trips \
+             and a cached re-execution costs one"
+        );
+        assert_eq!(
+            wire.peer().sent[1][5..9],
+            wire.peer().sent[2][5..9],
+            "both executions name the handle the one prepare answered with"
+        );
+        assert_eq!(cache.len(), 1);
+    }
+
+    /// An eviction deallocates the statement it replaced rather than leaving
+    /// the server holding it for the life of the connection.
+    ///
+    /// `COM_STMT_CLOSE` is the half a cache is easy to write without: the entry
+    /// leaves the `Vec` either way and only the server can tell the difference,
+    /// which it does by holding one more prepared statement per eviction until
+    /// the connection goes away. The handle in the packet is the *evicted* one,
+    /// so a driver closing the statement it just prepared passes this case's
+    /// count and fails its bytes.
+    #[test]
+    fn an_eviction_closes_the_statement_it_replaced() {
+        let mut next_id = 1_u32;
+        let mut wire = Wire::new(Peer::new(move |sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let id = next_id;
+                next_id += 1;
+                packet(1, &prepare_ok(id, 0, 0))
+            }
+            Some(0x17) => packet(1, &ok_packet(0, 0)),
+            // The one command with no answer at all: a server that replied
+            // here would have its reply read as the next statement's.
+            Some(0x19) => Vec::new(),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+        let mut cache = sized_cache(1);
+
+        for sql in ["SELECT a", "SELECT b"] {
+            drop(
+                start_statement(&mut wire, &state, CLIENT_CAPABILITIES, &mut cache, sql, &[])
+                    .expect("a statement the server answered"),
+            );
+        }
+
+        assert_eq!(
+            commands(&wire.peer().sent),
+            [Some(0x16), Some(0x17), Some(0x19), Some(0x16), Some(0x17)],
+            "the second statement evicted the first, and the close goes out \
+             before the prepare that needed the room"
+        );
+        let closed = &wire.peer().sent[2];
+        assert_eq!(
+            u32::from_le_bytes(closed[5..9].try_into().expect("a four-byte handle")),
+            1,
+            "the handle closed is the evicted statement's and not the new one's"
+        );
+        assert_eq!(cache.len(), 1);
+    }
+
+    /// ADR 0067 § 13's asymmetry: `COM_RESET_CONNECTION` drops the server's
+    /// prepared statements, so the reset empties the cache with them.
+    ///
+    /// This is the one place the two drivers deliberately disagree. § 13 has
+    /// PostgreSQL reset with `RESET ALL` rather than `DISCARD ALL` *because*
+    /// its cache must survive; MySQL has no reset primitive that keeps one, and
+    /// a cache that survived here would bind the next request against statement
+    /// ids this session no longer has — a wrong answer rather than a slow one.
+    #[test]
+    fn a_reset_invalidates_the_statement_cache() {
+        const SQL: &str = "SELECT a";
+
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => packet(1, &prepare_ok(4, 0, 0)),
+            // The execution, the reset, and the `SET time_zone` the reset owes
+            // because it cleared the session variable § 9 declared.
+            Some(0x17 | 0x1F | 0x03) => packet(1, &ok_packet(0, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+        let mut cache = sized_cache(2);
+
+        drop(
+            start_statement(&mut wire, &state, CLIENT_CAPABILITIES, &mut cache, SQL, &[])
+                .expect("a statement the server answered"),
+        );
+        assert_eq!(cache.len(), 1);
+
+        super::reset_session(&mut wire, CLIENT_CAPABILITIES, 0, &mut cache)
+            .expect("a reset the server acknowledged");
+        assert!(
+            cache.is_empty(),
+            "§ 13: the reset drops every prepared statement, so a cache that \
+             kept one is naming a handle the server does not have"
+        );
+
+        drop(
+            start_statement(&mut wire, &state, CLIENT_CAPABILITIES, &mut cache, SQL, &[])
+                .expect("a statement the server answered"),
+        );
+        assert_eq!(
+            commands(&wire.peer().sent),
+            [
+                Some(0x16),
+                Some(0x17),
+                Some(0x1F),
+                Some(0x03),
+                Some(0x16),
+                Some(0x17)
+            ],
+            "the same statement after a reset costs the prepare again — § 13's \
+             asymmetry with PostgreSQL, which is the protocol's"
+        );
+    }
+
+    /// The command byte of every message the driver flushed, which is how the
+    /// cases above assert a round trip count rather than a payload.
+    fn commands(sent: &[Vec<u8>]) -> Vec<Option<u8>> {
+        sent.iter().map(|message| message.get(4).copied()).collect()
     }
 
     /// A result set that a server answers three definitions and one row of,
@@ -2813,6 +3103,7 @@ mod tests {
                 &mut wire,
                 &state,
                 CLIENT_CAPABILITIES,
+                &mut no_cache(),
                 "SELECT id, name, note",
                 &[],
             )
@@ -2928,8 +3219,15 @@ mod tests {
         }));
         let state = Cell::new(State::Idle);
 
-        let mut rows = start_statement(&mut wire, &state, CLIENT_CAPABILITIES, "SELECT n", &[])
-            .expect("a result set the server described");
+        let mut rows = start_statement(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut no_cache(),
+            "SELECT n",
+            &[],
+        )
+        .expect("a result set the server described");
 
         let mut read = Vec::new();
         while let Some(row) = rows.next_row().expect("a row or the end of the stream") {
@@ -2958,9 +3256,11 @@ mod tests {
         }
     }
 
-    /// A complete block resolves to exactly what the handshake sends, and
-    /// § 9's zone arrives as the seconds `set_session_time_zone` renders
-    /// rather than as the text an operator wrote.
+    /// A complete block resolves to exactly what the handshake sends, and the
+    /// two fields with readers of their own are asserted through them: § 9's
+    /// zone arrives as the seconds `set_session_time_zone` renders rather than
+    /// as the text an operator wrote, and an unwritten `statement_cache` is
+    /// § 1's default where a written `0` is the cache off.
     #[test]
     fn a_complete_block_resolves_to_the_target_the_handshake_sends() {
         let mut block = block();
@@ -2971,6 +3271,22 @@ mod tests {
         assert_eq!(target.database, "novis_test");
         assert_eq!(target.time_zone, 2 * 3600);
         assert!(target.tls_ca_file.is_none());
+        assert_eq!(
+            target.statement_cache,
+            crate::sql::DEFAULT_STATEMENT_CACHE,
+            "an unwritten field is § 1's default and not zero"
+        );
+
+        block.statement_cache = Some(0);
+        assert_eq!(
+            MySqlTarget::resolve(&block)
+                .expect("a block that turns the cache off resolves")
+                .statement_cache,
+            0,
+            "a written `0` is § 1's cache turned off, which is the answer an \
+             `unwrap_or_default` reader loses"
+        );
+        block.statement_cache = None;
 
         block.time_zone = None;
         assert_eq!(
@@ -3510,8 +3826,15 @@ mod tests {
         }));
         let state = Cell::new(State::Streaming);
 
-        let refused = start_statement(&mut wire, &state, CLIENT_CAPABILITIES, "SELECT 1", &[])
-            .expect_err("a second statement over an unread result set — ADR 0067 § 4");
+        let refused = start_statement(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut no_cache(),
+            "SELECT 1",
+            &[],
+        )
+        .expect_err("a second statement over an unread result set — ADR 0067 § 4");
 
         assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
         assert!(
@@ -3549,8 +3872,15 @@ mod tests {
         let state = Cell::new(State::Idle);
 
         drop(
-            start_statement(&mut wire, &state, CLIENT_CAPABILITIES, "SELECT v", &[])
-                .expect("a result set the server described"),
+            start_statement(
+                &mut wire,
+                &state,
+                CLIENT_CAPABILITIES,
+                &mut no_cache(),
+                "SELECT v",
+                &[],
+            )
+            .expect("a result set the server described"),
         );
 
         assert_eq!(
@@ -3761,6 +4091,7 @@ mod tests {
             &mut wire,
             &state,
             CLIENT_CAPABILITIES,
+            &mut no_cache(),
             "UPDATE t SET a = ?, b = ?",
             &[None, Some(b"kept")],
         )
