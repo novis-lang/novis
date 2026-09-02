@@ -619,7 +619,109 @@ impl nvs_runtime::HeldConnection for Connection {
 
 #[cfg(test)]
 mod tests {
-    use super::{Driver, State};
+    use std::cell::Cell;
+    use std::sync::Arc;
+    use std::time::Instant;
+
+    use nvs_config::db::PoolBounds;
+    use nvs_config::snapshot::Snapshot;
+    use nvs_runtime::pool::{Lease, Ticket, admit, release, take};
+
+    use super::{Connection, Driver, MySqlConn, State};
+
+    /// The slot a request holds while one connection under `key` is open.
+    ///
+    /// `key` is ADR 0067 § 2's, whichever of its two spellings computed it —
+    /// [`Ticket::for_block`] is the only constructor of a pool key, and takes
+    /// the string rather than deciding it.
+    fn lease(generation: &Arc<Snapshot>, key: &str) -> Lease {
+        admit(Ticket::for_block(
+            generation,
+            key,
+            PoolBounds {
+                idle: 2,
+                ..PoolBounds::DEFAULT
+            },
+        ))
+        .expect("the default `max` admits a case's one connection")
+    }
+
+    /// A connection at a message boundary, which is the state § 13's release
+    /// gate lets into the pool.
+    ///
+    /// MySQL's variant because it is the one this crate can build without a
+    /// server — a `PgConn` carries a `Wire` — and the pool reads the variant no
+    /// more than it reads the wire: it asks `is_poolable` and stores the box.
+    fn idle_connection() -> Box<Connection> {
+        Box::new(Connection::MySql(MySqlConn {
+            state: Cell::new(State::Idle),
+        }))
+    }
+
+    /// ADR 0067 § 13's first two bullets: the pool is **per core**, and its key
+    /// is § 2's — the block *name* for `connect`, a hash of every settings
+    /// field for `open` — so two config blocks are two pools and two database
+    /// users never share a connection.
+    ///
+    /// One case answers for both of § 2's keys because both reach the pool
+    /// through one door: `Ticket::for_block` is the only constructor of a key,
+    /// and the two spellings differ in the *string* they compute rather than in
+    /// where they file. `Core\Db::open` waits on a shape-parameter type; when
+    /// it lands, its settings hash is the `key` argument here, and it inherits
+    /// this property by having nowhere else to put a connection.
+    ///
+    /// What this crate adds over `nvs_runtime::pool`'s own cases — which assert
+    /// the same key arithmetic over a fake connection — is the type actually
+    /// filed: a [`Connection`] goes in, and a `Connection` comes back out
+    /// through [`nvs_runtime::HeldConnection::into_any`], which is the downcast
+    /// `nvs-stdlib`'s `warm_connection` performs before it resets anything.
+    ///
+    /// Per core is asserted as **another core finding nothing**: the store is a
+    /// `thread_local!`, which is why § 13's acquire path needs no lock.
+    #[test]
+    fn the_pool_is_per_core_and_keyed_as_connect_and_open_key() {
+        let now = Instant::now();
+        let generation = Arc::new(Snapshot::default());
+        let reloaded = Arc::new(Snapshot::default());
+
+        release(lease(&generation, "main"), now, idle_connection());
+
+        // Another core, sharing the generation and asking under the same name.
+        let elsewhere = Arc::clone(&generation);
+        let crossed = std::thread::spawn(move || take(&lease(&elsewhere, "main"), now).is_some())
+            .join()
+            .expect("the probe thread does not panic");
+        assert!(!crossed, "a second core reached this core's pool");
+
+        // § 2's `connect` key is the block name, so a second block is a second
+        // pool even on the core that filed this one.
+        assert!(
+            take(&lease(&generation, "reports"), now).is_none(),
+            "`[db.reports]` was handed `[db.main]`'s connection"
+        );
+        // It is scoped to the generation it was read from, because ADR 0078's
+        // reload can put a different database user behind the same name.
+        assert!(
+            take(&lease(&reloaded, "main"), now).is_none(),
+            "a reloaded generation drew a connection authenticated as the old one"
+        );
+        // § 2's `open` key is a hash of every settings field, and a differing
+        // field is a differing string through the same door — the hash below
+        // stands for one, since `open` has no caller yet.
+        assert!(
+            take(&lease(&generation, "7c1f9a2e0b6d4f38"), now).is_none(),
+            "an `open` key drew a connection filed under another key"
+        );
+
+        let Some(taken) = take(&lease(&generation, "main"), now) else {
+            panic!("the connection did not come back under its own key");
+        };
+        let Ok(connection) = taken.into_any().downcast::<Connection>() else {
+            panic!("the pool handed back something that is not a `Connection`");
+        };
+        assert!(matches!(&*connection, Connection::MySql(_)));
+        assert!(connection.is_poolable());
+    }
 
     /// Every driver round-trips through the name the matrix harness uses, and
     /// no two share one — the roster `tools/db-matrix.py` selects on is this
