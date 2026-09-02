@@ -3,10 +3,10 @@ Core\Db::connect names the field that makes a `[db.<name>]` block unopenable, an
 --FILE--
 <?nvs
 // Every name below is granted, so every refusal here is about the file rather
-// than about the grant. The four blocks are the four ways one can fail before
-// a socket is ever opened, and each one names the field that is wrong -- an
+// than about the grant. The five blocks are the ways one can fail before a
+// socket is ever opened, and each one names the field that is wrong -- an
 // operator reading these lines edits one line of `nvs.toml` and no more.
-array<string> $names = ["absent", "mysql", "unusable", "zone"];
+array<string> $names = ["absent", "mariadb", "mysql", "unusable", "zone"];
 foreach ($names as string $name) {
     try {
         var $db = Core\Db::connect($name);
@@ -20,10 +20,19 @@ foreach ($names as string $name) {
 # not written, which is a different mistake from an unwritten grant and gets a
 # different sentence.
 [capabilities.db]
-connect = ["absent", "mysql", "unusable", "zone"]
+connect = ["absent", "mariadb", "mysql", "unusable", "zone"]
 
 # A driver this build has no connect path for. The refusal names the driver it
 # *is*, so the block reads as configured-for-something-else rather than broken.
+# MariaDB is not a MySQL flag -- ADR 0067 § 12 -- so the driver that opens below
+# does not open this one.
+[db.mariadb]
+driver = "mariadb"
+host = "127.0.0.1"
+
+# A driver this build *does* open, so the block is read by MySQL's own resolver
+# and the field it names is the first one the handshake needs -- ADR 0067 § 2's
+# `driver` deciding which reader the rest of the block goes through.
 [db.mysql]
 driver = "mysql"
 host = "127.0.0.1"
@@ -50,6 +59,7 @@ database = "novis"
 time_zone = "Europe/Vienna"
 --EXPECT--
 Core\Db::connect: nothing sets `[db.absent]` up, so the name resolves to a block an operator has not written yet
-Core\Db::connect: [db.mysql]: `driver` is `mysql`, which is the mysql driver and not PostgreSQL
+Core\Db::connect: [db.mariadb]: `driver` is `mariadb`, which is the mariadb driver and not PostgreSQL
+Core\Db::connect: [db.mysql]: the block names no `password`, which a MySQL connection cannot be opened without
 Core\Db::connect: [db.unusable]: `path` belongs to another driver, and a PostgreSQL connection reads nothing from it
 Core\Db::connect: [db.zone]: `time_zone` is `Europe/Vienna`, which is not an offset: write `+02:00`, `-05:30` or `UTC`, or leave it unset for UTC

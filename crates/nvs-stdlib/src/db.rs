@@ -74,17 +74,24 @@
 //!    anything about databases, and adding one decides how every future shape
 //!    parameter is passed — which is a language-surface question and not this
 //!    module's to answer in passing.
-//! 2. **Only PostgreSQL opens.** A block naming another driver is refused by
-//!    `nvs_db::PgTarget::resolve` with the message that names the driver it is,
-//!    which is the honest answer while `nvs_db::Connection`'s other four
-//!    variants have no connect path behind them.
-//! 3. **A connection is not reused across requests yet, but it is kept.** ADR
-//!    0067 § 13's pool is on disk as [`nvs_runtime::pool`] and a connection is
-//!    *released* to it at teardown under the ticket `Core\Db::connect` files.
-//!    Nothing takes one back out: a pooled connection may only be handed to
-//!    another request behind that section's reset, and the reset is the slice
-//!    after this one. Until it lands, every request still opens its own
-//!    connection and the pool holds up to `idle` per block per core.
+//! 2. **Two drivers open, and only PostgreSQL runs a statement.** `connect`
+//!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block
+//!    and a `mysql` block each reach their own target, their own default port
+//!    and their own `nvs_db::Connection` variant. A block naming any of the
+//!    other three is still refused by `nvs_db::PgTarget::resolve` with the
+//!    message that names the driver it is, which is the honest answer while
+//!    those variants have no connect path behind them. Past the handshake the
+//!    list is shorter than that: [`postgres_of`] is what a statement goes
+//!    through, so a MySQL connection opens, pools and resets, and refuses
+//!    every member that would run something on it.
+//! 3. **Only the two drivers that open are pooled.** ADR 0067 § 13's pool is
+//!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
+//!    teardown under the ticket `Core\Db::connect` files, and
+//!    [`warm_connection`] takes one back out behind that section's reset. A
+//!    connection filed by any other driver is dropped there rather than reset,
+//!    because a reset nobody has written is not a reset that failed: § 13
+//!    makes the reset a security boundary, and the only safe reading of a
+//!    missing one is that the connection is not poolable.
 //! 4. **`Db\DbError` declares all five of § 18's values.**
 //!    A refusal the server itself made is thrown as
 //!    `nvs_runtime::ThrownClass::DbError` ([`statement_failure`]), so a `catch`
@@ -2343,14 +2350,23 @@ fn deadline_of(args: &[Value]) -> Result<Option<std::time::Instant>, Fault> {
 ///
 /// The name is resolved once and the resolved address is what the socket is
 /// opened to, so nothing re-resolves between the check and the connection. What
-/// the certificate is checked against stays the written host, which is
-/// `PgTarget::host` and not this.
+/// the certificate is checked against stays the written host, which is the
+/// target's own `host` and not this.
+///
+/// `default_port` is the driver's, and it is a parameter because 5432 and 3306
+/// are different servers: the caller has already decided which handshake goes
+/// out, and it is the only one that knows what a block writing no `port` meant.
 ///
 /// # Errors
 ///
 /// A thrown `IOError` for a host that resolves to nothing.
-fn address_of(host: &str, port: Option<u16>, name: &str) -> Result<SocketAddr, Fault> {
-    let port = port.unwrap_or(nvs_db::pg::DEFAULT_PORT);
+fn address_of(
+    host: &str,
+    port: Option<u16>,
+    default_port: u16,
+    name: &str,
+) -> Result<SocketAddr, Fault> {
+    let port = port.unwrap_or(default_port);
     let bare = host
         .strip_prefix('[')
         .and_then(|held| held.strip_suffix(']'))
@@ -2523,19 +2539,50 @@ pub(crate) fn open_named(
     // is the handshake below, which is what a request did before there was
     // a pool at all.
     let pooled = bounds.enabled.then(|| warm_connection(&lease)).flatten();
+    // One wording for both handshakes: which driver could not reach its server
+    // is the block's business, and what a program can do about either is the
+    // same thing.
+    let opening = |address: SocketAddr, err: &std::io::Error| {
+        Fault::thrown_as(
+            ThrownClass::Io,
+            format!("{named}: `[db.{name}]` at {address} did not open: {err}"),
+        )
+    };
+    let written = block.driver.as_deref().unwrap_or("");
+    let driver = nvs_db::Driver::from_config_name(written);
     let opened = match pooled {
         Some(warm) => warm,
-        None => {
-            let target = nvs_db::PgTarget::resolve(block)
-                .map_err(|refused| Fault::thrown(format!("{named}: {}", refused.refusal(name))))?;
-            let address = address_of(target.host, block.port, name)?;
-            nvs_db::PgConn::connect(address, &target, deadline).map_err(|err| {
-                Fault::thrown_as(
-                    ThrownClass::Io,
-                    format!("{named}: `[db.{name}]` at {address} did not open: {err}"),
-                )
-            })?
-        }
+        // ADR 0067 § 2's `driver` decides which handshake goes out, and it is
+        // read here rather than inside a driver: the two openers share nothing
+        // but this shape — their own target, their own default port, their own
+        // `Connection` variant — and one resolver answering for both is the
+        // trait ADR 0132 § 5 declines to write.
+        //
+        // Every other spelling goes to PostgreSQL, including the block that
+        // writes no `driver` at all and the one whose `driver` no backend
+        // answers to: `PgTarget::resolve` is where each of those refusals is
+        // worded, and it names what was written rather than what it wanted.
+        None => match driver {
+            Some(nvs_db::Driver::MySql) => {
+                let target = nvs_db::MySqlTarget::resolve(block).map_err(|refused| {
+                    Fault::thrown(format!("{named}: {}", refused.refusal(name)))
+                })?;
+                let address =
+                    address_of(target.host, block.port, nvs_db::mysql::DEFAULT_PORT, name)?;
+                let conn = nvs_db::MySqlConn::connect(address, &target, deadline)
+                    .map_err(|err| opening(address, &err))?;
+                nvs_db::Connection::MySql(conn)
+            }
+            _ => {
+                let target = nvs_db::PgTarget::resolve(block).map_err(|refused| {
+                    Fault::thrown(format!("{named}: {}", refused.refusal(name)))
+                })?;
+                let address = address_of(target.host, block.port, nvs_db::pg::DEFAULT_PORT, name)?;
+                let conn = nvs_db::PgConn::connect(address, &target, deadline)
+                    .map_err(|err| opening(address, &err))?;
+                nvs_db::Connection::Postgres(conn)
+            }
+        },
     };
     // The lease is filed even for `{shared: false}`, whose `None` memo is
     // the slot beside it: that option bypasses memoization *within* the
@@ -2544,7 +2591,7 @@ pub(crate) fn open_named(
     let key = ctx.hold_open_connection(
         shared.then(|| name.to_owned()),
         Some(lease),
-        Box::new(nvs_db::Connection::Postgres(opened)),
+        Box::new(opened),
     );
     Ok(key)
 }
@@ -3229,24 +3276,34 @@ fn batch_of(args: &[Value], member: &str, named: &str) -> Result<Batch, Fault> {
 /// against it is how § 13's ceiling counts a warm connection the same as a
 /// fresh one — `nvs_runtime::pool`'s *What `max` counts* owns that rule.
 ///
-/// **A failed reset destroys the connection.** `nvs_db::PgConn::reset` takes
-/// `self` by value and hands it back only on the path where every one of § 13's
-/// commands succeeded, so a connection that could not be proven clean is closed
-/// before this returns and there is no shape in which one request reads
-/// another's session state. That is also why the caller cannot tell a failed
-/// reset from an empty pool: both are `None`, and both mean open a fresh
-/// connection, which is what a request did before there was a pool at all.
+/// **A failed reset destroys the connection.** Both `nvs_db::PgConn::reset` and
+/// `nvs_db::MySqlConn::reset` take `self` by value and hand it back only on the
+/// path where every one of § 13's commands succeeded, so a connection that
+/// could not be proven clean is closed before this returns and there is no
+/// shape in which one request reads another's session state. That is also why
+/// the caller cannot tell a failed reset from an empty pool: both are `None`,
+/// and both mean open a fresh connection, which is what a request did before
+/// there was a pool at all.
 ///
-/// A connection filed by another driver is dropped here for the same reason —
-/// `nvs_db::Connection`'s other four variants have no reset behind them yet, so
-/// they are not poolable and this is the one place that is enforced.
-fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::PgConn> {
+/// **The two resets are not the same reset**, and § 13 says so: PostgreSQL's
+/// keeps § 1's statement cache and MySQL's `COM_RESET_CONNECTION` drops it, so
+/// the connection each arm hands back is warm in a different amount. Neither is
+/// a choice this function makes — each driver's own `reset` is where its
+/// section's property is met.
+///
+/// A connection filed by any other driver is dropped here for the same reason —
+/// `nvs_db::Connection`'s other three variants have no reset behind them yet,
+/// so they are not poolable and this is the one place that is enforced.
+fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connection> {
     let held = nvs_runtime::pool::take(lease, std::time::Instant::now())?;
     let connection = held.into_any().downcast::<nvs_db::Connection>().ok()?;
-    let nvs_db::Connection::Postgres(postgres) = *connection else {
-        return None;
-    };
-    postgres.reset().ok()
+    match *connection {
+        nvs_db::Connection::Postgres(postgres) => {
+            Some(nvs_db::Connection::Postgres(postgres.reset().ok()?))
+        }
+        nvs_db::Connection::MySql(mysql) => Some(nvs_db::Connection::MySql(mysql.reset().ok()?)),
+        _ => None,
+    }
 }
 
 /// Waits for a slot under `ticket`'s key — ADR 0067 § 13's `acquire` — or
@@ -5906,12 +5963,47 @@ mod tests {
         // The path `Core\Db::connect` actually takes, on the deployment that
         // granted neither `net` key: it answers the address both refusals above
         // just named.
-        let pinned = address_of(HOST, Some(5432), "main")
+        let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main")
             .expect("a `connect`-named endpoint is pre-approved — ADR 0067 § 3");
         assert_eq!(
             pinned,
             SocketAddr::from(([127, 0, 0, 1], 5432)),
             "and it is the written host's own address, resolved once"
         );
+    }
+
+    /// A block that writes no `port` reaches **its own** driver's port — ADR
+    /// 0067 § 2, where the `driver` field is what the rest of the block is read
+    /// against.
+    ///
+    /// The claim is the disagreement rather than either number: [`address_of`]
+    /// cannot see the block, so a default read off one driver would send a
+    /// `mysql` block's handshake to 5432 and fail as a connection refused,
+    /// which reads like a server that is down and not like a bug here. Both
+    /// constants are asked for by the same expression the branch in
+    /// [`open_named`] uses, so a third driver landing with a port of its own
+    /// cannot quietly inherit one of these two.
+    #[test]
+    fn a_block_with_no_port_reaches_its_own_drivers_default() {
+        const HOST: &str = "127.0.0.1";
+
+        assert_ne!(
+            nvs_db::pg::DEFAULT_PORT,
+            nvs_db::mysql::DEFAULT_PORT,
+            "the two servers do not listen in the same place, which is why the port is a \
+             parameter at all"
+        );
+        for (default, expected) in [
+            (nvs_db::pg::DEFAULT_PORT, 5432),
+            (nvs_db::mysql::DEFAULT_PORT, 3306),
+        ] {
+            let pinned = address_of(HOST, None, default, "main")
+                .expect("a literal host resolves to itself with no name service at all");
+            assert_eq!(
+                pinned,
+                SocketAddr::from(([127, 0, 0, 1], expected)),
+                "a block writing no `port` means the port its driver listens on"
+            );
+        }
     }
 }
