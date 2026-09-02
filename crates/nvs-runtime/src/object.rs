@@ -308,6 +308,20 @@ pub struct ClassDesc {
     /// [`ClassTable::set_codec`] call and on exactly [`Self::conforms`]'
     /// terms.
     codec_classes: Vec<*const ClassDesc>,
+    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived **row**
+    /// field list — [`Self::codec`]'s twin for `#[Db\Derive]`, and empty for
+    /// every class not carrying it.
+    ///
+    /// A second list rather than a second reading of the first, because the
+    /// two formats are only usually the same: `#[Json\Field(name: "userId")]`
+    /// and `#[Db\Field(name: "user_id")]` are both legal on one property, and
+    /// § 3's `skip` is per format too. A class carrying one attribute pays one
+    /// empty `Vec` for the other, which is the footprint ADR 0004's ordering
+    /// spends to keep the two mappings from having to agree.
+    db_codec: Vec<CodecField>,
+    /// One entry per [`Self::db_codec`] field, on [`Self::codec_classes`]'
+    /// exact terms and filled by [`ClassTable::set_db_codec`].
+    db_codec_classes: Vec<*const ClassDesc>,
     /// How many parameters this class's `constructor` declares — what a
     /// derived *decoder* has to fill before it can run one, and zero for
     /// every class with no codec.
@@ -873,6 +887,28 @@ impl ClassDesc {
         }
     }
 
+    /// ADR 0071's derived **row** field list, in declaration order — empty for
+    /// a class carrying no `#[Db\Derive]`.
+    ///
+    /// Unlike [`Self::codec`] the order is not an output order: there is no
+    /// encoding half at all (spec § 18's `Core\Db\Codec` declares `fromRow`
+    /// and nothing else), so this is read to *fill* a constructor and the
+    /// order it is read in is the constructor's.
+    #[must_use]
+    pub fn db_codec(&self) -> &[CodecField] {
+        &self.db_codec
+    }
+
+    /// The descriptor the `index`th [`Self::db_codec`] field decodes into, or
+    /// `None` where that field names no class — [`Self::codec_class`]'s twin.
+    #[must_use]
+    pub fn db_codec_class(&self, index: usize) -> Option<*const ClassDesc> {
+        match self.db_codec_classes.get(index) {
+            Some(desc) if !desc.is_null() => Some(*desc),
+            _ => None,
+        }
+    }
+
     /// How many parameters this class's `constructor` declares — see
     /// [`Self::codec`]'s companion field.
     #[must_use]
@@ -997,6 +1033,8 @@ impl ClassTable {
             methods: Vec::new(),
             codec: Vec::new(),
             codec_classes: Vec::new(),
+            db_codec: Vec::new(),
+            db_codec_classes: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
             field_tags: Vec::new(),
@@ -1154,6 +1192,43 @@ impl ClassTable {
         );
         desc.codec = codec;
         desc.codec_classes = classes;
+        desc.ctor_arity = ctor_arity;
+    }
+
+    /// Fills in `id`'s ADR 0071 derived **row** field list — [`set_codec`]'s
+    /// twin for `#[Db\Derive]`, on the same terms and called from the same
+    /// second pass.
+    ///
+    /// `ctor_arity` is written by whichever of the two runs, and both carry
+    /// the same number: it is a property of the class's `constructor` and not
+    /// of either mapping, and a class carrying only one attribute would
+    /// otherwise leave the decoder an arity of zero.
+    ///
+    /// # Panics
+    ///
+    /// On [`set_codec`]'s two conditions, for its reasons.
+    ///
+    /// [`set_codec`]: ClassTable::set_codec
+    pub fn set_db_codec(
+        &mut self,
+        id: ClassId,
+        codec: Vec<CodecField>,
+        ctor_arity: usize,
+        classes: Vec<*const ClassDesc>,
+    ) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            classes.len() == codec.len(),
+            "`{}` has {} row codec field(s) but {} resolved nested class(es)",
+            desc.name,
+            codec.len(),
+            classes.len()
+        );
+        desc.db_codec = codec;
+        desc.db_codec_classes = classes;
         desc.ctor_arity = ctor_arity;
     }
 

@@ -156,6 +156,12 @@ pub struct Class {
     /// encoder and decoder can work an instance without asking the program
     /// anything.
     pub codec: Vec<nvs_types::CodecField>,
+    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived **row**
+    /// codec — [`Self::codec`]'s twin for `#[Db\Derive]`, joined to the same
+    /// slot order in the same place and carried through to
+    /// `nvs_runtime::ClassDesc::db_codec`, which owns why the two lists are
+    /// separate rather than one read twice.
+    pub db_codec: Vec<nvs_types::CodecField>,
     /// Every field slot that declares an `= expr` default, as `(slot, value)`
     /// in slot order — empty for a class declaring none, which is most of
     /// them.

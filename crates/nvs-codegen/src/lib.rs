@@ -626,9 +626,9 @@ impl Classes {
         out
     }
 
-    /// Fills in every class's ADR 0071 codec, with each nested field's
-    /// descriptor resolved — the pass [`nvs_runtime::ClassTable::set_codec`]'s
-    /// docs describe.
+    /// Fills in every class's ADR 0071 codecs — the JSON one and the row one
+    /// alike, each with its nested fields' descriptors resolved — the pass
+    /// [`nvs_runtime::ClassTable::set_codec`]'s docs describe.
     ///
     /// A nested label this unit does not define leaves a null, which
     /// `nvs_stdlib::json` reports as the internal error it is: the checker
@@ -637,26 +637,43 @@ impl Classes {
     /// disagreeing with itself rather than anything a program wrote.
     fn link_codecs(&mut self, classes: &[nvs_ir::ir::Class]) {
         for class in classes {
-            if class.codec.is_empty() {
-                continue;
-            }
             let Some(id) = self.ids.get(&class.label).copied() else {
                 continue;
             };
-            let nested: Vec<*const nvs_runtime::ClassDesc> = class
-                .codec
-                .iter()
-                .map(|field| {
-                    field
-                        .class
-                        .as_deref()
-                        .and_then(|label| self.ids.get(label).copied())
-                        .map_or(std::ptr::null(), |nested| self.table.desc(nested))
-                })
-                .collect();
-            self.table
-                .set_codec(id, class.codec.clone(), class.ctor_arity, nested);
+            if !class.codec.is_empty() {
+                let nested = self.nested_descs(&class.codec);
+                self.table
+                    .set_codec(id, class.codec.clone(), class.ctor_arity, nested);
+            }
+            // The row half, on the same terms: a class carrying both
+            // attributes has two field lists and fills both, and one carrying
+            // only `#[Db\Derive]` reaches `set_db_codec` alone — which is why
+            // that one writes the constructor arity too.
+            if !class.db_codec.is_empty() {
+                let nested = self.nested_descs(&class.db_codec);
+                self.table
+                    .set_db_codec(id, class.db_codec.clone(), class.ctor_arity, nested);
+            }
         }
+    }
+
+    /// One descriptor per field of `codec`, null except where the field names
+    /// a class — the resolved half of [`nvs_runtime::CodecField::class`], and
+    /// the reason [`Self::link_codecs`] is a second pass.
+    fn nested_descs(
+        &self,
+        codec: &[nvs_runtime::CodecField],
+    ) -> Vec<*const nvs_runtime::ClassDesc> {
+        codec
+            .iter()
+            .map(|field| {
+                field
+                    .class
+                    .as_deref()
+                    .and_then(|label| self.ids.get(label).copied())
+                    .map_or(std::ptr::null(), |nested| self.table.desc(nested))
+            })
+            .collect()
     }
 
     fn define(&mut self, class: &nvs_ir::ir::Class, source: &FxHashMap<&str, &nvs_ir::ir::Class>) {

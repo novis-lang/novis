@@ -408,6 +408,46 @@ fn static_props(
 /// `secret` either, which is the safe direction only because the fallback is
 /// reached by a class the checker never typed at all: a declared `secret`
 /// property always reaches [`ExprTypeTable::property_types`].
+/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md)'s field list joined
+/// to `layout`'s slot order — the one place both tables are in hand, and the
+/// same join for either format ([`crate::ir::Class::codec`] and
+/// [`crate::ir::Class::db_codec`] differ in which table they come out of and in
+/// nothing else).
+///
+/// A field the layout has no slot for is dropped rather than mis-indexed, and
+/// so is one whose declaration named no constructor parameter:
+/// `nvs_types::derive` has already reported the declaration that caused either,
+/// and guessing a position here would write this field's value under another
+/// property's key or pass it as another parameter.
+fn codec_fields(
+    codec: Option<&nvs_types::derive::DerivedCodec>,
+    layout: &nvs_types::ClassLayout,
+) -> Vec<nvs_types::CodecField> {
+    codec.map_or_else(Vec::new, |codec| {
+        codec
+            .fields
+            .iter()
+            .filter_map(|field| {
+                Some(nvs_types::CodecField {
+                    key: field.key.clone(),
+                    slot: layout.slot_of(&field.property)?,
+                    param: field.param?,
+                    ty: field.ty,
+                    element: field.element,
+                    // The label rides down untouched; `nvs-codegen` is the
+                    // first place every descriptor exists, so it is the one
+                    // that can resolve it.
+                    class: field.class.clone(),
+                    // The enum roster rides down untouched too, and needs no
+                    // resolution at all: it is already the values themselves.
+                    cases: field.cases.clone(),
+                    nullable: field.nullable,
+                })
+            })
+            .collect()
+    })
+}
+
 fn field_slots(
     label: &str,
     layout: &nvs_types::ClassLayout,
@@ -682,36 +722,18 @@ pub fn lower_program(
                 // has already reported the declaration that caused it, and
                 // guessing a slot here would write another property's value under
                 // this one's key.
-                codec: exprs.codec(label).map_or_else(Vec::new, |codec| {
-                    codec
-                        .fields
-                        .iter()
-                        .filter_map(|field| {
-                            Some(nvs_types::CodecField {
-                                key: field.key.clone(),
-                                slot: layout.slot_of(&field.property)?,
-                                // A field whose declaration named no constructor
-                                // parameter is dropped for the same reason a
-                                // slotless one is: `nvs_types::derive` has already
-                                // reported it, and inventing a position would pass
-                                // this field's value as another parameter.
-                                param: field.param?,
-                                ty: field.ty,
-                                element: field.element,
-                                // The label rides down untouched; `nvs-codegen`
-                                // is the first place every descriptor exists,
-                                // so it is the one that can resolve it.
-                                class: field.class.clone(),
-                                // The enum roster rides down untouched too,
-                                // and needs no resolution at all: it is
-                                // already the values themselves.
-                                cases: field.cases.clone(),
-                                nullable: field.nullable,
-                            })
-                        })
-                        .collect()
-                }),
-                ctor_arity: exprs.codec(label).map_or(0, |codec| codec.ctor_arity),
+                codec: codec_fields(exprs.codec(label), layout),
+                // The row half of the same join, off the same layout — see
+                // `crate::ir::Class::db_codec` for why the two lists are two
+                // and not one read twice.
+                db_codec: codec_fields(exprs.db_codec(label), layout),
+                // Whichever format the class declares, and the same number if
+                // it declares both: the arity belongs to the `constructor` and
+                // not to either mapping.
+                ctor_arity: exprs
+                    .codec(label)
+                    .or_else(|| exprs.db_codec(label))
+                    .map_or(0, |codec| codec.ctor_arity),
                 // Every declared default that lands in one of this class's slots:
                 // its own first, then each ancestor's, so a subclass redeclaring a
                 // property wins the slot the two share. A label with no slot for
@@ -1786,6 +1808,7 @@ impl<'a> Lowering<'a> {
             conforms: Vec::new(),
             methods: Vec::new(),
             codec: Vec::new(),
+            db_codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
         });

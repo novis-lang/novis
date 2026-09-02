@@ -302,6 +302,7 @@ pub(crate) fn lower_closure(
             // A closure is not a declaration and carries no attribute, and
             // every one of its slots is written by the factory that builds it.
             codec: Vec::new(),
+            db_codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
         })
@@ -718,6 +719,7 @@ pub(crate) fn lower_callable(
             conforms: Vec::new(),
             methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
             codec: Vec::new(),
+            db_codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
         },

@@ -558,6 +558,7 @@ pub(crate) fn lower_generator(
         // A generator state class is synthesized, so nothing wrote an
         // attribute on it, and no source property to carry a default.
         codec: Vec::new(),
+        db_codec: Vec::new(),
         ctor_arity: 0,
         defaults: Vec::new(),
     });
