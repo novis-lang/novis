@@ -2126,6 +2126,16 @@ is why" — is this file.
   **can**, and an integration test under `crates/nvs-db/tests/` is where — a `tests/`
   target links the package's ordinary dependencies too, so `nvs_runtime::pool` is
   reachable from one without a dev-dependency.
+- **`[queue]` is a *root* table, so `workers` starts a worker for every `nvs run` over that tree —
+  all fifty of `examples/`, not just the queue fixture.** There is no per-`[[app]]` spelling of it:
+  `[app.capabilities.db]` is scoped to an entry file and `[queue]` deliberately is not, because ADR
+  0084 § 2's `workers` is a property of the *instance*. So a worker that opens its connection
+  eagerly charges every unrelated fixture one PostgreSQL handshake, and one that waits on an
+  unreachable server charges every fixture that wait. That is why
+  `crates/nvs-cli/src/worker.rs`'s connect deadline is two seconds rather than `queue.rs`'s ten, and
+  why a failed open reports one line and returns instead of retrying. The same shape bites anything
+  else read out of a root table at `nvs run`: grep for the table's own `[[app]]` twin before
+  assuming a block only reaches the program it was written for.
 
 ## Writing a test case
 
