@@ -51,7 +51,7 @@
 > refusal. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect` over a request-held
 > connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and `executeMany` — bound in
 > § 5's rewriter's order — and § 18's readers: five of `Rows`' six, all fourteen of `Row`, `Write`'s
-> three, with `columns()` owed on a `ColumnType` enum. `open` waits on a shape-parameter type. **§
+> three, `columns()` owing two `Core` types and a slot. `open` waits on a shape-parameter type. **§
 > 7's `transaction` is on both classes** and `Core\Db\Isolation` is registered; `nvs.toml` now opens
 > `[db.main]` and grants `db.connect` to the two fixtures, which verify the compose CA through the
 > new `tls_ca_file`; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over

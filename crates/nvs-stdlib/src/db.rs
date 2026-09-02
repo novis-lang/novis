@@ -95,11 +95,15 @@
 //!    `stream` and `streamAs` are owed whole, and so are
 //!    `close` and § 18's three readonly properties on `Connection`. On
 //!    the result side [`ROWS`] owes one member of six —
-//!    `columns(): array<Column>`, which needs three things at once: a
-//!    `Core\Db\Column` class, a `Core\ColumnType` enum for § 18's own fourteen
-//!    cases, and a classification of a `PgColumn`'s type OID that `nvs-db` does
-//!    not expose (`PgColumn::decode` maps an OID to a *value*, which is a
-//!    different question from what a NULL column's declared type is).
+//!    `columns(): array<Column>`, which now needs two things rather than
+//!    three: a `Core\Db\Column` class and a `Core\Db\ColumnType` enum, over a
+//!    slot that holds the descriptions at all — [`ROWS`]'s holds decoded rows
+//!    and nothing else, and [`nvs_db::PgRows::columns`] is what would fill it.
+//!    The classification is landed: [`nvs_db::PgColumn::column_type`] answers
+//!    what a column *is*, which its own doc separates from what
+//!    [`nvs_db::PgColumn::decode`] reads out of a body. The enum's cases are
+//!    the spec's own and are not ADR 0067 § 9's type map read as an enum;
+//!    [`ROWS`]' doc comment is where that is written down.
 //! 6. **Neither `query` nor `execute` declares a `{timeout?: Duration}`.**
 //!    § 4's option is in both spec signatures and is deliberately in neither
 //!    registry row, for one reason on both: a deadline
@@ -636,10 +640,30 @@ const ISOLATION_DOC: EnumDoc = EnumDoc {
 /// every member below is a reader over it and never a second decoder.
 ///
 /// **Five of § 18's six members, and `columns()` is the one owed.** It answers
-/// `array<Column>`, which needs three things this slot has not got: a
-/// `Core\Db\Column`, a `Core\ColumnType` enum for spec § 18's own fourteen
-/// cases, and a classification of a `PgColumn`'s type OID that `nvs-db` does not
-/// yet expose. This module's known gap 5 is that list.
+/// `array<Column>`, and what is left to build is a `Core\Db\Column`, a
+/// `Core\Db\ColumnType`, and a slot that holds the descriptions —
+/// [`nvs_db::PgRows::columns`] answers them and this slot keeps only the rows,
+/// so they are captured at query time or not at all. The classification under
+/// them is landed: [`nvs_db::PgColumn::column_type`]. This module's known gap 5
+/// is that list.
+///
+/// **The enum's fourteen cases are the spec's, not this slot's to invent.**
+/// `docs/spec/01-core-library.md:1223` writes every one of them out — `Int`,
+/// `Uint`, `Float`, `Decimal`, `Text`, `Bytes`, `Bool`, `Date`, `Time`,
+/// `DateTime`, `Instant`, `Uuid`, `Json`, `Other` — in § 18's *Enums, settings
+/// and errors* block, the same block [`ISOLATION`] is the landed half of, so the
+/// name is `Core\Db\ColumnType` for the reason [`ISOLATION_NAME`] is namespaced.
+///
+/// **It is not ADR 0067 § 9's type map read as an enum**, and building it that
+/// way is the thing to avoid: § 9 says what *value* a read answers with, and
+/// this says what the column was declared as. The two disagree in three places
+/// at once — § 9 hands back `tainted string` for `JSON`/`JSONB` as well as for
+/// `TEXT`, where the enum keeps `Json` a case of its own; it hands back
+/// `array<T>` for a PostgreSQL array and `array<string>` for MySQL's `SET`,
+/// where the enum has no array case at all; and its final row collapses `inet`,
+/// ranges, `hstore`, geometry and `interval` into `tainted string`, which is
+/// `Other`. A classification that walked § 9 would therefore answer `Text` for a
+/// `JSONB` column and have nowhere to put an array.
 ///
 /// **It is generic at `T`, and § 18's `Rows` and `Rows<T>` are this one class.**
 /// The roster row is in [`crate::registry::GENERIC_CLASSES`], `all`/`first`

@@ -1517,6 +1517,16 @@ is why" — is this file.
   print NR": indent="RSTART-1 }' <file>`. Splice is all-or-nothing, so this costs one retry and
   never a half-written file — but the message points at the wrong place, which is the expensive
   half.
+- **A handoff item can predict that the spec is silent about something the spec declares, because
+  § 18's enums are in a fenced block rather than in a members table.** This item arrived saying
+  "the spec holds no `ColumnType` at all — so the fourteen cases are ADR 0067 § 9's type map read
+  as an enum, or they are nowhere and this slice decides them", and
+  `docs/spec/01-core-library.md:1223` writes all fourteen of them out, beside `Driver`, `Isolation`,
+  `Tls` and `ErrorKind`, under *Enums, settings and errors*. The members table one screen above
+  cites the type (`->type(): ColumnType`) without defining it, so a reader who greps the table
+  region finds the reference and concludes there is no definition. One `grep -rn ColumnType docs/`
+  is the whole check and it costs one call — and here it also refuted the fallback, since § 9 is a
+  map to *values* and cannot induce `Json` or `Other`.
 
 ## Running things
 
