@@ -5,7 +5,11 @@ members = ["crates/*", "benches/*"]
 # pair — `.nvs`/`.php` files a harness runs, not a Rust crate — so the
 # `benches/*` glob above would otherwise look for a `Cargo.toml` that will
 # never exist and fail the whole workspace before a single crate is read.
-exclude = ["benches/userland"]
+# `benches/members/` is the same shape for the per-feature figures its own
+# README describes, and the failure is the whole workspace rather than that one
+# directory: `cargo` reads the glob before it reads a crate, so a `.nvs` tree
+# under `benches/` that is not listed here breaks every build in the repository.
+exclude = ["benches/userland", "benches/members"]
 
 # ---------------------------------------------------------------------------
 # Shared package metadata. Every crate inherits these with `x.workspace = true`.
