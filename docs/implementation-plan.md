@@ -58,10 +58,10 @@
 > with, so `examples/db.nvs` runs end to end. Stages 3-4 are green in `-p nvs-db`, Stage 5 four of
 > seven, **§ 13's pool is complete, every bound and the park live**, **ADR 0084 § 2's `[queue]`
 > resolves at boot** — the `[db.<name>]` it names, `workers` and § 6's finite `max_attempts`,
-> refused as `E0617`, **all four of § 1's members are live** on that same connection, and **a shape
-> encodes as a JSON object** so a `push` payload can be one, so § 3's enqueue is transactional.
-> **The matrix anchors each driver**, two servers `n/a`, **ADR 0132 took the slot**. **Goals 1-4 and
-> M4 are closed**. Conformance 1428, differential 250, migration 90%/74%.
+> refused as `E0617`, **`nvs.toml` writes § 2's `[queue]`, `nvs queue migrate` prints both tables'
+> DDL**, **all four of § 1's members are live**, and **a shape encodes as a JSON object**, so § 3's
+> enqueue is transactional. **The matrix anchors each driver**, **ADR 0132 took the slot**. **Goals
+> 1-4 and M4 are closed**. Conformance 1428, differential 250, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
