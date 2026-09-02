@@ -63,11 +63,11 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`open` opens outside ADR 0067 § 13's pool, and arm selection is still
-//!    the merged list's.** [`SETTINGS`] is the shape parameter § 18 writes —
+//! 1. **`open` opens outside ADR 0067 § 13's pool.** [`SETTINGS`] is the shape
+//!    parameter § 18 writes —
 //!    [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
 //!    § 1's two arms, § 3's twelve merged slots, and `nvs_core_db_open` reading
-//!    them — so the member is here and reachable. Two halves of it are not.
+//!    them — so the member is here and reachable. One half of it is not.
 //!
 //!    **The connection is held by the request and never pooled.** § 13 keys an
 //!    `open` pool on a hash of every settings field, and
@@ -78,12 +78,13 @@
 //!    — [`settings_key`] is that hash, and it is what `{shared: false}` opts
 //!    out of.
 //!
-//!    **ADR 0135 § 2's *exactly one arm accepts it* is not the checker's rule
-//!    yet**: a literal is checked against the merged list, so a `host` written
-//!    beside `Driver::Sqlite` is accepted where § 18 says it is a compile
-//!    error, and a key only one arm requires is required by neither.
-//!    `nvs_types::ty::Ty::CoreShape`'s own known gap owns that, and it is why
-//!    [`settings_driver`] reads the discriminant before it reads anything else.
+//!    ADR 0135 § 2's *exactly one arm accepts it* **is** the checker's rule —
+//!    `nvs_types::expr::args`' `select_arm` — so a `host` written beside
+//!    `Driver::Sqlite` is the compile error § 18 says it is, and a key only one
+//!    arm requires is required of the call that selected that arm. What reaches
+//!    [`settings_driver`] is therefore a literal one arm has already accepted,
+//!    which is why it reads the discriminant before it reads anything else and
+//!    why every slot it then reads is filled.
 //! 2. **Two drivers open, and MySQL runs only `query` of the four members that
 //!    send.** `connect`
 //!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block

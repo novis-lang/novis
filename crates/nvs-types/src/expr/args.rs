@@ -467,10 +467,10 @@ pub(crate) fn check_arg(
     env: &mut Env<'_>,
 ) -> TypeId {
     if let Some(id) = expected
-        && let Ty::CoreShape(fields) = env.interner.get(id)
+        && let Ty::CoreShape(shape) = env.interner.get(id)
     {
-        let fields = fields.clone();
-        return check_options_arg(value, id, &fields, live, scope, ctx, env);
+        let shape = shape.clone();
+        return check_options_arg(value, id, &shape, live, scope, ctx, env);
     }
     check_expr(value, expected, live, scope, ctx, env)
 }
@@ -583,12 +583,20 @@ pub(crate) fn carries_contagion(
 /// an option the member declares, and each field's value must be assignable to
 /// that option's own declared type.
 ///
-/// **And ADR 0135 § 3's shape parameter, on the same terms.** Both intern to
+/// **And ADR 0135's shape parameter, on the same terms.** Both intern to
 /// [`Ty::CoreShape`](crate::ty::Ty::CoreShape), so both are checked here; the
 /// one rule a bag never reaches is the missing-required-key refusal below,
-/// because a bag's every field is optional. What is still not checked is
-/// § 2's *exactly one arm accepts it* — a merged list cannot state it, and
-/// `Ty::CoreShape`'s own known gap owns that.
+/// because a bag's every field is optional.
+///
+/// **Two passes, because § 2's arm cannot be chosen before the values are
+/// typed.** The first checks each written value against its *merged* slot —
+/// the union of what the arms declare for that key — so a value any arm would
+/// accept is not refused before its arm is known, and reports the two mistakes
+/// the merge does settle: a key no arm declares at all, and a key written
+/// twice. [`select_arm`] then picks the arm, and [`report_against_arm`] holds
+/// the literal to that one arm. For a bag and for a one-arm shape the arm is
+/// the merged list itself, so the second pass is exactly the refusal the first
+/// one used to make and nothing about either changed.
 ///
 /// Returns the bag's own type either way, so one malformed bag never also
 /// produces an `E_TYPE_MISMATCH` for the same span.
@@ -603,12 +611,13 @@ pub(crate) fn carries_contagion(
 pub(crate) fn check_options_arg(
     value: &Expr,
     options_ty: TypeId,
-    options: &[crate::ty::CoreShapeField],
+    shape: &crate::ty::CoreShape,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    let options = &shape.fields;
     let ExprKind::ObjectLiteral(fields) = &value.kind else {
         // Walked anyway, so a local it reads is still marked live and its own
         // errors are still reported — the argument is wrong, not unwritten.
@@ -627,14 +636,14 @@ pub(crate) fn check_options_arg(
         );
         return options_ty;
     };
-    let mut seen: Vec<&str> = Vec::with_capacity(fields.len());
+    let mut written: Vec<WrittenKey<'_>> = Vec::with_capacity(fields.len());
     for field in fields {
         let name = span_text(env.src, field.name);
         let declared = options
             .iter()
             .find(|option| option.name == name)
             .map(|option| option.ty);
-        check_arg(&field.value, declared, live, scope, ctx, env);
+        let ty = check_arg(&field.value, declared, live, scope, ctx, env);
         if declared.is_none() {
             let names = option_names(options);
             env.diags.report(
@@ -645,7 +654,7 @@ pub(crate) fn check_options_arg(
                 .with_primary(field.span, "no such option")
                 .with_help(format!("the options are: {names}")),
             );
-        } else if seen.contains(&name) {
+        } else if written.iter().any(|key| key.name == name) {
             env.diags.report(
                 Diagnostic::error(
                     code::E_DUPLICATE_DECLARATION,
@@ -654,19 +663,170 @@ pub(crate) fn check_options_arg(
                 .with_primary(field.span, "already set above"),
             );
         }
-        seen.push(name);
+        written.push(WrittenKey {
+            name,
+            span: field.span,
+            ty,
+        });
     }
-    // The other half of the exact-key check, and the half only ADR 0135's
-    // shape parameter reaches: a key the merged list requires and the literal
-    // did not carry. A bag never reports one — `TypeInterner::options` marks
-    // every option optional, which is what makes ADR 0063 R2's bag the
-    // all-optional special case of a shape rather than a second rule.
-    //
-    // `E_ARITY_MISMATCH` rather than a code of its own: § 3 flattens each key
-    // into one ABI argument, so a literal missing a required key is a call one
-    // argument short, which is what this module already reports that code for.
-    for name in missing_required_keys(options, &seen) {
-        let required = required_key_names(options);
+    // ADR 0135 § 2's *exactly one arm accepts it*, which is where the rest of
+    // the exact-key check lives. One arm is the ordinary case and every bag,
+    // and there the arm is the merged list itself — so what follows is the
+    // missing-required-key refusal this function has always made, asked of a
+    // list that a two-armed shape narrows first.
+    let arm = select_arm(shape, &written, env);
+    report_against_arm(value, shape, arm, &written, env);
+    options_ty
+}
+
+/// Whether the merged slot for this key accepts the value written there — i.e.
+/// whether the first pass stayed quiet about it, which is the only thing
+/// [`report_against_arm`] asks this.
+fn merged_accepts(shape: &crate::ty::CoreShape, key: &WrittenKey<'_>, env: &mut Env<'_>) -> bool {
+    shape
+        .fields
+        .iter()
+        .find(|field| field.name == key.name)
+        .is_some_and(|field| {
+            is_assignable(key.ty, field.ty, env.interner, env.graph, env.signatures)
+        })
+}
+
+/// One key a call site wrote in an options or shape literal: its name, where it
+/// was written, and the type its value checked to.
+///
+/// The type is what ADR 0135 § 2's arm selection needs and the reason the
+/// selection cannot happen first — an arm accepts on its keys *and* on its
+/// values, so every value is typed against the merged slot before any arm is
+/// chosen.
+struct WrittenKey<'src> {
+    name: &'src str,
+    span: Span,
+    ty: TypeId,
+}
+
+/// ADR 0135 § 2's arm selection: the arm that accepts the written literal, or —
+/// where none does, which is the call site's error — the arm it is closest to.
+///
+/// An arm **accepts** when every written key is one it declares, every key it
+/// requires is written, and every written value is assignable to the type it
+/// declares for that key. At most one can, since the arms are pairwise disjoint
+/// and `nvs_stdlib::registry`'s `a_shapes_arms_are_pairwise_disjoint` refuses a
+/// roster where they are not — so this returns the first accepting arm without
+/// looking for a second, and two accepting would be a registry bug that test
+/// has already failed on.
+///
+/// Where none accepts, the answer is the arm with the **fewest** mistakes of
+/// those three kinds, ties going to declaration order. That is what makes the
+/// diagnostic name the form the caller was evidently writing:
+/// `{driver: Driver::Sqlite, path: …, host: …}` misses the SQLite arm by one
+/// key and the server arm by five, so it is answered with "`host` is not a key
+/// of this form" rather than with the four keys the server arm would want. A
+/// wrong *value* counts the same as a wrong key deliberately: weighting the
+/// discriminant would be a second, weaker spelling of the disjointness the
+/// types already carry, which is the same argument § 2 makes against naming a
+/// discriminant field at all.
+fn select_arm(
+    shape: &crate::ty::CoreShape,
+    written: &[WrittenKey<'_>],
+    env: &mut Env<'_>,
+) -> usize {
+    let mut best = (0, usize::MAX);
+    for (index, arm) in shape.arms.iter().enumerate() {
+        let mut mistakes = 0;
+        for key in written {
+            match arm.iter().find(|field| field.name == key.name) {
+                None => mistakes += 1,
+                Some(field)
+                    if !is_assignable(
+                        key.ty,
+                        field.ty,
+                        env.interner,
+                        env.graph,
+                        env.signatures,
+                    ) =>
+                {
+                    mistakes += 1;
+                }
+                Some(_) => {}
+            }
+        }
+        mistakes += arm
+            .iter()
+            .filter(|field| field.required && !written.iter().any(|key| key.name == field.name))
+            .count();
+        if mistakes == 0 {
+            return index;
+        }
+        if mistakes < best.1 {
+            best = (index, mistakes);
+        }
+    }
+    best.0
+}
+
+/// The literal held to the one arm [`select_arm`] chose: a key that arm does
+/// not declare, a key it requires that the literal did not carry, and a value
+/// its own declaration refuses.
+///
+/// Reports nothing when the arm accepts, which is every call this function has
+/// ever made for a bag or a one-arm shape.
+///
+/// **Three refusals, and no code of its own for any of them.** A key belonging
+/// to another arm is still not a key of *this* call, so it is the
+/// `E_UNKNOWN_OPTION` the merged pass reports for a key no arm declares, with
+/// the selected arm's keys named instead of the merged list's. A missing
+/// required key is an `E_ARITY_MISMATCH` because § 3 flattens each key into one
+/// ABI argument, so a literal short of one is a call one argument short. A
+/// value the arm refuses is the ordinary [`report_mismatch`], naming the type
+/// that arm declares — which is how `driver: Driver::Sqlite` written against
+/// the server arm reads as the four cases it is not.
+fn report_against_arm(
+    value: &Expr,
+    shape: &crate::ty::CoreShape,
+    arm: usize,
+    written: &[WrittenKey<'_>],
+    env: &mut Env<'_>,
+) {
+    let Some(fields) = shape.arms.get(arm) else {
+        return;
+    };
+    for key in written {
+        match fields.iter().find(|field| field.name == key.name) {
+            // Reported already, against the merged list, and with the same
+            // code: a key no arm declares is a typo and not a wrong form.
+            None if !shape.fields.iter().any(|field| field.name == key.name) => {}
+            None => {
+                let names = option_names(fields);
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_UNKNOWN_OPTION,
+                        format!(
+                            "`{}` is not a key of the form this literal writes",
+                            key.name
+                        ),
+                    )
+                    .with_primary(key.span, "not a key of this form")
+                    .with_help(format!(
+                        "the keys of the form the other values select are: {names}"
+                    )),
+                );
+            }
+            // Reported already where the *merged* slot refuses it too, since a
+            // value no arm accepts is one mistake and reads as one diagnostic.
+            // This arm is the value that some other arm would have taken.
+            Some(field)
+                if !is_assignable(key.ty, field.ty, env.interner, env.graph, env.signatures)
+                    && merged_accepts(shape, key, env) =>
+            {
+                report_mismatch(key.span, field.ty, key.ty, env);
+            }
+            Some(_) => {}
+        }
+    }
+    let names: Vec<&str> = written.iter().map(|key| key.name).collect();
+    for name in missing_required_keys(fields, &names) {
+        let required = required_key_names(fields);
         env.diags.report(
             Diagnostic::error(
                 code::E_ARITY_MISMATCH,
@@ -676,7 +836,6 @@ pub(crate) fn check_options_arg(
             .with_help(format!("the keys this member requires are: {required}")),
         );
     }
-    options_ty
 }
 
 /// The keys the merged field list requires that a written literal does not

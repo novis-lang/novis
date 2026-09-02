@@ -12,6 +12,10 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 18's and is not restated here.
 - **Depends on:** [0063](0063-core-api-conventions.md), whose R2 bag is the mechanism this generalises, and
   [0047](0047-literal-and-enum-case-types.md), whose enum-case types are what separate one arm from another.
+- **Validated by:** [crates/nvs-types/tests/core_members.rs](../../crates/nvs-types/tests/core_members.rs) —
+  `a_host_on_a_sqlite_settings_literal_is_a_compile_error` and
+  `a_sqlite_driver_on_a_server_settings_literal_is_a_compile_error` hold § 2's selection over `Db\Settings`'s
+  two arms, by a key one arm lacks and by a value the other arm's `driver` refuses.
 
 > **In short:** a fixed-key shape parameter is **`CoreTy::Shape(&[&[CoreField]])`** — a non-empty list of
 > **arms**, each an ordered field list, one arm for the ordinary case and two or more for a discriminated

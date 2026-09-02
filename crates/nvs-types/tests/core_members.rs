@@ -414,3 +414,76 @@ fn a_limit_and_deadline_options_shape_is_the_only_spelling() {
         );
     }
 }
+
+/// ADR 0135 § 2 at the call site it was written for: `Db\Settings`'s two arms,
+/// and `host` on the SQLite one. SQLite is a file and has no host to reach, so
+/// its arm declares none — and the merged list the ABI flattens to *does*,
+/// which is why this is the case that says arm selection happens at all. Under
+/// the merged list alone the key is declared, the value is a `string`, and the
+/// literal compiles.
+///
+/// Both arms' own literals are asserted beside it, because a refusal written
+/// one condition too wide takes them with it: they are the two forms
+/// `tests/conformance/core/db-open-refuses-a-tls-mode-weaker-than-verify-full.nvst`
+/// runs, and neither may cost a diagnostic here.
+#[test]
+fn a_host_on_a_sqlite_settings_literal_is_a_compile_error() {
+    let file = check_in_method(
+        "var $db = Core\\Db::open({driver: Core\\Db\\Driver::Sqlite, path: \"/srv/a.db\"});\n",
+    );
+    assert!(!file.has_errors(), "{file:?}");
+
+    let server = check_in_method(
+        "var $db = Core\\Db::open({driver: Core\\Db\\Driver::Postgres, host: \"db.test\", \
+         database: \"shop\", user: \"app\", password: \"hunter2\"});\n",
+    );
+    assert!(!server.has_errors(), "{server:?}");
+
+    let hosted = check_in_method(
+        "var $db = Core\\Db::open({driver: Core\\Db\\Driver::Sqlite, path: \"/srv/a.db\", \
+         host: \"db.test\"});\n",
+    );
+    let unknown = hosted
+        .iter()
+        .find(|d| d.code == Some(code::E_UNKNOWN_OPTION))
+        .unwrap_or_else(|| panic!("{hosted:?}"));
+    assert!(
+        unknown.message.contains("host"),
+        "the refusal names the key that does not belong: {unknown:?}"
+    );
+}
+
+/// The other half of § 2's rule, and the half a key-only reading would miss:
+/// which arm a literal selects is decided by its values as well as its keys, so
+/// a server-shaped literal that names the SQLite driver is refused rather than
+/// being accepted by the arm whose keys it wrote.
+///
+/// It is the `driver` value that is reported, because that is the one field the
+/// two arms declare differently — ADR 0135 § 2's disjointness, arriving at a
+/// call site as an ordinary type mismatch with nothing naming a discriminant.
+#[test]
+fn a_sqlite_driver_on_a_server_settings_literal_is_a_compile_error() {
+    let crossed = check_in_method(
+        "var $db = Core\\Db::open({driver: Core\\Db\\Driver::Sqlite, host: \"db.test\", \
+         database: \"shop\", user: \"app\", password: \"hunter2\"});\n",
+    );
+    assert!(crossed.has_errors(), "{crossed:?}");
+}
+
+/// A key the *merged* list does not declare at all is still the typo it always
+/// was, and is answered by the same one diagnostic — arm selection narrows what
+/// a call is held to, and must not turn one mistake into two.
+#[test]
+fn a_key_no_settings_arm_declares_is_one_diagnostic() {
+    let typo = check_in_method(
+        "var $db = Core\\Db::open({driver: Core\\Db\\Driver::Sqlite, path: \"/srv/a.db\", \
+         hosts: \"db.test\"});\n",
+    );
+    assert_eq!(
+        typo.iter()
+            .filter(|d| d.code == Some(code::E_UNKNOWN_OPTION))
+            .count(),
+        1,
+        "{typo:?}"
+    );
+}

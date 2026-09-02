@@ -840,10 +840,12 @@ pub mod code {
     /// extra field on purpose, an options bag refuses one: a misspelled option
     /// that is silently ignored is the failure ADR 0063 R2 exists to prevent.
     /// A **shape key** no arm of an ADR 0135 § 1 shape parameter declares is
-    /// this same code: the merged list is the whole key set either way. A key
-    /// belonging to an arm the literal did not otherwise select is *not*
-    /// caught here yet — `nvs_types::ty::Ty::CoreShape`'s known gap owns that,
-    /// and the missing half is § 2's arm selection rather than this refusal.
+    /// this same code: the merged list is the whole key set either way. So is a
+    /// key that belongs to an arm the literal's other values did not select —
+    /// § 2's arm selection narrows *which* key set a call is held to, and a key
+    /// outside the selected one is still not a key of this call. The two read
+    /// differently and are one code on purpose: a second code would ask the
+    /// reader to know which arm they were in before they could look it up.
     pub const E_UNKNOWN_OPTION: Code = Code::new("E0454");
     /// `decimal ⊕ float` arithmetic, or `**` with a `decimal` base — ADR 0054
     /// § 3. The same rule and the same reason as [`E_INT_UINT_ARITHMETIC`]:

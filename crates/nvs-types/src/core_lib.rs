@@ -542,8 +542,11 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // declaration order, each arm's fields in declaration order, a name
         // already emitted skipped. See [`merge_shape_arms`].
         CoreTy::Shape(arms) => {
-            let fields = merge_shape_arms(arms, interner);
-            interner.core_shape(fields)
+            let shape = crate::ty::CoreShape {
+                fields: merge_shape_arms(arms, interner),
+                arms: arms.iter().map(|arm| lower_arm(arm, interner)).collect(),
+            };
+            interner.core_shape(shape)
         }
         // `Mixed` and anything a later registry variant adds: `mixed` is the
         // registry's own "unchecked position" spelling, and is the only safe
@@ -587,6 +590,26 @@ fn merge_shape_arms(
         });
     }
     merged
+}
+
+/// One arm's own fields, lowered — ADR 0135 § 2's half of
+/// [`crate::ty::CoreShape`], where [`merge_shape_arms`] builds § 3's.
+///
+/// A field is required of its arm exactly where it declares no default, which
+/// is `CoreField::default` read the way [`merge_shape_arms`] reads it. The
+/// merge can only say that where *every* arm agrees, and saying it per arm is
+/// the whole of what arm selection needs that the merged list cannot give it.
+fn lower_arm(
+    arm: &'static [nvs_stdlib::registry::CoreField],
+    interner: &mut TypeInterner,
+) -> Vec<crate::ty::CoreShapeField> {
+    arm.iter()
+        .map(|field| crate::ty::CoreShapeField {
+            name: field.name.to_owned(),
+            ty: lower(&field.ty, interner),
+            required: field.default.is_none(),
+        })
+        .collect()
 }
 
 /// One slot of ADR 0135 § 3's merged list per entry, in the order the list
@@ -686,9 +709,28 @@ mod tests {
 
         let mut interner = TypeInterner::new();
         let id = lower(&CoreTy::Shape(&[SERVER, FILE]), &mut interner);
-        let Ty::CoreShape(fields) = interner.get(id) else {
+        let Ty::CoreShape(shape) = interner.get(id) else {
             panic!("a `CoreTy::Shape` lowers to a `Ty::CoreShape`");
         };
+        let fields = &shape.fields;
+        // ADR 0135 § 2's half, which the merge deliberately cannot state: each
+        // arm keeps its own keys, its own types and its own required flags, so
+        // `host` is required *of the server arm* where the merged list below
+        // has to call it optional.
+        assert_eq!(
+            shape
+                .arms
+                .iter()
+                .map(|arm| arm
+                    .iter()
+                    .map(|f| (f.name.as_str(), f.required))
+                    .collect::<Vec<_>>())
+                .collect::<Vec<_>>(),
+            [
+                vec![("driver", true), ("host", true), ("port", false)],
+                vec![("driver", true), ("path", true)],
+            ],
+        );
         assert_eq!(
             fields.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(),
             ["driver", "host", "port", "path"],
@@ -773,11 +815,15 @@ mod tests {
         );
         // The type and the fills describe one flattening, so a slot is the
         // same slot in both — the invariant `merged_arm_fields` exists for.
-        let Ty::CoreShape(fields) = interner.get(sig.params[0]) else {
+        let Ty::CoreShape(shape) = interner.get(sig.params[0]) else {
             panic!("a `CoreTy::Shape` parameter lowers to a `Ty::CoreShape`");
         };
         assert_eq!(
-            fields.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(),
+            shape
+                .fields
+                .iter()
+                .map(|f| f.name.as_str())
+                .collect::<Vec<_>>(),
             fills
                 .iter()
                 .map(|(name, _)| name.as_str())

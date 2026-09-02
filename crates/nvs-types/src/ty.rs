@@ -278,18 +278,16 @@ pub enum Ty {
     /// two members whose keys differ only in order are genuinely two different
     /// types and must not intern to one.
     ///
-    /// A key this list marks [`CoreShapeField::required`] must be written, and
-    /// a key it does not declare at all is refused —
+    /// A key the merged list marks [`CoreShapeField::required`] must be
+    /// written, and a key it does not declare at all is refused —
     /// `crate::expr::args::check_options_arg` reports both, one code each.
     ///
-    /// **Known gap.** What a merged list cannot state is ADR 0135 § 2's
-    /// *exactly one arm accepts it*: a two-arm shape reaches here as the union
-    /// of its arms' keys, so a literal drawing keys from both arms is accepted,
-    /// and a key required by only one arm is required by neither (see
-    /// `core_lib::merge_shape_arms`). No row declares a second arm yet, and the
-    /// slice that writes the arm-selection check is the one that has to widen
-    /// this variant to carry the arms.
-    CoreShape(Vec<CoreShapeField>),
+    /// That list is the *widest* statement of what the parameter takes, and it
+    /// is deliberately not the rule a written literal is held to: ADR 0135 § 2
+    /// selects one of [`CoreShape::arms`] and holds the literal to that arm's
+    /// keys and that arm's types. See [`CoreShape`] for why the type carries
+    /// both.
+    CoreShape(CoreShape),
     /// `A|B|...` — flattened, deduplicated, and sorted by member `TypeId`.
     /// Always at least two members; a one-member union collapses to that
     /// member directly (see [`TypeInterner::make_union`]).
@@ -318,6 +316,43 @@ pub enum Ty {
     /// unconstrained by the call," and the only one that keeps a later pass
     /// from meeting a variable it has no rule for.
     TypeVar(String),
+}
+
+/// ADR 0135's fixed-key shape parameter, both ways round: § 3's merged field
+/// list, which is the ABI, and § 2's arms, which are what a written literal is
+/// actually checked against.
+///
+/// **Both, because neither states the other.** The merged list cannot state
+/// *exactly one arm accepts it*: a two-arm shape merges to the union of its
+/// arms' keys, so a literal drawing keys from both arms would pass and a key
+/// only one arm requires would be required by neither. The arms cannot state
+/// the ABI: which slot a key occupies is a property of the merge, and
+/// `nvs_ir::lower::lower_call_args` flattens the argument by that order alone.
+/// Deriving either from the other at every call site would re-run the merge
+/// per call, so both are interned once, here.
+///
+/// A key more than one arm declares appears once in [`Self::fields`], typed as
+/// the union of the arms' declarations for it, and once per declaring arm in
+/// [`Self::arms`], typed as that arm declares it. `Db\Settings`'s `driver` is
+/// the worked case: one ABI slot typed `Driver`, and per arm the four cases
+/// that take a host or the one that does not, which is the whole of what ADR
+/// 0135 § 2 means by *discriminated*.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct CoreShape {
+    /// § 3's merged list: the arms in declaration order, each arm's fields in
+    /// declaration order, a name a previous arm already emitted skipped. One
+    /// ABI argument per entry, in this order, and
+    /// [`required`](CoreShapeField::required) here means *every* arm requires
+    /// it.
+    pub fields: Vec<CoreShapeField>,
+    /// § 2's arms, in declaration order, each arm's own fields in declaration
+    /// order and typed as that arm declares them.
+    ///
+    /// **Never empty, and exactly one arm for a bag or a one-arm shape** —
+    /// whose single arm is [`Self::fields`] itself, so the selection rule has
+    /// no armless case to special-case and a bag takes the same path a
+    /// two-armed shape does.
+    pub arms: Vec<Vec<CoreShapeField>>,
 }
 
 /// One key of a [`Ty::CoreShape`] — the checked half of
@@ -506,8 +541,9 @@ impl TypeInterner {
                     .join(", ");
                 format!("{{{inner}}}")
             }
-            Ty::CoreShape(fields) => {
-                let inner = fields
+            Ty::CoreShape(shape) => {
+                let inner = shape
+                    .fields
                     .iter()
                     .map(|field| {
                         let opt = if field.required { "" } else { "?" };
@@ -799,7 +835,7 @@ impl TypeInterner {
     /// for the exception constructor's `{previous}`.
     #[must_use]
     pub fn options(&mut self, options: Vec<(String, TypeId)>) -> TypeId {
-        let fields = options
+        let fields: Vec<CoreShapeField> = options
             .into_iter()
             .map(|(name, ty)| CoreShapeField {
                 name,
@@ -807,19 +843,26 @@ impl TypeInterner {
                 required: false,
             })
             .collect();
-        self.intern(Ty::CoreShape(fields))
+        // A bag is ADR 0135 § 2's one-arm case, and carries that arm rather
+        // than an empty list: the selection rule then reaches a bag unchanged,
+        // which is [`CoreShape::arms`]' own reason for never being empty.
+        self.intern(Ty::CoreShape(CoreShape {
+            arms: vec![fields.clone()],
+            fields,
+        }))
     }
 
-    /// Interns ADR 0135's fixed-key shape parameter, `fields` already being the
-    /// arms merged in declaration order and deduplicated by name — the ABI § 3
-    /// specifies. [`crate::core_lib`] is the only caller, and does that merge.
+    /// Interns ADR 0135's fixed-key shape parameter, `shape` already carrying
+    /// § 3's merged list and § 2's arms — [`crate::core_lib`] is the only
+    /// caller that builds one from a registry row, and does both.
     ///
     /// Separate from [`Self::options`] only in what it is handed: a bag has no
-    /// required key to state, so making it pass one `false` per option would be
-    /// a lie every call site had to write.
+    /// required key to state and no arm to choose between, so making it pass
+    /// one `false` per option and a copy of its own field list would be two
+    /// lies every call site had to write.
     #[must_use]
-    pub fn core_shape(&mut self, fields: Vec<CoreShapeField>) -> TypeId {
-        self.intern(Ty::CoreShape(fields))
+    pub fn core_shape(&mut self, shape: CoreShape) -> TypeId {
+        self.intern(Ty::CoreShape(shape))
     }
 
     /// Whether `id` is `null` itself, or a union with `null` as one of its

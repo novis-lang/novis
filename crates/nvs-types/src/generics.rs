@@ -105,7 +105,11 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
         Ty::Shape(fields) => fields
             .iter()
             .any(|(_, field)| mentions_type_var(*field, interner)),
-        Ty::CoreShape(fields) => fields
+        // The merged list alone: every key an arm declares has a slot there,
+        // typed as the union of the arms' declarations for it, so a variable
+        // mentioned by any arm is mentioned by that slot.
+        Ty::CoreShape(shape) => shape
+            .fields
             .iter()
             .any(|field| mentions_type_var(field.ty, interner)),
         _ => false,
@@ -275,7 +279,8 @@ pub(crate) fn bind(
                     .map(|(_, actual_field)| (*declared_field, *actual_field))
             })
             .collect(),
-        (Ty::CoreShape(declared_fields), Ty::Shape(actual_fields)) => declared_fields
+        (Ty::CoreShape(declared), Ty::Shape(actual_fields)) => declared
+            .fields
             .iter()
             .filter_map(|declared| {
                 actual_fields
@@ -356,16 +361,28 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
         // parameter both keep their declared order because that order is their
         // ABI (`Ty::CoreShape`), and the required flag rides along untouched —
         // substitution rewrites a key's type, never whether it must be written.
-        Ty::CoreShape(fields) => {
-            let fields: Vec<crate::ty::CoreShapeField> = fields
+        Ty::CoreShape(shape) => {
+            let substitute_fields =
+                |fields: &[crate::ty::CoreShapeField], interner: &mut TypeInterner| {
+                    fields
+                        .iter()
+                        .map(|field| crate::ty::CoreShapeField {
+                            name: field.name.clone(),
+                            ty: substitute(field.ty, bindings, interner),
+                            required: field.required,
+                        })
+                        .collect::<Vec<_>>()
+                };
+            // Both halves, because both are checked against: an arm left
+            // unsubstituted would hold a written literal to a type variable no
+            // value can be assignable to.
+            let arms: Vec<Vec<crate::ty::CoreShapeField>> = shape
+                .arms
                 .iter()
-                .map(|field| crate::ty::CoreShapeField {
-                    name: field.name.clone(),
-                    ty: substitute(field.ty, bindings, interner),
-                    required: field.required,
-                })
+                .map(|arm| substitute_fields(arm, interner))
                 .collect();
-            interner.core_shape(fields)
+            let fields = substitute_fields(&shape.fields, interner);
+            interner.core_shape(crate::ty::CoreShape { fields, arms })
         }
         Ty::Class(qname, args) => {
             let args: Vec<TypeId> = args

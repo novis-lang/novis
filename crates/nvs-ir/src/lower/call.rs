@@ -196,8 +196,11 @@ impl<'a> Lowering<'a> {
         // it: not one argument but one *per slot of the merged list*, so
         // neither ever reaches `lower_checked_ty` — a shape has no IR type at
         // all. See [`Self::lower_options_arg`].
-        if let CheckedTy::CoreShape(options) = checked_types.get(sig.param_tys[index]) {
-            let options = options.clone();
+        // The merged list and never the arms: which arm the literal selected is
+        // a checking question `nvs-types` has already settled, and § 3's ABI is
+        // one argument per merged slot whichever arm that was.
+        if let CheckedTy::CoreShape(shape) = checked_types.get(sig.param_tys[index]) {
+            let options = shape.fields.clone();
             let defaults = shape_fills(&sig.defaults, index);
             self.lower_options_arg(
                 Some(&arg.value),
@@ -273,7 +276,7 @@ impl<'a> Lowering<'a> {
         // it is also what gives an omitted option the same widening into its
         // declared slot that a written one gets.
         if let nvs_types::ConstArg::Options(options) = default {
-            let CheckedTy::CoreShape(declared) = checked_types.get(sig.param_tys[index]) else {
+            let CheckedTy::CoreShape(shape) = checked_types.get(sig.param_tys[index]) else {
                 panic!(
                     "nvs-ir: parameter {index} carries an options-bag default but its declared \
                      type is not an options bag — nvs_types is trusted to record the two together"
@@ -281,7 +284,7 @@ impl<'a> Lowering<'a> {
             };
             self.lower_options_arg(
                 None,
-                declared,
+                &shape.fields,
                 options,
                 checked_types,
                 ownership,
