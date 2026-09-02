@@ -4412,6 +4412,18 @@ is why" — is this file.
   compact spelling that works is `$x?->member() ?? "null"`: `examples/db.nvs`'s four `Db\Row`
   readers are written that way, one line a column instead of a four-deep pyramid. Two build cycles
   to find, because the diagnostic's help is correct and reads as though `&&` were covered by it.
+- **A `Core` class owes a conformance case per member from the moment it is *registered*, even where
+  nothing can produce an instance of it yet — and the gate is a text match, not an execution.**
+  `crates/nvs-stdlib/tests/conformance_coverage.rs:52` joins every case file into one string and asks
+  whether it contains `Class::member(` for a static member and `->member(` for an instance one, so a
+  case never reaches the member at all; `every_core_class_has_a_conformance_floor_of_three` then wants
+  three cases mentioning the class, and `BELOW_THE_FLOOR` is empty. Two consequences. Registering a
+  class whose only producer is a member of *another* class that has not landed fails
+  `cargo test -p nvs-stdlib` on a name nothing in the diff mentions, so the two are one slice and not
+  two. And a case for a database member does not need a server: the landed db cases are type-level —
+  `tests/conformance/core/db-rows-answers-the-types-the-results-table-names.nvst` assigns each
+  member's answer to a declared type and pins the one mismatch as an `--EXPECTF-ERROR--`, which is
+  what a member whose value only a live PostgreSQL could produce is asserted with.
 
 ## Splitting a file that got too big
 

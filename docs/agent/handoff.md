@@ -2,26 +2,28 @@
 
 ## State
 
-**`Rows::columns()`'s gap 5 has lost its driver half, and its enum is decided rather than invented.**
-Spec § 18 declares `ColumnType`'s fourteen cases at `docs/spec/01-core-library.md:1223`, in the same
-fenced block as `Isolation` — so the enum is the spec's, **not** ADR 0067 § 9's type map read as an
-enum, and `crates/nvs-stdlib/src/db.rs`'s `ROWS` doc now records the three places reading § 9 that way
-would have gone wrong: `JSON` and `TEXT` both decode to `tainted string`, an array decodes to
-`array<T>` with no case to describe it, and § 9's last row is `Other`.
+**`Core\Db\ColumnType` is registered** — spec § 18's fourteen cases, in the spec's own order and with
+their ordinals written out, at `crates/nvs-stdlib/src/db.rs:637` beside `ISOLATION` and under the same
+two-halves rule: `nvs_db::ColumnType` is authoritative and this table is what a program matches on. Its
+`EnumDoc` is where the value/description split now reads for a program's author — a case says what the
+column was *declared* as, never what a read of it produces — so `ROWS`' doc points at it instead of
+restating the three places ADR 0067 § 9 disagrees.
 
-**`nvs_db::ColumnType` and `PgColumn::column_type` land** — the enum beside `Isolation` in
-`crates/nvs-db/src/conn.rs`, the classification in `pg.rs` reading the OID plus § 9's `BIT(1)`
-modifier and nothing else, so a column whose every row is NULL still has a type. `mod oid` gained the
-text family and the two JSON OIDs, which its own doc explains: the table now answers *two* questions,
-and `varchar` is `Text` where `inet` is `Other` though both decode alike. A PostgreSQL `ENUM` answers
-`Other`, because an enum type's OID is not bootstrap data; `column_type`'s doc owns that limit.
+**What is left of gap 5 is `Core\Db\Column` and the slot, and those are one slice rather than two.**
+The coverage gate matches a case's *source text*, so a class registered before anything can produce an
+instance has three uncovered members and sits under the floor of three; the new playbook bullet under
+*Writing a test case* owns the mechanism.
 
-**What is left of gap 5 is two `Core` types and a slot.** `ROWS`' slot holds decoded rows and nothing
-else, so `nvs_db::PgRows::columns` has to be captured where the receiver is built or not at all.
+**Settle first, because nothing in the tree answers it: a `Core` enum has no runtime value yet.** No
+conformance case anywhere spells a `Core\…\Case`, `Core\Db\Isolation` has been registered since the
+transaction slice with nothing that takes one, and § 7's `isolation` option is still unlanded — so what
+`Column::type()` hands back is a decision that slice makes, not a shape to copy from a sibling.
 
-**The pack did not print spec § 18's enum fence** — the item's anchors reached line 1209 and the
-declaration is at 1223. A `docs/spec/01-core-library.md:"### Enums, settings and errors"` selector
-belongs in `[context]`, and `nvs-runtime/src/object.rs` is still missing from `[context] modules`.
+**The material `columns()` needs is already in hand.** `crates/nvs-stdlib/src/db.rs:2604` already takes
+the `Vec<PgColumn>` before the first row is read, `PgColumn`'s `name`/`type_oid`/`type_modifier` are
+public and `column_type()` classifies, and `crate::instance::build` asserts slot arity — so a third
+`ROWS` slot is a compile error at both build sites until both are edited, which is the cheap way to
+find them.
 
 **The driver's acceptance line still names `examples/queue.nvs`**, which is Stage 8's unlanded
 `Core\Queue` (ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s module
@@ -29,33 +31,34 @@ doc owns why.
 
 ## Next group
 
-**`columns()` in three slices, and the file set is `crates/nvs-stdlib/src/db.rs` and
-`crates/nvs-stdlib/src/registry.rs`.** Nothing in `nvs-db` moves again.
+**`columns()` end to end, and the file set is `crates/nvs-stdlib/src/db.rs`,
+`crates/nvs-stdlib/src/registry.rs` and `tests/conformance/core/`.** Nothing in `nvs-db` moves.
 
-- [ ] **`Core\Db\ColumnType` registers, as `ISOLATION`'s twin.** A `CoreEnum` plus its `EnumDoc`
-      beside `crates/nvs-stdlib/src/db.rs:566` and `crates/nvs-stdlib/src/db.rs:585`, and the roster
-      row beside `crates/nvs-stdlib/src/registry.rs:1870`. The cases, their order and their
-      ordinals are the spec's at `docs/spec/01-core-library.md:1223`; the wire half to keep it
-      honest against is `crates/nvs-db/src/conn.rs:220`, whose doc is where the value/description
-      split is written down. ADR 0067 § 9, spec § 18.
-- [ ] **`Core\Db\Column` registers, and `ROWS`' slot starts carrying the descriptions.** Three
-      readers per `docs/spec/01-core-library.md:1200`, a class row beside
-      `crates/nvs-stdlib/src/registry.rs:1413`, and the capture at the two places the receiver is
-      built — `crates/nvs-stdlib/src/db.rs:2459` and `crates/nvs-stdlib/src/db.rs:2662` — off
-      `crates/nvs-db/src/pg.rs:2445`. **`nullable()` has no source**: a PostgreSQL `RowDescription`
-      carries no NOT NULL flag and the catalog lookup that would is what ADR 0067 § 9's table is
-      written to avoid, so decide it in the slice and say so on the member — `true` is the safe
-      total answer.
-- [ ] **`ROWS` gains its sixth member.** The five edits of *A `Core` member* against
-      `crates/nvs-stdlib/src/db.rs:691`, answering `array<Column>` off the slot the previous slice
-      filled, plus three `.nvst` cases — one of them a column whose every row is NULL, which is the
-      claim `columns()` exists for. ADR 0063, spec § 18.
+- [ ] **`Core\Db\Column` registers and `ROWS` gains its sixth member — one slice, because the coverage
+      gate binds them.** Three readers per `docs/spec/01-core-library.md:1200` over three slots, with
+      `crates/nvs-stdlib/src/db.rs:1056`'s `WRITE` as the template it copies exactly; the slot-name
+      consts go beside `crates/nvs-stdlib/src/db.rs:248`, the class row beside
+      `crates/nvs-stdlib/src/registry.rs:1413`, the symbols beside
+      `crates/nvs-stdlib/src/db.rs:4029`. `ROWS` then takes a third slot filled at both build sites —
+      `crates/nvs-stdlib/src/db.rs:2563` and `crates/nvs-stdlib/src/db.rs:2766` — off the columns
+      `crates/nvs-stdlib/src/db.rs:2604` already holds, and `columns()` is a reader over it.
+      **`nullable()` has no source**: a PostgreSQL `RowDescription` carries no NOT NULL flag and the
+      catalog lookup that would is what § 9's table avoids, so answer `true` and say so on the member.
+      ADR 0063, ADR 0067 § 9, spec § 18.
+- [ ] **Three `.nvst` cases, type-level as every landed db case is.**
+      `tests/conformance/core/db-rows-answers-the-types-the-results-table-names.nvst` is the shape to
+      follow, and `crates/nvs-stdlib/src/db.rs:756`'s `ROWS` doc is what they pin: `columns()` answers
+      `array<Core\Db\Column>`, `type()` an enum case and not a string, and a column list describes
+      every column rather than only the ones a row happened to fill. The claim only a server can show
+      — a column whose every row is NULL still has a type — goes in `examples/db.nvs` instead.
 
 ## Backlog
 
-- `stream`/`streamAs`, `close` and § 18's three readonly properties on `Connection` — `db.rs` gap 5.
-- `Db\DbError` is not in spec § 10's tree, so a refusal carries no `kind` — `db.rs` gap 4.
-- Neither `query` nor `execute` declares `{timeout?: Duration}` — `db.rs` gap 6.
-- `queryAs<T>`'s three run-time refusals that belong at compile time — `db.rs` gap 7.
-- ADR 0067 § 13's per-core pool, Stages 3-7 of the goal.
-- `open` waits on a shape-parameter type — the plan's *Open now*.
+- Gap 2: only PostgreSQL runs a statement; the other four drivers are `crates/nvs-stdlib/src/db.rs`'s
+  own known-gap list.
+- The pool is Stages 3 to 7 of the goal — ADR 0067 § 13.
+- `open` waits on a shape-parameter type — `docs/implementation-plan.md`'s *Open now*.
+- Stage 8's `Core\Queue` is what the acceptance line has been naming — ADR 0084.
+- `[context] modules` still lacks `nvs-runtime/src/object.rs`; this session also read
+  `crates/nvs-stdlib/src/instance.rs` and `crates/nvs-stdlib/tests/conformance_coverage.rs`, neither
+  of which the pack prints.
