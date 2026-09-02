@@ -4449,6 +4449,10 @@ is why" — is this file.
   assembled from two literals that are not those ten bytes. `oid_constants` in the same module
   escapes this only because it counts inside a slice of the file that its own body sits outside of,
   which is luck rather than a pattern to copy.
+- A sweep over message tags written as `[b'D', b'H', b'q', b'W']` fails `clippy` under `-D warnings`
+  (`byte_char_slices`), and the failure arrives three minutes into `verify.py` rather than from
+  `cargo test`. Write the tags as `*b"DHqW"` — iterating a dereferenced byte-string literal yields the
+  same `u8`s — and the same lint is waiting for any protocol case that sweeps field or message tags.
 
 ## Splitting a file that got too big
 

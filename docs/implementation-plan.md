@@ -47,22 +47,21 @@
 > `NVS_DB_MATRIX_*` reader, over an `NvsTls` generic in its transport. Its wire I/O is PostgreSQL's:
 > § 3's `SSLRequest` upgrade, SCRAM-SHA-256, § 4's extended-query state machine and § 13's reset.  §
 > 9's whole type map decodes over it; § 4's count, `lastId` and `executeMany` too. § 7's
-> `BEGIN`/`COMMIT`/`ROLLBACK` is on it, a nested one a `SAVEPOINT`, with § 8's kind inside every
-> refusal. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect` over a request-held
-> connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and `executeMany` — bound in
-> § 5's rewriter's order — and § 18's readers: all six of `Rows`', all fourteen of `Row`, `Write`'s
-> three, and `Db\Column`'s three. `open` waits on a shape-parameter type. **§ 7's `transaction` is
-> on both classes** and `Core\Db\Isolation` and `ColumnType` are registered; `nvs.toml` now opens
-> `[db.main]` and grants `db.connect` to the two fixtures, which verify the compose CA through the
-> new `tls_ca_file`; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over
-> `ClassDesc::db_codec`, and § 9's five structured columns build the `Core\Time`/`Core\Uuid`
-> instance both `Row`'s four typed readers and a `#[Db\Derive]` field answer with, so
-> `examples/db.nvs` runs all of that end to end. Stages 3 and 4 are green in `-p nvs-db`, the pool
-> is 5 to 7, and **ADR 0132 has claimed the goal's one ADR slot**: a driver is a sans-IO codec plus
-> a state machine over the parking stream, the five an enum not a trait. **Goals 1-4 and M4 are
-> closed and are this goal's Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring`
-> the one C dependency ADR 0051 § 4 records. Conformance 1414, differential 250, its gate met,
-> migration 90%/74%.
+> `BEGIN`/`COMMIT`/`ROLLBACK` is on it, a nested one a `SAVEPOINT` nesting to any depth, with § 8's
+> kind and never a bound value inside every refusal. **`Core\Db` has opened in `nvs-stdlib`**: §
+> 18's `connect` over a request-held connection, `inList`, `quoteIdentifier` and § 4's `query`,
+> `execute` and `executeMany` — bound in § 5's rewriter's order — and § 18's readers: all six of
+> `Rows`', all fourteen of `Row`, `Write`'s three, and `Db\Column`'s three. `open` waits on a
+> shape-parameter type. **§ 7's `transaction` is on both classes** and `Core\Db\Isolation` and
+> `ColumnType` are registered; `nvs.toml` now opens `[db.main]` and grants `db.connect` to the two
+> fixtures; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and §
+> 9's five structured columns build the `Core\Time`/`Core\Uuid` instance both `Row`'s four typed
+> readers and a `#[Db\Derive]` field answer with, so `examples/db.nvs` runs all of that end to end.
+> Stages 3 and 4 are green in `-p nvs-db` and Stage 5 two of its seven, the pool is 5 to 7, and
+> **ADR 0132 has claimed the goal's one ADR slot**. **Goals 1-4 and M4 are closed and are this
+> goal's Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring` the one C
+> dependency ADR 0051 § 4 records. Conformance 1414, differential 250, its gate met, migration
+> 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

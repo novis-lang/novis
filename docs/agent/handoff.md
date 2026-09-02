@@ -2,50 +2,52 @@
 
 ## State
 
-**Stage 4 is complete as far as `-p nvs-db` can take it**, all of it in `crates/nvs-db/src/pg.rs`:
-§ 9's swept type map, § 4's affected count (`affected_is_the_matched_count_and_changed_is_mysql_only`
-— the tag's number is the rows matched, and the driver carries no second count for `changed` to
-read, asserted by scanning this file's own source) and § 9's two timestamp rows
-(`a_zoneless_column_reads_in_the_declared_zone_and_a_timestamptz_ignores_it` — the decode does not
-move with the connection's declared zone, over a sweep of the zones a block can write).
+**Stage 5 is landed as far as `-p nvs-db` can host it**, both cases in `crates/nvs-db/src/pg.rs`:
+`a_db_error_message_contains_no_bound_value` (§ 8's rule that a bound value reaches the wire and
+none of the sentence, the `ServerError` or the `Debug` a trace prints — swept over the four fields
+PostgreSQL can echo one into, all of which `server_error` drops) and `savepoints_nest` (§ 7's
+nesting five deep, a name taken again once its level closed, and exactly one level of a run being a
+real transaction under a mixture of commits and rollbacks).
 
-**The four names left in the Stage 4 `[[check]]` (`docs/agent/loop-goal.toml:2806`) cannot be
-hosted where its `args = ["test", "-p", "nvs-db"]` looks**, so that check cannot go green from this
-crate: `tinyint_one_reads_int_and_bool_and_throws_for_a_stored_seven` and
-`bigint_unsigned_past_i64_max_reads_uint_and_throws_for_int` are MySQL/MariaDB rows waiting on Stage
-6's drivers; `query_as_throws_naming_the_column_…` is `nvs-stdlib`'s `queryAs`; and
-`a_decimal_into_a_float_field_throws` is the *compile-time* `E0756` raised at
-`crates/nvs-types/src/derive.rs:548` and already asserted at `crates/nvs-types/tests/derive.rs:45`,
-whose runtime twin is `nvs-stdlib`'s typed `Row` readers. Either the check's `args` widen or Stage 6
-lands; nothing in `nvs-db` closes it.
+**Five of the Stage 5 `[[check]]`'s seven names cannot live where its `args = ["test", "-p",
+"nvs-db"]` looks** (`docs/agent/loop-goal.toml:2830`), so that check cannot go green from this
+crate — the same wall Stage 4 hit. `a_transaction_is_a_closure_and_transaction_is_a_queryable`,
+`roll_back_survives_an_intervening_catch_of_throwable` and `retries_recover_an_induced_deadlock` are
+`nvs-stdlib`'s `Core\Db` surface and are the next group; `every_driver_normalises_its_codes_to_one_error_kind`
+and `mariadb_uses_its_own_code_table_and_not_mysqls` wait on Stage 6's four drivers. **One widening
+of `args` closes both Stage 4's and Stage 5's checks**, and that edit is the user's call, not a
+session's.
 
 **The driver's acceptance line still names `examples/queue.nvs`**, Stage 8's unlanded `Core\Queue`
 (ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s module doc owns why.
 
 ## Next group
 
-**Stage 5's two names `-p nvs-db` can answer — the `[[check]]` block below Stage 4's in
-`docs/agent/loop-goal.toml` — and the file set is `crates/nvs-db/src/pg.rs` alone.** Both sit beside
-cases already in that module, so nothing new has to be scripted from scratch.
+**Stage 5's three names that are `nvs-stdlib`'s, and the file set is `crates/nvs-stdlib/src/db.rs`
+alone.** All three sit around the one helper, and the playbook's *a `-p nvs-stdlib` test can hand a
+`Core` member a real `callable`* bullet is what makes them writable without a compiler in front.
 
-- [ ] **`a_db_error_message_contains_no_bound_value`** — § 8's rule that a refusal quotes the
-      server's sentence and never a parameter, so a message can be logged. `server_error` is
-      `crates/nvs-db/src/pg.rs:1007`, the scripted refusals are `crates/nvs-db/src/pg.rs:3949`
-      (`error_response`) and `crates/nvs-db/src/pg.rs:3931` (`constrained_error_response`), and the
-      landed `a_refused_statement_carries_section_8s_kind_beside_the_sentence`
-      (`crates/nvs-db/src/pg.rs:5229`) already owns the kind, so this one binds a value the server
-      then echoes and asserts the value is nowhere in what the driver raised. ADR 0067 § 8.
-- [ ] **`savepoints_nest`** — § 7's nesting past depth two, which the two landed cases stop short
-      of: `crates/nvs-db/src/pg.rs:5095` names one savepoint by depth and
-      `crates/nvs-db/src/pg.rs:5126` releases it, so this one drives three deep and asserts the
-      names and the release order over one connection. `savepoint_name` is
-      `crates/nvs-db/src/pg.rs:3127`. ADR 0067 § 7.
+- [ ] **`a_transaction_is_a_closure_and_transaction_is_a_queryable`** — § 7's closure form and the
+      `Transaction implements Queryable by $connection` delegation, so the query surface is declared
+      once. The row is `crates/nvs-stdlib/src/db.rs:488` and the helper
+      `crates/nvs-stdlib/src/db.rs:3166`. ADR 0067 § 7.
+- [ ] **`roll_back_survives_an_intervening_catch_of_throwable`** — § 7's rollback-only **flag**, which
+      the owning frame acts on rather than on catching `Core\Db\RolledBack`, so an intervening
+      `catch (Throwable)` cannot leave the transaction committed. The raise is
+      `crates/nvs-stdlib/src/db.rs:3223` and the member `crates/nvs-stdlib/src/db.rs:3247`.
+      ADR 0067 § 7.
+- [ ] **`retries_recover_an_induced_deadlock`** — § 7's `{retries: n}`, on `Deadlock` and
+      `SerializationFailure` only and outermost transactions only, defaulting to 0. **Check first
+      whether the options bag reaches the helper at all**: the row at
+      `crates/nvs-stdlib/src/db.rs:488` declares `{isolation?, readOnly?, retries?}` while
+      `crates/nvs-stdlib/src/db.rs:3166` takes `args: [2]`, and the card at
+      `crates/nvs-stdlib/src/db.rs:1500` already documents the default. ADR 0067 § 7.
 
 ## Backlog
 
-- `every_driver_normalises_its_codes_to_one_error_kind` and `mariadb_uses_its_own_code_table_and_not_mysqls` — Stage 6's drivers; `docs/agent/loop-goal.toml`.
-- `a_transaction_is_a_closure_and_transaction_is_a_queryable` and `roll_back_survives_an_intervening_catch_of_throwable` — the language surface, not `-p nvs-db`.
-- `retries_recover_an_induced_deadlock` — decide where § 8's retry lives before writing it; ADR 0067 § 8.
-- Stage 4's four un-hostable names — widen the check's `args` or wait on Stage 6; `docs/agent/loop-goal.toml`.
-- `open` waits on a shape-parameter type — `docs/plan/m8.md`.
-- The compose CA is not in git — `crates/nvs-host/src/tls.rs`'s module doc.
+- Stage 6's four drivers gate two Stage 5 names — `docs/agent/loop-goal.toml:2830`.
+- Stage 4's four leftovers are the same `args` question — `docs/agent/loop-goal.toml:2806`.
+- Stage 7's pool is `-p nvs-db` work with nothing on disk yet — `docs/agent/loop-goal.toml:2884`.
+- `examples/queue.nvs` needs Stage 8's `Core\Queue` — ADR 0084.
+- `open` waits on a shape-parameter type — `docs/implementation-plan.md`.
+- The compose CA is not in git — `nvs_host::tls`'s module doc.
