@@ -212,12 +212,29 @@ pub(crate) const ROWS_NAME: &str = r"Core\Db\Rows";
 /// and [`crate::instance`]'s dispatch roster own that protocol.
 pub(crate) const ROWS_ITERATE_SYMBOL: &str = "nvs_core_db_rows_iterate";
 
-/// The one slot a [`ROWS`] holds: every row the statement answered, in the
-/// server's order, each one a string-keyed array of its own columns.
+/// A [`ROWS`]'s first slot: every row the statement answered, in the server's
+/// order, each one a string-keyed array of its own columns.
 const ROWS_SLOT: &str = "rows";
 
 /// Where [`ROWS_SLOT`] sits, for the six members that read it back.
 const ROWS_AT: usize = 0;
+
+/// Its second: the class each row hydrates into, or `null` where the rows stay
+/// `Core\Db\Row`s. [`nvs_core_db_connection_query`] writes the `null` and
+/// [`nvs_core_db_connection_query_as`] the descriptor its call site named
+/// ([`crate::registry::WRITTEN_CLASS_MEMBERS`]).
+///
+/// **It is read lazily, by the three members that hand a row out and by no
+/// other** — so `value()`, `column()` and `count()` read the columns they
+/// always did whichever member built the receiver, and a `queryAs<T>` whose
+/// caller only counts pays for no construction at all. A descriptor rides in
+/// the payload half of an otherwise-`null` value
+/// ([`nvs_runtime::Value::class_desc`]), so this slot sweeps as the `null` it
+/// is and holds no reference either way.
+const ROWS_CLASS_SLOT: &str = "class";
+
+/// Where [`ROWS_CLASS_SLOT`] sits. See [`ROWS_AT`].
+const ROWS_CLASS_AT: usize = 1;
 
 /// `Core\Db\Row`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const ROW_NAME: &str = r"Core\Db\Row";
@@ -710,7 +727,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             doc: Some(&ROWS_COUNT_DOC),
         },
     ],
-    slots: &[ROWS_SLOT],
+    slots: &[ROWS_SLOT, ROWS_CLASS_SLOT],
     constants: &[],
 };
 
@@ -2078,9 +2095,9 @@ fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fa
 
 /// The refusal for a column whose Novis type is one of ADR 0067 § 9's five
 /// class instances — the gap `Core\Db\Row`'s typed readers close.
-fn structured_column(column: &str) -> Fault {
+fn structured_column(named: &str, column: &str) -> Fault {
     Fault::thrown(format!(
-        "{QUERY}: the column `{column}` is a `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMPTZ` or \
+        "{named}: the column `{column}` is a `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMPTZ` or \
          `UUID`, and ADR 0067 § 9 reads those back as `Core\\Time` and `Core\\Uuid` instances \
          rather than as text — which this decoder does not build yet, though \
          `Core\\Db\\Row`'s `date`, `time`, `instant` and `uuid` are already waiting for one. \
@@ -2391,44 +2408,70 @@ nvs_runtime::nvs_helper! {
     /// placeholders itself and why an `inList`'s expansion needs no second
     /// pass.
     fn nvs_core_db_connection_query(ctx, args: [3]) {
-        let statement = statement_of(args, "query", QUERY)?;
-        let sending: Vec<Option<&[u8]>> =
-            statement.binds.iter().map(|one| one.as_deref()).collect();
-        let postgres = postgres_of(ctx, statement.key, &statement.block, QUERY)?;
-        let mut answered = postgres
-            .query(&statement.sql, &sending)
-            .map_err(|refused| statement_failure(QUERY, &statement.block, &refused))?;
-        // Taken before the first row: a `PgRows` lends its columns and its rows
-        // out of one borrow, and the rows are read with it held mutably.
-        let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
-
-        let mut rows = nvs_runtime::NvsArray::new();
-        loop {
-            let Some(row) = answered
-                .next_row()
-                .map_err(|refused| statement_failure(QUERY, &statement.block, &refused))?
-            else {
-                break;
-            };
-            // Built whole before it joins the result, so that a column this
-            // driver cannot read back releases the row it was half way through
-            // rather than leaving it in one — `NvsArray`'s own `Drop`.
-            let mut one = nvs_runtime::NvsArray::new();
-            for (index, column) in columns.iter().enumerate() {
-                let body = row
-                    .column(index)
-                    .map_err(|refused| statement_failure(QUERY, &statement.block, &refused))?;
-                let value = column
-                    .decode(body)
-                    .map_err(|refused| statement_failure(QUERY, &statement.block, &refused))?
-                    .ok_or_else(|| structured_column(&column.name))?;
-                one.set(NvsStr::new(column.name.as_bytes()), value);
-            }
-            rows.append(Value::array(one));
-        }
-
-        Ok(crate::instance::build(&ROWS, [Value::array(rows)]))
+        let rows = queried_rows(ctx, args, "query", QUERY)?;
+        Ok(crate::instance::build(
+            &ROWS,
+            [Value::array(rows), Value::null()],
+        ))
     }
+}
+
+/// One statement's rows, as the array a [`ROWS`] holds in [`ROWS_SLOT`] — the
+/// whole of what `query` and `queryAs` share, which is everything except which
+/// class the result carries.
+///
+/// **`args` starts at the receiver**, so `queryAs` hands over the slice past
+/// [`crate::registry::WRITTEN_CLASS_MEMBERS`]' two leading constants and both
+/// members read one shape here. Nothing about the statement differs between
+/// them: § 4 gives them one signature and one binding rule, and hydration is a
+/// property of the result rather than of the wire.
+///
+/// # Errors
+///
+/// [`statement_of`]'s and [`postgres_of`]'s refusals, [`statement_failure`] for
+/// anything the server refused, and [`structured_column`] for one of § 9's five
+/// class-typed columns this decoder does not build yet.
+fn queried_rows(
+    ctx: &mut nvs_runtime::Ctx,
+    args: &[Value],
+    member: &str,
+    named: &str,
+) -> Result<NvsArray, Fault> {
+    let statement = statement_of(args, member, named)?;
+    let sending: Vec<Option<&[u8]>> = statement.binds.iter().map(|one| one.as_deref()).collect();
+    let postgres = postgres_of(ctx, statement.key, &statement.block, named)?;
+    let mut answered = postgres
+        .query(&statement.sql, &sending)
+        .map_err(|refused| statement_failure(named, &statement.block, &refused))?;
+    // Taken before the first row: a `PgRows` lends its columns and its rows
+    // out of one borrow, and the rows are read with it held mutably.
+    let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
+
+    let mut rows = NvsArray::new();
+    loop {
+        let Some(row) = answered
+            .next_row()
+            .map_err(|refused| statement_failure(named, &statement.block, &refused))?
+        else {
+            break;
+        };
+        // Built whole before it joins the result, so that a column this
+        // driver cannot read back releases the row it was half way through
+        // rather than leaving it in one — `NvsArray`'s own `Drop`.
+        let mut one = NvsArray::new();
+        for (index, column) in columns.iter().enumerate() {
+            let body = row
+                .column(index)
+                .map_err(|refused| statement_failure(named, &statement.block, &refused))?;
+            let value = column
+                .decode(body)
+                .map_err(|refused| statement_failure(named, &statement.block, &refused))?
+                .ok_or_else(|| structured_column(named, &column.name))?;
+            one.set(NvsStr::new(column.name.as_bytes()), value);
+        }
+        rows.append(Value::array(one));
+    }
+    Ok(rows)
 }
 
 nvs_runtime::nvs_helper! {
@@ -2441,16 +2484,17 @@ nvs_runtime::nvs_helper! {
     /// this is its first *instance* member. So the arity here is two more than
     /// `query`'s, which is otherwise the same call.
     ///
-    /// **The body is this module's known gap 9.** What is missing is one
-    /// walk — `nvs_runtime::ClassDesc::db_codec`'s fields against the row's
-    /// own columns, ADR 0071 § 5's accumulate-then-construct, and
-    /// `nvs_runtime::construct` — and it is deliberately not half-written: a
-    /// `Rows<Person>` holding `Core\Db\Row`s would be typed as one thing and
-    /// hold another, which is worse than a member that says what it has not
-    /// got. Everything the walk needs is on disk: § 9's type map already
-    /// decodes each column into the value a field wants, and
-    /// [`nvs_core_db_connection_query`] is the statement half unchanged.
-    fn nvs_core_db_connection_query_as(_ctx, args: [5]) {
+    /// **The statement is [`queried_rows`], unchanged**: § 4 gives `query` and
+    /// this member one signature and one binding rule, so what differs is the
+    /// class the result carries and nothing on the wire. That class goes into
+    /// [`ROWS_CLASS_SLOT`] and is read only when a row is handed out, so a
+    /// caller that just counts pays for no construction.
+    ///
+    /// **The construction itself is this module's known gap 9**, and it is
+    /// owed by [`row_object`] rather than by this body: a `Rows<Person>` that
+    /// handed out `Core\Db\Row`s would be typed as one thing and hold another,
+    /// so the refusal sits where the row would be built.
+    fn nvs_core_db_connection_query_as(ctx, args: [5]) {
         // Unreachable from source, exactly as `Core\Json::decodeAs`'s own
         // reading of these two slots is: `nvs_ir::lower` writes the descriptor
         // and the flag out of the type argument at the call site, and a call
@@ -2460,16 +2504,35 @@ nvs_runtime::nvs_helper! {
                 "internal error: `{QUERY_AS}` was called with no class in argument 0"
             )));
         }
-        // Spelled through [`QUERY_AS`] like every other refusal this module
-        // raises at run time, and not as one literal: a message opening on its
-        // own member name is what a `Core\Db` case would have to match, and
-        // there is no case to write for a member that needs a server.
-        Err(Fault::fatal(format!(
-            "{QUERY_AS}: building a row into the class written at the call site is \
-             `nvs_stdlib::db`'s known gap 9 — the member's row, its `Rows<T>` return and the \
-             descriptor its call site hands over are all in place, and the walk over \
-             `ClassDesc::db_codec` that ADR 0071 § 5 specifies is owed"
-        )))
+        // Unreachable from source for the same reason and refused by the same
+        // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
+        // descriptor, so a call that has one has the other.
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(format!(
+            "internal error: `{QUERY_AS}` was called with no list flag in argument 1"
+        )))?;
+        // Refused before the statement goes out, because it cannot mean
+        // anything downstream: `Core\Json::decodeAs`'s list form is a document
+        // that *is* a JSON array, and a result set is already one row per row.
+        // A compile-time home would be better and gap 9 says why there is none.
+        if list {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{QUERY_AS}: `array<...>` is not a type argument this member takes — a result \
+                     set is already one `{ROWS_NAME}` of one row each, so write \
+                     `queryAs<Person>(…)` and read the list off the result"
+                ),
+            ));
+        }
+        // The receiver and the two value parameters, past the pair
+        // `WRITTEN_CLASS_MEMBERS` puts ahead of everything.
+        let rows = queried_rows(ctx, &args[2..], "queryAs", QUERY_AS)?;
+        // `args[0]` carries no reference — a descriptor rides in the payload
+        // half of an otherwise-`null` value — so the slot takes it as it is.
+        Ok(crate::instance::build(
+            &ROWS,
+            [Value::array(rows), args[0]],
+        ))
     }
 }
 
@@ -2744,8 +2807,10 @@ fn owned(value: Value) -> Value {
 /// # Errors
 ///
 /// A [`Fault::fatal`] for a slot holding anything but an array: the slot is
-/// written by [`nvs_core_db_connection_query`] and by nothing else, so that is a
-/// paste error in this crate rather than anything a program can cause.
+/// written by [`nvs_core_db_connection_query`] and
+/// [`nvs_core_db_connection_query_as`] out of one [`queried_rows`] and by
+/// nothing else, so that is a paste error in this crate rather than anything a
+/// program can cause.
 fn result_rows(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
     let receiver = crate::instance::receiver(args[0], &ROWS, member)?;
     let held = crate::instance::slot(receiver, ROWS_AT);
@@ -2756,6 +2821,49 @@ fn result_rows(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<Nv
         ))
     })?;
     Ok(crate::arr::borrowed(array))
+}
+
+/// The class a [`ROWS`] hydrates its rows into, or `None` where they stay
+/// [`ROW`]s — [`ROWS_CLASS_SLOT`], read by the three members that hand a row
+/// out and by nothing else.
+///
+/// # Errors
+///
+/// [`crate::instance::receiver`]'s, for a receiver of the wrong class. The slot
+/// itself cannot refuse: a value that is not a descriptor is the `null`
+/// [`nvs_core_db_connection_query`] wrote.
+fn rows_class(
+    args: &[Value],
+    member: &str,
+) -> Result<Option<*const nvs_runtime::ClassDesc>, Fault> {
+    let receiver = crate::instance::receiver(args[0], &ROWS, member)?;
+    Ok(crate::instance::slot(receiver, ROWS_CLASS_AT).as_class_desc())
+}
+
+/// One row of a [`ROWS`] as the object its member answers with: a [`ROW`] over
+/// the very array the receiver holds, or — where [`rows_class`] named one — an
+/// instance of the class `queryAs<T>`'s call site wrote.
+///
+/// # Errors
+///
+/// The hydrating half is this module's known gap 9, so a named class is a
+/// [`Fault::fatal`] spelled through [`QUERY_AS`]: it is that member's promise
+/// that is unkept, whichever reader was asked.
+fn row_object(
+    row: Value,
+    class: Option<*const nvs_runtime::ClassDesc>,
+    member: &str,
+) -> Result<Value, Fault> {
+    let Some(_class) = class else {
+        return Ok(crate::instance::build(&ROW, [owned(row)]));
+    };
+    Err(Fault::fatal(format!(
+        "{QUERY_AS}: building a row into the class written at the call site is \
+         `nvs_stdlib::db`'s known gap 9, and `{member}` is where it would be built — the \
+         member's row, its `Rows<T>` return, the descriptor its call site hands over and the \
+         statement itself are all in place, and the walk over `ClassDesc::db_codec` that ADR \
+         0071 § 5 specifies is owed"
+    )))
 }
 
 /// One row of a [`ROWS`], borrowed — see [`result_rows`] for the refusal.
@@ -2896,13 +3004,14 @@ nvs_runtime::nvs_helper! {
     /// this spends over a result already in memory is one small object each.
     fn nvs_core_db_rows_all(_ctx, args: [1]) {
         let rows = result_rows(args, "all")?;
+        let class = rows_class(args, "all")?;
         let mut all = NvsArray::new();
         let mut from = 0usize;
         while let Some(slot) = rows.next_slot(from) {
             let row = rows
                 .value_at(slot)
                 .expect("next_slot only names live entries");
-            all.append(crate::instance::build(&ROW, [owned(row)]));
+            all.append(row_object(row, class, "all")?);
             from = slot + 1;
         }
         Ok(Value::array(all))
@@ -2929,13 +3038,14 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_db_rows_iterate(_ctx, args: [1]) {
         let cursor = (|| {
             let rows = result_rows(args, nvs_runtime::sequence::ITERATE)?;
+            let class = rows_class(args, nvs_runtime::sequence::ITERATE)?;
             let mut all = NvsArray::new();
             let mut from = 0usize;
             while let Some(slot) = rows.next_slot(from) {
                 let row = rows
                     .value_at(slot)
                     .expect("next_slot only names live entries");
-                all.append(crate::instance::build(&ROW, [owned(row)]));
+                all.append(row_object(row, class, nvs_runtime::sequence::ITERATE)?);
                 from = slot + 1;
             }
             Ok(crate::cursor::over(all))
@@ -2958,10 +3068,11 @@ nvs_runtime::nvs_helper! {
         let Some(slot) = rows.next_slot(0) else {
             return Ok(Value::null());
         };
+        let class = rows_class(args, "first")?;
         let row = rows
             .value_at(slot)
             .expect("next_slot only names live entries");
-        Ok(crate::instance::build(&ROW, [owned(row)]))
+        row_object(row, class, "first")
     }
 }
 
