@@ -2,63 +2,64 @@
 
 ## State
 
-**§ 1's statement cache is on a MySQL connection.** `crates/nvs-db/src/sql.rs`'s `StatementCache`
-is now generic in its *handle* — `StatementCache<H = String>` — because the two protocols disagree
-about who names a statement: PostgreSQL mints the name, and MySQL is handed an id by
-`COM_STMT_PREPARE`. Everything above the handle is shared and § 1 states it once. PostgreSQL's
-name-minting `prepare` → `Prepared` stays on `impl StatementCache<String>`; MySQL drives the same
-entries through `lookup`/`make_room`/`commit`, since the id it records does not exist until the
-prepare has landed. The type's own doc owns that split.
+**`Core\Db::connect` opens two drivers.** `crates/nvs-stdlib/src/db.rs`'s `open_named` reads the
+block's `driver` (ADR 0067 § 2) and branches: a `mysql` block reaches `MySqlTarget::resolve`,
+port 3306 and `MySqlConn::connect`, everything else — including a block writing no `driver` and one
+naming a backend that has no opener — goes to PostgreSQL, whose `resolve` is where those refusals
+are worded and names what was written. `address_of` takes the driver's default port as a parameter
+now; nothing else about the memo, the capability check or § 13's ticket moved.
 
-**`capacity_for`/`DEFAULT_CAPACITY` are gone from the type**, as the free `statement_cache_for` and
-`DEFAULT_STATEMENT_CACHE` beside `time_zone_for` — neither mentions the handle, and a defaulted type
-parameter cannot be inferred at an unqualified path (playbook, *Writing Novis itself*). Every caller
-and doc link in `pg.rs`, `mysql.rs` and `nvs-config` moved with them.
+**A MySQL connection is pooled too.** `warm_connection` answers a whole `nvs_db::Connection` rather
+than a `PgConn` and resets either driver, so the two variants that have a reset behind them rejoin
+the pool and the other three are still dropped there. The two resets differ in what survives —
+PostgreSQL keeps § 1's cache, `COM_RESET_CONNECTION` drops it — and each driver's own `reset` is
+where that is met, not this function.
 
-**On the MySQL side**: `MySqlTarget::statement_cache` (same reader as PostgreSQL's),
-`MySqlConn::cache`, `cached_statement` in front of `prepare`, and `close_statement` — `COM_STMT_CLOSE`,
-the one command this driver writes and reads no answer to. An eviction is closed *before* the prepare
-that needed the room, so the server never holds more than `statement_cache` statements. `reset_session`
-now takes the cache and clears it rather than leaving that to its caller: § 13's `COM_RESET_CONNECTION`
-drops prepared statements, which is the asymmetry with PostgreSQL that § 13 calls the protocol's.
-
-**Not wired above this crate**: `Core\Db::connect` still opens PostgreSQL only
-(`crates/nvs-stdlib/src/db.rs:2529` is the only `PgTarget::resolve` call site), so a `driver = "mysql"`
-block resolves in `nvs-db` and reaches no opener.
+**Nothing runs a statement on it yet.** `postgres_of` (`crates/nvs-stdlib/src/db.rs:3417`) is what
+every member goes through, so a MySQL connection opens, memoizes, pools and resets, and then refuses
+`query`/`execute`/`transaction` by name. That is the module's known gap 2, which now states the
+split; gap 3 was stale about the pool and states the driver bound instead.
 
 **The driver's stage-2 acceptance check is unchanged and still open**:
-`a_db_open_target_in_a_denied_range_fails` waits on `Core\Db::open`, which is blocked on a registry
-type for a shape **parameter** (`nvs_stdlib::db` known gap 1) — a language-surface decision that wants
-its own ADR, not a slice. This session did not touch it.
+`a_db_open_target_in_a_denied_range_fails` waits on `Core\Db::open`, blocked on a registry type for
+a shape **parameter** (`nvs_stdlib::db` known gap 1) — a language-surface decision that wants its
+own ADR, not a slice. Untouched this session.
 
-**`orient.py` gaps:** `[context] adrs` wants ADR 0067 § 2 (the `[db.<name>]` block as a discriminated
-union) and § 18 (`connect`), which the next two slices are written against; § 1, § 9 and § 13 were
-printed and were enough for this one.
+**Only slice 1 of the last group landed.** Slice 2 is not one slice: the read path is `PgRows`-shaped
+in four separate places, listed below.
+
+**`orient.py` gaps:** `[context] adrs` still wants ADR 0067 § 2 (the `[db.<name>]` block as a
+discriminated union) and § 18 (`connect`) — the item named both and neither was printed; § 1, § 9
+and § 13 were. The next group wants § 4 as well.
 
 ## Next group
 
-**`Core\Db` opens and reads a MySQL connection — one file set: `crates/nvs-stdlib/src/db.rs`, with
-`crates/nvs-db/src/conn.rs` for the enum arms. `crates/nvs-stdlib/src/db.rs:2529` (the PostgreSQL
-open, which slice 1 branches) and `crates/nvs-stdlib/src/db.rs:3773` (`column_value`, which slice 2
-extends) are what both copy.**
+**The MySQL read path, one file set: `crates/nvs-stdlib/src/db.rs`, against `crates/nvs-db/src/mysql.rs`
+for the shapes it decodes. MySQL's row surface is complete in `nvs-db` and parallel to PostgreSQL's
+without being the same shape — `MySqlRow::value(index)` hands back a `&MyValue` where a `PgRow` lends
+bytes a `PgColumn` types, so the drain is a second loop and not a generic one.**
 
-- [ ] **`Core\Db::connect` opens a MySQL block** — ADR 0067 § 2 and § 18.
-      `crates/nvs-stdlib/src/db.rs:2529` resolves a `PgTarget` unconditionally; branch on the block's
-      `driver` so a `mysql` block reaches `nvs_db::MySqlTarget::resolve` and `MySqlConn::connect`,
-      and keep the memoized, request-held connection `crates/nvs-stdlib/src/db.rs:2399`
-      (`nvs_core_db_connect`) already hands back. `crates/nvs-db/src/conn.rs:646` (`MySqlConn`) is the
-      arm of the `Connection` enum it lands in.
-- [ ] **A MySQL row hydrates a Novis row** — ADR 0067 § 9.
-      `crates/nvs-stdlib/src/db.rs:3773` (`column_value`) builds a `Value` from `PgScalar`; give it
-      the `MySqlScalar` half, whose three structured rows (`MySqlDate`/`MySqlTime` and the datetime)
-      mirror `PgDate`/`PgTime` so `date_at`/`time_of_day_at`/`datetime_at` take them unchanged.
-- [ ] **`Core\Db::open`'s shape parameter** — the standing acceptance failure, and an ADR rather than
-      a slice: `crates/nvs-stdlib/src/db.rs:66` (known gap 1) wants a registry type for a *shape*
-      parameter before `a_db_open_target_in_a_denied_range_fails` can run.
+- [ ] **A MySQL column becomes a Novis value** — ADR 0067 § 9. `crates/nvs-stdlib/src/db.rs:3830`
+      (`column_value`) is `PgScalar`-shaped; write its twin over `nvs_db::MySqlScalar`
+      (`crates/nvs-db/src/mysql.rs:1800`, minted by the free `scalar` at
+      `crates/nvs-db/src/mysql.rs:1919`), and `crates/nvs-stdlib/src/db.rs:3744`
+      (`described_columns`) takes `&[nvs_db::PgColumn]` where MySQL lends `mysql_common::Column`
+      (`crates/nvs-db/src/mysql.rs:2116`) typed through `column_type`
+      (`crates/nvs-db/src/mysql.rs:2123`).
+- [ ] **A MySQL connection answers `query`** — ADR 0067 § 4. `crates/nvs-stdlib/src/db.rs:3417`
+      (`postgres_of`) is the one accessor and refuses every other driver by name; add its MySQL
+      twin, and branch the drain at `crates/nvs-stdlib/src/db.rs:3510` (`queried_rows`) over
+      `MySqlRows::next_row` (`crates/nvs-db/src/mysql.rs:2174`).
+- [ ] **§ 11's `query` event over a MySQL statement** — `crates/nvs-stdlib/src/db.rs:3727`
+      (`name_span`) takes a `&mut nvs_db::PgRows`, so a MySQL statement files no span at all until
+      it has one; `QueryWatch` above it is already driver-neutral.
 
 ## Backlog
 
-- MariaDB is its own driver and has none of the above — `docs/plan/m8.md`.
-- SQL Server's TDS 7.4 is the largest piece of new wire code left — `crates/nvs-db/src/conn.rs`.
-- SQLite is the audited C dependency and has no wire at all — ADR 0051 § 4.
-- The five-driver CI container matrix beyond PostgreSQL and MySQL — `crates/nvs-db/src/matrix.rs`.
+- `Core\Db::open`'s shape parameter — `nvs_stdlib::db` known gap 1, and the standing acceptance
+  failure. Wants an ADR, not a slice.
+- `execute`, `executeMany` and `transaction` over MySQL — the same `postgres_of` wall, after the
+  group above.
+- `crates/nvs-stdlib/src/queue.rs:1295` has its own `postgres_of`; ADR 0084's queue stays
+  PostgreSQL-only until § 2's schema has a MySQL spelling.
+- MariaDB, SQL Server and SQLite have no opener — `nvs_db::Connection`'s other three variants.
