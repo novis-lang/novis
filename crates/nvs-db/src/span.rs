@@ -43,15 +43,21 @@
 //! The gate is `DebugFlags::TRACE` rather than § 11's capability, which no
 //! capability set can express yet.
 //!
-//! One half of § 11 is still open: the `slow_query` threshold writes these same
-//! facts to `Core\Log` and has no reader here.
+//! § 11's other half reads the same span: the `slow_query` threshold a
+//! `[db.<name>]` block writes turns one of these into a `Core\Log` record, and
+//! `Core\Db`'s `QueryWatch` is the single reader of both halves so that a
+//! statement renders its span at most once.
 //!
 //! **A statement that lends no reader out opens its own span**, which is why
 //! [`QuerySpan::opened`] is `pub` rather than something only [`crate::pg`]
 //! reaches. `executeMany` answers with a count and never hands a
 //! [`crate::PgRows`] back, so `Core\Db`'s routine opens the span around the
 //! driver call and finishes it with the batch's sum — the same event, built one
-//! layer up because there is no handle for the driver to hang it on.
+//! layer up because there is no handle for the driver to hang it on. § 7's
+//! `BEGIN`/`COMMIT`/`ROLLBACK` lend no reader out either, and those go the
+//! other way: [`crate::PgConn::begin`] *answers* with the span, because which
+//! command a nesting depth gets is the connection's answer and its caller has
+//! no way to spell the text.
 
 use std::time::{Duration, Instant};
 

@@ -1386,6 +1386,10 @@ nvs_runtime::nvs_helper! {
         let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
 
         let block = configured.connection.clone();
+        // ADR 0067 § 11's event belongs to a *statement*, not to `Core\Db`, so this one files it
+        // on the same terms as that class's own — read before the connection takes the context,
+        // for the reason [`crate::db::QueryWatch`] gives.
+        let watch = crate::db::QueryWatch::named(ctx, Some(&block));
         let postgres = postgres_of(ctx, handle, &block, PUSH)?;
         let mut answered = postgres.query(INSERT, &bound).map_err(|refused| {
             Fault::thrown_as(
@@ -1396,6 +1400,7 @@ nvs_runtime::nvs_helper! {
                 ),
             )
         })?;
+        crate::db::name_span(&mut answered, Some(&block));
         // Every row is read before the id is asked for, exactly as `Core\Db\Connection::execute`
         // does it: the connection has to be back at a message boundary before this returns, or the
         // next statement on it — the caller's own, inside the same transaction — meets a busy one.
@@ -1413,7 +1418,15 @@ nvs_runtime::nvs_helper! {
         // so the decoding is the driver's and this member parses nothing. `None` would mean the
         // statement's `union all` answered neither an insert nor a pending duplicate, which it
         // cannot: the `existing` arm is the only thing the insert stands down for.
-        let id = answered.last_id().ok_or_else(|| {
+        let last = answered.last_id();
+        // Taken after the drain, so the span carries what the caller waited for, and filed after
+        // the rows have let the context go — `Core\Db`'s reader does both in the same order, and
+        // a `PgRows` holds `ctx` until it is dropped. Filed before the id is judged: a statement
+        // the server ran is one a trace should show, whatever this member then makes of it.
+        let taken = watch.taken(answered.span());
+        drop(answered);
+        watch.file(ctx, taken);
+        let id = last.ok_or_else(|| {
             Fault::fatal(format!(
                 "{PUSH}: the insert into `{JOBS_TABLE}` answered no id at all"
             ))
@@ -1462,10 +1475,13 @@ nvs_runtime::nvs_helper! {
                 ),
             )
         };
+        // ADR 0067 § 11's event, as `push` files it and for the reason given there.
+        let watch = crate::db::QueryWatch::named(ctx, Some(&block));
         let postgres = postgres_of(ctx, handle, &block, STATUS_OF)?;
         let mut answered = postgres
             .query(STATUS, &bound)
             .map_err(|refused| refused_by_server(&refused))?;
+        crate::db::name_span(&mut answered, Some(&block));
         // Taken before the first row, as `Core\Db`'s own reader takes it: a `PgRows` lends its
         // columns and its rows out of one borrow, and the rows are read with it held mutably.
         let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
@@ -1494,6 +1510,11 @@ nvs_runtime::nvs_helper! {
                 });
             }
         }
+        // Filed as `push` files it, and before the answer is judged for the same reason: the
+        // statement ran either way, and a trace showing it is what § 11 asks for.
+        let taken = watch.taken(answered.span());
+        drop(answered);
+        watch.file(ctx, taken);
         let ordinal = read
             .ok_or_else(|| {
                 Fault::thrown(format!(
@@ -1568,10 +1589,13 @@ nvs_runtime::nvs_helper! {
                 ),
             )
         };
+        // ADR 0067 § 11's event, as `push` files it and for the reason given there.
+        let watch = crate::db::QueryWatch::named(ctx, Some(&block));
         let postgres = postgres_of(ctx, handle, &block, CANCEL_OF)?;
         let mut answered = postgres
             .query(CANCEL, &bound)
             .map_err(|refused| refused_by_server(&refused))?;
+        crate::db::name_span(&mut answered, Some(&block));
         // The rows are counted rather than read: `returning id` is here to make the affected count
         // observable and nothing reads the id, since the caller already holds it. Draining is what
         // `push` and `status` drain for — the connection owes the caller a message boundary before
@@ -1584,6 +1608,11 @@ nvs_runtime::nvs_helper! {
         {
             cancelled = true;
         }
+        // As `push`: taken while the rows still lend the span out, filed once they have let the
+        // context go. A cancel that lost § 4's race is a statement like any other and files one.
+        let taken = watch.taken(answered.span());
+        drop(answered);
+        watch.file(ctx, taken);
         Ok(Value::bool(cancelled))
     }
 }
@@ -1633,10 +1662,13 @@ nvs_runtime::nvs_helper! {
                 ),
             )
         };
+        // ADR 0067 § 11's event, as `push` files it and for the reason given there.
+        let watch = crate::db::QueryWatch::named(ctx, Some(&block));
         let postgres = postgres_of(ctx, handle, &block, STATS_OF)?;
         let mut answered = postgres
             .query(COUNTS, &bound)
             .map_err(|refused| refused_by_server(&refused))?;
+        crate::db::name_span(&mut answered, Some(&block));
         // Taken before the first row, as `status` takes them: a `PgRows` lends its columns and its
         // rows out of one borrow, and the rows are read with it held mutably.
         let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
@@ -1675,6 +1707,10 @@ nvs_runtime::nvs_helper! {
             }
             read = Some(counted);
         }
+        // As `push`, and before the row is judged for the reason `status` gives.
+        let taken = watch.taken(answered.span());
+        drop(answered);
+        watch.file(ctx, taken);
         let counted = read.ok_or_else(|| {
             Fault::fatal(format!(
                 "{STATS_OF}: the aggregate over `{JOBS_TABLE}` answered no row at all, and one \

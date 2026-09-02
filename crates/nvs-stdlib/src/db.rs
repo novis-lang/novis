@@ -3476,7 +3476,7 @@ fn queried_rows(
     let mut answered = postgres
         .query(&statement.sql, &sending)
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
-    name_span(&mut answered, &statement.block);
+    name_span(&mut answered, statement.block.as_text());
     // Taken before the first row: a `PgRows` lends its columns and its rows
     // out of one borrow, and the rows are read with it held mutably.
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
@@ -3536,8 +3536,13 @@ fn queried_rows(
 /// threshold the same facts the trace event carries, so a statement renders its
 /// span at most once however many readers there are — and a second rendering is
 /// the only way the two could ever describe one statement differently.
+///
+/// **`pub(crate)` because § 11 is about statements and not about `Core\Db`.**
+/// [`crate::queue`]'s four members drive a `PgRows` themselves rather than
+/// through this class's own, and a trace that showed every statement but
+/// theirs would be describing a request that never happened.
 #[derive(Clone, Copy)]
-struct QueryWatch {
+pub(crate) struct QueryWatch {
     /// ADR 0041 § 1's trace is recording this request.
     traced: bool,
     /// § 11's threshold, for the block that wrote one.
@@ -3548,9 +3553,20 @@ impl QueryWatch {
     /// What the context and the connection's block say, before the statement
     /// goes out.
     fn of(ctx: &nvs_runtime::Ctx, block: &Value) -> QueryWatch {
+        QueryWatch::named(ctx, block.as_text())
+    }
+
+    /// The same, for a caller that holds the block's *name* rather than the
+    /// `Value` § 2's `Connection` carries it as.
+    ///
+    /// [`crate::queue`] is that caller: its connection is named by ADR 0084
+    /// § 2's `[queue] connection` and reached by key, so there is no `Value` to
+    /// read a name out of. `None` is § 2's unnamed `open` and means the same
+    /// thing here as there — nothing to look a threshold up under.
+    pub(crate) fn named(ctx: &nvs_runtime::Ctx, block: Option<&str>) -> QueryWatch {
         QueryWatch {
             traced: ctx.debug_flags().contains(nvs_runtime::DebugFlags::TRACE),
-            slow: slow_query_of(ctx, block),
+            slow: block.and_then(|name| slow_query_of(ctx, name)),
         }
     }
 
@@ -3559,13 +3575,17 @@ impl QueryWatch {
     /// `None` when nothing is reading, and then the rendering and the clock are
     /// not paid for at all — which is every request on a deployment that has
     /// asked for neither.
-    fn taken(self, span: &nvs_db::QuerySpan) -> Option<(String, std::time::Duration)> {
+    pub(crate) fn taken(self, span: &nvs_db::QuerySpan) -> Option<(String, std::time::Duration)> {
         (self.traced || self.slow.is_some()).then(|| (span.to_string(), span.duration()))
     }
 
     /// Files what [`QueryWatch::taken`] took, once the statement has let the
     /// context go.
-    fn file(self, ctx: &mut nvs_runtime::Ctx, taken: Option<(String, std::time::Duration)>) {
+    pub(crate) fn file(
+        self,
+        ctx: &mut nvs_runtime::Ctx,
+        taken: Option<(String, std::time::Duration)>,
+    ) {
         let Some((line, took)) = taken else {
             return;
         };
@@ -3583,12 +3603,12 @@ impl QueryWatch {
 ///
 /// Three cases answer `None` and they are one answer: the block wrote no
 /// threshold, the connection has no block at all (§ 2's `open`, whose settings
-/// the program wrote and no operator named), and a value that would not parse —
+/// the program wrote and no operator named — [`QueryWatch::named`] answers that
+/// one before this is reached), and a value that would not parse —
 /// which `nvs_config::db::validate` refused at boot, so it is unreachable here.
 /// Off is the right answer to all three: a threshold nobody can read is not a
 /// reason to fail a statement, and § 11's output is inert until asked for.
-fn slow_query_of(ctx: &nvs_runtime::Ctx, block: &Value) -> Option<std::time::Duration> {
-    let name = block.as_text()?;
+fn slow_query_of(ctx: &nvs_runtime::Ctx, name: &str) -> Option<std::time::Duration> {
     let snapshot = ctx.config()?.snapshot();
     let written = snapshot.config.db.get(name)?;
     nvs_config::db::slow_query_for(name, written, &std::collections::BTreeMap::new())
@@ -3615,14 +3635,40 @@ fn slow_query_record(ctx: &mut nvs_runtime::Ctx, line: &str) {
     let _dropped = ctx.write_log_record(&record, nvs_runtime::LogChannel::Output);
 }
 
+/// Files ADR 0067 § 11's event for a statement that never lent a `PgRows` out —
+/// § 7's three commands, and the batch `executeMany` is.
+///
+/// The block goes on here rather than through [`name_span`], which takes the
+/// rows those statements never have; the rule it applies is the same one and
+/// `nvs_db::QuerySpan::name` owns it. The span arrives finished — the driver
+/// froze it when its command came back, or the caller did with its own count —
+/// so this is only the naming, the taking and the filing, in the order
+/// [`QueryWatch`] requires.
+fn file_span(
+    ctx: &mut nvs_runtime::Ctx,
+    watch: QueryWatch,
+    block: &Value,
+    mut span: nvs_db::QuerySpan,
+) {
+    if let Some(name) = block.as_text() {
+        span.name(name);
+    }
+    let taken = watch.taken(&span);
+    watch.file(ctx, taken);
+}
+
 /// Puts the `[db.<name>]` block on a running statement's span.
 ///
 /// `nvs_db::QuerySpan::name` owns why the driver cannot do this itself. The
 /// block is the `Statement`'s own, so a `connect`'d connection names itself and
 /// ADR 0067 § 2's unnamed `open` — which has no block at all — leaves the field
 /// empty rather than carrying a made-up name.
-fn name_span(rows: &mut nvs_db::PgRows<'_>, block: &Value) {
-    if let Some(name) = block.as_text() {
+///
+/// It takes the name and not the `Value`, so [`crate::queue`]'s statements —
+/// whose block is `[queue] connection`'s name — put it on their spans through
+/// this one rule rather than a second spelling of it.
+pub(crate) fn name_span(rows: &mut nvs_db::PgRows<'_>, block: Option<&str>) {
+    if let Some(name) = block {
         rows.name_connection(name);
     }
 }
@@ -3880,7 +3926,7 @@ nvs_runtime::nvs_helper! {
         let mut answered = postgres
             .query(&statement.sql, &sending)
             .map_err(|refused| statement_failure(EXECUTE, &statement.block, source, &refused))?;
-        name_span(&mut answered, &statement.block);
+        name_span(&mut answered, statement.block.as_text());
         while answered
             .next_row()
             .map_err(|refused| statement_failure(EXECUTE, &statement.block, source, &refused))?
@@ -3959,12 +4005,6 @@ nvs_runtime::nvs_helper! {
         // not the pool's. It carries the rewritten text, which is what reaches
         // the wire and what a driver-opened span would have been handed.
         let mut span = nvs_db::QuerySpan::opened(nvs_db::Driver::Postgres, &batch.sql);
-        // The block goes on directly rather than through [`name_span`], which
-        // takes the `PgRows` a batch never has; the rule it applies is the same
-        // one and `nvs_db::QuerySpan::name` owns it.
-        if let Some(name) = batch.block.as_text() {
-            span.name(name);
-        }
         // One statement over many parameter sets, so the batch has exactly the
         // one text to name and it is the caller's, as `execute`'s is.
         let written = postgres
@@ -3976,8 +4016,7 @@ nvs_runtime::nvs_helper! {
         // zero: nothing was handed back, and a batch that inserted a thousand
         // rows reporting a thousand rows *returned* would read as a select.
         span.finished(Some(written));
-        let taken = watch.taken(&span);
-        watch.file(ctx, taken);
+        file_span(ctx, watch, &batch.block, span);
         Ok(Value::uint(written))
     }
 }
@@ -4093,17 +4132,30 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
 
+        // § 11's readers, once for the whole call: every command below runs on
+        // the one connection, and a retry does not change what is watching.
+        // Read here for [`QueryWatch`]'s reason — the connection holds the
+        // context for as long as each command does.
+        let watch = QueryWatch::of(ctx, &block);
+
         loop {
             // § 7 retries **outermost transactions only**, and the depth before
             // the `BEGIN` is the only thing that says which this call is —
             // re-running a nested closure would re-run it inside an outer
             // transaction the conflict has already aborted.
             let outermost = postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?.depth() == 0;
-            postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?
+            // § 11's event covers § 7's own commands as well as the statements
+            // inside them: a trace that showed the closure's writes but not the
+            // `BEGIN` and the `COMMIT` around them would put the transaction's
+            // whole cost on its last statement. The driver answers with the
+            // span because only it knows whether the depth made this a
+            // `SAVEPOINT` — [`nvs_db::PgConn::begin`] owns that.
+            let opened = postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?
                 .begin(isolation, read_only)
                 .map_err(|refused| {
                     statement_failure(TRANSACTION_MEMBER, &block, None, &refused)
                 })?;
+            file_span(ctx, watch, &block, opened);
 
             // The block name is handed on rather than looked up again: a
             // transaction refuses under the same `[db.<name>]` its connection
@@ -4144,8 +4196,15 @@ nvs_runtime::nvs_helper! {
                         .and_then(error_kind_of)
                         .is_some_and(nvs_db::DbErrorKind::is_retryable);
                     let retry = outermost && left > 0 && abandoned.is_none() && conflicted;
-                    if let Ok(postgres) = postgres_of(ctx, key, &block, TRANSACTION_MEMBER) {
-                        let _ = postgres.roll_back();
+                    // Best effort as before, and filed on the path where it
+                    // worked: an undo the server ran is a statement the trace
+                    // owes an entry, and one it refused leaves no span to file.
+                    let undone = match postgres_of(ctx, key, &block, TRANSACTION_MEMBER) {
+                        Ok(postgres) => postgres.roll_back().ok(),
+                        Err(_) => None,
+                    };
+                    if let Some(span) = undone {
+                        file_span(ctx, watch, &block, span);
                     }
                     if !retry {
                         return Err(fault);
@@ -4180,7 +4239,11 @@ nvs_runtime::nvs_helper! {
             // On two of the three paths the closure's answer is not this call's,
             // and this frame owns the only reference to it.
             let refused = match closed {
-                Ok(()) => {
+                Ok(span) => {
+                    // The command that closed the level, whichever it was, and
+                    // filed before this call returns rather than after — the
+                    // answer below leaves by three different paths.
+                    file_span(ctx, watch, &block, span);
                     return match abandoned {
                         Some(reason) => {
                             discard(answered);

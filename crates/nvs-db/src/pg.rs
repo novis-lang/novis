@@ -693,10 +693,20 @@ impl PgConn {
     /// [`begin_command`] the rendering of the two options, including which of
     /// § 7's five isolation levels PostgreSQL spells with another name.
     ///
+    /// **It answers the span of the command it sent**, which is ADR 0067 § 11's
+    /// event for a statement that lends no [`PgRows`] out — the shape
+    /// `PgConn::execute_many`'s caller builds for itself. The caller cannot
+    /// build this one: which command a level gets is the depth's answer and the
+    /// depth is this connection's, so the text only exists down here.
+    ///
     /// # Errors
     ///
     /// As [`begin`].
-    pub fn begin(&mut self, isolation: Option<Isolation>, read_only: bool) -> io::Result<()> {
+    pub fn begin(
+        &mut self,
+        isolation: Option<Isolation>,
+        read_only: bool,
+    ) -> io::Result<QuerySpan> {
         begin(
             &mut self.wire,
             &self.state,
@@ -732,8 +742,9 @@ impl PgConn {
     /// # Errors
     ///
     /// As [`commit`]. A refused outermost commit is § 7's failed commit, which
-    /// `nvs-stdlib` throws as `DbError`.
-    pub fn commit(&mut self) -> io::Result<()> {
+    /// `nvs-stdlib` throws as `DbError`. The span it answers with on success is
+    /// [`PgConn::begin`]'s, for the same reason.
+    pub fn commit(&mut self) -> io::Result<QuerySpan> {
         commit(&mut self.wire, &self.state, &self.depth)
     }
 
@@ -742,8 +753,9 @@ impl PgConn {
     ///
     /// # Errors
     ///
-    /// As [`roll_back`].
-    pub fn roll_back(&mut self) -> io::Result<()> {
+    /// As [`roll_back`]. The span it answers with on success is
+    /// [`PgConn::begin`]'s, for the same reason.
+    pub fn roll_back(&mut self) -> io::Result<QuerySpan> {
         roll_back(&mut self.wire, &self.state, &self.depth)
     }
 
@@ -3081,7 +3093,7 @@ fn begin<S: Read + Write>(
     depth: &Cell<u32>,
     isolation: Option<Isolation>,
     read_only: bool,
-) -> io::Result<()> {
+) -> io::Result<QuerySpan> {
     let open = depth.get();
     let command = if open == 0 {
         begin_command(isolation, read_only)
@@ -3099,9 +3111,9 @@ fn begin<S: Read + Write>(
         format!("SAVEPOINT {}", savepoint_name(open))
     };
 
-    simple_command(wire, state, &command)?;
+    let span = simple_command(wire, state, &command)?;
     depth.set(open + 1);
-    Ok(())
+    Ok(span)
 }
 
 /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` that closes a nested level.
@@ -3124,7 +3136,7 @@ fn commit<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
     depth: &Cell<u32>,
-) -> io::Result<()> {
+) -> io::Result<QuerySpan> {
     let open = open_transaction(depth, "commit")?;
     let command: Cow<'_, str> = if open == 1 {
         Cow::Borrowed("COMMIT")
@@ -3132,18 +3144,21 @@ fn commit<S: Read + Write>(
         Cow::Owned(format!("RELEASE SAVEPOINT {}", savepoint_name(open - 1)))
     };
 
-    if let Err(refused) = simple_command(wire, state, &command) {
-        // Only a refusal the *server* worded says the transaction is over: a
-        // busy connection and a wire failure are refusals this crate made
-        // without the `COMMIT` ever being processed, and moving the count on
-        // one of those would tell the caller a level closed that is still open.
-        if open == 1 && ServerError::of(&refused).is_some() {
-            depth.set(0);
+    let span = match simple_command(wire, state, &command) {
+        Ok(span) => span,
+        Err(refused) => {
+            // Only a refusal the *server* worded says the transaction is over: a
+            // busy connection and a wire failure are refusals this crate made
+            // without the `COMMIT` ever being processed, and moving the count on
+            // one of those would tell the caller a level closed that is still open.
+            if open == 1 && ServerError::of(&refused).is_some() {
+                depth.set(0);
+            }
+            return Err(refused);
         }
-        return Err(refused);
-    }
+    };
     depth.set(open - 1);
-    Ok(())
+    Ok(span)
 }
 
 /// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` that undoes a nested level.
@@ -3166,7 +3181,7 @@ fn roll_back<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
     depth: &Cell<u32>,
-) -> io::Result<()> {
+) -> io::Result<QuerySpan> {
     let open = open_transaction(depth, "roll back")?;
     let command: Cow<'_, str> = if open == 1 {
         Cow::Borrowed("ROLLBACK")
@@ -3177,9 +3192,9 @@ fn roll_back<S: Read + Write>(
         ))
     };
 
-    simple_command(wire, state, &command)?;
+    let span = simple_command(wire, state, &command)?;
     depth.set(open - 1);
-    Ok(())
+    Ok(span)
 }
 
 /// The number of levels open, or the refusal for a connection in none.
@@ -3281,11 +3296,17 @@ fn simple_command<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
     sql: &str,
-) -> io::Result<()> {
+) -> io::Result<QuerySpan> {
     if !state.get().may_start_statement() {
         return Err(second_statement(state));
     }
 
+    // ADR 0067 § 11's span, opened where the extended-query path opens its own:
+    // once the connection is this command's, so the duration is the round trip
+    // and not the wait for a busy one. The text is this module's — § 7's
+    // commands carry no caller's SQL at all — and [`QuerySpan`] is what carries
+    // it to a trace, so a `COMMIT` reads there beside the statements it closed.
+    let span = QuerySpan::opened(Driver::Postgres, sql);
     let mut out = BytesMut::new();
     frontend::query(sql, &mut out)?;
 
@@ -3310,7 +3331,14 @@ fn simple_command<S: Read + Write>(
 
     state.set(State::Idle);
     match refused {
-        None => Ok(()),
+        None => {
+            let mut span = span;
+            // No count and no rows: § 7's commands change nothing themselves,
+            // and `affected` says "this statement reported a count" rather than
+            // "it reported zero".
+            span.finished(None);
+            Ok(span)
+        }
         Some(error) => Err(error),
     }
 }
@@ -5916,6 +5944,47 @@ mod tests {
             assert_eq!(server.constraint.as_deref(), Some("users_email_key"));
             assert!(!server.message.contains(BOUND), "{}", server.message);
         }
+    }
+
+    /// § 11 over § 7's own commands: each of the three answers the span of the
+    /// command it *sent*, which is the only reason the driver hands one back at
+    /// all — a nested level is a `SAVEPOINT` and its caller, which asked for a
+    /// transaction, has no way to know that or to spell the name.
+    #[test]
+    fn a_transaction_command_answers_the_span_of_the_command_it_sent() {
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready()));
+
+        let opened = super::begin(
+            &mut wire,
+            &state,
+            &depth,
+            Some(Isolation::Serializable),
+            false,
+        )
+        .expect("the transaction opened");
+        assert_eq!(opened.sql(), "BEGIN ISOLATION LEVEL SERIALIZABLE");
+        assert_eq!(opened.driver(), Driver::Postgres);
+        // Never `Some(0)`: § 7's commands report no count of their own, and
+        // `affected` is where a reader tells "no count" from "zero rows".
+        assert_eq!(opened.affected(), None);
+        assert_eq!(opened.rows(), 0);
+
+        let nested = super::begin(&mut wire, &state, &depth, None, false).expect("a level opened");
+        assert_eq!(nested.sql(), "SAVEPOINT nvs_1");
+        assert_eq!(
+            super::roll_back(&mut wire, &state, &depth)
+                .expect("the level rolled back")
+                .sql(),
+            "ROLLBACK TO SAVEPOINT nvs_1; RELEASE SAVEPOINT nvs_1",
+        );
+        assert_eq!(
+            super::commit(&mut wire, &state, &depth)
+                .expect("the transaction closed")
+                .sql(),
+            "COMMIT",
+        );
     }
 
     /// § 11's span, and the property that makes it exportable at all: the bound
