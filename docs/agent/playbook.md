@@ -1527,6 +1527,11 @@ is why" — is this file.
   region finds the reference and concludes there is no definition. One `grep -rn ColumnType docs/`
   is the whole check and it costs one call — and here it also refuted the fallback, since § 9 is a
   map to *values* and cannot induce `Json` or `Other`.
+- **`python tools/peek.py --locate` swallows the windows in the same call.** A call written as
+  `peek.py A.rs:120-160 B.rs:@sym --locate OTHER` prints the `file:line` anchors for `OTHER` and
+  *nothing else* — the two windows are silently dropped rather than printed above them, so it reads
+  as "those files have no such region" and costs a second call to re-issue them. Ask for anchors in
+  their own call, or read the windows in their own; do not mix the two modes.
 
 ## Running things
 

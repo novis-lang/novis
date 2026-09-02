@@ -2,57 +2,63 @@
 
 ## State
 
-**Stage 5's `nvs-stdlib` half is two of its three names**, both `#[test]`s in
-`crates/nvs-stdlib/src/db.rs`'s own test module:
-`a_transaction_is_a_closure_and_transaction_is_a_queryable` (§ 7's closure form, the *absence* of
-`commit`/`rollBack`/`inTransaction` on the connection, and the delegation asserted as identical rows
-— symbol and position included — over `CONNECTION`'s whole roster, so a member added there fails
-until `TRANSACTION` carries it) and `roll_back_survives_an_intervening_catch_of_throwable` (the
-reason recorded in `REASON_SLOT` outlives both `ctx.take_pending()` and the scope close, which is the
-order `nvs_core_db_connection_transaction` reads it in).
+**§ 7's options bag is on the `transaction` row**, at
+`crates/nvs-stdlib/src/db.rs:508`'s `TRANSACTION_OPTIONS`: `isolation` as
+`CoreTy::Enum(ISOLATION_NAME)` defaulting to `Const::Null` (absent, so the server's own level
+stands), `readOnly` as `bool` defaulting to false, `retries` as `uint` defaulting to 0. The card
+carries one `ParamDoc` per option and the registry test now pins the three names, their order and
+their defaults as one comparison, so an option added without being specified fails there.
 
-**The third name is not a test slice.** § 7's options bag is not on the row at all, so there is
-nothing to retry; the row's doc at `crates/nvs-stdlib/src/db.rs:480` said the enum was missing and
-that is now false and corrected. Two of the three things `{retries: n}` needs have landed —
-`ISOLATION` is registered (`crates/nvs-stdlib/src/db.rs:625`) and
-`nvs_db::DbErrorKind::is_retryable` (`crates/nvs-db/src/conn.rs:335`) already names the two kinds
-§ 7 re-runs on. It is the next group, as a feature.
+**Two of the three are wired and the third is declared and unread.**
+`nvs_core_db_connection_transaction` (`crates/nvs-stdlib/src/db.rs:3300`) is `args: [5]` and hands
+`isolation`/`readOnly` straight to `nvs_db::PgConn::begin`, which already renders them and already
+refuses a *nested* call that carries either — that refusal is an `InvalidInput` and so a
+`LogicError`, and the card names it. `retries` arrives in slot 4 and nothing reads it; **this
+module's new known gap 9 is the whole of what is left**, including why: § 7's backoff suspends the
+coroutine and `nvs-runtime` has no yielder (`crates/nvs-runtime/src/lib.rs:208`). A call that does
+not write `{retries: n}` is unaffected, and one that does gets the conflict surfaced instead —
+weaker than § 7, never wrong about what happened.
 
-**The `args` wall is unchanged and is the user's call**: the Stage 5 check's
-`args = ["test", "-p", "nvs-db"]` (`docs/agent/loop-goal.toml:2830`) cannot see either test landed
-this session, so five of its seven names stay unfound there. One widening closes Stage 4's check and
-Stage 5's together.
+**The `args` wall is unchanged and is still the user's call**: Stage 5's
+`args = ["test", "-p", "nvs-db"]` (`docs/agent/loop-goal.toml:2830`) cannot see the two
+`nvs-stdlib` tests, so five of its seven names stay unfound there.
 
-**The driver's acceptance line still names `examples/queue.nvs`**, Stage 8's unlanded `Core\Queue`
-(ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s module doc owns why.
+**The driver's acceptance line still names `examples/queue.nvs`** — Stage 8's unlanded `Core\Queue`
+(ADR 0084), not a regression. **The CA is still not in git**; `nvs_host::tls`'s module doc owns why.
+
+**`orient.py` did not print ADR 0067 § 7** — the pack carried §§ 1, 9 and 13, and § 7 is the section
+every slice of this group is specified by. Add `0067 § 7` to `[context] adrs`.
 
 ## Next group
 
-**§ 7's `{retries: n}` and the options bag it lives in. The file set is
-`crates/nvs-stdlib/src/db.rs`, with one read of `crates/nvs-stdlib/src/registry.rs`.**
+**§ 7's retry loop — the one half of the bag that does not work yet. The file set is
+`crates/nvs-db/src/pg.rs` and `crates/nvs-stdlib/src/db.rs`.**
 
-- [ ] **The bag on the row** — `CoreTy::Options(&[CoreOption])` as the last parameter of
-      `crates/nvs-stdlib/src/db.rs:487`, `{isolation?, readOnly?, retries?}` at § 7's defaults, and
-      one `ParamDoc` per option in the card at `crates/nvs-stdlib/src/db.rs:1496`. The variant and
-      its rules are `crates/nvs-stdlib/src/registry.rs:594` and
-      `crates/nvs-stdlib/src/registry.rs:608`; a bag is always last and never nested. ADR 0067 § 7.
-- [ ] **The helper reads them** — a bag flattens to one argument per option, so
-      `crates/nvs-stdlib/src/db.rs:3166`'s `args: [2]` becomes `args: [5]`, with `isolation` and
-      `readOnly` reaching the `begin` call at `crates/nvs-stdlib/src/db.rs:3168`. ADR 0067 § 7.
-- [ ] **The retry loop** — outermost transactions only, on `is_retryable` alone, default 0,
-      exponential backoff with jitter that suspends the coroutine the way
-      `crates/nvs-stdlib/src/time.rs:3414` does rather than blocking the core. **Check first how the
-      kind survives the closure's throw**: the deadlock is raised by a statement *inside* the
-      closure and arrives at `crates/nvs-stdlib/src/db.rs:3184` as a pending exception, and
-      `statement_failure` at `crates/nvs-stdlib/src/db.rs:2394` is where the kind either travels or
-      is lost. ADR 0067 § 7.
+- [ ] **A depth reader on the connection** — `pub fn depth(&self) -> u32` beside
+      `crates/nvs-db/src/pg.rs:698`'s `begin`, over the `Cell` initialised at
+      `crates/nvs-db/src/pg.rs:619`. § 7 retries **outermost transactions only** and nothing outside
+      that crate can currently tell which a call is. ADR 0067 § 7.
+- [ ] **The decision the loop cannot be written without, and it is one call** — § 7 wants
+      exponential backoff with jitter *that suspends the coroutine*, and there is no yielder
+      (`crates/nvs-runtime/src/lib.rs:208`). Choose between waiting on the blocking pool
+      (`crates/nvs-host/src/blocking.rs:320`, the way `crates/nvs-stdlib/src/process.rs:368` waits —
+      keeps the core free, holds a pool worker) and retrying with no wait at all, and record the
+      choice in known gap 9 at `crates/nvs-stdlib/src/db.rs:64`. `rand` is already this crate's, for
+      the jitter. Pre-authorized: it is a design call, not a `BLOCKED`.
+- [ ] **The loop itself** — `crates/nvs-stdlib/src/db.rs:3300`: re-run the closure while attempts
+      are under slot 4's count, the depth was 0, and the failure's
+      `nvs_db::DbErrorKind::is_retryable` (`crates/nvs-db/src/conn.rs:335`) is true. Each attempt
+      needs its own `BEGIN` **and its own scope object** — the one built at
+      `crates/nvs-stdlib/src/db.rs:3300` is closed and discarded on every path already, so the retry
+      goes around that whole block, not inside it. ADR 0067 § 7.
 
 ## Backlog
 
-- `retries_recover_an_induced_deadlock` needs two connections against the matrix, and the loop it
-  tests is `nvs-stdlib`'s — the same `args` wall — `docs/agent/loop-goal.toml:2830`.
-- Stage 6's four drivers gate two Stage 5 names — `docs/agent/loop-goal.toml:2830`.
-- Stage 4's four leftovers are the same `args` question — `docs/agent/loop-goal.toml:2806`.
-- Stage 7's pool is `-p nvs-db` work with nothing on disk yet — `docs/agent/loop-goal.toml:2884`.
-- `examples/queue.nvs` needs Stage 8's `Core\Queue` — ADR 0084.
-- `open` waits on a shape-parameter type — `docs/implementation-plan.md`.
+- `examples/transaction.nvs` writes no `{isolation: …}`, so nothing exercises
+  `BEGIN ISOLATION LEVEL` end to end — ADR 0067 § 7.
+- Widening Stage 5's check `args` is one edit that closes Stage 4's and Stage 5's together —
+  `docs/agent/loop-goal.toml:2830`.
+- Stage 8's `Core\Queue` is what the driver's acceptance check names — ADR 0084.
+- `open` waits on a registry type for a shape *parameter* — `crates/nvs-stdlib/src/db.rs` gap 1.
+- `stream`/`streamAs` are owed on both `Queryable` classes — that module's gap 5.
+- `Db\DbError` is not in spec § 10's tree, so a refusal carries no `kind` — that module's gap 4.
