@@ -3959,6 +3959,27 @@ mod tests {
         message(b'E', &body)
     }
 
+    /// An `ErrorResponse` carrying whatever further fields the case names, for
+    /// the § 8 rule that turns on the fields [`super::server_error`] *drops*
+    /// rather than on the four it keeps.
+    fn error_response_with(code: &str, said: &str, extra: &[(u8, &str)]) -> Vec<u8> {
+        let mut body = vec![b'S'];
+        body.extend_from_slice(b"ERROR\0");
+        body.push(b'C');
+        body.extend_from_slice(code.as_bytes());
+        body.push(0);
+        body.push(b'M');
+        body.extend_from_slice(said.as_bytes());
+        body.push(0);
+        for (field, value) in extra {
+            body.push(*field);
+            body.extend_from_slice(value.as_bytes());
+            body.push(0);
+        }
+        body.push(0);
+        message(b'E', &body)
+    }
+
     /// The tag of every message in one flushed group, in order.
     ///
     /// Walks the length prefixes rather than searching for bytes: a tag letter
@@ -5150,6 +5171,85 @@ mod tests {
         );
     }
 
+    /// § 7's nesting past the depth the two cases above stop at, and the three
+    /// things that only appear there: a level's savepoint is named by the
+    /// depth it opened at however deep that gets, a name is taken again as
+    /// soon as its level has closed, and exactly one level of a whole run —
+    /// the outermost — is a real transaction, whatever mixture of commits and
+    /// rollbacks closes the rest. A nested rollback with other levels still
+    /// open beneath it is the case the pair above cannot reach at depth two.
+    #[test]
+    fn savepoints_nest() {
+        const DEEP: u32 = 5;
+
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready()));
+
+        for open in 0..DEEP {
+            super::begin(&mut wire, &state, &depth, None, false).expect("a level opened");
+            assert_eq!(depth.get(), open + 1);
+        }
+
+        // The innermost level is abandoned and its name immediately taken by
+        // the level that replaces it, which is what makes the name the depth's
+        // and not a counter's.
+        super::roll_back(&mut wire, &state, &depth).expect("the innermost rolled back");
+        assert_eq!(depth.get(), DEEP - 1);
+        super::begin(&mut wire, &state, &depth, None, false).expect("the level reopened");
+        assert_eq!(depth.get(), DEEP);
+
+        // Closed inwards-out in a mixture, so a rolled-back level sits beneath
+        // levels that then commit and above levels that then roll back.
+        for open in (0..DEEP).rev() {
+            if open % 2 == 0 {
+                super::roll_back(&mut wire, &state, &depth).expect("a level rolled back");
+            } else {
+                super::commit(&mut wire, &state, &depth).expect("a level closed");
+            }
+            assert_eq!(depth.get(), open, "a level closed more than itself");
+        }
+
+        let sent = every_query(&wire);
+        assert_eq!(
+            sent,
+            vec![
+                "BEGIN",
+                "SAVEPOINT nvs_1",
+                "SAVEPOINT nvs_2",
+                "SAVEPOINT nvs_3",
+                "SAVEPOINT nvs_4",
+                "ROLLBACK TO SAVEPOINT nvs_4; RELEASE SAVEPOINT nvs_4",
+                "SAVEPOINT nvs_4",
+                "ROLLBACK TO SAVEPOINT nvs_4; RELEASE SAVEPOINT nvs_4",
+                "RELEASE SAVEPOINT nvs_3",
+                "ROLLBACK TO SAVEPOINT nvs_2; RELEASE SAVEPOINT nvs_2",
+                "RELEASE SAVEPOINT nvs_1",
+                "ROLLBACK",
+            ]
+        );
+
+        // The invariant that list is one instance of, counted over the whole
+        // run rather than read off it: two commands — the `BEGIN` and the
+        // `ROLLBACK` that answers it — are the transaction, and every other
+        // one names a savepoint strictly inside it. `nvs_0` is the outermost
+        // level, which is never a savepoint, and `nvs_5` would be a level that
+        // was never opened.
+        assert_eq!(
+            sent.iter().filter(|sql| !sql.contains("SAVEPOINT")).count(),
+            2,
+            "{sent:?}"
+        );
+        assert!(!sent.iter().any(|sql| sql.contains("nvs_0")), "{sent:?}");
+        assert!(
+            !sent
+                .iter()
+                .any(|sql| sql.contains(format!("nvs_{DEEP}").as_str())),
+            "{sent:?}"
+        );
+        assert!(state.get().is_poolable());
+    }
+
     /// A nested transaction cannot ask for its own isolation level or read-only
     /// mode, because PostgreSQL settles both for the whole transaction — and
     /// the refusal is unsent, rather than the option being dropped and the
@@ -5253,6 +5353,70 @@ mod tests {
 
         let ours = super::second_statement(&Cell::new(State::Streaming));
         assert!(ServerError::of(&ours).is_none(), "{ours}");
+    }
+
+    /// § 8's rule that a bound parameter reaches the wire and never the error,
+    /// so a refusal can be logged whole: the value is in the `Bind` we sent and
+    /// in none of the sentence, the `ServerError` or the `Debug` a trace
+    /// prints. PostgreSQL is what makes this a rule rather than a tautology —
+    /// it returns the offending value in `D` (`Key (email)=(…) already
+    /// exists.`) and never in `M`, so the fields [`super::server_error`] drops
+    /// are the whole of the answer. Asserted over every field a value can
+    /// arrive in rather than over `D` alone, because a walk that grew a second
+    /// kept field would still pass on the first row.
+    #[test]
+    fn a_db_error_message_contains_no_bound_value() {
+        // Deliberately not a substring of the SQL, which § 8 does allow on the
+        // error, being developer-authored.
+        const BOUND: &str = "correct-horse-battery-staple";
+
+        // The detail, the hint, the internal query and the context of the
+        // function that raised it: the four fields PostgreSQL words itself and
+        // can quote a value into.
+        for field in *b"DHqW" {
+            let state = Cell::new(State::Idle);
+            let echoed = format!("Key (email)=({BOUND}) already exists.");
+            let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+                let mut out = error_response_with(
+                    "23505",
+                    "duplicate key value violates unique constraint \"users_email_key\"",
+                    &[(b'n', "users_email_key"), (field, echoed.as_str())],
+                );
+                out.extend_from_slice(&ready());
+                out
+            }));
+
+            let failed = start_statement(
+                &mut wire,
+                &state,
+                &mut no_cache(),
+                "insert into users (email) values ($1)",
+                &[Some(BOUND.as_bytes())],
+            )
+            .expect_err("a unique violation was accepted");
+
+            // The value did reach the server, so what follows is about where it
+            // stopped rather than about a parameter nobody ever sent.
+            assert!(
+                wire.peer().sent.iter().any(|flushed| flushed
+                    .windows(BOUND.len())
+                    .any(|window| window == BOUND.as_bytes())),
+                "the bound value never reached the wire",
+            );
+
+            let said = failed.to_string();
+            assert!(said.contains("duplicate key value"), "{said}");
+            assert!(!said.contains(BOUND), "{said}");
+
+            // A trace prints the `Debug`, and § 8 covers that spelling too.
+            let traced = format!("{failed:?}");
+            assert!(!traced.contains(BOUND), "{traced}");
+
+            let server = ServerError::of(&failed).expect("a refusal carried no kind");
+            assert_eq!(server.kind, DbErrorKind::UniqueViolation);
+            assert_eq!(server.constraint.as_deref(), Some("users_email_key"));
+            assert!(!server.message.contains(BOUND), "{}", server.message);
+        }
     }
 
     /// Every `SQLSTATE` this driver classifies, and the agreement that matters:
