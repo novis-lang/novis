@@ -145,6 +145,8 @@ Conventions the whole file uses:
 | [`Core\Db\Write`](#core-core-db-write) |  |
 | [`Core\Db\Column`](#core-core-db-column) |  |
 | [`Core\Db\InList`](#core-core-db-inlist) |  |
+| [`Core\Queue`](#core-core-queue) |  |
+| [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -17861,6 +17863,46 @@ Whether the column may hold NULL. On PostgreSQL this is always `true`, because a
 
 <a id="core-core-db-inlist"></a>
 ### `Core\Db\InList`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
+
+<a id="core-core-queue"></a>
+### `Core\Queue`
+
+Keywords: push
+
+| Member | Signature |
+|---|---|
+| [`Core\Queue::push`](#core-core-queue-push) | `push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string}): Core\Queue\Id` |
+
+<a id="core-core-queue-push"></a>
+#### `Core\Queue::push`
+
+```nvs skip
+Core\Queue::push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string}): Core\Queue\Id
+```
+
+Enqueues `$script` to run in the background, as a row in the database `[queue] connection` names. Inside a transaction on that same connection the enqueue commits with the write that caused it, or with neither — which is the whole reason a job is a table row and not a message to a broker.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$script` | `string` (sink) | The file a worker runs, as `spawn script` names one. A path and not a class or a closure, so the job carries no captured state across the boundary. |
+| `{args: …}` | `mixed` (default `null`) | The payload, copied by value into the row and decoded on the other side into the job's declared types. A reference is never carried, because the worker is a separate isolate and usually a separate process. |
+| `{queue: …}` | `string` (default `"default"`, neutral) | The named queue the job goes in. Workers claim from the queues they are configured for, so this is how work is separated by rate rather than by kind. |
+| `{runAt: …}` | `Core\Time\Instant` (default `null`) | The earliest moment a worker may claim it. Left out, that moment is now. |
+| `{maxAttempts: …}` | `uint` (default `null`) | How many attempts this job gets before it is dead-lettered. Left out, `[queue] max_attempts`. Always finite: there is no spelling that retries forever. |
+| `{backoff: …}` | `Core\Time\Duration` (default `null`) | The base delay for the exponential backoff between attempts, jittered by the worker. Left out, the worker's own default. |
+| `{key: …}` | `string` (default `null`, neutral) | A dedupe key: while a job with this key is still pending, a second push with it enqueues nothing and answers the pending job's own id. |
+
+**Returns** `Core\Queue\Id` — A `Core\Queue\Id` naming the row, which `cancel` and `status` are asked about. For a push deduped by `key`, the id of the job already pending under it.
+
+**Throws** `RuntimeError` — This deployment writes no `[queue]` block, so nothing says which database a job would live in; or the queue's connection names a driver that cannot yet run a statement.; `LogicError` — `maxAttempts` is `0`, which asks for a job that is dead-lettered by the enqueue that created it; or `backoff` is negative.; `IOError` — The queue's connection did not open, or the insert was refused by the server — most often because `nvs queue migrate` has not created the table.
+
+<a id="core-core-queue-id"></a>
+### `Core\Queue\Id`
 
 Keywords: 
 
