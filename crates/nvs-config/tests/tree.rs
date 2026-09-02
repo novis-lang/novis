@@ -48,6 +48,8 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[http.client]", "[http.client]\nconnect_timeout = \"5s\"\ndeadline = \"30s\"\nmax_redirects = 0\n"),
     ("[db.<name>]", "[db.main]\ndriver = \"pgsql\"\nhost = \"db\"\nport = 5432\nuser = \"app\"\npassword_file = \"/run/secrets/db\"\ndatabase = \"shop\"\n"),
     ("[db.<name>] sqlite", "[db.local]\npath = \"data/app.sqlite\"\n"),
+    ("[db.<name>.pool]", "[db.main]\ndriver = \"pgsql\"\n[db.main.pool]\nmax = 16\nidle = 2\nlifetime = \"30m\"\nacquire = \"5s\"\n"),
+    ("[db.<name>] pool = false", "[db.main]\ndriver = \"pgsql\"\npool = false\n"),
     ("[deferred]", "[deferred]\nmax_concurrent = 256\ndeadline = \"30s\"\n"),
     ("[[schedule]]", "[[schedule]]\nname = \"nightly-report\"\ncron = \"0 3 * * *\"\nscript = \"jobs/report.nvs\"\nscope = \"fleet\"\ntimezone = \"Europe/Vienna\"\noverlap = \"skip\"\nlimits = {memory = \"512M\", cpu_time = \"120s\"}\ngrants = {net = {connect = [\"reports.internal\"]}}\n"),
     ("[metrics]", "[metrics]\nexporter = \"prometheus\"\nlisten = \"127.0.0.1:9090\"\nendpoint = \"\"\nmax_series = 10000\n"),
@@ -82,7 +84,7 @@ fn every_block_an_adr_writes_out_is_in_the_tree() {
     );
     assert_eq!(
         BLOCKS.len(),
-        30,
+        32,
         "a block was added to or removed from the sweep without the count moving",
     );
 }

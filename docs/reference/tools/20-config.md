@@ -52,7 +52,8 @@ accepts — anything else is `E0601`:
 | `[[app]]` | a per-application block: `root` or `entry`, `mode`, `origin`, `[app.limits]`, `[app.limits.hard]`, `[app.capabilities]` (below) |
 | `[[include]]` | `path`, `dir`, `optional` (below) |
 | `[cache]` | `dir` — the artifact cache directory (the `nvs` command chapter) |
-| `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `statement_cache`, `time_zone` |
+| `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `statement_cache`, `time_zone`, `pool` |
+| `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire` — the connection pool's bounds, written as a table where `pool = false` turns it off |
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `format`, `level` |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
 | `[server]`, `[[server.mount]]` | the web server's listen addresses, timeouts and mounts |

@@ -503,8 +503,8 @@ pub struct StorageDisk {
 /// **Recorded gap: ADR 0067 states `Db\Settings` as a language type and never writes the config
 /// block out**, so this roster is every field that ADR names in prose (§ 2's "SQLite takes a `path`
 /// and has no `host`, `port`, `user` or `password`", § 4's `Settings.database` and `.user`,
-/// § 3a's `password_file`, § 1's `statement_cache`, § 9's `time_zone`) plus the `driver` a
-/// discriminated union needs to be discriminated on.
+/// § 3a's `password_file`, § 1's `statement_cache`, § 9's `time_zone`, § 13's `pool`) plus the
+/// `driver` a discriminated union needs to be discriminated on.
 /// A field the ADR turns out to have meant and this list omits is a boot refusal naming the line,
 /// which is loud and one edit to fix; the fix is to add the field here *and* the example to 0067.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
@@ -559,6 +559,90 @@ pub struct Database {
     /// and the bound; it answers *no* offset for anything else, which is a value refused rather
     /// than a zone read silently wrong.
     pub time_zone: Option<String>,
+    /// `[db.<name>.pool]`'s bounds, or the `pool = false` that turns pooling off (ADR 0067 § 13).
+    ///
+    /// One key in two shapes, because § 13 writes both against the same name and TOML has one `pool`
+    /// for a table and a boolean alike. [`Pool`] is that pair; `nvs_config::db::pool_for` is the
+    /// reader, and it owns the default every bound takes when this is unset.
+    pub pool: Option<Pool>,
+}
+
+/// `[db.<name>] pool` — ADR 0067 § 13's switch, or the table of bounds written under the same key.
+///
+/// § 13 writes `pool = false` to restore connect-per-request and `[db.<name>.pool] max = 16` for the
+/// bounds, and neither spelling can be moved without contradicting the ADR. `true` is the default
+/// said out loud rather than a third meaning.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Pool {
+    /// `pool = false`, and the `pool = true` that changes nothing.
+    Switch(bool),
+    /// `[db.<name>.pool]` — one or more of the four bounds.
+    Bounds(DatabasePool),
+}
+
+/// Hand-written rather than `#[serde(untagged)]`, and it is the only one in this module.
+///
+/// Untagged buys the same two shapes for four lines, but it buffers the value through `serde`'s
+/// private `Content` first, so a typo inside the table is reported as *data did not match any
+/// variant* with no key and no line — throwing away the unknown-key refusal this module's doc calls
+/// its security-relevant half. A visitor dispatches on the shape instead and hands a table straight
+/// to [`DatabasePool`]'s own derive, where `deny_unknown_fields` still names the key.
+impl<'de> Deserialize<'de> for Pool {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(PoolVisitor)
+    }
+}
+
+/// The dispatch itself: a boolean is the switch, a table is the bounds, and anything else is
+/// `expecting`'s sentence.
+struct PoolVisitor;
+
+impl<'de> serde::de::Visitor<'de> for PoolVisitor {
+    type Value = Pool;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("`false`, or a `[db.<name>.pool]` table of bounds")
+    }
+
+    fn visit_bool<E>(self, written: bool) -> Result<Pool, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Pool::Switch(written))
+    }
+
+    fn visit_map<M>(self, map: M) -> Result<Pool, M::Error>
+    where
+        M: serde::de::MapAccess<'de>,
+    {
+        DatabasePool::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+            .map(Pool::Bounds)
+    }
+}
+
+/// `[db.<name>.pool]` — ADR 0067 § 13's four bounds.
+///
+/// The numbers are not here: this struct is the roster, exactly as every other block's is, and
+/// `nvs_config::db::PoolBounds` holds the default set beside the parse that reads `"30m"`. Which is
+/// also why the two counts are typed and the two durations are a [`Setting`]: a count has one
+/// spelling, so the field's own type is the whole refusal, while a duration has seven suffixes and
+/// a bare-seconds form that only [`mod@crate::value`] can tell apart.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct DatabasePool {
+    /// Connections one core may hold. It is per core, so a deployment's ceiling on the server is
+    /// `cores × max` — the number an operator sizes `max_connections` against.
+    pub max: Option<u32>,
+    /// How many of those stay open with nothing to do; `0` keeps none warm.
+    pub idle: Option<u32>,
+    /// How long a connection may live before it is retired regardless of health.
+    pub lifetime: Option<Setting>,
+    /// How long an acquire waits for a free connection before it throws rather than hanging; `0`
+    /// never waits, so a request arriving at `max` is refused at once.
+    pub acquire: Option<Setting>,
 }
 
 /// `[deferred]` — ADR 0072 § 7's two bounds on after-response work.

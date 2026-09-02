@@ -56,13 +56,13 @@
 > `Db\DbError` carrying four of § 8's five; `nvs.toml` now opens `[db.main]` and grants `db.connect`
 > to the two fixtures; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over
 > `ClassDesc::db_codec`, and § 9's five structured columns build the `Core\Time`/`Core\Uuid`
-> instance both `Row`'s four typed readers and a `#[Db\Derive]` field answer with, so
-> `examples/db.nvs` runs that end to end and pins a real refusal's § 8 values, as
-> `examples/transaction.nvs` reads a real `rollBack`'s `$reason`. Stages 3 and 4 are green in `-p
-> nvs-db` and Stage 5 four of its seven, two of them in `-p nvs-stdlib`, the pool is 5 to 7, and
-> **ADR 0132 has claimed the goal's one ADR slot**. **Goals 1-4 and M4 are closed and are this
-> goal's Stage 1 floor** — `Core`'s capability-bearing half in full. Conformance 1415, differential
-> 250, its gate met, migration 90%/74%.
+> instance `Row`'s typed readers and a `#[Db\Derive]` field answer with, so `examples/db.nvs` runs
+> that end to end and pins a real refusal's § 8 values. Stages 3 and 4 are green in `-p nvs-db` and
+> Stage 5 four of its seven, two of them in `-p nvs-stdlib`, § 13's four pool bounds and its `pool =
+> false` read out of `[db.<name>.pool]` at boot, the pool is 6 to 7, and **ADR 0132 has claimed the
+> goal's one ADR slot**. **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** —
+> `Core`'s capability-bearing half in full. Conformance 1415, differential 250, its gate met,
+> migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
