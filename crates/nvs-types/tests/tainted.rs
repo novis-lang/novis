@@ -203,3 +203,86 @@ fn converting_a_runtime_computed_untainted_string_to_markup_is_still_diagnosed()
         "{diags:?}"
     );
 }
+
+// ADR 0133: the escaped value is a carrier, and the two halves of that which
+// cannot be read off a registry row. `Core\Html::escape`'s return type is a
+// signature and `nvs-stdlib` asserts it; these are claims about the *language*
+// — what `.` admits and what `as` converts — and only this crate can make them.
+
+#[test]
+fn markup_is_not_stringable_and_has_no_concat_row() {
+    // ADR 0133 § 2: `tainted string $line = "Hello " . $m;` is refused. The
+    // claim is not about the assignment's qualifier — it is that `.` has no
+    // row for the carrier at all, so the refusal stands whatever the target
+    // type is. `.` otherwise admits a `Stringable` object, which is exactly why
+    // this needs asserting: a carrier that grew a `toString` would start
+    // concatenating silently, and the eager-escape bug ADR 0133 removes would
+    // be back with `.` spelling it instead of `escape`.
+    let diags = check_in_method(
+        "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
+         string $line = \"Hello \" . $m;\n",
+    );
+    assert!(
+        diags.has_errors(),
+        "`.` has no row for a carrier: {diags:?}"
+    );
+
+    // The other side of the same bound, so a rule that refused every operand
+    // of `.` fails here: `+` *does* have a row for two carriers, and it
+    // produces the carrier back. That is ADR 0024 § 5's composition, and ADR
+    // 0133 § 2 leans on it — the correction it offers the reader is to write
+    // `+` where they wrote `.`, so `+` has to work.
+    let diags = check_in_method(
+        "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
+         Core\\Html\\Markup $both = (\"Hello \" as Core\\Html\\Markup) + $m;\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // And `+` refuses the mixed pair rather than escaping the plain half. An
+    // operator that escaped silently would be the surprise this ADR removes.
+    let diags = check_in_method(
+        "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
+         Core\\Html\\Markup $bad = $m + \"x\";\n",
+    );
+    assert!(
+        diags.has_errors(),
+        "`+` composes two carriers and lifts neither: {diags:?}"
+    );
+}
+
+#[test]
+fn markup_does_not_convert_to_string() {
+    // ADR 0133 § 3: there is no `Markup as string`, because one would reopen
+    // the hole in a keystroke — `Core\Html::escape($x) as string . $tainted` is
+    // the *Context* bug with an extra word in it. `Core\Html::toSource` is the
+    // only way out and it is a member, so it is greppable and carries a written
+    // reason at the site.
+    let diags = check_in_method(
+        "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
+         string $s = $m as string;\n",
+    );
+    assert!(
+        diags.has_errors(),
+        "`Markup as string` is not a conversion: {diags:?}"
+    );
+
+    // Nor by assignment, which is the same claim without the operator: the
+    // carrier is a class type and a `string` target does not admit one.
+    let diags = check_in_method(
+        "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
+         string $s = $m;\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+
+    // The exit that does exist, asserted alongside so that a rule closing the
+    // conversion by closing the type fails here. `toSource` answers a plain
+    // `string` — not a `tainted` one, since the bytes were already laundered.
+    let diags = check_in_method(
+        "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
+         string $s = Core\\Html::toSource($m, \"the one way out\");\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}

@@ -878,6 +878,10 @@ pub(crate) fn check_compound_assign(
     if op == BinaryOp::Concat {
         require_stringable(target_ty, target.span, env);
         require_stringable(value_ty, value.span, env);
+        // ADR 0133 § 2, for `.`'s compound spelling — the same row is missing
+        // on both sides of it.
+        reject_carrier_as_text(target_ty, target.span, env);
+        reject_carrier_as_text(value_ty, value.span, env);
     }
     let result = binary_result(op, target_ty, value_ty, span, env);
     if !is_assignable(result, target_ty, env.interner, env.graph, env.signatures) {

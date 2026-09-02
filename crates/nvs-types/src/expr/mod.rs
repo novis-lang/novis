@@ -83,7 +83,7 @@ pub(crate) use self::{
     iteration::{check_foreach_inout, check_foreach_key, check_foreach_value, foreach_source},
     literals::{check_array_key_type, check_object_literal, int_literal_digits},
     members::{can_hold_an_object, check_unset_target, is_this_receiver, resolve_class_expr},
-    operators::{reject_disjoint_equality, require_stringable},
+    operators::{reject_carrier_as_text, reject_disjoint_equality, require_stringable},
     quals::{reject_secret_attribute_constant, reject_secret_output},
 };
 
@@ -345,6 +345,11 @@ pub(crate) fn infer(
             if *op == BinaryOp::Concat {
                 require_stringable(lhs_ty, lhs.span, env);
                 require_stringable(rhs_ty, rhs.span, env);
+                // ADR 0133 § 2: `.` has no row for the HTML carrier, which is
+                // the refusal that makes `+` the composition operator rather
+                // than one of two.
+                reject_carrier_as_text(lhs_ty, lhs.span, env);
+                reject_carrier_as_text(rhs_ty, rhs.span, env);
             }
             binary_result(*op, lhs_ty, rhs_ty, expr.span, env)
         }

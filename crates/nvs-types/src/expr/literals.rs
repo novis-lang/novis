@@ -445,6 +445,10 @@ pub(crate) fn infer_interpolated(
             StringPart::Expr(e) => {
                 let ty = check_expr(e, None, live, scope, ctx, env);
                 require_stringable(ty, e.span, env);
+                // ADR 0133 § 2: an interpolated piece is `.` written the other
+                // way, and a carrier flattened into the literal is escaped
+                // again by the sink that receives it.
+                crate::expr::operators::reject_carrier_as_text(ty, e.span, env);
                 tainted |= is_tainted(ty, env.interner);
                 secret |= is_secret(ty, env.interner);
             }

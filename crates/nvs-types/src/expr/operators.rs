@@ -101,6 +101,9 @@ pub(crate) fn infer_conversion(
     let string_target = nullable_inner_target(result, env).unwrap_or(result);
     if matches!(env.interner.get(string_target), Ty::String) {
         require_stringable_object(inner_ty, inner.span, env);
+        // ADR 0133 § 3: the carrier renders, so the row above admits it — and
+        // `Markup as string` is precisely the keystroke that reopens the hole.
+        reject_carrier_as_text(inner_ty, inner.span, env);
     }
     check_class_target_conversion(ty, result, expr.span, env);
     // The two tables are one question asked of two spellings. `as ?T` interns
@@ -2464,6 +2467,53 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "converted to `string` here")
         .with_help(help),
+    );
+}
+
+/// [ADR 0133](../../../../docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+/// §§ 2 and 3, at the five sites that would turn a `Core\Html\Markup` back
+/// into text *without* the sink being the one asking: `.`, `.=`, an
+/// interpolated piece and `as string`.
+///
+/// The carrier renders — [`require_stringable_object`] says so, and it has to,
+/// because `echo $markup` writing the markup out raw is the whole reason the
+/// type exists. What this refuses is every *other* route to the same bytes.
+/// § 2's own example is the one that matters: `"Hello " . $m` would flatten the
+/// carrier into a `string`, which the HTML sink then escapes, and the program
+/// ships `&amp;amp;` — the bug ADR 0133 removes, with `.` spelling it instead
+/// of `escape`. § 3 refuses `as string` for the same reason in one keystroke
+/// fewer.
+///
+/// **`Core\Cli\Text` is deliberately not refused here**, and the asymmetry is
+/// ADR 0133 § 1's table rather than an oversight: the terminal's escape is
+/// *idempotent*, so a `Text` flattened into a `string` and re-neutralized by
+/// the sink comes out as the same bytes. The hazard is the second application
+/// changing the output, and one sink over it does not.
+///
+/// `Core\Html::toSource` is the way through, and it is a member so that the
+/// route is greppable and carries a written reason — which is what the help
+/// text below says at every one of these sites.
+pub(crate) fn reject_carrier_as_text(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let Ty::Class(qname, _) = env.interner.get(ty) else {
+        return;
+    };
+    if qname.to_string() != crate::CORE_HTML_MARKUP_CLASS {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CORE_CLASS_NOT_STRINGABLE,
+            format!(
+                "`{}` is not text; it is the carrier the HTML sink writes raw",
+                crate::CORE_HTML_MARKUP_CLASS
+            ),
+        )
+        .with_primary(span, "used as a `string` here")
+        .with_help(
+            "escaping is not idempotent, so text made out of a `Markup` is escaped a second \
+             time at the sink — write the markup to the sink directly, compose it with `+`, or \
+             say `Core\\Html::toSource($markup, \"why\")` if the bytes really are what you want",
+        ),
     );
 }
 
