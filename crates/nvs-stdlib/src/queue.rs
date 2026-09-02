@@ -248,6 +248,59 @@ const INSERT: &str = "with existing as (\
      returning id\
  ) select id from inserted union all select id from existing limit 1";
 
+/// ADR 0084 § 4's claim, as the one statement that finds a job and marks it in the same moment.
+///
+/// **`for update skip locked` is the whole of the mutual exclusion**, and it is why a fleet needs no
+/// protocol of ours: two workers running this against one server cannot come back with the same row,
+/// because the second one's lock attempt steps over what the first is holding instead of queueing
+/// behind it. § 4 names the other backends' spellings — `readpast`, and SQLite's immediate
+/// transaction — and each brings its own text for [`MIGRATION`]'s reason.
+///
+/// **The `update` is in the same statement as the `select`**, as a CTE, because two statements would
+/// be two moments: the lock the first took is released by its own commit before the second could
+/// arrive, and the row it found would be free in between. That is [`INSERT`]'s reasoning applied to
+/// the read side.
+///
+/// **Two arms, and the second is § 4's visibility timeout.** A pending row is claimable once its
+/// `run_at` has passed; a claimed one is claimable again when nothing has finished it within
+/// `[queue] visibility` of the claim. `$3` is that cutoff — the instant `visibility` before now,
+/// computed by the caller — rather than a bound written into this text, because [`MIGRATION`]'s
+/// `claimed_at` records when the claim was *taken* precisely so that
+/// [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md) § 1's reload can move the
+/// bound under jobs that are already claimed.
+///
+/// **`attempts` is incremented by the claim and not by the failure that follows it.** § 6's bound
+/// has to hold for the worker that dies reporting nothing at all, and an attempt counted only when a
+/// job reports its own failure retries forever on exactly the failure mode the timeout above exists
+/// for. It is also what makes [`COUNTS`]'s third counter answer during an attempt rather than after
+/// it.
+///
+/// **Keyed on one queue**, as every other statement here is and as [`MIGRATION`]'s `jobs.due` index
+/// is built for: `(queue, state, run_at)` is read leftmost-first, so a claim naming no queue would
+/// scan what this one seeks. Which queues one worker asks about is § 2's question and not this
+/// statement's.
+///
+/// The `returning` list is what running a job needs and nothing else: `queue` is `$1` and the row's
+/// other columns are the migration's business.
+// The worker `[queue] workers` starts is the next slice; this is the statement it will claim with,
+// landed beside `INSERT` where § 4's columns are and already held to the schema by the two tests
+// below. `not(test)` because those tests are its only reader today, so an unconditional `expect`
+// would be unfulfilled under `cargo test` — and it is `expect` rather than `allow` so that the
+// worker's first use of `CLAIM` reports this line instead of leaving it behind.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "read by the worker slice and by the tests")
+)]
+const CLAIM: &str = "with due as (\
+     select id from nvs_jobs \
+     where queue = $1::text \
+     and ((state = 0 and run_at <= $2::bigint) or (state = 1 and claimed_at <= $3::bigint)) \
+     order by run_at, id limit 1 \
+     for update skip locked\
+ ) update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = $2::bigint \
+   where id in (select id from due) \
+   returning id, script, args, attempts, max_attempts, backoff_ms";
+
 /// ADR 0084 §§ 1 and 6's `status`, as one statement over both of § 2's tables.
 ///
 /// **Two tables and not one**, because § 6 *moves* a job that has exhausted its attempts into the
@@ -524,7 +577,8 @@ const PUSH_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "backoff",
             desc: "The base delay for the exponential backoff between attempts, jittered by the \
-                   worker. Left out, the worker's own default.",
+                   worker. Left out, one second — the row records a delay either way, since there \
+                   is no spelling of a job that retries at once.",
             shape: &[],
         },
         ParamDoc {
@@ -884,15 +938,27 @@ fn run_at_of(args: &[Value]) -> Result<Option<i64>, Fault> {
     ))
 }
 
-/// `{backoff: …}` as milliseconds, or `None` for the call that left it out.
+/// The base delay a `push` that wrote no `{backoff: …}` agreed to, in milliseconds.
+///
+/// [ADR 0084](../../../docs/adr/0084-durable-background-jobs.md) § 6 asks for exponential backoff
+/// with jitter and a cap and names no number, and § 2's `[queue]` block has no key for one — the
+/// base is a property of the *job*, which is why § 1 puts it on `push`'s options shape beside
+/// `maxAttempts` and not in the deployment's block. So the default lives here, and it is not
+/// nothing: [`MIGRATION`]'s `backoff_ms` is `not null`, so there is no row that means "retry at
+/// once", and a job whose first attempt failed against a database or an endpoint would otherwise
+/// make its second one at the same instant. One second is long enough for that not to be a second
+/// failure of the same outage and short enough to be invisible on a queue that is merely busy.
+const DEFAULT_BACKOFF_MS: i64 = 1_000;
+
+/// `{backoff: …}` as milliseconds, or [`DEFAULT_BACKOFF_MS`] for the call that left it out.
 ///
 /// # Errors
 ///
 /// A thrown `LogicError` for a negative duration — a backoff that runs the next attempt before the
 /// one that failed.
-fn backoff_of(args: &[Value]) -> Result<Option<i64>, Fault> {
+fn backoff_of(args: &[Value]) -> Result<i64, Fault> {
     if matches!(args[BACKOFF_ARG].tag(), Some(Tag::Null)) {
-        return Ok(None);
+        return Ok(DEFAULT_BACKOFF_MS);
     }
     let nanos = crate::time::nanos_of(args, BACKOFF_ARG, "push")?;
     if nanos < 0 {
@@ -901,7 +967,7 @@ fn backoff_of(args: &[Value]) -> Result<Option<i64>, Fault> {
             format!("{PUSH}: `backoff` cannot be negative, and this one is {nanos}ns"),
         ));
     }
-    Ok(Some(nanos / 1_000_000))
+    Ok(nanos / 1_000_000)
 }
 
 /// `{maxAttempts: …}`, or the `[queue] max_attempts` the operator configured.
@@ -1128,7 +1194,7 @@ nvs_runtime::nvs_helper! {
             payload.map(String::into_bytes),
             Some(PENDING.to_string().into_bytes()),
             Some(max_attempts.to_string().into_bytes()),
-            backoff.map(|millis| millis.to_string().into_bytes()),
+            Some(backoff.to_string().into_bytes()),
             Some(run_at.unwrap_or(now).to_string().into_bytes()),
             Some(now.to_string().into_bytes()),
         ];
@@ -1513,7 +1579,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL, COUNTS, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING, STATE, STATS,
+        CANCEL, CLAIM, COUNTS, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING, STATE, STATS,
         STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
         STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS,
     };
@@ -1561,6 +1627,20 @@ mod tests {
                 "the `jobs` DDL creates the column `STATUS` and `COUNTS` read as `{column}`"
             );
         }
+        // `CLAIM` is the one statement that reads a column no `INSERT` writes: a claim's own
+        // instant, which is where § 4's visibility timeout is measured from.
+        assert!(
+            jobs.contains("claimed_at "),
+            "the `jobs` DDL creates `claimed_at`, which `CLAIM` writes and reads back"
+        );
+        assert!(
+            CLAIM.contains("for update skip locked"),
+            "§ 4's mutual exclusion is the database's, and this is the spelling that asks for it"
+        );
+        assert!(
+            labelled("jobs.due").contains("(queue, state, run_at)"),
+            "`CLAIM` seeks by queue, then state, then due-ness, which is the order of this index"
+        );
         for column in ["id ", "queue "] {
             assert!(
                 dead.contains(column),
@@ -1641,6 +1721,14 @@ mod tests {
             case("Claimed"),
             1,
             "`COUNTS`'s second counter spells this `1`"
+        );
+        assert!(
+            CLAIM.contains("set state = 1") && CLAIM.contains("(state = 1 and claimed_at"),
+            "`CLAIM` writes the ordinal above and is what the visibility timeout takes back"
+        );
+        assert!(
+            CLAIM.contains("state = 0 and run_at"),
+            "`CLAIM`'s first arm takes pending rows by `Pending`'s own ordinal"
         );
         assert!(
             COUNTS.contains("filter (where state = 1)"),
