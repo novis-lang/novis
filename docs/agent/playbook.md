@@ -1606,6 +1606,12 @@ is why" — is this file.
   (`Core\Db::open`, blocked on a registry type for a shape parameter — `nvs_stdlib::db` known gap
   1). The first is a filing bug you fix in one edit; the second is an open item and staying open is
   correct. Read the *known gaps* of the crates named before assuming either.
+- `peek.py --locate` takes **symbols only**, and a file path in that list is read as one more symbol
+  to search the whole repository for. `--locate a b c crates/nvs-stdlib/src/db.rs` therefore walks
+  every file in the tree looking for a symbol named after the path, which ran past a 120-second
+  timeout in one measured call. The scoping flag is `--in <glob>`, as in
+  `python tools/peek.py --locate postgres_of --in 'crates/nvs-stdlib/**/*.rs'`; a plain `grep -n` over
+  the one file you meant is cheaper still.
 
 ## Running things
 

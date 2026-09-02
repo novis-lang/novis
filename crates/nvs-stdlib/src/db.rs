@@ -88,10 +88,12 @@
 //!    parameter. Sending is not: [`queried_rows`] branches on the connection
 //!    and [`mysql_rows`] drains a binary result set through § 9's decode, so
 //!    `query`, `queryAs`, `execute` and `executeMany` answer on either driver,
-//!    § 11's event included — but `transaction` still goes through
-//!    [`postgres_of`] and refuses a MySQL connection, because § 7's commands
-//!    and its nesting depth are on `nvs_db::PgConn` alone. MariaDB binds and
-//!    then has nowhere to send, which is the arm [`driverless`] refuses on.
+//!    § 11's event included. § 7's `transaction` does too, over [`Transacting`]
+//!    — the two drivers' commands differ and `nvs_db::mysql`'s `begin` owns how,
+//!    but the five points this module asks them at do not. What is still
+//!    PostgreSQL-only is [`crate::queue`]'s four members, and that is all of
+//!    known gap 2 above the handshake. MariaDB binds and then has nowhere to
+//!    send, which is the arm [`driverless`] refuses on.
 //! 3. **Only the two drivers that open are pooled.** ADR 0067 § 13's pool is
 //!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
 //!    teardown under the ticket `Core\Db::connect` files, and
@@ -3070,7 +3072,7 @@ struct Statement {
 /// caller cannot state: [`rendering_of`] reads it off the connection filed
 /// under the receiver's key, and § 5's rewrite and § 9's encoding follow it
 /// together. The context is borrowed for that lookup alone and released before
-/// the caller reaches [`postgres_of`], so a member still binds and sends inside
+/// the caller reaches [`transacting`], so a member still binds and sends inside
 /// one borrow each.
 ///
 /// Both spellings of the member's name are passed because two things want
@@ -3494,7 +3496,7 @@ fn rendering_for(driver: nvs_db::Driver) -> Option<(nvs_db::Dialect, Encoder)> {
 /// is written in its own connection's dialect rather than in one this module
 /// picked.
 ///
-/// It is asked **before** anything is rewritten, where [`postgres_of`] is asked
+/// It is asked **before** anything is rewritten, where [`driverless`] is asked
 /// after everything is bound — the two refusals therefore name different
 /// halves of gap 2, and a driver that can bind but not send says so at the
 /// send.
@@ -3522,7 +3524,7 @@ fn rendering_of(
 
 /// The `nvs-db` connection filed under `key`, whichever driver it is.
 ///
-/// The one downcast in this module: [`postgres_of`] narrows it further and
+/// The one downcast in this module: [`transacting`] narrows it further and
 /// [`rendering_of`] only reads its driver, and either written on its own is a
 /// second place holding the two `Fault::fatal`s that say the request's own
 /// table is wrong.
@@ -3552,38 +3554,99 @@ fn filed_connection<'a>(
         })
 }
 
-/// The connection a member that is still PostgreSQL-only names: ADR 0067 § 7's
-/// `transaction`, whose commands and nesting depth are on `nvs_db::PgConn`
-/// alone, and [`crate::queue`]'s four, whose statements are that ADR's own.
+/// A connection ADR 0067 § 7's commands are written for, borrowed as one thing.
 ///
-/// The key and the block are passed rather than a [`Statement`] or a [`Batch`],
-/// because they are the only two fields it reads and a batch is not a statement
-/// — the alternative is a `Statement` built with an empty `binds` purely to
-/// reach this, which would be a shape nothing else in this module means. The
-/// statement members no longer come through here at all: they branch on
-/// [`filed_connection`] and refuse through [`driverless`].
+/// The two drivers spell a transaction differently — `nvs_db::mysql`'s `begin`
+/// owns the differences, from `START TRANSACTION` down to the release a nested
+/// rollback does not owe — but they answer the same four questions, and
+/// `transaction` asks them at five points around a closure it does not control.
+/// An enum here rather than a trait in `nvs-db`: which commands a backend sends
+/// is exactly what this goal's ADR slot refuses to flatten, and what this needs
+/// is the *call sites* flattened rather than the drivers.
+///
+/// The key and the block are passed to [`transacting`] rather than a
+/// [`Statement`] or a [`Batch`], because they are the only two fields it reads
+/// and a batch is not a statement — the alternative is a `Statement` built with
+/// an empty `binds` purely to reach this, which would be a shape nothing else
+/// in this module means.
+enum Transacting<'a> {
+    /// § 7 over the extended-query protocol's simple `Query`.
+    Postgres(&'a mut nvs_db::PgConn),
+    /// § 7 over `COM_QUERY`, with an isolation level as a command of its own.
+    MySql(&'a mut nvs_db::MySqlConn),
+}
+
+impl Transacting<'_> {
+    /// How many of § 7's levels are open — 0 outside a transaction.
+    fn depth(&self) -> u32 {
+        match self {
+            Transacting::Postgres(postgres) => postgres.depth(),
+            Transacting::MySql(mysql) => mysql.depth(),
+        }
+    }
+
+    /// § 7's outermost `BEGIN`, or the `SAVEPOINT` a nested call opens.
+    ///
+    /// # Errors
+    ///
+    /// As the driver's own `begin`, including the refusal of a nested call that
+    /// asked for either option.
+    fn begin(
+        &mut self,
+        isolation: Option<nvs_db::Isolation>,
+        read_only: bool,
+    ) -> std::io::Result<nvs_db::QuerySpan> {
+        match self {
+            Transacting::Postgres(postgres) => postgres.begin(isolation, read_only),
+            Transacting::MySql(mysql) => mysql.begin(isolation, read_only),
+        }
+    }
+
+    /// § 7's `COMMIT`, or the release that closes a nested level.
+    ///
+    /// # Errors
+    ///
+    /// As the driver's own `commit`.
+    fn commit(&mut self) -> std::io::Result<nvs_db::QuerySpan> {
+        match self {
+            Transacting::Postgres(postgres) => postgres.commit(),
+            Transacting::MySql(mysql) => mysql.commit(),
+        }
+    }
+
+    /// § 7's `ROLLBACK`, or the undo of a nested level.
+    ///
+    /// # Errors
+    ///
+    /// As the driver's own `roll_back`.
+    fn roll_back(&mut self) -> std::io::Result<nvs_db::QuerySpan> {
+        match self {
+            Transacting::Postgres(postgres) => postgres.roll_back(),
+            Transacting::MySql(mysql) => mysql.roll_back(),
+        }
+    }
+}
+
+/// The connection filed under `key`, as the driver § 7's commands run on.
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` for a block naming another driver — this module's
-/// known gap 2 — and a [`Fault::fatal`] for a key the request's own table does
-/// not hold, which is this crate's paste error rather than a program's.
-fn postgres_of<'a>(
+/// A thrown `RuntimeError` for a block naming a driver with no transaction
+/// behind it — [`driverless`]'s wording, because it is the same known gap 2 the
+/// statement members refuse under — and a [`Fault::fatal`] for a key the
+/// request's own table does not hold, which is this crate's paste error rather
+/// than a program's.
+fn transacting<'a>(
     ctx: &'a mut nvs_runtime::Ctx,
     key: u64,
     block: &Value,
     named: &str,
-) -> Result<&'a mut nvs_db::PgConn, Fault> {
-    let connection = filed_connection(ctx, key, named)?;
-    let driver = connection.driver();
-    let nvs_db::Connection::Postgres(postgres) = connection else {
-        return Err(Fault::thrown(format!(
-            "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL runs this member \
-             so far — this module's known gap 2 is the list",
-            block.as_text().unwrap_or("?")
-        )));
-    };
-    Ok(postgres)
+) -> Result<Transacting<'a>, Fault> {
+    match filed_connection(ctx, key, named)? {
+        nvs_db::Connection::Postgres(postgres) => Ok(Transacting::Postgres(postgres)),
+        nvs_db::Connection::MySql(mysql) => Ok(Transacting::MySql(mysql)),
+        other => Err(driverless(named, block, other.driver())),
+    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -3688,10 +3751,11 @@ fn queried_rows(
 /// The refusal a connection whose driver has no send path draws — this module's
 /// known gap 2, worded once.
 ///
-/// Three members reach it ([`queried_rows`], `execute`, `executeMany`) and a
-/// message per member would be three sentences to keep agreeing as the list
-/// shortens. It names the driver the block actually resolved to, because "this
-/// one is not supported" without saying which is what an operator cannot act on.
+/// Four members reach it ([`queried_rows`], `execute`, `executeMany` and
+/// § 7's `transaction`, through [`transacting`]) and a message per member would
+/// be four sentences to keep agreeing as the list shortens. It names the driver
+/// the block actually resolved to, because "this one is not supported" without
+/// saying which is what an operator cannot act on.
 fn driverless(named: &str, block: &Value, driver: nvs_db::Driver) -> Fault {
     Fault::thrown(format!(
         "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL and MySQL run a \
@@ -3952,7 +4016,7 @@ fn mysql_write(
 /// **before** a statement borrows the context.
 ///
 /// A statement holds `ctx` mutably for as long as its rows do
-/// ([`postgres_of`]), so neither can be read at the point the event is filed.
+/// ([`transacting`]), so neither can be read at the point the event is filed.
 /// Reading them early also means a request that turns tracing on midway through
 /// a statement does not get half an event — the span is either filed whole or
 /// not at all, unlike a call site's pair, which ADR 0018 deliberately lets
@@ -4707,14 +4771,16 @@ nvs_runtime::nvs_helper! {
             // the `BEGIN` is the only thing that says which this call is —
             // re-running a nested closure would re-run it inside an outer
             // transaction the conflict has already aborted.
-            let outermost = postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?.depth() == 0;
+            let outermost = transacting(ctx, key, &block, TRANSACTION_MEMBER)?.depth() == 0;
             // § 11's event covers § 7's own commands as well as the statements
             // inside them: a trace that showed the closure's writes but not the
             // `BEGIN` and the `COMMIT` around them would put the transaction's
             // whole cost on its last statement. The driver answers with the
             // span because only it knows whether the depth made this a
-            // `SAVEPOINT` — [`nvs_db::PgConn::begin`] owns that.
-            let opened = postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?
+            // `SAVEPOINT` — [`nvs_db::PgConn::begin`] and its MySQL twin own
+            // that, and the second of them spends two round trips where an
+            // isolation level was asked for.
+            let opened = transacting(ctx, key, &block, TRANSACTION_MEMBER)?
                 .begin(isolation, read_only)
                 .map_err(|refused| {
                     statement_failure(TRANSACTION_MEMBER, &block, None, &refused)
@@ -4763,8 +4829,8 @@ nvs_runtime::nvs_helper! {
                     // Best effort as before, and filed on the path where it
                     // worked: an undo the server ran is a statement the trace
                     // owes an entry, and one it refused leaves no span to file.
-                    let undone = match postgres_of(ctx, key, &block, TRANSACTION_MEMBER) {
-                        Ok(postgres) => postgres.roll_back().ok(),
+                    let undone = match transacting(ctx, key, &block, TRANSACTION_MEMBER) {
+                        Ok(mut open) => open.roll_back().ok(),
                         Err(_) => None,
                     };
                     if let Some(span) = undone {
@@ -4786,12 +4852,12 @@ nvs_runtime::nvs_helper! {
             // The driver's own error rather than the `Fault` it renders to: the
             // retry rule branches on § 8's kind, which only [`nvs_db`] can put
             // there and only this shape still carries.
-            let closed = match postgres_of(ctx, key, &block, TRANSACTION_MEMBER) {
-                Ok(postgres) => {
+            let closed = match transacting(ctx, key, &block, TRANSACTION_MEMBER) {
+                Ok(mut open) => {
                     if abandoned.is_some() {
-                        postgres.roll_back()
+                        open.roll_back()
                     } else {
-                        postgres.commit()
+                        open.commit()
                     }
                 }
                 Err(fault) => {

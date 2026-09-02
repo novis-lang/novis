@@ -2,69 +2,67 @@
 
 ## State
 
-**ADR 0067 § 11's `query` event is filed on either driver.** `MySqlRows`
-(`crates/nvs-db/src/mysql.rs:2174`) carries a `QuerySpan` opened in
-`start_statement` before the prepare — § 1's first round trip is part of what the caller waited —
-counted per row in `next_row`, and finished at the result-set terminator or, for a statement with no
-result set, at the status packet the execution answered with. `nvs-stdlib`'s `mysql_rows` hands back
-`QueryWatch::taken`'s pair exactly as `postgres_rows` does, and `name_span` is now generic over the
-`NamesConnection` trait so the block-naming rule has one home rather than one per driver.
+**ADR 0067 § 7's `transaction` runs on a MySQL connection, both halves.** The driver's
+`begin`/`commit`/`roll_back` are `crates/nvs-db/src/mysql.rs:1880` onward, free and generic in the
+stream as the playbook prescribes, sharing `pg.rs`'s `open_transaction` and `savepoint_name` so the
+naming rule and the no-transaction refusal have one home each. Three decisions the module doc owns in
+full: § 7's commands go out as `COM_QUERY` and never as § 1's prepared statements; an isolation level
+is a `SET TRANSACTION` of its own *ahead* of `START TRANSACTION`, because MySQL takes no level on the
+statement that opens a transaction, and both round trips sit inside one § 11 span; and a nested
+`ROLLBACK TO SAVEPOINT` needs no `RELEASE` after it, because MySQL deletes the savepoint a same-named
+one finds where PostgreSQL stacks it — this driver never negotiates `CLIENT_MULTI_STATEMENTS`, so
+`pg.rs`'s two-statements-in-one-command trick is not available and is not needed.
 
-**§ 4's `execute` and `executeMany` answer on a MySQL connection.** `execute` branches on
-`filed_connection` into `postgres_write`/`mysql_write` (`crates/nvs-stdlib/src/db.rs:3701`), which
-answer a `Written` pair — and MySQL's `lastId` of `0` maps to null, because § 4's field is `?uint`
-and the zero is the protocol's spelling of absence. `executeMany` opens § 11's span at the
-connection's own driver and calls either `execute_many`. `nvs_db::mysql::execute_many` costs one
-prepare and **N round trips**, not PostgreSQL's one flush: a MySQL command restarts the packet
-sequence id, so two in flight cannot be framed apart. What a caller observes is the same on both —
-the writes before a failure stand, the sets after it are still attempted, the *first* refusal is the
-answer — and a wire failure is the one thing that ends the batch early.
+**`nvs-stdlib`'s `transaction` branches on the connection.** `postgres_of` is gone from
+`crates/nvs-stdlib/src/db.rs`; `Transacting` (`:3572`) is the enum its five call sites now borrow
+through, and a driver with no § 7 path refuses under `driverless`'s one sentence. `crate::queue`'s
+four members are now *all* of the module's known gap 2 above the handshake, and they keep their own
+`postgres_of`.
 
-**Still PostgreSQL-only, and this is now all of the module's known gap 2**: § 7's `transaction`
-(`postgres_of`, `crates/nvs-stdlib/src/db.rs:3568`) and `crate::queue`'s four members. MariaDB,
-SQL Server and SQLite are refused by `driverless` before anything is sent.
+**The gap this session found, and the reason it is the next group.** MySQL's `server_refusal`
+(`crates/nvs-db/src/mysql.rs:844`) builds a plain `PermissionDenied` `io::Error` and attaches **no
+`ServerError`**, where `pg.rs` attaches one carrying § 8's kind. So on MySQL a deadlock is not
+retryable under § 7's `{retries: n}`, `Db\DbError`'s kind reads as nothing, and `mysql.rs`'s `commit`
+has to tell "the server refused this" from "we refused it" by reading the connection state
+`poison_on_write` left rather than by asking `ServerError::of` as `pg.rs` does.
 
-**No MySQL path has met a server.** `verify.py` has no matrix leg, so what holds all of this is the
-type checker plus six unit tests against `mysql.rs`'s scripted `Peer`; `tools/db-matrix.py` and
-`crates/nvs-db/src/matrix.rs` are the leg that would.
+**No MySQL path has met a server**, § 7's included: what holds all of it is the type checker plus ten
+unit tests against `mysql.rs`'s scripted `Peer`. `tools/db-matrix.py` and
+`crates/nvs-db/src/matrix.rs` are the leg that would, and it is still the largest hole in this goal.
 
 **The driver's stage-2 acceptance check is unchanged and still open**:
-`a_db_open_target_in_a_denied_range_fails` waits on `Core\Db::open`, blocked on a registry type for
-a shape **parameter** (`nvs_stdlib::db` known gap 1) — a language-surface decision that wants its
-own ADR, not a slice. Untouched this session.
+`a_db_open_target_in_a_denied_range_fails` waits on `Core\Db::open`, blocked on a registry type for a
+shape **parameter** (`nvs_stdlib::db` known gap 1) — a language-surface decision that wants its own
+ADR, not a slice. Untouched this session.
 
-**`orient.py` gaps:** `[context] adrs` wants ADR 0067 § 4 and § 11 — both slices this session were
-specified by sections the pack did not print, for the second session running. § 7 is the next
-group's.
+**`orient.py` gaps:** `[context] adrs` printed § 1, § 9 and § 13 while the item was specified by
+**§ 7**, which had to be sliced by hand — the third session running where the section naming the work
+was the one missing. The next group wants **§ 8** there too.
 
 ## Next group
 
-**§ 7's `transaction` over a MySQL connection, one file set:
-`crates/nvs-db/src/mysql.rs` and `crates/nvs-stdlib/src/db.rs`, against
-`crates/nvs-db/src/pg.rs`'s § 7 half. The driver first — the stdlib arm has nothing to call
-until the three commands and the depth exist.**
+**MySQL's refusals carry § 8's kind, one file set: `crates/nvs-db/src/mysql.rs` and
+`crates/nvs-stdlib/src/db.rs`, against `crates/nvs-db/src/pg.rs`'s § 8 half. The driver first — the
+stdlib arm has nothing to read until the kind is on the error.**
 
-- [ ] **§ 7's `BEGIN`/`COMMIT`/`ROLLBACK` and the `SAVEPOINT` nesting on `MySqlConn`** — ADR 0067
-      § 7. `crates/nvs-db/src/pg.rs:2963` (`begin`), `crates/nvs-db/src/pg.rs:3008` (`commit`),
-      `crates/nvs-db/src/pg.rs:3053` (`roll_back`), `crates/nvs-db/src/pg.rs:3128`
-      (`begin_command`, which renders the two options) and `crates/nvs-db/src/pg.rs:3168`
-      (`simple_command`, which opens the span each answers with) are the shapes;
-      `crates/nvs-db/src/pg.rs:608` is `depth`. MySQL has no `COM_QUERY` path in this driver yet,
-      so the first question is whether these go out as `COM_QUERY` or as prepared statements —
-      `crates/nvs-db/src/mysql.rs:1571` (`start_statement`) is the only send path there is today.
-- [ ] **`transaction` branches on the connection instead of demanding a `PgConn`** — ADR 0067 § 7.
-      `crates/nvs-stdlib/src/db.rs:4709`, `:4716`, `:4765` and `:4788` are the four `postgres_of`
-      calls the member makes; `crates/nvs-stdlib/src/db.rs:3568` is `postgres_of` itself, which
-      after this owes only `crate::queue`.
-- [ ] **A `.nvst` or matrix case over a MySQL write** — `crates/nvs-db/src/matrix.rs:1` names the
-      `NVS_DB_MATRIX_*` fields and `tools/db-matrix.py` brings a server up. Nothing in this
-      session's work has met one.
+- [ ] **`server_refusal` answers a `ServerError` carrying § 8's kind** — ADR 0067 § 8.
+      `crates/nvs-db/src/mysql.rs:844` is the function, `crates/nvs-db/src/pg.rs:962`
+      (`server_error`) and `crates/nvs-db/src/pg.rs:971` (`kind_of`) are the shapes. MySQL has both a
+      vendor integer and a `SQLSTATE`, and § 8's `driverCode` field exists for the first — 1213 and
+      1205 are the two that decide a retry, and `ServerError::backend` is `"mysql"`.
+- [ ] **`commit` asks `ServerError::of` instead of reading the connection state** — ADR 0067 § 7.
+      `crates/nvs-db/src/mysql.rs:1967`. The state test there is exact but indirect, and it exists
+      only because the kind above was missing; landing it makes the two drivers' `commit` read alike.
+- [ ] **A `.nvst` or matrix case over a MySQL transaction** — `crates/nvs-db/src/matrix.rs:1` names
+      the `NVS_DB_MATRIX_*` fields and `tools/db-matrix.py` starts the container. § 7's nesting is
+      the case worth writing: a savepoint the server really keeps, and a rollback that really undoes
+      only the inner level.
 
 ## Backlog
 
-- `Core\Db::open`'s shape parameter needs a registry type — `nvs_stdlib::db` known gap 1, and it
-  wants its own ADR.
-- `crate::queue`'s four members are PostgreSQL-only — `nvs_stdlib::queue`.
-- SQL Server and SQLite have no connect path — `nvs_db` module doc.
-- The MySQL statement cache is invalidated by § 13's reset, untested against a server —
-  `nvs_db::mysql`.
+- `crate::queue`'s four members are PostgreSQL-only — `crates/nvs-stdlib/src/queue.rs:1295`.
+- § 7's retry has no backoff at all — `nvs_stdlib::db` known gap 9.
+- `Core\Db::open` waits on a registry type for a shape parameter — `nvs_stdlib::db` known gap 1, and
+  the driver's own acceptance check.
+- MariaDB binds and has nowhere to send — `nvs_stdlib::db` known gap 2.
+- No matrix leg runs in `verify.py`, so every MySQL claim rests on a scripted peer.
