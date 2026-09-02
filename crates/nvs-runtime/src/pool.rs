@@ -61,14 +61,30 @@
 //! A lease is the core's that took it, like everything else here, and is
 //! dropped there: the slot it gives back is that core's.
 //!
-//! # The bound this module does not read yet
+//! # `acquire` is a queue, and a slot is handed over rather than freed
 //!
 //! [`PoolBounds::acquire`] is how long a request may wait at that ceiling
-//! before it throws, and a wait needs the core's scheduler rather than this
-//! `Vec`. Until it lands, [`admit`] answers `None` the moment a key is full —
-//! which is exactly what `acquire = 0` means, a value § 13 makes legal and
-//! defines as refusing rather than queueing. What is missing is the waiting,
-//! not the refusal.
+//! before it throws. [`admit`] on its own is the `acquire = 0` answer — a value
+//! § 13 makes legal and defines as refusing rather than queueing — and [`queue`]
+//! is every other value: it joins the caller to a per-key line, [`Waiting::slot`]
+//! is what a woken task re-asks, and dropping the [`Waiting`] leaves the line.
+//!
+//! **The parking is the caller's, and deliberately.** Giving a core back needs a
+//! scheduler, which this crate does not have and does not grow one for:
+//! `nvs-stdlib` holds the loop and parks through [`crate::host`], the same
+//! inversion `Core\Channel` already waits on. What lives here is the part that
+//! has to be exactly as long as the pool it bounds — the line, and the
+//! hand-over.
+//!
+//! **A [`Lease`] that ends gives its slot to the longest-waiting task under its
+//! key rather than to the count.** The count does not dip across that hand-over,
+//! so a request arriving between the wake and the woken task's resumption finds
+//! the key still full and joins the back of the line instead of taking a slot
+//! that was already spoken for. That is what makes `acquire` a queue rather than
+//! a scramble: a request that waited its `acquire` out did so because the pool
+//! genuinely never had a slot for it, and not because it kept losing a race it
+//! was never told it was in. It costs nothing to enforce — [`admit`] is
+//! unchanged, and the count it already reads is the whole of the rule.
 //!
 //! # What it spends
 //!
@@ -81,13 +97,21 @@
 //! The count above adds one entry per key a core has a live connection under —
 //! a string and a number, dropped when the last of them goes home, so it is
 //! O(keys in use) and not O(connections) or O(generations seen).
+//!
+//! The line adds one entry per task *currently waiting* — a string, a number and
+//! a boxed closure — and nothing per task that is not. It is empty on every
+//! deployment whose `max` fits its traffic, which is the shape `max` is sized
+//! for, and it is O(in-flight) rather than O(requests served) in the shape that
+//! is not.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 use std::time::Instant;
 
 use nvs_config::db::PoolBounds;
 use nvs_config::snapshot::Snapshot;
+
+use crate::host::Waker;
 
 use crate::ctx::HeldConnection;
 
@@ -205,12 +229,67 @@ thread_local! {
     static LIVE: RefCell<Vec<Live>> = const { RefCell::new(Vec::new()) };
 }
 
+/// One task waiting for a slot under a key: § 13's `acquire`, from the inside.
+struct Waiter {
+    /// The [`Ticket::key`] it is waiting under.
+    key: String,
+    /// This registration's own number, so a drop removes *its* entry and not
+    /// whichever one happens to be at the same index.
+    id: u64,
+    /// What makes the waiting task runnable again, fired once by the [`Lease`]
+    /// that hands this waiter its slot and taken at that same moment — so a
+    /// second lease ending cannot find it and hand the slot over twice.
+    waker: Option<Waker>,
+    /// Whether a lease that ended has already handed this waiter its slot. The
+    /// slot stays counted in [`LIVE`] across the hand-over, which is what keeps
+    /// a newcomer's [`admit`] from taking it.
+    granted: bool,
+}
+
+thread_local! {
+    /// Every task on this core waiting for a slot, oldest first — the order is
+    /// the queue itself, which is why this is a `Vec` and not a map even more
+    /// plainly than the two stores above: `max` is sized so that this is empty.
+    static WAITING: RefCell<Vec<Waiter>> = const { RefCell::new(Vec::new()) };
+    /// The next registration's number, never reused within a core's life.
+    static TICKETS: Cell<u64> = const { Cell::new(0) };
+}
+
+/// Counts one more live connection under `ticket`'s key, or reports that the
+/// key already holds [`PoolBounds::max`] of them on this core.
+///
+/// The whole of the ceiling, in one function because [`admit`] and
+/// [`Waiting::slot`] ask the same question from either side of the queue.
+fn grant(live: &mut Vec<Live>, ticket: &Ticket) -> bool {
+    if !ticket.bounds.enabled {
+        return true;
+    }
+    match live.iter_mut().find(|entry| entry.key == ticket.key) {
+        Some(entry) if entry.count >= ticket.bounds.max => false,
+        Some(entry) => {
+            entry.count += 1;
+            true
+        }
+        // `max` is never `0` — `nvs_config::db::pool_for` refuses that at
+        // boot and names `pool = false` as what was meant — so the first
+        // connection under a key is always admitted.
+        None => {
+            live.push(Live {
+                key: ticket.key.clone(),
+                count: 1,
+            });
+            true
+        }
+    }
+}
+
 /// One live connection's slot under a key: § 13's `max`, held.
 ///
 /// A lease is the *right* to have a connection open on this core under
 /// [`Ticket::key`], taken before the connection exists — by [`admit`], which
 /// is where the ceiling is enforced — and given back when the connection is
-/// released or closed. [`take`] draws against one, so every connection under a
+/// released or closed, or handed straight to a task waiting under the same key
+/// ([`queue`]). [`take`] draws against one, so every connection under a
 /// key is counted and not only the ones the pool itself supplied; the module
 /// doc's *What `max` counts* owns why that is what makes `cores × max` true.
 ///
@@ -245,6 +324,28 @@ impl Drop for Lease {
         if !self.ticket.bounds.enabled {
             return;
         }
+        // The slot goes to the longest-waiting task under this key before it
+        // goes back to the count, and the count does not dip while it travels:
+        // the module doc's *`acquire` is a queue* owns why handing over rather
+        // than freeing-and-waking is what makes the line a line.
+        let handed = WAITING.with_borrow_mut(|waiting| {
+            let waiter = waiting
+                .iter_mut()
+                .find(|waiter| waiter.key == self.ticket.key && !waiter.granted)?;
+            // A waiter is registered with its wake and loses it only here, so
+            // ungranted-and-wakeless is a state it cannot be in; taking the
+            // wake first anyway is what keeps that true of the entry as well.
+            let wake = waiter.waker.take();
+            waiter.granted = wake.is_some();
+            wake
+        });
+        // Fired outside the borrow: a wake queues a task id on the scheduler's
+        // tree and reaches nothing here, but a store that calls out from inside
+        // its own borrow is one edit away from a panic.
+        if let Some(wake) = handed {
+            wake();
+            return;
+        }
         LIVE.with_borrow_mut(|live| {
             let Some(at) = live.iter().position(|entry| entry.key == self.ticket.key) else {
                 return;
@@ -270,10 +371,14 @@ impl Drop for Lease {
 /// back either way — which costs it nothing to remember, because the [`Lease`]
 /// gives it back when it drops.
 ///
-/// `None` is the ceiling reached and nothing else. What a request does about it
-/// is the caller's: § 13's [`PoolBounds::acquire`] is how long it may wait for
-/// a slot, and until that lands the answer is immediate — the module doc's
-/// *The bound this module does not read yet*.
+/// `None` is the ceiling reached and nothing else, and it is the whole of
+/// § 13's `acquire = 0`. A caller that may wait longer than that joins the line
+/// with [`queue`] instead; a caller that may not — or that has no task under it
+/// to park — reads this `None` as the refusal.
+///
+/// **A queued waiter is never barged past**, and that needs no test here: a
+/// [`Lease`] hands its slot to the head of the line without the count dipping,
+/// so a key with anyone waiting is a key this function still finds full.
 ///
 /// A key whose pool is off (§ 13's `pool = false`) has no ceiling and is not
 /// counted: that switch restores connect-per-request *exactly*, and a limit the
@@ -283,26 +388,116 @@ pub fn admit(ticket: Ticket) -> Option<Lease> {
     if !ticket.bounds.enabled {
         return Some(Lease { ticket });
     }
-    let admitted = LIVE.with_borrow_mut(|live| {
-        match live.iter_mut().find(|entry| entry.key == ticket.key) {
-            Some(entry) if entry.count >= ticket.bounds.max => false,
-            Some(entry) => {
-                entry.count += 1;
-                true
-            }
-            // `max` is never `0` — `nvs_config::db::pool_for` refuses that at
-            // boot and names `pool = false` as what was meant — so the first
-            // connection under a key is always admitted.
-            None => {
-                live.push(Live {
-                    key: ticket.key.clone(),
-                    count: 1,
-                });
-                true
-            }
-        }
+    LIVE.with_borrow_mut(|live| grant(live, &ticket))
+        .then(|| Lease { ticket })
+}
+
+/// A place in the line for a slot under one key: § 13's `acquire`, held.
+///
+/// [`queue`] takes one, [`Waiting::slot`] is what the caller re-asks after every
+/// wake, and dropping it leaves the line — including handing on a slot that was
+/// granted to a task which has stopped waiting for it, so a deadline that passed
+/// at the wrong moment cannot strand one.
+///
+/// The waiting itself is the caller's, for the reason the module doc gives; what
+/// this is, is the registration that makes the wait finite and fair.
+#[derive(Debug)]
+pub struct Waiting {
+    /// This registration's number in [`WAITING`].
+    id: u64,
+    /// The ticket a granted slot would be held under, taken when it becomes a
+    /// [`Lease`] and `None` after that — which is also how [`Drop`] knows there
+    /// is nothing left to hand on.
+    ticket: Option<Ticket>,
+}
+
+/// Joins the line for a slot under `ticket`'s key, firing `waker` when one is
+/// handed over.
+///
+/// **Taken before the caller parks**, which is [`crate::host::Host::waker`]'s
+/// own rule read on this queue: a registration made after the last look at the
+/// pool could miss the very hand-over it is about to wait for, and that is the
+/// one way this becomes a hang rather than a wait.
+///
+/// It does not itself check whether a slot is free — [`Waiting::slot`] is that
+/// question, and asking it *after* joining the line is what closes the gap
+/// above. A caller therefore queues first and looks second, every time.
+pub fn queue(ticket: Ticket, waker: Waker) -> Waiting {
+    let id = TICKETS.with(|next| {
+        let id = next.get();
+        next.set(id + 1);
+        id
     });
-    admitted.then(|| Lease { ticket })
+    WAITING.with_borrow_mut(|waiting| {
+        waiting.push(Waiter {
+            key: ticket.key.clone(),
+            id,
+            waker: Some(waker),
+            granted: false,
+        });
+    });
+    Waiting {
+        id,
+        ticket: Some(ticket),
+    }
+}
+
+impl Waiting {
+    /// The slot this waiter has now, or `None` because the key is still full.
+    ///
+    /// Two ways to have one, and the caller cannot tell them apart because
+    /// nothing turns on it: a lease that ended handed this waiter its slot, or
+    /// the key has room and nobody was waiting ahead to be handed it. The second
+    /// is what makes the first call to this — the one right after [`queue`] —
+    /// the acquire that usually succeeds.
+    ///
+    /// Answers `Some` at most once: the registration is off the line after it,
+    /// and the [`Lease`] is now the only thing holding the slot.
+    #[must_use]
+    pub fn slot(&mut self) -> Option<Lease> {
+        let ticket = self.ticket.as_ref()?;
+        let granted = WAITING.with_borrow(|waiting| {
+            waiting
+                .iter()
+                .any(|waiter| waiter.id == self.id && waiter.granted)
+        });
+        // A granted slot is already counted, so it is taken rather than
+        // re-granted; the ceiling would otherwise be off by every hand-over.
+        if !granted && !LIVE.with_borrow_mut(|live| grant(live, ticket)) {
+            return None;
+        }
+        self.leave();
+        self.ticket.take().map(|ticket| Lease { ticket })
+    }
+
+    /// Takes this registration off the line, if it is still on it.
+    fn leave(&self) {
+        WAITING.with_borrow_mut(|waiting| {
+            if let Some(at) = waiting.iter().position(|waiter| waiter.id == self.id) {
+                waiting.remove(at);
+            }
+        });
+    }
+}
+
+impl Drop for Waiting {
+    fn drop(&mut self) {
+        let granted = WAITING.with_borrow(|waiting| {
+            waiting
+                .iter()
+                .find(|waiter| waiter.id == self.id)
+                .is_some_and(|waiter| waiter.granted)
+        });
+        self.leave();
+        // A slot handed to a task that has stopped waiting — its deadline came
+        // up between the hand-over and its resumption, or it was cancelled — is
+        // still a slot somebody holds under `max`. Turning it back into a lease
+        // and dropping it is how it reaches the next waiter, or the count, by
+        // the one path that does either.
+        if granted && let Some(ticket) = self.ticket.take() {
+            drop(Lease { ticket });
+        }
+    }
 }
 
 /// Releases `connection` to this core's pool, or closes it here.
@@ -398,8 +593,21 @@ mod tests {
 
     use nvs_config::snapshot::Snapshot;
 
-    use super::{Lease, PoolBounds, Ticket, admit, release, take};
+    use super::{Lease, PoolBounds, Ticket, Waiting, admit, queue, release, take};
     use crate::ctx::HeldConnection;
+
+    /// Joins the line under `ticket`'s key with a wake that counts its firings.
+    ///
+    /// A `Waker` is a `Box<dyn FnOnce()>` and nothing more, so a case needs no
+    /// scheduler to be a waiting task here — which is the seam doing its job:
+    /// the pool's half of `acquire` is the line and the hand-over, and neither
+    /// of those is a park.
+    fn waiter(ticket: Ticket) -> (Waiting, std::rc::Rc<std::cell::Cell<u32>>) {
+        let woken = std::rc::Rc::new(std::cell::Cell::new(0));
+        let counter = std::rc::Rc::clone(&woken);
+        let waiting = queue(ticket, Box::new(move || counter.set(counter.get() + 1)));
+        (waiting, woken)
+    }
 
     /// A connection that is nothing but an identity and an answer to the
     /// release gate — everything this module does to a connection it does
@@ -697,5 +905,113 @@ mod tests {
             .collect();
 
         assert_eq!(held.len(), 4);
+    }
+
+    #[test]
+    fn a_key_with_room_hands_the_first_look_a_slot() {
+        let generation = generation();
+        let (mut waiting, woken) = waiter(capped(&generation, "main", 1));
+
+        // Queue first, look second — the ordering `queue` requires — and the
+        // usual answer to that first look is a slot, because a caller only
+        // reaches the line once `admit` has already said the key is full.
+        let taken = waiting.slot().expect("nothing was holding the one slot");
+        assert_eq!(woken.get(), 0, "nobody had to be woken to grant it");
+        assert!(
+            admit(capped(&generation, "main", 1)).is_none(),
+            "the slot the waiter took counts under `max` like any other"
+        );
+        drop(taken);
+    }
+
+    #[test]
+    fn a_lease_that_ends_hands_its_slot_to_the_task_waiting_for_it() {
+        let generation = generation();
+        let held = admit(capped(&generation, "main", 1)).expect("the first is under the ceiling");
+        let (mut waiting, woken) = waiter(capped(&generation, "main", 1));
+
+        assert!(waiting.slot().is_none(), "the one slot is out");
+        drop(held);
+
+        assert_eq!(woken.get(), 1, "the lease that ended woke the waiter");
+        assert!(waiting.slot().is_some(), "and handed it the slot");
+    }
+
+    #[test]
+    fn a_newcomer_cannot_take_the_slot_a_waiter_is_owed() {
+        let generation = generation();
+        let held = admit(capped(&generation, "main", 1)).expect("the first is under the ceiling");
+        let (mut waiting, _woken) = waiter(capped(&generation, "main", 1));
+        drop(held);
+
+        // The count does not dip across the hand-over, so a request arriving
+        // between the wake and the woken task's resumption still finds the key
+        // full — `acquire` is a queue and not a scramble.
+        assert!(admit(capped(&generation, "main", 1)).is_none());
+        assert!(waiting.slot().is_some());
+    }
+
+    #[test]
+    fn the_line_is_served_oldest_first() {
+        let generation = generation();
+        let held = admit(capped(&generation, "main", 1)).expect("the first is under the ceiling");
+        let (mut first, _first_woken) = waiter(capped(&generation, "main", 1));
+        let (mut second, second_woken) = waiter(capped(&generation, "main", 1));
+        drop(held);
+
+        assert_eq!(second_woken.get(), 0, "the older waiter is served first");
+        let first = first.slot().expect("the head of the line has the slot");
+        assert!(second.slot().is_none());
+
+        drop(first);
+        assert_eq!(second_woken.get(), 1);
+        assert!(second.slot().is_some());
+    }
+
+    #[test]
+    fn a_waiter_that_stops_waiting_hands_its_slot_on() {
+        let generation = generation();
+        let held = admit(capped(&generation, "main", 1)).expect("the first is under the ceiling");
+        let (first, _first_woken) = waiter(capped(&generation, "main", 1));
+        let (mut second, second_woken) = waiter(capped(&generation, "main", 1));
+        drop(held);
+
+        // The deadline came up between the hand-over and the resumption, which
+        // is the one moment a granted slot has no lease holding it. It is still
+        // a slot somebody holds under `max`, so leaving the line passes it on.
+        drop(first);
+
+        assert_eq!(second_woken.get(), 1);
+        assert!(second.slot().is_some());
+    }
+
+    #[test]
+    fn a_waiter_that_leaves_before_a_slot_comes_free_is_off_the_line() {
+        let generation = generation();
+        let held = admit(capped(&generation, "main", 1)).expect("the first is under the ceiling");
+        let (waiting, woken) = waiter(capped(&generation, "main", 1));
+        drop(waiting);
+        drop(held);
+
+        assert_eq!(woken.get(), 0, "nothing wakes a task that stopped waiting");
+        // With nobody left in the line the slot goes back to the count, which
+        // is the path a pool with no waiting on it takes every time.
+        assert!(admit(capped(&generation, "main", 1)).is_some());
+    }
+
+    #[test]
+    fn a_line_is_per_key_and_not_per_core() {
+        let generation = generation();
+        let held = admit(capped(&generation, "main", 1)).expect("the first is under the ceiling");
+        let (mut waiting, woken) = waiter(capped(&generation, "main", 1));
+
+        // A lease ending under `[db.other]` is not this waiter's slot, however
+        // full its own key is.
+        drop(admit(capped(&generation, "other", 1)).expect("`other` holds none"));
+
+        assert_eq!(woken.get(), 0);
+        assert!(waiting.slot().is_none());
+        drop(held);
+        assert!(waiting.slot().is_some());
     }
 }
