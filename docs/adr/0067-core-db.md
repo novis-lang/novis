@@ -282,6 +282,20 @@ A class per condition was rejected: it would add ten types to the deliberately s
 `secret` sink ([0033](0033-secret-qualifier-for-confidential-values.md)). The SQL text may, being
 developer-authored.
 
+**The four raw values ride the throw on one boxed slice, and absence costs nothing.** All four are `?T`, so
+a slot never written already reads `null` — unlike `ParseError`'s non-nullable `issues`, there is no absent
+case to seed. Carrying the *present* ones means widening what [0002](0002-error-propagation.md)'s checked
+return hands back: `nvs_runtime::Fault` is the error half of every helper's `Result`, so its width is paid
+on the successful call too, not only on the throw. Three answers, measured at `Value`'s real 16 bytes and
+`Cow<'static, str>`'s 24 — one `(slot, value)` pair, as today: **56**; five pairs inline: **152**; one
+`Box<[(usize, Value)]>` replacing the pair: **48**. The boxed slice is the decision, and it is 8 bytes
+*narrower* than the single pair it replaces, a `Box<[_]>` being two words where the pair is three. It buys
+that with one allocation, and only on a throw that carries a slot at all — a path already allocating the
+object, the message and the backtrace array, and never the hot one. Keeping the pair variant *and* adding a
+slice variant measures 56: no width saved, and a third arm at every site that destructures a fault, which
+is what that variant's own doc comment exists to argue against. The constructors do not change — a caller
+still names one slot and one value — so no throwing site moves, only the three that read the variant.
+
 ### 9. The type map
 
 | SQL | Novis | |
