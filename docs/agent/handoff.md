@@ -2,60 +2,68 @@
 
 ## State
 
-**ADR 0084 § 2's `[queue]` block is live end to end at boot.** `crates/nvs-config/src/queue.rs`
-holds `QueueBounds` and `queue_for`, wired into `resolve.rs`'s pass list immediately after
-`db::validate` — the `[db]` roster it checks `connection` against only exists once the merge is
-done. `crates/nvs-config/tests/queue.rs` is six cases over it. The block itself is
-`tree::Queue`, four `Option` fields with `deny_unknown_fields`, so § 2's own example parses whole.
+**ADR 0084 § 1's `Core\Queue::push` is live**, in a new `crates/nvs-stdlib/src/queue.rs` with
+`Core\Queue` and the opaque `Core\Queue\Id` in `CLASSES`. It resolves `[queue]` off the boot
+snapshot, reaches that connection, and writes one row. Six of § 1's eight options are declared
+and honoured; `limits` and `grants` are not, and that module's known gaps say why (a *shape*
+parameter, the same blocker `Core\Db::open` waits on).
 
-**`E0617` is the new code**, `E_BAD_QUEUE`, for the four things a `[queue]` can say that leave
-nothing able to run a job: no `connection`, one naming a `[db.<name>]` the tree does not hold, a
-`max_attempts` of `0`, a `visibility` of `0`. Its reasoning is `E0611`'s one subsystem over — a
-queue fails silently, so every question is a boot question. A `visibility` that is not a duration
-at all stays `E0601` from `nvs_config::value`, in that module's words.
+**§ 3's transactional enqueue holds by construction rather than by machinery.**
+`crates/nvs-stdlib/src/db.rs`'s `open_named` is `Core\Db::connect`'s body from the memo down,
+extracted so `push` reaches the queue's connection through the *same* memo, pool key and reset —
+which means an enqueue inside a `transaction()` on that name is already inside it. The
+capability check stayed in `connect`: it is about a name the program wrote, and a queue's name
+is the operator's. Both readings are in `open_named`'s doc comment and `queue.rs`'s module doc.
 
-**Defaults are § 2's own numbers** — `workers = 4`, `max_attempts = 5`, `visibility = 5m` — and
-`connection` has none, because naming the database is the block's whole point. `workers = 0` is
-accepted: § 2 states it as an enqueue-only instance, not a disabled queue. The block's own absence
-is how a deployment has no queue, so `queue_for` answers `Ok(None)` rather than a refusal.
+**The jobs table's schema is `queue.rs`'s `JOBS_TABLE`/`INSERT` until `nvs queue migrate` exists**,
+and § 2 keeps the DDL out of the request either way. Every instant in it is a `bigint` of epoch
+milliseconds, because § 2 wants all five backends and five timestamp dialects is not a cost a
+runtime-owned table should carry.
 
-**Unchanged and still true.** The driver's acceptance line for `examples/queue.nvs` is still
-Stage 8's `Core\Queue` surface, which the two items below land; nothing of that class is in
-`nvs_stdlib::registry` yet. Stage 6's `mariadb: n/a` / `mssql: n/a` are did-not-run. § 7's backoff
-is still blocked on `nvs-runtime`'s known gap 3 (`crates/nvs-stdlib/src/db.rs:149`). Stage 5's
-`args = ["test", "-p", "nvs-db"]` still cannot see the two `nvs-stdlib` tests — the user's call.
+**The acceptance line for `examples/queue.nvs` is still open, and the next blocker in it is not a
+missing member.** Line 60 writes `Queue::stats("default")->claimed` — a *property* on a `Core`
+instance, which `CoreTy::Instance`'s own rule says a program cannot reach (that is why
+`Core\Db\Write` answers `lastId()` and not `->lastId`). So `stats` either answers a shape or the
+example changes; decide it before writing the member, not after. Line 63 needs
+`Core\Queue\State` as a real `CoreEnum` as well.
 
-**`orient.py`'s pack was short in the same two places the last session named**, and one more:
-`[context] modules` still names no `nvs-config/src/*`, so the map printed nothing for the crate
-this session wrote in, and `[context] adrs` should carry ADR 0084 §§ 1 and 5 for the group below.
+**`orient.py`'s pack was short in three places.** `[context] modules` still names no
+`nvs-config/src/*` and now owes `nvs-stdlib/src/queue.rs`; `[context] adrs` printed ADR 0084 §§ 1
+and 3 but this session also needed §§ 2 and 4, and the next one needs § 6.
 
 ## Next group
 
-**`Core\Queue`'s surface, over the connection `[queue]` now names. The file set is a new
-`crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/src/registry.rs` and
-`crates/nvs-stdlib/src/db.rs` — the last for its connection-reaching shape only, not to edit.**
+**§ 1's remaining three members, over the file set this session opened. It is
+`crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/src/registry.rs` and — for the `CoreEnum`
+shape only, not to edit — `crates/nvs-stdlib/src/db.rs`.**
 
-- [ ] **`Core\Queue::push` inserts a row on the queue's own connection** — ADR 0084 §§ 1 and 3.
-      The class goes in `CLASSES` beside `Core\Db` at `crates/nvs-stdlib/src/registry.rs:1399`, the
-      body reaches its connection the way `nvs_core_db_connect` does at
-      `crates/nvs-stdlib/src/db.rs:2298`, its `address()` arm sits with the others at
-      `crates/nvs-stdlib/src/db.rs:5040`, and the connection's name comes from
-      `nvs_config::queue::queue_for` at `crates/nvs-config/src/queue.rs:98`, whose `connection`
-      field is already proven to name a real block. § 2's tables are the operator's
-      `nvs queue migrate` and are not created here.
-- [ ] **`cancel`, `status` and `stats` complete § 1's roster** — same `queue.rs`, same registry
-      row at `crates/nvs-stdlib/src/registry.rs:1399`, three more `address()` arms in the new
-      module's own `address`. `stats` reports dead-letter depth, which § 6 requires and
-      `crates/nvs-config/src/queue.rs:49`'s `max_attempts` is the bound behind.
-- [ ] **`examples/queue.nvs` runs against the compose PostgreSQL** — the acceptance line the
-      driver has been failing since stage 8 opened. It needs the two items above plus a `[queue]`
-      block in the example's own `nvs.toml`, resolved by `crates/nvs-config/src/queue.rs:81`.
+- [ ] **`Core\Queue\State` is a `CoreEnum`, and `Core\Queue::status` answers one** — ADR 0084 §§ 1
+      and 6. The enum shape is `crates/nvs-stdlib/src/registry.rs:1802` and the two worked
+      examples are `crates/nvs-stdlib/src/db.rs:714` and `crates/nvs-stdlib/src/db.rs:896`; the
+      class's rows go beside `push` at `crates/nvs-stdlib/src/queue.rs:140`, the enum joins
+      `CLASSES` beside `crates/nvs-stdlib/src/registry.rs:1438`, and the symbol joins
+      `crates/nvs-stdlib/src/queue.rs:589`. `Pending` must stay ordinal 0 — `queue.rs`'s
+      `PENDING` const is written as the number and says it owes this assertion.
+- [ ] **`Core\Queue::cancel` moves a pending row out of the queue** — ADR 0084 §§ 1 and 6. Same
+      three edits at `crates/nvs-stdlib/src/queue.rs:140`, `crates/nvs-stdlib/src/queue.rs:589`
+      and the `ID` slots at `crates/nvs-stdlib/src/queue.rs:284`, which is where the row id and
+      its queue come from. A claimed job is not cancellable and that is § 4's visibility timeout,
+      not a race to lose.
+- [ ] **`Core\Queue::stats` — decide the return shape first** — ADR 0084 §§ 1 and 6. The example
+      at `examples/queue.nvs:60` reads `->claimed`, `->attempts` and `->deadLettered` as
+      properties, and `crates/nvs-stdlib/src/registry.rs:1027`'s `CoreClass` has no property
+      surface at all. Either the member answers a shape or the example takes `()`; whichever it
+      is, record it in `queue.rs`'s module doc and add the `CAPABILITIES` row for the whole
+      four-member class at `crates/nvs-stdlib/src/registry.rs:1488` at the same time.
 
 ## Backlog
 
-- § 7's backoff, blocked on `nvs-runtime`'s known gap 3 — `crates/nvs-stdlib/src/db.rs:149`.
-- Stage 5's `-p nvs-db` args cannot see the two `nvs-stdlib` tests — `docs/agent/loop-goal.toml`.
-- `[context] modules` names no `nvs-config` pattern — `docs/agent/loop-goal.toml`.
-- MariaDB and SQL Server are `n/a` in the matrix — `tools/db-matrix.py`, `tests/db/compose.yaml`.
-- `open` still waits on a shape-parameter type — ADR 0067 § 2, `crates/nvs-stdlib/src/db.rs`.
-- `nvs queue migrate` owns the schema and does not exist — ADR 0084 § 2.
+- The `[queue] backoff` default has no config field, so `push` stores `null` — `docs/adr/0084`
+  § 1 leaves it to the worker.
+- `$args` is `CoreTy::Mixed` and cannot refuse a `secret`, which § 1 asks for —
+  `crates/nvs-stdlib/src/queue.rs` known gap 2.
+- `key`'s dedupe is race-free only under the partial unique index `nvs queue migrate` owes —
+  same file, known gap 3.
+- Stage 6's `mariadb: n/a` / `mssql: n/a` are did-not-run — `docs/agent/loop-goal.toml`.
+- § 7's backoff is blocked on `nvs-runtime`'s known gap 3 — `crates/nvs-stdlib/src/db.rs:149`.
+- Stage 5's `args = ["test", "-p", "nvs-db"]` cannot see the `nvs-stdlib` tests — the user's call.

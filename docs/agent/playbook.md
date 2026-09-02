@@ -1559,6 +1559,13 @@ is why" — is this file.
   character(s)" because it silently prefixed the `It` that lives at the end of the previous line.
   The tell is that the reported prefix length is tiny while the block looks verbatim. Ask for one
   line more than you think you need whenever the region is prose.
+- **`splice.py`'s `OLD` block wants the file's real indentation, and `peek.py`'s gutter is easy to
+  mis-count by exactly four.** `peek.py` prints `<line number><two spaces><the line>`, so a line inside
+  a nested block reads as if it were one level deeper than it is — copying the visual indent out of a
+  four-level-deep `match` arm produced two blocks that were four spaces wrong and the whole 12-block
+  patch was refused. The refusal is precise and cheap to act on (it names the target line and the
+  character the anchor stopped at), so the fix is to read the message rather than re-derive the block;
+  but the *count* is worth knowing up front: subtract two from the column `peek.py` shows, not six.
 
 ## Running things
 
@@ -6158,6 +6165,16 @@ sibling in the same namespace unqualified.
   itself accepts. The parser is `crates/nvs-config/src/value.rs`'s and nothing in a block's own
   module widens it; write the second spelling as a bare count of the base unit instead, which is
   what `nvs_config::db`'s own bounds do.
+- **A new `Core` *class* trips two registry gates a new `Core` *member* never does, and both fail in
+  `cargo test -p nvs-stdlib` rather than at the build.** First:
+  `a_class_with_slots_has_instance_members_and_the_reverse` requires a class to declare slots and
+  instance members together — so an *opaque handle* (slots, no members, which is what `Core\Db\InList`
+  and `Core\Queue\Id` both are) is not merely allowed, it has to be named in that test's own `HANDLES`
+  list at `crates/nvs-stdlib/src/registry.rs:3590`, which is the only place the exemption exists.
+  Second: `every_member_parameter_carries_a_qualifier_classification` reads *options* as parameters
+  too, so a `{queue?: string}` written as `CoreTy::Str` fails exactly as a positional one would — an
+  option's type needs `CoreTy::Text(Qual::…)`/`Blob(Qual::…)` like everything else, and the failure
+  names the member without saying which of its parameters it meant.
 
 ## Divergences and refusals already pinned
 
