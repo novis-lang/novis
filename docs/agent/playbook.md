@@ -1566,6 +1566,15 @@ is why" — is this file.
   patch was refused. The refusal is precise and cheap to act on (it names the target line and the
   character the anchor stopped at), so the fix is to read the message rather than re-derive the block;
   but the *count* is worth knowing up front: subtract two from the column `peek.py` shows, not six.
+- **Editing a `MethodDoc` rewrites `docs/novis.md`, not `docs/reference/`, and the wrap will not have
+  the file yet.** `verify.py`'s reference step regenerates the book in place, so a session that
+  reworded one card left `docs/novis.md` dirty after `session.py --wrap` had already committed
+  everything it knew about — the wrap's own sweep cannot catch it, because the tail is written before
+  the file changes only if verification ran first, and `--start`/`--wait` means it usually has not.
+  Name `docs/novis.md` in the `## commit:` that carries the card. And if you do commit it by hand
+  afterwards, write a **new** message file: `.agent-tmp/` holds other sessions' leftovers, so a
+  plausible-looking name like `novis-msg.txt` already exists and `git commit -F` will take it
+  silently — the message that landed was a previous session's, about a different class.
 
 ## Running things
 
