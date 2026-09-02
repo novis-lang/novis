@@ -4359,6 +4359,16 @@ is why" — is this file.
   with the two swapped sent a `PBDES` that looked exactly right in every case, and drew SQLSTATE
   26000 on the first statement of every connection with a cache of any size. Assert the *names* a
   message carries and not only its tag, and give the enabled path a case at a non-zero capacity.
+- **The conformance coverage gate attributes a case to a class by reading `return_ty:` textually, so
+  a new `CoreTy` return-position variant silently drops every case that never spells the class.**
+  `Core\Db\Connection::query` moved from `CoreTy::Instance(ROWS_NAME)` to `CoreTy::InstanceAt(...)`
+  and `every_core_class_has_a_conformance_floor_of_three` failed naming five thin `Core\Db\Rows`
+  members — none of which had lost a case, and nothing in the message pointed at the registry edit.
+  `crates/nvs-stdlib/tests/corpus/mod.rs`'s `Attribution::new` builds the member → class-it-answers
+  map, and `tools/gaps.py`'s `RETURNS_RE` is the same rule as a regex; both must learn the variant,
+  and the regex means the row has to be spelled *inline* — a `const ROWS_OF_ROW: CoreTy` named in
+  `return_ty:` is invisible to the tool while the Rust half resolves it fine, which is the two
+  halves disagreeing in the direction no test catches.
 
 ## Splitting a file that got too big
 
@@ -5922,6 +5932,16 @@ sibling in the same namespace unqualified.
   attribute roster a grep lands in. The general shape: a front-end table with no back-end reader is
   what a landed-looking gap looks like here, so grep the *consumer* of a table the checker filled
   before planning the member that spends it.
+- **Adding a class to `nvs_stdlib::registry::GENERIC_CLASSES` makes its *bare* spelling a compile
+  error everywhere, and the failure names `E0442` at the source line rather than the roster row that
+  caused it.** `Core\Db\Rows` gained a `T`, and three landed conformance cases that had written
+  `Core\Db\Rows` as a declared parameter, as a closure's return and inside an `E0401` message started
+  failing with "`Core\Db\Rows` takes 1 type argument(s), not 0" — pointing at the `.nvst`, which was
+  correct when it was written. `nvs_types::lower`'s `generic_params` consults that roster at every
+  *written* occurrence of the name, so the roster is a surface and not an internal table: before
+  adding a row, grep the bare spelling across `tests/`, `examples/` and `docs/spec/` and budget an
+  edit per hit. There is no defaulted type parameter in `Core`, so "leave the old bare form legal" is
+  not an option to weigh — the only question is whether every write site should carry the argument.
 
 ## Divergences and refusals already pinned
 
