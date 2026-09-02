@@ -705,6 +705,26 @@ impl PgConn {
         )
     }
 
+    /// How many transaction levels are open on this connection — 0 outside one,
+    /// 1 inside an outermost `transaction()`, deeper inside a nested one.
+    ///
+    /// `nvs-stdlib` asks, and § 7's retry rule is the only reason this is
+    /// public: a serialization failure is retried **only for an outermost
+    /// transaction**, because re-running the closure of a nested one would
+    /// re-run it inside an outer transaction the conflict already aborted. The
+    /// caller cannot tell the two apart on its own — [`begin`] owns the nesting
+    /// and deliberately gives the two cases the same signature — so it reads the
+    /// depth *before* the level is opened and retries only what it saw at zero.
+    ///
+    /// Not a guess about the *server's* state: the count moves only after a
+    /// command the server accepted (see [`begin`]), and [`reset`] zeroes it.
+    ///
+    /// [`reset`]: PgConn::reset
+    #[must_use]
+    pub fn depth(&self) -> u32 {
+        self.depth.get()
+    }
+
     /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one — a
     /// normal return out of the closure either way.
     ///
@@ -3041,7 +3061,14 @@ fn begin<S: Read + Write>(
 /// [`simple_command`]. PostgreSQL has already rolled the transaction back by
 /// the time it refuses an outermost `COMMIT`, so there is nothing left for the
 /// caller to undo — the connection is idle and poolable, and only the closure's
-/// own side effects outlive it.
+/// own side effects outlive it. **The count follows the connection there**: an
+/// outermost commit the *server* refused leaves the depth at 0, unlike every
+/// other refusal in this family, because the level really is gone. A caller that
+/// opens the next transaction on that connection — § 7's `{retries: n}` is the
+/// one that does — must get a `BEGIN` and not a `SAVEPOINT` against nothing. A
+/// refused `RELEASE SAVEPOINT` says nothing of the kind and moves nothing, as in
+/// [`roll_back`], and neither does a refusal this crate made itself — § 4's busy
+/// connection, or a wire that failed before the command was processed.
 fn commit<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
@@ -3054,7 +3081,16 @@ fn commit<S: Read + Write>(
         Cow::Owned(format!("RELEASE SAVEPOINT {}", savepoint_name(open - 1)))
     };
 
-    simple_command(wire, state, &command)?;
+    if let Err(refused) = simple_command(wire, state, &command) {
+        // Only a refusal the *server* worded says the transaction is over: a
+        // busy connection and a wire failure are refusals this crate made
+        // without the `COMMIT` ever being processed, and moving the count on
+        // one of those would tell the caller a level closed that is still open.
+        if open == 1 && ServerError::of(&refused).is_some() {
+            depth.set(0);
+        }
+        return Err(refused);
+    }
     depth.set(open - 1);
     Ok(())
 }
@@ -5320,6 +5356,29 @@ mod tests {
         let server = ServerError::of(&failed).expect("a refusal carried no kind");
         assert_eq!(server.kind, DbErrorKind::SerializationFailure);
         assert!(server.kind.is_retryable());
+
+        // And the transaction went with it, so the count did too: the retry
+        // that rule licenses must open its next attempt with a `BEGIN`.
+        assert_eq!(depth.get(), 0);
+    }
+
+    /// The other side of that bound: a refused `RELEASE SAVEPOINT` moves
+    /// nothing. The nested level failed, but the transaction holding it is still
+    /// open and only its own `ROLLBACK` closes it — so a count that fell here
+    /// would send the outer commit as a savepoint command.
+    #[test]
+    fn a_refused_release_leaves_the_transaction_holding_it_open() {
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(2);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out = error_response("40001", "could not serialize access");
+            out.extend_from_slice(&ready());
+            out
+        }));
+
+        super::commit(&mut wire, &state, &depth).expect_err("a refused release passed");
+
+        assert_eq!(depth.get(), 2);
     }
 
     /// § 8's kind, `SQLSTATE` and constraint ride inside the same `io::Error`
