@@ -57,6 +57,7 @@ so you never have to open this file to route a topic.
 | Writing anything under `docs/` — where a fact lives, folding a changed decision, the length targets nothing enforces | [docs/agent/doc-style.md](../agent/doc-style.md) |
 | What one loop session may read, and how a goal narrows it | `python tools/orient.py`, selected by `[context]` in [docs/agent/loop-goal.toml](../agent/loop-goal.toml) |
 | Setting a new loop goal; how many slices a session should take; why the context ceiling is 200k; what to pre-authorize so a run never halts on `BLOCKED` | [docs/agent/loop-authoring.md](../agent/loop-authoring.md), and `python tools/loop-stats.py` for the numbers it rests on |
+| Whether a feature is *finished* — what a member, a language feature or a directive owes before it counts: its tests from both sides, its three website examples, its measured cost, the program written to break it; where each goes; how the loop that writes them is generated | `python tools/dossier.py`, and [0134](0134-every-shipped-feature-owes-four-proofs.md) for why the four |
 | Exceptions, the call ABI, helper signatures, panic containment | [0002](0002-error-propagation.md) — the only normative copy of the calling convention |
 | Extensions, wasm, WIT, `.nvsx` | [0003](0003-extension-system.md) |
 | Whether a stdlib feature belongs in `Core`, in the default binary, in an extension or nowhere; which PHP extension maps to what; whether a C dependency is acceptable | [0051](0051-standard-library-tiers.md) |
@@ -366,6 +367,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0131](0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md) | A temporary directory dies with its script, and the runtime's sweep never throws | Accepted |
 | [0132](0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) | A driver is a sans-IO codec plus its own state machine over the parking stream, and the five are an enum rather than a trait | Accepted |
 | [0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md) | A launderer answers its sink's carrier, and only an idempotent escape answers a `string` | Accepted |
+| [0134](0134-every-shipped-feature-owes-four-proofs.md) | Every shipped feature owes four proofs, and the roster of features is derived rather than kept | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

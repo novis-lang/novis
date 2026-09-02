@@ -1,0 +1,30 @@
+# What each kind of feature owes, and the features excused from one proof.
+#
+# `python tools/dossier.py --help` owns the mechanism; `tools/dossier.py`'s `POLICY` holds the
+# defaults this file overrides. ADR 0134 is why the four proofs exist at all.
+#
+# Three sections, all optional:
+#
+#   [all]                     every kind at once -- `perf = false` switches the proof off durably
+#   [<kind>]                  one kind: member, lang, exception, enum, interface, tool, directive
+#   [skip."<feature id>"]     one feature excused from one proof, with the reason as the value
+#
+# A skip is a recorded decision, not a gap: the reason prints in the audit, so "this cannot be
+# measured" and "nobody wrote one" never look the same. Write it as a sentence a stranger can judge.
+
+# ---------------------------------------------------------------------------------------------
+# Per-kind overrides. Empty means the defaults in tools/dossier.py stand:
+#   member    2 tests (>=1 from Rust), 3 examples, perf, 1 attack
+#   lang      2 tests,                 3 examples, perf, 1 attack
+#   exception 1 test,                  1 example,  --,   1 attack
+#   enum      1 test,                  1 example,  --,   --
+#   interface 1 test,                  1 example,  --,   --
+#   tool      1 test,                  1 example,  --,   1 attack
+#   directive 1 test,                  1 example,  --,   1 attack
+# ---------------------------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------------------------
+# Features excused from a proof.
+# ---------------------------------------------------------------------------------------------
+
+[skip]

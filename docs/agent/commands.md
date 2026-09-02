@@ -284,6 +284,32 @@ and is not comparable across machines, which is why the cross-machine history in
 [ADR 0026](../adr/0026-performance-measurement-methodology.md) is counted in instructions instead. This
 suite is that ADR's § 3 secondary figure, in runnable form.
 
+## What a feature still owes, and the loop that pays it
+
+```sh
+python tools/dossier.py                          # the audit: every group, four columns, thinnest first
+python tools/dossier.py --id 'Core\Str::length'  # one feature: what it has, what it owes, where each goes
+python tools/dossier.py --owed                   # only what is missing, as a worklist
+python tools/dossier.py --run examples           # run every example, diff against its `.out`
+python tools/dossier.py --run hostile            # run every attack; the runtime must survive it
+python tools/dossier.py --bless <file.nvs>       # create an example's `.out` from what it prints
+python tools/dossier.py --record-perf --group G  # measure, append to docs/perf/members.ndjson
+python tools/dossier.py --no-perf …              # any of the above, with the perf proof switched off
+python tools/dossier.py --emit-goals             # write the unattended loop that produces what is owed
+```
+
+[ADR 0134](../adr/0134-every-shipped-feature-owes-four-proofs.md) is why four proofs and not some other
+number; each tree's README owns what a file in it is ([examples](../examples/README.md),
+[attacks](../../tests/hostile/README.md), [benches](../../benches/members/README.md)); `--help` owns the
+rest. **The roster is derived from `nvs meta --json` and the reference chapters**, so nothing needs
+adding to a list when a feature lands.
+
+`--emit-goals` writes a whole `loop.py --chain` under `docs/agent/goals/dossier/` and prints the command
+that starts it. It is **fired by a person, never by a session** — like `doc-cleanup.md` and
+`dependency-update.md`, and for the same reason: it decides what several hundred sessions will do next.
+Re-running it is how the chain stays current; a group that owes nothing is left out, so a second emission
+writes the chain that is left rather than the one that was.
+
 ## How wide anything runs
 
 ```sh

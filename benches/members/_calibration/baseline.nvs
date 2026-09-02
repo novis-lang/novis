@@ -1,0 +1,7 @@
+<?nvs
+// The floor: `nvs run` starting, compiling and exiting, with no work in it at all.
+// Every figure in the ledger has this subtracted, so a reading is the feature and not the CLI.
+// Do not add anything to this file -- what it measures is the absence of anything.
+// bench: iterations 1
+
+echo "";

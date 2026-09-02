@@ -1,9 +1,10 @@
 # The Novis website
 
 Astro + Starlight. Everything the site needs — tooling, rules, content — lives inside
-this folder; nothing here is touched by the repository's unattended loop, and updating
-the site from the repository is **one command, fired by a human (or an agent that was
-asked to)**:
+this folder. The repository's unattended loop does not write here; what it writes is the
+example tree at `../docs/examples/`, which `sync:examples` mirrors into `examples/` like
+any other generated input. Updating the site from the repository is **one command, fired
+by a human (or an agent that was asked to)**:
 
 ```sh
 npm run sync     # pull ADRs + the Core reference from the repository
@@ -17,9 +18,10 @@ npm run build    # build the static site into dist/
 | `npm run dev` | dev server with live reload |
 | `npm run build` | production build into `dist/` |
 | `npm run preview` | serve the built site locally |
-| `npm run sync` | both sync scripts, in order |
+| `npm run sync` | all three sync scripts, in order |
 | `npm run sync:adrs` | republish `../docs/adr/*.md` → `src/content/docs/docs/adr/` + `src/data/adrs.json` |
 | `npm run sync:core` | reparse the spec + registry → `src/data/core.json`, create missing member pages |
+| `npm run sync:examples` | mirror `../docs/examples/` → `examples/` |
 | `npm run examples:check` | run every example in `examples/` through the real `nvs` binary and diff against its `.out` file |
 
 ## Who owns which file
@@ -40,7 +42,7 @@ wherever it kept a component.
 | `src/data/core-changelog.json` | human | per-member changelog entries; the tool only creates the empty file |
 | `src/content/docs/docs/core/**.mdx` | **per page** | tool-owned (regenerated every `sync:core`) while `novis.draft: true`; remove the flag to take ownership — then yours: lead text, description, parameter docs, errors, tips, `<SeeAlso ids={…}>` |
 | `src/content/claims/*.md` | human | one file per "Why Novis?" claim; add a file, the page updates |
-| `examples/core/<Class>/<member>/*.nvs` | human | runnable examples; sibling `.out` = expected output, verified by `examples:check` |
+| `examples/**` | tool | a mirror of `../docs/examples/`, emptied and rewritten on every `sync:examples` — edit the repository's copy, which is where the sweep that writes them lives ([ADR 0134](../docs/adr/0134-every-shipped-feature-owes-four-proofs.md)). **Gitignored**, unlike the ADR mirror: that one is transformed on the way in, this one is the same bytes twice. `examples:check` runs it, so a stale mirror fails here rather than shipping |
 | `scripts/spec-overrides.mjs` | human | corrections for spec table rows the parser cannot read — every fix goes here, never into the parser |
 | `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live |
 

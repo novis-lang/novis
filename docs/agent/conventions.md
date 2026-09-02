@@ -82,6 +82,79 @@ candidates; the playbook owns the spellings that will not compile.
   rather than what each answered, so a member that grew its own comparison fails here while still
   looking right on its own line. The shape with the most room left.
 
+## A feature's four proofs — an example, an attack, a bench, a `covers:` marker
+
+[ADR 0134](../adr/0134-every-shipped-feature-owes-four-proofs.md) makes these owed. **Each tree's own
+README owns the rules** — [docs/examples/](../examples/README.md), [tests/hostile/](../../tests/hostile/README.md),
+[benches/members/](../../benches/members/README.md) — and this section is only the four skeletons, so
+nothing is copied out of an existing file to get the shape right. `python tools/dossier.py --id
+'<feature>'` prints the three paths for any feature; all four trees share one path per feature
+(`core/Str/length`, `lang/expressions/precedence-and-associativity`, `types/Throwable`, …).
+
+**An example** — `docs/examples/<path>/03-slug.nvs`, three per member, each a *different* use, plus a
+`.out` created with `python tools/dossier.py --bless <file>`:
+
+```nvs
+<?nvs
+// One or two plain sentences: what this shows, in a reader's words. No ADR
+// numbers, no internal vocabulary — the audience has never seen this repository.
+
+array<string> $labels = ["Order #1042", "Café Größenwahn"];
+foreach ($labels as string $label) {
+    echo Core\Str::length($label), "\n";
+}
+```
+
+**An attack** — `tests/hostile/<path>/01-slug.nvs`, no expected output at all. It passes when the
+*runtime* survives: a throw, a limit, a clean fatal and a clean run are all passes; a panic, a hang,
+a crash-shaped exit, a definite leak — **and a compile diagnostic** — are not.
+
+```nvs
+<?nvs
+// Attack: what this tries to break, in one line.
+// hostile: timeout-ms 20000     (optional; 10s otherwise)
+// hostile: expect-refusal       (only when being refused IS the assertion)
+```
+
+**A bench** — `benches/members/<path>.nvs`, one file, iterations declared, inputs chained so no
+optimiser can delete the loop:
+
+```nvs
+<?nvs
+// What real work this stands for, in one line.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $labels = ["order", "customer", "shipping address"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($labels[$total % 3]);   // chained: $total is last round's
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
+```
+
+**A `covers:` marker** — the one thing that attributes a *test* to a feature, since a case lives
+where its suite wants it. In the `--FILE--` block of a `.nvst` case, or immediately above a Rust
+`#[test]`, under any doc comment:
+
+```rust
+    /// The doc comment says what the test pins, as always.
+    // covers: Core\Str::length
+    #[test]
+    fn length_counts_characters_not_bytes_or_code_points() {
+```
+
+A `Core` member is also credited by a case that plainly calls it (`Core\Str::length(`), so an
+existing case needs no marker; an **instance** member and every language, tool or directive feature
+needs one, and adding it to a case that already exists is the whole edit.
+
 ## An `.lspt` case
 
 An LSP answer, frozen the way the section above freezes stdout. Sibling of `.nvst` and deliberately a

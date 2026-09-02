@@ -12,9 +12,10 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "sync": "node scripts/sync-adrs.mjs && node scripts/sync-core.mjs",
+    "sync": "node scripts/sync-adrs.mjs && node scripts/sync-core.mjs && node scripts/sync-examples.mjs",
     "sync:adrs": "node scripts/sync-adrs.mjs",
     "sync:core": "node scripts/sync-core.mjs",
+    "sync:examples": "node scripts/sync-examples.mjs",
     "examples:check": "node scripts/check-examples.mjs"
   },
   "dependencies": {
