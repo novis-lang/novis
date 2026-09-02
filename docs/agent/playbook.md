@@ -1575,6 +1575,18 @@ is why" — is this file.
   afterwards, write a **new** message file: `.agent-tmp/` holds other sessions' leftovers, so a
   plausible-looking name like `novis-msg.txt` already exists and `git commit -F` will take it
   silently — the message that landed was a previous session's, about a different class.
+- **A `loop-goal.toml` `command` check reports its *first line of stderr* as the failure, and a
+  tool that opens with a `warning:` buries the real one there.** Stage 1's `a warm-cache CLI start
+  stays under 10ms` was reported for three runs as `exit 1 -- warning: nvs.exe is 41.7 h older than
+  the newest file under crates/`, which reads as "the driver built the binary late" and was written
+  off twice as exactly that. It was not: `tools/loop.py`'s `cargo_check` prints `r.first_err_line`,
+  and three lines below that warning `bench.py` had printed `error[E0601]: unknown field
+  `tls_ca_file`` — the *release* binary, which nothing in the loop built, was too old to read the
+  tree's own `nvs.toml` and had refused to start. Run the check's own `argv` by hand and read all of
+  its stderr before believing the one line the ledger shows. `target/release/nvs.exe` is now built
+  by the driver (`Goal.release_cli`, in the same background thread as the release test profile), so
+  a stale one has stopped being the answer — but nothing else in the loop produces it, and
+  `bench.py` deliberately builds nothing.
 
 ## Running things
 
