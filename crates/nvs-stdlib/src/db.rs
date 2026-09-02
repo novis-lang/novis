@@ -91,7 +91,7 @@
 //!    one — nothing in this module raises one yet, because § 7's
 //!    `transaction` is what would.
 //! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
-//!    has landed of `Core\Db\Queryable`** (gap 9 is what `queryAs` still owes).
+//!    has landed of `Core\Db\Queryable`** (gap 8 is what `queryAs` still owes).
 //!    `stream` and `streamAs` are owed whole, and so are
 //!    `close` and § 18's three readonly properties on `Connection`. On
 //!    the result side [`ROWS`] owes one member of six —
@@ -100,27 +100,18 @@
 //!    cases, and a classification of a `PgColumn`'s type OID that `nvs-db` does
 //!    not expose (`PgColumn::decode` maps an OID to a *value*, which is a
 //!    different question from what a NULL column's declared type is).
-//! 6. **§ 9's five structured rows do not reach a `#[Db\Derive]` field.** The
-//!    columns themselves read back: a `DATE`, `TIME`, `TIMESTAMP`,
-//!    `TIMESTAMPTZ` or `UUID` is built into its `Core\Time` or `Core\Uuid`
-//!    instance out of [`nvs_db::PgScalar`]'s components ([`column_value`]),
-//!    which only this crate can do, so `query` answers with one and
-//!    `Core\Db\Row`'s four typed readers answer off it. What is left is the
-//!    hydration's `CodecTy::Class` arm: a derived field declared as one of
-//!    those classes has nothing to check the built instance against, so
-//!    `queryAs<T>` refuses it there rather than placing it.
-//! 7. **Neither `query` nor `execute` declares a `{timeout?: Duration}`.**
+//! 6. **Neither `query` nor `execute` declares a `{timeout?: Duration}`.**
 //!    § 4's option is in both spec signatures and is deliberately in neither
 //!    registry row, for one reason on both: a deadline
 //!    on a statement has to reach the socket the way
 //!    [`nvs_db::PgConn::connect`]'s does, and there is no seam for one on the
 //!    statement path yet. An option that parsed and did nothing would be worse
 //!    than its absence, which the compiler can at least report.
-//! 8. **A delimiting quoter, if one is ever wanted, belongs on `Connection`**
+//! 7. **A delimiting quoter, if one is ever wanted, belongs on `Connection`**
 //!    and not here — that is the only place a dialect exists. § 18 does not ask
 //!    for one, and this module's second decision above is why adding it to
 //!    `Core\Db` cannot be the answer.
-//! 9. **`queryAs<T>` hydrates, and three of its refusals are at run time that
+//! 8. **`queryAs<T>` hydrates, and three of its refusals are at run time that
 //!    should be at compile time.** [`hydrate`] is the walk over
 //!    [`nvs_runtime::ClassDesc::db_codec`] and it lands; what is owed is where
 //!    the *no* is said. A `T` carrying no `#[Db\Derive]` codec and a
@@ -351,7 +342,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 ///
 /// **`query`, `execute`, `executeMany` and `transaction` are
 /// `Core\Db\Queryable`'s landed members, `queryAs` is declared with its body
-/// owed (this module's gap 9), and the rest are owed whole**: `stream` and
+/// owed (this module's gap 8), and the rest are owed whole**: `stream` and
 /// `streamAs`, plus `close` and § 18's three readonly properties.
 /// ADR 0043 makes `Transaction` delegate the interface to its connection, so
 /// every one of them is declared once — here — and [`TRANSACTION`] is where the
@@ -2627,7 +2618,7 @@ nvs_runtime::nvs_helper! {
         // Refused before the statement goes out, because it cannot mean
         // anything downstream: `Core\Json::decodeAs`'s list form is a document
         // that *is* a JSON array, and a result set is already one row per row.
-        // A compile-time home would be better and gap 9 says why there is none.
+        // A compile-time home would be better and gap 8 says why there is none.
         if list {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
@@ -3010,7 +3001,7 @@ fn row_object(
 /// § 8's `DbError` because this module's known gap 4 is that the latter is not
 /// in spec § 10's tree, and because `issues` is a property only the former
 /// declares. A class carrying no `#[Db\Derive]` is a `LogicError` instead: it
-/// is the program's mistake rather than the row's, and gap 9 owns why it is not
+/// is the program's mistake rather than the row's, and gap 8 owns why it is not
 /// the compile-time diagnostic it should be.
 ///
 /// # Safety
@@ -3036,7 +3027,7 @@ unsafe fn hydrate(
                 "{QUERY_AS}: `{}` carries no `#[Db\\Derive]`, so there is no column mapping to \
                  build one from — ADR 0071 § 1's opt-in is that attribute, and this is the \
                  refusal a compile-time diagnostic would be better at (`nvs_stdlib::db`'s known \
-                 gap 9)",
+                 gap 8)",
                 desc.name()
             ),
         ));
@@ -3105,7 +3096,7 @@ unsafe fn hydrate(
         release_all(&ctor_args);
         return Err(Fault::fatal(format!(
             "{QUERY_AS}: `{}`'s constructor parameter {index} is not a codec field, and a \
-             skipped field's default is `nvs_stdlib::db`'s own known gap 9",
+             skipped field's default is `nvs_stdlib::db`'s own known gap 8",
             desc.name()
         )));
     }
@@ -3138,7 +3129,7 @@ fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<Value, Strin
         };
     }
     let nvs_runtime::CodecTy::List = field.ty else {
-        return converted(field.ty, field.cases.as_ref(), held);
+        return converted(field.ty, field.cases.as_ref(), field.class.as_deref(), held);
     };
     let Some(element) = field.element else {
         return Err(
@@ -3158,7 +3149,7 @@ fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<Value, Strin
         // no nullability of its own on `CodecField`, and PostgreSQL's array
         // types all admit one.
         if one.tag() != Some(Tag::Null) {
-            converted(element, field.cases.as_ref(), one)
+            converted(element, field.cases.as_ref(), field.class.as_deref(), one)
                 .map_err(|why| format!("element {slot}: {why}"))?;
         }
         from = slot + 1;
@@ -3170,11 +3161,18 @@ fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<Value, Strin
 /// same number under the other integer tag where ADR 0067 § 6's "losslessly or
 /// throws" allows it, and § 5's message otherwise.
 ///
+/// `class` is the rendered name the *declaration* carried, where `ty` is a
+/// [`nvs_runtime::CodecTy::Class`]: the field's own class for a scalar field
+/// and the element's for a list's element, which is exactly how
+/// [`nvs_runtime::CodecField::class`] holds it — so both callers hand over the
+/// same field's, and neither has to know which of the two it is.
+///
 /// Never a heap value it did not receive, so nothing here allocates or takes a
 /// reference — see [`hydrated`].
 fn converted(
     ty: nvs_runtime::CodecTy,
     cases: Option<&nvs_runtime::EnumCases>,
+    class: Option<&str>,
     held: Value,
 ) -> Result<Value, String> {
     use nvs_runtime::CodecTy;
@@ -3245,18 +3243,43 @@ fn converted(
         }
         // A row is a flat list of columns and `nvs_types::derive`'s own
         // `db_reachable` maps none of them to a nested class, so this arm is
-        // § 9's five value types. Those decode now — the row holds a built
-        // `Core\Time` or `Core\Uuid` instance by the time hydration reads it —
-        // and what this arm still cannot do is the check every other arm is:
-        // asking *which* class the instance is, against the one the field
-        // declared. That is this module's known gap 6.
-        CodecTy::Class => Err(
-            "ADR 0067 § 9's `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMPTZ` and \
-                               `UUID` columns read back as `Core\\Time` and `Core\\Uuid` \
-                               instances, and a `#[Db\\Derive]` field declared as one is not \
-                               checked against them yet — `nvs_stdlib::db`'s known gap 6"
-                .to_owned(),
-        ),
+        // § 9's five value types and nothing else. The instance is built long
+        // before hydration reads it — [`column_value`] is where a driver's
+        // components become a `Core\Time` or a `Core\Uuid` — so all this arm
+        // asks is the question every other one asks: is it what the field
+        // declared.
+        //
+        // By rendered name rather than by descriptor pointer, because the two
+        // sides are written at different times: the label is what
+        // `nvs_types::derive` read off the declaration, and the descriptor is
+        // the one `crate::instance` gave the value the driver's components
+        // built. ADR 0051 keeps the `Core\` prefix for Tier 0, so no program
+        // can declare a second class answering to one of these five names.
+        CodecTy::Class => {
+            let Some(declared) = class else {
+                return Err(
+                    "this field is a class whose name the derive pass did not record".to_owned(),
+                );
+            };
+            let Some(object) = held.obj_ptr() else {
+                return Err(wanted(&format!("`{declared}`"), held));
+            };
+            #[expect(
+                unsafe_code,
+                reason = "the value argument owns a reference to a live allocation, \
+                          so it is live for the length of this call"
+            )]
+            let found = unsafe { &*nvs_runtime::NvsObj::class_of(object) };
+            if found.name() == declared {
+                Ok(held)
+            } else {
+                Err(format!(
+                    "the column came back as a `{}` and this field declares `{declared}` — ADR \
+                     0067 § 9's type map is what each column reads back as",
+                    found.name()
+                ))
+            }
+        }
         // `nvs_types::derive` erases `decimal`, `bytes` and every inline shape
         // to this, and its own gap 1 owns the erasure.
         CodecTy::Opaque => Err(
