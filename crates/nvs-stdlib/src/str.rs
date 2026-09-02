@@ -4062,6 +4062,7 @@ mod tests {
     /// `length` counts characters, which is the answer PHP needs two functions
     /// and a correct `mb_internal_encoding` to reach — and does not reach for
     /// the last row at all, since `strlen` says 25 and `mb_strlen` says 5.
+    // covers: Core\Str::length
     #[test]
     fn length_counts_characters_not_bytes_or_code_points() {
         for (subject, want) in [

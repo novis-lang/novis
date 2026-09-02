@@ -1,0 +1,19 @@
+<?nvs
+// Counting the characters of a short label -- what every truncation, column
+// width and form check does, once per value.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $labels = ["order", "customer", "shipping address", "ünïcödé"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($labels[$total % 4]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

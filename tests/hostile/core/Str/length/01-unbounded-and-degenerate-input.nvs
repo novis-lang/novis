@@ -1,0 +1,49 @@
+<?nvs
+// Attack: make `length` walk something no caller would ever pass it -- a string
+// far larger than the input it was written for, then a string that is nothing
+// but degenerate grapheme material. Either the count comes back, or a limit
+// refuses it and says so; what must not happen is a panic, an abort, or a walk
+// that never ends.
+// hostile: timeout-ms 20000
+
+class Attack {
+    /// One string of `$mib` mebibytes, counted. The count is a walk of every
+    /// character in it, so this is the allocator and the segmenter at once.
+    public static function big(uint $mib): uint {
+        var $chunk = Core\Str::repeat("a", 1048576);
+        var $s = Core\Str::repeat($chunk, $mib);
+        return Core\Str::length($s);
+    }
+
+    /// A base character followed by a very long run of combining marks: one
+    /// grapheme, thousands of code points, and the shape a segmenter that
+    /// buffers a cluster is least happy about.
+    public static function oneHugeCluster(uint $marks): uint {
+        var $s = "a" . Core\Str::repeat("\u{301}", $marks);
+        return Core\Str::length($s);
+    }
+
+    /// Every string this member is documented to count as one: a flag, a family
+    /// with zero-width joiners, a skin-toned profession. Asked a hundred
+    /// thousand times, so a leak of one cluster's working buffer shows up.
+    public static function repeatedlyOnHardInput(uint $rounds): uint {
+        array<string> $hard = [
+            "\u{1f1e6}\u{1f1f9}",
+            "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}",
+            "\u{1f469}\u{1f3fd}\u{200d}\u{1f680}",
+            "cafe\u{301}",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($hard[$total % 4]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::big(64), "\n";
+echo Attack::oneHugeCluster(200000), "\n";
+echo Attack::repeatedlyOnHardInput(100000), "\n";
+echo Core\Str::length(""), "\n";
