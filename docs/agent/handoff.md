@@ -2,53 +2,70 @@
 
 ## State
 
-**`examples/db.nvs` compiles as far as `queryAs<T>`, which is the one thing it still needs.**
-`Core\Db\Rows` is `Iterable<Row>` — a row in `nvs_stdlib::registry::ITERABLES` plus
-`nvs_core_db_rows_iterate` in the dispatch roster, which is the same two-roster shape `Core\IO\Lines`
-already had — and `Write`'s three readers are settled: `docs/spec/01-core-library.md` § 18 wrote them
-as readonly properties, a `Core` instance has no property a program can reach
-(`nvs_stdlib::registry::CoreTy::Instance`), so the spec's rows now write the readers the registry
-carries and its preamble states the rule once for `Decision` and `ExitReport` too.
+**`examples/db.nvs` compiles as far as `queryAs<T>`, which is the one thing it still needs**, and
+the runtime half that member will hydrate from now exists: ADR 0071's **row** codec travels
+`nvs_types::ExprTypeTable::db_codec` → `nvs_ir::ir::Class::db_codec` →
+`nvs_runtime::ClassDesc::db_codec()`, beside the JSON one rather than merged with it, because
+`#[Json\Field(name:)]` and `#[Db\Field(name:)]` are both legal on one property. `ctor_arity` is
+written by whichever format the class declares. `crates/nvs-ir/tests/derived_codecs.rs` pins all
+three cases.
 
-**The runtime half of that `foreach` has been compiled but never run.** Nothing executes it until
-`examples/db.nvs` runs whole, because a `Rows` needs a live server and the fixture is the only granted
-path; `every_iterable_class_answers_the_iteration_protocol` pins the roster pairing and nothing else.
+**Nothing reads `db_codec()` yet** — it is the input the `queryAs<T>` hydration body was missing,
+and the next group spends it.
 
-**The driver's acceptance line names `examples/queue.nvs`, and that is Stage 8's unlanded queue, not a
-regression** — `Core\Queue` has never existed. It sits one program leg ahead of `examples/db.nvs` in
-`docs/agent/loop-goal.toml`, so it will keep being the reported failure, and everything behind it stays
-unchecked, until ADR 0084 lands. The playbook bullet owns the reading.
+**`queryAs<T>`'s type half is the unresolved design call, and it is bigger than the item read.**
+Spec § 18 writes `Db\Rows<T>`, a *generic* `Core` class: `->all(): array<T>`, `->first(): ?T`,
+`Iterable<T>`. `nvs_stdlib::registry::GENERIC_CLASSES` already carries four such classes and
+`nvs_types::core_lib` interns `CoreTy::Instance` of one **at its own type variables**, so `Rows`
+joining that roster is the shape — but then `query`'s return is `Rows<Row>`, an instance at a
+*concrete* argument, and no `CoreTy` variant can spell one. That variant is the next group's first
+item.
+
+**The driver's acceptance line names `examples/queue.nvs`, and that is Stage 8's unlanded queue,
+not a regression** — `Core\Queue` has never existed, it sits one program leg ahead of
+`examples/db.nvs`, and everything behind it stays unchecked until ADR 0084 lands. The playbook
+bullet owns the reading.
 
 **The CA is still not in git** — it belongs to the `certs` volume, and `nvs_host::tls`'s module doc
 owns why a checkout that has never brought the fixtures up cannot boot from the repo root.
 
 ## Next group
 
-**What `examples/db.nvs` still needs, then running it — the file set is `crates/nvs-stdlib/src/db.rs`
-and `examples/db.nvs`, with one new checker path beside them.**
+**`queryAs<T>`, in three slices — the file set is `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-stdlib/src/db.rs` and `crates/nvs-types/src/core_lib.rs`, with `examples/db.nvs` as the
+proof.**
 
-- [ ] **`queryAs<T>`** — `crates/nvs-stdlib/src/db.rs:324` is the `CONNECTION` class and
-      `crates/nvs-stdlib/src/db.rs:2287` `query`'s helper, which it hydrates over. **It does not want
-      `open`'s shape-parameter `CoreTy`**: the type argument is written at the *call*, not declared in
-      a signature, and the landed precedent for that is `Core\Attributes::get<T>`, which
-      `crates/nvs-types/src/retrieval.rs:286` answers as a checker special case rather than as a
-      registry feature. So this is a `CoreTy` for the return (`Rows<T>` over the written argument) plus
-      a hydration body calling the class's `Db\Codec::fromRow`; ADR 0067 §§ 4 and 6, spec § 18.
-- [ ] **Run `examples/db.nvs` end to end against the compose fixture**, which is the first execution of
-      `crates/nvs-stdlib/src/db.rs:2781`'s cursor — `examples/db.nvs:69` is the `foreach`. Want
-      `rows=3`, `ada`, `grace`, `alan`, `affected=1`, `typed row ok`. A refcount slip here is a
-      valgrind item, so pair it with the WSL leg per `docs/agent/commands.md`.
-- [ ] **`Connection`'s `close()`, `driver()`, `serverVersion()` and `isOpen()`** —
-      `crates/nvs-stdlib/src/db.rs:324` again, and `crates/nvs-stdlib/src/db.rs:378` is its slot list.
-      Spec § 18's Connection row, now written as readers. Small, same file, and it closes four of the
-      names this module's known gap 5 lists.
+- [ ] **`Core\Db\Rows` becomes generic at `T`, and a row can write an instance at concrete
+      arguments.** Add `(ROWS_NAME, &["T"])` at `crates/nvs-stdlib/src/registry.rs:1957`, turn the
+      `ITERABLES` element at `crates/nvs-stdlib/src/registry.rs:1997` into `CoreTy::Var("T")`, and
+      make `all`/`first` at `crates/nvs-stdlib/src/db.rs:594` and `crates/nvs-stdlib/src/db.rs:603`
+      answer `array<T>`/`?T`. `CoreTy::Instance` at `crates/nvs-stdlib/src/registry.rs:498` interns
+      a generic class at its own variables (`crates/nvs-types/src/core_lib.rs:453`), so `query`'s
+      `Rows<Row>` needs a sibling variant carrying its arguments — and
+      `crates/nvs-stdlib/src/registry.rs:909`'s `CoreMethod::written` must descend into it, or
+      `queryAs`'s `T` is invisible there and the call is refused as non-generic. ADR 0067 § 18,
+      spec § 18's *Results* table.
+- [ ] **The `queryAs` row, on `Core\Db\Queryable`'s two classes.** `CONNECTION` is
+      `crates/nvs-stdlib/src/db.rs:324` and `TRANSACTION`'s forward of `query` is
+      `crates/nvs-stdlib/src/db.rs:445`. The class written at the call site reaches the helper
+      through `crates/nvs-stdlib/src/registry.rs:1924`'s `WRITTEN_CLASS_MEMBERS`, whose one row
+      today is `Core\Json::decodeAs` — its helper takes the `ClassDesc` in slot 0 and a list flag
+      in slot 1 ahead of its declared parameters (`crates/nvs-stdlib/src/json.rs:893`). `queryAs`
+      is that roster's first *instance* member, so check where `nvs-ir` writes those two slots
+      relative to the receiver before writing the arity.
+- [ ] **The hydration body, then `examples/db.nvs` end to end.**
+      `crates/nvs-stdlib/src/db.rs:2287` is `query`'s helper, which this copies down to the row
+      array; each row then fills one constructor from `ClassDesc::db_codec()`, on
+      `crates/nvs-stdlib/src/json.rs:939`'s `decode_as` shape — a codec-less class and an
+      `Opaque` field are its two refusals — except that the per-field read is § 6's typed reader
+      off a `Core\Db\Row` rather than a document walk. Then the fixture, which is the first
+      execution of the `foreach` compiled two sessions ago.
 
 ## Backlog
 
-- `Rows::columns()` needs a `Core\Db\Column`, a `Core\ColumnType` and an OID classification `nvs-db`
-  does not expose — `crates/nvs-stdlib/src/db.rs`'s known gap 5.
-- `open` still waits on a shape-parameter `CoreTy` — same known gap 5.
-- `stream`/`streamAs` hold the connection until drained — ADR 0067 § 4.
-- § 9's five structured rows do not read back — known gap 6.
-- `Db\DbError` is not in spec § 10's tree — known gap 4.
-- Stage 8's `Core\Queue` is a whole stage of its own — ADR 0084.
+- `Connection`'s `close()`, `driver()`, `serverVersion()` and `isOpen()` — spec § 18's table.
+- `Rows::columns()` on a `ColumnType` enum — spec § 18's *Results* table, the sixth of six.
+- `open`'s shape-parameter `CoreTy` — ADR 0067 § 2, the settings union.
+- `stream`/`streamAs` — ADR 0067 § 4's cursor form, `Iterable<Row>`/`Iterable<T>`.
+- The per-core pool and its reset — ADR 0067 § 13, Stages 3 to 7.
+- `Core\Queue` and ADR 0084's durable jobs — the acceptance line's own leg, Stage 8.

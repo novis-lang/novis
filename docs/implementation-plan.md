@@ -56,12 +56,12 @@
 > 7's `transaction` is on both classes** and `Core\Db\Isolation` is registered; `nvs.toml` now opens
 > `[db.main]` and grants `db.connect` to the two fixtures, which verify the compose CA through the
 > new `tls_ca_file` and the transaction fixture now passes Stage 5's check whole; `examples/db.nvs`
-> now stops at compile time on `queryAs<T>` alone: `Rows` is `Iterable<Row>` and `Write`'s three are
-> § 18's readers. The pool is Stages 3 to 7, and **ADR 0132 has claimed the goal's one ADR slot**: a
-> driver is a sans-IO codec plus a state machine over the parking stream, the five an enum not a
-> trait. **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** — `Core`'s
-> capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
-> Conformance 1408, differential 250, its gate met, migration 90%/74%.
+> stops on `queryAs<T>` alone, whose ADR 0071 row codec now reaches `ClassDesc::db_codec`. The pool
+> is Stages 3 to 7, and **ADR 0132 has claimed the goal's one ADR slot**: a driver is a sans-IO
+> codec plus a state machine over the parking stream, the five an enum not a trait. **Goals 1-4 and
+> M4 are closed and are this goal's Stage 1 floor** — `Core`'s capability-bearing half in full, with
+> `ring` the one C dependency ADR 0051 § 4 records. Conformance 1408, differential 250, its gate
+> met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

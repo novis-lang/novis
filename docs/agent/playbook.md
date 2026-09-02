@@ -5912,6 +5912,16 @@ sibling in the same namespace unqualified.
   symbol at all. So before designing anything around *how rows map to symbols*, grep
   `crates/nvs-stdlib/src/lib.rs` too; a design that collides with one of them is found by
   `cargo test -p nvs-stdlib --lib`, which is 0.2s, and not by anything nearer.
+- **"ADR 0071's derive pass has landed" was the *checking* half, and a `#[Db\Derive]` class's
+  mapping reached no descriptor at all.** The plan's Stage 0 line, `nvs_types::derive`'s roster and
+  `nvs_types::ExprTypeTable::db_codec` all read as finished — and the table really is filled — but
+  `nvs_ir::ir::Class::codec` and `nvs_runtime::ClassDesc::codec()` were `#[Json\Derive]`'s list
+  alone, so a `#[Core\Db\Derive]` class arrived at runtime with an empty codec and a `ctor_arity`
+  of zero, and a hydrating member planned against it would have had nothing to read. The module doc
+  that says so out loud is `crates/nvs-types/src/derive.rs`'s own gap 2, thirty lines above the
+  attribute roster a grep lands in. The general shape: a front-end table with no back-end reader is
+  what a landed-looking gap looks like here, so grep the *consumer* of a table the checker filled
+  before planning the member that spends it.
 
 ## Divergences and refusals already pinned
 
