@@ -1,0 +1,39 @@
+--TEST--
+`queryAs` takes one written type argument and is refused without it, where its `query` sibling takes none at all — ADR 0067 § 4, spec § 18
+--FILE--
+<?nvs
+// The `<T>` is not decoration: it is the only thing that says what a row
+// becomes, and nothing else at the call site could say it — the statement text
+// is opaque and the parameters are the values going *in*. So a `queryAs` with
+// no type argument has no answer to give rather than a default one, and this
+// is where that is said.
+use Core\Db\Derive;
+
+#[Derive]
+class Person {
+    public uint $id;
+
+    public function constructor(uint $id)
+    {
+        $this->id = $id;
+    }
+}
+
+// The written form, on the other handle `Core\Db\Queryable` declares this
+// member for: one type argument, and the answer is `Rows` at it.
+class People {
+    public static function everyone(Core\Db\Transaction $tx): Core\Db\Rows<Person>
+    {
+        return $tx->queryAs<Person>("select id from people", []);
+    }
+}
+
+var $db = Core\Db::connect("main");
+
+var $rows = $db->queryAs("select id from people", []);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0442]: `Core\Db\Connection::queryAs` takes 1 type argument(s)
+%A
+error: aborting due to 1 error

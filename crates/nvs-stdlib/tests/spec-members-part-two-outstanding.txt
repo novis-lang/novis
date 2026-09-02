@@ -57,6 +57,5 @@
 # talk to: goal 5's. `inList` and `quoteIdentifier` need neither and have
 # landed.
 §18 open
-§18 queryAs
 §18 stream
 §18 streamAs

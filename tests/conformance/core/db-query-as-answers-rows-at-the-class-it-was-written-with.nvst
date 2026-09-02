@@ -1,0 +1,42 @@
+--TEST--
+`queryAs<T>` answers a `Core\Db\Rows<T>` at the class its call site wrote, where `query` answers `Rows<Row>` — ADR 0067 § 4, ADR 0071 § 2, spec § 18
+--FILE--
+<?nvs
+// Spec § 18: `Rows` is one generic class and not two. `query` fixes its `T` at
+// a `Core\Db\Row`, and `queryAs<T>` at whatever the call site named — so the
+// two members differ in their answer's *type argument* and in nothing else.
+// That is the whole of what `PDO::FETCH_CLASS` was for, decided at the call
+// site rather than by a mode flag set on the statement.
+use Core\Db\Derive;
+
+#[Derive]
+class Person {
+    public uint $id;
+    public tainted string $name;
+
+    public function constructor(uint $id, tainted string $name)
+    {
+        $this->id = $id;
+        $this->name = $name;
+    }
+}
+
+// ADR 0043 declares the member once, on `Core\Db\Queryable`, so a transaction
+// answers exactly what its connection does — this function type-checks, and is
+// the agreement half of the refusal below.
+class People {
+    public static function everyone(Core\Db\Transaction $tx): Core\Db\Rows<Person>
+    {
+        return $tx->queryAs<Person>("select id, name from people", []);
+    }
+}
+
+var $db = Core\Db::connect("main");
+
+Core\Db\Rows<Core\Db\Row> $wrong = $db->queryAs<Person>("select id, name from people", []);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Db\Rows<Core\Db\Row>`, found `Core\Db\Rows<Person>`
+%A
+error: aborting due to 1 error

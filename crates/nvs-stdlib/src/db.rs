@@ -91,8 +91,9 @@
 //!    one — nothing in this module raises one yet, because § 7's
 //!    `transaction` is what would.
 //! 5. **`query`, `execute`, `executeMany` and `transaction` are what has landed
-//!    of `Core\Db\Queryable`.** `queryAs`, `stream` and `streamAs` are owed, and
-//!    so are `close` and § 18's three readonly properties on `Connection`. On
+//!    of `Core\Db\Queryable`,** with `queryAs`'s *row* landed and its body
+//!    owed (gap 9). `stream` and `streamAs` are owed whole, and so are
+//!    `close` and § 18's three readonly properties on `Connection`. On
 //!    the result side [`ROWS`] owes one member of six —
 //!    `columns(): array<Column>`, which needs three things at once: a
 //!    `Core\Db\Column` class, a `Core\ColumnType` enum for § 18's own fourteen
@@ -118,6 +119,16 @@
 //!    and not here — that is the only place a dialect exists. § 18 does not ask
 //!    for one, and this module's second decision above is why adding it to
 //!    `Core\Db` cannot be the answer.
+//! 9. **`queryAs<T>` is declared and does not hydrate.** The row is on both
+//!    classes, the call site's class reaches the helper
+//!    ([`crate::registry::WRITTEN_CLASS_MEMBERS`]) and the return type is
+//!    § 18's `Rows<T>`; what is owed is the walk over
+//!    [`nvs_runtime::ClassDesc::db_codec`] that turns one row into one `T`,
+//!    plus the two refusals a compile-time home would be better for — a `T`
+//!    that carries no `#[Db\Derive]` codec, and a `queryAs<array<C>>` whose
+//!    list form means nothing here. Both bands the checker would take a code
+//!    from (`E04xx`, `E07xx`) are full, so they are the helper's until a band
+//!    is opened.
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 
@@ -316,8 +327,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// connection it is refusing about.
 ///
 /// **`query`, `execute`, `executeMany` and `transaction` are
-/// `Core\Db\Queryable`'s landed members and the rest are owed**: `queryAs`,
-/// `stream` and `streamAs`, plus `close` and § 18's three readonly properties.
+/// `Core\Db\Queryable`'s landed members, `queryAs` is declared with its body
+/// owed (this module's gap 9), and the rest are owed whole**: `stream` and
+/// `streamAs`, plus `close` and § 18's three readonly properties.
 /// ADR 0043 makes `Transaction` delegate the interface to its connection, so
 /// every one of them is declared once — here — and [`TRANSACTION`] is where the
 /// forwarding lands.
@@ -347,6 +359,23 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Instance(ROW_NAME)]),
             symbol: "nvs_core_db_connection_query",
             doc: Some(&QUERY_DOC),
+        },
+        CoreMethod {
+            name: "queryAs",
+            names: &["sql", "params"],
+            // `query`'s two parameters exactly: § 4 makes this the same
+            // statement, read the same way, and the only difference is what
+            // each row becomes.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            // § 18's `Rows<T>` at the `T` the call site wrote — the whole
+            // reason [`CoreTy::Written`] descends into a
+            // [`CoreTy::InstanceAt`]. It is also what makes this member
+            // generic: `CoreMethod::written` finds the `T` here and nowhere
+            // else, so a call naming no type argument is `E0442`.
+            return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Written("T")]),
+            symbol: "nvs_core_db_connection_query_as",
+            doc: Some(&QUERY_AS_DOC),
         },
         CoreMethod {
             name: "execute",
@@ -461,6 +490,20 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Instance(ROW_NAME)]),
             symbol: "nvs_core_db_connection_query",
             doc: Some(&QUERY_DOC),
+        },
+        CoreMethod {
+            name: "queryAs",
+            names: &["sql", "params"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            // [`CONNECTION`]'s row, written out for the reason its `query`
+            // sibling is: this is the class `tools/gaps.py` attributes a case
+            // to. The symbol is the connection's too — ADR 0043's delegation
+            // is one body reached through either handle, and [`handle_of`] is
+            // what reads the two of them the same way.
+            return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Written("T")]),
+            symbol: "nvs_core_db_connection_query_as",
+            doc: Some(&QUERY_AS_DOC),
         },
         CoreMethod {
             name: "execute",
@@ -1047,6 +1090,32 @@ const QUERY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Db\Connection::queryAs`'s reference card — ADR 0117.
+const QUERY_AS_DOC: MethodDoc = MethodDoc {
+    short: "Runs one statement exactly as `query` does and answers its rows as the class written at \
+            the call site — `PDO::FETCH_CLASS` and the hand-written hydration loop, with the \
+            mapping generated from the class's own declared properties by `#[Db\\Derive]` rather \
+            than matched up by hand.",
+    params: &[
+        ParamDoc {
+            name: "sql",
+            desc: "The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, \
+                   never a value written into the text, and a sink either way.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "params",
+            desc: "The values to bind, under `query`'s own rule — one array, list-keyed for `?` \
+                   and string-keyed for `:name`.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Db\\Rows<T>` holding one `T` per row, in the server's order. **The hydration \
+          itself is `nvs_stdlib::db`'s known gap 9**: the member is declared, generic and \
+          callable, and calling it faults naming that gap rather than answering.",
+    errors: &[],
+};
+
 /// `Core\Db\Connection::execute`'s reference card — ADR 0117.
 const EXECUTE_DOC: MethodDoc = MethodDoc {
     short: "Runs one statement that answers counts rather than rows — an `insert`, an `update`, a \
@@ -1541,6 +1610,12 @@ const CONNECT: &str = r"Core\Db::connect";
 
 /// `Core\Db\Connection::query`, as its own refusals spell it.
 const QUERY: &str = r"Core\Db\Connection::query";
+
+/// `Core\Db\Connection::queryAs`, as its own refusals spell it — under
+/// [`ADR 0043`](../../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+/// delegation, a call through a `Core\Db\Transaction` names the connection's
+/// member here exactly as [`QUERY`] does.
+const QUERY_AS: &str = r"Core\Db\Connection::queryAs";
 
 /// `Core\Db\Connection::execute`, as its own refusals spell it. Both halves are
 /// passed together to everything on the statement path — the short name for
@@ -2353,6 +2428,48 @@ nvs_runtime::nvs_helper! {
         }
 
         Ok(crate::instance::build(&ROWS, [Value::array(rows)]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Db\Connection::queryAs<T>(string $sql, array<mixed> $params):
+    /// Db\Rows<T>` — ADR 0067 § 4's statement over § 18's hydrating result.
+    ///
+    /// **Arguments 0 and 1 are the class written at the call site and whether
+    /// it was written as `array<...>` of one**, not values, and the receiver is
+    /// argument 2: `crate::registry::WRITTEN_CLASS_MEMBERS` owns that ABI and
+    /// this is its first *instance* member. So the arity here is two more than
+    /// `query`'s, which is otherwise the same call.
+    ///
+    /// **The body is this module's known gap 9.** What is missing is one
+    /// walk — `nvs_runtime::ClassDesc::db_codec`'s fields against the row's
+    /// own columns, ADR 0071 § 5's accumulate-then-construct, and
+    /// `nvs_runtime::construct` — and it is deliberately not half-written: a
+    /// `Rows<Person>` holding `Core\Db\Row`s would be typed as one thing and
+    /// hold another, which is worse than a member that says what it has not
+    /// got. Everything the walk needs is on disk: § 9's type map already
+    /// decodes each column into the value a field wants, and
+    /// [`nvs_core_db_connection_query`] is the statement half unchanged.
+    fn nvs_core_db_connection_query_as(_ctx, args: [5]) {
+        // Unreachable from source, exactly as `Core\Json::decodeAs`'s own
+        // reading of these two slots is: `nvs_ir::lower` writes the descriptor
+        // and the flag out of the type argument at the call site, and a call
+        // naming none is `E0442` before any of this runs.
+        if args[0].as_class_desc().is_none() {
+            return Err(Fault::fatal(format!(
+                "internal error: `{QUERY_AS}` was called with no class in argument 0"
+            )));
+        }
+        // Spelled through [`QUERY_AS`] like every other refusal this module
+        // raises at run time, and not as one literal: a message opening on its
+        // own member name is what a `Core\Db` case would have to match, and
+        // there is no case to write for a member that needs a server.
+        Err(Fault::fatal(format!(
+            "{QUERY_AS}: building a row into the class written at the call site is \
+             `nvs_stdlib::db`'s known gap 9 — the member's row, its `Rows<T>` return and the \
+             descriptor its call site hands over are all in place, and the walk over \
+             `ClassDesc::db_codec` that ADR 0071 § 5 specifies is owed"
+        )))
     }
 }
 
@@ -3218,6 +3335,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_in_list" => (nvs_core_db_in_list as *const ()).cast(),
         "nvs_core_db_quote_identifier" => (nvs_core_db_quote_identifier as *const ()).cast(),
         "nvs_core_db_connection_query" => (nvs_core_db_connection_query as *const ()).cast(),
+        "nvs_core_db_connection_query_as" => (nvs_core_db_connection_query_as as *const ()).cast(),
         "nvs_core_db_connection_execute" => (nvs_core_db_connection_execute as *const ()).cast(),
         "nvs_core_db_connection_execute_many" => {
             (nvs_core_db_connection_execute_many as *const ()).cast()

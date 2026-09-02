@@ -4369,6 +4369,22 @@ is why" — is this file.
   and the regex means the row has to be spelled *inline* — a `const ROWS_OF_ROW: CoreTy` named in
   `return_ty:` is invisible to the tool while the Rust half resolves it fine, which is the two
   halves disagreeing in the direction no test catches.
+- **A `Core` member declaring a written type parameter is invisible to three gates at once, because
+  every one of them spells a call `->name(` or `Class::name(`.** Landing `Core\Db\Queryable::queryAs<T>`
+  failed `every_part_one_member_has_a_conformance_case`, `every_core_class_has_a_conformance_floor_of_three`
+  and — through `corpus::Attribution::arrow` — the per-class attribution behind both, none of which can
+  match `->queryAs<Person>(` since that is the member's *only* legal spelling. The static loop in
+  `conformance_coverage.rs` already had the answer (`method.written().is_empty()` picks `<` over `(` as
+  the boundary); the instance loop and the `arrow` regex in `tests/corpus/mod.rs` each needed the same
+  three lines. Expect to touch all three the next time a generic member lands, and note that the
+  attribution one is what makes a case count toward the *floor* rather than merely toward coverage.
+- **A new `Fault::` site whose message opens with literal text owes a conformance case, and for a
+  `Core\Db` member there is no case to write.** `every_error_path_is_asserted_or_declared_unreachable`
+  reads the 165 sites whose message starts with enough literal text to grep a case for, and `OWED_A_CASE`
+  may only shrink — so a member that needs a live server cannot pay it. `db.rs` already had the answer and
+  it is not an exemption: every runtime refusal there is `format!("{QUERY}: …")` off a `const` naming the
+  member, so the message opens on a hole and falls outside the gate's stated limit. Write the `const`
+  (`QUERY_AS` beside `QUERY`) before the message, not after the gate fails.
 
 ## Splitting a file that got too big
 

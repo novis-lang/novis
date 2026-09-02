@@ -76,7 +76,17 @@ fn every_part_one_member_has_a_conformance_case() {
             // answers for `Core\Regex\Match::text` — and deliberately so: the
             // alternative is inferring a receiver's type here, which would
             // mean a second checker rather than a coverage gate.
-            let call = format!("->{}(", method.name);
+            //
+            // The `<` boundary is the static loop's, for the same reason:
+            // `$q->queryAs<Person>(` is the only spelling `Core\Db\Queryable`'s
+            // generic member has, so `->queryAs(` appears in no case that
+            // compiles.
+            let opener = if method.written().is_empty() {
+                '('
+            } else {
+                '<'
+            };
+            let call = format!("->{}{opener}", method.name);
             if !source.contains(&call) {
                 uncovered.insert(format!("{}::{}", class.name, method.name));
             }

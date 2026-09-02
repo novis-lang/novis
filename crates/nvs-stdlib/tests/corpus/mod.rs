@@ -131,7 +131,12 @@ impl Attribution {
             builds,
             qualified: Regex::new(r"(Core(?:\\[A-Za-z][A-Za-z0-9]*)*)::([A-Za-z][A-Za-z0-9]*)")
                 .expect("the qualified-call pattern"),
-            arrow: Regex::new(r"->([a-z][A-Za-z0-9]*)\s*\(").expect("the instance-call pattern"),
+            // The optional `<...>` is `Core\Db\Queryable::queryAs<T>`'s: a
+            // member declaring a written type parameter has no spelling
+            // without one, so an arrow that stopped at the `<` would read
+            // every case of it as asking nothing.
+            arrow: Regex::new(r"->([a-z][A-Za-z0-9]*)\s*(?:<[^<>()\n]*>\s*)?\(")
+                .expect("the instance-call pattern"),
         }
     }
 

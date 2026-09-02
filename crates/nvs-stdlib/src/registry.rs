@@ -1926,13 +1926,21 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// to build a `User`, which means reaching that class's
 /// `nvs_runtime::ClassDesc` from native Rust.
 ///
-/// A roster rather than a field on [`CoreMethod`] because it is one entry
+/// A roster rather than a field on [`CoreMethod`] because it is three entries
 /// today against two hundred member rows, and a field would be `false` on
 /// every one of them. `nvs-ir` reads this to decide whether to emit an
 /// `InstKind::ClassDescConst` ahead of the call's own arguments; the helper's
-/// `args: [N]` therefore counts **two** more than [`CoreMethod::params`] does,
-/// and the descriptor is always **argument 0** — the same slot an instance
-/// member's receiver takes, so nothing else about the ABI moves.
+/// `args: [N]` therefore counts **two** more than [`CoreMethod::params`] does.
+///
+/// **The descriptor is always argument 0, and on an instance member the
+/// receiver moves to argument 2.** The pair goes ahead of *everything*,
+/// receiver included, rather than after it: a call site's written class is a
+/// constant of the call and not a value of the receiver, and putting it first
+/// means one rule for both kinds of member instead of two positions to
+/// remember. So `Core\Db\Connection::queryAs<T>(string, array)` is
+/// `args: [5]` — descriptor, list flag, receiver, `$sql`, `$params`.
+/// `nvs_ir::lower`'s two call paths and `lower_callable_ref` all write it in
+/// that order.
 ///
 /// **Argument 1 is a `bool`: whether the class was written inside an
 /// `array<...>`.** `decodeAs<array<User>>` hands over `User`'s descriptor and
@@ -1941,7 +1949,18 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// descriptor rather than being recovered from the document's own shape: the
 /// checker has already given the call site the type `array<User>` or `User`,
 /// and a helper guessing from the JSON would hand back the other one.
-pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[(r"Core\Json", "decodeAs")];
+///
+/// **`Core\Db\Queryable`'s `queryAs` is on it twice**, because ADR 0043's
+/// delegation is two registry rows and this roster is keyed by the *declaring*
+/// class — the one `nvs_types::expr::calls` resolves a call to. A member
+/// forwarded from `Core\Db\Transaction` to its connection is still written on
+/// the transaction, so both spellings have to be here or the same call through
+/// a `$tx` would lose its class.
+pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
+    (r"Core\Json", "decodeAs"),
+    (r"Core\Db\Connection", "queryAs"),
+    (r"Core\Db\Transaction", "queryAs"),
+];
 
 /// Whether `class::method` is one of [`WRITTEN_CLASS_MEMBERS`].
 #[must_use]
