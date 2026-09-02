@@ -4385,6 +4385,13 @@ is why" — is this file.
   it is not an exemption: every runtime refusal there is `format!("{QUERY}: …")` off a `const` naming the
   member, so the message opens on a hole and falls outside the gate's stated limit. Write the `const`
   (`QUERY_AS` beside `QUERY`) before the message, not after the gate fails.
+- **A `?T` narrows only inside a bare `if ($x != null)`, and `&&` does not do it.** `E0459` refuses
+  `$row->date("d")->format(...)`, and its help names exactly that spelling — but
+  `if ($a != null && $b != null)` fails on both receivers just the same, and so does negating the
+  test into an `else`. A case reading four `?T`s off one row would need four nested `if`s. The
+  compact spelling that works is `$x?->member() ?? "null"`: `examples/db.nvs`'s four `Db\Row`
+  readers are written that way, one line a column instead of a four-deep pyramid. Two build cycles
+  to find, because the diagnostic's help is correct and reads as though `&&` were covered by it.
 
 ## Splitting a file that got too big
 
