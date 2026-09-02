@@ -5219,6 +5219,107 @@ mod tests {
         assert!(state.get().is_poolable());
     }
 
+    /// § 13's exclusion read from the other side: not what the reset's flush
+    /// says, but what the flush *after* it costs.
+    ///
+    /// The case above asserts the command list, which only implies the
+    /// property; this one asserts the property itself — a statement parsed
+    /// before the reset is still the server's after it, so the batch after the
+    /// reset carries no `Parse`. `reset_session` takes no cache and touches
+    /// none, so a driver that started deallocating would fail here first. The
+    /// scripted server answers only what each batch actually asked for, so a
+    /// re-parse would stall on a `ParseComplete` that never comes rather than
+    /// pass quietly.
+    #[test]
+    fn postgres_resets_without_losing_its_statement_cache() {
+        let state = Cell::new(State::Idle);
+        let mut cache = StatementCache::new(2);
+        let mut flushed = 0usize;
+        let mut wire = Wire::new(Peer::new(move |_: &[u8]| {
+            flushed += 1;
+            match flushed {
+                1 => statement_answer(false, true),
+                2 => ready().repeat(super::RESET_COMMANDS.len()),
+                _ => statement_answer(false, false),
+            }
+        }));
+
+        {
+            let mut rows = start_statement(&mut wire, &state, &mut cache, "select greeting", &[])
+                .expect("the portal described itself");
+            while rows.next_row().expect("the stream drained").is_some() {}
+        }
+
+        super::reset_session(&mut wire, &state).expect("the reset ran");
+
+        {
+            let mut rows = start_statement(&mut wire, &state, &mut cache, "select greeting", &[])
+                .expect("the portal described itself");
+            while rows.next_row().expect("the stream drained").is_some() {}
+        }
+
+        assert_eq!(tags(&wire.peer().sent[0]), b"PBDES".to_vec());
+        for command in queries(&wire.peer().sent[1]) {
+            assert!(!command.contains("DEALLOCATE"), "{command}");
+            assert!(!command.contains("DISCARD ALL"), "{command}");
+        }
+        assert_eq!(
+            tags(&wire.peer().sent[2]),
+            b"BDES".to_vec(),
+            "the execution after the reset re-parsed a statement the server still holds"
+        );
+        assert_eq!(cache.len(), 1, "the reset emptied the cache");
+    }
+
+    /// § 13 states what a reset must remove as a **property list**, not as a
+    /// command list, because "a backend added later satisfies that property or
+    /// is not pooled". This sweeps the list.
+    ///
+    /// The case above compares the flush against six literals, which fails
+    /// loudly but says only that two lists differ. Here a property whose
+    /// command went missing fails **by name**, and the second loop closes the
+    /// other direction: a command in the reset that no § 13 property asks for
+    /// is a round trip nothing justifies.
+    #[test]
+    fn no_session_state_survives_a_return_to_the_pool() {
+        /// Each of § 13's properties against the command that removes it. Two
+        /// share `RESET ALL`, which is why this is a sweep and not a zip.
+        const REMOVED: [(&str, &str); 7] = [
+            ("an open transaction", "ROLLBACK"),
+            ("a session variable", "RESET ALL"),
+            ("a `SET ROLE`", "RESET ALL"),
+            ("an open cursor", "CLOSE ALL"),
+            ("a listener", "UNLISTEN *"),
+            ("an advisory lock", "SELECT pg_advisory_unlock_all()"),
+            ("a temporary table", "DISCARD TEMP"),
+        ];
+
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            ready().repeat(super::RESET_COMMANDS.len())
+        }));
+
+        super::reset_session(&mut wire, &state).expect("the reset ran");
+
+        let sent = queries(&wire.peer().sent[0]);
+        for (property, command) in REMOVED {
+            assert!(
+                sent.iter().any(|c| c.as_str() == command),
+                "{property} survives the reset: no command in it removes one"
+            );
+        }
+        for command in &sent {
+            assert!(
+                REMOVED.iter().any(|(_, c)| *c == command.as_str()),
+                "`{command}` is in the reset and no § 13 property asks for it"
+            );
+        }
+        // The eighth property — "no prepared statement the cache does not still
+        // account for" — is the one the list *keeps*, and it is asserted by
+        // `postgres_resets_without_losing_its_statement_cache` above.
+        assert_eq!(sent.len(), super::RESET_COMMANDS.len());
+    }
+
     /// A refused command fails the whole reset, the **first** refusal is the one
     /// reported, and every later command is still read to its boundary — which
     /// the second error's code proves, since reaching it means the batch was not
