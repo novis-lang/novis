@@ -2961,7 +2961,15 @@ tests = ["a_query_span_contains_no_parameter_value_anywhere"]
 kind = "exact"
 stage = "9 check and trace"
 file = "examples/db.nvs"
-want = ["rows=3", "ada", "grace", "alan", "affected=1", "typed row ok"]
+want = [
+  "rows=3", "ada", "grace", "alan",
+  # § 9's structured half: the four `Db\Row` readers whose answer is a class
+  # instance the driver cannot build, so `nvs-stdlib` builds it out of the
+  # components `PgColumn::scalar` hands over.
+  "day=2024-03-05", "clock=13:45:30", "at=2024-03-05T13:45:30Z",
+  "id=4f9d5e2c-1a3b-4c7d-8e9f-0a1b2c3d4e5f",
+  "affected=1", "typed row ok",
+]
 
 
 # ---------------------------------------------------------------------------------------------------

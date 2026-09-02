@@ -79,6 +79,27 @@ foreach ($rows as Row $row) {
     }
 }
 
+// § 9's structured half: the SQL types whose Novis value is a class instance
+// rather than a scalar, and the four `Row` readers that answer with one. The
+// driver hands over the components it read and `Core\Time`/`Core\Uuid` are
+// built here, because the instance belongs to the standard library and not to
+// the wire.
+foreach ($db->query("select date '2024-03-05' as day, time '13:45:30' as clock, timestamptz '2024-03-05 13:45:30+00' as at, uuid '4f9d5e2c-1a3b-4c7d-8e9f-0a1b2c3d4e5f' as id", []) as Row $shape) {
+    var $day = $shape->date("day");
+    var $clock = $shape->time("clock");
+    var $at = $shape->instant("at");
+    var $id = $shape->uuid("id");
+    // Every reader answers `?T`, because a NULL column is an ordinary absence
+    // (§ 6). None of these four can be null — each column is a literal in the
+    // statement above — so this is the compact spelling of a branch the
+    // program still has to have: `?->` reaches the member only when there is
+    // one, and `??` says what to print when there is not.
+    echo "day=", $day?->format("yyyy-MM-dd") ?? "null", "\n";
+    echo "clock=", $clock?->format("HH:mm:ss") ?? "null", "\n";
+    echo "at=", $at?->toIso() ?? "null", "\n";
+    echo "id=", $id?->toString() ?? "null", "\n";
+}
+
 // A write answers with `affected`, `changed` and `lastId` on one value, so
 // `rowCount`, `lastInsertId` and `mysqli_info` are one member. `affected` is
 // the rows the `where` matched; `changed` is the narrower question and is
