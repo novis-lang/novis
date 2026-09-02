@@ -2,50 +2,55 @@
 
 ## State
 
-**Stage 3's one `cargo-named` check is green**: all six names it lists for `nvs-db` now exist and
-pass. The four § 5 rewriter names landed this session in `crates/nvs-db/src/sql.rs`, each asking a
-question its landed near-twin does not — `the_rewriter_skips_string_literals_and_comments` sweeps
-every hiding construct and asserts the *count* of binds rather than one line per construct;
-`a_postgres_cast_and_a_jsonb_question_mark_survive_the_rewrite` puts `::`, `?|` and `??` in one
-statement because they are one scan; `a_named_parameter_used_twice_binds_one_value_once` asserts the
-reuse as an agreement across all four dialects, tying the arity to what § 1's cache keys on; and
-`in_list_expands_and_an_empty_list_throws` names the length bound on both sides and pins the
-refusal's `InvalidInput` classification. None was a rename of a green test — the playbook's bullet
-on stage 2's comment header forbids that, and all six landed names are still there.
+**Stage 4's § 9 sweep is on disk in `crates/nvs-db/src/pg.rs`.** The type map is now a shared
+`TYPE_MAP` const in that file's test module — one row per constant the `oid` module names, carrying
+the OID, its modifier, a body, spec § 18's description and § 9's decoded value.
+`every_row_of_the_type_map_round_trips` asserts the describe/decode round trip a row at a time plus
+the two bounds the landed halves could not make: that both answers name the *same* row of § 9
+(`row_of_the_type_map`, exhaustive on `ColumnType`), and that the sweep's length equals the number of
+`pub(super) const` lines the `oid` module declares, counted out of this file's own source by
+`oid_constants` — so a type the driver gains without a row here fails rather than passing quietly.
+`no_driver_returns_a_number_as_a_string` sweeps that same const rather than a second list, and its
+own rows are the values at which a string and a float stop being the same answer as a number.
 
-**Stage 4's eight names are next and none of them exists**, but two landed near-twins split the
-sweep in half: `every_scalar_row_of_the_type_map_decodes_to_its_novis_type`
-(`crates/nvs-db/src/pg.rs:5453`) and `every_structured_row_of_the_type_map_decodes_to_its_components`
-(`:5541`). The new names have to ask across both halves, not re-ask either.
+**Three of Stage 4's six open names cannot be hosted where the check looks.**
+`tinyint_one_reads_int_and_bool_and_throws_for_a_stored_seven` and
+`bigint_unsigned_past_i64_max_reads_uint_and_throws_for_int` are MySQL/MariaDB rows of § 9 and wait
+on Stage 6's drivers; `query_as_throws_naming_the_column_…` is `nvs-stdlib`'s `queryAs` while the
+check's `args` is `-p nvs-db`. `changed` is the same shape and the group below works around it: the
+member is `crates/nvs-stdlib/src/db.rs:4328`, and `crates/nvs-db/src/pg.rs:2469` holds the rule the
+PostgreSQL half is.
 
-**The driver's acceptance line still names `examples/queue.nvs`**, which is Stage 8's unlanded
-`Core\Queue` (ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s
-module doc owns why.
+**The driver's acceptance line still names `examples/queue.nvs`**, Stage 8's unlanded `Core\Queue`
+(ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s module doc owns why.
 
 ## Next group
 
-**Stage 4's § 9 type-map names — the `[[check]]` block at `docs/agent/loop-goal.toml:2806` — and the
-file set is `crates/nvs-db/src/pg.rs` alone.** Nothing in `sql.rs` moves. Read that block first: its
-names are the specification, and a landed near-twin may not be renamed into one of them.
+**The two Stage 4 names PostgreSQL can answer — the `[[check]]` block at
+`docs/agent/loop-goal.toml:2806` — and the file set is `crates/nvs-db/src/pg.rs` alone.** Both go
+beside the sweep that landed this session; `TYPE_MAP` is there to be reused rather than re-listed.
 
-- [ ] **`every_row_of_the_type_map_round_trips`** — § 9's whole table in one sweep, asserted by
-      count across both halves the two landed tests split: every OID this driver names describes,
-      decodes, and comes back as the Novis type the table gives it.
-      `crates/nvs-db/src/pg.rs:1667` is `describe`, `crates/nvs-db/src/pg.rs:1720` is `decode`, and
-      `crates/nvs-db/src/pg.rs:5331` is the `column()` helper the tests build one with. ADR 0067 § 9.
-- [ ] **`no_driver_returns_a_number_as_a_string`** — § *Context*'s own defect: no numeric OID
-      (`INT2`/`INT4`/`INT8`/`OID`/`FLOAT4`/`FLOAT8`/`NUMERIC`/`MONEY`) decodes to a text value, and
-      `decimal` is a `decimal` rather than PHP's string. `crates/nvs-db/src/pg.rs:1720` and the
-      `rendered()` helper at `crates/nvs-db/src/pg.rs:5406`. ADR 0067 § 9.
-- [ ] **`affected_is_the_matched_count_and_changed_is_mysql_only`** — § 4's count: PostgreSQL's tag
-      reports matched rows and there is no second `changed` number to read.
-      `crates/nvs-db/src/pg.rs:2411` is `affected_rows`, `crates/nvs-db/src/pg.rs:2475` is
-      `affected`, and the landed twin is `crates/nvs-db/src/pg.rs:5512`. ADR 0067 § 4.
+- [ ] **`affected_is_the_matched_count_and_changed_is_mysql_only`** — § 4's count on this protocol:
+      the tag's number is the rows *matched*, and `changed` is that same number rather than a second
+      one there is nothing to read. `crates/nvs-db/src/pg.rs:2475` is `affected`,
+      `crates/nvs-db/src/pg.rs:2411` is `affected_rows`, and `crates/nvs-db/src/pg.rs:2469` is the
+      doc stating the rule. The landed
+      `the_affected_row_count_is_the_tags_last_field_and_a_ddl_tag_has_none`
+      (`crates/nvs-db/src/pg.rs:5512`) already owns tag parsing, so this one asks the
+      matched-versus-altered question over a scripted `UPDATE` and never the parse again. ADR 0067
+      § 4.
+- [ ] **`a_zoneless_column_reads_in_the_declared_zone_and_a_timestamptz_ignores_it`** — § 9's
+      zone-less `DATETIME`/`TIMESTAMP` row against the row that carries its own offset.
+      `crates/nvs-db/src/pg.rs:2117` is `timestamp(text, zoned)`,
+      `crates/nvs-db/src/pg.rs:631` is the connection's `time_zone()`, and
+      `crates/nvs-db/src/pg.rs:1780` is where the two OIDs split. ADR 0067 § 9.
 
 ## Backlog
 
-- Stage 4's five other names — the `TINYINT(1)`, `BIGINT UNSIGNED`, `decimal`-into-`float`, declared-zone
-  and `queryAs` ones; `docs/agent/loop-goal.toml:2806`.
-- Stage 5 to 7: transactions, the pool, the four remaining drivers; `docs/agent/loop-goal.md`.
-- `Core\Queue` (ADR 0084) is Stage 8 and owns the standing acceptance failure.
-- The compose CA is generated, not committed; `crates/nvs-host/src/tls.rs`'s module doc.
+- Stage 4's two MySQL rows wait on Stage 6's drivers — `docs/agent/loop-goal.toml:2811`.
+- `query_as_throws_naming_the_column_…` is `nvs-stdlib`'s and the check is `-p nvs-db` —
+  `docs/agent/loop-goal.toml:2822`.
+- `a_decimal_into_a_float_field_throws` is ADR 0071's derive refusal — `crates/nvs-types/src/derive.rs`.
+- The pool is Stages 5 to 7 — ADR 0067 § 13.
+- The compose CA is not in git — `nvs_host::tls`'s module doc.
+- `examples/queue.nvs` is Stage 8's `Core\Queue` — ADR 0084.
