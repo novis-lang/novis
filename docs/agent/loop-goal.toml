@@ -2948,11 +2948,17 @@ want = [
 # Stage 8 -- ADR 0084's queue. The transactional-enqueue property is the reason for the whole design.
 # ---------------------------------------------------------------------------------------------------
 
+# `-p nvs-stdlib` and not `-p nvs-db`, which is where these names were first filed: what they assert
+# is the statement roster in `crates/nvs-stdlib/src/queue.rs` -- ADR 0084 § 2's schema has one home
+# and that is it -- and ADR 0132 § 1 fixes the crate graph so that `nvs-db` cannot name `nvs-stdlib`
+# at all, in a test target or anywhere else. `crates/nvs-stdlib/tests/queue.rs` sees both crates and
+# runs the statements a worker runs; `tools/db-matrix.py`'s `SUITES` is what points it at a server
+# beside `nvs-db`'s own suite, and with no `NVS_DB_MATRIX_DRIVER` set every case there skips.
 [[check]]
 kind = "cargo-named"
 stage = "8 queue"
-name = "nvs-db (Core\\Queue)"
-args = ["test", "-p", "nvs-db"]
+name = "nvs-stdlib (Core\\Queue)"
+args = ["test", "-p", "nvs-stdlib"]
 tests = [
   # § 3 -- a job never exists for a row that was rolled back. This is the property, not a feature.
   "an_enqueue_commits_with_the_write_that_made_it",

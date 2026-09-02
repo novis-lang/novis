@@ -9,9 +9,10 @@
 
 ## What this is, and what it is not
 
-It is a **harness, not a test**. Every assertion is `crates/nvs-db`'s own, written once against the
-shape ADR 0067's *Verification* section names; this file's whole job is to point that suite at five
-endpoints, one driver at a time, and print one `<driver>: ok` line each. `docs/agent/loop-goal.md`
+It is a **harness, not a test**. Every assertion belongs to the crate that owns what it asserts,
+written once against the shape ADR 0067's *Verification* section names; this file's whole job is to
+point those suites at five endpoints, one driver at a time, and print one `<driver>: ok` line each.
+Which suites, and why it is no longer only `nvs-db`'s, is `SUITES` below. `docs/agent/loop-goal.md`
 § *The harness this goal owes* is why it exists before the first driver rather than after: a driver
 with no server to run against is a driver whose tests are all mocks.
 
@@ -100,6 +101,20 @@ CRATE = ROOT / "crates" / "nvs-db"
 UP_TIMEOUT = 600
 #: One driver's assertions, including the `cargo` build the first of them pays for.
 TEST_TIMEOUT = 900
+
+#: The suites one driver leg runs, in order, as `cargo test` argument lists. The first failure stops
+#: the leg, because the verdict is already decided.
+#:
+#: Two rather than one, because what a server has to answer no longer all lives in `nvs-db`: ADR
+#: 0084's queue statements are `nvs_stdlib::queue`'s -- § 2's schema has one home and that is it --
+#: and ADR 0132 § 1 forbids the `use nvs_stdlib::…` a `crates/nvs-db` test over them would need, so
+#: they are run from `crates/nvs-stdlib/tests/queue.rs` and this is what reaches them. Narrowed to
+#: that one target on purpose: the rest of `nvs-stdlib`'s suite asks a server nothing, and every
+#: driver leg would pay for it.
+SUITES = (
+    ["-p", "nvs-db"],
+    ["-p", "nvs-stdlib", "--test", "queue"],
+)
 
 
 @dataclass(frozen=True)
@@ -277,7 +292,7 @@ def export_anchor(driver: Driver, into: Path) -> Path:
 
 
 def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
-    """Run `nvs-db`'s suite against one driver. Returns (verdict, one-line detail).
+    """Run every suite in `SUITES` against one driver. Returns (verdict, one-line detail).
 
     The verdict is `ok`, `FAILED` -- the assertions ran and disagreed -- or `n/a`, a driver whose
     server could not be reached at all. A server with no exportable trust anchor is the second of
@@ -306,13 +321,16 @@ def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
             where = endpoint.describe()
 
         say(f"db-matrix: {driver.name} against {where}")
-        try:
-            r = subprocess.run(
-                ["cargo", "test", "-q", "-p", "nvs-db"],
-                cwd=ROOT, env=env, capture_output=True, text=True, timeout=TEST_TIMEOUT,
-            )
-        except subprocess.TimeoutExpired:
-            return "FAILED", f"no verdict within {TEST_TIMEOUT}s"
+        for suite in SUITES:
+            try:
+                r = subprocess.run(
+                    ["cargo", "test", "-q", *suite],
+                    cwd=ROOT, env=env, capture_output=True, text=True, timeout=TEST_TIMEOUT,
+                )
+            except subprocess.TimeoutExpired:
+                return "FAILED", f"no verdict within {TEST_TIMEOUT}s for `{' '.join(suite)}`"
+            if r.returncode != 0:
+                break
     except Fail as exc:
         # One driver's endpoint being unreadable stops that driver rather than the run: the other
         # four are still worth a verdict, and this one gets a line saying what was missing.

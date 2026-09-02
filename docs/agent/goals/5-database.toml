@@ -2915,6 +2915,12 @@ tests = [
   # The switch, asked the same question over the same socket: `pool = false` files nothing, so the
   # next request draws nothing and opens a backend of its own.
   "a_pool_that_is_off_hands_the_next_request_nothing",
+  # The two bounds that decide what a pool *keeps*, over that same socket. `nvs-runtime`'s own cases
+  # move a clock and count a store's entries over a `Fake`; what a server adds is that the retirement
+  # and the release past `idle` are a **close**, so the next request is answered by a different
+  # backend and the connection kept is the one released under the bound rather than the one past it.
+  "a_connection_past_its_lifetime_is_not_the_one_the_next_request_draws",
+  "a_release_past_the_idle_bound_closes_the_second_connection",
 ]
 
 # § 13's other two bounds, from a program: `max` is a ceiling a request can *reach*, and `acquire` is
@@ -2942,11 +2948,17 @@ want = [
 # Stage 8 -- ADR 0084's queue. The transactional-enqueue property is the reason for the whole design.
 # ---------------------------------------------------------------------------------------------------
 
+# `-p nvs-stdlib` and not `-p nvs-db`, which is where these names were first filed: what they assert
+# is the statement roster in `crates/nvs-stdlib/src/queue.rs` -- ADR 0084 § 2's schema has one home
+# and that is it -- and ADR 0132 § 1 fixes the crate graph so that `nvs-db` cannot name `nvs-stdlib`
+# at all, in a test target or anywhere else. `crates/nvs-stdlib/tests/queue.rs` sees both crates and
+# runs the statements a worker runs; `tools/db-matrix.py`'s `SUITES` is what points it at a server
+# beside `nvs-db`'s own suite, and with no `NVS_DB_MATRIX_DRIVER` set every case there skips.
 [[check]]
 kind = "cargo-named"
 stage = "8 queue"
-name = "nvs-db (Core\\Queue)"
-args = ["test", "-p", "nvs-db"]
+name = "nvs-stdlib (Core\\Queue)"
+args = ["test", "-p", "nvs-stdlib"]
 tests = [
   # § 3 -- a job never exists for a row that was rolled back. This is the property, not a feature.
   "an_enqueue_commits_with_the_write_that_made_it",
@@ -2961,9 +2973,21 @@ tests = [
 [[check]]
 kind = "command"
 stage = "8 queue"
-name = "nvs queue migrate creates both tables"
+name = "nvs queue migrate prints both tables"
 argv = ["{nvs}", "queue", "migrate", "--connection", "main", "--dry-run"]
 want = ["jobs", "dead_letter"]
+
+# The applying half, and it has to run before the fixture below: `examples/queue.nvs` pushes a row into
+# `nvs_jobs`, and nothing else in this sweep creates that table. Order here is run order (a `0`-prefixed
+# stage is the only thing that jumps the queue), so this block staying above that one is load-bearing.
+# It is also the assertion that the command is idempotent, since the sweep runs it against a server the
+# previous iteration already migrated -- every statement carries `if not exists`.
+[[check]]
+kind = "command"
+stage = "8 queue"
+name = "nvs queue migrate creates both tables"
+argv = ["{nvs}", "queue", "migrate", "--connection", "main"]
+want = ["jobs: applied", "dead_letter: applied"]
 
 [[check]]
 kind = "exact"
