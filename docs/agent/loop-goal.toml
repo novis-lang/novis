@@ -11,6 +11,7 @@
 files = [
   "examples/db.nvs",
   "examples/transaction.nvs",
+  "examples/pool.nvs",
   "examples/queue.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/files.nvs",
@@ -2905,6 +2906,33 @@ tests = [
   "mysql_and_mssql_reset_through_the_protocol_and_lose_theirs",
   "a_failed_reset_destroys_the_connection_rather_than_returning_it",
   "no_session_state_survives_a_return_to_the_pool",
+  # The seam the four above cannot reach between them: `crates/nvs-db/tests/pool_reuse.rs` is an
+  # integration test over a real server, and its assertion is `pg_backend_pid()` -- the identity of
+  # the process on the other end, so an equal pid is one connection and not a second one that
+  # answered as well. It runs on every leg and asserts only where `tools/db-matrix.py` pointed it at
+  # a server, which is the skip rule the whole crate shares.
+  "two_requests_on_one_core_share_one_connection",
+  # The switch, asked the same question over the same socket: `pool = false` files nothing, so the
+  # next request draws nothing and opens a backend of its own.
+  "a_pool_that_is_off_hands_the_next_request_nothing",
+]
+
+# § 13's other two bounds, from a program: `max` is a ceiling a request can *reach*, and `acquire` is
+# how long reaching it costs before the refusal. Both are per core and neither is observable from
+# `nvs-db`, which has no capability layer, no config block and no `Core\Db::connect` -- the ceiling is
+# taken in `nvs-stdlib` before the handshake, so a fixture is the first place the two meet.
+#
+# What this check does NOT pin is that the wait is a *park*: for that, other work has to run on the
+# core while it is on, and a `Core\Task` child cannot do database work yet. `docs/agent/handoff.md`
+# names the gap and the anchor.
+[[check]]
+kind = "exact"
+stage = "7 pool"
+file = "examples/pool.nvs"
+want = [
+  "opened=1",
+  "refused: waited `acquire` out, and named it",
+  "usable=1",
 ]
 
 

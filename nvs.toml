@@ -157,6 +157,15 @@ entry = "examples/transaction.nvs"
 [app.capabilities.db]
 connect = ["main"]
 
+# The third database fixture, and the one whose grant names a *different* block: ADR 0067 § 13's
+# pool key is the config block, so `[db.tight]` below is its own pool and nothing this program does
+# to that pool's ceiling is reachable from the two fixtures above.
+[[app]]
+entry = "examples/pool.nvs"
+
+[app.capabilities.db]
+connect = ["tight"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
@@ -208,3 +217,31 @@ user = "novis"
 password = "Novis-Test-Pw1"
 database = "novis_test"
 tls_ca_file = "tests/db/ca.crt"
+
+# The same server, under a second name, with ADR 0067 § 13's ceiling wound all the way down —
+# `examples/pool.nvs` is the only program granted it. A second block rather than a `[db.main.pool]`
+# on the one above, because § 13 keys a pool by the block: a `max` of 1 written on `[db.main]` would
+# be a bound the other two fixtures run under as well, and the point of this one is that reaching
+# the ceiling is *this* program's own business.
+#
+# `idle` is written because it has to be. It defaults to 2 and `nvs_config::db::pool_for` refuses an
+# `idle` above `max` at boot, so a block that lowers `max` to 1 and says nothing else does not load
+# at all — for every program, since this file is one snapshot.
+#
+# `acquire` is short for the fixture's sake and for no other reason: it is how long the second
+# connect waits before it throws, and the default 5s would be five seconds of wall clock in the
+# acceptance sweep to learn the same thing 500ms proves. It is comfortably longer than the 60ms of
+# sleeps the sibling task spends, which is what makes the count that program prints a constant.
+[db.tight]
+driver = "postgres"
+host = "127.0.0.1"
+port = 15432
+user = "novis"
+password = "Novis-Test-Pw1"
+database = "novis_test"
+tls_ca_file = "tests/db/ca.crt"
+
+[db.tight.pool]
+max = 1
+idle = 1
+acquire = "500ms"

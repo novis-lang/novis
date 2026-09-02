@@ -1,0 +1,95 @@
+<?nvs
+// The pool has a ceiling, and a request that arrives at it waits before it is
+// refused.
+//
+// [ADR 0067](../docs/adr/0067-core-db.md) § 13 sizes a pool per core: `max` is
+// how many connections one core may hold open under a block — so a
+// deployment's ceiling on the server is `cores × max`, which is the number an
+// operator sizes `max_connections` against — and `acquire` is how long a
+// request that finds them all held waits for one to come free before it throws
+// rather than hanging. `[db.tight]` in `nvs.toml` is a block written around
+// that pair, `max = 1` and a short `acquire`, so this program reaches both
+// bounds in under a second.
+//
+// **The wait is the half worth pinning.** A ceiling that refused on sight would
+// print the same refusal, so the elapsed time below is what separates the two:
+// the second `connect` is answered no earlier than `acquire` after it asked.
+// What that measurement cannot tell apart is a *park* from a spin — for that,
+// something else has to run on this core while the wait is on, and nothing can
+// yet: a `Core\Task` child's context carries no configuration, so a
+// capability-gated member inside one is refused before it reaches the pool at
+// all. `docs/agent/handoff.md` owns that gap and the anchor for it.
+//
+// The three lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 7); the source is not. `[db.tight]` is its own block and so its own
+// pool, and `examples/db.nvs`'s `[db.main]` is reached by nothing here.
+
+use Core\Db;
+use Core\Db\Connection;
+
+class Ceiling {
+    // The verdict as one line, so that a failure says which half failed rather
+    // than printing a `false` three ways. `$waited` is milliseconds and 500 is
+    // `[db.tight.pool] acquire` — the fixture reads the bound it was written
+    // against, and a config that lowers it makes this line say so.
+    public static function verdict(int $waited, bool $acquire, bool $ceiling): string {
+        if ($waited < 500) {
+            return "refused after only " . $waited . "ms, which is inside `acquire`";
+        }
+        if (!$acquire) {
+            return "waited, and then refused without naming `acquire`";
+        }
+        if (!$ceiling) {
+            return "waited, and then refused without naming the ceiling it reached";
+        }
+        return "waited `acquire` out, and named it";
+    }
+
+    // The first column of the first row, or -1. The shape
+    // `examples/transaction.nvs` uses and for the same reason: `?Row` and then
+    // `?int` is two unwraps, and this program prints the number twice.
+    public static function one(Connection $db, string $sql): int {
+        var $row = $db->query($sql, [])->first();
+        if ($row == null) {
+            return -1;
+        }
+        var $n = $row->int("n");
+        if ($n == null) {
+            return -1;
+        }
+        return $n;
+    }
+}
+
+// This request's own connection, and the block's only one. It is memoized
+// (§ 2) and it holds its pool slot until the request ends, so the ceiling
+// below is reached and never merely approached.
+var $db = Db::connect("tight");
+echo "opened=", Ceiling::one($db, "select 1 as n"), "\n";
+
+// `{shared: false}` is what makes this a *second* connection rather than the
+// one above handed back: § 2's memoization is per request, and opting out of it
+// opts into the handshake — which is where the ceiling is, since § 13 takes the
+// slot before the socket and so bounds every connection this core holds under
+// the key rather than only the ones the pool itself supplied.
+//
+// No `timeout` is passed, deliberately: a shorter one is reported in its own
+// words, and the refusal this fixture is about is the one `acquire` produces.
+var $asked = Core\Time::now();
+try {
+    Db::connect("tight", {shared: false});
+    echo "refused: nothing — a second connection opened, which `max = 1` forbids", "\n";
+} catch (IOError $full) {
+    var $waited = Core\Time::now()->since($asked)->toMilliseconds();
+    echo "refused: ", Ceiling::verdict(
+        $waited,
+        Core\Str::contains($full->message, "`acquire` was up"),
+        Core\Str::contains($full->message, "`max` of 1")
+    ), "\n";
+}
+
+// The ceiling refused a second connection and did nothing to the first: a lease
+// is given back by its own `Drop` on every path between the ask and the request
+// ending, so a refusal that had taken this one's slot with it would show up
+// here as a connection that no longer answers.
+echo "usable=", Ceiling::one($db, "select 1 as n"), "\n";
