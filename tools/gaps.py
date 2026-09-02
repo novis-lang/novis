@@ -133,8 +133,13 @@ def registry() -> dict[tuple[str, str], tuple[Path, int, str]]:
 #: `return_ty: CoreTy::Instance(DATETIME_NAME)` -- the member answers an instance of that class,
 #: which is how a case reaches a class it never spells. Resolved through the same file-level name
 #: consts `CLASS_RE`'s second spelling uses.
+#:
+#: `CoreTy::InstanceAt(ROWS_NAME, &[...])` is the same claim about a generic class at written
+#: arguments, and only the class it names matters here -- what `Core\Db\Connection::query` answers
+#: is a `Core\Db\Rows` whether or not the row spells its `T`. The Rust half of this attribution is
+#: `crates/nvs-stdlib/tests/corpus/mod.rs`'s `Attribution::new`, and the two agree by hand.
 RETURNS_RE = re.compile(
-    r'return_ty:\s*CoreTy::Instance\(\s*(?:r"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))\s*\)')
+    r'return_ty:\s*CoreTy::Instance(?:At)?\(\s*(?:r"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))\s*[,)]')
 
 
 def producers() -> dict[tuple[str, str], str]:

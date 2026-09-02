@@ -14,7 +14,7 @@ array<mixed> $wrong = $db->query("select 1", []);
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `array<mixed>`, found `Core\Db\Rows`
+error[E0401]: expected `array<mixed>`, found `Core\Db\Rows<Core\Db\Row>`
    --> case.nvs:10:23
 %A
 error: aborting due to 1 error

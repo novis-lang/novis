@@ -151,7 +151,7 @@ path through `open` additionally needs `fs.read`/`fs.write` and is a path sink.
 
 | Member | Returns | Note |
 |---|---|---|
-| `query` | `Db\Rows` | buffered; `count()` known, connection free afterwards |
+| `query` | `Db\Rows<Row>` | buffered; `count()` known, connection free afterwards |
 | `queryAs<T>` | `Db\Rows<T>` | same, hydrated into a shape or a `Db\Codec` class (§ 6) |
 | `execute` | `Db\Write` | `affected`, `changed`, `lastId` (§ 7) |
 | `executeMany` | `uint` | one prepare, N executions; MariaDB 10.2+ uses `COM_STMT_BULK_EXECUTE` |

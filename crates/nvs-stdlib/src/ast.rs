@@ -358,6 +358,9 @@ mod tests {
             | CoreTy::Nullable(inner)
             | CoreTy::Iterated(inner)
             | CoreTy::Variadic(inner) => mentions(inner, class),
+            CoreTy::InstanceAt(name, args) => {
+                *name == class || args.iter().any(|arg| mentions(arg, class))
+            }
             CoreTy::Union(members) => members.iter().any(|member| mentions(member, class)),
             CoreTy::Options(options) => options.iter().any(|option| mentions(&option.ty, class)),
             CoreTy::Bool

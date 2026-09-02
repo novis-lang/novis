@@ -8,8 +8,13 @@ Every `Rows` and `Row` reader is reached through a declared parameter, so where 
 // difference from `fetch`, where what a value can answer depended on the mode
 // the fetch was asked with, so a helper taking "a row" had to be told which
 // kind of row it was getting.
+//
+// `Rows` is generic at what its rows hydrated into (spec § 18's Results table),
+// so the declared type writes that argument: `query` answers `Rows<Row>`, and
+// there is no bare spelling that leaves it open — the same rule every `Core`
+// generic follows.
 class Reads {
-    public static function set(Core\Db\Rows $rows): uint {
+    public static function set(Core\Db\Rows<Core\Db\Row> $rows): uint {
         var $all = $rows->all();
         var $head = $rows->first();
         var $one = $rows->value();
@@ -53,6 +58,6 @@ var $refused = Reads::row($rows->first());
 
 --EXPECTF-ERROR--
 error[E0401]: expected `Core\Db\Row`, found `null|Core\Db\Row`
-   --> case.nvs:48:27
+   --> case.nvs:53:27
 %A
 error: aborting due to 1 error

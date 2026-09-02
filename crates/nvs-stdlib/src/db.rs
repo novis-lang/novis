@@ -336,7 +336,15 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
                 CoreTy::Array(&CoreTy::Mixed),
             ],
             defaults: &[],
-            return_ty: CoreTy::Instance(ROWS_NAME),
+            // § 18's `Rows<Row>` — [`ROWS`] at the one concrete argument an
+            // unhydrated result set has, and `queryAs<T>` is the same class at
+            // whatever the call site wrote. A [`CoreTy::InstanceAt`] and not a
+            // [`CoreTy::Instance`]: the bare spelling would intern the class at
+            // its *own* `T`, a variable no call site of `query` ever binds.
+            // Written out on both classes rather than named once, because
+            // `tools/gaps.py` attributes a case to the class a member answers
+            // by reading this very line.
+            return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Instance(ROW_NAME)]),
             symbol: "nvs_core_db_connection_query",
             doc: Some(&QUERY_DOC),
         },
@@ -442,7 +450,15 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             names: &["sql", "params"],
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
             defaults: &[],
-            return_ty: CoreTy::Instance(ROWS_NAME),
+            // § 18's `Rows<Row>` — [`ROWS`] at the one concrete argument an
+            // unhydrated result set has, and `queryAs<T>` is the same class at
+            // whatever the call site wrote. A [`CoreTy::InstanceAt`] and not a
+            // [`CoreTy::Instance`]: the bare spelling would intern the class at
+            // its *own* `T`, a variable no call site of `query` ever binds.
+            // Written out on both classes rather than named once, because
+            // `tools/gaps.py` attributes a case to the class a member answers
+            // by reading this very line.
+            return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Instance(ROW_NAME)]),
             symbol: "nvs_core_db_connection_query",
             doc: Some(&QUERY_DOC),
         },
@@ -568,7 +584,15 @@ const ISOLATION_DOC: EnumDoc = EnumDoc {
 /// cases, and a classification of a `PgColumn`'s type OID that `nvs-db` does not
 /// yet expose. This module's known gap 5 is that list.
 ///
-/// **It is `Iterable<Row>`, so a `foreach` walks it directly** — the row in
+/// **It is generic at `T`, and § 18's `Rows` and `Rows<T>` are this one class.**
+/// The roster row is in [`crate::registry::GENERIC_CLASSES`], `all`/`first`
+/// answer `array<T>`/`?T`, and what fixes the variable is the member that
+/// produced the receiver: `query` answers `Rows<Row>` and `queryAs<T>` the
+/// same class at the call site's own `T`. Two classes would have been two
+/// rosters of identical readers, and the unhydrated one is not a different
+/// thing from the hydrated one — it is the case where `T` is a `Core\Db\Row`.
+///
+/// **It is `Iterable<T>`, so a `foreach` walks it directly** — the row in
 /// [`crate::registry::ITERABLES`] is what lets the checker compile one, and
 /// [`nvs_core_db_rows_iterate`] is what the receiver answers the protocol with.
 /// ADR 0053 § 3 takes exactly three subjects and this is the second of them
@@ -591,7 +615,12 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            return_ty: CoreTy::Array(&CoreTy::Instance(ROW_NAME)),
+            // § 18's `Rows<T>` row: `all` answers the class's own type
+            // variable, which `query`'s `Rows<Row>` fixes at a `Core\Db\Row`
+            // and `queryAs<T>` at whatever the call site wrote. Substituted in
+            // by `nvs_types::expr::args::substitute_receiver_args`, exactly as
+            // `Core\ObjectSet`'s members' `T` is.
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_db_rows_all",
             doc: Some(&ROWS_ALL_DOC),
         },
@@ -600,7 +629,8 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            return_ty: CoreTy::Nullable(&CoreTy::Instance(ROW_NAME)),
+            // `?T`, for the reason `all` answers `array<T>` above.
+            return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_db_rows_first",
             doc: Some(&ROWS_FIRST_DOC),
         },
@@ -992,9 +1022,9 @@ const QUERY_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "A `Core\\Db\\Rows` holding every row the statement answered, in the server's order. A \
-          statement that answers none — an `update`, a `create table` — is an empty one rather \
-          than a refusal.",
+    ret: "A `Core\\Db\\Rows<Core\\Db\\Row>` holding every row the statement answered, in the \
+          server's order. A statement that answers none — an `update`, a `create table` — is an \
+          empty one rather than a refusal.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
@@ -1183,11 +1213,12 @@ const ROLL_BACK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Rows::all`'s reference card — ADR 0117.
 const ROWS_ALL_DOC: MethodDoc = MethodDoc {
-    short: "Every row of the result, in the server's order, each one a `Core\\Db\\Row` — \
-            `PDO::fetchAll` without a fetch-mode argument to choose the shape with.",
+    short: "Every row of the result, in the server's order — `PDO::fetchAll` without a fetch-mode \
+            argument to choose the shape with.",
     params: &[],
-    ret: "An `array<Core\\Db\\Row>`, empty for a statement that answered no rows. The rows are the \
-          ones already read, so this costs one object each and no second decode.",
+    ret: "An `array<T>`, empty for a statement that answered no rows. `T` is the result set's own \
+          type argument: a `Core\\Db\\Row` for `query`, and the hydrated class for `queryAs<T>`. \
+          The rows are the ones already read, so this costs one object each and no second decode.",
     errors: &[],
 };
 
@@ -1196,9 +1227,9 @@ const ROWS_FIRST_DOC: MethodDoc = MethodDoc {
     short: "The first row, or `null` where there is none — `PDO::fetch`, without its `false` and \
             without a cursor that a second call would move.",
     params: &[],
-    ret: "A `Core\\Db\\Row`, or `null` for an empty result — `?T` is the absence spelling \
-          everywhere in `Core`, and a query that matched nothing is an answer rather than a \
-          failure to throw about.",
+    ret: "A `T` — the result set's own type argument, as `all` describes — or `null` for an empty \
+          result. `?T` is the absence spelling everywhere in `Core`, and a query that matched \
+          nothing is an answer rather than a failure to throw about.",
     errors: &[],
 };
 

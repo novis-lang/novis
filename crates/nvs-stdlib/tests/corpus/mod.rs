@@ -110,7 +110,16 @@ impl Attribution {
                 // answers, and a case holding one has said `if ($x !== null)`
                 // about it before calling anything — the tool draws the line
                 // in the same place.
-                if let CoreTy::Instance(made) = &method.return_ty {
+                // A generic class at written arguments counts the same: what
+                // `Core\Db\Connection::query` answers is a `Core\Db\Rows`
+                // whether or not the row spells its `T`, and reading only the
+                // bare variant would drop every case that reaches a result set
+                // without naming the class.
+                let made = match &method.return_ty {
+                    CoreTy::Instance(made) | CoreTy::InstanceAt(made, _) => Some(made),
+                    _ => None,
+                };
+                if let Some(made) = made {
                     builds
                         .entry(class.name)
                         .or_default()

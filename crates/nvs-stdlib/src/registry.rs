@@ -496,6 +496,26 @@ pub enum CoreTy {
     /// slot 0. So there is no constructor, no property and no subclass — a
     /// program can only receive one from a member that returns it.
     Instance(&'static str),
+    /// An instance of a **generic** `Core`-owned class at the arguments
+    /// written here — `Core\Db\Rows<Core\Db\Row>`, which is what
+    /// `Core\Db\Connection::query` answers with.
+    ///
+    /// [`Self::Instance`] cannot spell this, and the reason is in its own
+    /// docs: a generic class reached through that variant interns at the
+    /// class's *own* type variables. That is right for `Core\ObjectSet::union`,
+    /// where the receiver's arguments are substituted back in, and wrong for a
+    /// member that produces one out of nothing — `query` has no
+    /// `Core\Db\Rows` receiver to take a `T` from, so answering the bare class
+    /// would leave `$rows->first()` typed at a variable nothing ever binds.
+    ///
+    /// The arguments are positional against the class's [`GENERIC_CLASSES`]
+    /// row, which `every_instance_type_names_a_registered_class` checks the
+    /// count against, and each is an ordinary [`CoreTy`] — including a
+    /// [`Self::Written`] one, which is how `queryAs<T>` answers `Rows<T>` at
+    /// the type its call site wrote. [`CoreMethod::written`] descends in here
+    /// for exactly that reason: a `T` invisible to it would make the call
+    /// non-generic and the `<T>` a syntax error.
+    InstanceAt(&'static str, &'static [CoreTy]),
     /// **Whatever `foreach` accepts**, over the element type wrapped:
     /// [ADR 0053](../../../../docs/adr/0053-iteration-and-generators.md) § 3's
     /// three shapes at once, interned as the union
@@ -944,7 +964,7 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
         | CoreTy::Iterated(inner) => {
             collect_written(inner, found);
         }
-        CoreTy::Union(members) => {
+        CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => {
             for member in *members {
                 collect_written(member, found);
             }
@@ -1959,6 +1979,11 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     (r"Core\ObjectSet", &["T"]),
     (r"Core\Heap", &["T"]),
     (r"Core\Task\Channel", &["T"]),
+    // The first row that is not one of spec § 9's collections: § 18's result
+    // set is generic in what a row hydrated into, and `Core\Db\Rows<Row>` — the
+    // instance `query` answers with, spelled as a [`CoreTy::InstanceAt`] — is
+    // the unhydrated case of the same class rather than a second one.
+    (crate::db::ROWS_NAME, &["T"]),
 ];
 
 /// Every `Core` class a `foreach` can walk, and the element its
@@ -1991,10 +2016,12 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // And the second, for the same reason: an entry of a walked tree is a
     // `string` whatever the tree held.
     (crate::io::WALK_NAME, &CoreTy::Str),
-    // ADR 0067 § 18's `foreach ($rows as Row $row)`: a result set walks the
-    // rows it is already holding, and a row is a `Core\Db\Row` whatever the
-    // statement selected.
-    (crate::db::ROWS_NAME, &CoreTy::Instance(crate::db::ROW_NAME)),
+    // ADR 0067 § 18's `foreach ($rows as Row $row)`: a result set walks what it
+    // is already holding, which is its own `T` — a `Core\Db\Row` for `query`
+    // and the hydrated class for `queryAs<T>`. Back to one of the receiver's
+    // own variables, like the three collections above, because § 18's `Rows`
+    // and `Rows<T>` are one generic class and not two.
+    (crate::db::ROWS_NAME, &CoreTy::Var("T")),
 ];
 
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is
@@ -2465,7 +2492,9 @@ mod tests {
                 | CoreTy::Iterated(inner) => {
                     inferred(inner, found);
                 }
-                CoreTy::Union(members) => members.iter().for_each(|m| inferred(m, found)),
+                CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => {
+                    members.iter().for_each(|m| inferred(m, found));
+                }
                 CoreTy::Options(options) => {
                     options.iter().for_each(|o| inferred(&o.ty, found));
                 }
@@ -3193,6 +3222,11 @@ mod tests {
                         "{what} names `{name}::{case}`, which is not a case of it"
                     );
                 }
+                CoreTy::InstanceAt(_, args) => {
+                    for arg in *args {
+                        check(arg, what);
+                    }
+                }
                 CoreTy::Array(inner)
                 | CoreTy::Nullable(inner)
                 | CoreTy::Variadic(inner)
@@ -3424,6 +3458,30 @@ mod tests {
                     class(name).is_some() || EXCEPTION_TREE.contains(name),
                     "{what} names the unregistered class `{name}`"
                 ),
+                // The same question, plus the one only this variant can get
+                // wrong: the arguments are positional against the class's
+                // [`GENERIC_CLASSES`] row, so a name that is not generic at all
+                // or a count that does not match its row would intern a class
+                // type the checker refuses at every call site.
+                CoreTy::InstanceAt(name, args) => {
+                    assert!(
+                        class(name).is_some() || EXCEPTION_TREE.contains(name),
+                        "{what} names the unregistered class `{name}`"
+                    );
+                    let params = class_type_params(name).unwrap_or_else(|| {
+                        panic!("{what} writes arguments for `{name}`, which is not generic")
+                    });
+                    assert_eq!(
+                        params.len(),
+                        args.len(),
+                        "{what} writes {} argument(s) for `{name}`, which takes {}",
+                        args.len(),
+                        params.len()
+                    );
+                    for arg in *args {
+                        check(arg, what);
+                    }
+                }
                 CoreTy::Array(elem)
                 | CoreTy::Nullable(elem)
                 | CoreTy::Variadic(elem)

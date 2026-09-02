@@ -309,6 +309,10 @@ fn ty_string(ty: &CoreTy) -> String {
         CoreTy::IntLiteral(value) => value.to_string(),
         CoreTy::Nullable(inner) => format!("?{}", ty_string(inner)),
         CoreTy::Enum(name) | CoreTy::Instance(name) => (*name).into(),
+        CoreTy::InstanceAt(name, args) => {
+            let args: Vec<String> = args.iter().map(ty_string).collect();
+            format!("{name}<{}>", args.join(", "))
+        }
         CoreTy::EnumCase(owner, case) => format!("{owner}::{case}"),
         CoreTy::Iterated(elem) => {
             let elem = ty_string(elem);

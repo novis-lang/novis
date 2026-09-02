@@ -1160,7 +1160,7 @@ mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4).
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
-| `query` | `$q->query(string $sql, array<mixed> $params, {timeout?: Duration}): Db\Rows` | `PDO::query`/`prepare`+`execute`, `mysqli_query` | **sink** (sql) |
+| `query` | `$q->query(string $sql, array<mixed> $params, {timeout?: Duration}): Db\Rows<Row>` | `PDO::query`/`prepare`+`execute`, `mysqli_query` | **sink** (sql) |
 | `queryAs` | `$q->queryAs<T>(string $sql, array<mixed> $params, {timeout?}): Db\Rows<T>` | `PDO::FETCH_CLASS`, hand-written hydration | **sink** (sql) |
 | `execute` | `$q->execute(string $sql, array<mixed> $params, {timeout?}): Db\Write` | `PDO::exec`, `PDOStatement::execute`, `lastInsertId` | **sink** (sql) |
 | `executeMany` | `$q->executeMany(string $sql, array<array<mixed>> $sets, {timeout?}): uint` | a loop around `PDOStatement::execute` | **sink** (sql) |
@@ -1194,12 +1194,15 @@ the call site naming the field.
 
 | Type | Members | Replaces |
 |---|---|---|
-| `Rows` | `->all(): array<Row>`, `->first(): ?Row`, `->value(): mixed`, `->column(int\|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<Row>` | `fetchAll`, `fetch`, `fetchColumn`, `rowCount` on a select, `getColumnMeta` |
-| `Rows<T>` | `->all(): array<T>`, `->first(): ?T`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<T>` | `FETCH_CLASS`, `fetchObject` |
+| `Rows<T>` | `->all(): array<T>`, `->first(): ?T`, `->value(): mixed`, `->column(int\|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<T>` | `fetchAll`, `fetch`, `fetchColumn`, `rowCount` on a select, `getColumnMeta`, `FETCH_CLASS`, `fetchObject` |
 | `Row` | `->has(string $name): bool` *(neutral)*, `->get(string $name): mixed`, `->toArray(): array<string, mixed>`, and the typed readers below | `FETCH_ASSOC`, `FETCH_NUM`, `FETCH_OBJ` |
 | `Write` | `->affected(): uint`, `->changed(): ?uint`, `->lastId(): ?uint` | `rowCount` on a write, `lastInsertId`, `mysqli_info` |
 | `Column` | `->name(): string`, `->type(): ColumnType`, `->nullable(): bool` | `getColumnMeta`, `mysqli_fetch_field` |
 | `InList` | opaque; produced by `Db::inList`, accepted only as a bound parameter | — |
+
+`Rows` is one generic class and not two: `query` answers `Rows<Row>`, `queryAs<T>` the same class at the
+`T` its call site wrote, and a program that declares the type writes the argument like every other `Core`
+generic — there is no bare `Rows` spelling that leaves it open.
 
 `Row`'s typed readers each take `(string $name)` and return `?T`, a `null` being a NULL column: `string`,
 `bytes`, `int`, `uint`, `float`, `bool`, `decimal`, `instant`, `date`, `time`, `uuid`. The requested type

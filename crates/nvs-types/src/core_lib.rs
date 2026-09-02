@@ -463,6 +463,17 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
                 None => interner.class(qname),
             }
         }
+        // The same class type, at the arguments the row wrote rather than at
+        // the class's own variables — `nvs_stdlib::registry::CoreTy::InstanceAt`
+        // owns why a member that *produces* a generic instance needs its own
+        // spelling. Nothing is checked here: the arity against the roster is
+        // `every_instance_type_names_a_registered_class`'s, in the crate that
+        // owns the roster, and by the time a row reaches this it holds.
+        CoreTy::InstanceAt(name, args) => {
+            let qname = QName::parse(name);
+            let args: Vec<TypeId> = args.iter().map(|arg| lower(arg, interner)).collect();
+            interner.generic_class(qname, args)
+        }
         // ADR 0053 § 3's three iterable shapes, interned as the union of all
         // three — [`CoreTy::Iterated`] owns why an `array<T>` is one of them
         // and how a helper reads the argument back. The two interface members

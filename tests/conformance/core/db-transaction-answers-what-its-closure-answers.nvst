@@ -11,7 +11,7 @@ var $db = Core\Db::connect("main");
 // Three identical call sites, three different `T`s, one per answer a statement
 // has: `T` is read off the closure's declared return and off nothing at the
 // call site, which is why none of these three needs a cast or an annotation.
-var $rows = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Rows =>
+var $rows = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Rows<Core\Db\Row> =>
     $tx->query("select id from accounts", []));
 
 var $write = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Write =>

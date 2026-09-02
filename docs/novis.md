@@ -140,7 +140,7 @@ Conventions the whole file uses:
 | [`Core\Db`](#core-core-db) |  |
 | [`Core\Db\Connection`](#core-core-db-connection) |  |
 | [`Core\Db\Transaction`](#core-core-db-transaction) |  |
-| [`Core\Db\Rows`](#core-core-db-rows) |  |
+| [`Core\Db\Rows<T>`](#core-core-db-rows) |  |
 | [`Core\Db\Row`](#core-core-db-row) |  |
 | [`Core\Db\Write`](#core-core-db-write) |  |
 | [`Core\Db\InList`](#core-core-db-inlist) |  |
@@ -17210,7 +17210,7 @@ Keywords: query, execute, executeMany, transaction
 
 | Member | Signature |
 |---|---|
-| [`Core\Db\Connection->query`](#core-core-db-connection-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows` |
+| [`Core\Db\Connection->query`](#core-core-db-connection-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows<Core\Db\Row>` |
 | [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 | [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
 | [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable $fn): T` |
@@ -17219,7 +17219,7 @@ Keywords: query, execute, executeMany, transaction
 #### `Core\Db\Connection->query`
 
 ```nvs skip
-$connection->query(string $sql, array<mixed> $params): Core\Db\Rows
+$connection->query(string $sql, array<mixed> $params): Core\Db\Rows<Core\Db\Row>
 ```
 
 Runs one statement with its values bound, and reads every row it answers into memory before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no `prepare` step because every statement is prepared. The connection is free again the moment this returns; `stream` is the one that holds it.
@@ -17229,7 +17229,7 @@ Runs one statement with its values bound, and reads every row it answers into me
 | `$sql` | `string` (sink) | The statement, with a `?` for each value or a `:name` for each — never a value written into the text. It is a sink, so a `tainted` string is refused while compiling and there is no escaper to launder one with. |
 | `$params` | `array<mixed>` | The values to bind: list-keyed for `?` and string-keyed for `:name`, one array and never both spellings. A `Core\Db::inList` element expands into a run of placeholders at its own position, and nothing else expands. |
 
-**Returns** `Core\Db\Rows` — A `Core\Db\Rows` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
+**Returns** `Core\Db\Rows<Core\Db\Row>` — A `Core\Db\Rows<Core\Db\Row>` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
 
 **Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
 
@@ -17293,7 +17293,7 @@ Keywords: query, execute, executeMany, transaction, rollBack
 
 | Member | Signature |
 |---|---|
-| [`Core\Db\Transaction->query`](#core-core-db-transaction-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows` |
+| [`Core\Db\Transaction->query`](#core-core-db-transaction-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows<Core\Db\Row>` |
 | [`Core\Db\Transaction->execute`](#core-core-db-transaction-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 | [`Core\Db\Transaction->executeMany`](#core-core-db-transaction-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
 | [`Core\Db\Transaction->transaction`](#core-core-db-transaction-transaction) | `transaction(callable $fn): T` |
@@ -17303,7 +17303,7 @@ Keywords: query, execute, executeMany, transaction, rollBack
 #### `Core\Db\Transaction->query`
 
 ```nvs skip
-$transaction->query(string $sql, array<mixed> $params): Core\Db\Rows
+$transaction->query(string $sql, array<mixed> $params): Core\Db\Rows<Core\Db\Row>
 ```
 
 Runs one statement with its values bound, and reads every row it answers into memory before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no `prepare` step because every statement is prepared. The connection is free again the moment this returns; `stream` is the one that holds it.
@@ -17313,7 +17313,7 @@ Runs one statement with its values bound, and reads every row it answers into me
 | `$sql` | `string` (sink) | The statement, with a `?` for each value or a `:name` for each — never a value written into the text. It is a sink, so a `tainted` string is refused while compiling and there is no escaper to launder one with. |
 | `$params` | `array<mixed>` | The values to bind: list-keyed for `?` and string-keyed for `:name`, one array and never both spellings. A `Core\Db::inList` element expands into a run of placeholders at its own position, and nothing else expands. |
 
-**Returns** `Core\Db\Rows` — A `Core\Db\Rows` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
+**Returns** `Core\Db\Rows<Core\Db\Row>` — A `Core\Db\Rows<Core\Db\Row>` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
 
 **Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
 
@@ -17388,14 +17388,14 @@ Gives up on this transaction: records `$reason`, and throws `Core\Db\RolledBack`
 **Throws** `Core\Db\RolledBack` — Always. It propagates out of the owning `transaction()` call even if something between here and there catches it, because the owning frame acts on the recorded reason rather than on seeing the throw.; `LogicError` — The transaction was reached after the `transaction()` call that owned it returned, so there is no longer a scope to roll back.
 
 <a id="core-core-db-rows"></a>
-### `Core\Db\Rows`
+### `Core\Db\Rows<T>`
 
 Keywords: all, first, value, column, count
 
 | Member | Signature |
 |---|---|
-| [`Core\Db\Rows->all`](#core-core-db-rows-all) | `all(): array<Core\Db\Row>` |
-| [`Core\Db\Rows->first`](#core-core-db-rows-first) | `first(): ?Core\Db\Row` |
+| [`Core\Db\Rows->all`](#core-core-db-rows-all) | `all(): array<T>` |
+| [`Core\Db\Rows->first`](#core-core-db-rows-first) | `first(): ?T` |
 | [`Core\Db\Rows->value`](#core-core-db-rows-value) | `value(): mixed` |
 | [`Core\Db\Rows->column`](#core-core-db-rows-column) | `column(int\|string $key): array<mixed>` |
 | [`Core\Db\Rows->count`](#core-core-db-rows-count) | `count(): uint` |
@@ -17404,23 +17404,23 @@ Keywords: all, first, value, column, count
 #### `Core\Db\Rows->all`
 
 ```nvs skip
-$rows->all(): array<Core\Db\Row>
+$rows->all(): array<T>
 ```
 
-Every row of the result, in the server's order, each one a `Core\Db\Row` — `PDO::fetchAll` without a fetch-mode argument to choose the shape with.
+Every row of the result, in the server's order — `PDO::fetchAll` without a fetch-mode argument to choose the shape with.
 
-**Returns** `array<Core\Db\Row>` — An `array<Core\Db\Row>`, empty for a statement that answered no rows. The rows are the ones already read, so this costs one object each and no second decode.
+**Returns** `array<T>` — An `array<T>`, empty for a statement that answered no rows. `T` is the result set's own type argument: a `Core\Db\Row` for `query`, and the hydrated class for `queryAs<T>`. The rows are the ones already read, so this costs one object each and no second decode.
 
 <a id="core-core-db-rows-first"></a>
 #### `Core\Db\Rows->first`
 
 ```nvs skip
-$rows->first(): ?Core\Db\Row
+$rows->first(): ?T
 ```
 
 The first row, or `null` where there is none — `PDO::fetch`, without its `false` and without a cursor that a second call would move.
 
-**Returns** `?Core\Db\Row` — A `Core\Db\Row`, or `null` for an empty result — `?T` is the absence spelling everywhere in `Core`, and a query that matched nothing is an answer rather than a failure to throw about.
+**Returns** `?T` — A `T` — the result set's own type argument, as `all` describes — or `null` for an empty result. `?T` is the absence spelling everywhere in `Core`, and a query that matched nothing is an answer rather than a failure to throw about.
 
 <a id="core-core-db-rows-value"></a>
 #### `Core\Db\Rows->value`
