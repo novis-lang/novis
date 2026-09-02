@@ -245,3 +245,23 @@ tls_ca_file = "tests/db/ca.crt"
 max = 1
 idle = 1
 acquire = "500ms"
+
+# ADR 0084 § 2's queue, and `examples/queue.nvs` is the fixture it exists for. `connection = "main"`
+# is the recommended configuration rather than a convenience: § 3's property — an enqueue commits
+# with the write that caused it, or with neither — is only available to a queue whose rows live in
+# the application's *own* database, so this names the block the two fixtures above already write to.
+# A separate queue database is permitted and silently gives that up, which is why the ADR asks the
+# documentation to say so where the option is offered, and this is that place.
+#
+# `workers = 1` rather than § 2's own example of `4`: the fixture asserts `claimed 1` about a single
+# job, so a second worker is only a second chance to be the one that took it and proves nothing the
+# first does not. `0` would be § 2's enqueue-only deployment, which is a real configuration and the
+# wrong one here — nothing would ever claim, and the fixture's next four lines are about a job that
+# ran.
+#
+# `max_attempts` and `visibility` are deliberately unwritten, so both keep `QueueBounds::DEFAULTS` in
+# `nvs_config::queue` — § 2's own numbers. The retry ladder the fixture measures is the one it writes
+# per push, as `maxAttempts: 2`, because that is a property of the job and not of the deployment.
+[queue]
+connection = "main"
+workers = 1
