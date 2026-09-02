@@ -6261,6 +6261,15 @@ sibling in the same namespace unqualified.
   member callable, can the pass name the thing, does the pass have the input — cost less than
   reading one gap bullet as a work estimate. The finding is now gap 6 of
   `crates/nvs-types/src/intrinsics.rs`.
+- **A `PgRows` holds its `&mut Ctx` borrow to the end of the scope, because it has a `Drop`,
+  and the error names neither of those things.** Filing ADR 0067 § 11's span on the context
+  after the drain is `E0499: cannot borrow *ctx as mutable more than once`, pointing at
+  `postgres_of`'s borrow twenty lines up and at the closing brace — "first borrow might be
+  used here, when `answered` is dropped". NLL ends a borrow at its last *use* only for a type
+  with no destructor, and `PgRows` releases the statement in its own, so the fix is an
+  explicit `drop(answered)` between reading the span and touching `ctx`. The general shape:
+  anything handed out of `&mut Ctx` that releases something when it falls — a row stream, a
+  held connection — cannot be followed by a second `ctx` call in the same scope without one.
 
 ## Divergences and refusals already pinned
 
