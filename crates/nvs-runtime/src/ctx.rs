@@ -2712,9 +2712,22 @@ impl Ctx {
     /// context's: an [`OutputSink`] is not `Clone`, and a redirected one is a
     /// test reading its own dumps back rather than a property of the request.
     ///
+    /// **The configuration crosses including the parent's overlay**, exactly as
+    /// it does for [`Self::isolate`] and for that constructor's reason: ADR 0006's
+    /// table calls the overlay "derived, never shared: a copy of the parent's
+    /// *effective* config, which the spawn may narrow", so a child starts from
+    /// the values in force where it was spawned rather than from the file. The
+    /// direction is what matters and it is a security one — `[capabilities]` is
+    /// a `RuntimeTighten` directive, [`crate::capability::granted`] reads this
+    /// field, and a child re-reading the snapshot alone would hand back a
+    /// capability its parent had dropped. A `Core\Config::set` the *child* makes
+    /// is the child's own, because the copy is a copy: nothing in
+    /// [`nvs_config::Request`] is shared but the snapshot underneath it.
+    ///
     /// **What it spends:** one `Ctx` per in-flight child, freed when that child
-    /// ends, plus the origin's own bytes copied once. O(in-flight) and not
-    /// O(children ever spawned), per
+    /// ends, plus the origin's own bytes copied once and one `Arc` clone of the
+    /// snapshot with one `String` pair per key the parent had set. O(in-flight)
+    /// and not O(children ever spawned), per
     /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
     ///
     /// # Safety
@@ -2737,6 +2750,9 @@ impl Ctx {
         child.statics = self.statics;
         child.debug = self.debug;
         child.origin = self.origin.clone();
+        // The effective configuration, overlay included — see the doc above for
+        // why the copy goes this way round and not through the snapshot alone.
+        child.config = self.config.clone();
         child.runtime_error_class = self.runtime_error_class.clone();
         // The word, not its value: a task of this request is bounded by this
         // request's wall time and by no clock of its own. See the field doc.

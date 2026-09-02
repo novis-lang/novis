@@ -882,7 +882,7 @@ pub fn io_failure(member: &str, path: &Path, err: &std::io::Error) -> Fault {
 mod tests {
     use std::sync::Arc;
 
-    use super::{Cap, Ctx, Fault, Path, Scope, ThrownClass, exec, require, shell_target};
+    use super::{Cap, Ctx, Fault, Path, Scope, ThrownClass, exec, granted, require, shell_target};
 
     /// The member a case refuses on behalf of. `run` and not `spawn` for no reason beyond being the
     /// one the fixture calls; the door does not know which it is serving.
@@ -976,5 +976,51 @@ mod tests {
                 "`{allowed}` is started by the operating system, not by a command-line parser"
             );
         }
+    }
+
+    /// ADR 0072 § 1's children "share the request", and this is the half every capability-gated
+    /// member depends on: [`Ctx::child`] carries the request's configuration, so a grant the
+    /// request holds is a grant inside a task of it. Before the field crossed, [`granted`] answered
+    /// `false` to *everything* inside a child — `Core\Db::connect` succeeded in a program's main
+    /// body and was refused verbatim inside a `Core\Task::all` child.
+    #[test]
+    fn a_task_child_is_granted_what_its_request_was_granted() {
+        let mut request = Ctx::buffered();
+        request.set_config(snapshot_of("[capabilities.process]\nexec = true\n"));
+        // The negative control, on a context nobody configured: without it the assertion below
+        // would pass on a `granted` that had simply stopped reading the configuration at all.
+        let bare = Ctx::buffered();
+        // SAFETY: each child is dropped at the end of this scope, before the context it borrows
+        // static-property storage from, and nothing runs on it after that.
+        #[expect(unsafe_code, reason = "the child is dropped before its parent")]
+        let bare_child = unsafe { bare.child() };
+        assert!(
+            bare_child.config().is_none()
+                && !granted(
+                    &bare_child,
+                    Cap::ProcessExec,
+                    Scope::Path(Path::new("/bin/ls"))
+                ),
+            "a child of an unconfigured request is as unconfigured as its request"
+        );
+
+        // SAFETY: as above — `child` is dropped before `request`.
+        #[expect(unsafe_code, reason = "the child is dropped before its parent")]
+        let child = unsafe { request.child() };
+        assert!(
+            child.config().is_some(),
+            "the request's configuration is request-wide, so a task of it holds the same view"
+        );
+        assert!(
+            granted(&child, Cap::ProcessExec, Scope::Path(Path::new("/bin/ls"))),
+            "`exec = true` is in force for the request, and a child is inside that request"
+        );
+        require(
+            &child,
+            Cap::ProcessExec,
+            Scope::Path(Path::new("/bin/ls")),
+            MEMBER,
+        )
+        .expect("the door agrees with the reporter, which is what makes `granted` honest");
     }
 }
