@@ -1,0 +1,39 @@
+--TEST--
+`Core\Db\Column::type` answers a `Core\Db\ColumnType` case, so a program branches on something the backends agree about rather than on the vendor type name `getColumnMeta` hands back — ADR 0067 § 9, spec § 18
+--FILE--
+<?nvs
+var $db = Core\Db::connect("main");
+
+foreach ($db->query("select id, payload from events", [])->columns() as Core\Db\Column $column) {
+    // The whole reason the enum exists: a case is comparable against a case
+    // this program wrote, which no vendor spelling is — `int4`, `INT`, `int`
+    // and `bigint` are four backends' names for one of these.
+    Core\Db\ColumnType $declared = $column->type();
+    bool $whole = $declared == Core\Db\ColumnType::Int;
+
+    // And the split its own docs are written around: a case describes what the
+    // column was *declared* as and never what a read of it produces, so a
+    // `JSON` column and a `TEXT` one are told apart here although ADR 0067 § 9
+    // reads both back as a `tainted string`.
+    bool $json = $column->type() == Core\Db\ColumnType::Json;
+    bool $text = $column->type() == Core\Db\ColumnType::Text;
+
+    // The other two readers of the same class, so that the one refusal below
+    // is the only thing in this case that does not compile.
+    string $label = $column->name();
+    bool $nullable = $column->nullable();
+}
+
+// The bound on the other side, which is what makes this an enum rather than
+// the string PHP answers: there is no vendor name to read out of it, so a
+// program that wants one has to say which backend's it means.
+foreach ($db->query("select id from events", [])->columns() as Core\Db\Column $one) {
+    string $vendor = $one->type();
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `Core\Db\ColumnType`
+   --> case.nvs:28:22
+%A
+error: aborting due to 1 error

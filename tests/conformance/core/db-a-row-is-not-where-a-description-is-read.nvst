@@ -1,0 +1,37 @@
+--TEST--
+The description is asked of the result set and never of a row, so `Core\Db\Row` has no `columns` to answer with the row's own labels — ADR 0067 § 6, spec § 18
+--FILE--
+<?nvs
+var $db = Core\Db::connect("main");
+var $rows = $db->query("select id, owner from accounts", []);
+
+// The two readings a result set carries, side by side: the rows are what the
+// statement answered and the columns are what it described, and the second is
+// readable whether or not there is a single one of the first.
+foreach ($rows->columns() as Core\Db\Column $column) {
+    string $name = $column->name();
+    Core\Db\ColumnType $type = $column->type();
+    bool $nullable = $column->nullable();
+}
+
+foreach ($rows->all() as Core\Db\Row $row) {
+    // A row reads values by the label the description carries — the same
+    // labels, asked of the other half.
+    mixed $value = $row->get("owner");
+    bool $present = $row->has("owner");
+}
+
+// And the refusal that says which half owns the description: a row is a
+// string-keyed reading of one row's values, so asking it what the statement
+// described is a call with no member behind it rather than a second, weaker
+// answer to the question `Rows::columns` already answers.
+foreach ($rows->all() as Core\Db\Row $named) {
+    mixed $perRow = $named->columns();
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Db\Row` has no method named `columns`
+   --> case.nvs:26:21
+%A
+error: aborting due to 1 error

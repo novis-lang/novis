@@ -1,0 +1,36 @@
+--TEST--
+`Core\Db\Rows::columns` answers what the statement described, one `Core\Db\Column` per column, so a caller has its headings before it knows whether there are rows under them — ADR 0067 § 9, spec § 18
+--FILE--
+<?nvs
+// Asserted as *types* rather than as values, as every case over `Core\Db` is:
+// nothing here reaches a server, and a member whose declared return type
+// disagreed with § 18's Results table would be a diagnostic at one of the four
+// assignments below.
+var $db = Core\Db::connect("main");
+var $rows = $db->query("select id, owner from accounts", []);
+
+// § 18's `->columns(): array<Column>`. Not `array<T>`: a description belongs
+// to the statement, so `queryAs<Person>` describes the same columns `query`
+// does and the class variable has nothing to say about it.
+array<Core\Db\Column> $described = $rows->columns();
+
+// The three readers spec § 18's Results table gives that class, written
+// together because the row of the table is the claim — `getColumnMeta` is one
+// array whose keys differ per driver, and this is three members that do not.
+foreach ($described as Core\Db\Column $column) {
+    string $name = $column->name();
+    Core\Db\ColumnType $type = $column->type();
+    bool $nullable = $column->nullable();
+}
+
+// And the bound that makes `columns()` a member of its own rather than a
+// second reading of the rows: a description is not a row, so the two arrays
+// are not assignable to one another at all.
+array<Core\Db\Row> $wrong = $rows->columns();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `array<Core\Db\Row>`, found `array<Core\Db\Column>`
+   --> case.nvs:26:29
+%A
+error: aborting due to 1 error
