@@ -104,6 +104,8 @@ pub struct Config {
     pub deferred: Option<Deferred>,
     /// `[[schedule]]` — scheduled work, which is configuration and not an API (ADR 0073).
     pub schedule: Vec<Schedule>,
+    /// `[queue]` — the durable job queue and the `[db.<name>]` it stores rows in (ADR 0084 § 2).
+    pub queue: Option<Queue>,
     /// `[metrics]` — the metrics exporter (ADR 0076 § 6).
     pub metrics: Option<Metrics>,
     /// `[trace]` — the trace exporter (ADR 0076 § 6).
@@ -654,6 +656,34 @@ pub struct Deferred {
     pub max_concurrent: Option<u64>,
     /// `Runtime` — the default a call inherits when it names none.
     pub deadline: Option<String>,
+}
+
+/// `[queue]` — ADR 0084 § 2's durable job queue, which is a table in a database an operator names.
+///
+/// Every key is `System`: the queue is armed at boot and a request may not move it, for ADR 0073's
+/// reason on `[[schedule]]` beside it — work a request could redirect is work a request could
+/// redirect into a database it was never granted.
+///
+/// There is no shape here that turns the queue off, because the block's own absence is that: nothing
+/// is enqueued and nothing runs. `workers = 0` is the other half of § 2's answer and is a different
+/// fact — this instance enqueues and lets another one work the rows.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct Queue {
+    /// The `[db.<name>]` block whose connection holds the jobs and dead-letter tables. Required,
+    /// and § 2 recommends it be the application's own, because that is what makes an enqueue commit
+    /// with the write that caused it.
+    pub connection: Option<String>,
+    /// Workers this instance runs, per § 2. `0` makes the instance enqueue-only, which is a
+    /// supported deployment and not a disabled queue.
+    pub workers: Option<u64>,
+    /// Attempts a job gets before § 6 moves it to the dead-letter table. Finite with nothing
+    /// configured, per ADR 0074, and there is no spelling for unbounded: § 6's whole shape is
+    /// that nothing is retried forever and nothing is discarded silently.
+    pub max_attempts: Option<u64>,
+    /// How long a claimed job stays invisible to other workers before it may be claimed again
+    /// (§ 4's lease). A duration, so `5m` and `300s` read the same.
+    pub visibility: Option<Setting>,
 }
 
 /// One `[[schedule]]` entry — ADR 0073 § 1, every key `System`.

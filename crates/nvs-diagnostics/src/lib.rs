@@ -1385,6 +1385,17 @@ pub mod code {
     /// the same table a `[grants]` line is read against.
     pub const E_NOT_A_CAPABILITY: Code = Code::new("E0616");
 
+    /// A `[queue]` block the runtime could not arm: no `connection`, one naming
+    /// a `[db.<name>]` block the tree does not hold, a `max_attempts` of `0`,
+    /// or a `visibility` of `0`. Refused at boot for `E0611`'s reason one
+    /// subsystem over — a queue fails silently by construction, since a job
+    /// that is never claimed looks exactly like one whose turn has not come,
+    /// and the operator learns about it from the work that did not happen. A
+    /// `connection` naming nothing is this code and not `E0601`: the value is a
+    /// well-formed name, and what is wrong with it is a fact about the rest of
+    /// the tree rather than about the value.
+    pub const E_BAD_QUEUE: Code = Code::new("E0617");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

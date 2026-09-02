@@ -64,6 +64,7 @@ pub mod file;
 pub mod http;
 pub mod log;
 pub mod mode;
+pub mod queue;
 pub mod request;
 pub mod resolve;
 pub mod schedule;

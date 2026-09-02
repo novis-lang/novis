@@ -305,6 +305,9 @@ pub fn resolve(
     // ADR 0067 § 13's pool bounds, in the same pass's second half: a `lifetime` that spells nothing
     // is a boot refusal naming its file, rather than the first acquire of the first request.
     crate::db::validate(&resolved.config, &origins)?;
+    // ADR 0084 § 2's `[queue]`, immediately after the roster it names: whether `connection = "main"`
+    // has a block to point at is a question only the merged `[db]` map can answer.
+    crate::queue::validate(&resolved.config, &origins)?;
     // ADR 0104 § 1's keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
     // so the roster only exists once the merge is done.
     crate::app::canonicalize(&mut resolved.config, &origins, files)?;

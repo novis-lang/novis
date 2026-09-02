@@ -15,6 +15,7 @@
   lossy tier cannot carry a job. [0051](0051-standard-library-tiers.md) § 3 — the Core roster gains
   `Core\Queue`. [0033](0033-secret-qualifier-for-confidential-values.md) — § 5 records that a durable
   payload is an output, so a `secret` cannot enter one.
+  [0064](0064-configuration-file-format.md) — its block roster gains `[queue]`, § 2's block.
   [docs/implementation-plan.md](../implementation-plan.md) — M8 gains the queue.
 - **Amended by:** none.
 - **Depends on:** [0067](0067-core-db.md) — the queue has no storage engine of its own.

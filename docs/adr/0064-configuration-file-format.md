@@ -12,7 +12,7 @@
   entry carrying its own hash pin. [0006](0006-isolated-script-execution.md) — `script.spawn`'s
   `:`-joined root list becomes a TOML array. [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
   — `[debug] mode`'s comma-separated string becomes a TOML array.
-- **Amended by:** 0070, 0072, 0073, 0074, 0076, 0078, 0081, 0091, 0092, 0097, 0103, 0104, 0105, 0120
+- **Amended by:** 0070, 0072, 0073, 0074, 0076, 0078, 0081, 0084, 0091, 0092, 0097, 0103, 0104, 0105, 0120
 
 > **In short:** Novis's server configuration is a TOML file named `nvs.toml`, read through the `toml` crate
 > and `serde` — at boot, and again on each `nvs ctl reload`
@@ -140,6 +140,7 @@ that a reader of `nvs.toml` has one place to start:
 | `[db.<name>]` | [0067](0067-core-db.md) |
 | `[deferred]` | [0072](0072-core-task-structured-concurrency.md) § 7 |
 | `[[schedule]]` | [0073](0073-scheduled-work-is-config.md) |
+| `[queue]` | [0084](0084-durable-background-jobs.md) § 2 |
 | `[http.headers]`, `[http.cors]`, `[http.cookies]`, `[http.client]` | [0074](0074-http-defaults-safe-and-finite.md) |
 | `[metrics]`, `[trace]` | [0076](0076-observability-export.md) |
 | `[server]`, `[[server.mount]]` | [0097](0097-development-server-and-proxied-origin.md) |
