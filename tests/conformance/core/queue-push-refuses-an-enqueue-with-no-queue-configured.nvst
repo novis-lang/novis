@@ -1,0 +1,31 @@
+--TEST--
+An enqueue into a deployment that configures no `[queue]` block is refused at the push, rather than writing a row nothing would ever claim — ADR 0084 § 2
+--FILE--
+<?nvs
+// A queue fails silently by construction: a job nothing ever claims looks
+// exactly like one whose turn has not come round. So the moment an enqueue can
+// be known to be pointless is the moment it has to say so, and that moment is
+// here — this deployment names a database for the *application*, and none for
+// the jobs. `nvs_config::queue`'s module doc is the home of that reading, and
+// this is the same judgement one call later, at the only place a request can
+// still be told.
+try {
+    var $id = Core\Queue::push("jobs/send-receipt.nvs");
+    echo "enqueued", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// ADR 0118 § 5's shape: the world refused a call, and the program is still
+// running underneath it.
+echo "still running", "\n";
+--FILE nvs.toml--
+# A database, and deliberately no `[queue]`. The block's own absence is how a
+# deployment says it runs no jobs -- ADR 0084 § 2 -- so this is a valid tree
+# and not a broken one, which is what makes the refusal the enqueue's own.
+[db.main]
+driver = "postgres"
+host = "127.0.0.1"
+--EXPECT--
+Core\Queue::push: this deployment writes no `[queue]` block, so nothing names the database a job would live in — ADR 0084 § 2 is the block, and `connection` is the field
+still running

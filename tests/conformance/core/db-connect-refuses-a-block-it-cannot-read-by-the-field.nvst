@@ -49,7 +49,7 @@ password = "novis"
 database = "novis"
 time_zone = "Europe/Vienna"
 --EXPECT--
-Core\Db::connect: `db.connect` grants `absent`, and no `[db.absent]` block sets the connection up — the grant names a block an operator has not written yet
+Core\Db::connect: nothing sets `[db.absent]` up, so the name resolves to a block an operator has not written yet
 Core\Db::connect: [db.mysql]: `driver` is `mysql`, which is the mysql driver and not PostgreSQL
 Core\Db::connect: [db.unusable]: `path` belongs to another driver, and a PostgreSQL connection reads nothing from it
 Core\Db::connect: [db.zone]: `time_zone` is `Europe/Vienna`, which is not an offset: write `+02:00`, `-05:30` or `UTC`, or leave it unset for UTC

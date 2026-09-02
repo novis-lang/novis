@@ -253,6 +253,7 @@ mod password;
 pub mod path;
 mod process;
 mod program;
+mod queue;
 pub mod random;
 mod ratelimit;
 mod reflect;
@@ -382,6 +383,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| path::address(symbol))
         .or_else(|| process::address(symbol))
         .or_else(|| program::address(symbol))
+        .or_else(|| queue::address(symbol))
         .or_else(|| random::address(symbol))
         .or_else(|| ratelimit::address(symbol))
         .or_else(|| reflect::address(symbol))

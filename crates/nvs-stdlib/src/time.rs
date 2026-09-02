@@ -1330,9 +1330,9 @@ const INSTANT_TO_ISO_DOC: MethodDoc = MethodDoc {
 };
 
 /// [`INSTANT`]'s slots, by index.
-const INSTANT_SECONDS_SLOT: usize = 0;
+pub(crate) const INSTANT_SECONDS_SLOT: usize = 0;
 /// See [`INSTANT_SECONDS_SLOT`].
-const INSTANT_NANOS_SLOT: usize = 1;
+pub(crate) const INSTANT_NANOS_SLOT: usize = 1;
 
 /// [`INSTANT`]'s symbols.
 fn instant_address(symbol: &str) -> Option<*const u8> {

@@ -1430,6 +1430,17 @@ pub const CLASSES: &[CoreClass] = &[
     // memberless because § 18's own table accepts it nowhere but a bound
     // parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.
     crate::db::IN_LIST,
+    // ADR 0084 § 1's durable background job, immediately after the database classes
+    // because that is what it is made of: a job is a row in one of these connections,
+    // which is the whole of why § 3's enqueue can commit with the write that caused
+    // it. `push` is the landed member; `cancel`, `status` and `stats` are owed, and
+    // [`crate::queue`]'s known gaps say what each waits on.
+    crate::queue::CLASS,
+    // What `push` answers with — the row it wrote and the queue it is in, memberless
+    // because the two members that take one are asked *about* it rather than through
+    // it. [`CoreTy::Instance`]'s own rule about a `Core` instance's properties is why
+    // it is a class and not a shape.
+    crate::queue::ID,
 ];
 
 /// Every member of a capability-bearing class, and which capability it needs —
@@ -3587,6 +3598,7 @@ mod tests {
             crate::cli::COLOR_NAME,
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,
+            crate::queue::ID_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

@@ -2326,98 +2326,126 @@ nvs_runtime::nvs_helper! {
             CONNECT,
         )?;
 
-        let held = if shared {
-            ctx.memoized_connection(&name)
-        } else {
-            None
-        };
-        if let Some(key) = held {
-            return Ok(crate::instance::build(
-                &CONNECTION,
-                [Value::uint(key), Value::str(NvsStr::new(name.as_bytes()))],
-            ));
-        }
+        let key = open_named(ctx, &name, shared, deadline, CONNECT)?;
+        let block = Value::str(NvsStr::new(name.as_bytes()));
+        Ok(crate::instance::build(&CONNECTION, [Value::uint(key), block]))
+    }
+}
 
-        // The snapshot is cloned rather than borrowed because the block, the
-        // target that borrows it and the `ctx` that files the connection are
-        // all live at once. It is an `Arc` and a boot generation is shared by
-        // every request on the core, so the clone is one refcount.
-        let snapshot = ctx
-            .config()
-            .map(|config| std::sync::Arc::clone(config.snapshot()))
-            .ok_or_else(|| {
-                Fault::thrown(format!(
-                    "{CONNECT}: this program is running with no configuration at all, so there is \
-                     no `[db.{name}]` block to open"
-                ))
-            })?;
-        let block = snapshot.config.db.get(&name).ok_or_else(|| {
+/// Opens `[db.<name>]` for this request and files it, answering the key it is filed
+/// under — `Core\Db::connect`'s body from the memo down, and every ADR 0067 § 13
+/// decision with it.
+///
+/// **Separate from the member because it has a second caller, and that caller is a
+/// property rather than a convenience.** [`crate::queue`]'s `push` has to run on the
+/// connection this request already holds under this name, because ADR 0084 § 3's
+/// transactional enqueue *is* "the same connection". A second implementation would be
+/// a second pool key, a second memo and a second reset — three places for § 13's
+/// bounds to drift apart, and one silent way to lose § 3.
+///
+/// **The capability check is deliberately not in here.** `connect` asks `db.connect`
+/// about a name the *program* wrote, which is what stops a request choosing its own
+/// database; a queue's name comes out of root-owned configuration and no program can
+/// influence it. Moving the check in would demand a grant for a name nobody chose —
+/// [`crate::queue`]'s module doc is where that reading lives.
+///
+/// `named` is the member a refusal is worded for, so one failure reads as
+/// `Core\Db::connect` or as `Core\Queue::push` depending on who asked.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a name no `[db.<name>]` block covers, or a block that
+/// cannot be read as a connection. An `IOError` for a host that does not resolve, or
+/// a connection, TLS handshake or login that failed. A `Db\DbError` for a pool whose
+/// `acquire` bound expired with no slot free.
+pub(crate) fn open_named(
+    ctx: &mut nvs_runtime::Ctx,
+    name: &str,
+    shared: bool,
+    deadline: Option<std::time::Instant>,
+    named: &str,
+) -> Result<u64, Fault> {
+    let held = if shared {
+        ctx.memoized_connection(name)
+    } else {
+        None
+    };
+    if let Some(key) = held {
+        return Ok(key);
+    }
+
+    // The snapshot is cloned rather than borrowed because the block, the
+    // target that borrows it and the `ctx` that files the connection are
+    // all live at once. It is an `Arc` and a boot generation is shared by
+    // every request on the core, so the clone is one refcount.
+    let snapshot = ctx
+        .config()
+        .map(|config| std::sync::Arc::clone(config.snapshot()))
+        .ok_or_else(|| {
             Fault::thrown(format!(
-                "{CONNECT}: `db.connect` grants `{name}`, and no `[db.{name}]` block sets the \
-                 connection up — the grant names a block an operator has not written yet"
+                "{named}: this program is running with no configuration at all, so there is \
+                     no `[db.{name}]` block to open"
             ))
         })?;
-        // ADR 0067 § 13's ticket. The bounds were validated at boot by
-        // `nvs_config::db::validate`, so the refusal below cannot fire; if it
-        // ever did, `OFF` is the answer that closes this connection with the
-        // request rather than pooling it under bounds nobody could resolve.
-        let bounds = nvs_config::db::pool_for(&name, block, &std::collections::BTreeMap::new())
-            .unwrap_or(nvs_config::db::PoolBounds::OFF);
-        let ticket = nvs_runtime::pool::Ticket::for_block(&snapshot, &name, bounds);
-        // § 13's ceiling, taken before the handshake so that `max` bounds every
-        // connection this core has live under the key and not only the ones the
-        // pool itself supplied. The slot goes back when the request ends and on
-        // every failure path between here and there — `Lease`'s own `Drop` is
-        // what makes that true, so no path below has to remember it.
-        //
-        // The clone is the price of asking without queueing first: a slot is
-        // there on all but the busiest request, and paying one short `String`
-        // for the case that has to wait beats a queue registration — a boxed
-        // wake and a `Vec` push — on every `connect` that never waits at all.
-        let lease = match nvs_runtime::pool::admit(ticket.clone()) {
-            Some(lease) => lease,
-            None => wait_for_slot(ctx, ticket, &name, deadline)?,
-        };
-
-        // § 13's acquire: this core's pool first, and what comes out of it is
-        // reset before this request may use it. `warm_connection` is where a
-        // failed reset destroys the connection, and `None` from it is
-        // indistinguishable here from an empty pool — either way the fall-back
-        // is the handshake below, which is what a request did before there was
-        // a pool at all.
-        let pooled = bounds
-            .enabled
-            .then(|| warm_connection(&lease))
-            .flatten();
-        let opened = match pooled {
-            Some(warm) => warm,
-            None => {
-                let target = nvs_db::PgTarget::resolve(block).map_err(|refused| {
-                    Fault::thrown(format!("{CONNECT}: {}", refused.refusal(&name)))
-                })?;
-                let address = address_of(target.host, block.port, &name)?;
-                nvs_db::PgConn::connect(address, &target, deadline).map_err(|err| {
-                    Fault::thrown_as(
-                        ThrownClass::Io,
-                        format!("{CONNECT}: `[db.{name}]` at {address} did not open: {err}"),
-                    )
-                })?
-            }
-        };
-        // The lease is filed even for `{shared: false}`, whose `None` memo is
-        // the slot beside it: that option bypasses memoization *within* the
-        // request and never pooling across requests — § 13 says so in as many
-        // words.
-        let key = ctx.hold_open_connection(
-            shared.then(|| name.clone()),
-            Some(lease),
-            Box::new(nvs_db::Connection::Postgres(opened)),
-        );
-        Ok(crate::instance::build(
-            &CONNECTION,
-            [Value::uint(key), Value::str(NvsStr::new(name.as_bytes()))],
+    let block = snapshot.config.db.get(name).ok_or_else(|| {
+        Fault::thrown(format!(
+            "{named}: nothing sets `[db.{name}]` up, so the name resolves to a block an \
+             operator has not written yet"
         ))
-    }
+    })?;
+    // ADR 0067 § 13's ticket. The bounds were validated at boot by
+    // `nvs_config::db::validate`, so the refusal below cannot fire; if it
+    // ever did, `OFF` is the answer that closes this connection with the
+    // request rather than pooling it under bounds nobody could resolve.
+    let bounds = nvs_config::db::pool_for(name, block, &std::collections::BTreeMap::new())
+        .unwrap_or(nvs_config::db::PoolBounds::OFF);
+    let ticket = nvs_runtime::pool::Ticket::for_block(&snapshot, name, bounds);
+    // § 13's ceiling, taken before the handshake so that `max` bounds every
+    // connection this core has live under the key and not only the ones the
+    // pool itself supplied. The slot goes back when the request ends and on
+    // every failure path between here and there — `Lease`'s own `Drop` is
+    // what makes that true, so no path below has to remember it.
+    //
+    // The clone is the price of asking without queueing first: a slot is
+    // there on all but the busiest request, and paying one short `String`
+    // for the case that has to wait beats a queue registration — a boxed
+    // wake and a `Vec` push — on every `connect` that never waits at all.
+    let lease = match nvs_runtime::pool::admit(ticket.clone()) {
+        Some(lease) => lease,
+        None => wait_for_slot(ctx, ticket, name, deadline)?,
+    };
+
+    // § 13's acquire: this core's pool first, and what comes out of it is
+    // reset before this request may use it. `warm_connection` is where a
+    // failed reset destroys the connection, and `None` from it is
+    // indistinguishable here from an empty pool — either way the fall-back
+    // is the handshake below, which is what a request did before there was
+    // a pool at all.
+    let pooled = bounds.enabled.then(|| warm_connection(&lease)).flatten();
+    let opened = match pooled {
+        Some(warm) => warm,
+        None => {
+            let target = nvs_db::PgTarget::resolve(block)
+                .map_err(|refused| Fault::thrown(format!("{named}: {}", refused.refusal(name))))?;
+            let address = address_of(target.host, block.port, name)?;
+            nvs_db::PgConn::connect(address, &target, deadline).map_err(|err| {
+                Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!("{named}: `[db.{name}]` at {address} did not open: {err}"),
+                )
+            })?
+        }
+    };
+    // The lease is filed even for `{shared: false}`, whose `None` memo is
+    // the slot beside it: that option bypasses memoization *within* the
+    // request and never pooling across requests — § 13 says so in as many
+    // words.
+    let key = ctx.hold_open_connection(
+        shared.then(|| name.to_owned()),
+        Some(lease),
+        Box::new(nvs_db::Connection::Postgres(opened)),
+    );
+    Ok(key)
 }
 
 nvs_runtime::nvs_helper! {

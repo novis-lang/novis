@@ -1,0 +1,37 @@
+--TEST--
+`push` refuses a job that can never be attempted, and it does so before it reaches the database — so the refusal does not depend on the server being up — ADR 0084 §§ 1 and 6
+--FILE--
+<?nvs
+// § 6 makes attempts finite, not optional: a job with no attempts is one the
+// enqueue that created it has already dead-lettered, which is a call site
+// error and not a job. `[queue] max_attempts` cannot say it either — boot
+// refuses a `0` there as `E0617` — so this is the same bound one layer up,
+// where the number is the program's rather than the operator's.
+//
+// The block below names a host nothing is listening on. That is the assertion
+// this case is really making: if `push` reached the connection before it
+// judged its own arguments, this would be an `IOError` about a refused socket
+// rather than the `LogicError` about the argument, and it would say something
+// different on a machine that happened to have a server there.
+try {
+    var $id = Core\Queue::push("jobs/send-receipt.nvs", {maxAttempts: 0});
+    echo "enqueued", "\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+echo "still running", "\n";
+--FILE nvs.toml--
+# A queue whose connection resolves at boot -- `connection` names a block that
+# exists, which is all `nvs_config::queue` checks -- and whose port has nothing
+# behind it. Reaching it would be the failure this case is written to rule out.
+[queue]
+connection = "main"
+
+[db.main]
+driver = "postgres"
+host = "127.0.0.1"
+port = 1
+--EXPECT--
+Core\Queue::push: `maxAttempts` of 0 asks for a job that is dead-lettered by the enqueue that created it — ADR 0084 § 6 makes attempts finite, not optional
+still running
