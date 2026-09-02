@@ -1598,6 +1598,14 @@ is why" — is this file.
   you still need bodiless anchors, a second for `--locate`; usually the `re:` target form
   (`file.rs:re:fn postgres_of`) is what you actually wanted, because it prints `file:line` *and* the
   matching line in the same call as the windows.
+- **A `loop-goal.toml` check can name a test that no crate can host *yet*, and the two reasons look
+  identical from the driver's report.** Stage 2's `-p nvs-types` check named three tests and all
+  three "did not run": one because it was filed against the wrong crate (a capability question, and
+  `nvs_types::intrinsics`' own known gap 6 is that checking has no configuration in front of it at
+  all — `Env` carries no capability set), and two because the feature under them does not exist
+  (`Core\Db::open`, blocked on a registry type for a shape parameter — `nvs_stdlib::db` known gap
+  1). The first is a filing bug you fix in one edit; the second is an open item and staying open is
+  correct. Read the *known gaps* of the crates named before assuming either.
 
 ## Running things
 

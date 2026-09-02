@@ -2,58 +2,66 @@
 
 ## State
 
-**MySQL's driver opens.** `crates/nvs-db/src/mysql.rs` holds the greeting, ADR 0132 § 3's
-`CLIENT_SSL` upgrade, the authentication exchange over `mysql_common`'s plugins, ADR 0067 § 3's
-forced `utf8mb4` collation, § 9's declared zone as a `SET time_zone` and § 13's
-`COM_RESET_CONNECTION`. `MySqlConn` now carries a wire, the agreed capability set and the zone.
+**MySQL runs one statement.** `crates/nvs-db/src/mysql.rs` holds ADR 0067 § 1's two round trips:
+`prepare` over `COM_STMT_PREPARE`, `execute` over `COM_STMT_EXECUTE`'s binary protocol, and
+`start_statement` sequencing them behind § 4's busy state. `read_ok` is now a wrapper over
+`read_answer`, which answers `Answer::Done { affected, last_id }` or `Answer::Columns(n)` — the
+module doc owns the four packet shapes and how a `0x00` status is told from a zero column count.
 
-**The plugin roster is the security decision this slice took, and it is the module doc's to
-explain**: `caching_sha2_password` and `mysql_native_password` only, refused by name at *both*
-places a plugin can be named — the greeting and an `AuthSwitchRequest` — because the switch is how
-a server talks a client into handing over the password itself.
+**It stops at the first row, deliberately.** `read_columns` takes the definitions, whose count is
+known, and returns with the connection `State::Streaming`. Decoding a binary row against § 9's type
+map is the next slice; `MySqlConn::query` hands back `mysql_common`'s own `Column` because choosing
+the Novis type per column is that slice's decision, not this one's.
 
-**Stage 2's `local_infile_is_refused_and_no_file_is_sent` now passes**, so the driver's acceptance
-check should go green. It is a property of the client twice over: `CLIENT_LOCAL_FILES` is absent
-from `CLIENT_CAPABILITIES`, and `read_ok` refuses a `0xFB` anyway, answering with the empty packet
-that terminates a transfer having sent nothing.
+**No statement cache yet**, so every statement costs both round trips — § 1 prices it that way and
+`crate::pg`'s `StatementCache` is the shape to copy. `close_statement` was deliberately *not*
+written: `COM_STMT_CLOSE` has no caller until eviction exists, and shipping it dead would have been
+a body nobody had run.
 
-**`mysql_common` is taken with `default-features = false`** and `flate2` is named directly to pick
-`rust_backend` — the workspace manifest's comment owns why, and the playbook has the trap.
-`tools/gen-attribution.py` re-ran clean, so no C dependency was added.
+**`crate::pg::second_statement` is now `pub(crate)`** so both drivers refuse a second statement with
+one sentence. That is the only pg.rs change.
 
-**Nothing above this crate can reach a MySQL connection yet**: there is no `MySqlTarget::resolve`,
-so a `[db.<name>]` block with `driver = "mysql"` still finds no opener. `crates/nvs-db/src/lib.rs`'s
-module doc says so, and the statement path is the next group.
+**The driver's stage-2 acceptance check was mis-filed, and one third of it is now closed.**
+`a_connect_named_private_endpoint_needs_no_net_connect_grant` is landed in
+`crates/nvs-stdlib/src/db.rs` and the name moved to the `-p nvs-stdlib` check;
+`a_db_open_target_in_a_denied_range_fails` moved with it, since both are questions about a
+deployment and `nvs_types::intrinsics`' known gap 6 says no `-p nvs-types` test can ask one. The
+`-p nvs-types` check keeps `a_host_on_a_sqlite_settings_literal_is_a_compile_error` alone, which is
+genuinely its own — and both remaining names wait on `Core\Db::open`, blocked on a registry type for
+a shape **parameter** (`nvs_stdlib::db` known gap 1). That is a language-surface decision and wants
+its own ADR, not a slice. `docs/agent/goals/5-database.toml` was re-copied from the live file.
 
-**`orient.py` gaps:** `[context] adrs` wants ADR 0067 §§ 4 and 5 (the extended-query state machine's
-contract and the placeholder rewriter) for the statement slices below; `modules` already covers
-`nvs-db/src/*`.
+**`orient.py` gaps:** `[context] adrs` wants ADR 0067 § 4 (the busy state's contract) and § 5 (the
+placeholder rewriter) for the slices below; § 1, § 3, § 9 and § 13 are already there and were enough
+for this one.
 
 ## Next group
 
-**MySQL's statement path — one file set: `crates/nvs-db/src/mysql.rs`, `crates/nvs-db/src/sql.rs`
-and `crates/nvs-db/src/conn.rs`. `crates/nvs-db/src/pg.rs:2676` (`start_statement`) is the shape all
-three slices copy, and `crates/nvs-db/src/mysql.rs:704` (`read_ok`) is the packet reader they widen.**
+**MySQL's rows and its resolve — one file set: `crates/nvs-db/src/mysql.rs`,
+`crates/nvs-db/src/conn.rs` and `crates/nvs-db/src/pg.rs`. `crates/nvs-db/src/pg.rs:2676`
+(`start_statement`) and its `PgRows` are the shape all three copy, and
+`crates/nvs-db/src/mysql.rs:1310` (`start_statement`) is the function they extend.**
 
-- [ ] **One statement over `COM_STMT_PREPARE`/`COM_STMT_EXECUTE`** — ADR 0067 § 1's two round
-      trips, and the cost recorded rather than hidden. Widen `crates/nvs-db/src/mysql.rs:704`'s
-      `read_ok` into a response reader that also answers a column count, then write the prepare and
-      the binary-protocol execution beside it at `crates/nvs-db/src/mysql.rs:777`.
-      `crates/nvs-db/src/pg.rs:2676` is the free-function-generic-in-the-stream shape that keeps it
-      testable, and `crates/nvs-db/src/sql.rs:99` is the `?` placeholder this dialect already emits.
+- [ ] **A binary row decodes against § 9's type map** — ADR 0067 § 9. The result set
+      `crates/nvs-db/src/mysql.rs:1310` stops in front of: read a row packet, its null bitmap, and
+      each value in the type its `Column` declares. `crates/nvs-db/src/mysql.rs:1198` (`read_columns`)
+      is what hands over the metadata, and `crates/nvs-db/src/pg.rs:2676`'s `PgRows` is the borrowing
+      shape to mirror.
 - [ ] **`MySqlTarget::resolve` off a `[db.<name>]` block** — ADR 0067 § 2, mirroring
-      `crates/nvs-db/src/pg.rs:386`'s `PgTarget::resolve` and its `BlockError`. Until this exists
-      nothing outside the crate can open one; the struct is `crates/nvs-db/src/mysql.rs:206`.
-- [ ] **§ 1's statement cache on this connection** — the LRU is already shared data
-      (`crates/nvs-db/src/sql.rs`'s `StatementCache`), but MySQL's key is a server-side statement id
-      rather than a name, and § 13's reset invalidates the whole cache. Add the field at
-      `crates/nvs-db/src/conn.rs:467` and clear it in `reset_session`.
+      `crates/nvs-db/src/pg.rs:375`'s `PgTarget::resolve`. Nothing above this crate can reach a MySQL
+      connection until this exists; `crates/nvs-db/src/lib.rs`'s module doc records that gap.
+- [ ] **§ 1's statement cache on this connection** — ADR 0067 § 1 and § 13. `crate::pg`'s
+      `StatementCache` is already the shared shape; add `COM_STMT_CLOSE` for eviction beside
+      `crates/nvs-db/src/mysql.rs:1129` (`execute`), and § 13's reset must invalidate it because
+      `COM_RESET_CONNECTION` drops prepared statements — `crates/nvs-db/src/mysql.rs:1259`
+      (`reset_session`) is where that has to happen.
 
 ## Backlog
 
-- MariaDB is its own driver — ADR 0067, ADR 0132 § 2; `MariaConn` is still the placeholder.
-- § 8's `DbErrorKind` table for MySQL — the handshake reports a raw code and `SQLSTATE` today.
-- Stage 9's other two items stay blocked three deep — known gap 6 of `crates/nvs-types/src/intrinsics.rs`.
-- `tools/db-matrix.py` reports MariaDB and SQL Server `n/a` for want of a trust anchor — `crates/nvs-db/src/lib.rs`'s module doc.
-- SQL Server's TDS 7.4 is written by hand — ADR 0132 § 2, the largest single piece left.
-- SQLite's `rusqlite` is the one audited C dependency — ADR 0051 § 4, and the slice that takes it also writes the ledger row.
+- `Core\Db::open` and `Db\Settings` need a registry type for a shape *parameter* — a language-surface
+  decision wanting its own ADR (`nvs_stdlib::db` known gap 1 states it).
+- Two stage-2 acceptance names stay open behind that: `a_host_on_a_sqlite_settings_literal_is_a_compile_error`
+  and `a_db_open_target_in_a_denied_range_fails` (`docs/agent/loop-goal.toml`).
+- The other three drivers have no connect path at all (`nvs_stdlib::db` known gap 2).
+- ADR 0067 § 11's `query` span is not opened on the MySQL path yet; `crates/nvs-db/src/span.rs` owns
+  the shape.

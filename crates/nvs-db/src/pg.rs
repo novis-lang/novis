@@ -3421,7 +3421,7 @@ fn columns_of(body: &backend::RowDescriptionBody) -> io::Result<Vec<PgColumn>> {
 /// The state is quoted because it is the difference between the two bugs this
 /// catches: `Streaming` is § 4's unread stream, and `Poisoned` is a connection
 /// that is not going to work again whatever the caller does next.
-fn second_statement(state: &Cell<State>) -> io::Error {
+pub(crate) fn second_statement(state: &Cell<State>) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
         format!(

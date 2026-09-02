@@ -1,6 +1,16 @@
 //! MySQL: reading the server's greeting, upgrading the socket in band,
-//! authenticating with a proof rather than a password, and forcing the
-//! connection's charset to `utf8mb4`.
+//! authenticating with a proof rather than a password, forcing the
+//! connection's charset to `utf8mb4`, and running one statement over
+//! `COM_STMT_PREPARE` and `COM_STMT_EXECUTE`.
+//!
+//! **The statement path stops at the first row.** [`start_statement`] returns
+//! with the result set's column definitions read and the wire pointing at the
+//! first row packet, because a column count is known ahead of time and a row
+//! count is not: decoding a binary row against ADR 0067 § 9's type map is the
+//! slice after this one, and until it lands nothing above this crate can ask
+//! for one. § 1's statement cache is not here either, which is why every
+//! statement costs the two round trips § 1 prices it at rather than the one a
+//! cache hit would.
 //!
 //! [ADR 0132 § 2](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
 //! decides what is here and what is not. `mysql_common` frames every packet,
@@ -101,18 +111,20 @@ use std::time::Instant;
 
 use bytes::BytesMut;
 use mysql_common::auth::plugins::{
-    AuthProc, ChallengeResponsePlugin, Context as AuthContextTrait, Response,
+    AuthProc, ChallengeResponsePlugin, Context as AuthContextTrait, Response as AuthResponse,
 };
 use mysql_common::collations::CollationId;
 use mysql_common::constants::CapabilityFlags;
 use mysql_common::io::ParseBuf;
 use mysql_common::packets::{
-    AuthMoreData, AuthPlugin, AuthSwitchRequest, ErrPacket, HandshakePacket, HandshakeResponse,
-    LocalInfilePacket, SslRequest,
+    AuthMoreData, AuthPlugin, AuthSwitchRequest, Column, ComStmtExecuteRequestBuilder,
+    CommonOkPacket, ErrPacket, HandshakePacket, HandshakeResponse, LocalInfilePacket,
+    OkPacketDeserializer, SslRequest, StmtPacket,
 };
 use mysql_common::proto::codec::PacketCodec;
 use mysql_common::proto::codec::error::PacketCodecError;
 use mysql_common::proto::{MyDeserialize, MySerialize};
+use mysql_common::value::Value as MyValue;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 
@@ -141,6 +153,13 @@ const COM_QUIT: u8 = 0x01;
 
 /// `COM_RESET_CONNECTION`, ADR 0067 § 13's reset for this backend.
 const COM_RESET_CONNECTION: u8 = 0x1F;
+
+/// `COM_STMT_PREPARE` — ADR 0067 § 1's first round trip.
+///
+/// `COM_STMT_EXECUTE` and `COM_STMT_CLOSE` have no constant beside this one
+/// because `mysql_common` builds those two packets header and all, and a second
+/// spelling of a byte it already writes is a place for the two to disagree.
+const COM_STMT_PREPARE: u8 = 0x16;
 
 /// How much room a read is given when the inbox holds no whole packet.
 ///
@@ -627,10 +646,14 @@ fn authenticate<S: Read + Write>(
 
 /// Writes a plugin step's packet, where it has one.
 ///
-/// [`Response::Last`] with no packet is a plugin that has said everything it
-/// will say and is waiting for the server's verdict; writing an empty packet
+/// [`AuthResponse::Last`] with no packet is a plugin that has said everything
+/// it will say and is waiting for the server's verdict; writing an empty packet
 /// there would be a message the protocol does not expect.
-fn send_step<S: Read + Write>(wire: &mut Wire<S>, step: &Response) -> io::Result<()> {
+///
+/// The import is renamed because `mysql_common` calls a plugin's step a
+/// `Response` and this module needed that word for [`Answer`] — what a *command*
+/// gets back, which is the other thing a reader here would reach for.
+fn send_step<S: Read + Write>(wire: &mut Wire<S>, step: &AuthResponse) -> io::Result<()> {
     match step.data() {
         Some(data) => wire.send(data),
         None => Ok(()),
@@ -684,11 +707,85 @@ fn server_refusal(packet: &[u8], capabilities: CapabilityFlags) -> io::Error {
     )
 }
 
-/// Reads the answer to a command that returns no rows.
+/// Reads the answer to a command that returns no rows — the handshake's
+/// `SET time_zone`, and § 13's `COM_RESET_CONNECTION`.
 ///
-/// Three of the four packets it can be are ordinary; the fourth is
-/// [ADR 0067 § 3](../../../docs/adr/0067-core-db.md)'s `LOCAL INFILE`, and the
-/// module doc owns why the check exists when the capability bit was never sent.
+/// [`read_answer`] is the reader and owns every packet shape, including
+/// [ADR 0067 § 3](../../../docs/adr/0067-core-db.md)'s `LOCAL INFILE` refusal.
+/// What this adds is the *caller's* claim: these commands have no result set,
+/// so a column count arriving here is a server answering something other than
+/// what was asked, and there is no reader on this path to drain it with. It is
+/// refused rather than skipped, because a driver that walked away from a result
+/// set it did not expect would leave the wire pointing into the middle of one.
+///
+/// # Errors
+///
+/// As [`read_answer`], plus `InvalidData` for a result set where a status was
+/// owed.
+pub(crate) fn read_ok<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+) -> io::Result<()> {
+    match read_answer(wire, capabilities)? {
+        Answer::Done { .. } => Ok(()),
+        Answer::Columns(count) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "the server answered a command that has no result set with one of {count} \
+                 columns, and there is no reader here to drain it"
+            ),
+        )),
+    }
+}
+
+/// What the first packet of a command's answer turned out to be.
+///
+/// An enum rather than two readers because **the caller cannot know which it is
+/// about to get**: `COM_STMT_EXECUTE` answers with a status packet for an
+/// `INSERT` and with a column count for a `SELECT`, over the same statement
+/// handle, and a reader that assumed either one would leave the packet stream
+/// pointing at a packet it had already mis-read. MySQL's answers are
+/// self-describing in their first byte and nowhere else.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Answer {
+    /// A status packet: the command is finished and nothing follows it.
+    Done {
+        /// Rows the statement changed, as the server counted them — ADR 0067
+        /// § 4's `affected`.
+        affected: u64,
+        /// The `AUTO_INCREMENT` value the statement generated, or `0` for none.
+        /// The protocol's own spelling for absence is kept rather than mapped
+        /// to an `Option`, because § 4's `lastId` answers `0` for a statement
+        /// that generated none and mapping twice would be two decisions.
+        last_id: u64,
+    },
+    /// A result set of this many columns. That many column definition packets
+    /// follow it, and [`read_columns`] is what takes them.
+    Columns(u16),
+}
+
+/// Reads one command's first answer packet, refusing a `LOCAL INFILE` request.
+///
+/// The four shapes a server may put here, and how they are told apart:
+///
+/// - `0x00` **and at least seven bytes long** is a status packet. The length is
+///   load-bearing: a length-encoded column count of zero is also a `0x00` first
+///   byte, and the two are distinguished by nothing else. A result set of no
+///   columns is not something a server sends, so the ambiguity is theoretical —
+///   but reading the length is free and guessing is how a driver desynchronises.
+/// - `0xFF` is the server's own refusal, worded by [`server_refusal`].
+/// - `0xFB` is a `LOCAL INFILE` request — see below.
+/// - anything else is a bare length-encoded integer: the column count.
+///
+/// A `0xFE` shorter than nine bytes is the deprecated EOF packet, and this
+/// driver negotiates `CLIENT_DEPRECATE_EOF`, so a server that sends one is not
+/// speaking the protocol both ends agreed on. That is `InvalidData` rather than
+/// a shape to tolerate: the whole point of the flag is that the column
+/// definitions are not followed by one, and a driver that accepted both would
+/// have no way to know how many packets a result set is.
+///
+/// # The `LOCAL INFILE` refusal
+///
 /// The refusal writes the empty packet that terminates a transfer — so the
 /// server is told the file is zero bytes long rather than being left waiting —
 /// and then refuses the connection. **Nothing on this path can open a file**:
@@ -699,13 +796,23 @@ fn server_refusal(packet: &[u8], capabilities: CapabilityFlags) -> io::Error {
 ///
 /// `PermissionDenied` for the server's own error and for a `LOCAL INFILE`
 /// request, `InvalidData` for anything else.
-pub(crate) fn read_ok<S: Read + Write>(
+pub(crate) fn read_answer<S: Read + Write>(
     wire: &mut Wire<S>,
     capabilities: CapabilityFlags,
-) -> io::Result<()> {
+) -> io::Result<Answer> {
     let packet = wire.read_packet()?;
     match packet.first() {
-        Some(0x00) => Ok(()),
+        Some(0x00) if packet.len() >= 7 => {
+            let ok = OkPacketDeserializer::<CommonOkPacket>::deserialize(
+                capabilities,
+                &mut ParseBuf(&packet),
+            )?
+            .into_inner();
+            Ok(Answer::Done {
+                affected: ok.affected_rows(),
+                last_id: ok.last_insert_id().unwrap_or(0),
+            })
+        }
         Some(0xFF) => Err(server_refusal(&packet, capabilities)),
         Some(0xFB) => {
             let named = LocalInfilePacket::deserialize((), &mut ParseBuf(&packet))
@@ -725,12 +832,52 @@ pub(crate) fn read_ok<S: Read + Write>(
                 ),
             ))
         }
-        _ => Err(io::Error::new(
+        Some(0xFE) if packet.len() < 9 => Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "the server answered a command with something that is neither a result nor \
-             a status",
+            "the server sent a deprecated EOF packet on a connection that negotiated \
+             `CLIENT_DEPRECATE_EOF`, so the length of a result set is no longer something \
+             this driver can count",
+        )),
+        Some(_) => {
+            let count = ParseBuf(&packet)
+                .checked_eat_lenenc_int()
+                .and_then(|count| u16::try_from(count).ok())
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "the server answered a command with something that is neither a \
+                         result nor a status",
+                    )
+                })?;
+            Ok(Answer::Columns(count))
+        }
+        None => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "the server answered a command with an empty packet",
         )),
     }
+}
+
+/// Takes the `count` column definition packets that follow a column count.
+///
+/// Nothing follows them: `CLIENT_DEPRECATE_EOF` is negotiated, so the first row
+/// packet comes straight after the last definition and the count is the whole
+/// of how a reader knows where that boundary is.
+///
+/// # Errors
+///
+/// `InvalidData` for a packet that is not a column definition, and whatever the
+/// stream reported.
+pub(crate) fn read_columns<S: Read + Write>(
+    wire: &mut Wire<S>,
+    count: u16,
+) -> io::Result<Vec<Column>> {
+    let mut columns = Vec::with_capacity(usize::from(count));
+    for _ in 0..count {
+        let packet = wire.read_packet()?;
+        columns.push(Column::deserialize((), &mut ParseBuf(&packet))?);
+    }
+    Ok(columns)
 }
 
 /// Sends ADR 0067 § 9's declared zone as a session variable.
@@ -839,6 +986,31 @@ impl MySqlConn {
         self.time_zone
     }
 
+    /// ADR 0067 § 1's two round trips for one statement, and the columns its
+    /// result set turned out to have.
+    ///
+    /// The two-line delegation the playbook prescribes: [`start_statement`] is
+    /// where the sequencing lives, because a method on `MySqlConn` can only be
+    /// reached through a real socket and a real certificate and so cannot be
+    /// unit-tested at all.
+    ///
+    /// The columns come back as `mysql_common`'s own [`Column`] rather than
+    /// anything of this project's. That is deliberate and is the boundary
+    /// between this slice and the next: § 9's type map is read off a column's
+    /// declared type and flags, and choosing the Novis type for each is the row
+    /// decoder's decision, not this function's.
+    ///
+    /// # Errors
+    ///
+    /// As [`start_statement`].
+    pub fn query(
+        &mut self,
+        sql: &str,
+        params: &[Option<&[u8]>],
+    ) -> io::Result<(Answer, Vec<Column>)> {
+        start_statement(&mut self.wire, &self.state, self.capabilities, sql, params)
+    }
+
     /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, before this
     /// connection may be handed to another request.
     ///
@@ -890,6 +1062,225 @@ fn reset_session<S: Read + Write>(
     set_session_time_zone(wire, capabilities, seconds_east)
 }
 
+/// A statement the server holds, and what it will want and give back.
+///
+/// The two counts are the server's own and not this driver's reading of the
+/// SQL: `num_params` is what `COM_STMT_EXECUTE` must supply and `num_columns`
+/// is what the *prepare* said the result set would be. The second is not what
+/// the execution answers with — a statement whose result set depends on the
+/// data returns `0` here and a real count there — so it is carried for the
+/// definition packets the prepare itself sends and nothing else.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Prepared {
+    /// The handle `COM_STMT_EXECUTE` and `COM_STMT_CLOSE` name.
+    pub(crate) statement_id: u32,
+    /// How many parameters the server will read out of an execution.
+    pub(crate) params: u16,
+}
+
+/// ADR 0067 § 1's first round trip: `COM_STMT_PREPARE`.
+///
+/// **This is the round trip § 1 says is recorded rather than hidden.** A
+/// statement's first execution in a request costs two — this one and
+/// [`execute`] — where PostgreSQL's extended protocol pays nothing extra, and
+/// the honest answer to that asymmetry is a statement cache (§ 1, and this
+/// crate's own next slice), never an emulated prepare that interpolates the
+/// value into the SQL to save a packet.
+///
+/// The prepare's own column and parameter definition packets are read and
+/// dropped. They have to be read — they are packets in the stream and the next
+/// command cannot start until the wire is at a boundary — and nothing wants
+/// them: what a caller decodes rows against is the *execution's* definitions,
+/// which arrive again and are the ones that are true.
+///
+/// Free and generic in the stream for this crate's usual reason, which
+/// `crate::pg`'s `start_statement` states: a `Wire<NvsTls<NvsTcp>>` needs a
+/// socket and a certificate that no unit test has.
+///
+/// # Errors
+///
+/// As [`read_answer`], plus `InvalidData` for a first packet that is not a
+/// `COM_STMT_PREPARE_OK`.
+pub(crate) fn prepare<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+    sql: &str,
+) -> io::Result<Prepared> {
+    let mut payload = vec![COM_STMT_PREPARE];
+    payload.extend_from_slice(sql.as_bytes());
+    // Every command starts a new packet sequence, and a stale counter is a wire
+    // the codec cannot find a boundary in.
+    wire.codec.reset_seq_id();
+    wire.send(&payload)?;
+
+    let packet = wire.read_packet()?;
+    if packet.first() == Some(&0xFF) {
+        return Err(server_refusal(&packet, capabilities));
+    }
+    let stmt = StmtPacket::deserialize((), &mut ParseBuf(&packet)).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "the server answered `COM_STMT_PREPARE` with neither a prepared statement nor \
+             an error",
+        )
+    })?;
+
+    // Read past both definition runs. `CLIENT_DEPRECATE_EOF` is negotiated, so
+    // there is no terminator after either one and the counts are the whole of
+    // how many packets this is.
+    for _ in 0..stmt.num_params() {
+        wire.read_packet()?;
+    }
+    for _ in 0..stmt.num_columns() {
+        wire.read_packet()?;
+    }
+
+    Ok(Prepared {
+        statement_id: stmt.statement_id(),
+        params: stmt.num_params(),
+    })
+}
+
+/// ADR 0067 § 1's second round trip: `COM_STMT_EXECUTE`, over the binary
+/// protocol.
+///
+/// **Every parameter goes in the packet and none of them goes in the SQL.**
+/// That is § 1's no-emulated-prepares rule as a property of this function
+/// rather than a claim about it: the SQL was sent by [`prepare`] and is not an
+/// argument here at all, so there is no string for a value to be spliced into.
+/// Values are bound as length-encoded strings and the server casts each to its
+/// column's type, which is what the binary protocol does with a
+/// `MYSQL_TYPE_VAR_STRING` parameter and is not an escaping decision — no byte
+/// of a parameter is ever parsed as SQL.
+///
+/// `params` is [`crate::pg`]'s shape — `None` is SQL `NULL`, and the null
+/// bitmap is where it is written rather than a sentinel in the data.
+///
+/// # Errors
+///
+/// `InvalidInput` when the count does not match what the prepare said the
+/// statement wants, or when the bound values are too large for one packet;
+/// otherwise as [`read_answer`].
+pub(crate) fn execute<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+    stmt: Prepared,
+    params: &[Option<&[u8]>],
+) -> io::Result<Answer> {
+    if params.len() != usize::from(stmt.params) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "the statement takes {} parameter(s) and {} were bound — ADR 0067 § 5's \
+                 rewriter is what keeps those two numbers equal, and the `inList` expansion \
+                 has already moved the arity by the time the SQL reaches here",
+                stmt.params,
+                params.len()
+            ),
+        ));
+    }
+
+    let bound: Vec<MyValue> = params
+        .iter()
+        .map(|param| match param {
+            Some(bytes) => MyValue::Bytes(bytes.to_vec()),
+            None => MyValue::NULL,
+        })
+        .collect();
+    let (request, as_long_data) =
+        ComStmtExecuteRequestBuilder::new(stmt.statement_id).build(&bound);
+    if as_long_data {
+        // `COM_STMT_SEND_LONG_DATA` is the protocol's answer and this driver
+        // does not write it: a parameter that large is a value ADR 0067 § 4's
+        // one-statement-at-a-time shape has nowhere to stream from, and a
+        // refusal an operator can read beats a packet the server rejects.
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "the bound parameters do not fit in one packet, and this driver does not send \
+             a parameter in pieces",
+        ));
+    }
+    let mut payload = Vec::new();
+    request.serialize(&mut payload);
+
+    wire.codec.reset_seq_id();
+    wire.send(&payload)?;
+    read_answer(wire, capabilities)
+}
+
+/// One statement, end to end: prepare, execute, and stop at the first row.
+///
+/// The shape is [`crate::pg`]'s `start_statement` and for its reasons — free
+/// and generic in the stream so a unit test can script a server for it, and
+/// taking the busy state by reference so ADR 0067 § 4's one-statement-at-a-time
+/// rule is enforced here rather than by each caller remembering to.
+///
+/// It stops at the row boundary deliberately. The column definitions are the
+/// last thing whose count is known ahead of time, and a binary row decoder is
+/// what reads past them — so this returns with the wire pointing at the first
+/// row packet and the connection [`State::Streaming`], which is the state § 4
+/// refuses a second statement in.
+///
+/// # Errors
+///
+/// `InvalidInput` for a statement written to a connection that is not idle, and
+/// for [`execute`]'s parameter-count mismatch; otherwise as [`read_answer`]. A
+/// write that failed part-way leaves the connection [`State::Poisoned`],
+/// because a half-written packet is not a boundary anything can be found from.
+pub(crate) fn start_statement<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    capabilities: CapabilityFlags,
+    sql: &str,
+    params: &[Option<&[u8]>],
+) -> io::Result<(Answer, Vec<Column>)> {
+    if !state.get().may_start_statement() {
+        return Err(crate::pg::second_statement(state));
+    }
+
+    state.set(State::Executing);
+    let stmt = match prepare(wire, capabilities, sql) {
+        Ok(stmt) => stmt,
+        Err(e) => return Err(poison_on_write(state, e)),
+    };
+    let answer = match execute(wire, capabilities, stmt, params) {
+        Ok(answer) => answer,
+        Err(e) => return Err(poison_on_write(state, e)),
+    };
+
+    match answer {
+        Answer::Done { .. } => {
+            state.set(State::Idle);
+            Ok((answer, Vec::new()))
+        }
+        Answer::Columns(count) => match read_columns(wire, count) {
+            Ok(columns) => {
+                state.set(State::Streaming);
+                Ok((answer, columns))
+            }
+            Err(e) => Err(poison_on_write(state, e)),
+        },
+    }
+}
+
+/// Files a failure against the connection, poisoning it unless the failure is
+/// one the server worded.
+///
+/// The split is the difference between "this statement did not work" and "this
+/// wire is no longer a sequence of packets". A `PermissionDenied` is the
+/// server's own error packet, which arrived whole and left the connection at a
+/// boundary — the next statement on it is fine. Anything else reached here with
+/// the stream in a position nothing has proven, and § 4's answer to a boundary
+/// that cannot be proven is poison.
+fn poison_on_write(state: &Cell<State>, error: io::Error) -> io::Error {
+    if error.kind() == io::ErrorKind::PermissionDenied {
+        state.set(State::Idle);
+    } else {
+        state.set(State::Poisoned);
+    }
+    error
+}
+
 /// The last thing a destroyed connection writes: `COM_QUIT`, best effort.
 ///
 /// [`crate::pg`]'s `say_goodbye` and for its reasons: the server closes its own
@@ -906,12 +1297,14 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        AuthContext, CLIENT_CAPABILITIES, COLLATION, Greeting, MySqlTarget, Wire, authenticate,
-        offset_literal, read_greeting, read_ok, request_tls,
+        Answer, AuthContext, CLIENT_CAPABILITIES, COLLATION, Greeting, MySqlTarget, Prepared,
+        State, Wire, authenticate, execute, offset_literal, read_greeting, read_ok, request_tls,
+        start_statement,
     };
-    use mysql_common::constants::{CapabilityFlags, StatusFlags};
-    use mysql_common::packets::HandshakePacket;
+    use mysql_common::constants::{CapabilityFlags, ColumnType, StatusFlags};
+    use mysql_common::packets::{Column, ComStmtExecuteRequestBuilder, HandshakePacket};
     use mysql_common::proto::MySerialize;
+    use std::cell::Cell;
     use std::io;
 
     /// The nonce every case challenges with, and the password every case
@@ -1295,5 +1688,252 @@ mod tests {
             !target.contains(PASSWORD),
             "a target rendered its password: {target}"
         );
+    }
+
+    /// `COM_STMT_PREPARE_OK`: the status byte, the handle, and the two counts.
+    fn prepare_ok(statement_id: u32, columns: u16, params: u16) -> Vec<u8> {
+        let mut body = vec![0x00];
+        body.extend_from_slice(&statement_id.to_le_bytes());
+        body.extend_from_slice(&columns.to_le_bytes());
+        body.extend_from_slice(&params.to_le_bytes());
+        body.push(0x00);
+        body.extend_from_slice(&0_u16.to_le_bytes());
+        body
+    }
+
+    /// One column definition, as `mysql_common` writes them, so the reader is
+    /// asked to parse the very bytes a server sends rather than a shape this
+    /// test invented.
+    fn column_def(name: &str) -> Vec<u8> {
+        let mut body = Vec::new();
+        Column::new(ColumnType::MYSQL_TYPE_VAR_STRING)
+            .with_name(name.as_bytes())
+            .serialize(&mut body);
+        body
+    }
+
+    /// An `OK` packet: the header, two length-encoded numbers, the status word
+    /// and the warning count.
+    fn ok_packet(affected: u8, last_id: u8) -> Vec<u8> {
+        vec![0x00, affected, last_id, 0x02, 0x00, 0x00, 0x00]
+    }
+
+    /// ADR 0067 § 1's two round trips, and its no-emulated-prepares rule
+    /// asserted **on the wire** rather than as a claim about the code.
+    ///
+    /// The parameter is a value that would end the statement and start another
+    /// one if it were ever spliced into SQL. What is pinned is that the two
+    /// halves never meet: the first packet carries the statement text and not a
+    /// byte of the value, the second carries the value and not a byte of the
+    /// statement. A driver that interpolated would still answer `Done` here and
+    /// would fail on exactly one of those two lines.
+    ///
+    /// The count of sends is § 1's other half — the cost recorded rather than
+    /// hidden. Two, for a statement no cache has seen.
+    #[test]
+    fn a_statement_is_prepared_and_executed_and_no_parameter_reaches_the_sql() {
+        const SQL: &str = "INSERT INTO t (a) VALUES (?)";
+        const INJECTION: &[u8] = b"'); DROP TABLE t; --";
+
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| {
+            // The command byte is the payload's first, past the four-byte
+            // header the codec wrote.
+            match sent.get(4) {
+                Some(0x16) => {
+                    let mut out = packet(1, &prepare_ok(9, 0, 1));
+                    // The one parameter's definition packet. A prepare sends
+                    // them whether or not anybody wants them, so a driver that
+                    // did not read past them would start its execution
+                    // mid-stream.
+                    out.extend_from_slice(&packet(2, &column_def("a")));
+                    out
+                }
+                Some(0x17) => packet(1, &ok_packet(1, 7)),
+                other => panic!("the driver sent command {other:?}"),
+            }
+        }));
+        let state = Cell::new(State::Idle);
+
+        let (answer, columns) = start_statement(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            SQL,
+            &[Some(INJECTION)],
+        )
+        .expect("a prepare and an execution the server answered");
+
+        assert_eq!(
+            answer,
+            Answer::Done {
+                affected: 1,
+                last_id: 7
+            }
+        );
+        assert!(
+            columns.is_empty(),
+            "a statement with no result set has none"
+        );
+        assert_eq!(
+            state.get(),
+            State::Idle,
+            "a statement with nothing left to read leaves the connection reusable"
+        );
+
+        let sent = &wire.peer().sent;
+        assert_eq!(
+            sent.len(),
+            2,
+            "ADR 0067 § 1: a statement's first execution costs two round trips, \
+             and this is where that cost is visible"
+        );
+        assert!(
+            contains(&sent[0], SQL.as_bytes()) && !contains(&sent[0], INJECTION),
+            "the prepare carried the statement and must carry no parameter"
+        );
+        assert!(
+            contains(&sent[1], INJECTION) && !contains(&sent[1], SQL.as_bytes()),
+            "the execution carried the parameter and must carry no SQL — a value \
+             spliced into the statement is what ADR 0067 § 1 removes"
+        );
+    }
+
+    /// The other answer `COM_STMT_EXECUTE` can give, and the boundary it stops
+    /// at: the column definitions are read because their count is known, and
+    /// the first row packet is not, because nothing here knows how many there
+    /// are.
+    ///
+    /// ADR 0067 § 4's one-statement-at-a-time rule is asserted on both sides in
+    /// the same case: idle before, refused after, and it is the *unread result
+    /// set* that is the difference rather than anything about the second
+    /// statement.
+    #[test]
+    fn a_result_set_answers_a_column_count_and_stops_at_the_first_row() {
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                // Two column definitions, because the prepare said the result
+                // set has two. They are read and dropped: what the rows are
+                // decoded against is the *execution's* set, below.
+                let mut out = packet(1, &prepare_ok(3, 2, 0));
+                out.extend_from_slice(&packet(2, &column_def("id")));
+                out.extend_from_slice(&packet(3, &column_def("name")));
+                out
+            }
+            Some(0x17) => {
+                let mut out = packet(1, &[0x02]);
+                out.extend_from_slice(&packet(2, &column_def("id")));
+                out.extend_from_slice(&packet(3, &column_def("name")));
+                // A row the driver must not have read: if it had, the packet
+                // stream would be past it and the next test's boundary claim
+                // would be about nothing.
+                out.extend_from_slice(&packet(4, &[0x00, 0x00, 0x01, b'x']));
+                out
+            }
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+
+        let (answer, columns) = start_statement(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            "SELECT id, name",
+            &[],
+        )
+        .expect("a result set the server described");
+
+        assert_eq!(answer, Answer::Columns(2));
+        let named: Vec<String> = columns
+            .iter()
+            .map(|column| column.name_str().into_owned())
+            .collect();
+        assert_eq!(named, ["id", "name"]);
+        assert_eq!(
+            state.get(),
+            State::Streaming,
+            "rows remain unread, which is the state § 4 refuses a second statement in"
+        );
+
+        let refused = start_statement(&mut wire, &state, CLIENT_CAPABILITIES, "SELECT 1", &[])
+            .expect_err("a second statement over an unread result set — ADR 0067 § 4");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            refused.to_string().contains("one at a time"),
+            "the refusal is the one sentence `crate::pg` words for both drivers: {refused}"
+        );
+        assert_eq!(
+            wire.peer().sent.len(),
+            2,
+            "the refused statement wrote nothing — a connection that is busy is not \
+             one a second command may be half-written to"
+        );
+    }
+
+    /// The null bitmap, which is the binary protocol's answer to `NULL` and the
+    /// reason a bound `null` is not a word anywhere.
+    ///
+    /// Both halves in one case, because either alone reads plausibly: the byte
+    /// says which parameter is absent, and the payload says the absence was
+    /// never spelled out as text. The count guard is here too — it is the same
+    /// packet's other way of being wrong, and ADR 0067 § 5's rewriter is what
+    /// keeps the two numbers equal.
+    #[test]
+    fn a_null_parameter_is_a_bitmap_bit_and_never_a_word_in_the_packet() {
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(4, 0, 2));
+                out.extend_from_slice(&packet(2, &column_def("a")));
+                out.extend_from_slice(&packet(3, &column_def("b")));
+                out
+            }
+            Some(0x17) => packet(1, &ok_packet(0, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+
+        start_statement(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            "UPDATE t SET a = ?, b = ?",
+            &[None, Some(b"kept")],
+        )
+        .expect("one absent parameter and one present one");
+
+        // Past the codec's four-byte header, at the offset `mysql_common`
+        // builds the bitmap at.
+        let execution = &wire.peer().sent[1];
+        let bitmap = execution[4 + ComStmtExecuteRequestBuilder::NULL_BITMAP_OFFSET];
+        assert_eq!(
+            bitmap & 0b11,
+            0b01,
+            "the first parameter is the absent one and the second is not: {bitmap:#010b}"
+        );
+        assert!(
+            contains(execution, b"kept") && !contains(execution, b"NULL"),
+            "a bound `null` is a bit, never a word the server would have to parse"
+        );
+
+        // The same statement, bound wrong. It is refused before anything is
+        // written, so the server never sees a packet it would have to guess at.
+        let before = wire.peer().sent.len();
+        let miscounted = execute(
+            &mut wire,
+            CLIENT_CAPABILITIES,
+            Prepared {
+                statement_id: 4,
+                params: 2,
+            },
+            &[None],
+        )
+        .expect_err("one value for a statement that wants two");
+        assert_eq!(miscounted.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(wire.peer().sent.len(), before);
+    }
+
+    /// Whether `needle` appears anywhere in `haystack`, which is how the two
+    /// cases above ask what did and did not reach the wire.
+    fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+        haystack.windows(needle.len()).any(|at| at == needle)
     }
 }
