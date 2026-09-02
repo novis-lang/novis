@@ -54,6 +54,7 @@ The initial list:
 | `Core\Time\DateTime::format` / `Core\Time::parse` | CLDR pattern syntax | the parsed format plan |
 | `Core\Time\Duration::parse` | the duration grammar ([ADR 0070](0070-duration-literals.md)) | the resolved nanosecond count |
 | `Core\Str::format` | format-string syntax; placeholder count and types against the argument list | the parsed format plan |
+| `Core\Db\Connection`'s and `Core\Db\Transaction`'s `query` / `queryAs` / `execute` | placeholder count and positional-vs-named consistency against a literal params array ([ADR 0067](0067-core-db.md) § 10) | nothing: the vendors' SQL is not parsed, and § 10 says why |
 
 The type check on `Core\Str::format`'s placeholders is worth naming separately: it turns
 `printf`-style argument mismatches — a whole family of PHP bugs — into compile errors.

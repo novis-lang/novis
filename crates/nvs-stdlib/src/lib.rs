@@ -224,7 +224,11 @@ mod crypto;
 mod csrf;
 mod csv;
 mod cursor;
-mod db;
+// `pub` for [`db::check_literal_query`], which is ADR 0067 § 10's half of the
+// intrinsic pass and the only thing `nvs-types` reads here — for `cap`'s reason
+// exactly: the checker's refusal holds no second copy of a grammar this crate
+// already owns.
+pub mod db;
 mod debug;
 mod decimal;
 mod encoding;

@@ -523,6 +523,72 @@ pub fn rewrite(sql: &str, params: Params<'_>, dialect: Dialect) -> io::Result<St
     }
 }
 
+/// Whether `sql` holds a second statement — [ADR 0067
+/// § 1](../../../docs/adr/0067-core-db.md)'s "every statement is prepared", as
+/// the one question about statement *count* that can be asked without a
+/// vendor's grammar.
+///
+/// A prepared statement is one statement on every backend this crate speaks to,
+/// so a text holding two is refused by the server rather than run — and § 10
+/// moves that refusal to `nvs check` for a literal, which is the only reason
+/// this is here rather than left to the wire. It shares [`rewrite`]'s regions
+/// exactly: a `;` inside a string, an identifier, a comment or a dollar-quoted
+/// body is text, and a **trailing** `;` terminates the one statement rather
+/// than starting another, comments after it included.
+///
+/// It is not a parser and does not try to be. Whether the second statement is
+/// well formed is the server's diagnosis, per this module's own rule.
+#[must_use]
+pub fn holds_a_second_statement(sql: &str, dialect: Dialect) -> bool {
+    let bytes = sql.as_bytes();
+    let mut ended = false;
+    let mut i = 0usize;
+
+    while i < bytes.len() {
+        // What neither ends a statement nor begins one, taken first so that a
+        // comment or a run of spaces after the `;` still leaves the text one
+        // statement long.
+        match bytes[i] {
+            b'-' if bytes.get(i + 1) == Some(&b'-') => {
+                i = skip_line(bytes, i);
+                continue;
+            }
+            b'#' if dialect.hash_comments() => {
+                i = skip_line(bytes, i);
+                continue;
+            }
+            b'/' if bytes.get(i + 1) == Some(&b'*') => {
+                i = skip_block(bytes, i, dialect.nested_block_comments());
+                continue;
+            }
+            b';' => {
+                ended = true;
+                i += 1;
+                continue;
+            }
+            c if c.is_ascii_whitespace() => {
+                i += 1;
+                continue;
+            }
+            _ => {}
+        }
+        // Anything else is a statement's own text, which after a `;` is the
+        // second one however short it is.
+        if ended {
+            return true;
+        }
+        i = match bytes[i] {
+            b'\'' => skip_quoted(bytes, i, b'\'', dialect.backslash_escapes()),
+            b'"' => skip_quoted(bytes, i, b'"', dialect.backslash_escapes()),
+            b'`' if dialect.backtick_quotes() => skip_quoted(bytes, i, b'`', false),
+            b'[' if dialect.bracket_quotes() => skip_bracket(bytes, i),
+            b'$' if dialect.dollar_quotes() => skip_dollar(bytes, i).unwrap_or(i + 1),
+            _ => i + 1,
+        };
+    }
+    false
+}
+
 /// Renders the markers one argument expands to, recording what each binds.
 fn expand(
     dialect: Dialect,

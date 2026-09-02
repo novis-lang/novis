@@ -2377,13 +2377,17 @@ pub mod code {
     /// the refusal.
     pub const E_INTRINSIC_LITERAL_MALFORMED: Code = Code::new("E0769");
 
-    /// A literal `Core\Str::format` template that does not fit the arguments
-    /// written beside it.
+    /// A literal `Core\Str::format` template, or a literal `Core\Db` query,
+    /// that does not fit the arguments written beside it.
     ///
     /// Separate from [`E_INTRINSIC_LITERAL_MALFORMED`] because the literal is
     /// *fine*: the mistake is in the pairing, which is ADR 0057 § 1's own
     /// reason for naming this member's placeholder check separately — it turns
-    /// PHP's `printf` argument-mismatch bug family into a compile error.
+    /// PHP's `printf` argument-mismatch bug family into a compile error. ADR
+    /// 0067 § 10's placeholder count and its positional-vs-named consistency
+    /// are the same question of a second grammar, so they are the same code:
+    /// the message carries the reader's own words, per
+    /// [`E_INTRINSIC_LITERAL_MALFORMED`]'s.
     pub const E_FORMAT_TEMPLATE_MISMATCH: Code = Code::new("E0770");
 
     /// An `#[Api]` that contradicts the code it annotates — ADR 0085 § 2's
