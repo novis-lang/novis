@@ -1027,7 +1027,7 @@ pub(crate) fn server_refusal(
 /// code outside that set is one they read `driverCode` for. MariaDB's codes
 /// diverge above 1900 and it is its own driver with its own table, so none of
 /// them is here.
-fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
+pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
     match code {
         // `ER_DUP_ENTRY` and the three siblings that word the same condition
         // for a write, a unique index and a named key.

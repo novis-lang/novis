@@ -146,7 +146,7 @@ pub(crate) const MARIADB: Backend = Backend {
 /// The `SQLSTATE` fallback is MySQL's and is unchanged, for MySQL's reason: the
 /// classes MariaDB does fill mean what the standard says they mean, and the
 /// integer is what names the rest.
-fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
+pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
     match code {
         // `ER_DUP_ENTRY` and the three siblings that word the same condition
         // for a write, a unique index and a named key.
@@ -648,8 +648,14 @@ mod tests {
     /// answer [`DbErrorKind::Other`], which is the kind meaning "read
     /// `driverCode` yourself". A `CHECK` violation reported as
     /// un-normalisable is the failure this pins.
+    ///
+    /// The other half of the same rule is `crate::conn`'s
+    /// `every_driver_normalises_its_codes_to_one_error_kind`, which asks each
+    /// driver for the *same condition* and asserts the three answers agree —
+    /// this case is where they are allowed to be spelled differently, that one
+    /// is where they may not mean differently.
     #[test]
-    fn mariadbs_own_codes_normalise_where_mysqls_table_has_nothing() {
+    fn mariadb_uses_its_own_code_table_and_not_mysqls() {
         assert_eq!(kind_of(4025, "23000"), DbErrorKind::CheckViolation);
         assert_eq!(kind_of(1969, "70100"), DbErrorKind::Timeout);
         assert_eq!(kind_of(1927, "70100"), DbErrorKind::ConnectionLost);

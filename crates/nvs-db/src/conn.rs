@@ -882,7 +882,7 @@ mod tests {
     use nvs_config::snapshot::Snapshot;
     use nvs_runtime::pool::{Lease, Ticket, admit, release, take};
 
-    use super::{Connection, Driver, SqliteConn, State};
+    use super::{Connection, DbErrorKind, Driver, SqliteConn, State};
 
     /// The slot a request holds while one connection under `key` is open.
     ///
@@ -1042,5 +1042,146 @@ mod tests {
     fn a_poisoned_connection_is_never_poolable() {
         assert!(!State::Poisoned.is_poolable());
         assert!(!State::Poisoned.may_start_statement());
+    }
+
+    /// [ADR 0067 § 8](../../../docs/adr/0067-core-db.md)'s normalisation read
+    /// **across** the drivers instead of down one: one condition, spelled the
+    /// way each server spells it, answering one [`DbErrorKind`] on all of them.
+    ///
+    /// **This is the claim the per-driver cases cannot make.**
+    /// `crate::pg`'s `every_sqlstate_classifies_and_only_the_two_the_retry_rule_names_retry`,
+    /// `crate::mysql`'s `the_code_table_names_the_kind_and_the_retryable_pair_disagree`
+    /// and `crate::maria`'s `mariadb_uses_its_own_code_table_and_not_mysqls`
+    /// each read one table alone, so a driver classifying a foreign-key
+    /// violation as [`DbErrorKind::Other`] — plausible, since that is exactly
+    /// what its own table answers for a code it does not name — passes its case
+    /// and still breaks the only promise § 8 makes: that an application
+    /// branches on the condition and not on the dialect. Three tables that each
+    /// look right and disagree with each other is what PDO leaves a caller
+    /// with, and it is why real PHP code matches on `"Duplicate entry"`.
+    ///
+    /// **SQL Server and SQLite are absent because they have no table yet, not
+    /// because they are exempt.** § 8's "four drivers and five dialects" is not
+    /// met until each of them joins the rows below; a driver landing a
+    /// `kind_of` and not a column here has been normalised against nothing.
+    #[test]
+    fn every_driver_normalises_its_codes_to_one_error_kind() {
+        // Each row is one condition an application branches on, then how
+        // PostgreSQL, MySQL and MariaDB report it: a `SQLSTATE` for the first,
+        // and the vendor integer beside its `SQLSTATE` for the other two, which
+        // is the pair their tables are keyed on.
+        for (kind, postgres, mysql, maria) in [
+            (
+                DbErrorKind::UniqueViolation,
+                "23505",
+                (1062_u16, "23000"),
+                (1062_u16, "23000"),
+            ),
+            (
+                DbErrorKind::ForeignKeyViolation,
+                "23503",
+                (1452, "23000"),
+                (1452, "23000"),
+            ),
+            (
+                DbErrorKind::NotNullViolation,
+                "23502",
+                (1048, "23000"),
+                (1048, "23000"),
+            ),
+            // The row where the three genuinely diverge, and so the row this
+            // case exists for: MySQL raises `ER_CHECK_CONSTRAINT_VIOLATED`
+            // under its catch-all `HY000`, MariaDB raises its own
+            // `ER_CONSTRAINT_FAILED` under the standard's integrity class, and
+            // a caller sees one kind.
+            (
+                DbErrorKind::CheckViolation,
+                "23514",
+                (3819, "HY000"),
+                (4025, "23000"),
+            ),
+            (
+                DbErrorKind::Deadlock,
+                "40P01",
+                (1213, "40001"),
+                (1213, "40001"),
+            ),
+            // The other class-40 condition: PostgreSQL names it, and both MySQL
+            // dialects reach it through the standard's class, `1213` being the
+            // one member of the class their tables name outright.
+            (
+                DbErrorKind::SerializationFailure,
+                "40001",
+                (9999, "40001"),
+                (9999, "40001"),
+            ),
+            (
+                DbErrorKind::ConnectionLost,
+                "08006",
+                (1053, "08S01"),
+                (1053, "08S01"),
+            ),
+            (
+                DbErrorKind::Timeout,
+                "57014",
+                (1205, "HY000"),
+                (1205, "HY000"),
+            ),
+            (
+                DbErrorKind::Syntax,
+                "42601",
+                (1064, "42000"),
+                (1064, "42000"),
+            ),
+            (
+                DbErrorKind::Permission,
+                "42501",
+                (1045, "28000"),
+                (1045, "28000"),
+            ),
+            // And the kind that means "read the raw values yourself", which has
+            // to agree as well: a driver that guessed here would be branching
+            // an application on a condition § 8 declines to normalise.
+            (
+                DbErrorKind::Other,
+                "XX000",
+                (9999, "HY000"),
+                (9999, "HY000"),
+            ),
+        ] {
+            // The condition in words, and a `match` rather than a `{kind:?}`
+            // for what it costs a later author: it is exhaustive, so a twelfth
+            // condition added to `DbErrorKind` stops this crate building until
+            // someone stands in this table and decides what each server calls
+            // it. A row missing from here is a kind nothing holds the drivers
+            // to.
+            let condition = match kind {
+                DbErrorKind::UniqueViolation => "a duplicate key",
+                DbErrorKind::ForeignKeyViolation => "a missing or still-referenced parent row",
+                DbErrorKind::NotNullViolation => "a null in a column that refuses one",
+                DbErrorKind::CheckViolation => "a `CHECK` constraint the row fails",
+                DbErrorKind::Deadlock => "a deadlock the server broke by aborting this transaction",
+                DbErrorKind::SerializationFailure => "a serialization conflict the server undid",
+                DbErrorKind::ConnectionLost => "the server going away",
+                DbErrorKind::Timeout => "a statement that ran out of time",
+                DbErrorKind::Syntax => "a malformed statement, or a name that is not there",
+                DbErrorKind::Permission => "a privilege the role does not hold",
+                DbErrorKind::Other => "a condition § 8 does not normalise",
+            };
+
+            for (driver, answered) in [
+                (Driver::Postgres, crate::pg::kind_of(postgres)),
+                (Driver::MySql, crate::mysql::kind_of(mysql.0, mysql.1)),
+                (Driver::MariaDb, crate::maria::kind_of(maria.0, maria.1)),
+            ] {
+                assert_eq!(
+                    answered, kind,
+                    "{driver:?} reads {condition} as {answered:?}, and the \
+                     other drivers read it as {kind:?} — § 8 exists so that an \
+                     application branches on the condition rather than on the \
+                     dialect"
+                );
+            }
+        }
     }
 }

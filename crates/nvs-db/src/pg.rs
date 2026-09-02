@@ -969,7 +969,7 @@ fn server_error(body: &backend::ErrorResponseBody) -> io::Error {
 /// Everything unnamed is [`DbErrorKind::Other`] rather than a guess: § 8
 /// normalises the conditions applications branch on, and a code outside that
 /// set is one they read the `SQLSTATE` for.
-fn kind_of(code: &str) -> DbErrorKind {
+pub(crate) fn kind_of(code: &str) -> DbErrorKind {
     match code {
         "23505" => DbErrorKind::UniqueViolation,
         "23503" => DbErrorKind::ForeignKeyViolation,
