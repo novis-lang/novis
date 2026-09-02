@@ -58,10 +58,11 @@
 > `ClassDesc::db_codec`, and § 9's five structured columns build the `Core\Time`/`Core\Uuid`
 > instance `Row`'s typed readers and a `#[Db\Derive]` field answer with, so `examples/db.nvs` runs
 > that end to end and pins a real refusal's § 8 values. Stages 3-4 are green in `-p nvs-db`, Stage 5
-> four of seven, two in `-p nvs-stdlib`, **§ 13's pool is complete**, **the matrix hands each driver
-> a trust anchor** and the two servers with none report `n/a`, and **ADR 0132 has claimed the goal's
-> one ADR slot**. **Goals 1-4 and M4 are closed**, this goal's Stage 1 floor — `Core`'s
-> capability-bearing half. Conformance 1415, differential 250, its gate met, migration 90%/74%.
+> four of seven, two in `-p nvs-stdlib`, **§ 13's pool is complete, its reuse proven live**, **the
+> matrix hands each driver a trust anchor** and the two servers with none report `n/a`, and **ADR
+> 0132 has claimed the goal's one ADR slot**. **Goals 1-4 and M4 are closed**, this goal's Stage 1
+> floor — `Core`'s capability-bearing half. Conformance 1415, differential 250, its gate met,
+> migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

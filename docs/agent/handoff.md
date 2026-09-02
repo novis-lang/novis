@@ -2,57 +2,65 @@
 
 ## State
 
-**The matrix carries a trust anchor, so a `-p nvs-db` case can reach a live server.**
-`NVS_DB_MATRIX_CA` names a PEM bundle and is in the *required* group with the host and the port,
-not beside it: every server in `tests/db/compose.yaml` is TLS-only, no public root vouches for one,
-and `nvs_host::tls` has no spelling for connecting without verifying, so an endpoint with no anchor
-is not one a case can reach at all. `crates/nvs-db/src/matrix.rs`'s module doc is that argument's
-only home. `tools/db-matrix.py` exports the file out of the container per run — the anchor belongs
-to a Docker volume and is reissued with it — into the scratch directory it already builds.
+**§ 13's reuse is proven against a real server.** `crates/nvs-db/tests/pool_reuse.rs` is the
+tree's first live matrix case: one core's first request releases at teardown, the second
+admits under the same key, `take`s what was released and resets it, and the assertion is
+`pg_backend_pid()` on both sides — the identity of the backend process, so an equal pid is
+one connection and not a second one that answered as well. The temp table the first request
+left is gone after the reset. Its module doc is the only home for why it is an integration
+test (a socket and an anchor, which a unit test in this crate has neither of) and for why
+the teardown is `nvs_runtime::pool::release` called directly, as `Ctx`'s `Drop` calls it.
 
-**Two of the five servers cannot be reached, and the harness says so rather than running them.**
-MariaDB serves no certificate as the compose file configures it, and SQL Server keeps its own in
-the instance rather than in a file, so `tools/db-matrix.py` prints `mariadb: n/a` / `mssql: n/a`
-and exits 2. **Stage 6's `[[check]]` (`docs/agent/loop-goal.toml:2866`) will report those two lines
-from now on: that is did-not-run, not a regression** — it was reporting `ok` for five legs that
-never opened a socket, and the stage's own comment header now says what each of the two is owed.
-`postgres: ok` runs green end to end today.
+**Verified live, not just compiled**: `python tools/db-matrix.py --driver postgres` is green,
+and the case was run by hand against a wrong database to see it panic at the handshake —
+a green matrix leg alone cannot tell a live case from a skipped one (playbook, *Running
+things*).
 
-**The "five test files" sentence was rationale, not a roster.** `crates/nvs-db/src/lib.rs`'s
-§ *`NVS_DB_MATRIX_*`* argues that one reader beats one parser per test file; it never named files
-that are owed. It is reworded so it cannot read as a plan again, and that module doc's stale
-"no driver can yet complete a handshake" paragraph — written before `tls_ca_file` landed — now
-states the seam that exists.
+**`crates/nvs-db/src/lib.rs`'s crate map no longer says the pool is still to come.** The
+store is `nvs_runtime::pool`, the acquire path is `nvs-stdlib`'s, and what this crate holds
+is the release gate and the reset.
 
-**Unchanged and still true.** The driver's acceptance line for `examples/queue.nvs` is Stage 8's
-unlanded `Core\Queue` (ADR 0084), not a regression. § 7's backoff is still blocked on
-`nvs-runtime`'s known gap 3 (`crates/nvs-stdlib/src/db.rs:149` argues it). Stage 5's
-`args = ["test", "-p", "nvs-db"]` (`docs/agent/loop-goal.toml:2830`) still cannot see the two
-`nvs-stdlib` tests, and is still the user's call.
+**Unchanged and still true.** The driver's acceptance line for `examples/queue.nvs` is Stage
+8's unlanded `Core\Queue` (ADR 0084), not a regression. Stage 6's `mariadb: n/a` /
+`mssql: n/a` are did-not-run, and `docs/agent/loop-goal.toml:2866`'s header owns what each is
+owed. § 7's backoff is still blocked on `nvs-runtime`'s known gap 3
+(`crates/nvs-stdlib/src/db.rs:149`). Stage 5's `args = ["test", "-p", "nvs-db"]`
+(`docs/agent/loop-goal.toml:2830`) still cannot see the two `nvs-stdlib` tests — the user's
+call.
 
-**`orient.py`'s pack is short the pool for the next group.** `[context] modules` names neither
-`nvs-runtime/src/pool.rs` nor `nvs-stdlib/src/db.rs`, which the two slices below both open, and it
-is still short `nvs-host/src/timer.rs`, `nvs-host/src/group.rs` and `nvs-runtime/src/host.rs` as
-the last handoff reported.
+**`orient.py`'s pack is still short this group's files.** `[context] modules` names neither
+`nvs-runtime/src/pool.rs` nor `nvs-stdlib/src/db.rs`, which every slice below opens, and is
+also short `nvs-host/src/net.rs`, `nvs-host/src/timer.rs`, `nvs-host/src/group.rs` and
+`nvs-runtime/src/host.rs`.
 
 ## Next group
 
-**§ 13's reuse and its queue, proven against the live PostgreSQL the anchor now reaches. The file
-set is `crates/nvs-runtime/src/pool.rs`, `crates/nvs-stdlib/src/db.rs` and a new test file.**
+**The rest of § 13 against the live PostgreSQL. The file set is `crates/nvs-stdlib/src/db.rs`,
+`crates/nvs-runtime/src/pool.rs` and `crates/nvs-db/tests/pool_reuse.rs`, which items 2 and 3
+extend.**
 
-- [ ] **Two requests on one core share one connection** — the first releases at teardown, the
-      second draws it warm through `crates/nvs-runtime/src/pool.rs:495`'s `take` and its reset ran.
-      Assert the *identity* of the connection, not that a second query worked. ADR 0067 § 13.
-- [ ] **A third request at the ceiling waits and then throws naming `acquire`** — `max = 1` with a
-      short `acquire`, two tasks, and the refusal from `crates/nvs-stdlib/src/db.rs:3159`. The
-      queue's own unit cases are at `crates/nvs-runtime/src/pool.rs:905`; what this adds is a real
-      park. ADR 0067 § 13.
+- [ ] **A third request at the ceiling waits and then throws naming `acquire`** — `max = 1`
+      with a short `acquire`, two tasks, and the refusal from
+      `crates/nvs-stdlib/src/db.rs:3159`. The queue's own unit cases are at
+      `crates/nvs-runtime/src/pool.rs:905`; what this adds is a real park. **Decide first what
+      provides the two tasks**: `crates/nvs-db/tests/pool_reuse.rs:124` has no scheduler under
+      it, so this is either a case where a core can be started or a Novis program under
+      `examples/`. ADR 0067 § 13.
+- [ ] **`pool = false` restores connect-per-request exactly** — nothing is taken back
+      (`crates/nvs-runtime/src/pool.rs:520` returns before the store on `!enabled`) and
+      `admit` still never refuses, so the second request's pid *differs*. Beside the reuse
+      case at `crates/nvs-db/tests/pool_reuse.rs:124`. ADR 0067 § 13.
+- [ ] **A connection past its `lifetime` is retired rather than handed on** — release, then
+      `take` with a `now` past `retire`, and `crates/nvs-runtime/src/pool.rs:568`'s scan
+      closes it, so the pid differs there too. Same file, at
+      `crates/nvs-db/tests/pool_reuse.rs:124`. ADR 0067 § 13.
 
 ## Backlog
 
-- MariaDB needs the `certs` volume PostgreSQL mounts, and SQL Server a certificate on disk, before
-  their matrix legs can run — `tests/db/compose.yaml:113`, Stage 6.
-- § 7's backoff waits on `nvs-runtime`'s known gap 3 — `crates/nvs-stdlib/src/db.rs:149`.
-- Stage 5's `-p nvs-db` args cannot see the two `nvs-stdlib` tests — `docs/agent/loop-goal.toml:2830`.
-- Stage 8's `Core\Queue` (ADR 0084) is what `examples/queue.nvs` waits on.
-- `[context] modules` is short the five modules named in `## State` — `docs/agent/loop-goal.toml`.
+- Stage 6's own first work: the `certs` volume for MariaDB and a certificate on disk for SQL
+  Server — `docs/agent/loop-goal.toml:2866`'s header.
+- Stage 8's `Core\Queue` (ADR 0084) is what the acceptance line on `examples/queue.nvs` reports.
+- § 7's retry backoff, blocked on `nvs-runtime`'s known gap 3 — `crates/nvs-stdlib/src/db.rs:149`.
+- `open` waits on a shape-parameter type — `docs/implementation-plan.md`, *Open now*.
+- Stage 5 cannot see the two `nvs-stdlib` tests — `docs/agent/loop-goal.toml:2830`, user's call.
+- `[context] modules` is short `pool.rs`, `db.rs` and `net.rs` — `docs/agent/loop-goal.toml`.

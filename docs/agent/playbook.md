@@ -2097,6 +2097,19 @@ is why" — is this file.
   than on the filesystem. Ask the running container what it serves — `docker compose exec <svc>` —
   before writing anything that verifies a certificate against it; a compose comment is a claim about
   the image, not about the service as configured, and the header is now the corrected one.
+- **A live matrix case that silently skipped is indistinguishable from one that passed.**
+  `tools/db-matrix.py` captures `cargo test -q`'s output and prints one `postgres: ok`
+  either way, and the skip is this crate's own rule — `NVS_DB_MATRIX_DRIVER` unset means
+  `nvs_db::matrix::endpoint()` is `None` and the case returns — so a case written against
+  a server it never reached reports green forever. Prove the body ran once, by hand:
+  `docker compose -f tests/db/compose.yaml cp postgres:/certs/ca.crt <scratch>` for the
+  anchor, the seven `NVS_DB_MATRIX_*` fields off `tests/db/compose.yaml`, and run the leg
+  twice — once green, and once with `NVS_DB_MATRIX_DATABASE` naming a database that does
+  not exist, which must panic at the handshake rather than pass. The enabling fact the
+  older *cannot build a `PgConn`* bullet predates: with a socket and an anchor a case
+  **can**, and an integration test under `crates/nvs-db/tests/` is where — a `tests/`
+  target links the package's ordinary dependencies too, so `nvs_runtime::pool` is
+  reachable from one without a dev-dependency.
 
 ## Writing a test case
 
