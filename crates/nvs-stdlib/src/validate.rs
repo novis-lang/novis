@@ -623,11 +623,17 @@ mod tests {
     /// [`CoreTy::Bool`], and a verdict carries no byte of what it was asked
     /// about, so there is nothing here a qualifier could be removed *from*.
     ///
+    /// Which *type* a launderer hands its subject back as is a separate
+    /// question, and ADR 0133 § 1's — `Core\Html::escape` answers a carrier
+    /// and `Core\Regex::quote` a plain `string`. `crate::html`'s
+    /// `every_launderer_for_an_auto_escaping_sink_answers_a_carrier` is that
+    /// claim's home; what matters here is only that the answer is the subject.
+    ///
     /// The last assertion is the same claim asked of the whole registry, and
     /// is what makes this more than these six rows read back: **no laundering
     /// member anywhere answers a `bool`**. Every one of them hands its subject
-    /// back — `Core\Html::escape` and `Core\Regex::quote` as an unqualified
-    /// `string`, `Core\Http::allowUrl` as a carrier — because laundering is a
+    /// back — `Core\Regex::quote` as an unqualified `string`,
+    /// `Core\Html::escape` as a carrier — because laundering is a
     /// transformation and validating is a question about the input. A
     /// validator that grew a `Qual::Launder` fails here on the day it is
     /// added, in whichever class it is added to.

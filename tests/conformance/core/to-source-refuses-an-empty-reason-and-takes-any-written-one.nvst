@@ -1,0 +1,35 @@
+--TEST--
+`Core\Html::toSource` refuses an empty reason and accepts any written one — ADR 0133 § 3
+--FILE--
+<?nvs
+// ADR 0133 § 3's second half: the hatch is rare, greppable, and carries a
+// written reason at the site. An empty reason is refused, because a reason
+// nobody had to write is a reason nobody wrote — the same argument `unsafe`
+// carries in this project's own policy.
+Core\Html\Markup $m = "<hr>" as Core\Html\Markup;
+
+try {
+    echo Core\Html::toSource($m, ""), "\n";
+    echo "opened\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// Both bounds named together, so a member that refused every reason — or that
+// only looked at the first byte — fails on one of these two lines while still
+// printing plausibly on the other. One character is a written reason as far as
+// this rule is concerned: § 3 asks that something be written, and judging
+// whether it is a *good* reason is the reader's job and not the runtime's.
+echo Core\Html::toSource($m, "."), "\n";
+
+// Whitespace is written text too. The rule is emptiness and nothing subtler,
+// which keeps it a rule a reader can predict rather than a lint.
+echo Core\Html::toSource($m, " "), "\n";
+
+// And the ordinary case, which is what every real call site looks like.
+echo Core\Html::toSource($m, "writing the fragment to a cache that stores text"), "\n";
+--EXPECT--
+Core\Html::toSource(): the reason is written for the next reader, so an empty one is refused
+<hr>
+<hr>
+<hr>

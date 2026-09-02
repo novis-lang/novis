@@ -1,0 +1,44 @@
+--TEST--
+`Core\Html::escape` answers a carrier, so the eager-escape habit needs `toSource` written at the site and produces the same document either way — ADR 0133 §§ 1, 2
+--FILE--
+<?nvs
+// ADR 0133 § 1's predicate, seen from the program rather than from the
+// registry: the HTML sink escapes on its own and escaping is not idempotent,
+// so an escaped value that were a plain `string` would be escaped a second
+// time by a sink that could not tell it from text. The carrier is what makes
+// the second application impossible to write by accident.
+tainted string $name = "Tom & Jerry";
+Core\Html\Markup $safe = Core\Html::escape($name);
+echo $safe, "\n";
+
+// § 2's *Context* program, said explicitly: a lifted literal composes with an
+// escaped value, and the composition is the carrier again. Neither half is
+// escaped by the `+`, because both already passed whichever rule made them
+// `Markup`.
+echo ("Hello " as Core\Html\Markup) + $safe, "\n";
+
+// The non-idempotence, demonstrated rather than asserted: taking the bytes
+// back out and escaping them again is a thing a program can still do, and it
+// produces the `&amp;amp;` that the carrier exists to stop happening by
+// accident. It takes a written reason to say it now, which is the difference.
+Core\Html\Markup $twice = Core\Html::escape(
+    Core\Html::toSource($safe, "escaping an already-escaped fragment on purpose")
+);
+echo $twice, "\n";
+
+// Three applications, so the growth is shown to compound rather than being one
+// surprising line. A sink that auto-escaped a `string` answer would produce
+// this on the second `echo` of the first value, with nothing written at the
+// site to say so.
+echo Core\Html::escape(Core\Html::toSource($twice, "and once more, to show it compounds")), "\n";
+
+// The carrier is not text as far as the type system is concerned, which is the
+// whole guarantee: the only way to a `string` is by name, and it is greppable.
+string $source = Core\Html::toSource($safe, "storing the rendered fragment in a column");
+echo $source, "\n";
+--EXPECT--
+Tom &amp; Jerry
+Hello Tom &amp; Jerry
+Tom &amp;amp; Jerry
+Tom &amp;amp;amp; Jerry
+Tom &amp; Jerry

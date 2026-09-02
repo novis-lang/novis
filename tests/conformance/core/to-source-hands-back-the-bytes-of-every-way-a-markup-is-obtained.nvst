@@ -1,0 +1,37 @@
+--TEST--
+`Core\Html::toSource` hands back the source text of a `Markup` however it was obtained — the lift, the composition and the escape — ADR 0133 § 3
+--FILE--
+<?nvs
+// ADR 0133 § 3 makes this the *only* way back out of the carrier: there is no
+// `Markup as string`, because one would reopen the hole in a keystroke. So the
+// claim under test is that the exit works for every entrance, asked of all
+// three rather than of the one that is easiest to write — a member that read
+// the slot of a lifted literal and not of a composed one would print plausibly
+// on its own line.
+Core\Html\Markup $lifted = "<b>bold</b>" as Core\Html\Markup;
+echo Core\Html::toSource($lifted, "showing the source text a lift carries"), "\n";
+
+Core\Html\Markup $composed = ("<b>" as Core\Html\Markup) + ("</b>" as Core\Html\Markup);
+echo Core\Html::toSource($composed, "showing the source text a composition carries"), "\n";
+
+Core\Html\Markup $escaped = Core\Html::escape("Tom & Jerry");
+echo Core\Html::toSource($escaped, "showing the source text an escape carries"), "\n";
+
+// The answer is a plain `string` and not the carrier, which is the whole point
+// of the member: it reaches everything a `string` reaches, including a sink
+// that is not this one and a member that measures it.
+string $source = Core\Html::toSource($escaped, "measuring the escaped text");
+echo Core\Str::length($source), "\n";
+
+// And the bytes are the carrier's own: what `echo` writes out of a `Markup` is
+// exactly what `toSource` hands back, so the two spellings agree rather than
+// each being plausible alone.
+echo Core\Html::toSource($composed, "the same bytes echo writes"), "\n";
+echo $composed, "\n";
+--EXPECT--
+<b>bold</b>
+<b></b>
+Tom &amp; Jerry
+15
+<b></b>
+<b></b>

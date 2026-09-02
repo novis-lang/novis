@@ -2,12 +2,26 @@
 //! § 3's narrow, sink-named launderer, over the sink § 5 makes out of HTML
 //! text.
 //!
-//! § 3 writes `Core\Html::escape(tainted string): string` out as *the* worked
-//! example of what a launderer is allowed to be: one member, one sink, and a
-//! contract naming it. This module is that member. There is deliberately no
-//! `sanitize()` here yet and no generic `clean()` ever — a value safe for HTML
-//! text is not safe for a shell argument, and § 3's whole argument is that a
-//! catch-all buys the false confidence the qualifier exists to prevent.
+//! § 3 writes `Core\Html::escape(tainted string): Core\Html\Markup` out as
+//! *the* worked example of what a launderer is allowed to be: one member, one
+//! sink, and a contract naming it. This module is that member. There is
+//! deliberately no `sanitize()` here yet and no generic `clean()` ever — a
+//! value safe for HTML text is not safe for a shell argument, and § 3's whole
+//! argument is that a catch-all buys the false confidence the qualifier exists
+//! to prevent.
+//!
+//! # Why the answer is a carrier and not a `string`
+//!
+//! [ADR 0133](../../../../docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+//! § 1 asks two questions of every launderer and this is the one member on the
+//! roster that answers yes to both: the HTML sink launders on its own, so a
+//! second application is one the source does not show, and escaping is not
+//! idempotent, so that second application changes the output — `&` becomes
+//! `&amp;` becomes `&amp;amp;`. Answering [`MARKUP`] is what makes the eager
+//! `htmlspecialchars` habit stop compiling instead of shipping `&amp;amp;`,
+//! and [`nvs_core_html_to_source`] is § 3's one way back to the bytes. Every
+//! other launderer in the registry keeps its plain type, which is the same
+//! predicate answering no.
 //!
 //! # Known gaps
 //!
@@ -17,12 +31,28 @@
 //! WHATWG parser over `Core\Xml`'s tree, both of which wait on that tree
 //! existing at all.
 //!
-//! [`MARKUP`] is registered *and* reachable: two of ADR 0024 § 5's three ways
-//! to obtain one are here, as [`MARKUP_SYMBOL`] for `as Markup` on a source
-//! literal and [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`. The third is
-//! the sink's own **escape-and-lift** — every non-`Markup` interpolation into
-//! an HTML response is escaped through `escape` and wrapped — and it waits on
-//! that response existing, which is the same wait `Core\Request` is on.
+//! ADR 0133 § 3 asks two things of [`nvs_core_html_to_source`]'s `$reason` and
+//! only one of them is enforced. **An empty reason is refused**, at run time,
+//! by the body. **A computed one is not yet refused**: "the reason is a source
+//! literal" is a compile-time judgement and needs a diagnostic code, and both
+//! type bands are full — `E0499` and `E0799` — so the rule waits on a decision
+//! about the band layout rather than on a line here. The gap costs less than it
+//! looks: § 3's argument is that the hatch be *greppable and justified*, and a
+//! `const REASON` holding the text still leaves the call site readable, which
+//! is `Core\Secret::reveal`'s own position on the same question
+//! ([`crate::secret`]).
+//!
+//! [`MARKUP`] is registered *and* reachable: ADR 0024 § 5's three ways to
+//! obtain one are all here — [`MARKUP_SYMBOL`] for `as Markup` on a source
+//! literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`, and the escape
+//! itself, which ADR 0133 § 1 turned from the first two's poor relation into
+//! the ordinary one. What still waits is the sink's **automatic** lift — every
+//! non-`Markup` interpolation into an HTML response escaped and wrapped with
+//! no call written at the site — and it waits on that response existing, which
+//! is the same wait `Core\Request` is on. The *predicate* ADR 0133 § 1 reads
+//! does not wait on it: § 5 already decided the sink launders on its own, and
+//! the return type is written against that decision rather than against what
+//! is on disk.
 //!
 //! # Why the escape set is fixed at five, with no argument
 //!
@@ -67,20 +97,32 @@
 
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
-/// ADR 0024 § 3's launderer for the HTML sink.
+/// ADR 0024 § 3's launderer for the HTML sink, and ADR 0133 § 3's one way back
+/// out of the carrier it answers.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Html",
-    methods: &[CoreMethod {
-        name: "escape",
-        names: &["text"],
-        params: &[CoreTy::Text(Qual::Launder)],
-        defaults: &[],
-        return_ty: CoreTy::Str,
-        symbol: "nvs_core_html_escape",
-        doc: Some(&ESCAPE_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "escape",
+            names: &["text"],
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(MARKUP_NAME),
+            symbol: "nvs_core_html_escape",
+            doc: Some(&ESCAPE_DOC),
+        },
+        CoreMethod {
+            name: "toSource",
+            names: &["markup", "reason"],
+            params: &[CoreTy::Instance(MARKUP_NAME), CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_html_to_source",
+            doc: Some(&TO_SOURCE_DOC),
+        },
+    ],
     instance: &[],
     slots: &[],
     constants: &[],
@@ -160,11 +202,42 @@ const ESCAPE_DOC: MethodDoc = MethodDoc {
         desc: "The text to write into an HTML document, as text rather than as markup.",
         shape: &[],
     }],
-    ret: "The escaped text, safe in element content and in an attribute value quoted either way. \
-          Text with none of the five characters and no unterminated control comes back unchanged. \
-          The five are escaped unconditionally: there is no flag, and an input that already reads \
-          as a reference is escaped again, since `&amp;` in the input is text that said `&amp;`.",
+    ret: "A `Core\\Html\\Markup` carrying the escaped text, safe in element content and in an \
+          attribute value quoted either way. It is not a `string`, which is what stops the sink \
+          escaping it a second time; `toSource` is the way back to the bytes. Text with none of \
+          the five characters and no unterminated control is carried through unchanged. The five \
+          are escaped \
+          unconditionally: there is no flag, and an input that already reads as a reference is \
+          escaped again, since `&amp;` in the input is text that said `&amp;`.",
     errors: &[],
+};
+
+/// `Core\Html::toSource`'s reference card — ADR 0117.
+const TO_SOURCE_DOC: MethodDoc = MethodDoc {
+    short: "Hands back the source text a `Core\\Html\\Markup` carries — the one way out of the \
+            carrier, since there is no `Markup as string` conversion. Rare, greppable, and it \
+            carries a written reason at the site.",
+    params: &[
+        ParamDoc {
+            name: "markup",
+            desc: "The markup whose bytes are wanted rather than its guarantee.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "reason",
+            desc: "Why this call site needs the text and not the carrier, written for the next \
+                   reader. Nothing else reads it, and an empty one is refused.",
+            shape: &[],
+        },
+    ],
+    ret: "The markup's source text, as a plain `string`. Caching a rendered fragment, storing one \
+          in a column, writing one to a file and handing one to a sink that is not this one are \
+          the legitimate callers.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$reason` is empty. A reason nobody had to write is a reason nobody wrote, so the \
+               hatch refuses to open without one.",
+    }],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
@@ -172,6 +245,7 @@ const ESCAPE_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_html_escape" => (nvs_core_html_escape as *const ()).cast(),
+        "nvs_core_html_to_source" => (nvs_core_html_to_source as *const ()).cast(),
         MARKUP_SYMBOL => (nvs_core_html_markup as *const ()).cast(),
         MARKUP_CONCAT_SYMBOL => (nvs_core_html_markup_concat as *const ()).cast(),
         _ => return None,
@@ -219,25 +293,36 @@ fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Html::escape(tainted string $text): string` — ADR 0024 § 3's
-    /// launderer for the sink § 5 describes, replacing `htmlspecialchars`.
+    /// `Core\Html::escape(tainted string $text): Core\Html\Markup` — ADR 0024
+    /// § 3's launderer for the sink § 5 describes, replacing
+    /// `htmlspecialchars`.
     ///
     /// Removing the qualifier is the *registry row's* job, not this body's:
     /// `tainted` has no run-time representation at all, so what the checker
-    /// reads is [`Qual::Launder`] on the parameter and `CoreTy::Str` on the
-    /// answer. What runs here is the transformation that makes that judgement
-    /// true.
+    /// reads is [`Qual::Launder`] on the parameter and `CoreTy::Instance` on
+    /// the answer. What runs here is the transformation that makes that
+    /// judgement true, plus the lift into [`MARKUP`] that
+    /// [ADR 0133](../../../../docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+    /// § 1 requires of it: the HTML sink launders on its own and its transform
+    /// is not idempotent, so an answer the sink could not tell from unescaped
+    /// text is one it would escape a second time.
     ///
-    /// # Why the unchanged case answers the argument itself
+    /// # Why the unchanged case still carries the argument's own bytes
     ///
     /// ADR 0024 § 5 makes this the sink's *only* behaviour: every non-`Markup`
     /// interpolation into an HTML response passes through here, whether or not
     /// it is tainted. So the input with nothing to escape is not an edge case,
-    /// it is most of a page — and answering the argument keeps that path at
-    /// one scan and no allocation, which is what makes a rule that cannot be
-    /// switched off affordable (AGENTS.md's priority 3).
-    /// [`nvs_render::text::substitute`] answers a borrow for the same reason
-    /// one sink over.
+    /// it is most of a page — and handing that path's bytes straight to the
+    /// carrier keeps it at one scan and no *string* allocation, which is what
+    /// makes a rule that cannot be switched off affordable (AGENTS.md's
+    /// priority 3). [`nvs_render::text::substitute`] answers a borrow for the
+    /// same reason one sink over.
+    ///
+    /// **What the carrier itself spends:** one object allocation per call,
+    /// charged to the request exactly as [`nvs_core_html_markup`]'s lift is.
+    /// That is the price ADR 0133 § 1 names and it is paid on every escape,
+    /// including the unchanged one — the alternative is a `string` answer the
+    /// sink escapes again, which costs a second scan *and* a wrong document.
     fn nvs_core_html_escape(_ctx, args: [1]) {
         let text = text(&args[0], r"`Core\Html::escape`'s `$text`")?;
 
@@ -246,6 +331,9 @@ nvs_runtime::nvs_helper! {
         let mut unterminated = Vec::new();
         nvs_render::bidi::for_each_unterminated(text, |offset, _| unterminated.push(offset));
         if unterminated.is_empty() && !text.chars().any(|c| escaped(c).is_some()) {
+            // `instance::build` takes over the slot's reference, and a
+            // `CoreCall`'s arguments are borrowed — so the reference the
+            // carrier ends up holding is taken here, as the lift does it.
             #[expect(
                 unsafe_code,
                 reason = "the argument slot holds a live reference for the length of \
@@ -254,7 +342,7 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 args[0].retain();
             }
-            return Ok(args[0]);
+            return Ok(crate::instance::build(&MARKUP, [args[0]]));
         }
 
         // Every escape is longer than what it replaces, so the input's length
@@ -272,7 +360,10 @@ nvs_runtime::nvs_helper! {
                 None => out.push(c),
             }
         }
-        Ok(Value::str(NvsStr::new(out.as_bytes())))
+        Ok(crate::instance::build(
+            &MARKUP,
+            [Value::str(NvsStr::new(out.as_bytes()))],
+        ))
     }
 }
 
@@ -361,6 +452,59 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Html::toSource(Core\Html\Markup $markup, string $reason): string`
+    /// — [ADR 0133](../../../../docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+    /// § 3's one way back out of the carrier.
+    ///
+    /// **There is no `Markup as string` conversion, and this is why there is a
+    /// member instead.** A cast would reopen the hole in a keystroke —
+    /// `Core\Html::escape($x) as string . $tainted` is the bug the carrier
+    /// removes — so the way out is greppable by name and carries a written
+    /// reason at the site, exactly as `Core\Secret::reveal` does one axis over.
+    ///
+    /// The reason is otherwise read by nobody: [`crate::secret`]'s module doc
+    /// is the home of that argument, and this member takes the same
+    /// [`Qual::Neutral`] text for the same reasons — no byte of it reaches the
+    /// answer, and a `secret` justification is refused by the ordinary rule.
+    /// **An empty one is refused here**, which is the half of § 3's rule that
+    /// can be enforced at all today: the other half wants the reason to be a
+    /// *source literal*, and that is a compile-time judgement with nowhere to
+    /// declare its diagnostic — both type bands are full (`E0499`, `E0799`), so
+    /// widening them is a decision of its own rather than a line in this
+    /// member. The module's *Known gaps* records it.
+    ///
+    /// **What it spends:** one comparison. The answer is the slot's own
+    /// [`NvsStr`] with one more reference on it, so the bytes are never copied
+    /// and the carrier the caller passed is left exactly where it was.
+    fn nvs_core_html_to_source(_ctx, args: [2]) {
+        let reason = text(&args[1], r"`Core\Html::toSource`'s `$reason`")?;
+        if reason.is_empty() {
+            return Err(nvs_runtime::Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                "Core\\Html::toSource(): the reason is written for the next \
+                 reader, so an empty one is refused"
+                    .to_owned(),
+            ));
+        }
+
+        let source = markup_slot(args[0], r"`Core\Html::toSource`'s `$markup`")?;
+
+        // Handed back to Novis code, so the reference is this call's to take —
+        // `crate::instance::slot` borrows and says so.
+        #[expect(
+            unsafe_code,
+            reason = "the slot's `Value` is owned by a receiver that is live for \
+                      the length of the call, which is `Value::retain`'s whole \
+                      obligation"
+        )]
+        unsafe {
+            source.retain();
+        }
+        Ok(source)
+    }
+}
+
 /// What an unterminated directional control becomes — ADR 0024 § 5's last
 /// bullet, which writes the character out.
 ///
@@ -431,8 +575,8 @@ mod tests {
             escape.params.len()
         );
         assert!(
-            matches!(escape.return_ty, CoreTy::Str),
-            "`escape` answers a plain, unqualified `string`"
+            matches!(escape.return_ty, CoreTy::Instance(name) if name == MARKUP_NAME),
+            "`escape` answers an unqualified `Core\\Html\\Markup` — ADR 0133 § 1"
         );
 
         // `Reveal` is the other axis and a different decision: ADR 0060 § 5's
@@ -468,6 +612,181 @@ mod tests {
             html_launderers,
             vec!["escape"],
             "ADR 0024 § 3's launderer for the HTML sink is one member and is named for it"
+        );
+    }
+
+    /// ADR 0133 § 2, asked of the whole route rather than of the row: the
+    /// carrier `escape` answers is the one the HTML sink writes raw, its slot
+    /// is the one the bytes go into, and the class it names is registered.
+    ///
+    /// The three together are what "the escaped value is a carrier" means at
+    /// run time. A row answering `CoreTy::Instance` of a class the sink did not
+    /// render would compile, pass the row-shaped assertion in
+    /// [`html_escape_launders_for_the_html_sink_and_for_no_other`], and print
+    /// the escaped text with `Core\Html\Markup` where the markup should be.
+    #[test]
+    fn html_escape_answers_the_markup_carrier() {
+        let escape = CLASS
+            .members()
+            .find(|method| method.name == "escape")
+            .expect("`Core\\Html::escape` is registered");
+        let CoreTy::Instance(answered) = escape.return_ty else {
+            panic!("`escape` answers an instance, not {:?}", escape.return_ty)
+        };
+
+        assert_eq!(answered, MARKUP.name, "and the instance is this class");
+        assert!(
+            nvs_runtime::is_carrier(answered),
+            "the answer is written raw by the HTML sink, which is the whole \
+             point of it not being a `string`"
+        );
+        assert_eq!(
+            MARKUP.slot("text"),
+            nvs_runtime::CARRIER_TEXT_SLOT,
+            "and the escaped bytes go in the slot that sink reads"
+        );
+
+        // The composition half, which ADR 0133 § 2 says is already built: an
+        // escaped fragment is usable with `+` without a second escape, so the
+        // operator table has to have the row the answer's type needs.
+        assert!(
+            crate::registry::CLASSES
+                .iter()
+                .any(|class| class.name == answered),
+            "`CoreTy::Instance` resolves against the registry, so the answer \
+             names a class a program can be handed"
+        );
+    }
+
+    /// ADR 0133 § 1's predicate, asked of **every** launderer in the registry
+    /// rather than of this one — the claim is a set, exactly as
+    /// [`html_escape_launders_for_the_html_sink_and_for_no_other`]'s is.
+    ///
+    /// § 1 makes the carrier a *derived* answer: a launderer answers one when
+    /// its sink launders on its own **and** its transform is not idempotent,
+    /// and the plain unqualified type otherwise. So the roster below is the
+    /// table in that section, transcribed, and the test asserts agreement in
+    /// both directions. `Core\Html::escape` is the only yes: the HTML sink
+    /// auto-escapes and `&` → `&amp;` → `&amp;amp;` changes under a second
+    /// application. `Core\Cli::escape` is the near miss the name-half of this
+    /// test exists for — the terminal *also* launders on its own, and its
+    /// escape is idempotent because the glyph it substitutes holds no `ESC`,
+    /// so it keeps its `string` (ADR 0086 § 1).
+    ///
+    /// Two rows read wrong at a glance and neither is a counterexample.
+    /// `Core\Cli\Text::plain` and `styled` answer a carrier while their sink is
+    /// idempotent, because they are *constructors* for the terminal's carrier
+    /// rather than that sink's escaper — which is why § 1's table has a row per
+    /// sink and not per member, and why `Core\Cli::escape` is the row that
+    /// speaks for the terminal. `Core\Http::allowUrl` answers
+    /// `Core\Http\Target`, which is a pinned-address capability handle and not
+    /// a text carrier at all: the column here is *`nvs_runtime::is_carrier`* —
+    /// "the sink writes this value's bytes out raw" — and ADR 0058's sink
+    /// neither auto-launders nor escapes anything.
+    ///
+    /// The roster is asserted whole, so a launderer added anywhere fails here
+    /// until someone places it against the predicate — which is the day the
+    /// decision is actually being made.
+    #[test]
+    fn every_launderer_for_an_auto_escaping_sink_answers_a_carrier() {
+        // ADR 0133 § 1's table, as `(member, does it answer a carrier)`. A
+        // `true` row is a sink that both auto-launders and is non-idempotent.
+        const PLACED: &[(&str, bool)] = &[
+            (r"Core\Cli::escape", false),
+            (r"Core\Cli\Text::plain", true),
+            (r"Core\Cli\Text::styled", true),
+            (r"Core\Db::quoteIdentifier", false),
+            (r"Core\Html::escape", true),
+            (r"Core\Http::allowUrl", false),
+            (r"Core\IO::within", false),
+            (r"Core\Regex::quote", false),
+            (r"Core\SignedCookie::open", false),
+            (r"Core\Uri::encodeComponent", false),
+            (r"Core\Uri::encodeFormValue", false),
+        ];
+
+        let mut roster: Vec<(String, bool)> = CLASSES
+            .iter()
+            .flat_map(|class| class.members().map(move |method| (class.name, method)))
+            .filter(|(_, method)| {
+                method
+                    .params
+                    .iter()
+                    .any(|param| matches!(param, CoreTy::Text(Qual::Launder)))
+            })
+            .map(|(class, method)| {
+                let answers_carrier = match method.return_ty {
+                    CoreTy::Instance(name) => nvs_runtime::is_carrier(name),
+                    _ => false,
+                };
+                (format!("{class}::{}", method.name), answers_carrier)
+            })
+            .collect();
+        roster.sort();
+
+        let placed: Vec<(String, bool)> = PLACED
+            .iter()
+            .map(|(name, carrier)| ((*name).to_owned(), *carrier))
+            .collect();
+        assert_eq!(
+            roster, placed,
+            "every launderer is placed against ADR 0133 § 1's two conditions, \
+             and answers a carrier exactly when both hold"
+        );
+    }
+
+    /// ADR 0133 § 3's escape hatch, in the three things that make it one: it is
+    /// the **only** member that takes a `Markup` and answers a `string`, it
+    /// takes a written reason, and the reason is ordinary text rather than a
+    /// second qualified position.
+    ///
+    /// The first assertion is the one worth having. `Markup as string` does not
+    /// exist, so the way out is this row and a program can be read for it by
+    /// name — a second member answering the bytes would be an ungreppable
+    /// second door, and it would compile.
+    #[test]
+    fn to_source_is_the_only_way_out_of_markup_and_it_takes_a_reason() {
+        let ways_out: Vec<String> = CLASSES
+            .iter()
+            .flat_map(|class| class.members().map(move |method| (class.name, method)))
+            .filter(|(_, method)| {
+                matches!(method.return_ty, CoreTy::Str | CoreTy::Bytes)
+                    && method.params.iter().any(
+                        |param| matches!(param, CoreTy::Instance(name) if *name == MARKUP_NAME),
+                    )
+            })
+            .map(|(class, method)| format!("{class}::{}", method.name))
+            .collect();
+        assert_eq!(
+            ways_out,
+            vec![r"Core\Html::toSource"],
+            "ADR 0133 § 3 gives the carrier one exit, and it is named for what \
+             it hands back"
+        );
+
+        let to_source = CLASS
+            .members()
+            .find(|method| method.name == "toSource")
+            .expect("`Core\\Html::toSource` is registered");
+        assert_eq!(
+            to_source.names,
+            ["markup", "reason"],
+            "the reason is written at the call site, which is what makes the \
+             hatch readable rather than merely narrow"
+        );
+        assert!(
+            matches!(
+                to_source.params,
+                [CoreTy::Instance(name), CoreTy::Text(Qual::Neutral)] if *name == MARKUP_NAME
+            ),
+            "the reason is [`Qual::Neutral`] for `Core\\Secret::reveal`'s \
+             reason: no byte of it reaches the answer, so a `secret` \
+             justification is refused by the ordinary rule"
+        );
+        assert!(
+            to_source.defaults.is_empty(),
+            "neither argument has a default — a reason nobody had to write is a \
+             reason nobody wrote"
         );
     }
 

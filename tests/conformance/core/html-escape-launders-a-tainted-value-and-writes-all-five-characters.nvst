@@ -1,19 +1,27 @@
 --TEST--
-`Core\Html::escape` writes all five of `&<>"'` as character references and answers a plain `string` for a `tainted` argument — ADR 0024 §§ 3, 5
+`Core\Html::escape` writes all five of `&<"'` as character references and answers a `Core\Html\Markup` for a `tainted` argument — ADR 0024 §§ 3, 5, ADR 0133 §§ 1, 2
 --FILE--
 <?nvs
 // ADR 0024 § 3 writes this member out as *the* worked example of a launderer:
 // narrow, named for one sink, and the only route from an untrusted value to
 // text that may be written into an HTML document. The route runs end to end
 // here — the value arrives tainted, the escape happens, and the answer is a
-// plain `string`, which is the whole of what "it launders" means.
+// `Core\Html\Markup`, which is the whole of what "it launders" means plus what
+// ADR 0133 § 1 adds: the HTML sink escapes on its own and escaping is not
+// idempotent, so the answer has to be a value the sink can tell from text.
 tainted string $t = "<a href='x' title=\"y\">Tom & Jerry</a>";
 
-// Declaring anything other than `string` here would be the reject case: a
-// contagious row's answer still carries the qualifier and cannot be bound to
-// this type (tests/conformance/core/a-launder-row-hands-a-tainted-value-to-the-sink-it-names.nvst).
-string $safe = Core\Html::escape($t);
+// Declaring `string` here is the reject case now, and deliberately so — ADR
+// 0133 § 2's "the eager-escape habit stops compiling". A contagious row's
+// answer still carries the qualifier and cannot be bound to a plain type
+// either (tests/conformance/core/a-launder-row-hands-a-tainted-value-to-the-sink-it-names.nvst).
+Core\Html\Markup $safe = Core\Html::escape($t);
 echo $safe, "\n";
+
+// § 3's one way back to the bytes, which is what a question *about* the
+// escaped text has to go through. The reason is written at the site and read
+// by nobody, exactly as `Core\Secret::reveal`'s is.
+string $source = Core\Html::toSource($safe, "asking which references the escape produced");
 
 // All five, always, with no flag to choose between them — ADR 0063 R6 forbids
 // the `htmlspecialchars` bitmask, and the member of every pair those flags
@@ -22,17 +30,23 @@ echo $safe, "\n";
 // as well as in element content, so this counts them rather than reading the
 // line above: a member that dropped `'` back to PHP's pre-8.1 default still
 // prints plausibly.
-echo Core\Str::contains($safe, "&amp;") ? "y" : "n",
-     Core\Str::contains($safe, "&lt;") ? "y" : "n",
-     Core\Str::contains($safe, "&gt;") ? "y" : "n",
-     Core\Str::contains($safe, "&quot;") ? "y" : "n",
-     Core\Str::contains($safe, "&#39;") ? "y" : "n",
+echo Core\Str::contains($source, "&amp;") ? "y" : "n",
+     Core\Str::contains($source, "&lt;") ? "y" : "n",
+     Core\Str::contains($source, "&gt;") ? "y" : "n",
+     Core\Str::contains($source, "&quot;") ? "y" : "n",
+     Core\Str::contains($source, "&#39;") ? "y" : "n",
      "\n";
 
 // `&#39;` and not `&apos;`: the named reference is XML's, and HTML 4 never
 // defined it.
-echo Core\Str::contains($safe, "&apos;") ? "y" : "n", "\n";
+echo Core\Str::contains($source, "&apos;") ? "y" : "n", "\n";
+
+// The carrier and its source text are the same bytes and differ only in what
+// the type system will let them reach — so `echo` of either writes the same
+// line, and only one of them would survive a second trip through the sink.
+echo $source == Core\Html::toSource($safe, "the round trip is the identity") ? "same" : "changed", "\n";
 --EXPECT--
 &lt;a href=&#39;x&#39; title=&quot;y&quot;&gt;Tom &amp; Jerry&lt;/a&gt;
 yyyyy
 n
+same

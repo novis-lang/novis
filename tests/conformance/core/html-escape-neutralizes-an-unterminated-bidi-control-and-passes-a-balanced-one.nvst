@@ -12,7 +12,8 @@
 // is legitimate mixed-direction text, and ADR 0087's whole position is that
 // banning the code points outright breaks Arabic and Hebrew.
 string $balanced = "left \u{202B}right\u{202C} left again";
-echo Core\Html::escape($balanced) == $balanced ? "same" : "changed", "\n";
+echo Core\Html::toSource(Core\Html::escape($balanced), "comparing the escape against its input") == $balanced
+     ? "same" : "changed", "\n";
 
 // Unterminated — RLO with no PDF after it, so the scope is still open when the
 // value ends and everything downstream of it renders reversed. The control
@@ -25,7 +26,8 @@ echo Core\Html::escape($open), "\n";
 // Both bounds named together, so a member that neutralized every directional
 // control rather than the unterminated ones fails on the first line here while
 // still printing the right answer on the second.
-echo Core\Html::escape($open) == $open ? "same" : "changed", "\n";
+echo Core\Html::toSource(Core\Html::escape($open), "comparing the escape against its input") == $open
+     ? "same" : "changed", "\n";
 
 // The two transformations compose in one pass: the escape and the
 // substitution are decided per character over the same walk, so a value

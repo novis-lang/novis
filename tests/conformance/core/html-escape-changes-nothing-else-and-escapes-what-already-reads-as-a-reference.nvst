@@ -1,19 +1,22 @@
 --TEST--
-`Core\Html::escape` returns text holding none of the five characters unchanged, and escapes an input that already reads as a character reference rather than leaving it alone — ADR 0024 § 3, ADR 0095
+`Core\Html::escape` carries text holding none of the five characters through unchanged, and escapes an input that already reads as a character reference rather than leaving it alone — ADR 0024 § 3, ADR 0095, ADR 0133 § 2
 --FILE--
 <?nvs
 // The other side of the boundary the sibling case pins. A launderer that
 // escaped something it did not have to would corrupt every document it
 // touched, and this asks the question by *comparison* rather than by printing
 // the answer: a member that rewrote one extra code point fails here while its
-// own line still looks right.
+// own line still looks right. The comparison goes through `toSource`, because
+// ADR 0133 § 2 gives the answer a type `==` has no row against a `string` for.
 string $plain = "ordinary text, punctuation included: a-b_c/d.e (f) [g] {h} 100% ~ | ^";
-echo Core\Html::escape($plain) == $plain ? "same" : "changed", "\n";
+echo Core\Html::toSource(Core\Html::escape($plain), "comparing the escape against its input") == $plain
+     ? "same" : "changed", "\n";
 
 // Not ASCII either. `string` is UTF-8 by ADR 0009, so there is no `$encoding`
 // argument and nothing here to transliterate.
 string $text = "日本語 — naïve café 👍";
-echo Core\Html::escape($text) == $text ? "same" : "changed", "\n";
+echo Core\Html::toSource(Core\Html::escape($text), "comparing the escape against its input") == $text
+     ? "same" : "changed", "\n";
 
 // ADR 0095: ambiguous input is refused, never repaired. PHP's fourth
 // `htmlspecialchars` argument exists to suppress this — `$double_encode` — and
@@ -22,7 +25,13 @@ echo Core\Html::escape($text) == $text ? "same" : "changed", "\n";
 // an escape silently loses it. Escaping is not idempotent and is not meant to
 // be.
 echo Core\Html::escape("&amp;"), "\n";
-echo Core\Html::escape(Core\Html::escape("&")), "\n";
+
+// And that non-idempotence is exactly ADR 0133 § 1's second condition, so the
+// nested spelling of the line above no longer compiles: `escape` takes a
+// `tainted string` and its own answer is a `Markup`. Saying it twice is now a
+// deliberate act that has to name a reason, and it produces what it always
+// produced.
+echo Core\Html::escape(Core\Html::toSource(Core\Html::escape("&"), "escaping the escape on purpose")), "\n";
 --EXPECT--
 same
 same
