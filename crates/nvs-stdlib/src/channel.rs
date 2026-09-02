@@ -311,7 +311,10 @@ fn wait(ctx: &mut Ctx, receiver: *mut ObjHeader, member: &str) -> Result<(), Fau
             "{NAME}::{member} would wait and there is no scheduler on this thread to wait on"
         )));
     };
-    let woken = nvs_runtime::host::with_current(|host| host.park());
+    // No deadline: a receiver waits for a sender and for nothing else, and ADR
+    // 0074 § 5's "no spelling for an unbounded wait" is about a *network* wait,
+    // not about one end of a channel this program owns both halves of.
+    let woken = nvs_runtime::host::with_current(|host| host.park(None));
     deregister(ticket);
     match woken {
         Some(Woken::Cancelled) => Err(ctx.cancel()),

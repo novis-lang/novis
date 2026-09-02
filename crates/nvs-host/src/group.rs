@@ -158,7 +158,14 @@ impl Host for SchedulerHost {
         Some(Box::new(move || wake.wake()))
     }
 
-    fn park(&self) -> Woken {
+    fn park(&self, deadline: Option<Instant>) -> Woken {
+        // A bound on the wait is a deadline like any other, so it is armed on
+        // the reactor the core is about to poll rather than kept anywhere here
+        // — `crate::timer` is the one clock, and its `wait_until` is `park`'s
+        // own shape: a wake ends it, and so does the instant.
+        if let Some(at) = deadline {
+            return crate::timer::wait_until(at);
+        }
         // `Waiting::Parked` rather than `Waiting::Yielded`: the task is off the
         // run queue until someone fires the wake it handed out, which is the
         // whole difference between waiting and being polite.

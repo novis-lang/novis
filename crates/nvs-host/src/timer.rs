@@ -287,11 +287,55 @@ pub fn sleep(duration: Duration) -> Woken {
     park_until(Instant::now() + duration)
 }
 
+/// Parks the running task until `at` **or** until something wakes it, whichever
+/// comes first.
+///
+/// The same mechanism as [`park_until`] with the loop taken off, and the
+/// difference is the whole point: there, an early wake is noise to be re-armed
+/// past, because the caller asked for an instant. Here the caller is waiting on
+/// state a peer changes and the instant is only the bound on how long it may —
+/// so a wake is the answer and the deadline is the failure, and returning on
+/// either is what makes the caller's `loop { look; check the clock; wait }` a
+/// wait rather than a poll.
+///
+/// [`Woken::Elapsed`] covers both endings for that reason: the caller re-reads
+/// the state and its own clock, and neither answer would tell it anything it is
+/// not about to look up. Off a core the thread sleeps out the remainder, since
+/// nothing that could wake it is running either.
+pub fn wait_until(at: Instant) -> Woken {
+    let now = Instant::now();
+    if now >= at {
+        return Woken::Elapsed;
+    }
+    let armed = current_task()
+        .filter(|&me| reactor::with_current(|reactor| reactor.timers().arm(me, at)).is_some());
+    let Some(me) = armed else {
+        std::thread::sleep(at - now);
+        return Woken::Elapsed;
+    };
+    let resumed = suspend_current(Waiting::Parked);
+    // Always, and not only on the paths that failed: a deadline that fired is
+    // already off the reactor, and one that did not would otherwise stay filed
+    // against a task that has gone back to work — this module's one-timer-per-
+    // task rule is exact only if every arm has its disarm.
+    reactor::with_current(|reactor| reactor.timers().disarm(me));
+    if resumed.cancelled() {
+        return Woken::Cancelled;
+    }
+    if !resumed.suspended() {
+        // Nothing suspended, so nothing here could have been woken; sleeping the
+        // remainder is the same answer `park_until` gives off a core, and the
+        // alternative is the caller spinning its loop against the clock.
+        std::thread::sleep(at - Instant::now().min(at));
+    }
+    Woken::Elapsed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::reactor::{Reactor, install, run_until_idle, with_current};
-    use crate::scheduler::Scheduler;
+    use crate::scheduler::{Scheduler, Wake};
     use nvs_runtime::{Ctx, OutputSink, TaskRoot};
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -377,6 +421,80 @@ mod tests {
             report.resumes >= 1,
             "the sleep never parked, so no timer was exercised"
         );
+    }
+
+    /// [`wait_until`]'s deadline half: with nothing arranged to wake it, a
+    /// bounded wait is a sleep and comes back at its instant rather than hanging
+    /// on the peer that never arrived.
+    #[test]
+    fn a_bounded_wait_with_nothing_to_wake_it_ends_on_its_deadline() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let start = Instant::now();
+            assert!(matches!(
+                wait_until(start + Duration::from_millis(20)),
+                Woken::Elapsed
+            ));
+            assert!(
+                start.elapsed() >= Duration::from_millis(20),
+                "the wait came back early with nothing to have woken it"
+            );
+        });
+
+        assert_eq!(
+            run_until_idle(&mut sched)
+                .expect("the loop failed")
+                .finished,
+            1
+        );
+        assert_eq!(with_current(|reactor| reactor.timers().len()), Some(0));
+    }
+
+    /// [`wait_until`]'s other half, and the whole difference from [`park_until`]:
+    /// a wake ends it, because the caller is waiting on a peer and the instant
+    /// is only how long it may. A deadline of five seconds against a test that
+    /// finishes at once is the assertion.
+    #[test]
+    fn a_wake_ends_a_bounded_wait_before_its_deadline() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let handed = Rc::new(RefCell::new(None));
+        let waiter = Rc::clone(&handed);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            // Taken before the wait, which is the ordering every caller of this
+            // owes: a handle taken afterwards could be registered by a peer that
+            // has already fired.
+            *waiter.borrow_mut() = Wake::current();
+            let start = Instant::now();
+            assert!(matches!(
+                wait_until(start + Duration::from_secs(5)),
+                Woken::Elapsed
+            ));
+            assert!(
+                start.elapsed() < Duration::from_secs(1),
+                "the wake did not end the wait, so the deadline did"
+            );
+        });
+        let peer = Rc::clone(&handed);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            peer.borrow()
+                .as_ref()
+                .expect("the waiter parked without handing its wake over")
+                .wake();
+        });
+
+        assert_eq!(
+            run_until_idle(&mut sched)
+                .expect("the loop failed")
+                .finished,
+            2
+        );
+        // The deadline it did not use is off the reactor, which is what keeps
+        // this module's one-timer-per-task rule exact.
+        assert_eq!(with_current(|reactor| reactor.timers().len()), Some(0));
     }
 
     /// Item 5's whole claim, asserted with both spellings live on one core: a

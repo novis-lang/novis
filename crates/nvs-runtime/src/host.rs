@@ -96,7 +96,7 @@
 //! asks pays one thread-local load and one null test.
 
 use std::cell::Cell;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::ctx::Ctx;
 use crate::graph::GraphError;
@@ -350,20 +350,34 @@ pub trait Host: std::fmt::Debug {
     /// *before* it commits to waiting.
     fn waker(&self) -> Option<Waker>;
 
-    /// Gives the core back until one of this task's [`Waker`]s fires, or the
-    /// task is cancelled.
+    /// Gives the core back until one of this task's [`Waker`]s fires,
+    /// `deadline` passes, or the task is cancelled.
     ///
     /// [`Woken::Elapsed`] here means "the wait ended for its own reason" —
-    /// a waker fired, or nothing could hold the task parked at all. There is
-    /// no third answer to give: a waker is a hint, so the caller re-checks the
-    /// state it was waiting on either way, and a park that could not be
-    /// entered is then one more turn of that loop rather than a case of its
-    /// own. [`Woken::Cancelled`] is the only answer that means something
-    /// different, and it means what it means for [`Host::sleep`]: the task is
-    /// standing on an `extern "C"` helper frame ([`crate::HelperFrame`]), so
-    /// its host resumed it rather than unwinding it, and the member's answer
-    /// is [`Ctx::cancel`].
-    fn park(&self) -> Woken;
+    /// a waker fired, the deadline came up, or nothing could hold the task
+    /// parked at all. There is no third answer to give: a waker is a hint, so
+    /// the caller re-checks the state it was waiting on either way, and a park
+    /// that could not be entered is then one more turn of that loop rather than
+    /// a case of its own. **The deadline is no exception to that**, and that is
+    /// why it is not a variant: the caller already holds the instant it passed
+    /// in and reads its own clock against it, which is an answer no wake can
+    /// race and no host has to be trusted for. [`Woken::Cancelled`] is the only
+    /// answer that means something different, and it means what it means for
+    /// [`Host::sleep`]: the task is standing on an `extern "C"` helper frame
+    /// ([`crate::HelperFrame`]), so its host resumed it rather than unwinding
+    /// it, and the member's answer is [`Ctx::cancel`].
+    ///
+    /// `None` is a wait with no bound on it, for a member waiting on state only
+    /// a peer can change; `Some` bounds the same wait without changing what it
+    /// waits *for*, which is why this is one method and not two. A deadline
+    /// already in the past returns without parking at all.
+    ///
+    /// This is deliberately not [`Host::sleep`] with a wake bolted on. A sleep
+    /// is a wait *for the clock* and may not end early; this is a wait for a
+    /// peer that may not run forever. A member that has both — `Core\Db`'s
+    /// `acquire`, waiting for a pooled connection under a timeout — has exactly
+    /// one thing to call.
+    fn park(&self, deadline: Option<Instant>) -> Woken;
 
     /// Starts `program` as an isolate under the calling task and answers with
     /// the handle that collects it later.
@@ -454,7 +468,8 @@ pub fn is_installed() -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        Bounds, Duration, Host, Installed, Job, Outcome, Woken, install, is_installed, with_current,
+        Bounds, Duration, Host, Installed, Instant, Job, Outcome, Woken, install, is_installed,
+        with_current,
     };
     use crate::ctx::{Ctx, OutputSink};
 
@@ -493,7 +508,7 @@ mod tests {
             None
         }
 
-        fn park(&self) -> Woken {
+        fn park(&self, _deadline: Option<Instant>) -> Woken {
             self.0.set(self.0.get() + 1);
             Woken::Elapsed
         }
