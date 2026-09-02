@@ -32,9 +32,10 @@
 //! runtime ([ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)), so the enum and the column
 //! are one representation and not two.
 //!
-//! **What it spends:** one statement per `push`, on a connection the request either already held or
-//! now holds for the rest of it, plus one JSON encoding of `$args` sized by the payload the caller
-//! wrote. Nothing is held between calls.
+//! **What it spends:** one statement per member call, on a connection the request either already
+//! held or now holds for the rest of it, plus one JSON encoding of `$args` sized by the payload the
+//! caller wrote. Nothing is held between calls, except the four counters `stats` answers with for
+//! as long as its caller keeps the record.
 //!
 //! # Known gaps
 //!
@@ -50,11 +51,11 @@
 //!    concurrent one at `read committed`. The partial unique index over `(dedupe_key) where state =
 //!    0` is `nvs queue migrate`'s to create, and when it exists the statement below becomes race-free
 //!    without changing shape.
-//! 4. **`stats` is owed** — § 1's roster is four members and three are here. It
-//!    additionally waits on a decision rather than on work: it answers a *record* of counters, and
-//!    a `Core` instance's properties are unreachable from a program ([`CoreTy::Instance`]'s own
-//!    rule), so it is either a shape parameter's twin — gap 1's blocker — or a class whose counters
-//!    are members, which is `Core\Db\Write::lastId`'s shape.
+//! 4. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
+//!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
+//!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
+//!    not decide beyond `id` and `queue`, so [`COUNTS`] sums `attempts` over [`JOBS_TABLE`] alone
+//!    and counts the depth separately rather than inventing a column for the sum to reach.
 //! 5. **PostgreSQL only**, as [`crate::db`]'s gap 2 is: the other four drivers have no statement path
 //!    yet, so [`postgres_of`] refuses them by name rather than writing a row nothing would claim.
 
@@ -77,6 +78,9 @@ pub(crate) const ID_NAME: &str = r"Core\Queue\Id";
 /// `Core\Queue\State`'s, as [`CoreTy::Enum`] spells it.
 pub(crate) const STATE_NAME: &str = r"Core\Queue\State";
 
+/// `Core\Queue\Stats`'s, as [`CoreTy::Instance`] spells it.
+pub(crate) const STATS_NAME: &str = r"Core\Queue\Stats";
+
 /// `push`'s name in a refusal, written once so every message spells it the same way.
 const PUSH: &str = r"Core\Queue::push";
 
@@ -85,6 +89,9 @@ const STATUS_OF: &str = r"Core\Queue::status";
 
 /// `cancel`'s.
 const CANCEL_OF: &str = r"Core\Queue::cancel";
+
+/// `stats`'s.
+const STATS_OF: &str = r"Core\Queue::stats";
 
 /// The table § 2's `nvs queue migrate` creates and this module writes into.
 ///
@@ -170,6 +177,33 @@ const CANCEL: &str = "update nvs_jobs set state = 4 \
     where id = $1::bigint and queue = $2::text and state = 0 \
     returning id";
 
+/// ADR 0084 §§ 1 and 6's `stats`, as one aggregate over one queue.
+///
+/// **Named for what it reads rather than for the member**, because [`STATS`] is the class that
+/// member answers with and two constants cannot both be `STATS`.
+///
+/// **One row and not four**, which is the whole reason `stats` answers a record instead of
+/// answering a number four times: an aggregate with no `group by` is exactly one row however empty
+/// the table is, so the four counters describe one instant rather than four of them with a worker's
+/// claim free to land in between. That is [`STATUS`]'s reading of § 2 applied to a whole queue.
+///
+/// **The `0` and the `1` are [`STATE`]'s `Pending` and `Claimed` ordinals**, literals for
+/// [`PENDING`]'s reason — no `const` reaches inside a SQL string — and held to the enum by
+/// `queue_statements_agree_with_the_state_enum`. The dead-letter depth is a scalar subquery rather
+/// than a fifth arm of the aggregate because it counts rows of the *other* table; § 6 moves an
+/// exhausted job there, and [`DEAD_TABLE`]'s doc owns why only `id` and `queue` are readable on it,
+/// which is also why `attempts` sums [`JOBS_TABLE`] alone.
+///
+/// Every column is cast to `bigint` so the four decode the same way whatever widths `nvs queue
+/// migrate` gives their columns, and `filter` is PostgreSQL's spelling — gap 5 is why that costs
+/// nothing yet, since a second driver needs its own text for [`INSERT`]'s `returning` regardless.
+const COUNTS: &str = "select \
+    (count(*) filter (where state = 0))::bigint, \
+    (count(*) filter (where state = 1))::bigint, \
+    (coalesce(sum(attempts), 0))::bigint, \
+    (select count(*) from nvs_dead_jobs where queue = $1::text)::bigint \
+    from nvs_jobs where queue = $1::text";
+
 /// A [`ID`]'s first slot: the primary key the insert returned.
 const ID_SLOT: &str = "id";
 
@@ -182,6 +216,34 @@ const ID_AT: usize = 0;
 
 /// [`ID_QUEUE_SLOT`]'s.
 const ID_QUEUE_AT: usize = 1;
+
+/// A [`STATS`]'s first slot: how many of the queue's jobs are waiting for a worker.
+///
+/// The four slot names are the four member names, which is not decoration:
+/// `every_stats_counter_reads_the_slot_its_member_is_named_for` asserts it, because a swapped pair
+/// still type-checks, still runs, and answers the wrong number.
+const STATS_PENDING_SLOT: &str = "pending";
+
+/// Its second: how many a worker currently holds.
+const STATS_CLAIMED_SLOT: &str = "claimed";
+
+/// Its third: how many attempts the jobs still in [`JOBS_TABLE`] have used between them.
+const STATS_ATTEMPTS_SLOT: &str = "attempts";
+
+/// Its fourth: how many of the queue's jobs are in [`DEAD_TABLE`].
+const STATS_DEAD_SLOT: &str = "deadLettered";
+
+/// [`STATS_PENDING_SLOT`]'s index, and [`COUNTS`]'s first column.
+const STATS_PENDING_AT: usize = 0;
+
+/// [`STATS_CLAIMED_SLOT`]'s.
+const STATS_CLAIMED_AT: usize = 1;
+
+/// [`STATS_ATTEMPTS_SLOT`]'s.
+const STATS_ATTEMPTS_AT: usize = 2;
+
+/// [`STATS_DEAD_SLOT`]'s.
+const STATS_DEAD_AT: usize = 3;
 
 /// `$script`'s argument slot.
 const SCRIPT_ARG: usize = 0;
@@ -204,7 +266,7 @@ const BACKOFF_ARG: usize = 5;
 /// `{key: …}`'s. See [`ARGS_ARG`].
 const KEY_ARG: usize = 6;
 
-/// ADR 0084 § 1's `Core\Queue` — `push`, `status` and `cancel`, with `stats` owed (gap 4).
+/// ADR 0084 § 1's `Core\Queue` — all four of `push`, `status`, `cancel` and `stats`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -293,6 +355,21 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_queue_cancel",
             doc: Some(&CANCEL_DOC),
+        },
+        // The one member of the four asked about a *queue* rather than about a job,
+        // because what § 6 wants watched is a population and not a row. It answers a
+        // class for the reason [`STATS`] gives, which is the same rule [`ID`] rests
+        // on read the other way round.
+        CoreMethod {
+            name: "stats",
+            names: &["queue"],
+            // Neutral for the reason `push`'s own `queue` option is: a queue name is
+            // compared against a column and read by nothing else.
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(STATS_NAME),
+            symbol: "nvs_core_queue_stats",
+            doc: Some(&STATS_DOC),
         },
     ],
     instance: &[],
@@ -429,6 +506,77 @@ const CANCEL_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Queue::stats`'s reference card — ADR 0117.
+const STATS_DOC: MethodDoc = MethodDoc {
+    short: "Counts one named queue: what is waiting, what a worker holds, how many attempts the \
+            queue's jobs have used, and how deep its dead-letter table is. The four are read \
+            together, so they describe one instant rather than four.",
+    params: &[ParamDoc {
+        name: "queue",
+        desc: "The queue to count, as `push`'s own `queue` option names one. Queues are separate \
+               populations by design, so there is no spelling that totals them.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Queue\\Stats`, whose four counters are members — `$stats->pending()` and not \
+          `$stats->pending`, because a `Core`-owned instance has no property a program can reach.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This deployment writes no `[queue]` block, so nothing says which database the \
+                   jobs would be in; or the queue's connection names a driver that cannot yet run \
+                   a statement.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The queue's connection did not open, or the query was refused by the server — \
+                   most often because `nvs queue migrate` has not created the tables.",
+        },
+    ],
+};
+
+/// `Core\Queue\Stats::pending`'s reference card — ADR 0117.
+const STATS_PENDING_DOC: MethodDoc = MethodDoc {
+    short: "How many of the queue's jobs are waiting for a worker — including those whose `runAt` \
+            is still in the future and those between attempts with a backoff still to elapse, \
+            because `Core\\Queue\\State::Pending` is one state and not three.",
+    params: &[],
+    ret: "A `uint`, and `0` both for a queue nothing was ever pushed to and for one that has \
+          drained.",
+    errors: &[],
+};
+
+/// `Core\Queue\Stats::claimed`'s reference card — ADR 0117.
+const STATS_CLAIMED_DOC: MethodDoc = MethodDoc {
+    short: "How many of the queue's jobs a worker currently holds. Work in flight rather than work \
+            committed to: a worker that dies returns its job to `Pending` when the visibility \
+            timeout expires.",
+    params: &[],
+    ret: "A `uint`, read against the fleet's configured concurrency — a queue sitting at that \
+          ceiling is saturated rather than stuck.",
+    errors: &[],
+};
+
+/// `Core\Queue\Stats::attempts`'s reference card — ADR 0117.
+const STATS_ATTEMPTS_DOC: MethodDoc = MethodDoc {
+    short: "How many attempts the queue's jobs have used between them. Climbing while `pending` \
+            does not is what a queue whose jobs keep failing and being retried looks like.",
+    params: &[],
+    ret: "A `uint`, summed over the jobs table alone: a job that exhausted its attempts has moved \
+          to the dead-letter table, and `deadLettered` is what counts it there.",
+    errors: &[],
+};
+
+/// `Core\Queue\Stats::deadLettered`'s reference card — ADR 0117.
+const STATS_DEAD_LETTERED_DOC: MethodDoc = MethodDoc {
+    short: "How many of the queue's jobs exhausted their attempts and are in the dead-letter \
+            table. The counter worth alerting on: an unwatched dead-letter table is the classic \
+            way a queue silently loses work.",
+    params: &[],
+    ret: "A `uint` that only rises, since nothing the runtime does ever removes a dead-lettered \
+          job — emptying that table is an operator's act.",
+    errors: &[],
+};
+
 /// § 1's receipt: the row `push` wrote, and the queue it is in.
 ///
 /// A class rather than a bare `uint` because the two members that take one — `cancel` and `status` —
@@ -440,6 +588,72 @@ pub(crate) const ID: CoreClass = CoreClass {
     methods: &[],
     instance: &[],
     slots: &[ID_SLOT, ID_QUEUE_SLOT],
+    constants: &[],
+};
+
+/// § 1's `stats`, as the record it answers with — ADR 0084 §§ 1 and 6.
+///
+/// **The counters are members rather than a shape's fields**, which is where this departs from
+/// § 1's originally unannotated `::stats(string $queue)` and has to: a `Core`-owned instance has no
+/// property a program can reach ([`CoreTy::Instance`] is the home of that rule), so `$stats->pending`
+/// would resolve a class, find no member, and reach `nvs-ir` with nothing to call. The other answer
+/// — a shape returned by value — needs a spelling this registry has not got, which is gap 1's
+/// blocker and not a thing worth waiting for. `Core\Db\Write` is the same shape for the same
+/// reason, and ADR 0084 § 1 now carries the annotation so there is one home for it.
+///
+/// **Four counters, because § 6 names four things to watch**: what is waiting, what is held, how
+/// much has been attempted, and how deep the dead-letter table is. [`COUNTS`] is the one home for
+/// which four and for why a fifth is a schema change first.
+///
+/// The four slots are filled once, by [`nvs_core_queue_stats`], out of a single row — which is the
+/// whole reason a member answers a record instead of answering a number four times.
+pub(crate) const STATS: CoreClass = CoreClass {
+    name: STATS_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "pending",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_queue_stats_pending",
+            doc: Some(&STATS_PENDING_DOC),
+        },
+        CoreMethod {
+            name: "claimed",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_queue_stats_claimed",
+            doc: Some(&STATS_CLAIMED_DOC),
+        },
+        CoreMethod {
+            name: "attempts",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_queue_stats_attempts",
+            doc: Some(&STATS_ATTEMPTS_DOC),
+        },
+        CoreMethod {
+            name: "deadLettered",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_queue_stats_dead_lettered",
+            doc: Some(&STATS_DEAD_LETTERED_DOC),
+        },
+    ],
+    slots: &[
+        STATS_PENDING_SLOT,
+        STATS_CLAIMED_SLOT,
+        STATS_ATTEMPTS_SLOT,
+        STATS_DEAD_SLOT,
+    ],
     constants: &[],
 };
 
@@ -1016,6 +1230,161 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Queue::stats(string $queue): Queue\Stats` — ADR 0084 §§ 1 and 6.
+    ///
+    /// **Asked about a queue and not about a job**, which is what makes it the odd member of § 1's
+    /// four: the other three take the receipt [`ID`] is, because they are about one row, and this
+    /// one is about a population an operator watches.
+    ///
+    /// **One statement, so the four counters are one fact.** [`COUNTS`] owns why an aggregate with
+    /// no `group by` is the shape, and why the dead-letter depth is a scalar subquery beside it
+    /// rather than a second query: four queries would be four instants, and a caller comparing
+    /// `pending` against `claimed` across them would be comparing two different queues.
+    ///
+    /// **What it spends:** one statement, on the connection the request either already held or now
+    /// holds for the rest of it, plus one four-slot record. [`nvs_core_queue_push`]'s reading of
+    /// § 3 applies in the other direction — a `stats` inside a transaction on that connection
+    /// counts that transaction's own enqueues, because it is the same connection and not a second.
+    fn nvs_core_queue_stats(ctx, args: [1]) {
+        // Unreachable from source: the row types this parameter `string`, so a non-text argument is
+        // refused at `E0401` first — [`nvs_core_queue_push`]'s guard states the same judgement.
+        let queue = args[0]
+            .as_text()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{STATS_OF}: expected a `string` queue, got tag {}",
+                    args[0].tag_byte()
+                ))
+            })?
+            .to_owned();
+        let block = configured_queue(ctx, STATS_OF)?.connection;
+        // Shared, for `push`'s reason: counting on a second connection would be counting from
+        // outside whatever transaction the request has open on the first, so a program that
+        // enqueues and then asks would be told its own job does not exist.
+        let handle = crate::db::open_named(ctx, &block, true, None, STATS_OF)?;
+        let sending: [Option<Vec<u8>>; 1] = [Some(queue.clone().into_bytes())];
+        let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
+        let refused_by_server = |refused: &dyn std::fmt::Display| {
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{STATS_OF}: counting the `{queue}` queue across `{JOBS_TABLE}` and \
+                     `{DEAD_TABLE}` on `[db.{block}]` was refused: {refused} — `nvs queue migrate` \
+                     is what creates those tables"
+                ),
+            )
+        };
+        let postgres = postgres_of(ctx, handle, &block, STATS_OF)?;
+        let mut answered = postgres
+            .query(COUNTS, &bound)
+            .map_err(|refused| refused_by_server(&refused))?;
+        // Taken before the first row, as `status` takes them: a `PgRows` lends its columns and its
+        // rows out of one borrow, and the rows are read with it held mutably.
+        let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
+        // Every row is drained before the answer is judged, exactly as `push` and `status` drain:
+        // the connection owes the caller a message boundary before the next statement on it, which
+        // may be the caller's own inside the same transaction. An aggregate with no `group by` is
+        // one row, so the guard below is about the shape of the loop and not about a second row.
+        let mut read: Option<[i64; 4]> = None;
+        loop {
+            let Some(row) = answered
+                .next_row()
+                .map_err(|refused| refused_by_server(&refused))?
+            else {
+                break;
+            };
+            if read.is_some() {
+                continue;
+            }
+            let mut counted = [0i64; 4];
+            for (at, held) in counted.iter_mut().enumerate() {
+                let body = row
+                    .column(at)
+                    .map_err(|refused| refused_by_server(&refused))?;
+                let scalar = columns[at]
+                    .scalar(body)
+                    .map_err(|refused| refused_by_server(&refused))?;
+                let nvs_db::PgScalar::Int(count) = scalar else {
+                    return Err(Fault::fatal(format!(
+                        "{STATS_OF}: the `{}` counter came back as something other than an \
+                         integer, and every one of `COUNTS`'s four columns is cast to `bigint` \
+                         here",
+                        STATS.slots[at]
+                    )));
+                };
+                *held = count;
+            }
+            read = Some(counted);
+        }
+        let counted = read.ok_or_else(|| {
+            Fault::fatal(format!(
+                "{STATS_OF}: the aggregate over `{JOBS_TABLE}` answered no row at all, and one \
+                 with no `group by` answers exactly one however empty the table is"
+            ))
+        })?;
+        // Saturating at zero rather than refusing: a negative count is not something the server
+        // can produce from a `count` or from a sum of non-negative attempts, so the alternative is
+        // a refusal nothing can reach.
+        Ok(crate::instance::build(
+            &STATS,
+            counted.map(|one| Value::uint(u64::try_from(one).unwrap_or(0))),
+        ))
+    }
+}
+
+/// One of [`STATS`]'s four counters, read out of the slot [`nvs_core_queue_stats`] filled.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is not a `Core\Queue\Stats`, or for a slot holding
+/// anything but a `uint`: every slot is written by [`nvs_core_queue_stats`] and by nothing else, so
+/// either is a paste error in this crate rather than anything a program can produce —
+/// `Core\Db\Write`'s `write_count` states the same reading of the identical pair.
+fn counter(args: &[Value], member: &str, at: usize) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], &STATS, member)?;
+    let held = crate::instance::slot(receiver, at);
+    if held.as_uint().is_none() {
+        return Err(Fault::fatal(format!(
+            "{STATS_NAME}::{member} found tag {} in its `{}` slot",
+            held.tag_byte(),
+            STATS.slots[at]
+        )));
+    }
+    Ok(held)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$stats->pending(): uint` — how many of the queue's jobs are waiting, as
+    /// [`STATS_PENDING_DOC`] states the reading of `Pending` a program gets here.
+    fn nvs_core_queue_stats_pending(_ctx, args: [1]) {
+        counter(args, "pending", STATS_PENDING_AT)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$stats->claimed(): uint` — how many a worker holds right now.
+    fn nvs_core_queue_stats_claimed(_ctx, args: [1]) {
+        counter(args, "claimed", STATS_CLAIMED_AT)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$stats->attempts(): uint` — the attempts the queue's own rows have used, which
+    /// [`COUNTS`] sums over [`JOBS_TABLE`] alone for [`DEAD_TABLE`]'s reason.
+    fn nvs_core_queue_stats_attempts(_ctx, args: [1]) {
+        counter(args, "attempts", STATS_ATTEMPTS_AT)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$stats->deadLettered(): uint` — § 6's dead-letter depth, the counter that section names
+    /// outright as the one an unwatched deployment loses work behind.
+    fn nvs_core_queue_stats_dead_lettered(_ctx, args: [1]) {
+        counter(args, "deadLettered", STATS_DEAD_AT)
+    }
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that belongs to another
 /// domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -1023,13 +1392,24 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_queue_push" => (nvs_core_queue_push as *const ()).cast(),
         "nvs_core_queue_status" => (nvs_core_queue_status as *const ()).cast(),
         "nvs_core_queue_cancel" => (nvs_core_queue_cancel as *const ()).cast(),
+        "nvs_core_queue_stats" => (nvs_core_queue_stats as *const ()).cast(),
+        "nvs_core_queue_stats_pending" => (nvs_core_queue_stats_pending as *const ()).cast(),
+        "nvs_core_queue_stats_claimed" => (nvs_core_queue_stats_claimed as *const ()).cast(),
+        "nvs_core_queue_stats_attempts" => (nvs_core_queue_stats_attempts as *const ()).cast(),
+        "nvs_core_queue_stats_dead_lettered" => {
+            (nvs_core_queue_stats_dead_lettered as *const ()).cast()
+        }
         _ => return None,
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CANCEL, DEAD_TABLE, INSERT, JOBS_TABLE, PENDING, STATE, STATUS};
+    use super::{
+        CANCEL, COUNTS, DEAD_TABLE, INSERT, JOBS_TABLE, PENDING, STATE, STATS, STATS_ATTEMPTS_AT,
+        STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT,
+        STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS,
+    };
 
     /// The two statements above write and read [`STATE`]'s ordinals as SQL literals, which no
     /// `const` can reach into. This is the assertion [`PENDING`]'s doc comment owes: the enum a
@@ -1077,5 +1457,46 @@ mod tests {
             CANCEL.contains("set state = 4") && CANCEL.contains("and state = 0"),
             "`CANCEL` moves a job from the ordinal above to the one before it, and only that one"
         );
+        assert!(
+            COUNTS.contains("filter (where state = 0)"),
+            "`COUNTS` counts waiting jobs by `Pending`'s own ordinal"
+        );
+        assert_eq!(
+            case("Claimed"),
+            1,
+            "`COUNTS`'s second counter spells this `1`"
+        );
+        assert!(
+            COUNTS.contains("filter (where state = 1)"),
+            "`COUNTS` counts jobs a worker holds by the ordinal above"
+        );
+        assert!(
+            COUNTS.contains(JOBS_TABLE) && COUNTS.contains(DEAD_TABLE),
+            "`COUNTS` reads both of § 2's tables, taking the depth from the second"
+        );
+    }
+
+    /// Three separate places say what order [`STATS`]'s counters are in — [`COUNTS`]'s select
+    /// list, the slot roster, and the `*_AT` index each reader passes — and only the first is
+    /// beyond a test's reach. Nothing else would notice the other two disagreeing: a swapped pair
+    /// still type-checks, still runs, and answers the wrong number.
+    #[test]
+    fn every_stats_counter_reads_the_slot_its_member_is_named_for() {
+        let members: Vec<&str> = STATS.instance.iter().map(|one| one.name).collect();
+        assert_eq!(
+            members, STATS.slots,
+            "each counter is named for the slot it reads, in `COUNTS`'s column order"
+        );
+        for (at, slot) in [
+            (STATS_PENDING_AT, STATS_PENDING_SLOT),
+            (STATS_CLAIMED_AT, STATS_CLAIMED_SLOT),
+            (STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT),
+            (STATS_DEAD_AT, STATS_DEAD_SLOT),
+        ] {
+            assert_eq!(
+                STATS.slots[at], slot,
+                "the index `{slot}`'s reader passes is the slot of that name"
+            );
+        }
     }
 }

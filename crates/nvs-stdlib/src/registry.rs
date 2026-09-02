@@ -1433,14 +1433,19 @@ pub const CLASSES: &[CoreClass] = &[
     // ADR 0084 § 1's durable background job, immediately after the database classes
     // because that is what it is made of: a job is a row in one of these connections,
     // which is the whole of why § 3's enqueue can commit with the write that caused
-    // it. `push` is the landed member; `cancel`, `status` and `stats` are owed, and
-    // [`crate::queue`]'s known gaps say what each waits on.
+    // it. All four of § 1's members are landed, and [`crate::queue`]'s known gaps say
+    // what that surface still owes around them.
     crate::queue::CLASS,
     // What `push` answers with — the row it wrote and the queue it is in, memberless
     // because the two members that take one are asked *about* it rather than through
     // it. [`CoreTy::Instance`]'s own rule about a `Core` instance's properties is why
     // it is a class and not a shape.
     crate::queue::ID,
+    // What `stats` answers with, and the same rule read the other way round: counters
+    // a program has to reach are members here, precisely because that rule leaves a
+    // `Core` instance's properties unreachable. [`crate::queue::STATS`] owns why four
+    // of them and why the fifth would be a schema change first.
+    crate::queue::STATS,
 ];
 
 /// Every member of a capability-bearing class, and which capability it needs —
