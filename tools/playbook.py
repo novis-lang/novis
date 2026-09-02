@@ -396,7 +396,9 @@ def run_dupes(every: list[dict], floor: float) -> int:
     print(f"== BULLETS THAT MAY ALREADY BE SAID ELSEWHERE  (>= {floor:.0%} of the shorter one's "
           "three-word runs)")
     if not pairs:
-        print(f"  none at this threshold across {len(every)} bullets. `--min` lowers it.")
+        print(f"  none at this threshold across {len(every)} bullets. "
+              "`--dupes 0.15` lowers it -- `--min` is the `--match` term floor and does "
+              "nothing here.")
         return 0
     for overlap, a, b in pairs:
         print(f"\n  {overlap:.0%}  and {a['bytes'] + b['bytes']:,} B between them")
