@@ -119,6 +119,37 @@ fn clear(conn: &mut PgConn, queue: &str) {
     );
 }
 
+/// § 3's `insert into orders …`: the application table the two transactional
+/// cases write beside the job, created once for this binary and emptied of
+/// `queue`'s rows.
+///
+/// **The whole point of the table is that it is not the queue's.** § 3's
+/// property is that a job and the write that caused it commit together, so a
+/// case holding only the job would still pass against a `push` that quietly
+/// enqueued on a connection of its own — the one thing § 3 exists to forbid.
+/// It carries a `queue` column for the reason every other row here does: it is
+/// what one case's rows are told apart from another's by.
+///
+/// The `Once` is [`schema`]'s and for [`schema`]'s reason, and the `delete` is
+/// [`clear`]'s half for the one table § 2 does not own.
+fn orders(server: &Server, conn: &mut PgConn, queue: &str) {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        let mut own = open(server);
+        apply(
+            &mut own,
+            "create table if not exists nvs_stdlib_tests_orders \
+             (id bigserial primary key, queue text not null)",
+            &[],
+        );
+    });
+    apply(
+        conn,
+        "delete from nvs_stdlib_tests_orders where queue = $1::text",
+        &[Some(queue.as_bytes())],
+    );
+}
+
 /// Every row `sql` answers with, each column as the text PostgreSQL sent and
 /// `None` for SQL `NULL`.
 ///
@@ -206,6 +237,25 @@ fn claim(conn: &mut PgConn, queue: &str, now: i64, cutoff: i64) -> Vec<Vec<Optio
             Some(cutoff.as_slice()),
         ],
     )
+}
+
+/// How many jobs and how many orders `queue` has, read in one statement.
+///
+/// **One read rather than two**, because § 3's property is about the pair: "one
+/// exists without the other" is a state two statements can each miss, since
+/// whatever happened between them is a moment neither one looked at.
+fn landed(conn: &mut PgConn, queue: &str) -> (String, String) {
+    let mut answered = rows(
+        conn,
+        "select (select count(*) from nvs_jobs where queue = $1::text), \
+                (select count(*) from nvs_stdlib_tests_orders where queue = $1::text)",
+        &[Some(queue.as_bytes())],
+    );
+    assert_eq!(answered.len(), 1, "a count answers with one row");
+    let mut answered = answered.remove(0);
+    let orders = answered.remove(1).expect("a count is not null");
+    let jobs = answered.remove(0).expect("a count is not null");
+    (jobs, orders)
 }
 
 /// An epoch-millisecond instant as the text a `$n::bigint` placeholder is sent
@@ -475,5 +525,348 @@ fn claiming_is_skip_locked_shaped_on_every_backend_that_has_it() {
         ),
         "2",
         "two jobs, one attempt each, and no job claimed by both workers"
+    );
+}
+
+/// § 3: a job pushed inside a transaction becomes durable with the write that
+/// caused it, in the one moment that transaction commits.
+///
+/// **The order row is what makes this a test of § 3 rather than of `INSERT`.**
+/// The property is that there is no window in which the job exists without the
+/// write or the write without the job, so a case holding only the job would
+/// pass just as well against a design that enqueued over a connection of its
+/// own — which is the design § 3 rejects. Both rows go in over the one
+/// connection the transaction is open on, and both are counted after it closes.
+///
+/// The `push` is [`queue::INSERT`] and nothing about it changes inside a
+/// transaction: § 3's enlistment is not a mode the statement is issued in but
+/// the plain consequence of running it on a connection that is already in one,
+/// which is why the design has no outbox in it.
+#[test]
+fn an_enqueue_commits_with_the_write_that_made_it() {
+    const QUEUE: &str = "nvs-stdlib-tests-commit";
+
+    let Some(server) = postgres() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+    orders(&server, &mut conn, QUEUE);
+
+    let now = queue::now_millis();
+    assert_eq!(
+        landed(&mut conn, QUEUE),
+        ("0".to_owned(), "0".to_owned()),
+        "the case starts where an earlier run of it started"
+    );
+
+    conn.begin(None, false)
+        .expect("the server opened a transaction");
+    assert_eq!(conn.depth(), 1, "the connection is inside one transaction");
+
+    let order = one(
+        &mut conn,
+        "insert into nvs_stdlib_tests_orders (queue) values ($1::text) returning id",
+        &[Some(QUEUE.as_bytes())],
+    );
+    let id = push(&mut conn, QUEUE, now, "3");
+
+    conn.commit().expect("the server closed the transaction");
+    assert_eq!(conn.depth(), 0, "the transaction is over");
+
+    assert_eq!(
+        landed(&mut conn, QUEUE),
+        ("1".to_owned(), "1".to_owned()),
+        "the job and the write that caused it are both durable"
+    );
+    let job = rows(
+        &mut conn,
+        "select id, state, attempts from nvs_jobs where queue = $1::text",
+        &[Some(QUEUE.as_bytes())],
+    );
+    assert_eq!(
+        job[0][0].as_deref(),
+        Some(id.as_str()),
+        "the durable job is the row `INSERT` answered with inside the transaction"
+    );
+    assert_eq!(
+        job[0][1].as_deref(),
+        Some(std::str::from_utf8(PENDING).expect("an ordinal is ASCII")),
+        "it is claimable, so a worker that starts now runs it"
+    );
+    assert_eq!(
+        job[0][2].as_deref(),
+        Some("0"),
+        "nothing has attempted it yet"
+    );
+    assert_eq!(
+        one(
+            &mut conn,
+            "select count(*) from nvs_stdlib_tests_orders where id = $1::bigint",
+            &[Some(order.as_bytes())],
+        ),
+        "1",
+        "the order the job was pushed for is the one that committed"
+    );
+}
+
+/// § 3, from the other side: the same push under a `ROLLBACK` leaves no job at
+/// all, so the job was never enqueued rather than enqueued and then compensated.
+///
+/// **The bound is asserted from both sides for the reason the visibility one
+/// is**: a `push` that failed for any reason of its own would satisfy a case
+/// that only ever rolled back, and one that enqueued outside the transaction
+/// would satisfy a case that only ever committed. Neither half alone says
+/// anything about the window between them.
+///
+/// The id is the tell that this is a rollback and not a failure. `INSERT`
+/// answered with one inside the transaction — a sequence does not roll back, so
+/// the number was really allocated and really handed out — and what is gone
+/// afterwards is the row, which is the only thing § 3 ever promised.
+#[test]
+fn a_rolled_back_write_leaves_no_job() {
+    const QUEUE: &str = "nvs-stdlib-tests-rollback";
+
+    let Some(server) = postgres() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+    orders(&server, &mut conn, QUEUE);
+
+    let now = queue::now_millis();
+
+    conn.begin(None, false)
+        .expect("the server opened a transaction");
+    apply(
+        &mut conn,
+        "insert into nvs_stdlib_tests_orders (queue) values ($1::text)",
+        &[Some(QUEUE.as_bytes())],
+    );
+    let id = push(&mut conn, QUEUE, now, "3");
+    assert_eq!(
+        landed(&mut conn, QUEUE),
+        ("1".to_owned(), "1".to_owned()),
+        "both rows are there for the transaction that wrote them"
+    );
+
+    conn.roll_back().expect("the server undid the transaction");
+    assert_eq!(conn.depth(), 0, "the transaction is over");
+
+    assert_eq!(
+        landed(&mut conn, QUEUE),
+        ("0".to_owned(), "0".to_owned()),
+        "neither the job nor the write that caused it survived"
+    );
+    assert_eq!(
+        one(
+            &mut conn,
+            "select count(*) from nvs_jobs where id = $1::bigint",
+            &[Some(id.as_bytes())],
+        ),
+        "0",
+        "the id `INSERT` answered with names nothing, so no worker can ever claim it"
+    );
+}
+
+/// § 6: a failed attempt arms the job for a later one, the ladder it climbs is
+/// finite, and two jobs failing in the same moment do not come back in the same
+/// one.
+///
+/// **The ladder's arithmetic is `a_retry_is_exponential_jittered_and_capped`'s
+/// and is not asserted again here.** [`queue::retry_at`] is a pure function and
+/// that unit test walks twelve rungs of it. What this case can say and that one
+/// cannot is that the delay is a wait the *server* enforces: [`queue::RETRY`]
+/// writes it to `run_at`, and a claim a millisecond earlier answers with
+/// nothing at all.
+///
+/// **Bounded is asserted by counting the claims rather than by reading the last
+/// row.** Two jobs at two attempts each is four claims and then a queue that
+/// answers nothing however far ahead the worker asks — a job armed once too
+/// often would answer a fifth, and a case reading only the row in front of it
+/// would not notice. The jitter is asserted as the thing § 6 wants it for: the
+/// two delays *differ*, which is what stops a hundred jobs retrying an endpoint
+/// that came back from landing on it together.
+#[test]
+fn retries_are_bounded_and_backoff_is_jittered() {
+    const QUEUE: &str = "nvs-stdlib-tests-retry";
+    /// The `backoff_ms` [`push`] writes, so the first rung is this file's to
+    /// compute as well as the server's.
+    const BACKOFF: i64 = 1_000;
+    /// Two attempts each — the smallest number with a retry in it.
+    const CAP: &str = "2";
+
+    let Some(server) = postgres() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    let now = queue::now_millis();
+    let pushed = [
+        push(&mut conn, QUEUE, now, CAP),
+        push(&mut conn, QUEUE, now, CAP),
+    ];
+    let mut claims = 0;
+
+    // Each job's first attempt, which throws. `RETRY` is the write-back that
+    // arms it for the next one at the instant `retry_at` put it on.
+    let mut due = Vec::new();
+    for expected in &pushed {
+        let claimed = claim(&mut conn, QUEUE, now, now);
+        assert_eq!(claimed.len(), 1, "a job due now is claimable");
+        claims += 1;
+        assert_eq!(
+            claimed[0][ID].as_deref(),
+            Some(expected.as_str()),
+            "the claim took the jobs in the order they were pushed"
+        );
+        assert_eq!(claimed[0][ATTEMPTS].as_deref(), Some("1"));
+        assert_eq!(
+            claimed[0][MAX_ATTEMPTS].as_deref(),
+            Some(CAP),
+            "one attempt of two, so this job is owed another"
+        );
+
+        let id: i64 = expected.parse().expect("`INSERT` answered with an id");
+        let at = queue::retry_at(now, 1, BACKOFF, id);
+        assert_eq!(
+            apply(
+                &mut conn,
+                queue::RETRY,
+                &[
+                    Some(expected.as_bytes()),
+                    // The lease this claim wrote, which is what the write-back
+                    // is keyed on.
+                    Some(millis(now).as_slice()),
+                    Some(millis(at).as_slice()),
+                ],
+            ),
+            1,
+            "the write-back matched the claim's own lease"
+        );
+        due.push(at);
+    }
+
+    assert_ne!(
+        due[0], due[1],
+        "two jobs that failed in one moment are armed for two different ones"
+    );
+    for at in &due {
+        assert!(
+            (now + BACKOFF / 2..=now + BACKOFF).contains(at),
+            "the first rung is one base, jittered inside its own top half"
+        );
+    }
+
+    let armed = rows(
+        &mut conn,
+        "select id, state, attempts, run_at, claimed_at from nvs_jobs \
+         where queue = $1::text order by id",
+        &[Some(QUEUE.as_bytes())],
+    );
+    assert_eq!(armed.len(), 2, "both jobs are back in the queue, not gone");
+    for (row, (id, at)) in armed.iter().zip(pushed.iter().zip(due.iter())) {
+        assert_eq!(row[0].as_deref(), Some(id.as_str()));
+        assert_eq!(
+            row[1].as_deref(),
+            Some(std::str::from_utf8(PENDING).expect("an ordinal is ASCII")),
+            "the job is pending again rather than held by the worker that failed it"
+        );
+        assert_eq!(
+            row[2].as_deref(),
+            Some("1"),
+            "the attempt it spent is still counted against it"
+        );
+        assert_eq!(
+            row[3].as_deref(),
+            Some(at.to_string().as_str()),
+            "the server holds the delay `retry_at` computed, to the millisecond"
+        );
+        assert_eq!(
+            row[4], None,
+            "nothing holds a job that is waiting out its backoff"
+        );
+    }
+
+    // Not yet: the backoff is a wait the claim enforces, not a number written
+    // beside a row that is claimable anyway.
+    let soonest = *due.iter().min().expect("both jobs were armed");
+    assert!(
+        claim(&mut conn, QUEUE, soonest - 1, soonest - 1).is_empty(),
+        "a job inside its backoff is claimed by nobody"
+    );
+
+    // Each job's second attempt, which is the last one it has. The jitter is
+    // why the order here is nobody's to predict, so the ids are collected and
+    // compared as a set rather than one at a time.
+    let latest = *due.iter().max().expect("both jobs were armed");
+    let mut exhausted = Vec::new();
+    for _ in 0..pushed.len() {
+        let claimed = claim(&mut conn, QUEUE, latest, latest);
+        assert_eq!(
+            claimed.len(),
+            1,
+            "the armed job came back once its delay was out"
+        );
+        claims += 1;
+        let row = &claimed[0];
+        assert_eq!(
+            row[ATTEMPTS], row[MAX_ATTEMPTS],
+            "the attempt just counted was this job's last, which is what `report` branches on"
+        );
+        let id = row[ID]
+            .as_deref()
+            .expect("a claimed row has an id")
+            .to_owned();
+        assert_eq!(
+            apply(
+                &mut conn,
+                queue::DEAD_LETTER,
+                &[
+                    Some(id.as_bytes()),
+                    Some(millis(latest).as_slice()),
+                    Some(millis(latest + 1).as_slice()),
+                    Some(
+                        queue::dead_errors(latest, "IOError", "the endpoint is still down")
+                            .as_bytes()
+                    ),
+                ],
+            ),
+            1,
+            "the exhausted job moved rather than being armed again"
+        );
+        exhausted.push(id);
+    }
+    exhausted.sort();
+    let mut expected = pushed.to_vec();
+    expected.sort();
+    assert_eq!(
+        exhausted, expected,
+        "the two jobs the second round claimed are the two that were pushed"
+    );
+
+    // The ladder ends, stated as the queue having nothing left however far
+    // ahead the worker asks rather than as the state of the last row seen.
+    let far = latest + BACKOFF * 64;
+    assert!(
+        claim(&mut conn, QUEUE, far, far).is_empty(),
+        "an exhausted job is not armed again, so a job's retries are its `max_attempts` and no more"
+    );
+    assert_eq!(
+        claims, 4,
+        "two jobs at two attempts each, counted rather than read off the last row"
+    );
+    assert_eq!(
+        one(
+            &mut conn,
+            "select count(*) from nvs_dead_jobs where queue = $1::text and attempts = 2",
+            &[Some(QUEUE.as_bytes())],
+        ),
+        "2",
+        "both jobs are dead-lettered having spent every attempt they were given"
     );
 }
