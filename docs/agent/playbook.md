@@ -1507,6 +1507,16 @@ is why" — is this file.
   names something the tree still holds. It also means every check behind that fixture — the cargo
   checks, the WSL leg, the valgrind sweep, the corpus floors — is dark until the whole stage lands, so
   a session's own guard tests are `python tools/verify.py`'s job and never the driver's.
+- **A `splice.py` anchor copied out of `peek.py`'s output carries the wrong indentation, and the
+  refusal names a line in a different function.** `peek.py` prefixes every line with its number, so
+  a continuation line inside a `format!` reads as though indented by whatever is left after the
+  prefix — two blocks of a thirteen-block patch were off by two spaces, and the refusal reported
+  "the anchor matches for its first 22 character(s), up to target line 1889" against a line 1,150
+  away, because a leading run of spaces matches somewhere else long before the words do. Measure
+  the real column instead of counting the printout: `awk 'NR>=A && NR<=B { match($0, /[^ ]/);
+  print NR": indent="RSTART-1 }' <file>`. Splice is all-or-nothing, so this costs one retry and
+  never a half-written file — but the message points at the wrong place, which is the expensive
+  half.
 
 ## Running things
 
