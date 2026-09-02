@@ -1622,6 +1622,12 @@ is why" — is this file.
   a call carrying both prints only the `--locate` lines, with no note that the rest was ignored. It
   reads as "those files hold nothing matching", which is the wrong conclusion to draw twice in one
   session. Issue the `--locate` as its own call.
+- `python tools/peek.py` reads inside this repository only, and a path outside it answers "NO SUCH
+  FILE" rather than an error you can act on — including a glob that resolved fine in the shell a
+  call earlier. Reading a dependency's own source (`~/.cargo/registry/src/index.crates.io-*/<crate>-<version>/src/…`,
+  found with `ls -d`) is the Read tool's job, and that is worth doing before writing a wire field by
+  hand: `mysql_common` already models MariaDB's second capability word, `COM_STMT_BULK_EXECUTE` and
+  its indicator bytes, so a slice that looked like packet composition was a `.with_…` call.
 
 ## Running things
 
