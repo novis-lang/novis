@@ -59,9 +59,9 @@
 > boot** (`E0617`), **`nvs queue migrate` applies § 2's schema, a worker claims, runs, reports and
 > dead-letters it, and § 3's enqueue, § 4's claim and § 6's ladder are proven live**, **all four of
 > § 1's members are live**, and **a shape encodes as a JSON object**. **The matrix anchors each
-> driver**, **ADR 0132 took the slot**. **Stage 9 is ADR 0067 § 10's three diagnostics, ADR 0024 §
-> 4's pair and § 11's span, filed as ADR 0041's `query` event.** **Goals 1-4 and M4 are closed**.
-> Conformance 1428, differential 250, migration 90%/74%.
+> driver**, **ADR 0132 took the slot**. **Stage 9 is § 10's three diagnostics, ADR 0024 § 4's pair,
+> and § 11 whole: a `query` event per statement and a `slow_query` log line.** **Goals 1-4 and M4
+> are closed**. Conformance 1428, differential 250, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
