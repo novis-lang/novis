@@ -2984,6 +2984,17 @@ want = [
   # 1, and the thrown `Db\DbError` carries the normalised case rather than
   # `23505`, so the `match` in the fixture is the branch an application writes.
   "kind=UniqueViolation",
+  # And § 8's raw half beside it: `sqlState` is the code the server itself sent,
+  # so the normalisation above is checked against the thing it normalised. This
+  # line is PostgreSQL-specific by construction -- `23505` is that server's
+  # unique violation, where MySQL's is `1062` -- which is the whole reason the
+  # normalised `kind` exists and this property does not replace it.
+  "sqlState=23505",
+  # § 8's third raw value: the primary key the second write broke, by its own
+  # name. `people_pkey` is PostgreSQL's default name for `people`'s primary key
+  # -- the fixture never spells it -- so this line also pins that the driver
+  # reports the server's `C` field rather than parsing it out of the message.
+  "constraint=people_pkey",
 ]
 
 

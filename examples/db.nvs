@@ -160,4 +160,17 @@ try {
         Core\Db\ErrorKind::UniqueViolation => "UniqueViolation",
         default => "other",
     }, "\n";
+    // The raw half of the same refusal, beside the normalised one. `sqlState`
+    // is what this server actually said — `23505` on PostgreSQL — and it is
+    // `?string` rather than `string`, because a refusal the wire produced has
+    // no server code behind it at all. So a program that reads it spells the
+    // absent case, and this line is the fixture doing that rather than
+    // assuming the code is there.
+    echo "sqlState=", $refused->sqlState ?? "none", "\n";
+    // And the third of § 8's raw values: the constraint the condition names.
+    // A unique violation has one — the index the second write of row 1 broke —
+    // where a syntax error or a permission does not, so this property is
+    // absent far more often than `sqlState` is and the fallback is the point
+    // of the line rather than a formality.
+    echo "constraint=", $refused->constraint ?? "none", "\n";
 }
