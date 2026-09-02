@@ -17872,11 +17872,13 @@ Keywords:
 <a id="core-core-queue"></a>
 ### `Core\Queue`
 
-Keywords: push
+Keywords: push, status, cancel
 
 | Member | Signature |
 |---|---|
 | [`Core\Queue::push`](#core-core-queue-push) | `push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string}): Core\Queue\Id` |
+| [`Core\Queue::status`](#core-core-queue-status) | `status(Core\Queue\Id $job): Core\Queue\State` |
+| [`Core\Queue::cancel`](#core-core-queue-cancel) | `cancel(Core\Queue\Id $job): bool` |
 
 <a id="core-core-queue-push"></a>
 #### `Core\Queue::push`
@@ -17900,6 +17902,40 @@ Enqueues `$script` to run in the background, as a row in the database `[queue] c
 **Returns** `Core\Queue\Id` — A `Core\Queue\Id` naming the row, which `cancel` and `status` are asked about. For a push deduped by `key`, the id of the job already pending under it.
 
 **Throws** `RuntimeError` — This deployment writes no `[queue]` block, so nothing says which database a job would live in; or the queue's connection names a driver that cannot yet run a statement.; `LogicError` — `maxAttempts` is `0`, which asks for a job that is dead-lettered by the enqueue that created it; or `backoff` is negative.; `IOError` — The queue's connection did not open, or the insert was refused by the server — most often because `nvs queue migrate` has not created the table.
+
+<a id="core-core-queue-status"></a>
+#### `Core\Queue::status`
+
+```nvs skip
+Core\Queue::status(Core\Queue\Id $job): Core\Queue\State
+```
+
+Reports what has become of one job, as a `Core\Queue\State` case. Delivery is at-least-once, which is why this is a state a program reads rather than a completion it is handed: a job may run twice, so "it ran" is a fact about the row.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$job` | `Core\Queue\Id` | The receipt `push` answered with, which names both the row and the queue it is in. |
+
+**Returns** `Core\Queue\State` — `Pending` while it waits — including while a `runAt` or a retry's backoff has not elapsed — `Claimed` while a worker holds it, `Succeeded` once it has run, and `Dead` once it has exhausted its attempts.
+
+**Throws** `RuntimeError` — This deployment writes no `[queue]` block, so nothing says which database the job would be in; or the queue's connection names a driver that cannot yet run a statement; or neither table holds the job, which means it was enqueued by another deployment or removed by hand.; `IOError` — The queue's connection did not open, or the query was refused by the server — most often because `nvs queue migrate` has not created the tables.
+
+<a id="core-core-queue-cancel"></a>
+#### `Core\Queue::cancel`
+
+```nvs skip
+Core\Queue::cancel(Core\Queue\Id $job): bool
+```
+
+Takes one job out of the queue, if it is still waiting. A job a worker has already claimed is running now and is not stopped: cancelling is a change to a row, and there is no protocol for interrupting work in flight.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$job` | `Core\Queue\Id` | The receipt `push` answered with, which names both the row and the queue it is in. |
+
+**Returns** `bool` — `true` if this call is what took the job out of the queue, and `false` if there was nothing pending left to take — because a worker claimed it first, because it has already run, or because an earlier `cancel` got there. `status` then answers `Cancelled`.
+
+**Throws** `RuntimeError` — This deployment writes no `[queue]` block, so nothing says which database the job would be in; or the queue's connection names a driver that cannot yet run a statement.; `IOError` — The queue's connection did not open, or the update was refused by the server — most often because `nvs queue migrate` has not created the table.
 
 <a id="core-core-queue-id"></a>
 ### `Core\Queue\Id`
@@ -18217,6 +18253,19 @@ Why the server refused a statement, normalised across the drivers so that a prog
 | `Core\Db\ErrorKind::Syntax` | The statement is not something the server will run: a syntax error, an undefined table, a type it cannot resolve. |
 | `Core\Db\ErrorKind::Permission` | The role may not do this. |
 | `Core\Db\ErrorKind::Other` | Anything the driver's own table does not name, including a condition one backend has and the others do not. It is also what a `Core\Db\DbError` constructed by hand carries, no server having classified it. |
+
+<a id="enum-core-queue-state"></a>
+#### `Core\Queue\State`
+
+What has become of a background job, as `Core\Queue::status` answers it. Five states and no `Failed`, because a failed attempt is retried: it returns the job to `Pending` rather than ending it.
+
+| Case | Meaning |
+|---|---|
+| `Core\Queue\State::Pending` | Waiting for a worker to claim it — including while its `runAt` is still in the future, and between attempts while its backoff elapses. |
+| `Core\Queue\State::Claimed` | A worker holds it, under the visibility timeout that returns it to `Pending` if that worker dies. |
+| `Core\Queue\State::Succeeded` | It ran to completion. Delivery is at-least-once, so this says the work happened and not that it happened exactly once. |
+| `Core\Queue\State::Dead` | It exhausted its attempts and is in the dead-letter table, with its payload and every attempt's error. Nothing the runtime does ever removes it from there. |
+| `Core\Queue\State::Cancelled` | `cancel` reached it while it was still pending, so no worker ever will. A job already claimed cannot arrive here — cancelling does not stop work in flight. |
 
 # Part C — The toolchain
 
