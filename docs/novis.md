@@ -147,6 +147,7 @@ Conventions the whole file uses:
 | [`Core\Db\InList`](#core-core-db-inlist) |  |
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
+| [`Core\Queue\Stats`](#core-core-queue-stats) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -17872,13 +17873,14 @@ Keywords:
 <a id="core-core-queue"></a>
 ### `Core\Queue`
 
-Keywords: push, status, cancel
+Keywords: push, status, cancel, stats
 
 | Member | Signature |
 |---|---|
 | [`Core\Queue::push`](#core-core-queue-push) | `push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string}): Core\Queue\Id` |
 | [`Core\Queue::status`](#core-core-queue-status) | `status(Core\Queue\Id $job): Core\Queue\State` |
 | [`Core\Queue::cancel`](#core-core-queue-cancel) | `cancel(Core\Queue\Id $job): bool` |
+| [`Core\Queue::stats`](#core-core-queue-stats) | `stats(string $queue): Core\Queue\Stats` |
 
 <a id="core-core-queue-push"></a>
 #### `Core\Queue::push`
@@ -17937,6 +17939,23 @@ Takes one job out of the queue, if it is still waiting. A job a worker has alrea
 
 **Throws** `RuntimeError` — This deployment writes no `[queue]` block, so nothing says which database the job would be in; or the queue's connection names a driver that cannot yet run a statement.; `IOError` — The queue's connection did not open, or the update was refused by the server — most often because `nvs queue migrate` has not created the table.
 
+<a id="core-core-queue-stats"></a>
+#### `Core\Queue::stats`
+
+```nvs skip
+Core\Queue::stats(string $queue): Core\Queue\Stats
+```
+
+Counts one named queue: what is waiting, what a worker holds, how many attempts the queue's jobs have used, and how deep its dead-letter table is. The four are read together, so they describe one instant rather than four.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$queue` | `string` (neutral) | The queue to count, as `push`'s own `queue` option names one. Queues are separate populations by design, so there is no spelling that totals them. |
+
+**Returns** `Core\Queue\Stats` — A `Core\Queue\Stats`, whose four counters are members — `$stats->pending()` and not `$stats->pending`, because a `Core`-owned instance has no property a program can reach.
+
+**Throws** `RuntimeError` — This deployment writes no `[queue]` block, so nothing says which database the jobs would be in; or the queue's connection names a driver that cannot yet run a statement.; `IOError` — The queue's connection did not open, or the query was refused by the server — most often because `nvs queue migrate` has not created the tables.
+
 <a id="core-core-queue-id"></a>
 ### `Core\Queue\Id`
 
@@ -17944,6 +17963,62 @@ Keywords:
 
 | Member | Signature |
 |---|---|
+
+<a id="core-core-queue-stats"></a>
+### `Core\Queue\Stats`
+
+Keywords: pending, claimed, attempts, deadLettered
+
+| Member | Signature |
+|---|---|
+| [`Core\Queue\Stats->pending`](#core-core-queue-stats-pending) | `pending(): uint` |
+| [`Core\Queue\Stats->claimed`](#core-core-queue-stats-claimed) | `claimed(): uint` |
+| [`Core\Queue\Stats->attempts`](#core-core-queue-stats-attempts) | `attempts(): uint` |
+| [`Core\Queue\Stats->deadLettered`](#core-core-queue-stats-deadlettered) | `deadLettered(): uint` |
+
+<a id="core-core-queue-stats-pending"></a>
+#### `Core\Queue\Stats->pending`
+
+```nvs skip
+$stats->pending(): uint
+```
+
+How many of the queue's jobs are waiting for a worker — including those whose `runAt` is still in the future and those between attempts with a backoff still to elapse, because `Core\Queue\State::Pending` is one state and not three.
+
+**Returns** `uint` — A `uint`, and `0` both for a queue nothing was ever pushed to and for one that has drained.
+
+<a id="core-core-queue-stats-claimed"></a>
+#### `Core\Queue\Stats->claimed`
+
+```nvs skip
+$stats->claimed(): uint
+```
+
+How many of the queue's jobs a worker currently holds. Work in flight rather than work committed to: a worker that dies returns its job to `Pending` when the visibility timeout expires.
+
+**Returns** `uint` — A `uint`, read against the fleet's configured concurrency — a queue sitting at that ceiling is saturated rather than stuck.
+
+<a id="core-core-queue-stats-attempts"></a>
+#### `Core\Queue\Stats->attempts`
+
+```nvs skip
+$stats->attempts(): uint
+```
+
+How many attempts the queue's jobs have used between them. Climbing while `pending` does not is what a queue whose jobs keep failing and being retried looks like.
+
+**Returns** `uint` — A `uint`, summed over the jobs table alone: a job that exhausted its attempts has moved to the dead-letter table, and `deadLettered` is what counts it there.
+
+<a id="core-core-queue-stats-deadlettered"></a>
+#### `Core\Queue\Stats->deadLettered`
+
+```nvs skip
+$stats->deadLettered(): uint
+```
+
+How many of the queue's jobs exhausted their attempts and are in the dead-letter table. The counter worth alerting on: an unwatched dead-letter table is the classic way a queue silently loses work.
+
+**Returns** `uint` — A `uint` that only rises, since nothing the runtime does ever removes a dead-lettered job — emptying that table is an operator's act.
 
 <a id="core-enums"></a>
 ### `Core` enums
