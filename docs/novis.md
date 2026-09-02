@@ -18071,6 +18071,28 @@ What a transaction is allowed to see of the work running beside it — the `isol
 | `Core\Db\Isolation::Snapshot` | The transaction reads from one snapshot taken when it began, and writes conflict rather than block — SQL Server's own level, and what the row-versioning backends call `REPEATABLE READ`. |
 | `Core\Db\Isolation::Serializable` | Concurrent transactions produce a result some serial order of them would have produced, and a transaction that cannot is rolled back for the caller to retry. |
 
+<a id="enum-core-db-columntype"></a>
+#### `Core\Db\ColumnType`
+
+What a result column was declared as, which is a description of the column and not a summary of the value a read of it produces: a `JSON` column and a `TEXT` one both read back as `tainted string` and are told apart here, wherever the backend has a type of its own to tell them apart by.
+
+| Case | Meaning |
+|---|---|
+| `Core\Db\ColumnType::Int` | A signed integer column — `SMALLINT`, `INTEGER` or `BIGINT`. MySQL's and MariaDB's `TINYINT(1)` is one of these rather than a `Bool`. |
+| `Core\Db\ColumnType::Uint` | An unsigned integer column: an `UNSIGNED` integer on MySQL and MariaDB, an `oid` on PostgreSQL. |
+| `Core\Db\ColumnType::Float` | `FLOAT`, `REAL` or `DOUBLE`. |
+| `Core\Db\ColumnType::Decimal` | An exact numeric column — `DECIMAL`, `NUMERIC` or `MONEY`. |
+| `Core\Db\ColumnType::Text` | A text-family column: `CHAR`, `VARCHAR`, `TEXT` or `ENUM`, and a JSON column on a backend where JSON is an aliased text type rather than a type of its own. |
+| `Core\Db\ColumnType::Bytes` | A binary column — `BINARY`, `BLOB` or `BYTEA`, including the `BINARY(16)` a MySQL schema stores a UUID in. |
+| `Core\Db\ColumnType::Bool` | `BOOLEAN`, and `BIT(1)`. |
+| `Core\Db\ColumnType::Date` | A `DATE`, which a read answers with a `Core\Time\Date`. |
+| `Core\Db\ColumnType::Time` | A `TIME`, which a read answers with a `Core\Time\TimeOfDay`. |
+| `Core\Db\ColumnType::DateTime` | A zone-less `DATETIME` or `TIMESTAMP`, which a read answers with a `Core\Time\DateTime` in the zone the connection declared. |
+| `Core\Db\ColumnType::Instant` | A column carrying its own offset — `TIMESTAMPTZ`, or SQL Server's `datetimeoffset` — which a read answers with a `Core\Time\Instant`. |
+| `Core\Db\ColumnType::Uuid` | A `UUID` or a `uniqueidentifier`, which a read answers with a `Core\Uuid`. |
+| `Core\Db\ColumnType::Json` | A column the backend types as JSON. The value still reads back as a `tainted string`, since JSON is never decoded for you; a backend that has no JSON type of its own reports the column as `Text` instead. |
+| `Core\Db\ColumnType::Other` | Every other column: one with no Novis type of its own, and every array. This is the total case rather than a failure, so a column list describes every column a server can send. |
+
 # Part C — The toolchain
 
 <a id="tools-cli"></a>
