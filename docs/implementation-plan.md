@@ -61,7 +61,7 @@
 > claimed the goal's one ADR slot**: a driver is a sans-IO codec plus a state machine over the
 > parking stream, the five an enum not a trait. **Goals 1-4 and M4 are closed and are this goal's
 > Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR
-> 0051 § 4 records. Conformance 1411, differential 250, its gate met, migration 90%/74%.
+> 0051 § 4 records. Conformance 1414, differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
