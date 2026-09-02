@@ -3465,8 +3465,8 @@ fn queried_rows(
     let source = args[1].as_text();
     let sending: Vec<Option<&[u8]>> = statement.binds.iter().map(|one| one.as_deref()).collect();
     // Read before the statement takes the context, because it holds it for as
-    // long as the rows do — see [`traced_query`] for the rest.
-    let tracing = traced_query(ctx);
+    // long as the rows do — see [`QueryWatch`] for the rest.
+    let watch = QueryWatch::of(ctx, &statement.block);
     let postgres = postgres_of(ctx, statement.key, &statement.block, named)?;
     // Read before the statement borrows the connection, and once for the whole
     // result: § 9's zone-less `TIMESTAMP` is decoded in the zone this
@@ -3509,31 +3509,110 @@ fn queried_rows(
     // After the drain, so the span carries the duration the caller waited and
     // the rows it actually got, and after the last read of `answered`, which is
     // what ends the borrow on the context.
-    let filed = tracing.then(|| answered.span().to_string());
+    let taken = watch.taken(answered.span());
     // Explicit because `PgRows` has a `Drop` — it releases the statement — so
     // its borrow of the context runs to the end of the scope unless the stream
     // is dropped here, and the context is what the event is filed on.
     drop(answered);
-    if let Some(span) = filed {
-        ctx.record_query(&span);
-    }
+    watch.file(ctx, taken);
     Ok(Answered {
         rows,
         columns: described,
     })
 }
 
-/// Whether this request is recording [ADR 0041](../../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
-/// § 1's trace, asked **before** a statement borrows the context.
+/// What is reading this statement's span — [ADR 0041](../../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+/// § 1's trace, ADR 0067 § 11's `slow_query` line, both or neither — asked
+/// **before** a statement borrows the context.
 ///
 /// A statement holds `ctx` mutably for as long as its rows do
-/// ([`postgres_of`]), so the flag cannot be read at the point the event is
-/// filed. Reading it early also means a request that turns tracing on midway
-/// through a statement does not get half an event — the span is either filed
-/// whole or not at all, unlike a call site's pair, which ADR 0018 deliberately
-/// lets straddle a change.
-fn traced_query(ctx: &nvs_runtime::Ctx) -> bool {
-    ctx.debug_flags().contains(nvs_runtime::DebugFlags::TRACE)
+/// ([`postgres_of`]), so neither can be read at the point the event is filed.
+/// Reading them early also means a request that turns tracing on midway through
+/// a statement does not get half an event — the span is either filed whole or
+/// not at all, unlike a call site's pair, which ADR 0018 deliberately lets
+/// straddle a change.
+///
+/// **The two readers are one type because they read one span.** § 11 gives the
+/// threshold the same facts the trace event carries, so a statement renders its
+/// span at most once however many readers there are — and a second rendering is
+/// the only way the two could ever describe one statement differently.
+#[derive(Clone, Copy)]
+struct QueryWatch {
+    /// ADR 0041 § 1's trace is recording this request.
+    traced: bool,
+    /// § 11's threshold, for the block that wrote one.
+    slow: Option<std::time::Duration>,
+}
+
+impl QueryWatch {
+    /// What the context and the connection's block say, before the statement
+    /// goes out.
+    fn of(ctx: &nvs_runtime::Ctx, block: &Value) -> QueryWatch {
+        QueryWatch {
+            traced: ctx.debug_flags().contains(nvs_runtime::DebugFlags::TRACE),
+            slow: slow_query_of(ctx, block),
+        }
+    }
+
+    /// The span's facts, taken while the statement still lends them out.
+    ///
+    /// `None` when nothing is reading, and then the rendering and the clock are
+    /// not paid for at all — which is every request on a deployment that has
+    /// asked for neither.
+    fn taken(self, span: &nvs_db::QuerySpan) -> Option<(String, std::time::Duration)> {
+        (self.traced || self.slow.is_some()).then(|| (span.to_string(), span.duration()))
+    }
+
+    /// Files what [`QueryWatch::taken`] took, once the statement has let the
+    /// context go.
+    fn file(self, ctx: &mut nvs_runtime::Ctx, taken: Option<(String, std::time::Duration)>) {
+        let Some((line, took)) = taken else {
+            return;
+        };
+        if self.traced {
+            ctx.record_query(&line);
+        }
+        if self.slow.is_some_and(|threshold| took >= threshold) {
+            slow_query_record(ctx, &line);
+        }
+    }
+}
+
+/// ADR 0067 § 11's threshold for the `[db.<name>]` block a statement is running
+/// on, or `None` for a statement nothing is timing.
+///
+/// Three cases answer `None` and they are one answer: the block wrote no
+/// threshold, the connection has no block at all (§ 2's `open`, whose settings
+/// the program wrote and no operator named), and a value that would not parse —
+/// which `nvs_config::db::validate` refused at boot, so it is unreachable here.
+/// Off is the right answer to all three: a threshold nobody can read is not a
+/// reason to fail a statement, and § 11's output is inert until asked for.
+fn slow_query_of(ctx: &nvs_runtime::Ctx, block: &Value) -> Option<std::time::Duration> {
+    let name = block.as_text()?;
+    let snapshot = ctx.config()?.snapshot();
+    let written = snapshot.config.db.get(name)?;
+    nvs_config::db::slow_query_for(name, written, &std::collections::BTreeMap::new())
+        .ok()
+        .flatten()
+}
+
+/// § 11's slow-query line: the span ADR 0041's trace event carries, written to
+/// `Core\Log` as one record.
+///
+/// **The message is the span's own rendering and not a bag of fields**, which is
+/// what "the same facts" costs here: `nvs_db::QuerySpan`'s `Display` is the one
+/// home of § 11's field set, and a field-shaped second spelling of it in this
+/// module would be the copy that goes stale the day a driver adds one. `Warn`
+/// because a threshold is written by an operator asking to be told, and it is
+/// the quietest level a log pipeline is not configured to drop.
+///
+/// A record that cannot be written is dropped rather than retried or thrown —
+/// `Core\Log::write`'s own rule, and a statement that already ran is not failed
+/// by the line describing it.
+fn slow_query_record(ctx: &mut nvs_runtime::Ctx, line: &str) {
+    let mut record = nvs_render::Record::at(nvs_render::Level::Warn);
+    record.envelope.message = Some(nvs_render::Rendered::new(line));
+    let _dropped = ctx.write_log_record(&record, nvs_runtime::LogChannel::Output);
 }
 
 /// Puts the `[db.<name>]` block on a running statement's span.
@@ -3795,8 +3874,8 @@ nvs_runtime::nvs_helper! {
         let source = args[1].as_text();
         let sending: Vec<Option<&[u8]>> =
             statement.binds.iter().map(|one| one.as_deref()).collect();
-        // As `query`, and for the reason [`traced_query`] gives.
-        let tracing = traced_query(ctx);
+        // As `query`, and for the reason [`QueryWatch`] gives.
+        let watch = QueryWatch::of(ctx, &statement.block);
         let postgres = postgres_of(ctx, statement.key, &statement.block, EXECUTE)?;
         let mut answered = postgres
             .query(&statement.sql, &sending)
@@ -3813,12 +3892,10 @@ nvs_runtime::nvs_helper! {
         // § 11's event is a *statement's*, not a reader's: a write files one on
         // the same terms as `query`, carrying the affected count `finished`
         // froze on the span above.
-        let filed = tracing.then(|| answered.span().to_string());
+        let taken = watch.taken(answered.span());
         // As `query`, and for the same borrow reason given there.
         drop(answered);
-        if let Some(span) = filed {
-            ctx.record_query(&span);
-        }
+        watch.file(ctx, taken);
         Ok(crate::instance::build(
             &WRITE,
             [
@@ -3845,6 +3922,16 @@ nvs_runtime::nvs_helper! {
     /// rule and why it is checked on the rewritten text rather than on a count
     /// are [`batch_of`]'s.
     ///
+    /// **The batch opens and files ADR 0067 § 11's span itself**, which is the
+    /// one thing it does that `execute` leaves to the driver.
+    /// [`nvs_db::PgConn::execute_many`] answers with a count and lends no
+    /// `PgRows` out, so there is no handle a driver-built span could ride on
+    /// and be read off afterwards — the span is opened here, around the same
+    /// round trips, and finished with the batch's sum as its affected count and
+    /// no rows at all, which is what a batch contributes to a trace.
+    /// `nvs_db::QuerySpan` owns the field set and why a bound value is not in
+    /// it, and `Ctx::record_query` owns why what crosses is a rendering.
+    ///
     /// **What it answers is a `uint` and not a [`WRITE`].** § 4 gives the batch
     /// a sum, because `changed` and `lastId` would each have to pick one
     /// execution to be about — and the sum is what a caller writing the loop by
@@ -3864,7 +3951,20 @@ nvs_runtime::nvs_helper! {
             .collect();
         let sets: Vec<&[Option<&[u8]>]> = sending.iter().map(Vec::as_slice).collect();
 
+        // As `execute`, and for the reason [`QueryWatch`] gives.
+        let watch = QueryWatch::of(ctx, &batch.block);
         let postgres = postgres_of(ctx, batch.key, &batch.block, EXECUTE_MANY)?;
+        // § 11's span, opened where the driver opens `execute`'s: after the
+        // connection is in hand, so the duration is the statement's wait and
+        // not the pool's. It carries the rewritten text, which is what reaches
+        // the wire and what a driver-opened span would have been handed.
+        let mut span = nvs_db::QuerySpan::opened(nvs_db::Driver::Postgres, &batch.sql);
+        // The block goes on directly rather than through [`name_span`], which
+        // takes the `PgRows` a batch never has; the rule it applies is the same
+        // one and `nvs_db::QuerySpan::name` owns it.
+        if let Some(name) = batch.block.as_text() {
+            span.name(name);
+        }
         // One statement over many parameter sets, so the batch has exactly the
         // one text to name and it is the caller's, as `execute`'s is.
         let written = postgres
@@ -3872,6 +3972,12 @@ nvs_runtime::nvs_helper! {
             .map_err(|refused| {
                 statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), &refused)
             })?;
+        // § 4's sum is the batch's affected count, and the span's rows stay at
+        // zero: nothing was handed back, and a batch that inserted a thousand
+        // rows reporting a thousand rows *returned* would read as a select.
+        span.finished(Some(written));
+        let taken = watch.taken(&span);
+        watch.file(ctx, taken);
         Ok(Value::uint(written))
     }
 }

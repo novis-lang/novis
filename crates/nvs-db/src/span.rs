@@ -43,10 +43,15 @@
 //! The gate is `DebugFlags::TRACE` rather than § 11's capability, which no
 //! capability set can express yet.
 //!
-//! Two halves of § 11 are still open. The `slow_query` threshold writes these
-//! same facts to `Core\Log` and has no reader here; and `executeMany` answers
-//! with a count rather than a handle, so its span has nowhere to be hung until
-//! the routine builds and files one itself.
+//! One half of § 11 is still open: the `slow_query` threshold writes these same
+//! facts to `Core\Log` and has no reader here.
+//!
+//! **A statement that lends no reader out opens its own span**, which is why
+//! [`QuerySpan::opened`] is `pub` rather than something only [`crate::pg`]
+//! reaches. `executeMany` answers with a count and never hands a
+//! [`crate::PgRows`] back, so `Core\Db`'s routine opens the span around the
+//! driver call and finishes it with the batch's sum — the same event, built one
+//! layer up because there is no handle for the driver to hang it on.
 
 use std::time::{Duration, Instant};
 
