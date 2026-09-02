@@ -2995,6 +2995,13 @@ want = [
   # -- the fixture never spells it -- so this line also pins that the driver
   # reports the server's `C` field rather than parsing it out of the message.
   "constraint=people_pkey",
+  # § 8's fifth property, and the one that pins *which* spelling of the
+  # statement rides the throw: the caller's, with `?` markers, rather than § 5's
+  # rewrite of it into the `$1` this driver sent. A property of a normalised
+  # error that read `$1` here and `?` on MySQL would be the vendor detail
+  # `kind` exists to spare an application. The bound `1` and `"ada"` are absent
+  # from it, which is the half of § 8 that is a security rule.
+  "sql=insert into people (id, name) values (?, ?)",
 ]
 
 

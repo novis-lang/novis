@@ -173,4 +173,11 @@ try {
     // absent far more often than `sqlState` is and the fallback is the point
     // of the line rather than a formality.
     echo "constraint=", $refused->constraint ?? "none", "\n";
+    // § 8's fifth and last property, and the only one the program rather than
+    // the server worded: the statement as it was written here, with its `?`
+    // markers and not the `$1` PostgreSQL was actually sent. Bound values are
+    // not on it and never are — `1` and `"ada"` appear nowhere in this line's
+    // output — which is § 8's rule that a `Throwable` message is a `secret`
+    // sink, with the developer-authored half of the statement exempt.
+    echo "sql=", $refused->sql ?? "none", "\n";
 }
