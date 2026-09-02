@@ -376,7 +376,12 @@ observe whether the handshake happened.
   argument.
 - **The pool key includes every credential.** It is the key § 2 already computes — the *name* for `connect`,
   a hash of *every* settings field for `open` — so two config blocks are two pools and two database users
-  never share a connection.
+  never share a connection. It is additionally scoped to the **configuration generation** the key was read
+  from: [0078](0078-config-reload-and-control-socket.md) § 1's reload can publish a `[db.main]` naming a
+  different database user under the same name, and a pool keyed on the name alone would hand the new
+  generation's request a connection authenticated as the old one's. A reload is therefore two pools, and
+  the superseded generation's connections retire against their own `lifetime` with nothing left to hand
+  them to.
 - **A released connection is reset before it is reusable, and a failed reset destroys it.** The reset is not
   best-effort: a connection that cannot be proven clean is closed, and a driver with no reset primitive is
   not poolable at all. Per backend:

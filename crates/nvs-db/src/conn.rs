@@ -603,6 +603,18 @@ impl nvs_runtime::HeldConnection for Connection {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
+
+    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
+        self
+    }
+
+    /// ADR 0067 § 13's release gate is [`Connection::is_poolable`], which is
+    /// this connection's own wire state and nothing else — the trait method
+    /// exists because `nvs-runtime` learns when a request ends and cannot name
+    /// this type to ask.
+    fn is_poolable(&self) -> bool {
+        Connection::is_poolable(self)
+    }
 }
 
 #[cfg(test)]

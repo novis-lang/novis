@@ -311,6 +311,54 @@ enum LogTarget {
 pub trait HeldConnection: std::fmt::Debug + std::any::Any {
     /// This connection as the concrete type its driver crate knows it by.
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+
+    /// The same downcast, owning — what a caller taking a connection out of
+    /// [`crate::pool`] needs, because
+    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 13's reset consumes the
+    /// connection so that a failed one cannot be handed back.
+    ///
+    /// No default body: it would have to coerce `Self` to `dyn Any`, which a
+    /// trait's own body cannot do without knowing `Self: Sized`. Every impl is
+    /// `self`, one line.
+    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any>;
+
+    /// Whether this connection may rejoin the core's pool at teardown —
+    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 13's release gate, asked
+    /// of the driver because only the driver knows where its wire is.
+    ///
+    /// **The default is `false`**, which is § 13's "a driver with no reset
+    /// primitive is not poolable at all" written as the answer a driver gets
+    /// for saying nothing. A driver that has not decided is one whose
+    /// connections are closed with the request, which is the behaviour that
+    /// existed before there was a pool.
+    ///
+    /// This is a state question and never an I/O one: it is asked from inside
+    /// [`Drop`], where nothing may wait. The reset itself is the acquiring
+    /// request's, and [`crate::pool`]'s module doc owns why.
+    fn is_poolable(&self) -> bool {
+        false
+    }
+}
+
+/// One connection a request has open: how it is reached again within the
+/// request, where it goes when the request ends, and the connection itself.
+///
+/// The ticket is `None` for a connection that is closed with the request and
+/// never pooled — an embedder's, or a driver whose block resolved to
+/// [ADR 0067](../../../docs/adr/0067-core-db.md) § 13's `pool = false`, in which
+/// case there is nothing for [`crate::pool`] to be handed.
+#[derive(Debug)]
+struct OpenConnection {
+    /// § 2's memoization key, or `None` for a `{shared: false}` call — see
+    /// [`Ctx::hold_open_connection`]. Distinct from the ticket's key on
+    /// purpose: `{shared: false}` bypasses memoization *within* the request and
+    /// is still drawn from and returned to the pool.
+    memo: Option<String>,
+    /// What the pool needs to take it back at teardown.
+    ticket: Option<crate::pool::Ticket>,
+    /// The connection, held as the trait object for the reason
+    /// [`HeldConnection`]'s own doc gives.
+    connection: Box<dyn HeldConnection>,
 }
 
 /// Per-request state, passed to every compiled Novis function and every helper.
@@ -927,8 +975,9 @@ pub struct Ctx {
     /// `Core\IO\File` carries — see [`Ctx::hold_open_file`].
     open_files: Vec<Option<std::fs::File>>,
     /// The database connections this request has opened, each with the
-    /// memoization key it was reached by — see [`Ctx::hold_open_connection`].
-    open_connections: Vec<(Option<String>, Box<dyn HeldConnection>)>,
+    /// memoization key it was reached by and the pool ticket it goes home on —
+    /// see [`Ctx::hold_open_connection`].
+    open_connections: Vec<OpenConnection>,
     /// Every object this context has allocated and not yet dismantled — ADR
     /// 0116 § 2's live list, whose sweep in [`Drop`] reclaims the cyclic graph
     /// the root drain could not. [`crate::object`]'s own docs are the home of
@@ -1178,6 +1227,21 @@ impl Drop for Ctx {
             )]
             unsafe {
                 work.closure.release();
+            }
+        }
+        // ADR 0067 § 13: a connection the request is still holding is released
+        // to this core's pool under the ticket it was filed with, rather than
+        // closed here — `crate::pool` decides which of those two happens, and
+        // its module doc owns why the reset is the acquiring request's job and
+        // not this one's. The clock is read once for the whole set and not at
+        // all for a request that opened no connection.
+        if !self.open_connections.is_empty() {
+            let now = std::time::Instant::now();
+            for held in std::mem::take(&mut self.open_connections) {
+                match held.ticket {
+                    Some(ticket) => crate::pool::release(&ticket, now, held.connection),
+                    None => drop(held.connection),
+                }
             }
         }
         // A failure that ended the request still owns its exception object,
@@ -2988,22 +3052,29 @@ impl Ctx {
     /// because a request opens a handful of connections at most, so a linear
     /// scan is the whole lookup and an empty request pays no allocation for it.
     ///
-    /// There is **no reuse across requests here**, and there is not meant to be
-    /// yet: § 13's per-core pool is what makes a connection outlive the request
-    /// that opened it, and it may only do so behind that section's reset. Until
-    /// it exists, a connection is opened by the request that asks for one and
-    /// closed when this context drops, which is the isolating answer rather
-    /// than the fast one.
+    /// `ticket` is the other half, and it is § 13's: it names the pool this
+    /// connection rejoins when the request ends, instead of being closed. It is
+    /// **not** the memoization key even though `connect` computes both from the
+    /// block's name — a `{shared: false}` call is `None` here and still carries
+    /// a ticket, because what that option bypasses is memoization within the
+    /// request and never pooling across requests. `None` is a connection closed
+    /// with the request: an embedder's, or a block whose `pool = false`.
     ///
     /// **What it spends:** one connection — a socket, a TLS session and its
-    /// statement cache — per distinct `connect` a request performs, released
-    /// with the request. A key is never reused.
+    /// statement cache — per distinct `connect` a request performs, and at
+    /// teardown it is handed to [`crate::pool`] rather than closed, under that
+    /// module's bounds. A key is never reused within a request.
     pub fn hold_open_connection(
         &mut self,
         memo: Option<String>,
+        ticket: Option<crate::pool::Ticket>,
         connection: Box<dyn HeldConnection>,
     ) -> u64 {
-        self.open_connections.push((memo, connection));
+        self.open_connections.push(OpenConnection {
+            memo,
+            ticket,
+            connection,
+        });
         // The index, one-based, so that a handle slot never holds a key a
         // zeroed value could be mistaken for.
         self.open_connections.len() as u64
@@ -3024,14 +3095,14 @@ impl Ctx {
     ///
     /// There is no `take_open_connection` beside it and there is not meant to
     /// be one yet: spec § 18's `Core\Db\Connection::close` is what would take a
-    /// connection back out, and until ADR 0067 § 13's pool exists a closed
-    /// connection has nowhere to go that dropping it with the request does not
-    /// already reach.
+    /// connection back out, and until it exists every connection this request
+    /// filed leaves through [`Drop`], which is the one place ADR 0067 § 13's
+    /// release is written.
     pub fn open_connection_mut(&mut self, key: u64) -> Option<&mut dyn HeldConnection> {
         let index = usize::try_from(key.checked_sub(1)?).ok()?;
         self.open_connections
             .get_mut(index)
-            .map(|(_, held)| &mut **held)
+            .map(|held| &mut *held.connection)
     }
 
     /// The key of the connection this request already opened under `memo`, or
@@ -3040,7 +3111,7 @@ impl Ctx {
     pub fn memoized_connection(&self, memo: &str) -> Option<u64> {
         self.open_connections
             .iter()
-            .position(|(held, _)| held.as_deref() == Some(memo))
+            .position(|held| held.memo.as_deref() == Some(memo))
             .map(|index| index as u64 + 1)
     }
 
