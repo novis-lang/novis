@@ -101,15 +101,21 @@ pub enum Fault {
     /// the ABI, which is true of all three classes today and of neither ADR.
     ///
     /// This variant is the one place a [`Fault`] carries a reference at all: the
-    /// value is transferred into that slot the moment the fault is recorded, and
-    /// released where the class is too narrow to have the slot. Building it
+    /// values are transferred into those slots the moment the fault is recorded,
+    /// and released where the class is too narrow to have one. Building it
     /// eagerly is what keeps [`Ctx`]'s pending state free of a reference it
     /// would have to release on every replacement path.
-    ThrownWithSlot(
+    ///
+    /// The pairs are boxed rather than held inline, which is
+    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8's measurement: a
+    /// `Box<[_]>` is two words where one `(slot, value)` pair is three, so this
+    /// carries any number of properties in **less** width than it carried one,
+    /// and every helper's `Result` is narrower for it. The allocation is paid
+    /// only by a throw that fills a slot at all.
+    ThrownWithSlots(
         crate::ThrownClass,
         std::borrow::Cow<'static, str>,
-        usize,
-        crate::Value,
+        Box<[(usize, crate::Value)]>,
     ),
     /// Unrecoverable; becomes [`FATAL`].
     Fatal(std::borrow::Cow<'static, str>),
@@ -142,7 +148,7 @@ impl Fault {
         Self::Thrown(class, message.into())
     }
 
-    /// A [`Fault::ThrownWithSlot`] filling `slot` on the object the throw
+    /// A [`Fault::ThrownWithSlots`] filling `slot` on the object the throw
     /// builds — the one route from a native member to a property below
     /// `Throwable`'s four.
     ///
@@ -154,7 +160,22 @@ impl Fault {
         slot: usize,
         value: crate::Value,
     ) -> Self {
-        Self::ThrownWithSlot(class, message.into(), slot, value)
+        Self::ThrownWithSlots(class, message.into(), Box::new([(slot, value)]))
+    }
+
+    /// [`Self::thrown_with_slot`] for a class filling more than one of its own
+    /// properties — `Core\Db\DbError`'s normalised `kind` beside the raw
+    /// `sqlState` the driver read it off
+    /// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 8).
+    ///
+    /// Takes over every value's reference.
+    #[must_use]
+    pub fn thrown_with_slots(
+        class: crate::ThrownClass,
+        message: impl Into<std::borrow::Cow<'static, str>>,
+        slots: Vec<(usize, crate::Value)>,
+    ) -> Self {
+        Self::ThrownWithSlots(class, message.into(), slots.into_boxed_slice())
     }
 
     /// [`Self::thrown_with_slot`] at [`crate::ISSUES_SLOT`] — ADR 0071 § 5's
@@ -444,15 +465,15 @@ pub(crate) fn record_fault(ctx: &mut Ctx, fault: Fault) -> i32 {
             ctx.set_pending_as(class, message);
             THROWN
         }
-        Fault::ThrownWithSlot(class, message, slot, value) => {
+        Fault::ThrownWithSlots(class, message, slots) => {
             #[expect(
                 unsafe_code,
-                reason = "the helper body transferred this reference, and \
-                          `raise_with_slot` transfers it on into the exception \
-                          object's slot or releases it"
+                reason = "the helper body transferred these references, and \
+                          `raise_with_slots` transfers each on into the \
+                          exception object's slot or releases it"
             )]
             unsafe {
-                ctx.raise_with_slot(class, &message, slot, value);
+                ctx.raise_with_slots(class, &message, &slots);
             }
             THROWN
         }

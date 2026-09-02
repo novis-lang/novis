@@ -1081,7 +1081,7 @@ impl Pending {
             // `issues`, ADR 0067 § 7's `reason` — see `Thrown::new_as`.
             #[expect(unsafe_code, reason = "forwarding this function's own contract")]
             Self::Message(thrown, message) => unsafe {
-                Thrown::new_as(class, thrown, &message, None)
+                Thrown::new_as(class, thrown, &message, &[])
             },
             Self::Thrown(thrown) => thrown,
         }
@@ -3371,11 +3371,12 @@ impl Ctx {
         self.pending = Some(Pending::Thrown(thrown));
     }
 
-    /// Records a `THROWN` of `class` carrying `message`, with `value` written
-    /// into slot `slot` of the object it builds —
-    /// [`crate::Fault::ThrownWithSlot`]'s one destination, and so the whole of
+    /// Records a `THROWN` of `class` carrying `message`, with each pair in
+    /// `slots` written into that slot of the object it builds —
+    /// [`crate::Fault::ThrownWithSlots`]' one destination, and so the whole of
     /// how a native member fills a property below `Throwable`'s four
-    /// (`ParseError::$issues`, `Core\Db\DbError::$kind`).
+    /// (`ParseError::$issues`, `Core\Db\DbError::$kind` and the raw
+    /// `$sqlState` beside it).
     ///
     /// The object is built **here** rather than left as a [`Pending::Message`]
     /// to be promoted later, which is what keeps the pending state free of an
@@ -3385,33 +3386,33 @@ impl Ctx {
     /// something to put in the slot reaches this, so the eager allocation is on
     /// a path that has already allocated.
     ///
-    /// A `class` whose descriptor is too narrow for `slot` releases `value` and
-    /// throws without it — [`Thrown::new_as`] owns that, and it is the same
+    /// A `class` whose descriptor is too narrow for a slot releases that value
+    /// and throws without it — [`Thrown::new_as`] owns that, and it is the same
     /// "nothing installed" case a null descriptor is.
     ///
     /// # Safety
     ///
-    /// `value` must be a value whose reference is being transferred here.
+    /// Each of `slots`' values must be one whose reference is being transferred
+    /// here.
     #[expect(
         unsafe_code,
-        reason = "the value's reference and the installed descriptor's liveness \
+        reason = "the values' references and the installed descriptor's liveness \
                   are both obligations the signature cannot express"
     )]
-    pub unsafe fn raise_with_slot(
+    pub unsafe fn raise_with_slots(
         &mut self,
         class: ThrownClass,
         message: &str,
-        slot: usize,
-        value: crate::Value,
+        slots: &[(usize, crate::Value)],
     ) {
         let desc = self.error_desc(class);
         #[expect(
             unsafe_code,
             reason = "the descriptor comes from the `Rc`-shared table this \
-                      context holds, so it outlives the instance; the value's \
-                      reference is forwarded"
+                      context holds, so it outlives the instance; the values' \
+                      references are forwarded"
         )]
-        let thrown = unsafe { Thrown::new_as(desc, class, message, Some((slot, value))) };
+        let thrown = unsafe { Thrown::new_as(desc, class, message, slots) };
         self.raise(thrown);
     }
 
@@ -4365,11 +4366,10 @@ mod tests {
             reason = "an `int` carries no reference for the slot to take over"
         )]
         unsafe {
-            ctx.raise_with_slot(
+            ctx.raise_with_slots(
                 ThrownClass::DbError,
                 "refused",
-                crate::KIND_SLOT,
-                Value::int(5),
+                &[(crate::KIND_SLOT, Value::int(5))],
             );
         }
 

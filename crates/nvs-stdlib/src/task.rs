@@ -355,15 +355,15 @@ fn call_child(ctx: &mut Ctx, callback: Value, args: &[Value]) -> Value {
             ctx.set_pending_as(class, message);
             Value::null()
         }
-        Err(Fault::ThrownWithSlot(class, message, slot, value)) => {
+        Err(Fault::ThrownWithSlots(class, message, slots)) => {
             #[expect(
                 unsafe_code,
-                reason = "the fault transferred this reference, and \
-                          `raise_with_slot` transfers it on into the exception \
-                          object's slot or releases it"
+                reason = "the fault transferred these references, and \
+                          `raise_with_slots` transfers each on into the \
+                          exception object's slot or releases it"
             )]
             unsafe {
-                ctx.raise_with_slot(class, &message, slot, value);
+                ctx.raise_with_slots(class, &message, &slots);
             }
             Value::null()
         }

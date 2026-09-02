@@ -92,9 +92,11 @@
 //!    types it as the registered enum [`ERROR_KIND`], the synthesized
 //!    constructor seeds `Other` for a `DbError` a program built itself, and
 //!    [`statement_failure`] writes the driver's own classification over it
-//!    through `nvs_runtime::Fault::thrown_with_slot`. What a program cannot do
-//!    is read `sqlState`, `driverCode`, `constraint` or `sql`, each of which
-//!    owes a seeded type first. A failure of the *wire* rather than of the
+//!    through `nvs_runtime::Fault::thrown_with_slots`, and the raw `sqlState`
+//!    beside it where a server worded the refusal. `driverCode` is declared and
+//!    stays `null` on PostgreSQL, whose `SQLSTATE` is its only code. What a
+//!    program cannot do is read `constraint` or `sql`, each of which owes a
+//!    seeded type first. A failure of the *wire* rather than of the
 //!    statement stays an `IOError`: § 8's class is the server's answer, not the
 //!    socket's.
 //! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
@@ -2632,14 +2634,32 @@ fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fa
             Fault::thrown_as(ThrownClass::Logic, format!("{named}: {refused}"))
         }
         std::io::ErrorKind::Other => {
-            let kind = nvs_db::ServerError::of(refused)
-                .map_or(nvs_db::DbErrorKind::Other, |server| server.kind);
-            Fault::thrown_with_slot(
-                ThrownClass::DbError,
-                format!("{named}: `[db.{name}]` refused the statement: {refused}"),
-                nvs_runtime::KIND_SLOT,
-                error_kind_value(kind),
-            )
+            let message = format!("{named}: `[db.{name}]` refused the statement: {refused}");
+            match nvs_db::ServerError::of(refused) {
+                // The raw code rides beside the kind normalised from it, so an
+                // application that § 8's eleven conditions do not cover reads
+                // what the server actually said without the driver having to
+                // widen that enum. `driverCode` is left `null` here rather than
+                // filled with the `SQLSTATE` again — `nvs_db::ServerError` owns
+                // why PostgreSQL has no second code.
+                Some(server) => Fault::thrown_with_slots(
+                    ThrownClass::DbError,
+                    message,
+                    vec![
+                        (nvs_runtime::KIND_SLOT, error_kind_value(server.kind)),
+                        (
+                            nvs_runtime::SQL_STATE_SLOT,
+                            Value::str(NvsStr::new(server.sql_state.as_bytes())),
+                        ),
+                    ],
+                ),
+                None => Fault::thrown_with_slot(
+                    ThrownClass::DbError,
+                    message,
+                    nvs_runtime::KIND_SLOT,
+                    error_kind_value(nvs_db::DbErrorKind::Other),
+                ),
+            }
         }
         _ => Fault::thrown_as(
             ThrownClass::Io,

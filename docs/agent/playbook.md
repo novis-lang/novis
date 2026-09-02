@@ -1546,6 +1546,12 @@ is why" — is this file.
   it in, and never mask a `git commit`'s exit status. `session.py --wrap` is immune — it writes and
   commits from one validated file — so this only bites the hand-rolled commit for something the
   wrap did not name, such as the reference leg's regenerated `docs/novis.md`.
+- **`python tools/splice.py --help` prints three usage lines and not the patch format** — the
+  conflict-marker shape (`--- <path>`, then `<<<<<<< OLD` / `=======` / `>>>>>>> NEW` blocks, any
+  number per file) is in the module docstring at the top of `tools/splice.py`, which `sed -n '1,40p'`
+  reads for the same cost. A session that reaches for `--help` to learn the format pays a call and
+  still does not have it, then guesses; a guessed format is refused block by block. The `--help` text
+  is deliberately short because the tool is used far more often than it is learned.
 
 ## Running things
 

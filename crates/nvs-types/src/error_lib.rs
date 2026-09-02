@@ -122,6 +122,24 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                 // `Core` enum is backed by (`crate::core_lib`'s `CoreTy::Enum`
                 // arm interns exactly this).
                 "kind" => interner.enum_(QName::parse(ERROR_KIND), EnumBacking::Int),
+                // `Core\Db\DbError::$sqlState` and `$driverCode` — ADR 0067
+                // § 8's raw pair, and both `?T` where `kind` is not: a refusal
+                // the wire produced rather than the server has neither, and a
+                // driver whose only code is its `SQLSTATE` has no second
+                // integer to answer with. Nothing seeds them for that case,
+                // because an unwritten slot already reads `null` — which is
+                // exactly what a `?T` allows and what `issues` above, being
+                // `array<Issue>` and not `?array<Issue>`, does not.
+                "sqlState" => {
+                    let text = interner.string();
+                    let null = interner.null();
+                    interner.make_union([text, null])
+                }
+                "driverCode" => {
+                    let code = interner.int();
+                    let null = interner.null();
+                    interner.make_union([code, null])
+                }
                 other => panic!("no type seeded for `{name}::{other}`"),
             };
             ((*property).to_owned(), ty)

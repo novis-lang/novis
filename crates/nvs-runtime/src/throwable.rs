@@ -74,7 +74,7 @@ pub const ISSUES_SLOT: usize = SLOT_COUNT;
 /// The slot `Core\Db\DbError::$kind` occupies —
 /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8's normalised condition,
 /// which `nvs_stdlib::db`'s `statement_failure` fills through
-/// [`Ctx::raise_with_slot`].
+/// [`Ctx::raise_with_slots`].
 ///
 /// Equal to [`ISSUES_SLOT`] and derived the same way rather than from it: the
 /// two classes are unrelated siblings that each declare one property beyond the
@@ -83,6 +83,29 @@ pub const ISSUES_SLOT: usize = SLOT_COUNT;
 /// rule. `nvs_hir::errors::KIND_SLOT` is the compiler's copy, held to this one
 /// by `nvs-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
 pub const KIND_SLOT: usize = SLOT_COUNT;
+
+/// The slot `Core\Db\DbError::$sqlState` occupies — the five-character code the
+/// server sent, beside the [`KIND_SLOT`] normalised from it
+/// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 8).
+///
+/// Derived from [`KIND_SLOT`] where that constant is deliberately *not* derived
+/// from [`ISSUES_SLOT`]: these two are properties of one class in declaration
+/// order, which is a rule, where those are unrelated siblings that merely
+/// coincide. `nvs_hir::errors::SQL_STATE_SLOT` is the compiler's copy, held to
+/// this one by `nvs-codegen`'s
+/// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
+pub const SQL_STATE_SLOT: usize = KIND_SLOT + 1;
+
+/// The slot `Core\Db\DbError::$driverCode` occupies — the vendor integer, where
+/// the driver has one.
+///
+/// It is `null` on PostgreSQL and always will be: the `SQLSTATE` *is* that
+/// server's code, and `nvs_db::ServerError` owns why a second integer invented
+/// to fill the shape would be a value with no meaning. The slot exists ahead of
+/// the driver that fills it because § 8 fixes the property order, and one added
+/// later would move every slot after it.
+/// `nvs_hir::errors::DRIVER_CODE_SLOT` is the compiler's copy.
+pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 
 /// The slot `Core\Db\RolledBack::$reason` occupies —
 /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 7's abandoned transaction,
@@ -257,15 +280,15 @@ impl Thrown {
     pub unsafe fn new(class: *const ClassDesc, message: &str) -> Self {
         #[expect(unsafe_code, reason = "forwarding this function's own contract")]
         unsafe {
-            Self::new_as(class, ThrownClass::Runtime, message, None)
+            Self::new_as(class, ThrownClass::Runtime, message, &[])
         }
     }
 
-    /// [`Self::new`], plus one property a class below the root declares:
-    /// `extra` names the slot and the value, and the value is written there
+    /// [`Self::new`], plus the properties a class below the root declares:
+    /// `extra` names each slot and its value, and each value is written there
     /// when the descriptor is wide enough to have it.
     ///
-    /// A thrower with nothing to put in the slot passes `None`, and the class
+    /// A thrower with nothing to put in a slot passes `&[]`, and the class
     /// then seeds its own. `ParseError::$issues` becomes an empty array, since
     /// the property is declared `array<Issue>` rather than `?array<Issue>` and
     /// reading `null` out of it would be a type the checker ruled out;
@@ -281,15 +304,15 @@ impl Thrown {
     /// names a slot is the caller's own statement about a class it resolved,
     /// so it is written without consulting `thrown` at all.
     ///
-    /// Takes over the value's reference; releases it if there is no such slot
-    /// to put it in (a null or too-narrow descriptor, which is
+    /// Takes over every value's reference; releases the ones with no such slot
+    /// to go in (a null or too-narrow descriptor, which is
     /// [`Ctx::set_runtime_error_class`]'s "nothing installed" case).
     ///
     /// # Safety
     ///
     /// `class` must be null or refer to a live class descriptor that outlives
-    /// every instance made from it, and `extra`'s value must be one whose
-    /// reference is being transferred here.
+    /// every instance made from it, and each of `extra`'s values must be one
+    /// whose reference is being transferred here.
     #[must_use]
     #[expect(
         unsafe_code,
@@ -300,7 +323,7 @@ impl Thrown {
         class: *const ClassDesc,
         thrown: ThrownClass,
         message: &str,
-        extra: Option<(usize, Value)>,
+        extra: &[(usize, Value)],
     ) -> Self {
         let count = if class.is_null() {
             0
@@ -311,7 +334,7 @@ impl Thrown {
             }
         };
         if count < SLOT_COUNT {
-            if let Some((_, value)) = extra {
+            for &(_, value) in extra {
                 #[expect(
                     unsafe_code,
                     reason = "the caller transferred this reference and there is \
@@ -331,30 +354,37 @@ impl Thrown {
         obj.set_field(MESSAGE_SLOT, Value::str(NvsStr::new(message.as_bytes())));
         obj.set_field(BACKTRACE_SLOT, Value::array(NvsArray::new()));
         obj.set_field(LOCATION_SLOT, Value::str(NvsStr::new(b"")));
-        match extra {
-            Some((slot, value)) if count > slot => obj.set_field(slot, value),
-            Some((_, value)) => {
-                #[expect(
-                    unsafe_code,
-                    reason = "the caller transferred this reference and this class \
-                              declares no slot to hand it on to"
-                )]
-                unsafe {
-                    value.release();
+        if extra.is_empty() {
+            match thrown {
+                ThrownClass::Parse if count > ISSUES_SLOT => {
+                    obj.set_field(ISSUES_SLOT, Value::array(NvsArray::new()));
+                }
+                // The property is the message, so a thrower that has one has
+                // both. Without this a `Core\Db\RolledBack` raised here reads
+                // `$reason` as `null` while a hand-built one carries the text,
+                // which is `nvs_ir`'s `ExtraInit::Message` seeding the
+                // synthesized constructor — two spellings of one class
+                // answering differently.
+                ThrownClass::DbRolledBack if count > REASON_SLOT => {
+                    obj.set_field(REASON_SLOT, Value::str(NvsStr::new(message.as_bytes())));
+                }
+                _ => {}
+            }
+        } else {
+            for &(slot, value) in extra {
+                if count > slot {
+                    obj.set_field(slot, value);
+                } else {
+                    #[expect(
+                        unsafe_code,
+                        reason = "the caller transferred this reference and this \
+                                  class declares no slot to hand it on to"
+                    )]
+                    unsafe {
+                        value.release();
+                    }
                 }
             }
-            None if thrown == ThrownClass::Parse && count > ISSUES_SLOT => {
-                obj.set_field(ISSUES_SLOT, Value::array(NvsArray::new()));
-            }
-            // The property is the message, so a thrower that has one has both.
-            // Without this a `Core\Db\RolledBack` raised here reads `$reason`
-            // as `null` while a hand-built one carries the text, which is
-            // `nvs_ir`'s `ExtraInit::Message` seeding the synthesized
-            // constructor — two spellings of one class answering differently.
-            None if thrown == ThrownClass::DbRolledBack && count > REASON_SLOT => {
-                obj.set_field(REASON_SLOT, Value::str(NvsStr::new(message.as_bytes())));
-            }
-            None => {}
         }
         Self {
             ptr: obj.into_raw(),
@@ -859,9 +889,9 @@ mod tests {
                     wide,
                     ThrownClass::DbError,
                     "refused",
-                    Some((KIND_SLOT, Value::int(5))),
+                    &[(KIND_SLOT, Value::int(5))],
                 ),
-                Thrown::new_as(narrow, ThrownClass::Logic, "bad call", None),
+                Thrown::new_as(narrow, ThrownClass::Logic, "bad call", &[]),
             )
         };
         assert_eq!(refused.field(KIND_SLOT).and_then(Value::as_int), Some(5));
@@ -889,8 +919,8 @@ mod tests {
         #[expect(unsafe_code, reason = "the table outlives both instances")]
         let (abandoned, refused) = unsafe {
             (
-                Thrown::new_as(rolled_back, ThrownClass::DbRolledBack, "no stock", None),
-                Thrown::new_as(db_error, ThrownClass::DbError, "no stock", None),
+                Thrown::new_as(rolled_back, ThrownClass::DbRolledBack, "no stock", &[]),
+                Thrown::new_as(db_error, ThrownClass::DbError, "no stock", &[]),
             )
         };
         let reason = abandoned

@@ -90,6 +90,11 @@ class MyError extends IOError {
     assert_eq!(nvs_hir::errors::ISSUES_SLOT, nvs_runtime::ISSUES_SLOT);
     assert_eq!(nvs_hir::errors::KIND_SLOT, nvs_runtime::KIND_SLOT);
     assert_eq!(nvs_hir::errors::REASON_SLOT, nvs_runtime::REASON_SLOT);
+    assert_eq!(nvs_hir::errors::SQL_STATE_SLOT, nvs_runtime::SQL_STATE_SLOT);
+    assert_eq!(
+        nvs_hir::errors::DRIVER_CODE_SLOT,
+        nvs_runtime::DRIVER_CODE_SLOT
+    );
     let parse = program
         .classes
         .iter()
@@ -102,6 +107,8 @@ class MyError extends IOError {
         .find(|c| c.label == "Core\\Db\\DbError")
         .expect("Core\\Db\\DbError should be in the class table");
     assert_eq!(db_error.fields[nvs_runtime::KIND_SLOT], "kind");
+    assert_eq!(db_error.fields[nvs_runtime::SQL_STATE_SLOT], "sqlState");
+    assert_eq!(db_error.fields[nvs_runtime::DRIVER_CODE_SLOT], "driverCode");
     let rolled_back = program
         .classes
         .iter()
