@@ -2,61 +2,57 @@
 
 ## State
 
-**Stage 7's reset half is two thirds landed**, both as unit tests over already-landed code in
-`crates/nvs-db/src/pg.rs`'s `mod tests`, beside the four reset cases that were already there.
+**Stage 7 is closed as far as it can be.** Every name in its `-p nvs-db` check now exists: the four
+integration names were already in `crates/nvs-db/tests/pool_reuse.rs`, and the two this session added
+are `a_failed_reset_destroys_the_connection_rather_than_returning_it`
+(`crates/nvs-db/src/pg.rs:5351`) and `the_pool_is_per_core_and_keyed_as_connect_and_open_key`
+(`crates/nvs-db/src/conn.rs:658`).
 
-`postgres_resets_without_losing_its_statement_cache` (`crates/nvs-db/src/pg.rs:5234`) asserts § 13's
-`DISCARD ALL` exclusion from the far side: not what the reset's flush says but what the flush *after*
-it costs. One `start_statement` over a `StatementCache`, a `reset_session`, then the same SQL again —
-and the third flush's tags are `BDES`, no `P`, with the cache still holding one entry. The scripted
-server answers only what each batch asked for, so a driver that re-parsed stalls rather than passes.
+The reset case asserts § 13's "a connection that cannot be proven clean is closed" in two halves,
+because the enforcement is a type and the destruction is a write: `PgConn::reset` coerced to
+`fn(PgConn) -> io::Result<PgConn>` is the by-value signature, and `say_goodbye` — `Drop`'s body,
+extracted as a free function generic in the stream for the reason the playbook gives about `PgConn`'s
+`Wire` — puts the five bytes of `Terminate` on a scripted wire and nothing after them. The pool case
+asserts § 2's key over the type actually filed, including the `into_any` downcast.
 
-`no_session_state_survives_a_return_to_the_pool` (`crates/nvs-db/src/pg.rs:5284`) sweeps § 13's
-property list — the seven states a reset must remove — against the commands `reset_session` writes,
-each property named in its own failure message, plus the reverse direction: a command in the reset
-that no property asks for is a round trip nothing justifies. Two properties share `RESET ALL`, which
-is why it is a sweep and not a zip.
-
-**Stage 2's check still fails, and permanently** — its remaining name,
-`local_infile_is_refused_and_no_file_is_sent`, is MySQL's, and no session should try to close it.
-**Stage 7's check inherits the same shape**: `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs`
-is a second and third driver, so it stays open for the same reason. Only two of that check's names
-are reachable now, and they are the group below.
+**Stage 7's check still fails and always will**, on
+`mysql_and_mssql_reset_through_the_protocol_and_lose_theirs`: a second and third driver, the same
+permanent shape as stage 2's `local_infile_is_refused_and_no_file_is_sent`. Both are backlog, not
+work. **Stage 8's queue names all exist**; the first stage with open work is stage 9.
 
 ## Next group
 
-**Stage 7's last two reachable names — the file set is `crates/nvs-db/src/pg.rs` and
-`crates/nvs-runtime/src/pool.rs`, which is § 13's pool and where a released connection's fate is
-decided. Read `pool.rs`'s module doc first: it is the crate that owns the drop.**
+**Stage 9's literal-query diagnostics — the file set is `crates/nvs-types/src/intrinsics.rs` and
+`crates/nvs-types/tests/intrinsics.rs`. Read that module's own doc first: § 1's `INTRINSICS` table is
+the whole dispatch, and `report_malformed` is the shared reporter — so none of these needs a new
+diagnostic code, which matters because the `E04xx` and `E07xx` bands are both FULL.** The pack did not
+print ADR 0067 § 2 or § 10 and prints no `nvs-types/src/intrinsics.rs` map line; add `0067` §§ 2 and
+10 to `[context] adrs` and that module to `[context] modules`.
 
-- [ ] **A failed reset destroys the connection** — § 13's "a connection that cannot be proven clean
-      is closed", as `a_failed_reset_destroys_the_connection_rather_than_returning_it`.
-      `crates/nvs-db/src/pg.rs:769` is `PgConn::reset`, which already takes `mut self` and hands the
-      connection back only on `Ok`, so the type is the mechanism and the missing name is the
-      assertion over it. `crates/nvs-db/src/pg.rs:5328` and `crates/nvs-db/src/pg.rs:5355` pin that a
-      refused reset reports and that a wire failure poisons; neither says the connection is dropped.
-      The wall is the playbook's: `PgConn`'s `wire` is `Wire<NvsTls<NvsTcp>>`, so a `-p nvs-db` unit
-      test cannot build one and cannot call `PgConn::reset` at all. Either assert it where the drop
-      actually happens — `crates/nvs-runtime/src/pool.rs:520` is `release`, which is handed a
-      `Box<dyn HeldConnection>` — or assert the type-level claim in `nvs-db` and say in the commit
-      which. The goal's check is `-p nvs-db` (`docs/agent/loop-goal.toml:2915`); if the name has to
-      live elsewhere, move the check as ADR 0132 § 1's crate edge already forced once.
-- [ ] **The pool is per core and keyed as `connect` and `open` key** — § 13's second bullet, as
-      `the_pool_is_per_core_and_keyed_as_connect_and_open_key`.
-      `crates/nvs-runtime/src/pool.rs:152` is `Ticket::for_block`, which builds the key and scopes it
-      to the configuration generation; `crates/nvs-runtime/src/pool.rs:127` is `Ticket` itself and
-      `crates/nvs-runtime/src/pool.rs:590` that module's `mod tests`. The claim has two halves — two
-      config blocks are two pools, and one name under two generations is two pools — and the second
-      is the one a reload would otherwise break. Same `-p nvs-db` mismatch as above: the pool is
-      `nvs-runtime`'s and the key is computed in `nvs-stdlib`, so nothing in `nvs-db` can host this
-      name and the check's `args` is what has to move.
+- [ ] **A `Core\Db` row and its SQL grammar** — ADR 0067 § 5's one placeholder spelling in, as
+      `a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic` and
+      `mixed_placeholder_styles_on_a_literal_are_a_diagnostic`.
+      `crates/nvs-types/src/intrinsics.rs:107` is the table to add the row to,
+      `crates/nvs-types/src/intrinsics.rs:190` the `match row.grammar` needing the arm, and
+      `crates/nvs-types/src/intrinsics.rs:237` is `check_template`, the shape a `check_sql` copies.
+      The cases go beside `crates/nvs-types/tests/intrinsics.rs:28`'s `check_call(body)` helper.
+- [ ] **Two statements in one literal query** — § 1's "every statement is prepared" has no spelling
+      for two, as `a_two_statement_literal_query_is_a_diagnostic`. Same row and same arm:
+      `crates/nvs-types/src/intrinsics.rs:190`, `crates/nvs-types/tests/intrinsics.rs:28`.
+- [ ] **The taint pair, checked together** — ADR 0024 § 4's rule that the query-text parameter refuses
+      `tainted` while a bound parameter accepts it freely, as
+      `a_tainted_value_at_a_query_text_parameter_is_a_diagnostic` and
+      `the_same_tainted_value_at_a_bound_parameter_compiles`. Check first whether the registry row's
+      `Qual` already refuses it and only the assertion is missing; `crates/nvs-types/src/intrinsics.rs:164`
+      is `check_call`, which already holds the argument types, and the cases go at
+      `crates/nvs-types/tests/intrinsics.rs:28`.
 
 ## Backlog
 
-- `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` — stage 7, blocked behind the
-  standing decision that PostgreSQL lands first (`docs/agent/loop-goal.md`).
-- `local_infile_is_refused_and_no_file_is_sent` — stage 2, the same block, and the ledger's report
-  from now on.
-- Stage 7's remaining `pool_reuse.rs` names are all on disk (`crates/nvs-db/tests/pool_reuse.rs`).
-- `examples/pool.nvs`'s four lines are stage 7's program leg (`docs/agent/loop-goal.toml:2950`).
-- `open` still waits on a shape-parameter type (`docs/implementation-plan.md`, Open now).
+- `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` — waits on the MySQL and SQL Server
+  drivers (`docs/agent/loop-goal.toml:2919`).
+- `local_infile_is_refused_and_no_file_is_sent` — stage 2's, MySQL's, same wait.
+- `an_open_host_matching_no_grant_is_a_diagnostic` and
+  `a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted` — both are about `Core\Db::open`,
+  which waits on a shape-parameter type (the plan's *Open now*).
+- Stage 9's `a_query_span_contains_no_parameter_value_anywhere` already exists in `-p nvs-db`.

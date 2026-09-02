@@ -4590,6 +4590,16 @@ is why" — is this file.
   rather than skipped — `docker exec novis-db-postgres-1 psql -U novis -d novis_test -c "select
   …"` for the row it should have written — because a case that skipped and a case that passed are
   the same green.
+- **A `loop-goal.toml` check naming `-p <crate>` for a surface another crate owns can still be
+  satisfiable where the check points, because the dependency edge is often already there.** Stage 7's
+  `the_pool_is_per_core_and_keyed_as_connect_and_open_key` is a `-p nvs-db` check while the pool is
+  `nvs_runtime::pool` and the key is built in `nvs-stdlib`, so the item arrived expecting the check to
+  have to move, as ADR 0132 § 1's crate edge forced once before. It did not need to: `nvs-db` already
+  depends on `nvs-runtime` and `nvs-config`, so a unit test in `conn.rs` drives
+  `pool::{Ticket, admit, release, take}` directly — and over a real `Connection`, which is the half
+  `nvs-runtime`'s own cases cannot assert because they file a `Fake` and never exercise the
+  `HeldConnection::into_any` downcast `warm_connection` performs. Read the crate's `Cargo.toml`
+  `[dependencies]` before concluding a name is filed against the wrong crate.
 
 ## Splitting a file that got too big
 
