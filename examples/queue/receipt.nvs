@@ -9,5 +9,16 @@
 // It prints nothing. A worker runs this on the same process and the same
 // stdout the parent program is writing its frozen output to, so anything
 // echoed here would land in the middle of that.
+//
+// It parks for a beat first, and that park is what makes the parent's
+// `claimed 1` a fact rather than a race. `[queue] workers` runs this isolate
+// on the *same core* as the program polling `Core\Queue::stats`, and between
+// § 4's claim and § 6's write-back a job that returns straight away hands that
+// core back to nobody — so the row is `Claimed` only for as long as this file
+// runs, and a poll can never fall inside a window that never yields. Sleeping
+// is the shape of every real job (a job that touches nothing is one you would
+// not have enqueued), so this is the ordinary case rather than a delay added
+// for the fixture.
+Core\Time::sleep(150ms);
 
 return ["receipted" => true];

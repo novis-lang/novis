@@ -107,7 +107,7 @@ Poll::until(fn (): bool => { return Queue::stats($flaky)->attempts() > 1; });
 echo "retried", "\n";
 
 // And the floor under it. The row moves to the dead-letter table with its
-// payload, every attempt's error and its timing, and stays there — `stats`
-// reports the depth, and ADR 0076 exports it as a default series.
+// payload, what its last attempt threw and the timing of it, and stays there —
+// `stats` reports the depth, and ADR 0076 exports it as a default series.
 Poll::until(fn (): bool => { return Queue::stats($flaky)->deadLettered() > 0; });
 echo "dead-lettered", "\n";
