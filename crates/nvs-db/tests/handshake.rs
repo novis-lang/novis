@@ -24,6 +24,16 @@
 //! a second file would be the same skip rule and the same helpers written
 //! twice.
 //!
+//! **MariaDB is the third, and it is where the twinning pays for itself.** Its
+//! driver borrows `mysql.rs`'s framing and nothing above it — its own
+//! authentication roster, its own § 8 code table — so a scripted peer can only
+//! ever confirm that this crate agrees with itself about a protocol two servers
+//! implement differently. `mariadb()` below is `mysql()`'s twin and the leg it
+//! selects is the matrix's own, so the same three facts are asked of a real
+//! MariaDB: the session it ends up holding is encrypted, it is authenticated as
+//! the account named, and the credential it refuses is refused by *MariaDB's*
+//! table rather than by MySQL's.
+//!
 //! # Why the server is asked rather than the driver
 //!
 //! Every assertion below is the server's own answer, not this crate's.
@@ -61,7 +71,8 @@ use std::time::{Duration, Instant};
 use nvs_db::matrix::{self, Location, Server};
 use nvs_db::mysql::scalar;
 use nvs_db::{
-    DbErrorKind, Driver, MySqlConn, MySqlScalar, MySqlTarget, PgConn, PgTarget, ServerError,
+    DbErrorKind, Driver, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar, MySqlTarget,
+    PgConn, PgTarget, ServerError,
 };
 use nvs_host::{Reactor, Scheduler, run_until_idle};
 use nvs_runtime::{Ctx, OutputSink, TaskRoot};
@@ -232,7 +243,17 @@ fn mysql_open(server: &Server) -> MySqlConn {
 /// It drains to the end of the stream whatever it found, for [`one_value`]'s
 /// reason — a connection is poolable only at a packet boundary.
 fn mysql_one_value(conn: &mut MySqlConn, sql: &str) -> Option<String> {
-    let mut rows = conn.query(sql, &[]).expect("the server ran the statement");
+    first_text(conn.query(sql, &[]).expect("the server ran the statement"))
+}
+
+/// The walk itself, shared by the two drivers that speak this result set.
+///
+/// [`MariaConn::query`] answers the *same* [`MySqlRows`] as [`MySqlConn::query`]
+/// — one binary protocol, and § 9's decoder is one decoder — so this is the one
+/// helper of the MariaDB set that is not a twin of a MySQL one. What that driver
+/// does not share is above the framing, and that is what the cases below ask
+/// about.
+fn first_text(mut rows: MySqlRows<'_>) -> Option<String> {
     // Cloned out before the walk begins: the definitions describe every row,
     // and `next_row` needs the borrow they came from.
     let columns = rows.columns().to_vec();
@@ -272,6 +293,78 @@ fn mysql_try(conn: &mut MySqlConn, sql: &str) -> io::Result<()> {
     let mut rows = conn.query(sql, &[])?;
     while rows.next_row()?.is_some() {}
     Ok(())
+}
+
+/// This process's MariaDB server, or `None` because nothing pointed it at one.
+///
+/// [`mysql`]'s twin, and the one line that differs is the whole point of the
+/// pair: the matrix runs one driver per process, and a MariaDB leg is not a
+/// MySQL one however alike the wire is.
+fn mariadb() -> Option<Server> {
+    let endpoint = matrix::endpoint()?;
+    if endpoint.driver != Driver::MariaDb {
+        return None;
+    }
+    let Location::Server(server) = endpoint.location else {
+        unreachable!("SQLite is the only driver reached by path, and this is not it")
+    };
+    Some(server)
+}
+
+/// The zone [`a_mariadb_connection_declares_section_9s_zone_and_the_server_holds_it`]
+/// declares, as § 9's seconds east of UTC.
+///
+/// `+01:30`, chosen because no container sets it and no half-hour zone is any
+/// server's default: a driver that had sent nothing at all would leave the
+/// session on the server's `SYSTEM` zone, and one that had sent a whole number
+/// of hours would still agree with a fixture that only checked the sign.
+const ZONE: i32 = 5_400;
+
+/// One MariaDB handshake against `server`, offering `password` and declaring
+/// `time_zone`.
+///
+/// [`mysql_connect_as`]'s twin, with § 9's zone lifted into a parameter for the
+/// same reason the password is one: the two cases below differ in exactly one
+/// field each, so what the server then reports is attributable to that field.
+fn mariadb_connect_as(server: &Server, password: &str, time_zone: i32) -> io::Result<MariaConn> {
+    let target = MariaTarget {
+        host: &server.host,
+        user: &server.user,
+        password,
+        database: &server.database,
+        tls_ca_file: Some(server.ca.as_path()),
+        time_zone,
+        statement_cache: 8,
+    };
+
+    MariaConn::connect(address(server), &target, Some(Instant::now() + DEADLINE))
+}
+
+/// A MariaDB connection that opened, in UTC.
+fn mariadb_open(server: &Server) -> MariaConn {
+    mariadb_connect_as(server, &server.password, 0)
+        .expect("the matrix server accepts a handshake verified against its own anchor")
+}
+
+/// The first column of the first row `sql` returns, as text.
+///
+/// [`mysql_one_value`]'s twin, and both are the two lines around [`first_text`].
+fn mariadb_one_value(conn: &mut MariaConn, sql: &str) -> Option<String> {
+    first_text(conn.query(sql, &[]).expect("the server ran the statement"))
+}
+
+/// Runs `sql` to the end of its answer, for a statement whose point is what it
+/// did rather than what it returned.
+///
+/// [`mysql_run`]'s twin, and the drain is not optional here for that helper's
+/// reason: § 4 lets one statement be in flight at a time.
+fn mariadb_run(conn: &mut MariaConn, sql: &str) {
+    let mut rows = conn.query(sql, &[]).expect("the server ran the statement");
+    while rows
+        .next_row()
+        .expect("a row, or the end of the stream")
+        .is_some()
+    {}
 }
 
 /// § 3: the connection this driver opens is TLS-wrapped and authenticated, and
@@ -709,5 +802,168 @@ fn a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement() {
         (refusal.sql_state.as_str(), refusal.driver_code),
         ("42S02", Some(1146)),
         "the refusal is not the server saying the temporary table no longer exists: {refusal}",
+    );
+}
+
+/// § 3 against a real MariaDB: the connection this driver opens is TLS-wrapped
+/// and authenticated, and the server is the one that says so.
+///
+/// [`a_mysql_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream`]'s
+/// twin, asking the same three facts of the other server, and the twinning is
+/// what makes it worth writing: `maria.rs` reuses `mysql.rs`'s framing and
+/// stops there, so everything this case exercises above the packet header — the
+/// plugin the greeting names, the proof sent back for it, the code table the
+/// refusal is read through — is MariaDB's own and has never met a MySQL server.
+///
+/// The status variable is read out of `information_schema.SESSION_STATUS` where
+/// the MySQL twin reads `performance_schema.session_status`: the second is
+/// MySQL 5.7's replacement for the first, and MariaDB, whose `performance_schema`
+/// predates it, kept the original. Either way the row is that server's view of
+/// the socket this process is holding, so a driver that had fallen back to
+/// plaintext cannot produce it.
+///
+/// The refusal is asserted as § 8's *kind* and not only as the raw pair, because
+/// the kind is the half a shared table would get wrong: MariaDB's `1045` and
+/// MySQL's happen to agree, and
+/// [`mariadb_uses_its_own_code_table_and_not_mysqls`](../src/maria.rs) is where
+/// the codes that do not are held.
+#[test]
+fn a_mariadb_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream() {
+    let Some(server) = mariadb() else {
+        return;
+    };
+    let mut conn = mariadb_open(&server);
+
+    let version = mariadb_one_value(
+        &mut conn,
+        "SELECT VARIABLE_VALUE FROM information_schema.SESSION_STATUS \
+         WHERE VARIABLE_NAME = 'Ssl_version'",
+    )
+    .expect("the server holds a session status row for this connection");
+    assert!(
+        version.starts_with("TLSv1."),
+        "the session negotiated `{version}`, which is not a TLS version this connection should hold",
+    );
+
+    assert_eq!(
+        mariadb_one_value(&mut conn, "SELECT SUBSTRING_INDEX(CURRENT_USER(), '@', 1)").as_deref(),
+        Some(server.user.as_str()),
+        "the session is authenticated as the account the connection's block names",
+    );
+
+    let refused = mariadb_connect_as(&server, "not-the-password", 0)
+        .expect_err("a password the server cannot verify opened a connection");
+    let refusal = ServerError::of(&refused).unwrap_or_else(|| {
+        panic!("a wrong password was refused, but not by the server's own check: {refused}")
+    });
+    assert_eq!(
+        (
+            refusal.kind,
+            refusal.sql_state.as_str(),
+            refusal.driver_code
+        ),
+        (DbErrorKind::Permission, "28000", Some(1045)),
+        "the refusal is not MariaDB's own access denial, normalised by its own table: {refusal}",
+    );
+}
+
+/// § 9: the zone a connection declares is the zone the server then holds, and
+/// the driver keeps the same number to decode zone-less columns with.
+///
+/// The declared zone is the one field of § 9's map that is not a property of a
+/// column, so it is the one a scripted peer cannot check: `mysql.rs`'s cases
+/// hold that `SET time_zone` is sent and what its literal reads, and only a
+/// server can say that the session moved. Both halves are asked here — the
+/// variable, which is the server repeating the literal back, and `TIMEDIFF`
+/// against `UTC_TIMESTAMP()`, which is the offset actually applied to a value
+/// the server rendered. A driver that had sent the statement and ignored a
+/// refusal passes the first and fails the second.
+///
+/// [`MariaConn::time_zone`] is the third: it is what a layer up decodes a
+/// zone-less `DATETIME` with, and a connection whose record of the zone had
+/// drifted from the session's would read every such column wrong and silently.
+#[test]
+fn a_mariadb_connection_declares_section_9s_zone_and_the_server_holds_it() {
+    let Some(server) = mariadb() else {
+        return;
+    };
+    let mut conn = mariadb_connect_as(&server, &server.password, ZONE)
+        .expect("the matrix server accepts a handshake declaring a zone");
+
+    assert_eq!(
+        conn.time_zone(),
+        ZONE,
+        "the connection's own record of § 9's zone is not the one the handshake declared",
+    );
+    assert_eq!(
+        mariadb_one_value(&mut conn, "SELECT @@session.time_zone").as_deref(),
+        Some("+01:30"),
+        "the session is not in the zone the handshake declared",
+    );
+    assert_eq!(
+        mariadb_one_value(
+            &mut conn,
+            "SELECT CAST(TIMEDIFF(NOW(), UTC_TIMESTAMP()) AS CHAR)"
+        )
+        .as_deref(),
+        Some("01:30:00"),
+        "the server rendered a zone-less value at an offset that is not the declared one",
+    );
+}
+
+/// The first divergence with teeth: MariaDB answers `INSERT … RETURNING` and
+/// MySQL refuses the word, over one driver's framing and two code tables.
+///
+/// This is why ADR 0067 makes MariaDB its own driver rather than a MySQL flag,
+/// and it is asserted as *one* case over two legs rather than as two cases that
+/// never meet. The DDL, the statement and the expectation are spelled once; the
+/// only thing that varies between the two runs is which server the matrix
+/// pointed this process at. A driver built as `MySql { mariadb: true }` passes
+/// either half alone by branching, and fails here the day the branch is wrong,
+/// because both halves are reading the same two constants.
+///
+/// The refusal is the server's own — `1064`, the parse error, arriving from the
+/// `COM_STMT_PREPARE` rather than from the execute, since MySQL cannot get as
+/// far as a statement to run. That it is `Syntax` and not `Permission` is § 8's
+/// normalisation of it, and each driver reaches that kind through its own table.
+#[test]
+fn mariadb_returning_is_available_and_mysqls_is_not() {
+    // Spelled once for the two legs: the case is asserting that one statement
+    // is answered by one server and refused by the other, so a second spelling
+    // would be asserting about two statements.
+    const TABLE: &str = "CREATE TEMPORARY TABLE novis_returning \
+                         (id INT PRIMARY KEY AUTO_INCREMENT, v VARCHAR(8))";
+    const RETURNING: &str = "INSERT INTO novis_returning (v) VALUES ('one') \
+                             RETURNING CAST(id AS CHAR)";
+
+    if let Some(server) = mariadb() {
+        let mut conn = mariadb_open(&server);
+        mariadb_run(&mut conn, TABLE);
+        assert_eq!(
+            mariadb_one_value(&mut conn, RETURNING).as_deref(),
+            Some("1"),
+            "MariaDB's `RETURNING` did not hand back the row the insert had just written",
+        );
+        return;
+    }
+
+    let Some(server) = mysql() else {
+        return;
+    };
+    let mut conn = mysql_open(&server);
+    mysql_run(&mut conn, TABLE);
+    let refused = mysql_try(&mut conn, RETURNING)
+        .expect_err("MySQL ran a statement only MariaDB's dialect has");
+    let refusal = ServerError::of(&refused).unwrap_or_else(|| {
+        panic!("`RETURNING` was refused, but not by the server's own check: {refused}")
+    });
+    assert_eq!(
+        (
+            refusal.kind,
+            refusal.sql_state.as_str(),
+            refusal.driver_code
+        ),
+        (DbErrorKind::Syntax, "42000", Some(1064)),
+        "the refusal is not MySQL's own parse error, normalised by MySQL's table: {refusal}",
     );
 }
