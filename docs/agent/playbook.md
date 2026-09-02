@@ -1628,6 +1628,13 @@ is why" — is this file.
   found with `ls -d`) is the Read tool's job, and that is worth doing before writing a wire field by
   hand: `mysql_common` already models MariaDB's second capability word, `COM_STMT_BULK_EXECUTE` and
   its indicator bytes, so a slice that looked like packet composition was a `.with_…` call.
+- **`python tools/adr.py --index` *prints* the regenerated index table; it does not write it.** The audit
+  reports `index table is stale -- regenerate with python tools/adr.py --index`, which reads as a fix-it
+  command, and running it emits 130-odd rows to stdout and changes nothing — so the audit still fails and
+  the rows are now in your context for nothing. The table in `docs/adr/README.md` is edited by hand: append
+  the one row for the ADR you just added, directly after the highest-numbered row. The other two findings a
+  new ADR raises (`no bullet in ground-rules.md`, `no row in README.md § *Where to look*`) are hand edits
+  too and say so plainly; only this one names a tool that looks like it will do the work.
 
 ## Running things
 
