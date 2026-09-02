@@ -3,14 +3,32 @@
 //! connection's charset to `utf8mb4`, and running one statement over
 //! `COM_STMT_PREPARE` and `COM_STMT_EXECUTE`.
 //!
-//! **The statement path stops at the first row.** [`start_statement`] returns
-//! with the result set's column definitions read and the wire pointing at the
-//! first row packet, because a column count is known ahead of time and a row
-//! count is not: decoding a binary row against ADR 0067 § 9's type map is the
-//! slice after this one, and until it lands nothing above this crate can ask
-//! for one. § 1's statement cache is not here either, which is why every
-//! statement costs the two round trips § 1 prices it at rather than the one a
-//! cache hit would.
+//! **The statement path runs to the end of the result set.**
+//! [`start_statement`] answers a [`MySqlRows`], and [`MySqlRows::next_row`]
+//! takes one binary row packet at a time until the terminator returns the
+//! connection to [`State::Idle`]. § 1's statement cache is not here, which is
+//! why every statement costs the two round trips § 1 prices it at rather than
+//! the one a cache hit would.
+//!
+//! # A binary row is a null bitmap and then values of no stated width
+//!
+//! Nothing in a row packet says how long a value is. The width comes from the
+//! *column's declared type*, which arrived in the definition packets before the
+//! first row, so a row can only be read against the definitions it belongs to —
+//! and the fifth column can only be found by decoding the four before it. That
+//! is why [`MySqlRow`] is decoded whole where [`crate::PgRow`] slices lazily:
+//! the walk is unavoidable, so keeping what it produced is free.
+//!
+//! The bitmap comes first, one bit per column, and it is offset by two bits
+//! because the server writes it — `mysql_common`'s `ServerSide` is that offset,
+//! and the same structure written by a *client* in `COM_STMT_EXECUTE` has no
+//! offset at all. The two are not interchangeable and a driver that used one
+//! for the other reads every row shifted by two columns.
+//!
+//! [`column_type`] is the other half: § 9's type map, read off a column
+//! definition and never off a value. What it does *not* do is turn a value into
+//! a Novis one — that is the slice after this, on the boundary
+//! [`crate::PgColumn::decode`] already occupies for the other driver.
 //!
 //! [ADR 0132 § 2](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
 //! decides what is here and what is not. `mysql_common` frames every packet,
@@ -107,6 +125,7 @@ use std::cell::Cell;
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::BytesMut;
@@ -114,21 +133,23 @@ use mysql_common::auth::plugins::{
     AuthProc, ChallengeResponsePlugin, Context as AuthContextTrait, Response as AuthResponse,
 };
 use mysql_common::collations::CollationId;
-use mysql_common::constants::CapabilityFlags;
+use mysql_common::constants::{
+    CapabilityFlags, ColumnFlags, ColumnType as MyColumnType, StatusFlags,
+};
 use mysql_common::io::ParseBuf;
 use mysql_common::packets::{
     AuthMoreData, AuthPlugin, AuthSwitchRequest, Column, ComStmtExecuteRequestBuilder,
-    CommonOkPacket, ErrPacket, HandshakePacket, HandshakeResponse, LocalInfilePacket,
-    OkPacketDeserializer, SslRequest, StmtPacket,
+    CommonOkPacket, ErrPacket, HandshakePacket, HandshakeResponse, LocalInfilePacket, NullBitmap,
+    OkPacketDeserializer, ResultSetTerminator, SslRequest, StmtPacket,
 };
 use mysql_common::proto::codec::PacketCodec;
 use mysql_common::proto::codec::error::PacketCodecError;
 use mysql_common::proto::{MyDeserialize, MySerialize};
-use mysql_common::value::Value as MyValue;
+use mysql_common::value::{BinValue, ServerSide, Value as MyValue, ValueDeserializer};
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 
-use crate::conn::{MySqlConn, State};
+use crate::conn::{ColumnType, MySqlConn, State};
 
 /// MySQL's own port, which an absent `port` in a `[db.<name>]` block means.
 ///
@@ -880,6 +901,95 @@ pub(crate) fn read_columns<S: Read + Write>(
     Ok(columns)
 }
 
+/// The collation number MySQL gives every binary column, and the only thing
+/// that separates a `BLOB` from a `TEXT` or a `BINARY` from a `CHAR`.
+///
+/// MySQL types both members of each pair the same — `MYSQL_TYPE_BLOB`,
+/// `MYSQL_TYPE_STRING` — and puts the difference here, so
+/// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s split between `tainted
+/// string` and `tainted bytes` is read off the charset or it is not read at
+/// all. The number is protocol constant `binary`, fixed since 4.1.
+const BINARY_CHARSET: u16 = 63;
+
+/// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s type map, as the Novis
+/// type one MySQL column definition declares — what `Core\Db\Column::type`
+/// answers for this column.
+///
+/// **It describes the column and never a value**, which is the whole reason it
+/// reads no row: a column whose every row is `NULL` still has a type.
+/// [`crate::PgColumn::column_type`] is the same question on the other driver,
+/// and [`ColumnType`]'s own doc owns why describing a column and decoding one
+/// of its values are two functions rather than one.
+///
+/// Three of § 9's rows are decided by something other than the type byte, and
+/// each is a place where MySQL reuses one code for two column types:
+///
+/// - **`UNSIGNED` is a flag**, so `BIGINT` and `BIGINT UNSIGNED` are one type
+///   code and § 9's `uint` row is the flag rather than the code.
+/// - **`ENUM` and `SET` arrive as `MYSQL_TYPE_STRING`** with a flag, never as
+///   their own code, and § 9 sends them to different rows — `ENUM` is `tainted
+///   string`, `SET` is `array<string>` and so [`ColumnType::Other`].
+/// - **`BIT(1)` is a `bool` and `BIT(n>1)` is not**, and the width is in the
+///   column length; PostgreSQL draws the identical line off its type modifier.
+///
+/// `TINYINT(1)` is deliberately **not** `bool`. § 6 says so: MySQL has no
+/// boolean of its own, the display width is not a type, and a driver that
+/// guessed here would read one application's `0`/`1` flag as a `bool` and
+/// another's small integer as one too.
+pub(crate) fn column_type(column: &Column) -> ColumnType {
+    let flags = column.flags();
+    match column.column_type() {
+        MyColumnType::MYSQL_TYPE_TINY
+        | MyColumnType::MYSQL_TYPE_SHORT
+        | MyColumnType::MYSQL_TYPE_INT24
+        | MyColumnType::MYSQL_TYPE_LONG
+        | MyColumnType::MYSQL_TYPE_LONGLONG
+        | MyColumnType::MYSQL_TYPE_YEAR => {
+            if flags.contains(ColumnFlags::UNSIGNED_FLAG) {
+                ColumnType::Uint
+            } else {
+                ColumnType::Int
+            }
+        }
+        MyColumnType::MYSQL_TYPE_DECIMAL | MyColumnType::MYSQL_TYPE_NEWDECIMAL => {
+            ColumnType::Decimal
+        }
+        MyColumnType::MYSQL_TYPE_FLOAT | MyColumnType::MYSQL_TYPE_DOUBLE => ColumnType::Float,
+        MyColumnType::MYSQL_TYPE_BIT if column.column_length() == 1 => ColumnType::Bool,
+        MyColumnType::MYSQL_TYPE_DATE | MyColumnType::MYSQL_TYPE_NEWDATE => ColumnType::Date,
+        MyColumnType::MYSQL_TYPE_TIME | MyColumnType::MYSQL_TYPE_TIME2 => ColumnType::Time,
+        // § 9's zone-less row, and MySQL's `TIMESTAMP` is in it: the column
+        // stores no offset, so what makes it a point in time is the zone
+        // `set_session_time_zone` declared rather than anything on the wire.
+        MyColumnType::MYSQL_TYPE_DATETIME
+        | MyColumnType::MYSQL_TYPE_DATETIME2
+        | MyColumnType::MYSQL_TYPE_TIMESTAMP
+        | MyColumnType::MYSQL_TYPE_TIMESTAMP2 => ColumnType::DateTime,
+        MyColumnType::MYSQL_TYPE_JSON => ColumnType::Json,
+        // Both flags ride on a string type code, so they are asked before the
+        // text family below and after everything that cannot carry them.
+        _ if flags.contains(ColumnFlags::SET_FLAG) => ColumnType::Other,
+        _ if flags.contains(ColumnFlags::ENUM_FLAG) => ColumnType::Text,
+        MyColumnType::MYSQL_TYPE_VARCHAR
+        | MyColumnType::MYSQL_TYPE_VAR_STRING
+        | MyColumnType::MYSQL_TYPE_STRING
+        | MyColumnType::MYSQL_TYPE_TINY_BLOB
+        | MyColumnType::MYSQL_TYPE_MEDIUM_BLOB
+        | MyColumnType::MYSQL_TYPE_LONG_BLOB
+        | MyColumnType::MYSQL_TYPE_BLOB => {
+            if column.character_set() == BINARY_CHARSET {
+                ColumnType::Bytes
+            } else {
+                ColumnType::Text
+            }
+        }
+        // § 9's last row: `BIT(n>1)`, `GEOMETRY`, a vector, and every code this
+        // driver has never heard of. `Other` is a true answer rather than a
+        // failure — the value still reads as a `tainted string`.
+        _ => ColumnType::Other,
+    }
+}
+
 /// Sends ADR 0067 § 9's declared zone as a session variable.
 ///
 /// A numeric offset and never a zone name, because a name needs the
@@ -994,11 +1104,10 @@ impl MySqlConn {
     /// reached through a real socket and a real certificate and so cannot be
     /// unit-tested at all.
     ///
-    /// The columns come back as `mysql_common`'s own [`Column`] rather than
-    /// anything of this project's. That is deliberate and is the boundary
-    /// between this slice and the next: § 9's type map is read off a column's
-    /// declared type and flags, and choosing the Novis type for each is the row
-    /// decoder's decision, not this function's.
+    /// The result borrows the connection until it ends, which is
+    /// [`MySqlRows`]' whole point: ADR 0067 § 4's one-statement-at-a-time rule
+    /// is not a check this method performs but a borrow the caller cannot get
+    /// around.
     ///
     /// # Errors
     ///
@@ -1007,7 +1116,7 @@ impl MySqlConn {
         &mut self,
         sql: &str,
         params: &[Option<&[u8]>],
-    ) -> io::Result<(Answer, Vec<Column>)> {
+    ) -> io::Result<MySqlRows<'_, NvsTls<NvsTcp>>> {
         start_statement(&mut self.wire, &self.state, self.capabilities, sql, params)
     }
 
@@ -1227,13 +1336,13 @@ pub(crate) fn execute<S: Read + Write>(
 /// for [`execute`]'s parameter-count mismatch; otherwise as [`read_answer`]. A
 /// write that failed part-way leaves the connection [`State::Poisoned`],
 /// because a half-written packet is not a boundary anything can be found from.
-pub(crate) fn start_statement<S: Read + Write>(
-    wire: &mut Wire<S>,
-    state: &Cell<State>,
+pub(crate) fn start_statement<'a, S: Read + Write>(
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
     capabilities: CapabilityFlags,
     sql: &str,
     params: &[Option<&[u8]>],
-) -> io::Result<(Answer, Vec<Column>)> {
+) -> io::Result<MySqlRows<'a, S>> {
     if !state.get().may_start_statement() {
         return Err(crate::pg::second_statement(state));
     }
@@ -1249,17 +1358,323 @@ pub(crate) fn start_statement<S: Read + Write>(
     };
 
     match answer {
-        Answer::Done { .. } => {
+        Answer::Done { affected, last_id } => {
             state.set(State::Idle);
-            Ok((answer, Vec::new()))
+            Ok(MySqlRows {
+                wire,
+                state,
+                capabilities,
+                columns: Arc::from(Vec::new()),
+                rows: 0,
+                affected,
+                last_id,
+                ended: true,
+            })
         }
         Answer::Columns(count) => match read_columns(wire, count) {
             Ok(columns) => {
                 state.set(State::Streaming);
-                Ok((answer, columns))
+                Ok(MySqlRows {
+                    wire,
+                    state,
+                    capabilities,
+                    columns: Arc::from(columns),
+                    rows: 0,
+                    affected: 0,
+                    last_id: 0,
+                    ended: false,
+                })
             }
             Err(e) => Err(poison_on_write(state, e)),
         },
+    }
+}
+
+/// One row, already decoded out of the packet the wire framed it from.
+///
+/// **Eager where [`crate::PgRow`] is lazy, and the protocol is what decides
+/// that.** PostgreSQL's `DataRow` is a run of length-prefixed bodies, so a
+/// column can be sliced out by walking the prefixes and nothing has to be
+/// parsed to reach the next one. A binary row has no such prefix: a value's
+/// width comes from its *column's declared type*, so finding column five means
+/// decoding columns zero to four. Once that walk is unavoidable, keeping the
+/// results is free and re-walking per column is what would cost.
+///
+/// The values are `mysql_common`'s own [`MyValue`], which is
+/// [ADR 0132 § 2](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)'s
+/// borrowed codec answering in its own vocabulary. Turning one into the Novis
+/// value [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s table names is the
+/// slice after this one — the same boundary [`crate::PgColumn::decode`] sits on
+/// for the other driver, and the reason [`column_type`] is here while no
+/// `decode` is.
+pub struct MySqlRow {
+    values: Vec<MyValue>,
+}
+
+impl std::fmt::Debug for MySqlRow {
+    /// How many columns, and none of their values: a row in flight is one
+    /// request's data — the rule [`Wire`]'s own rendering follows.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MySqlRow")
+            .field("columns", &self.values.len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl MySqlRow {
+    /// How many columns this row has, which is the result set's column count.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    /// Whether the row has no columns at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    /// Column `index`'s value, or `None` where the row has no such column.
+    ///
+    /// SQL `NULL` is [`MyValue::NULL`] and not this `None`: the two are
+    /// different facts — a column that was null, and a column that was never
+    /// described — and § 9's `?T` is only the first of them.
+    #[must_use]
+    pub fn value(&self, index: usize) -> Option<&MyValue> {
+        self.values.get(index)
+    }
+}
+
+/// Decodes one binary row packet against the definitions it belongs to.
+///
+/// The walk `mysql_common`'s own `RowDeserializer` performs, written out here
+/// for one reason: **that deserializer cannot represent § 9's `uint` row.** Its
+/// integer path reads the right width and the right signedness and then packs
+/// every result into `Value::Int(x as i64)`, so a `BIGINT UNSIGNED` past
+/// `i64::MAX` — the half of that range § 9 names `uint` precisely because PHP
+/// loses it to a float — comes back negative. The bits survive the cast, so the
+/// fix is to put them back under the type the column declared, and doing it
+/// here is what keeps [`MySqlRows::column_type`] and [`MySqlRow::value`]
+/// agreeing: a column that describes as `uint` yields a `UInt`, with no
+/// reinterpretation left for a caller to remember.
+///
+/// # Errors
+///
+/// `InvalidData` for a row whose bitmap or values do not add up against the
+/// definitions — a packet that is not the row those columns describe.
+fn decode_row(columns: &[Column], packet: &[u8]) -> io::Result<MySqlRow> {
+    let mut buf = ParseBuf(packet);
+    // The `0x00` that said this is a row rather than the end of the stream.
+    buf.checked_eat_u8();
+    let bitmap =
+        NullBitmap::<ServerSide, std::borrow::Cow<'_, [u8]>>::deserialize(columns.len(), &mut buf)?;
+
+    let mut values = Vec::with_capacity(columns.len());
+    for (index, column) in columns.iter().enumerate() {
+        if bitmap.is_null(index) {
+            values.push(MyValue::NULL);
+            continue;
+        }
+        let value = ValueDeserializer::<BinValue>::deserialize(
+            (column.column_type(), column.flags()),
+            &mut buf,
+        )?
+        .0;
+        values.push(match value {
+            MyValue::Int(bits) if column_type(column) == ColumnType::Uint => {
+                MyValue::UInt(bits.cast_unsigned())
+            }
+            other => other,
+        });
+    }
+    Ok(MySqlRow { values })
+}
+
+/// A statement's result, and the rows still to come out of it.
+///
+/// [`crate::PgRows`]' shape, and it is the same borrow for the same reason: the
+/// handle holds the wire and the busy state, so the connection is unusable for
+/// anything else until the stream ends — which is ADR 0067 § 4's
+/// one-statement-at-a-time rule enforced by the type system rather than by a
+/// check every caller has to remember.
+///
+/// A statement with no result set answers one of these too, already ended: its
+/// [`Self::next_row`] is `None` on the first call and [`Self::affected`] is the
+/// number the server's status packet carried.
+pub struct MySqlRows<'a, S: Read + Write = NvsTls<NvsTcp>> {
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    capabilities: CapabilityFlags,
+    /// Shared rather than borrowed because `mysql_common`'s binary row
+    /// deserializer takes exactly this: an `Arc<[Column]>` per row, which is a
+    /// refcount bump and not a copy of the definitions.
+    columns: Arc<[Column]>,
+    rows: u64,
+    affected: u64,
+    last_id: u64,
+    ended: bool,
+}
+
+impl<S: Read + Write> std::fmt::Debug for MySqlRows<'_, S> {
+    /// The shape of the result and where the wire is, and nothing that arrived.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MySqlRows")
+            .field("columns", &self.columns.len())
+            .field("state", &self.state.get())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<S: Read + Write> MySqlRows<'_, S> {
+    /// The result set's column definitions, empty for a statement that returns
+    /// none.
+    #[must_use]
+    pub fn columns(&self) -> &[Column] {
+        &self.columns
+    }
+
+    /// Column `index`'s Novis type, per [`column_type`], or `None` where the
+    /// result set has no such column.
+    #[must_use]
+    pub fn column_type(&self, index: usize) -> Option<ColumnType> {
+        self.columns.get(index).map(column_type)
+    }
+
+    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s affected-row count,
+    /// once the stream has ended, and `None` while rows may still arrive.
+    ///
+    /// Two numbers under one name, and which one it is follows the statement:
+    /// for a statement with no result set it is what the server's status packet
+    /// said it changed, and for one with a result set it is how many rows came
+    /// back. PostgreSQL's `SELECT 2` tag says the second of those, so the two
+    /// drivers agree on what `affected` means for a `SELECT` without either of
+    /// them inventing a count.
+    #[must_use]
+    pub fn affected(&self) -> Option<u64> {
+        self.ended.then_some(self.affected)
+    }
+
+    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s `lastId` — the
+    /// `AUTO_INCREMENT` value this statement generated, `0` for none — once the
+    /// stream has ended.
+    ///
+    /// MySQL puts it in the status packet, so unlike PostgreSQL it belongs to
+    /// the write that produced it with no `RETURNING` clause to ask for. A
+    /// statement that returned a result set has none, and answers `0`.
+    #[must_use]
+    pub fn last_id(&self) -> Option<u64> {
+        self.ended.then_some(self.last_id)
+    }
+
+    /// The next row, or `None` once the stream has ended.
+    ///
+    /// **The first byte says which of three things arrived, with no ambiguity
+    /// to weigh**, unlike [`read_answer`]'s four shapes: a binary row always
+    /// opens `0x00`, the terminator is the `0xFE` status packet
+    /// `CLIENT_DEPRECATE_EOF` promises instead of an EOF packet, and `0xFF` is
+    /// the server's own error. A length is not read here because none is needed
+    /// — the collision `read_answer` reads one for is between a status packet
+    /// and a column count, and neither of those can be at this point in the
+    /// stream.
+    ///
+    /// Ending the stream is what returns the connection to [`State::Idle`].
+    /// Deliberately not `Iterator::next`, for [`crate::PgRows::next_row`]'s
+    /// reason: every call can fail, and an `Option` would have to swallow it.
+    ///
+    /// # Errors
+    ///
+    /// The server's own error, which still ends the stream cleanly and leaves
+    /// the connection idle; `InvalidData` for a packet the protocol does not
+    /// allow here, or for a second result set, which poison it; and whatever
+    /// the stream reported.
+    pub fn next_row(&mut self) -> io::Result<Option<MySqlRow>> {
+        // The state is the only bookkeeping: anything that ended this stream —
+        // a terminator, a server error, a poisoning — has already left it.
+        if self.state.get() != State::Streaming {
+            return Ok(None);
+        }
+
+        let packet = match self.wire.read_packet() {
+            Ok(packet) => packet,
+            Err(e) => return Err(poison_on_write(self.state, e)),
+        };
+        match packet.first() {
+            Some(0x00) => {
+                let row = decode_row(&self.columns, &packet)
+                    .map_err(|e| poison_on_write(self.state, e))?;
+                self.rows += 1;
+                Ok(Some(row))
+            }
+            Some(0xFE) => {
+                let terminator = OkPacketDeserializer::<ResultSetTerminator>::deserialize(
+                    self.capabilities,
+                    &mut ParseBuf(&packet),
+                )
+                .map_err(|e| poison_on_write(self.state, e))?
+                .into_inner();
+                self.ended = true;
+                self.affected = self.rows;
+                if terminator
+                    .status_flags()
+                    .contains(StatusFlags::SERVER_MORE_RESULTS_EXISTS)
+                {
+                    // A stored procedure's second result set. There is no
+                    // reader here to drain it with and no surface in ADR 0067
+                    // § 4 to hand it to, and walking away from packets that are
+                    // still coming is what leaves the wire pointing into the
+                    // middle of one — [`read_ok`] refuses the same thing for
+                    // the same reason.
+                    return Err(poison_on_write(
+                        self.state,
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "the server has a second result set for this statement, and ADR \
+                             0067 § 4's one-statement-at-a-time surface has nowhere to put it",
+                        ),
+                    ));
+                }
+                self.state.set(State::Idle);
+                Ok(None)
+            }
+            Some(0xFF) => {
+                // A refused statement is still a statement that ran, and the
+                // error packet arrived whole: the wire is at a boundary, so
+                // `poison_on_write` leaves the connection idle rather than
+                // poisoned.
+                self.ended = true;
+                self.affected = self.rows;
+                Err(poison_on_write(
+                    self.state,
+                    server_refusal(&packet, self.capabilities),
+                ))
+            }
+            _ => Err(poison_on_write(
+                self.state,
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "the server sent something that is neither a binary row, the end of a \
+                     result set, nor an error",
+                ),
+            )),
+        }
+    }
+}
+
+impl<S: Read + Write> Drop for MySqlRows<'_, S> {
+    /// Abandonment, and it is the ordinary case rather than an error.
+    ///
+    /// The rows are coming whether or not anybody reads them, so draining to
+    /// the terminator is what returns the connection to the pool instead of
+    /// closing it — [`crate::PgRows`]' `Drop` and ADR 0132 § 4's rule for both.
+    /// A read that fails on the way poisons the connection through the same
+    /// helper every other read here uses, and the loop ends because that
+    /// leaves [`State::Streaming`].
+    fn drop(&mut self) {
+        while self.state.get() == State::Streaming {
+            if self.next_row().is_err() {
+                break;
+            }
+        }
     }
 }
 
@@ -1297,11 +1712,12 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        Answer, AuthContext, CLIENT_CAPABILITIES, COLLATION, Greeting, MySqlTarget, Prepared,
-        State, Wire, authenticate, execute, offset_literal, read_greeting, read_ok, request_tls,
-        start_statement,
+        AuthContext, CLIENT_CAPABILITIES, COLLATION, Greeting, MySqlTarget, MyValue, Prepared,
+        State, Wire, authenticate, column_type, execute, offset_literal, read_greeting, read_ok,
+        request_tls, start_statement,
     };
-    use mysql_common::constants::{CapabilityFlags, ColumnType, StatusFlags};
+    use crate::conn::ColumnType as NovisType;
+    use mysql_common::constants::{CapabilityFlags, ColumnFlags, ColumnType, StatusFlags};
     use mysql_common::packets::{Column, ComStmtExecuteRequestBuilder, HandshakePacket};
     use mysql_common::proto::MySerialize;
     use std::cell::Cell;
@@ -1701,21 +2117,67 @@ mod tests {
         body
     }
 
-    /// One column definition, as `mysql_common` writes them, so the reader is
-    /// asked to parse the very bytes a server sends rather than a shape this
-    /// test invented.
-    fn column_def(name: &str) -> Vec<u8> {
+    /// One column definition, in the order a server writes the fields.
+    ///
+    /// **Built by hand, and `Column::serialize` is deliberately not used**:
+    /// `mysql_common` 0.38.2 writes `column_length` before `character_set` and
+    /// reads them back the other way round, so a definition it serialized comes
+    /// back with those two fields swapped. Its *reader* is the one that agrees
+    /// with the protocol — charset first — and it is the reader this driver
+    /// runs against a real server, so a test that used the writer would be
+    /// pinning the bug rather than the wire. § 9's split between `tainted
+    /// string` and `tainted bytes` is read off the charset, which is exactly
+    /// the field the swap corrupts.
+    fn typed_column_def(
+        name: &str,
+        ty: ColumnType,
+        flags: ColumnFlags,
+        charset: u16,
+        length: u32,
+    ) -> Vec<u8> {
         let mut body = Vec::new();
-        Column::new(ColumnType::MYSQL_TYPE_VAR_STRING)
-            .with_name(name.as_bytes())
-            .serialize(&mut body);
+        // Catalog, schema, table, org_table, name, org_name — each a
+        // length-encoded string, and only two of them carry anything.
+        for field in [b"def".as_slice(), b"", b"", b"", name.as_bytes(), b""] {
+            body.push(u8::try_from(field.len()).expect("a field short enough to be one byte"));
+            body.extend_from_slice(field);
+        }
+        body.push(0x0c);
+        body.extend_from_slice(&charset.to_le_bytes());
+        body.extend_from_slice(&length.to_le_bytes());
+        body.push(ty as u8);
+        body.extend_from_slice(&flags.bits().to_le_bytes());
+        // Decimals, then the two filler bytes.
+        body.extend_from_slice(&[0, 0, 0]);
         body
+    }
+
+    /// A text column under a name, for the cases that only care that the
+    /// definition packets were counted and read past.
+    fn column_def(name: &str) -> Vec<u8> {
+        typed_column_def(
+            name,
+            ColumnType::MYSQL_TYPE_VAR_STRING,
+            ColumnFlags::empty(),
+            255,
+            255,
+        )
     }
 
     /// An `OK` packet: the header, two length-encoded numbers, the status word
     /// and the warning count.
     fn ok_packet(affected: u8, last_id: u8) -> Vec<u8> {
         vec![0x00, affected, last_id, 0x02, 0x00, 0x00, 0x00]
+    }
+
+    /// The packet that ends a result set on a connection that negotiated
+    /// `CLIENT_DEPRECATE_EOF`: an `OK` packet under a `0xFE` header, whose two
+    /// length-encoded numbers the protocol says to skip rather than read.
+    fn result_set_end(status: u16) -> Vec<u8> {
+        let mut body = vec![0xFE, 0x00, 0x00];
+        body.extend_from_slice(&status.to_le_bytes());
+        body.extend_from_slice(&0_u16.to_le_bytes());
+        body
     }
 
     /// ADR 0067 § 1's two round trips, and its no-emulated-prepares rule
@@ -1754,31 +2216,34 @@ mod tests {
         }));
         let state = Cell::new(State::Idle);
 
-        let (answer, columns) = start_statement(
-            &mut wire,
-            &state,
-            CLIENT_CAPABILITIES,
-            SQL,
-            &[Some(INJECTION)],
-        )
-        .expect("a prepare and an execution the server answered");
+        {
+            let mut rows = start_statement(
+                &mut wire,
+                &state,
+                CLIENT_CAPABILITIES,
+                SQL,
+                &[Some(INJECTION)],
+            )
+            .expect("a prepare and an execution the server answered");
 
-        assert_eq!(
-            answer,
-            Answer::Done {
-                affected: 1,
-                last_id: 7
-            }
-        );
-        assert!(
-            columns.is_empty(),
-            "a statement with no result set has none"
-        );
-        assert_eq!(
-            state.get(),
-            State::Idle,
-            "a statement with nothing left to read leaves the connection reusable"
-        );
+            assert_eq!(rows.affected(), Some(1));
+            assert_eq!(rows.last_id(), Some(7));
+            assert!(
+                rows.columns().is_empty(),
+                "a statement with no result set has none"
+            );
+            assert!(
+                rows.next_row()
+                    .expect("a stream that ended before it began")
+                    .is_none(),
+                "a statement with no result set has no row to read either"
+            );
+            assert_eq!(
+                state.get(),
+                State::Idle,
+                "a statement with nothing left to read leaves the connection reusable"
+            );
+        }
 
         let sent = &wire.peer().sent;
         assert_eq!(
@@ -1798,74 +2263,450 @@ mod tests {
         );
     }
 
-    /// The other answer `COM_STMT_EXECUTE` can give, and the boundary it stops
-    /// at: the column definitions are read because their count is known, and
-    /// the first row packet is not, because nothing here knows how many there
-    /// are.
+    /// A result set that a server answers three definitions and one row of,
+    /// read to the terminator that gives the connection back.
     ///
-    /// ADR 0067 § 4's one-statement-at-a-time rule is asserted on both sides in
-    /// the same case: idle before, refused after, and it is the *unread result
-    /// set* that is the difference rather than anything about the second
-    /// statement.
+    /// **Three claims meet in the one row, and each fails differently.** The
+    /// null bitmap is offset by two bits because a *server* wrote it, so a
+    /// driver that used the client-side offset reads the wrong column as
+    /// absent. A value states no width, so `name` can only be found by having
+    /// decoded `id` at the width its column declared. And § 9's `uint` row is
+    /// an `UNSIGNED` flag on an ordinary `BIGINT` rather than a type code of
+    /// its own, so a driver reading the code alone answers `int` and overflows
+    /// on the half of that range PHP hands back as a float.
+    ///
+    /// The result set's own definitions are the ones the row is read against,
+    /// not the prepare's: the server sends both, and the prepare's are read and
+    /// dropped, which is why this case names its columns differently in each.
     #[test]
-    fn a_result_set_answers_a_column_count_and_stops_at_the_first_row() {
+    fn a_binary_row_decodes_its_null_bitmap_and_each_value_at_its_columns_type() {
         let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
             Some(0x16) => {
-                // Two column definitions, because the prepare said the result
-                // set has two. They are read and dropped: what the rows are
-                // decoded against is the *execution's* set, below.
-                let mut out = packet(1, &prepare_ok(3, 2, 0));
-                out.extend_from_slice(&packet(2, &column_def("id")));
-                out.extend_from_slice(&packet(3, &column_def("name")));
+                let mut out = packet(1, &prepare_ok(3, 3, 0));
+                out.extend_from_slice(&packet(2, &column_def("dropped")));
+                out.extend_from_slice(&packet(3, &column_def("also")));
+                out.extend_from_slice(&packet(4, &column_def("dropped-too")));
                 out
             }
             Some(0x17) => {
-                let mut out = packet(1, &[0x02]);
-                out.extend_from_slice(&packet(2, &column_def("id")));
-                out.extend_from_slice(&packet(3, &column_def("name")));
-                // A row the driver must not have read: if it had, the packet
-                // stream would be past it and the next test's boundary claim
-                // would be about nothing.
-                out.extend_from_slice(&packet(4, &[0x00, 0x00, 0x01, b'x']));
+                let mut out = packet(1, &[0x03]);
+                out.extend_from_slice(&packet(
+                    2,
+                    &typed_column_def(
+                        "id",
+                        ColumnType::MYSQL_TYPE_LONGLONG,
+                        ColumnFlags::UNSIGNED_FLAG,
+                        super::BINARY_CHARSET,
+                        20,
+                    ),
+                ));
+                out.extend_from_slice(&packet(
+                    3,
+                    &typed_column_def(
+                        "name",
+                        ColumnType::MYSQL_TYPE_VAR_STRING,
+                        ColumnFlags::empty(),
+                        255,
+                        255,
+                    ),
+                ));
+                out.extend_from_slice(&packet(
+                    4,
+                    &typed_column_def(
+                        "note",
+                        ColumnType::MYSQL_TYPE_BLOB,
+                        ColumnFlags::empty(),
+                        super::BINARY_CHARSET,
+                        65535,
+                    ),
+                ));
+                // The row: the `0x00` header, a bitmap whose only set bit is
+                // the third column's — bit `2 + 2`, the server-side offset —
+                // then eight little-endian bytes and a length-encoded string.
+                let mut row = vec![0x00, 0b0001_0000];
+                row.extend_from_slice(&42_u64.to_le_bytes());
+                row.extend_from_slice(&[0x03, b'a', b'd', b'a']);
+                out.extend_from_slice(&packet(5, &row));
+                out.extend_from_slice(&packet(6, &result_set_end(0x0002)));
                 out
             }
             other => panic!("the driver sent command {other:?}"),
         }));
         let state = Cell::new(State::Idle);
 
-        let (answer, columns) = start_statement(
-            &mut wire,
-            &state,
-            CLIENT_CAPABILITIES,
-            "SELECT id, name",
-            &[],
-        )
-        .expect("a result set the server described");
+        {
+            let mut rows = start_statement(
+                &mut wire,
+                &state,
+                CLIENT_CAPABILITIES,
+                "SELECT id, name, note",
+                &[],
+            )
+            .expect("a result set the server described");
 
-        assert_eq!(answer, Answer::Columns(2));
-        let named: Vec<String> = columns
-            .iter()
-            .map(|column| column.name_str().into_owned())
-            .collect();
-        assert_eq!(named, ["id", "name"]);
+            let named: Vec<String> = rows
+                .columns()
+                .iter()
+                .map(|column| column.name_str().into_owned())
+                .collect();
+            assert_eq!(named, ["id", "name", "note"]);
+            assert_eq!(
+                state.get(),
+                State::Streaming,
+                "rows remain unread, which is the state § 4 refuses a second statement in"
+            );
+            assert_eq!(
+                rows.affected(),
+                None,
+                "a stream that has not ended has no count"
+            );
+
+            assert_eq!(rows.column_type(0), Some(NovisType::Uint));
+            assert_eq!(rows.column_type(1), Some(NovisType::Text));
+            assert_eq!(rows.column_type(2), Some(NovisType::Bytes));
+            assert_eq!(
+                rows.column_type(3),
+                None,
+                "the result set has three columns"
+            );
+
+            let row = rows
+                .next_row()
+                .expect("a row the server sent")
+                .expect("a row, not the end of the stream");
+            assert_eq!(row.len(), 3);
+            assert_eq!(
+                row.value(0),
+                Some(&MyValue::UInt(42)),
+                "an `UNSIGNED BIGINT` is § 9's `uint` row, and the flag is what says so"
+            );
+            assert_eq!(row.value(1), Some(&MyValue::Bytes(b"ada".to_vec())));
+            assert_eq!(
+                row.value(2),
+                Some(&MyValue::NULL),
+                "the bitmap's set bit is the third column's, not the first's"
+            );
+
+            assert!(
+                rows.next_row().expect("the terminator").is_none(),
+                "one row and then the end of the stream"
+            );
+            assert_eq!(
+                state.get(),
+                State::Idle,
+                "the terminator is what gives the connection back"
+            );
+            assert_eq!(rows.affected(), Some(1), "one row came back");
+            assert_eq!(rows.last_id(), Some(0), "a `SELECT` generated no key");
+        }
+
         assert_eq!(
-            state.get(),
-            State::Streaming,
-            "rows remain unread, which is the state § 4 refuses a second statement in"
+            wire.peer().sent.len(),
+            2,
+            "reading a result set costs no round trip of its own: the rows were \
+             already coming"
         );
+    }
+
+    /// The bound § 9's `uint` row exists for, asserted on both sides of it.
+    ///
+    /// `i64::MAX` and `i64::MAX + 1` are the last `BIGINT UNSIGNED` an `int`
+    /// could have carried and the first it could not. Either alone reads
+    /// plausibly — the low one is the same number under either type — and it is
+    /// the pair that fails a driver which packs an unsigned column into a
+    /// signed value, because the second comes back as `-9223372036854775808`.
+    ///
+    /// That is what `mysql_common`'s own row deserializer does, which is why
+    /// [`super::decode_row`] is written out rather than delegated, and this
+    /// case is the reason to keep it that way.
+    #[test]
+    fn a_bigint_unsigned_past_i64s_range_is_a_uint_and_not_a_negative_int() {
+        let last = i64::MAX.cast_unsigned();
+        let first = last + 1;
+
+        let mut wire = Wire::new(Peer::new(move |sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(1, 1, 0));
+                out.extend_from_slice(&packet(2, &column_def("n")));
+                out
+            }
+            Some(0x17) => {
+                let mut out = packet(1, &[0x01]);
+                out.extend_from_slice(&packet(
+                    2,
+                    &typed_column_def(
+                        "n",
+                        ColumnType::MYSQL_TYPE_LONGLONG,
+                        ColumnFlags::UNSIGNED_FLAG,
+                        super::BINARY_CHARSET,
+                        20,
+                    ),
+                ));
+                for (seq, value) in [last, first].iter().enumerate() {
+                    let mut row = vec![0x00, 0x00];
+                    row.extend_from_slice(&value.to_le_bytes());
+                    out.extend_from_slice(&packet(u8::try_from(seq).expect("two rows") + 3, &row));
+                }
+                out.extend_from_slice(&packet(5, &result_set_end(0x0002)));
+                out
+            }
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+
+        let mut rows = start_statement(&mut wire, &state, CLIENT_CAPABILITIES, "SELECT n", &[])
+            .expect("a result set the server described");
+
+        let mut read = Vec::new();
+        while let Some(row) = rows.next_row().expect("a row or the end of the stream") {
+            read.push(row.value(0).cloned().expect("a row of one column"));
+        }
+
+        assert_eq!(
+            read,
+            [MyValue::UInt(last), MyValue::UInt(first)],
+            "the first of these is past `i64::MAX`, and a driver that packed it into \
+             an `int` answers a negative number for a column § 9 makes a `uint`"
+        );
+    }
+
+    /// ADR 0067 § 4's one-statement-at-a-time rule, on the state alone.
+    ///
+    /// It is asked here rather than beside a live result set because the borrow
+    /// `MySqlRows` holds is what makes the second call unwritable in the
+    /// first place, and a case that cannot be written is not a case that proves
+    /// anything. What is left to pin is the other door: a connection whose
+    /// state says `Streaming` refuses, and refuses **before** writing, so a
+    /// busy connection never carries half a second command.
+    #[test]
+    fn a_second_statement_over_an_unread_result_set_is_refused_before_a_byte() {
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| {
+            panic!("the driver wrote {sent:?} to a connection that is already busy")
+        }));
+        let state = Cell::new(State::Streaming);
 
         let refused = start_statement(&mut wire, &state, CLIENT_CAPABILITIES, "SELECT 1", &[])
             .expect_err("a second statement over an unread result set — ADR 0067 § 4");
+
         assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
         assert!(
             refused.to_string().contains("one at a time"),
             "the refusal is the one sentence `crate::pg` words for both drivers: {refused}"
         );
+        assert!(wire.peer().sent.is_empty());
+    }
+
+    /// A result set nobody read, dropped — and the connection comes back
+    /// anyway.
+    ///
+    /// This is the ordinary case rather than an error: the rows are already on
+    /// their way, so draining to the terminator is deterministic and is what
+    /// lets § 13's pool take the connection instead of closing it. A driver
+    /// that walked away would leave the next statement reading this one's rows.
+    #[test]
+    fn an_abandoned_result_set_is_drained_and_the_connection_comes_back() {
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(7, 1, 0));
+                out.extend_from_slice(&packet(2, &column_def("v")));
+                out
+            }
+            Some(0x17) => {
+                let mut out = packet(1, &[0x01]);
+                out.extend_from_slice(&packet(2, &column_def("v")));
+                out.extend_from_slice(&packet(3, &[0x00, 0x00, 0x01, b'a']));
+                out.extend_from_slice(&packet(4, &[0x00, 0x00, 0x01, b'b']));
+                out.extend_from_slice(&packet(5, &result_set_end(0x0002)));
+                out
+            }
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+
+        drop(
+            start_statement(&mut wire, &state, CLIENT_CAPABILITIES, "SELECT v", &[])
+                .expect("a result set the server described"),
+        );
+
         assert_eq!(
-            wire.peer().sent.len(),
-            2,
-            "the refused statement wrote nothing — a connection that is busy is not \
-             one a second command may be half-written to"
+            state.get(),
+            State::Idle,
+            "two unread rows and a terminator were drained, so the connection is \
+             reusable rather than destroyed"
+        );
+    }
+
+    /// ADR 0067 § 9's type map, as the whole table rather than a row of it.
+    ///
+    /// Counted rather than read off a line, because a map answering plausibly
+    /// column by column is exactly what a per-case assertion cannot catch. Four
+    /// pairs in here are the ones a driver gets wrong by reading the type code
+    /// alone: signed against unsigned, `BIT(1)` against `BIT(8)`, `ENUM`
+    /// against `SET` — which share a code and differ only by a flag — and text
+    /// against binary, which share a code and differ only by the collation.
+    ///
+    /// `TINYINT(1)` is in here as `int`. § 6 is explicit that MySQL's display
+    /// width is not a type, and a driver that read it as `bool` would answer
+    /// one application's flag column correctly and another's small integer
+    /// wrongly, with nothing on the wire to tell them apart.
+    #[test]
+    fn section_nines_type_map_is_read_off_a_column_definition_and_never_a_value() {
+        let binary = super::BINARY_CHARSET;
+        let utf8 = 255_u16;
+        let cases: [(ColumnType, ColumnFlags, u16, u32, NovisType); 19] = [
+            (
+                ColumnType::MYSQL_TYPE_TINY,
+                ColumnFlags::empty(),
+                utf8,
+                1,
+                NovisType::Int,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_LONG,
+                ColumnFlags::empty(),
+                utf8,
+                11,
+                NovisType::Int,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_LONGLONG,
+                ColumnFlags::empty(),
+                utf8,
+                20,
+                NovisType::Int,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_LONGLONG,
+                ColumnFlags::UNSIGNED_FLAG,
+                utf8,
+                20,
+                NovisType::Uint,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_YEAR,
+                ColumnFlags::UNSIGNED_FLAG,
+                utf8,
+                4,
+                NovisType::Uint,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_NEWDECIMAL,
+                ColumnFlags::empty(),
+                utf8,
+                12,
+                NovisType::Decimal,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_FLOAT,
+                ColumnFlags::empty(),
+                binary,
+                12,
+                NovisType::Float,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_DOUBLE,
+                ColumnFlags::empty(),
+                binary,
+                22,
+                NovisType::Float,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_BIT,
+                ColumnFlags::empty(),
+                binary,
+                1,
+                NovisType::Bool,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_BIT,
+                ColumnFlags::empty(),
+                binary,
+                8,
+                NovisType::Other,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_DATE,
+                ColumnFlags::empty(),
+                binary,
+                10,
+                NovisType::Date,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_TIME,
+                ColumnFlags::empty(),
+                binary,
+                10,
+                NovisType::Time,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_DATETIME,
+                ColumnFlags::empty(),
+                binary,
+                19,
+                NovisType::DateTime,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_TIMESTAMP,
+                ColumnFlags::empty(),
+                binary,
+                19,
+                NovisType::DateTime,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_JSON,
+                ColumnFlags::empty(),
+                binary,
+                4096,
+                NovisType::Json,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_STRING,
+                ColumnFlags::ENUM_FLAG,
+                utf8,
+                12,
+                NovisType::Text,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_STRING,
+                ColumnFlags::SET_FLAG,
+                utf8,
+                12,
+                NovisType::Other,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_BLOB,
+                ColumnFlags::empty(),
+                utf8,
+                65535,
+                NovisType::Text,
+            ),
+            (
+                ColumnType::MYSQL_TYPE_BLOB,
+                ColumnFlags::empty(),
+                binary,
+                65535,
+                NovisType::Bytes,
+            ),
+        ];
+
+        let disagreed: Vec<String> = cases
+            .iter()
+            .filter_map(|(ty, flags, charset, length, novis)| {
+                let column = Column::new(*ty)
+                    .with_name(b"c")
+                    .with_flags(*flags)
+                    .with_character_set(*charset)
+                    .with_column_length(*length);
+                let read = column_type(&column);
+                (read != *novis)
+                    .then(|| format!("{ty:?}({length}) read as {read:?}, not {novis:?}"))
+            })
+            .collect();
+
+        assert!(
+            disagreed.is_empty(),
+            "every row of § 9's table, and the four pairs in it that share a type code \
+             differ only by a flag, a width or a collation: {disagreed:?}"
         );
     }
 

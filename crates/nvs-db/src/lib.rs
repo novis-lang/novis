@@ -156,7 +156,7 @@ pub use conn::{
     ColumnType, Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn, PgConn,
     ServerError, SqliteConn, State, TdsConn,
 };
-pub use mysql::MySqlTarget;
+pub use mysql::{MySqlRow, MySqlRows, MySqlTarget};
 pub use pg::{
     BlockError, CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode,
 };

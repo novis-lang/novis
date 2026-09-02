@@ -4630,6 +4630,15 @@ is why" — is this file.
   and eats the first character of `auth_plugin_name` — the symptom is a refusal naming
   `aching_sha2_password`, which reads like a typo in the driver rather than in the fixture. Pass
   `NONCE[8..]` plus a `0` byte; `HandshakePacket::nonce()` trims it back off.
+- `mysql_common` 0.38.2's `Column` serializes `column_length` before `character_set` and
+  deserializes them the other way round, so a column definition built with `Column::new(..)` and
+  written with `MySerialize` comes back from its own reader with those two fields **swapped**. Its
+  reader is the one that matches the protocol, and it is the reader the driver runs against a real
+  server — so a `-p nvs-db` case that scripts a result set must write the definition's bytes by
+  hand in wire order (`crates/nvs-db/src/mysql.rs`'s `typed_column_def`), not serialize a `Column`.
+  Nothing catches this until a case asks about the charset or the width: ADR 0067 § 9 reads
+  `tainted string` against `tainted bytes` off the charset, which is exactly the field the swap
+  corrupts, and a name-only assertion passes either way.
 
 ## Splitting a file that got too big
 
