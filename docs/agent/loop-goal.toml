@@ -2952,7 +2952,12 @@ stage = "6 the matrix"
 name = "nvs-db (per-driver specifics)"
 args = ["test", "-p", "nvs-db"]
 tests = [
-  "execute_many_uses_the_bulk_protocol_on_mariadb",
+  # This name replaced `execute_many_uses_the_bulk_protocol_on_mariadb`, and the replacement IS the item:
+  # ADR 0067 § 4 now runs `executeMany` as N executions on every driver and argues at length why a
+  # bulk command cannot reproduce what the loop lets a caller observe. The ADR wins over this file.
+  # Do not restore the old name expecting `COM_STMT_BULK_EXECUTE` to appear -- read § 4 first, and
+  # note that it names the one fact (does `BULK_UNIT_RESULTS` continue past a refusal?) that reopens it.
+  "execute_many_on_mariadb_is_n_executions_and_not_the_bulk_command",
   "mariadb_returning_is_available_and_mysqls_is_not",
   # ADR 0051 § 4 named this case in advance so it would be answered by the test, not by convenience.
   "the_mariadb_auth_plugins_are_implemented_in_rust_or_refused_by_name",

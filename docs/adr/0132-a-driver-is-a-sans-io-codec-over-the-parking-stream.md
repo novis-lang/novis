@@ -78,7 +78,7 @@ simplicity argument at 4.
 |---|---|---|
 | PostgreSQL | `postgres-protocol`, plus `postgres-types` for the value codecs | startup, SASL, the extended-query state machine, the § 13 reset |
 | MySQL | `mysql_common` | handshake and auth, `COM_STMT_*` sequencing, the `LOCAL INFILE` refusal |
-| MariaDB | `mysql_common`, its own auth plugins and its own error table | the above, plus `COM_STMT_BULK_EXECUTE` and `RETURNING` |
+| MariaDB | `mysql_common`, its own auth plugins and its own error table | the above, plus `RETURNING` |
 | SQL Server | none — TDS 7.4 is written here | all of it, including § 3's tunnelled handshake |
 | SQLite | `rusqlite` | nothing on a wire; there is no socket |
 

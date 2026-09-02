@@ -698,8 +698,8 @@ pub struct MySqlConn {
     pub(crate) depth: Cell<u32>,
 }
 
-/// A MariaDB connection: `mysql_common`'s codec, its own auth plugins and its
-/// own error table, plus `COM_STMT_BULK_EXECUTE` and `RETURNING`.
+/// A MariaDB connection: `mysql_common`'s codec, its own auth plugins, its own
+/// error table and `RETURNING`.
 ///
 /// Its own driver rather than a MySQL flag — ADR 0067 argues that at length and
 /// treating it as a flag is a design error, not a simplification.

@@ -117,8 +117,8 @@ crates, and it has the reset that § 13 calls the good case. The other four are 
 
 17. **MySQL, MariaDB, SQL Server, SQLite**, each to the shape Stage 2 set. MariaDB is a **distinct driver
     and not a MySQL flag** — § *Context* argues it: `RETURNING`, a bulk-execute protocol MySQL lacks, a
-    native `UUID` type, and its own error-code table. `executeMany` uses `COM_STMT_BULK_EXECUTE` on
-    MariaDB 10.2+.
+    native `UUID` type, and its own error-code table. `executeMany` stays N executions there, per § 4:
+    a bulk command cannot reproduce what the loop lets a caller observe.
 18. **MariaDB's `ed25519` and `parsec` authentication plugins.** ADR 0051 § 4 named this case in advance
     so it would be answered by the test rather than by convenience: an authentication handshake handles
     attacker-reachable data, so question 2 applies, and the answer is **a Rust implementation of the

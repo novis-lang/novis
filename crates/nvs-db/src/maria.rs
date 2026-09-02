@@ -10,8 +10,8 @@
 //! is the part a program can observe: which plugins a server may authenticate
 //! this driver with, what a vendor error code means
 //! ([ADR 0067 § 8](../../../docs/adr/0067-core-db.md): "MariaDB needs its own
-//! code table, not MySQL's"), and — the slices after this one — `RETURNING` and
-//! `COM_STMT_BULK_EXECUTE`, which MySQL has neither of. ADR 0067 argues at
+//! code table, not MySQL's"), and — the slice after this one — `RETURNING`,
+//! which MySQL does not have. ADR 0067 argues at
 //! length that treating those as flags on a MySQL connection is a design error;
 //! the split here is that argument, and `crate::mysql::Backend` is the one
 //! place the shared framing asks which server it is framing for.
@@ -95,7 +95,12 @@ pub const PARSEC: &str = "parsec";
 /// every parameter set of an `executeMany` instead of one execute per set.
 /// Claiming it costs a connection nothing and obliges it to nothing: it widens
 /// what this client *may* send and changes no packet the server sends back, so
-/// it is claimed at the handshake and spent later or not at all.
+/// it is claimed at the handshake and spent later or not at all. **It is not
+/// spent**: [ADR 0067 § 4](../../../docs/adr/0067-core-db.md) runs `executeMany`
+/// as N executions on every driver, because a bulk command ends at a refusal
+/// where the loop carries on and cannot take a set that answers with rows. The
+/// bit stays claimed because that is the word the *server* answers in too, and
+/// the intersection is what tells this driver which server it reached.
 ///
 /// **The four bits not here are absences with reasons**, in the shape
 /// `crate::mysql`'s `CLIENT_CAPABILITIES` uses for the first word.
@@ -407,8 +412,10 @@ impl MariaConn {
     /// sequencing [`crate::MySqlConn::query`] runs: `COM_STMT_PREPARE` and
     /// `COM_STMT_EXECUTE` are one protocol's commands, and § 1's cache in front
     /// of them is one rule. Where the two drivers will part is MariaDB's own
-    /// `RETURNING` and `COM_STMT_BULK_EXECUTE`, neither of which MySQL has and
-    /// neither of which is here yet.
+    /// `RETURNING`, which MySQL does not have and which is not here yet —
+    /// `COM_STMT_BULK_EXECUTE` is not a second such place, because
+    /// [§ 4](../../../docs/adr/0067-core-db.md) runs `executeMany` as N
+    /// executions on every driver.
     ///
     /// # Errors
     ///

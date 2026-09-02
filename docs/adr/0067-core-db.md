@@ -154,7 +154,7 @@ path through `open` additionally needs `fs.read`/`fs.write` and is a path sink.
 | `query` | `Db\Rows<Row>` | buffered; `count()` known, connection free afterwards |
 | `queryAs<T>` | `Db\Rows<T>` | same, hydrated into a shape or a `Db\Codec` class (§ 6) |
 | `execute` | `Db\Write` | `affected`, `changed`, `lastId` (§ 7) |
-| `executeMany` | `uint` | one prepare, N executions; MariaDB 10.2+ uses `COM_STMT_BULK_EXECUTE` |
+| `executeMany` | `uint` | one prepare, N executions, on every driver — below |
 | `stream` / `streamAs<T>` | `Iterable<Row>` / `Iterable<T>` | constant memory; **holds the connection until drained** |
 
 Buffering is the default because [0004](0004-memory-for-simplicity.md) ranks memory last and because the
@@ -167,6 +167,34 @@ though SQL Server's MARS could lift it, so that code written against one driver 
 `transaction(fn($tx) => $tx->executeMany(…))`, which composes with savepoint nesting and with retry; a
 hidden `BEGIN` inside a method whose name does not mention one would also silently change lock duration on
 a large batch. An empty set list is a no-op returning `0`.
+
+**A batch command that cannot reproduce that loop's observable behaviour is not used**, and MariaDB's
+`COM_STMT_BULK_EXECUTE` — one command carrying every parameter set — is the case this rule is written
+against. Taking it would spend a property of the *surface* on round trips, which is the one direction
+[0004](0004-memory-for-simplicity.md)'s ordering forbids. Three things diverge, and the first two are not
+repairable inside the driver:
+
+- **A refusal ends a bulk command; it does not end the loop.** The loop attempts every later set and
+  reports the first error, because that is what PostgreSQL's batch does and not a preference: every
+  `Bind`/`Execute`/`Sync` goes out in one flush, so by the time the driver reads an error the server has
+  already run the sets behind it. Making every driver stop instead would cost PostgreSQL that single
+  flush; making MariaDB alone stop means one program leaves different rows in two servers.
+- **A set that answers with a result set is not something the bulk command takes** — MySQL and MariaDB
+  have no `RETURNING` on every statement, but a `CALL` does it — and the driver cannot route such a
+  statement to the loop in advance, because a prepare reports `0` columns for a statement whose result set
+  depends on the data. "Does this produce rows" is not a question the prepare answers.
+- **The affected count would be one aggregate the server computed**, rather than the sum of the executions
+  the caller wrote. On a batch that succeeds the two agree, and on one that refuses the sum is discarded
+  with the throw, so this divergence is in provenance only and would be acceptable alone.
+
+The price is N round trips where one command would do, and it is recorded here rather than hidden — the
+same account § 1 keeps for the prepare that costs a first execution its second round trip.
+`MARIADB_CLIENT_STMT_BULK_OPERATIONS` is still negotiated in the handshake, a capability word being what a
+client *may* send rather than what it will. **What would reopen this:**
+`MARIADB_CLIENT_BULK_UNIT_RESULTS` makes a bulk command answer per set, and a driver that can see which set
+failed can say more than "the batch stopped somewhere"; whether the server also *continues* past a refused
+set under that flag is the fact to establish on a real server first, because it is the whole of the first
+bullet.
 
 ### 5. Parameters: `?` or `:name`, one parameter is one value
 
