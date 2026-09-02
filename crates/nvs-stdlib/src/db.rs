@@ -66,21 +66,21 @@
 //! 1. **`open` is not here, and what is missing is a type rather than a body.**
 //!    § 18 writes `open(Db\Settings $settings, {shared?: bool})`, and
 //!    `Db\Settings` is a *discriminated union of two shapes* over ADR 0047's
-//!    enum-case types — the SQLite arm has a `path` and no `host`. The registry
-//!    has no [`CoreTy`] for a shape **parameter** at all: `CoreTy::Options` is
-//!    a trailing bag, flattened to one ABI argument per option and optional by
-//!    construction, and no row in this crate has ever declared a fixed-key
-//!    shape argument.
+//!    enum-case types — the SQLite arm has a `path` and no `host`, and no row
+//!    in this crate has ever declared a fixed-key shape argument.
 //!
-//!    **How that type works is settled**, so what is left is building it rather
-//!    than deciding it:
+//!    **How that type works is settled and its registry half is built:**
 //!    [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
-//!    makes it one `CoreTy::Shape` carrying its *arms*, flattening at the call
-//!    site into one ABI argument per field of the arms merged in order — so
-//!    `open`'s helper is an ordinary `args: [12]`, and the union needs no
-//!    declared discriminant because ADR 0047's enum-case types already make the
-//!    two arms disjoint. `open` stays blocked on the registry rather than on
-//!    anything about databases.
+//!    makes it one [`CoreTy::Shape`] carrying its *arms*, and that variant and
+//!    its [`crate::registry::CoreField`] are on disk with the three invariants
+//!    ADR 0135 §§ 1-3 state held by tests. What is left is the checker's half —
+//!    `nvs_types::ty::Ty::Options` renamed and given per-field required-ness,
+//!    and `nvs_ir::lower::lower_call_args` flattening a shape into one argument
+//!    per field of the arms merged in order — after which `open`'s helper is an
+//!    ordinary `args: [12]`, and the union needs no declared discriminant
+//!    because ADR 0047's enum-case types already make the two arms disjoint.
+//!    `open` stays blocked on that half rather than on anything about
+//!    databases.
 //! 2. **Two drivers open, and MySQL runs only `query` of the four members that
 //!    send.** `connect`
 //!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block

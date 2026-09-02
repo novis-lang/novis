@@ -6438,6 +6438,14 @@ sibling in the same namespace unqualified.
   "does this produce rows" cannot be asked ahead of the execution either. Neither is in the ADR,
   and both are load-bearing. Read the sibling driver and the struct docs *before* budgeting the
   feature — the previous session sized this one from the ADR and had to stop at the packet.
+- **A new `CoreTy` variant does not fail `cargo build`; it fails `cargo test -p nvs-stdlib` in a
+  *different module's* test helper.** `CoreTy` is `#[non_exhaustive]`, which binds only other crates, so
+  the two out-of-crate matches (`crates/nvs-cli/src/meta.rs:322`, `crates/nvs-types/src/core_lib.rs:516`)
+  already carry a wildcard and say nothing — while `crates/nvs-stdlib/src/ast.rs`'s `mentions` is
+  exhaustive **on purpose**, its own doc requiring that a composite variant added later be a build error
+  there rather than a hole a `_` walks past. The error therefore arrives under `#[cfg(test)]`, names
+  `ast.rs`, and leaves `registry.rs` clean, so a `cargo check` after adding the variant looks green. Add
+  the arm in the same edit as the variant.
 
 ## Divergences and refusals already pinned
 
