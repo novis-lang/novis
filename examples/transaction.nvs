@@ -60,7 +60,11 @@ try {
 // `new` and a parameter type, and does not yet reach a `catch` — `nvs-ir`
 // tests the thrown value against the source text of the clause.
 } catch (Core\Db\RolledBack $rolled) {
-    echo "rolled back", "\n";
+    // The string `rollBack` was given is on the throwable as `$reason`, so the
+    // caller that catches it can say *why* the work was abandoned without the
+    // closure needing a second channel out — a transaction that returns nothing
+    // has no other way to report the decision it made.
+    echo "rolled back: ", $rolled->reason, "\n";
 }
 
 // Nothing survived it. This is the line the whole design is for: the two rows
