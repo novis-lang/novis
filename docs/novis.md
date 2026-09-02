@@ -17720,7 +17720,7 @@ One column as `float` — `FLOAT`, `REAL` and `DOUBLE`, and nothing else.
 $row->bool(string $name): ?bool
 ```
 
-One column as `bool` — `BOOLEAN` and `BIT(1)`. MySQL's and MariaDB's `TINYINT(1)` is naturally an `int` and is read by `->int`.
+One column as `bool` — `BOOLEAN` and `BIT(1)`, and an integer column holding `0` or `1`, which is how MySQL's and MariaDB's `TINYINT(1)` is read: it is naturally an `int`, and asking for a `bool` is what converts it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -17728,7 +17728,7 @@ One column as `bool` — `BOOLEAN` and `BIT(1)`. MySQL's and MariaDB's `TINYINT(
 
 **Returns** `?bool` — The truth value, or `null` for a NULL column.
 
-**Throws** `LogicError` — The row has no column with that name, or the column is not boolean — a `0`/`1` integer is not silently one.
+**Throws** `LogicError` — The row has no column with that name, the column is neither boolean nor an integer, or it is an integer holding something other than `0` or `1` — a stored `7` is a refusal here rather than `true`.
 
 <a id="core-core-db-row-decimal"></a>
 #### `Core\Db\Row->decimal`
