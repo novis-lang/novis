@@ -74,9 +74,16 @@ Core\Queue::push(string $script, {
 }): Queue\Id
 ```
 
-`Core\Queue::cancel(Queue\Id)`, `::status(Queue\Id): Queue\State` and `::stats(string $queue)` complete the
-roster. Everything follows [0063](0063-core-api-conventions.md): subject first, one trailing options shape,
-nothing mutates, failure throws, absence is `?T`.
+`Core\Queue::cancel(Queue\Id): bool`, `::status(Queue\Id): Queue\State` and `::stats(string $queue)` complete
+the roster. Everything follows [0063](0063-core-api-conventions.md): subject first, one trailing options
+shape, nothing mutates, failure throws, absence is `?T`.
+
+**`Queue\State` is `Pending`, `Claimed`, `Succeeded`, `Dead`, `Cancelled`**, and there is no `Failed`: § 6
+retries a failed attempt, so a job between attempts is `Pending` with its backoff still to elapse, and the
+question "did it fail" is a question about `Dead`. **`cancel` answers a `bool` because it is a race it can
+lose** — § 4 lets a worker claim a pending job at any moment, so a late cancel finds the work already
+running, and that is the ordinary outcome rather than an unlucky one. It changes the job's state rather than
+deleting the row, so a caller that cancels and then asks `status` gets `Cancelled` instead of a refusal.
 
 **A job names a file**, not a class or a closure — the third construct to take that shape after
 `spawn script` and `Core\Socket::upgrade`. A payload crossing into it is a value copied by

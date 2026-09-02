@@ -1,0 +1,22 @@
+--TEST--
+Both members that are asked *about* a job take the receipt itself, so neither of them can be handed a bare row number — ADR 0084 § 1, ADR 0063
+--FILE--
+<?nvs
+// The agreement first: one receipt, two members, and each takes it whole. That
+// is what `Core\Queue\Id` is the name for — a job is a row *and* a queue, and
+// a member taking only the row would have to take the queue beside it or
+// search every queue for it.
+var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
+
+bool $won = Core\Queue::cancel($receipt);
+Core\Queue\State $state = Core\Queue::status($receipt);
+
+// So the number `push` actually wrote is not something a program is ever
+// holding, and this line is what says so.
+bool $late = Core\Queue::cancel(7);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Queue\Id`, found `int`
+%A
+error: aborting due to 1 error

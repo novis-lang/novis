@@ -1,0 +1,25 @@
+--TEST--
+`cancel` answers whether this call is what took the job out of the queue, rather than the state it left behind — ADR 0084 §§ 1 and 4
+--FILE--
+<?nvs
+// Cancelling is a race the caller can lose, and losing it is the ordinary
+// outcome rather than an unlucky one: § 4 lets a worker claim a pending job at
+// any moment, so a cancel written late finds the work already running. A
+// `void` member would make "cancelled it" and "too late" look identical at the
+// call site, and throwing for the second would make that ordinary race an
+// exception. So the answer is the one bit the caller cannot find out any other
+// way.
+var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
+
+bool $won = Core\Queue::cancel($receipt);
+
+// And it is that bit, not the state the row ended up in — `status` is the
+// member that answers a state, and asking one question of two members is how
+// each stays about one thing.
+Core\Queue\State $wrong = Core\Queue::cancel($receipt);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Queue\State`, found `bool`
+%A
+error: aborting due to 1 error
