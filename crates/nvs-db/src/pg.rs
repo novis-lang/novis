@@ -3841,16 +3841,12 @@ mod tests {
                 secret_key: 99
             }
         );
-        // ADR 0067 § 3's forced charset is a startup parameter, so it is on the
-        // wire before anything can arrive in another encoding. § 9's two are
-        // there for the same reason: a text rendering this driver parses
-        // positionally has to be the rendering it asked for, not the one the
-        // server was configured with.
+        // § 9's rendering parameters are pinned in the startup message: a text
+        // rendering this driver parses positionally has to be the rendering it
+        // asked for, not the one the server was configured with. The charset —
+        // the third of them — is
+        // [`the_connection_charset_is_forced_to_utf8`]'s.
         let startup = &wire.peer().sent[0];
-        assert!(
-            startup.windows(20).any(|w| w == b"client_encoding\0UTF8"),
-            "the startup message did not force UTF-8"
-        );
         assert!(
             startup.windows(14).any(|w| w == b"DateStyle\0ISO\0"),
             "the startup message did not pin the date rendering"
@@ -3858,6 +3854,118 @@ mod tests {
         assert!(
             startup.windows(18).any(|w| w == b"TimeZone\0<+02>-02\0"),
             "the startup message did not declare the connection's zone"
+        );
+    }
+
+    /// The startup message's parameter list, as the pairs it carries.
+    ///
+    /// Four bytes of length, four of protocol version, then `key\0value\0`
+    /// until an empty key ends the list. Parsed rather than searched for,
+    /// because a `windows` match cannot tell `UTF8` from a value that merely
+    /// starts with it, and cannot see a second setting of the same key later
+    /// in the list — which is exactly how a forced parameter stops being
+    /// forced.
+    fn startup_parameters(startup: &[u8]) -> Vec<(String, String)> {
+        let mut fields = startup[8..]
+            .split(|byte| *byte == 0)
+            .map(|field| String::from_utf8(field.to_vec()).expect("a startup parameter is text"));
+        let mut pairs = Vec::new();
+        while let Some(key) = fields.next().filter(|key| !key.is_empty()) {
+            pairs.push((key, fields.next().expect("a key carries a value")));
+        }
+        pairs
+    }
+
+    /// ADR 0067 § 9's "connection charset forces UTF-8", which is two claims
+    /// and needs both: the connection asks for UTF-8 before it can be sent
+    /// anything, and a text body is checked anyway.
+    ///
+    /// The parameter is set once, in the startup message, so there is no
+    /// window in which a row could arrive in the server's own encoding — and
+    /// nothing an operator writes in a `[db.<name>]` block reaches it, which is
+    /// why the value is asserted rather than merely its presence.
+    ///
+    /// The check on the way back is not belt and braces. The module doc's
+    /// § *Parameters and results are in text format* owns why: a server is a
+    /// network peer, ADR 0009's guarantee is read unchecked downstream, and
+    /// `client_encoding` is a request rather than a proof. It is asserted over
+    /// **every** OID that reads back as text — § 9's five text rows, its two
+    /// JSON ones and the "no Novis type" row every unnamed OID falls to — by
+    /// counting, so an OID added later that decodes text without the check
+    /// fails here rather than passing on the rows it shares with these.
+    #[test]
+    fn the_connection_charset_is_forced_to_utf8() {
+        let mut scram = Scram::new("Novis-Test-Pw1");
+        let mut step = 0;
+        let mut wire = Wire::new(Peer::new(move |sent: &[u8]| {
+            step += 1;
+            match step {
+                1 => auth(10, b"SCRAM-SHA-256\0SCRAM-SHA-256-PLUS\0\0"),
+                2 => scram.first(sent),
+                _ => scram.last(sent),
+            }
+        }));
+        authenticate(&mut wire, &target("Novis-Test-Pw1")).expect("the exchange completed");
+
+        let parameters = startup_parameters(&wire.peer().sent[0]);
+        let charsets: Vec<&str> = parameters
+            .iter()
+            .filter(|(key, _)| key == "client_encoding")
+            .map(|(_, value)| value.as_str())
+            .collect();
+        assert_eq!(
+            charsets,
+            vec!["UTF8"],
+            "the connection did not ask for UTF-8 exactly once, in {parameters:?}"
+        );
+
+        // Latin-1 `été`, which is what a server configured with another
+        // encoding sends for a column of every type below.
+        const LATIN1: &[u8] = &[0xE9, 0x74, 0xE9];
+        let text_oids = [
+            oid::CHAR,
+            oid::NAME,
+            oid::TEXT,
+            oid::BPCHAR,
+            oid::VARCHAR,
+            oid::JSON,
+            oid::JSONB,
+            // § 9's last row: `inet`, and with it every OID this driver has no
+            // arm for.
+            869,
+        ];
+        let mut refused = 0usize;
+        for type_oid in text_oids {
+            let column = column(type_oid, -1);
+            assert_eq!(
+                rendered(
+                    &column
+                        .scalar(Some("été".as_bytes()))
+                        .expect("UTF-8 decoded")
+                ),
+                "text été",
+                "OID {type_oid} did not read a well-formed body back as it was sent"
+            );
+            let refusal = column
+                .scalar(Some(LATIN1))
+                .expect_err("a body in the server's own encoding became a string");
+            assert!(
+                refusal.to_string().contains("well-formed UTF-8"),
+                "OID {type_oid} refused a Latin-1 body for another reason: {refusal}"
+            );
+            refused += 1;
+        }
+        assert_eq!(refused, text_oids.len());
+
+        // The other side of the bound: § 9's binary rows have no text form at
+        // all, so the same bytes are a value there rather than an error.
+        assert_eq!(
+            rendered(
+                &column(oid::BYTEA, -1)
+                    .scalar(Some(b"\\x0102"))
+                    .expect("bytes decoded")
+            ),
+            "bytes [1, 2]"
         );
     }
 
@@ -4184,6 +4292,135 @@ mod tests {
             vec![(String::new(), "s0".to_string()); 3],
             "the batch's binds did not all name the one parsed statement"
         );
+    }
+
+    /// The tag of every message in one flushed group whose body carries
+    /// `needle`, in order — "where did the value end up", read off the wire.
+    ///
+    /// Walks the length prefixes for the same reason [`tags`] does. A `B` in
+    /// the answer is the value arriving as a `Bind` parameter, which is the
+    /// only place it belongs; a `P` is a `Parse` whose SQL text carries it and
+    /// a `Q` is the simple-query protocol carrying it as a whole statement,
+    /// which are the two shapes an emulated prepare takes.
+    fn carriers(flushed: &[u8], needle: &[u8]) -> Vec<u8> {
+        let mut found = Vec::new();
+        let mut at = 0;
+        while at + 5 <= flushed.len() {
+            let len = usize::try_from(u32::from_be_bytes(
+                flushed[at + 1..at + 5]
+                    .try_into()
+                    .expect("four bytes are four bytes"),
+            ))
+            .expect("a test message fits in a usize");
+            if flushed[at + 5..at + 1 + len]
+                .windows(needle.len())
+                .any(|window| window == needle)
+            {
+                found.push(flushed[at]);
+            }
+            at += len + 1;
+        }
+        found
+    }
+
+    /// ADR 0067 § 1's "emulated prepares do not exist in any form", asserted
+    /// over **every** way a value reaches the wire rather than one path at a
+    /// time: a path added later fails here without anyone remembering to come
+    /// back, which is the whole point of sweeping.
+    ///
+    /// The value is catastrophic if it is ever interpolated — it closes a
+    /// quoted literal, ends the statement and comments out what followed — so
+    /// this does not have to model what an escaper would have done with it.
+    /// Either it reaches the server inside a `Bind` or the driver has
+    /// reintroduced the thing § 1 removes.
+    ///
+    /// Counted per path rather than read off one flush: a path that sent the
+    /// value nowhere at all would satisfy "never in statement text" and fail
+    /// its own count, and both cache states are swept because the parse and
+    /// the bind are separate flushes only on the miss.
+    #[test]
+    fn no_driver_path_interpolates_a_value_into_sql() {
+        const HOSTILE: &[u8] = b"'); drop table users; --";
+
+        let mut paths: Vec<(&str, usize, Vec<Vec<u8>>)> = Vec::new();
+
+        // `query`, over a live cache: the first execution parses and the
+        // second binds a statement the server is already holding.
+        {
+            let state = Cell::new(State::Idle);
+            let mut cache = StatementCache::new(2);
+            let mut answered = 0usize;
+            let mut wire = Wire::new(Peer::new(move |_: &[u8]| {
+                answered += 1;
+                statement_answer(false, answered == 1)
+            }));
+            for _ in 0..2 {
+                let mut rows =
+                    start_statement(&mut wire, &state, &mut cache, "select $1", &[Some(HOSTILE)])
+                        .expect("the portal described itself");
+                while rows.next_row().expect("the stream drained").is_some() {}
+            }
+            paths.push(("query, cached", 2, wire.peer().sent.clone()));
+        }
+
+        // The same statement with the cache disabled, which is the unnamed
+        // prepare — a different branch of `start_statement` entirely.
+        {
+            let state = Cell::new(State::Idle);
+            let mut wire = Wire::new(Peer::new(|_: &[u8]| one_statement(Vec::new())));
+            {
+                let mut rows = start_statement(
+                    &mut wire,
+                    &state,
+                    &mut no_cache(),
+                    "select $1",
+                    &[Some(HOSTILE)],
+                )
+                .expect("the portal described itself");
+                while rows.next_row().expect("the stream drained").is_some() {}
+            }
+            paths.push(("query, uncached", 1, wire.peer().sent.clone()));
+        }
+
+        // § 4's batch, on both cache states for the same reason.
+        for (path, mut cache) in [
+            ("executeMany, cached", StatementCache::new(2)),
+            ("executeMany, uncached", no_cache()),
+        ] {
+            let state = Cell::new(State::Idle);
+            let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+                many_answer(&[Some("INSERT 0 1"), Some("INSERT 0 1"), Some("INSERT 0 1")])
+            }));
+            execute_many(
+                &mut wire,
+                &state,
+                &mut cache,
+                "insert into t values ($1)",
+                &[&[Some(HOSTILE)], &[Some(HOSTILE)], &[Some(HOSTILE)]],
+            )
+            .expect("the batch ran");
+            paths.push((path, 3, wire.peer().sent.clone()));
+        }
+
+        for (path, executions, flushes) in &paths {
+            let mut bound = 0usize;
+            for flush in flushes {
+                for tag in carriers(flush, HOSTILE) {
+                    assert_eq!(
+                        char::from(tag),
+                        'B',
+                        "{path} put the value in a {} message, so it reached the server as \
+                         statement text",
+                        char::from(tag)
+                    );
+                    bound += 1;
+                }
+            }
+            assert_eq!(
+                bound, *executions,
+                "{path} bound the value {bound} times for {executions} execution(s)"
+            );
+        }
     }
 
     /// The eviction's `Close` rides in the batch that replaced it, so making
