@@ -17215,7 +17215,7 @@ Keywords: query, queryAs, execute, executeMany, transaction
 | [`Core\Db\Connection->queryAs`](#core-core-db-connection-queryas) | `queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>` |
 | [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 | [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
-| [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable $fn): T` |
+| [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 
 <a id="core-core-db-connection-query"></a>
 #### `Core\Db\Connection->query`
@@ -17293,18 +17293,21 @@ Runs one statement once per set of values and answers how many rows the whole ba
 #### `Core\Db\Connection->transaction`
 
 ```nvs skip
-$connection->transaction(callable $fn): T
+$connection->transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T
 ```
 
 Runs `$fn` inside a transaction and answers whatever it answered: returning commits, throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` and every savepoint member with the one shape that cannot be left open by an early return.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. Called once — retries are not on by default, because a closure with side effects should not be re-run without being asked for. |
+| `$fn` | `callable` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. |
+| `{isolation: …}` | `Core\Db\Isolation` (default `null`) | What this transaction may see of the work running beside it. Left out, it runs at the level the server was configured with. A nested call may not ask for one at all — the level belongs to the whole transaction, not to a savepoint inside it. |
+| `{readOnly: …}` | `bool` (default `false`) | Refuses writes for the length of the transaction, which lets the server plan for a reader. False by default, and a nested call may not ask for it for the reason `isolation` may not. |
+| `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure may re-run `$fn`. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried. |
 
 **Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
 
-**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, or the transaction was reached after the call that owned it returned.; `RuntimeError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
+**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `RuntimeError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction"></a>
 ### `Core\Db\Transaction`
@@ -17317,7 +17320,7 @@ Keywords: query, queryAs, execute, executeMany, transaction, rollBack
 | [`Core\Db\Transaction->queryAs`](#core-core-db-transaction-queryas) | `queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>` |
 | [`Core\Db\Transaction->execute`](#core-core-db-transaction-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 | [`Core\Db\Transaction->executeMany`](#core-core-db-transaction-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
-| [`Core\Db\Transaction->transaction`](#core-core-db-transaction-transaction) | `transaction(callable $fn): T` |
+| [`Core\Db\Transaction->transaction`](#core-core-db-transaction-transaction) | `transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 | [`Core\Db\Transaction->rollBack`](#core-core-db-transaction-rollback) | `rollBack(string $reason): void` |
 
 <a id="core-core-db-transaction-query"></a>
@@ -17396,18 +17399,21 @@ Runs one statement once per set of values and answers how many rows the whole ba
 #### `Core\Db\Transaction->transaction`
 
 ```nvs skip
-$transaction->transaction(callable $fn): T
+$transaction->transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T
 ```
 
 Runs `$fn` inside a transaction and answers whatever it answered: returning commits, throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` and every savepoint member with the one shape that cannot be left open by an early return.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. Called once — retries are not on by default, because a closure with side effects should not be re-run without being asked for. |
+| `$fn` | `callable` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. |
+| `{isolation: …}` | `Core\Db\Isolation` (default `null`) | What this transaction may see of the work running beside it. Left out, it runs at the level the server was configured with. A nested call may not ask for one at all — the level belongs to the whole transaction, not to a savepoint inside it. |
+| `{readOnly: …}` | `bool` (default `false`) | Refuses writes for the length of the transaction, which lets the server plan for a reader. False by default, and a nested call may not ask for it for the reason `isolation` may not. |
+| `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure may re-run `$fn`. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried. |
 
 **Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
 
-**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, or the transaction was reached after the call that owned it returned.; `RuntimeError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
+**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `RuntimeError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-rollback"></a>
 #### `Core\Db\Transaction->rollBack`
