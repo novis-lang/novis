@@ -349,13 +349,21 @@ def live_ctx_start(sessions):
     slope = sum((p - mx) * (c - my) for p, c in points) / sxx
     intercept = my - slope * mx
     try:
+        # Captured as **bytes**, the way `session.py` measures this same pack and for the reason
+        # written down there: under `text=True` Python decodes the pipe with the console's own
+        # codepage, which on this box is cp1252, so the pack's `§` raises `UnicodeDecodeError`
+        # inside the reader thread. `proc.stdout` then comes back `None` and the length below
+        # raises `AttributeError` — which is not a `SubprocessError` and so escapes the `except`,
+        # taking the projection table and the caps with it, the two sections an optimization pass
+        # reads to decide whether the ceiling moves. Bytes are what the regression wants anyway,
+        # and they are the same count `session.py` recorded, so there is nothing to decode.
         proc = subprocess.run(
             [sys.executable, str(ROOT / "tools" / "orient.py")],
-            capture_output=True, text=True, cwd=ROOT, timeout=60,
+            capture_output=True, cwd=ROOT, timeout=60,
         )
-        if proc.returncode != 0:
+        if proc.returncode != 0 or not proc.stdout:
             return None
-        now = len(proc.stdout.encode("utf-8"))
+        now = len(proc.stdout)
     except (OSError, subprocess.SubprocessError):
         return None
     return {"tokens": intercept + slope * now, "pack": now, "floor": intercept,
