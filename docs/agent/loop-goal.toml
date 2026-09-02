@@ -85,9 +85,14 @@ modules = [
   # The two things the type map borrows: Time's types for date columns, Json's for the JSON ones.
   "crates/nvs-stdlib/src/time.rs",
   "crates/nvs-stdlib/src/json.rs",
+  # Stage 0 item 1's two files, and ONLY that item's. Take both back out of this list -- and `0133` out
+  # of `rules` and `adrs` below -- in the wrap that lands it, the way stage "0 casing" already did.
+  # Nothing else in this goal opens either file, so every later session is paying for them.
+  "crates/nvs-stdlib/src/html.rs",
+  "crates/nvs-types/src/expr/operators.rs",
 ]
 
-rules = ["0067", "0084", "0071", "0051", "0058", "0024", "0054", "0063", "0082"]
+rules = ["0067", "0084", "0071", "0051", "0058", "0024", "0133", "0054", "0063", "0082"]
 
 # The sections EVERY session of this goal reads. § 1 is why there is no escaping API to reach for, § 9's
 # map is the one every driver item is measured against, and § 13's reset is a security boundary that a
@@ -96,6 +101,10 @@ rules = ["0067", "0084", "0071", "0051", "0058", "0024", "0054", "0063", "0082"]
 # selector**, and an item that names `ADR 0067 § 7` in its own text does not get § 7, because nothing
 # parses the item. The sections not here are still one `sed -n` around the heading away.
 adrs = [
+  # Stage 0 item 1's whole decision. Out of this list once the item lands.
+  "0133 §1",
+  "0133 §2",
+  "0133 §3",
   "0067 §1",
   "0067 §3",
   "0067 §7",
@@ -153,6 +162,39 @@ memoize_on = ["crates/nvs-db", "tests/db"]
 # copied here rather than committed.
 [docker.copy]
 "tests/db/ca.crt" = "postgres:/certs/ca.crt"
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- ADR 0133's carrier rule, accepted 2026-09-02, after M4 reported `Core\Html` done. It is
+# FIRST in this file because the run order inside a class is this file's order: an escaper that answers a
+# plain `string` is escaped a second time by ADR 0024 § 5's sink, and every `Core\Html` case written
+# before the return type changes is written against the wrong rule. Item 1 in loop-goal.md.
+#
+# The two guard tests below must EXIST and pass. The `nvs-types` one is the half that cannot be read off
+# the registry: `.` admits a `Stringable` object, so "`Markup` has no concat row" is a claim about the
+# language and not about a signature.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 html carrier"
+name = "nvs-stdlib (the escaped value is a carrier)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "html_escape_answers_the_markup_carrier",
+  "every_launderer_for_an_auto_escaping_sink_answers_a_carrier",
+  "to_source_is_the_only_way_out_of_markup_and_it_takes_a_reason",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 html carrier"
+name = "nvs-types (markup does not concatenate)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "markup_is_not_stringable_and_has_no_concat_row",
+  "markup_does_not_convert_to_string",
+]
 
 
 # ---------------------------------------------------------------------------------------------------

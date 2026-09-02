@@ -41,6 +41,21 @@ to. A driver that interpolates inside itself has reintroduced exactly the thing 
 
 ## Stage 0 — the catch-up
 
+1. **`Core\Html::escape` answers `Core\Html\Markup`, and `Core\Html::toSource` is the one way back** —
+   [ADR 0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+   §§ 1–3, accepted after M4 reported `Core\Html` done, which is what puts it in the catch-up class: an
+   escaped value returned as a `string` re-enters ADR 0024 § 2's concatenation and is escaped a second
+   time by § 5's sink, so every case written against the old return type is written against the wrong
+   rule. **This item shares no file with the rest of the goal and gets its own session.** The sites:
+   [`html.rs:76`](../../crates/nvs-stdlib/src/html.rs) is the row whose `return_ty` becomes
+   `CoreTy::Instance(MARKUP_NAME)`; `html.rs:241` is the body, which returns a `Value::str` today and must
+   build the carrier the way [`cli.rs:1936`](../../crates/nvs-stdlib/src/cli.rs)'s `Core\Cli\Text::plain`
+   already does; `html.rs:20-25`'s "three ways to obtain one" becomes four. **Check `.` before anything
+   else**: [30-expressions.md](../reference/lang/30-expressions.md) admits an object implementing
+   `Stringable` on either side of `.`, so if `Markup` is one, that is the real bug and it is fixed here —
+   [`operators.rs:1076`](../../crates/nvs-types/src/expr/operators.rs)'s `+` row is already correct and
+   needs nothing. `Core\Html::toSource(Core\Html\Markup $markup, string $reason): string` is the new
+   member; there is **no** `Markup as string`, and a computed or empty `$reason` is a diagnostic.
 2. **`#[Db\Derive]` and `#[Db\Field]` join `nvs_types::derive::ATTRIBUTES`.** They are deliberately absent
    today — [derive.rs:47](../../crates/nvs-types/src/derive.rs) says so: "a closed list that names
    something with no pass behind it is worse than a short one." It is the same pass over a second format,
@@ -178,6 +193,11 @@ like the WSL leg already is.
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
 - **Decide and record; never `BLOCKED` for a design call.**
+- **Stage 0's item 1 opens no ADR — its ADR is already written.**
+  [0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+  is accepted and folded into 0024 §§ 3 and 5. `Markup as string` was considered and refused, and carriers
+  for `Core\Uri`, `Core\Db::quoteIdentifier` and `Core\Regex::quote` were considered and refused — neither
+  is a question to re-open, and both are argued in that ADR's *Alternatives rejected*.
 - **One ADR slot: the driver crate's shape and its wire I/O** (Stage 2, item 3), and it is that stage's
   first slice. Which protocol crate backs which driver, how TLS layers on the parking stream, how a
   connection's busy state is tracked, and how the five drivers share code without a trait that flattens
