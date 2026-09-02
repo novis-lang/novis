@@ -156,15 +156,15 @@
 //!    held. What it loses is the de-correlation the jitter bought, and the
 //!    bound on that is `retries` itself, which defaults to 0.
 //!
-//!    **A conflict raised by a statement *inside* the closure is still not
-//!    retried.** What this reads is the commit's own `io::Error`, which is
-//!    where PostgreSQL surfaces a `REPEATABLE READ`/`SERIALIZABLE` conflict
-//!    anyway. The closure's own refusal is no longer *unreadable* — gap 4 is
-//!    closed and the `Db\DbError` it threw carries the kind — but it reaches
-//!    this loop as a pending exception on the context rather than as an
-//!    `io::Error`, so branching on it means reading [`ERROR_KIND`] back out of
-//!    that object's [`nvs_runtime::KIND_SLOT`] and mapping it to
-//!    [`nvs_db::DbErrorKind::is_retryable`]. That is what this half still owes.
+//!    **A conflict raised by a statement *inside* the closure is retried on the
+//!    same four conditions**, and only the shape it arrives in differs. The
+//!    commit's refusal is an `io::Error` carrying its own
+//!    [`nvs_db::ServerError`]; the closure's is a pending exception on the
+//!    context, so its kind is read back off that object's
+//!    [`nvs_runtime::KIND_SLOT`] and turned into a
+//!    [`nvs_db::DbErrorKind`] by [`error_kind_of`]. Both then ask
+//!    [`nvs_db::DbErrorKind::is_retryable`], which is the one place the rule
+//!    lives.
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 
@@ -2669,6 +2669,42 @@ fn error_kind_value(of: nvs_db::DbErrorKind) -> Value {
     Value::int(*ordinal)
 }
 
+/// The [`nvs_db::DbErrorKind`] a `Core\Db\ErrorKind` value is, or `None` for
+/// anything that is not one of its ordinals — [`error_kind_value`] read
+/// backwards, which is how § 7's retry rule asks what a *thrown* `Db\DbError`
+/// carries when there is no [`nvs_db::ServerError`] left to ask.
+///
+/// Inverted through the forward function rather than written as a second
+/// `match`: the name correspondence exists once, in [`error_kind_case`], and a
+/// table spelled out again here would be free to disagree with it. The scan is
+/// over eleven entries on a failure path.
+fn error_kind_of(value: Value) -> Option<nvs_db::DbErrorKind> {
+    let ordinal = value.as_int()?;
+    EVERY_ERROR_KIND
+        .into_iter()
+        .find(|kind| error_kind_value(*kind).as_int() == Some(ordinal))
+}
+
+/// Every [`nvs_db::DbErrorKind`], in [`ERROR_KIND`]'s own order.
+///
+/// Written out because that enum carries no roster of its own, and guarded
+/// rather than trusted: `every_db_error_kind_case_is_named` maps this list
+/// through [`error_kind_case`] and compares it against the registered cases,
+/// so a variant left out here is a case name with nothing producing it.
+const EVERY_ERROR_KIND: [nvs_db::DbErrorKind; 11] = [
+    nvs_db::DbErrorKind::UniqueViolation,
+    nvs_db::DbErrorKind::ForeignKeyViolation,
+    nvs_db::DbErrorKind::NotNullViolation,
+    nvs_db::DbErrorKind::CheckViolation,
+    nvs_db::DbErrorKind::Deadlock,
+    nvs_db::DbErrorKind::SerializationFailure,
+    nvs_db::DbErrorKind::ConnectionLost,
+    nvs_db::DbErrorKind::Timeout,
+    nvs_db::DbErrorKind::Syntax,
+    nvs_db::DbErrorKind::Permission,
+    nvs_db::DbErrorKind::Other,
+];
+
 /// The [`ERROR_KIND`] case one [`nvs_db::DbErrorKind`] is, by name.
 ///
 /// Exhaustive on purpose — a variant added over there arrives here as a
@@ -3493,10 +3529,11 @@ nvs_runtime::nvs_helper! {
     /// attempt gets its own `BEGIN` and its own scope object, because the one
     /// above is closed and discarded on every path already — a re-run that
     /// reused either would be handing the closure a `$tx` that is refusing.
-    /// What is re-run is the *commit's* conflict: a deadlock or serialization
-    /// failure raised by a statement inside the closure reaches here as a
-    /// `Fault` with no kind on it, which is this module's known gap 4, and gap 9
-    /// carries that and the missing backoff together.
+    /// **Either conflict re-runs it**: the commit's own refusal, and one a
+    /// statement inside the closure raised, which arrives as a pending
+    /// `Core\Db\DbError` instead and is read through
+    /// [`nvs_runtime::Ctx::pending_slot`]. The wait between attempts is what
+    /// this module's known gap 9 still holds.
     ///
     /// **Rolling back after a throw discards its own failure.** The exception
     /// the closure raised is what the request is about, and a connection whose
@@ -3561,10 +3598,30 @@ nvs_runtime::nvs_helper! {
             let answered = match outcome {
                 Ok(value) => value,
                 Err(fault) => {
+                    // The closure's own conflict, under the same four
+                    // conditions the commit's is. It is a `Fault::Pending`
+                    // here, so the kind is read off the still-pending object
+                    // rather than off an `io::Error` this path never has —
+                    // borrowing it, because a failure that turns out not to be
+                    // retryable is re-raised exactly as the closure left it.
+                    let conflicted = ctx
+                        .pending_slot(ThrownClass::DbError.name(), nvs_runtime::KIND_SLOT)
+                        .and_then(error_kind_of)
+                        .is_some_and(nvs_db::DbErrorKind::is_retryable);
+                    let retry = outermost && left > 0 && abandoned.is_none() && conflicted;
                     if let Ok(postgres) = postgres_of(ctx, key, &block, TRANSACTION_MEMBER) {
                         let _ = postgres.roll_back();
                     }
-                    return Err(fault);
+                    if !retry {
+                        return Err(fault);
+                    }
+                    // Cleared before the next attempt: the retry is this
+                    // frame's decision that the throw did not happen as far as
+                    // the caller is concerned, and a pending failure left on
+                    // the context would surface against whatever ran next.
+                    drop(ctx.take_thrown());
+                    left -= 1;
+                    continue;
                 }
             };
 
@@ -4831,30 +4888,44 @@ mod tests {
     /// [`ERROR_KIND`] does not register is [`error_kind_value`]'s `expect`
     /// firing inside [`statement_failure`] — on the throw path of a real
     /// refusal, which is the one of the two that reaches a request.
+    ///
+    /// Reading the list off [`EVERY_ERROR_KIND`] is what also guards *that*:
+    /// a variant added to the driver's enum and to [`error_kind_case`] but not
+    /// to the roster leaves a registered case with nothing describing it, and
+    /// the comparison below is where that shows up.
     #[test]
     fn every_db_error_kind_case_is_named() {
-        let described: Vec<&'static str> = [
-            nvs_db::DbErrorKind::UniqueViolation,
-            nvs_db::DbErrorKind::ForeignKeyViolation,
-            nvs_db::DbErrorKind::NotNullViolation,
-            nvs_db::DbErrorKind::CheckViolation,
-            nvs_db::DbErrorKind::Deadlock,
-            nvs_db::DbErrorKind::SerializationFailure,
-            nvs_db::DbErrorKind::ConnectionLost,
-            nvs_db::DbErrorKind::Timeout,
-            nvs_db::DbErrorKind::Syntax,
-            nvs_db::DbErrorKind::Permission,
-            nvs_db::DbErrorKind::Other,
-        ]
-        .into_iter()
-        .map(error_kind_case)
-        .collect();
+        let described: Vec<&'static str> =
+            EVERY_ERROR_KIND.into_iter().map(error_kind_case).collect();
         let registered: Vec<&'static str> =
             ERROR_KIND.cases.iter().map(|(name, _)| *name).collect();
         assert_eq!(
             described, registered,
             "`nvs_db::DbErrorKind` and `{ERROR_KIND_NAME}` are one enum, in § 8's own order — a \
              case added to either belongs in both, and in the same place"
+        );
+    }
+
+    /// § 7's retry reads a kind back out of a thrown `Db\DbError`, so the two
+    /// halves of that round trip have to agree for every case — including the
+    /// two [`nvs_db::DbErrorKind::is_retryable`] names, which is the only
+    /// answer the loop acts on.
+    #[test]
+    fn a_kind_written_into_a_throw_reads_back_as_itself() {
+        for kind in EVERY_ERROR_KIND {
+            assert_eq!(
+                error_kind_of(error_kind_value(kind)),
+                Some(kind),
+                "`{}` did not survive the round trip",
+                error_kind_case(kind)
+            );
+        }
+        assert_eq!(error_kind_of(Value::null()), None);
+        let past_the_end = i64::try_from(EVERY_ERROR_KIND.len()).expect("eleven cases");
+        assert_eq!(
+            error_kind_of(Value::int(past_the_end)),
+            None,
+            "one past the last ordinal is no case at all"
         );
     }
 
