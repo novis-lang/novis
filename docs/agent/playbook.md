@@ -1029,11 +1029,6 @@ is why" — is this file.
   `Path::exists` `stat`s rather than `lstat`s and an include naming a symlink was otherwise
   `E0605`. Grep `impl <Trait> for` before adding a method, and give the fake the resolving
   behaviour rather than the identity one.
-- **`peek.py` takes every target *before* any flag, and a target after one is `unrecognized
-  arguments`.** `peek.py A.rs:re:pat --window 8 B.rs:1-16` fails on `B.rs:1-16` — argparse stops
-  collecting the positional list at the first optional and will not resume — while the same call with
-  both targets first works. The failure names only the trailing target, so it reads as a bad target
-  spelling rather than as an ordering rule, and the natural fix (drop the target) is the wrong one.
 - **`Edit` strips a trailing space from `new_string`, so a `replace_all` that narrows a keyword eats
   the space after it.** `pub const ` → `pub(crate) const ` arrived as `pub(crate) constMAGIC`, and
   the same edit re-applied to repair it is refused as "old and new are identical", because the tool
@@ -2080,15 +2075,6 @@ is why" — is this file.
   given), but the shape recurs: a timing assertion must measure from the instant the clock was set,
   never from one taken after a scheduler hop. Before diagnosing a timing failure as a regression,
   re-run that one test alone — it costs one call and tells the two apart.
-- **`python tools/try.py` cannot run a case that has a second `--FILE <name>--` section, and the
-  failure looks like a language error rather than a tool one.** A `.nvst` case carrying
-  `--FILE nvs.toml--` — which is how a configuration-dependent case is written, and the only way to
-  exercise `[cache.local] max_size` — is concatenated into the program by `try.py`, so the TOML is
-  parsed as Novis and you get a dozen diagnostics pointing at `[cache.local]` and `max_size = "1K"`
-  (`E0105` not a valid assignment target, `E0319` no global constant has this name). Nothing is wrong
-  with the case. `./target/debug/nvs.exe test <case.nvst>` is the runner that honours every section,
-  it takes as many paths as you like in one call, and it is already built at the commit the session
-  opens on.
 - **Write a goal's acceptance fixture red, but never write its `nvs.toml` block red.** The two look
   like halves of one slice and they are not. A `.nvs` fixture naming a member that does not exist yet
   fails at `E0405` and costs only itself, which is why the playbook's *A missing acceptance fixture*
