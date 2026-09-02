@@ -139,6 +139,7 @@
 pub mod conn;
 pub mod matrix;
 pub mod pg;
+pub mod span;
 pub mod sql;
 
 pub use conn::{
@@ -148,4 +149,5 @@ pub use conn::{
 pub use pg::{
     BlockError, CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode,
 };
+pub use span::{QuerySpan, SQL_LIMIT};
 pub use sql::{Binding, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite};

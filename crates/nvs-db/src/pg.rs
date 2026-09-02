@@ -129,6 +129,7 @@ use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
 
 use crate::conn::{ColumnType, DbErrorKind, Driver, Isolation, PgConn, ServerError, State};
+use crate::span::QuerySpan;
 use crate::sql::{Prepared, StatementCache, time_zone_for};
 
 /// The one mechanism this driver authenticates with.
@@ -2409,6 +2410,10 @@ pub struct PgRows<'a, S: Read + Write = NvsTls<NvsTcp>> {
     columns: Vec<PgColumn>,
     tag: Option<String>,
     last_id: Option<u64>,
+    /// ADR 0067 § 11's trace event for this statement, opened when it went out
+    /// and ended by whatever ends the stream — [`crate::span`] owns why it is
+    /// built from the SQL and never from the parameters.
+    span: QuerySpan,
 }
 
 impl<S: Read + Write> std::fmt::Debug for PgRows<'_, S> {
@@ -2531,6 +2536,19 @@ impl<S: Read + Write> PgRows<'_, S> {
         self.last_id
     }
 
+    /// [ADR 0067 § 11](../../../docs/adr/0067-core-db.md)'s trace event for
+    /// this statement.
+    ///
+    /// Borrowed rather than taken, because a caller reading it mid-stream is
+    /// asking a running statement how far it has got — [`QuerySpan::duration`]
+    /// answers from the clock until the stream ends and freezes it. Nothing
+    /// consumes one yet; [`crate::span`]'s module doc owns what it is waiting
+    /// for.
+    #[must_use]
+    pub fn span(&self) -> &QuerySpan {
+        &self.span
+    }
+
     /// The next row, or `None` once the stream has ended.
     ///
     /// Ending it is what returns the connection to [`State::Idle`]: the
@@ -2560,6 +2578,7 @@ impl<S: Read + Write> PgRows<'_, S> {
                     // read it out of.
                     let id = returned_id(&self.columns, &row);
                     self.last_id = id;
+                    self.span.row();
                     return Ok(Some(row));
                 }
                 backend::Message::CommandComplete(body) => {
@@ -2567,6 +2586,7 @@ impl<S: Read + Write> PgRows<'_, S> {
                         .tag()
                         .inspect_err(|_| self.state.set(State::Poisoned))?
                         .to_owned();
+                    self.span.finished(affected_rows(&tag));
                     self.tag = Some(tag);
                     drain_to_ready(self.wire, self.state)?;
                     return Ok(None);
@@ -2574,11 +2594,17 @@ impl<S: Read + Write> PgRows<'_, S> {
                 // `Bind` on an empty query string. Not an error: it is what a
                 // caller that built its SQL from an empty template sent.
                 backend::Message::EmptyQueryResponse => {
+                    self.span.finished(None);
                     drain_to_ready(self.wire, self.state)?;
                     return Ok(None);
                 }
                 backend::Message::ErrorResponse(body) => {
                     let error = server_error(&body);
+                    // A refused statement is still a statement that took time,
+                    // and § 11 gives a span no success field to lose: the rows
+                    // it reports are the ones that did arrive, and the error is
+                    // the caller's own return value.
+                    self.span.finished(None);
                     drain_to_ready(self.wire, self.state)?;
                     return Err(error);
                 }
@@ -2639,6 +2665,12 @@ fn start_statement<'a, S: Read + Write>(
     if !state.get().may_start_statement() {
         return Err(second_statement(state));
     }
+
+    // ADR 0067 § 11's span, opened before the batch is built so its duration is
+    // what the caller waited rather than what the server spent. It is handed
+    // `sql` and not `params`, which is the whole of § 11's "never parameters" —
+    // `crate::span`'s module doc owns why that is a signature and not a rule.
+    let span = QuerySpan::opened(Driver::Postgres, sql);
 
     // The arity is the parameter count, which ADR 0067 § 5's `inList` expansion
     // has already moved by the time the SQL reaches here.
@@ -2742,6 +2774,7 @@ fn start_statement<'a, S: Read + Write>(
         columns,
         tag: None,
         last_id: None,
+        span,
     })
 }
 
@@ -5877,6 +5910,78 @@ mod tests {
             assert_eq!(server.constraint.as_deref(), Some("users_email_key"));
             assert!(!server.message.contains(BOUND), "{}", server.message);
         }
+    }
+
+    /// § 11's span, and the property that makes it exportable at all: the bound
+    /// value goes out on the wire and appears in no field of the span, in
+    /// neither of its renderings, and — the part that is about the future — in
+    /// nothing a field added later could carry, since the `Debug` it is
+    /// asserted over is derived.
+    ///
+    /// The positive half is asserted first and is not decoration: "contains no
+    /// parameter value" is trivially true of a span that carries nothing, so
+    /// the driver, the row count, the affected count and the SQL are named
+    /// before the absence is. What survives in the text is the **placeholder**
+    /// — `$1` is still there where the value never was, which is the same fact
+    /// § 1's refusal of emulated prepares states from the other side.
+    #[test]
+    fn a_query_span_contains_no_parameter_value_anywhere() {
+        const BOUND: &str = "correct-horse-battery-staple";
+        const SQL: &str = "select greeting from greetings where token = $1";
+
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            one_statement(vec![
+                data_row(&[Some(b"hello")]),
+                data_row(&[Some(b"world")]),
+            ])
+        }));
+
+        let mut rows = start_statement(
+            &mut wire,
+            &state,
+            &mut no_cache(),
+            SQL,
+            &[Some(BOUND.as_bytes())],
+        )
+        .expect("the portal described itself");
+        while rows.next_row().expect("the stream drained").is_some() {}
+        // Cloned and the stream dropped, so the wire is readable below: the
+        // value having reached the server is what makes this about where it
+        // stopped rather than about a parameter nobody sent.
+        let span = rows.span().clone();
+        drop(rows);
+
+        assert!(
+            wire.peer().sent.iter().any(|flushed| flushed
+                .windows(BOUND.len())
+                .any(|window| window == BOUND.as_bytes())),
+            "the bound value never reached the wire",
+        );
+
+        assert_eq!(span.driver(), Driver::Postgres);
+        assert_eq!(span.rows(), 2);
+        assert_eq!(span.affected(), Some(2));
+        assert_eq!(span.sql(), SQL);
+        assert!(!span.is_truncated());
+        assert!(span.connection().is_none(), "the driver names no block");
+        assert!(span.sql().contains("$1"), "{}", span.sql());
+
+        let shown = span.to_string();
+        assert!(!shown.contains(BOUND), "{shown}");
+        assert!(shown.contains("driver=postgres"), "{shown}");
+        assert!(shown.contains("rows=2"), "{shown}");
+
+        let traced = format!("{span:?}");
+        assert!(!traced.contains(BOUND), "{traced}");
+
+        // The one field the driver does not fill, filled: a named connection
+        // adds the block's name and still no value.
+        let named = span.named("main");
+        let shown = named.to_string();
+        assert!(shown.contains("connection=main"), "{shown}");
+        assert!(!shown.contains(BOUND), "{shown}");
+        assert!(!format!("{named:?}").contains(BOUND));
     }
 
     /// Every `SQLSTATE` this driver classifies, and the agreement that matters:
