@@ -87,16 +87,16 @@
 //!    `nvs_runtime::ThrownClass::DbError` ([`statement_failure`]), so a `catch`
 //!    can name the database instead of `RuntimeError` — which it still is,
 //!    being its parent, so nothing written against the old class stops
-//!    working. `kind` is a slot now: `nvs_hir::errors::OWN_PROPERTIES` declares
-//!    it, `nvs_types::error_lib` types it as the registered enum [`ERROR_KIND`]
-//!    and the synthesized constructor writes `Other` into it. What a program
-//!    cannot do is read `sqlState`, `driverCode`, `constraint` or `sql`, each
-//!    of which owes a seeded type first, **and cannot yet read a `kind` the
-//!    server actually chose**: a native throw carries a class and a message and
-//!    has no way to set a slot, so [`statement_failure`] still drops the kind
-//!    it holds. That is the half of gap 9 the retry loop is missing too. A
-//!    failure of the *wire* rather than of the statement stays an `IOError`:
-//!    § 8's class is the server's answer, not the socket's.
+//!    working. `kind` is a slot and it carries **the kind the server chose**:
+//!    `nvs_hir::errors::OWN_PROPERTIES` declares it, `nvs_types::error_lib`
+//!    types it as the registered enum [`ERROR_KIND`], the synthesized
+//!    constructor seeds `Other` for a `DbError` a program built itself, and
+//!    [`statement_failure`] writes the driver's own classification over it
+//!    through `nvs_runtime::Fault::thrown_with_slot`. What a program cannot do
+//!    is read `sqlState`, `driverCode`, `constraint` or `sql`, each of which
+//!    owes a seeded type first. A failure of the *wire* rather than of the
+//!    statement stays an `IOError`: § 8's class is the server's answer, not the
+//!    socket's.
 //! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
 //!    has landed of `Core\Db\Queryable`** (gap 8 is what `queryAs` still owes).
 //!    `stream` and `streamAs` are owed whole, and so are
@@ -157,10 +157,14 @@
 //!    bound on that is `retries` itself, which defaults to 0.
 //!
 //!    **A conflict raised by a statement *inside* the closure is still not
-//!    retried**, because gap 4 is that a refusal reaches Novis as a `Fault`
-//!    with no kind on it; what this reads is the commit's own `io::Error`,
-//!    which is where PostgreSQL surfaces a `REPEATABLE READ`/`SERIALIZABLE`
-//!    conflict. Giving `Db\DbError` its `kind` closes both gaps at once.
+//!    retried.** What this reads is the commit's own `io::Error`, which is
+//!    where PostgreSQL surfaces a `REPEATABLE READ`/`SERIALIZABLE` conflict
+//!    anyway. The closure's own refusal is no longer *unreadable* — gap 4 is
+//!    closed and the `Db\DbError` it threw carries the kind — but it reaches
+//!    this loop as a pending exception on the context rather than as an
+//!    `io::Error`, so branching on it means reading [`ERROR_KIND`] back out of
+//!    that object's [`nvs_runtime::KIND_SLOT`] and mapping it to
+//!    [`nvs_db::DbErrorKind::is_retryable`]. That is what this half still owes.
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 
@@ -2613,29 +2617,75 @@ fn bound_of(value: Value) -> Bound {
 /// refusal the program did not choose from one it did. Nothing about the
 /// message changes with the class, and § 8 requires it to carry no bound value.
 ///
-/// What the throw still cannot carry is § 8's `kind`, which this crate has
-/// right here — `nvs_db::ServerError::of(refused)` reads it back out of the
-/// error this function is handed. The slot exists now; what is missing is a way
-/// to reach it, because `Fault::thrown_as` carries a class and a message and
-/// nothing else. `Fault::ThrownWithIssues` is the shape that already writes one
-/// extra slot on a thrown object, for `ParseError::$issues`, and generalising
-/// it is what this owes. That is this module's known gap 4, and it is why
-/// `transaction`'s retry rule branches on the *commit's* refusal and not on the
-/// closure's (gap 9).
+/// The `Core\Db\DbError` it builds carries § 8's `kind`:
+/// `nvs_db::ServerError::of(refused)` reads the driver's own classification
+/// back out of the error this function is handed, and
+/// [`Fault::thrown_with_slot`] writes it into
+/// [`nvs_runtime::KIND_SLOT`] as the throw is recorded. A refusal the driver
+/// answered with no [`nvs_db::ServerError`] behind it reads as `Other`, which
+/// is what § 8 defines that case to be — the condition a code table does not
+/// name — so the property is written on every path and never `null`.
 fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fault {
     let name = block.as_text().unwrap_or("?");
     match refused.kind() {
         std::io::ErrorKind::InvalidInput => {
             Fault::thrown_as(ThrownClass::Logic, format!("{named}: {refused}"))
         }
-        std::io::ErrorKind::Other => Fault::thrown_as(
-            ThrownClass::DbError,
-            format!("{named}: `[db.{name}]` refused the statement: {refused}"),
-        ),
+        std::io::ErrorKind::Other => {
+            let kind = nvs_db::ServerError::of(refused)
+                .map_or(nvs_db::DbErrorKind::Other, |server| server.kind);
+            Fault::thrown_with_slot(
+                ThrownClass::DbError,
+                format!("{named}: `[db.{name}]` refused the statement: {refused}"),
+                nvs_runtime::KIND_SLOT,
+                error_kind_value(kind),
+            )
+        }
         _ => Fault::thrown_as(
             ThrownClass::Io,
             format!("{named}: `[db.{name}]` failed while the statement was running: {refused}"),
         ),
+    }
+}
+
+/// A [`nvs_db::DbErrorKind`] as the [`ERROR_KIND`] case a program matches on,
+/// which at runtime is that case's ordinal
+/// ([ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)) — so a
+/// `match ($e->kind) { Core\Db\ErrorKind::Deadlock => … }` reads what the
+/// server itself said.
+///
+/// [`column_type_value`]'s rule, for its reason: the ordinal is looked up
+/// rather than written a second time, and what is spelled here is only the
+/// *name* correspondence neither half of the enum knows.
+/// `every_db_error_kind_case_is_named` holds it total in both directions, which
+/// is also what makes the `expect` unreachable.
+fn error_kind_value(of: nvs_db::DbErrorKind) -> Value {
+    let case = error_kind_case(of);
+    let (_, ordinal) = ERROR_KIND
+        .cases
+        .iter()
+        .find(|(name, _)| *name == case)
+        .expect("every `nvs_db::DbErrorKind` names a case `ERROR_KIND` registers");
+    Value::int(*ordinal)
+}
+
+/// The [`ERROR_KIND`] case one [`nvs_db::DbErrorKind`] is, by name.
+///
+/// Exhaustive on purpose — a variant added over there arrives here as a
+/// non-exhaustive `match` rather than as a refusal that classifies wrongly.
+fn error_kind_case(of: nvs_db::DbErrorKind) -> &'static str {
+    match of {
+        nvs_db::DbErrorKind::UniqueViolation => "UniqueViolation",
+        nvs_db::DbErrorKind::ForeignKeyViolation => "ForeignKeyViolation",
+        nvs_db::DbErrorKind::NotNullViolation => "NotNullViolation",
+        nvs_db::DbErrorKind::CheckViolation => "CheckViolation",
+        nvs_db::DbErrorKind::Deadlock => "Deadlock",
+        nvs_db::DbErrorKind::SerializationFailure => "SerializationFailure",
+        nvs_db::DbErrorKind::ConnectionLost => "ConnectionLost",
+        nvs_db::DbErrorKind::Timeout => "Timeout",
+        nvs_db::DbErrorKind::Syntax => "Syntax",
+        nvs_db::DbErrorKind::Permission => "Permission",
+        nvs_db::DbErrorKind::Other => "Other",
     }
 }
 
@@ -4772,6 +4822,39 @@ mod tests {
             described, registered,
             "`nvs_db::ColumnType` and `{COLUMN_TYPE_NAME}` are one enum, in the spec's own \
              order — a case added to either belongs in both, and in the same place"
+        );
+    }
+
+    /// The same agreement for ADR 0067 § 8's `ErrorKind`, and it fails the same
+    /// two ways: a case [`error_kind_case`] never names is a condition a
+    /// program can `match` on and never receive, and a name it produces that
+    /// [`ERROR_KIND`] does not register is [`error_kind_value`]'s `expect`
+    /// firing inside [`statement_failure`] — on the throw path of a real
+    /// refusal, which is the one of the two that reaches a request.
+    #[test]
+    fn every_db_error_kind_case_is_named() {
+        let described: Vec<&'static str> = [
+            nvs_db::DbErrorKind::UniqueViolation,
+            nvs_db::DbErrorKind::ForeignKeyViolation,
+            nvs_db::DbErrorKind::NotNullViolation,
+            nvs_db::DbErrorKind::CheckViolation,
+            nvs_db::DbErrorKind::Deadlock,
+            nvs_db::DbErrorKind::SerializationFailure,
+            nvs_db::DbErrorKind::ConnectionLost,
+            nvs_db::DbErrorKind::Timeout,
+            nvs_db::DbErrorKind::Syntax,
+            nvs_db::DbErrorKind::Permission,
+            nvs_db::DbErrorKind::Other,
+        ]
+        .into_iter()
+        .map(error_kind_case)
+        .collect();
+        let registered: Vec<&'static str> =
+            ERROR_KIND.cases.iter().map(|(name, _)| *name).collect();
+        assert_eq!(
+            described, registered,
+            "`nvs_db::DbErrorKind` and `{ERROR_KIND_NAME}` are one enum, in § 8's own order — a \
+             case added to either belongs in both, and in the same place"
         );
     }
 
