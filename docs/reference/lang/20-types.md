@@ -407,8 +407,11 @@ leading-zero form `017` is decimal seventeen, not octal. `true`, `false`, `null`
 
 **Strings.** A single-quoted literal interpolates nothing and has exactly two escapes, `\\` and
 `\'` — every other backslash stands for itself. A double-quoted literal interpolates `$x`, `$a[k]`,
-`$a[0]`, and in braces any property, offset or method-call chain: `{$o->p}`, `{$a["k"]["j"]}`,
-`{$o->m()}`. Its escapes are `\\ \" \$ \n \t \r \v \f \e`, an octal `\0` through `\777`, `\xHH` and
+`$a[0]` — the bare form reaches one level, no further — and in braces any expression whose first
+token is a variable: `{$o->p}`, `{$a["k"]["j"]}`, `{$o->m()}`, `{$a + $b}` (PHP stops at
+variable-rooted chains here; Novis takes the whole expression grammar). A `{` not followed by `$`
+is literal text, and PHP's deprecated `${name}` form does not exist. Its escapes are
+`\\ \" \$ \n \t \r \v \f \e`, an octal `\0` through `\777`, `\xHH` and
 `\u{HHHH}`; an unrecognized one such as `\q` keeps its backslash. An interpolated value takes the
 same rule as `echo`: scalars and `null` render, `bytes`, arrays, enum cases and objects without
 `Stringable` are refused.
@@ -425,13 +428,13 @@ string $who = "world";
 array<string> $row = ["name" => "ann"];
 array<int> $n = [10, 20];
 Tag $t = new Tag();
-echo "hi $who, $row[name], $n[1], {$row["name"]}, {$t->name}, {$t->upper()}\n";
+echo "hi $who, $row[name], $n[1], {$row["name"]}, {$t->name}, {$t->upper()}, {$n[0] + $n[1]}\n";
 echo 'raw $who \t', ' ', 'it\'s', "\n";
 echo "tab[\t] quote[\"] dollar[\$who] backslash[\\] cp[\u{41}]\n";
 echo "oct[\101] hex[\x41] unknown[\q]\n";
 ```
 ```output
-hi world, ann, 20, ann, div, DIV
+hi world, ann, 20, ann, div, DIV, 30
 raw $who \t it's
 tab[	] quote["] dollar[$who] backslash[\] cp[A]
 oct[A] hex[A] unknown[\q]
