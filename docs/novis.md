@@ -17898,7 +17898,7 @@ Enqueues `$script` to run in the background, as a row in the database `[queue] c
 | `{queue: …}` | `string` (default `"default"`, neutral) | The named queue the job goes in. Workers claim from the queues they are configured for, so this is how work is separated by rate rather than by kind. |
 | `{runAt: …}` | `Core\Time\Instant` (default `null`) | The earliest moment a worker may claim it. Left out, that moment is now. |
 | `{maxAttempts: …}` | `uint` (default `null`) | How many attempts this job gets before it is dead-lettered. Left out, `[queue] max_attempts`. Always finite: there is no spelling that retries forever. |
-| `{backoff: …}` | `Core\Time\Duration` (default `null`) | The base delay for the exponential backoff between attempts, jittered by the worker. Left out, the worker's own default. |
+| `{backoff: …}` | `Core\Time\Duration` (default `null`) | The base delay for the exponential backoff between attempts, jittered by the worker. Left out, one second — the row records a delay either way, since there is no spelling of a job that retries at once. |
 | `{key: …}` | `string` (default `null`, neutral) | A dedupe key: while a job with this key is still pending, a second push with it enqueues nothing and answers the pending job's own id. |
 
 **Returns** `Core\Queue\Id` — A `Core\Queue\Id` naming the row, which `cancel` and `status` are asked about. For a push deduped by `key`, the id of the job already pending under it.

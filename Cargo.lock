@@ -1659,6 +1659,7 @@ dependencies = [
  "memmap2",
  "nvs-codegen",
  "nvs-config",
+ "nvs-db",
  "nvs-diagnostics",
  "nvs-hir",
  "nvs-host",
