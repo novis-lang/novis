@@ -363,6 +363,9 @@ mod tests {
             }
             CoreTy::Union(members) => members.iter().any(|member| mentions(member, class)),
             CoreTy::Options(options) => options.iter().any(|option| mentions(&option.ty, class)),
+            CoreTy::Shape(arms) => arms
+                .iter()
+                .any(|arm| arm.iter().any(|field| mentions(&field.ty, class))),
             CoreTy::Bool
             | CoreTy::Int
             | CoreTy::Uint

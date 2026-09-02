@@ -601,6 +601,40 @@ pub enum CoreTy {
     /// [`OPTIONS_NAME`] for every member that has one.
     /// `an_options_bag_is_last_and_never_empty` holds both.
     Options(&'static [CoreOption]),
+    /// [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)'s
+    /// fixed-key shape parameter — `Core\Db::open`'s `Db\Settings`, the first
+    /// one the spec writes. The outer slice is the **arms** and is never
+    /// empty: one arm is a plain fixed-key shape, two or more a discriminated
+    /// union whose separator falls out of the arms being pairwise disjoint
+    /// (`a_shapes_arms_are_pairwise_disjoint`) rather than out of a field
+    /// declared to be the discriminant.
+    ///
+    /// **The union is a property of this one type rather than a
+    /// [`Self::Union`] of two shapes**, because `nvs_types::ty::Ty`'s union is
+    /// sorted by member `TypeId` while a shape's field order *is* the ABI, so
+    /// the interner would reorder the arms underneath it — and because a union
+    /// of a shape and an `int` would be a type with no ABI at all and nothing
+    /// to refuse it.
+    ///
+    /// **A whole parameter, never nested**: never a member of a
+    /// [`Self::Union`], never a [`CoreOption`]'s or a [`CoreField`]'s own
+    /// type, never inside a [`Self::Nullable`], a [`Self::Array`] or a
+    /// [`Self::Variadic`]. `a_shape_is_only_ever_a_whole_parameter` holds it,
+    /// the way `a_callback_result_type_is_only_ever_a_whole_parameter` already
+    /// holds [`Self::CallableTo`]'s.
+    ///
+    /// Unlike a [`Self::Options`] bag it is an **ordinary parameter in every
+    /// other respect**: it sits at its own position in [`CoreMethod::params`]
+    /// with a name in [`CoreMethod::names`], and carries a
+    /// [`CoreMethod::defaults`] entry only if it is itself optional. The bag
+    /// keeps its own variant rather than being folded into this one because
+    /// the two differ in call-site rules and not in checking.
+    ///
+    /// It flattens at the call site into one ABI argument per field of the
+    /// **arms merged in order, deduplicated by name** (ADR 0135 § 3) — so no
+    /// runtime representation of a shape appears anywhere, and `open`'s helper
+    /// is an ordinary `args: [12]`.
+    Shape(&'static [&'static [CoreField]]),
 }
 
 /// The one name a trailing [`CoreTy::Options`] bag is callable by, for every
@@ -634,6 +668,40 @@ pub struct CoreOption {
     /// call site by `nvs_ir::lower::lower_call_args`, exactly as an omitted
     /// positional parameter's default is.
     pub default: Const,
+}
+
+/// One field of one arm of a [`CoreTy::Shape`]: its name, its type, and
+/// whether a call site may leave it out — [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+/// § 1.
+///
+/// Modelled on [`CoreOption`] and differing in exactly one field. A bag's
+/// option is optional *by construction*, so its default is a bare [`Const`];
+/// a shape's field states its own required-ness, so its default is an
+/// [`Option<Const>`] where `None` means required. That single difference is
+/// why the two are not one type: folding them would put a "required?" question
+/// on every option, where the answer is already known.
+///
+/// A qualifier classification lands **here** rather than on the parameter —
+/// `Db\Settings`'s `host` is a [`CoreTy::Text`] at [`Qual::Sink`] because
+/// [ADR 0067](../../../../docs/adr/0067-core-db.md) § 3 makes an address a
+/// sink, while the shape as a whole classifies nothing.
+#[derive(Clone, Copy, Debug)]
+pub struct CoreField {
+    /// The field's own name, `camelCase` per ADR 0029 — what a call site
+    /// writes on the left of the `:` in `{driver: Driver::Sqlite}`.
+    pub name: &'static str,
+    /// Its declared type. Never itself a [`CoreTy::Shape`], and never
+    /// nullable: `a_shape_is_only_ever_a_whole_parameter` holds the first, and
+    /// `a_shape_field_is_never_nullable` the second — a slot belonging to an
+    /// arm the caller did not write already arrives as [`Const::Null`], so a
+    /// field that could itself be `null` would reach the helper as the same
+    /// argument whether it was written or not.
+    pub ty: CoreTy,
+    /// `None` — **required**. `Some(c)` — omittable, and `c` is the constant
+    /// an omitting call site passes, materialized by
+    /// `nvs_ir::lower::lower_call_args` exactly as a [`CoreOption::default`]
+    /// is.
+    pub default: Option<Const>,
 }
 
 /// One optional parameter's default value.
@@ -2607,6 +2675,180 @@ mod tests {
                          reach the helper as the same argument",
                         class.name, method.name, member.name
                     );
+                }
+            }
+        }
+    }
+
+    /// A [`CoreTy::Shape`] flattens into one ABI argument per field of its
+    /// merged arms, so it only means anything as a *whole parameter*: nested
+    /// in an array, a union, an option or another shape's field there would be
+    /// nothing for it to flatten into — ADR 0135 § 1, the restriction
+    /// `a_callback_result_type_is_only_ever_a_whole_parameter` already holds
+    /// for [`CoreTy::CallableTo`]. The emptiness half rides along here because
+    /// it is the same walk: a shape with no arms, or an arm with no fields,
+    /// accepts nothing a call site could write.
+    #[test]
+    fn a_shape_is_only_ever_a_whole_parameter() {
+        fn nests_one(ty: &CoreTy) -> bool {
+            match ty {
+                CoreTy::Shape(_) => true,
+                CoreTy::Array(elem)
+                | CoreTy::Nullable(elem)
+                | CoreTy::Variadic(elem)
+                | CoreTy::Iterated(elem) => nests_one(elem),
+                CoreTy::Union(members) => members.iter().any(nests_one),
+                CoreTy::Options(options) => options.iter().any(|option| nests_one(&option.ty)),
+                _ => false,
+            }
+        }
+        for class in CLASSES {
+            for method in class.members() {
+                assert!(
+                    !nests_one(&method.return_ty),
+                    "{}::{} returns a shape, which has no runtime representation to answer with",
+                    class.name,
+                    method.name
+                );
+                for param in method.params {
+                    let CoreTy::Shape(arms) = param else {
+                        assert!(
+                            !nests_one(param),
+                            "{}::{} nests a shape inside a parameter",
+                            class.name,
+                            method.name
+                        );
+                        continue;
+                    };
+                    assert!(
+                        !arms.is_empty(),
+                        "{}::{} declares a shape with no arms",
+                        class.name,
+                        method.name
+                    );
+                    for arm in *arms {
+                        assert!(
+                            !arm.is_empty(),
+                            "{}::{} declares a shape arm with no fields",
+                            class.name,
+                            method.name
+                        );
+                        for field in *arm {
+                            assert!(
+                                !nests_one(&field.ty),
+                                "{}::{}'s shape field `{}` is itself a shape",
+                                class.name,
+                                method.name,
+                                field.name
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// ADR 0135 § 2: checking a written literal is "exactly one arm accepts
+    /// it", so two arms that could both accept one is a **registry** bug and
+    /// is refused here rather than at a call site. A pair is proved disjoint
+    /// either by a field name both declare whose declared types share no
+    /// value, or by one arm requiring a key the other does not declare at all
+    /// — an exact-key check refuses the extra key, which is the whole of why
+    /// `Db\Settings` needs no declared discriminant.
+    #[test]
+    fn a_shapes_arms_are_pairwise_disjoint() {
+        /// The values a type admits, as atoms, or `None` for a type that is
+        /// not a closed set of them. ADR 0047's enum-case types are what
+        /// separate real arms, so this stays deliberately small: anything
+        /// wider is simply not a proof, and the pair must be separated by a
+        /// required key instead.
+        fn atoms(ty: &CoreTy) -> Option<Vec<String>> {
+            match ty {
+                CoreTy::EnumCase(name, case) => Some(vec![format!("{name}::{case}")]),
+                CoreTy::IntLiteral(value) => Some(vec![format!("int {value}")]),
+                CoreTy::Union(members) => {
+                    let mut all = Vec::new();
+                    for member in *members {
+                        all.extend(atoms(member)?);
+                    }
+                    Some(all)
+                }
+                _ => None,
+            }
+        }
+        fn types_are_disjoint(left: &CoreTy, right: &CoreTy) -> bool {
+            match (atoms(left), atoms(right)) {
+                (Some(left), Some(right)) => !left.iter().any(|one| right.contains(one)),
+                _ => false,
+            }
+        }
+        fn requires_a_key_the_other_lacks(arm: &[CoreField], other: &[CoreField]) -> bool {
+            arm.iter().any(|field| {
+                field.default.is_none() && !other.iter().any(|one| one.name == field.name)
+            })
+        }
+        for class in CLASSES {
+            for method in class.members() {
+                for param in method.params {
+                    let CoreTy::Shape(arms) = param else {
+                        continue;
+                    };
+                    for (index, arm) in arms.iter().enumerate() {
+                        for other in &arms[index + 1..] {
+                            let separated = arm.iter().any(|field| {
+                                other
+                                    .iter()
+                                    .filter(|one| one.name == field.name)
+                                    .any(|one| types_are_disjoint(&field.ty, &one.ty))
+                            }) || requires_a_key_the_other_lacks(arm, other)
+                                || requires_a_key_the_other_lacks(other, arm);
+                            assert!(
+                                separated,
+                                "{}::{}'s shape arms {index} and a later one are not provably \
+                                 disjoint, so a literal could be accepted by both and arm \
+                                 selection would have to guess",
+                                class.name, method.name
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// ADR 0135 § 3: every slot the written literal does not fill passes a
+    /// [`Const`], and [`Const::Null`] is what a field of an arm the caller did
+    /// not write passes. So "filled" is only readable if a field can never be
+    /// `null` itself — the reason [`CoreTy::Union`]'s own doc already gives
+    /// for an option, one level down. [`CoreTy::Mixed`] is refused with
+    /// [`CoreTy::Nullable`] because it admits `null` without spelling it.
+    #[test]
+    fn a_shape_field_is_never_nullable() {
+        fn admits_null(ty: &CoreTy) -> bool {
+            match ty {
+                CoreTy::Nullable(_) | CoreTy::Mixed => true,
+                CoreTy::Union(members) => members.iter().any(admits_null),
+                _ => false,
+            }
+        }
+        for class in CLASSES {
+            for method in class.members() {
+                for param in method.params {
+                    let CoreTy::Shape(arms) = param else {
+                        continue;
+                    };
+                    for arm in *arms {
+                        for field in *arm {
+                            assert!(
+                                !admits_null(&field.ty),
+                                "{}::{}'s shape field `{}` admits `null`, which is the same \
+                                 argument an unfilled slot already passes",
+                                class.name,
+                                method.name,
+                                field.name
+                            );
+                        }
+                    }
                 }
             }
         }
