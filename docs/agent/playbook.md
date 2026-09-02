@@ -1617,6 +1617,11 @@ is why" — is this file.
   sessions asked for § 7 and § 8 in the handoff, four re-sliced them by hand, and the list was
   unchanged the whole time. Edit `docs/agent/loop-goal.toml` in the session that discovers the gap;
   `tools/loop.py` expects a session to rewrite that file and reloads it every iteration.
+- `python tools/peek.py --locate <sym>` silently drops every `path:target` given in the same call.
+  The two forms look composable — one is "anchors, no bodies" and the other is "these regions" — and
+  a call carrying both prints only the `--locate` lines, with no note that the rest was ignored. It
+  reads as "those files hold nothing matching", which is the wrong conclusion to draw twice in one
+  session. Issue the `--locate` as its own call.
 
 ## Running things
 

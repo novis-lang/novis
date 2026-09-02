@@ -38,6 +38,15 @@
 //! single spelling — a missing temporary table is an error rather than a value,
 //! and [`handshake`](./handshake.rs) is where that half is asserted.
 //!
+//! **MariaDB is a third telling of the reuse case and not of the two bounds.**
+//! `lifetime` and `idle` are decided by `nvs_runtime::pool` before any driver is
+//! consulted: the connection they retire is never handed back to anyone, so a
+//! third copy of those two would re-ask a question with no MariaDB anywhere in
+//! it. What is this driver's own is the acquire path — the `Connection::MariaDb`
+//! variant filed and unfiled, and `MariaConn::reset`'s own
+//! `COM_RESET_CONNECTION` standing where `MySqlConn::reset`'s stands, over a
+//! socket that authenticated through a different plugin roster.
+//!
 //! # The teardown is `pool::release`, called the way `Ctx` calls it
 //!
 //! `nvs_runtime::Ctx`'s own `Drop` releases each connection a request still
@@ -55,7 +64,10 @@ use nvs_config::db::PoolBounds;
 use nvs_config::snapshot::Snapshot;
 use nvs_db::matrix::{self, Location, Server};
 use nvs_db::mysql::scalar;
-use nvs_db::{Connection, Driver, MySqlConn, MySqlScalar, MySqlTarget, PgConn, PgTarget};
+use nvs_db::{
+    Connection, Driver, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar, MySqlTarget,
+    PgConn, PgTarget,
+};
 use nvs_runtime::pool::{self, Ticket};
 
 /// How long the whole of one handshake here may take.
@@ -90,6 +102,22 @@ fn postgres() -> Option<Server> {
 fn mysql() -> Option<Server> {
     let endpoint = matrix::endpoint()?;
     if endpoint.driver != Driver::MySql {
+        return None;
+    }
+    let Location::Server(server) = endpoint.location else {
+        unreachable!("SQLite is the only driver reached by path, and this is not it")
+    };
+    Some(server)
+}
+
+/// This process's MariaDB server, or `None` because nothing pointed it at one.
+///
+/// [`mysql`]'s twin, and the one line that differs is why the pair exists: the
+/// matrix runs one driver per process, and a MariaDB leg is not a MySQL one
+/// however alike the wire underneath it is.
+fn mariadb() -> Option<Server> {
+    let endpoint = matrix::endpoint()?;
+    if endpoint.driver != Driver::MariaDb {
         return None;
     }
     let Location::Server(server) = endpoint.location else {
@@ -143,17 +171,49 @@ fn mysql_open(server: &Server) -> MySqlConn {
         .expect("the matrix server accepts a handshake verified against its own anchor")
 }
 
+/// [`mysql_open`]'s twin, and the target type is the whole of the difference:
+/// `MariaTarget` carries the same seven fields and reaches a different auth
+/// roster and a different error table.
+fn mariadb_open(server: &Server) -> MariaConn {
+    let target = MariaTarget {
+        host: &server.host,
+        user: &server.user,
+        password: &server.password,
+        database: &server.database,
+        tls_ca_file: Some(server.ca.as_path()),
+        time_zone: 0,
+        statement_cache: 8,
+    };
+
+    MariaConn::connect(address(server), &target, Some(Instant::now() + DEADLINE))
+        .expect("the matrix server accepts a handshake verified against its own anchor")
+}
+
 /// [`one_value`]'s twin over the binary protocol, where the column arrives
 /// already typed and is read through § 9's own decoder rather than by parsing
 /// the octets here.
+fn mysql_one_value(conn: &mut MySqlConn, sql: &str) -> Option<String> {
+    first_text(conn.query(sql, &[]).expect("the server ran the statement"))
+}
+
+/// [`mysql_one_value`] on the third driver.
+fn mariadb_one_value(conn: &mut MariaConn, sql: &str) -> Option<String> {
+    first_text(conn.query(sql, &[]).expect("the server ran the statement"))
+}
+
+/// The walk itself, shared by the two drivers that speak this result set.
+///
+/// [`MariaConn::query`] answers the *same* [`MySqlRows`] as [`MySqlConn::query`]
+/// — one binary protocol, and § 9's decoder is one decoder — so the walk is
+/// shared where every helper around it is twinned. What MariaDB does not share
+/// with MySQL is above the framing, and that is what the cases below ask about.
 ///
 /// Every caller below asks for its answer as `CHAR`, so a statement that
 /// answered anything else panics rather than being rendered into text: what
 /// `CONNECTION_ID()`'s own column type is has nothing to do with what these
 /// cases are asserting, and pinning it here would make them fail for a reason
 /// that is not theirs.
-fn mysql_one_value(conn: &mut MySqlConn, sql: &str) -> Option<String> {
-    let mut rows = conn.query(sql, &[]).expect("the server ran the statement");
+fn first_text(mut rows: MySqlRows<'_>) -> Option<String> {
     // Cloned out before the walk begins: the definitions describe every row,
     // and `next_row` needs the borrow they came from.
     let columns = rows.columns().to_vec();
@@ -175,6 +235,11 @@ fn mysql_one_value(conn: &mut MySqlConn, sql: &str) -> Option<String> {
 
 /// MySQL's `pg_backend_pid()`: the identity of the session on the other end of
 /// this socket, and the whole of what tells one connection from another here.
+///
+/// This constant and the two below are read by the MariaDB cases as well, for
+/// [`first_text`]'s reason: the spelling is the family's rather than either
+/// server's, and a second copy under a `MARIA_` name would be the same string
+/// twice.
 const MYSQL_ID: &str = "SELECT CAST(CONNECTION_ID() AS CHAR)";
 
 /// The session state a request leaves behind for § 13's reset to remove, and the
@@ -509,6 +574,71 @@ fn two_requests_on_one_core_share_one_mysql_connection() {
     );
     assert_eq!(
         mysql_one_value(&mut warm, MYSQL_MARKER),
+        None,
+        "§ 13's reset removed the session state the first request left behind",
+    );
+}
+
+/// § 13 on the third driver: MariaDB's own `COM_RESET_CONNECTION` hands the
+/// connection one request released to the next request on that core, clean.
+///
+/// [`two_requests_on_one_core_share_one_mysql_connection`]'s assertion over the
+/// other half of the family. Nothing it *reads* is new — the SQL is the same
+/// spelling and the result set is the same decoder — and that is the point: what
+/// is new is every step between `pool::release` and that read. The
+/// `Connection::MariaDb` variant this crate files, the downcast that unfiles it
+/// as *that* variant rather than the MySQL one, and [`MariaConn::reset`], which
+/// is a second implementation of § 13's reset and not a call into the first.
+#[test]
+fn two_requests_on_one_core_share_one_mariadb_connection() {
+    let Some(server) = mariadb() else {
+        return;
+    };
+
+    // One configuration generation, which is what § 13's key is scoped to —
+    // `Ticket::key_for` owns why a reload is two pools rather than one.
+    let generation = Arc::new(Snapshot::default());
+    let ticket = Ticket::for_block(&generation, "main", PoolBounds::DEFAULT);
+
+    // The first request. The pool is empty, so it opens; it leaves a session
+    // variable behind for the reset to remove.
+    let lease = pool::admit(ticket.clone()).expect("an unused key is under `max`");
+    let mut opened = mariadb_open(&server);
+    let first = mariadb_one_value(&mut opened, MYSQL_ID).expect("a session has an id");
+    mariadb_one_value(&mut opened, MYSQL_MARK);
+    assert_eq!(
+        mariadb_one_value(&mut opened, MYSQL_MARKER).as_deref(),
+        Some("marker"),
+        "the session state this request is about to leave in the pool",
+    );
+
+    // Teardown: the one call `Ctx`'s `Drop` makes, which consumes the lease and
+    // so gives the key's slot back with it.
+    pool::release(lease, Instant::now(), Box::new(Connection::MariaDb(opened)));
+
+    // The second request, on this same core: it admits under the same key and
+    // finds a connection warm rather than opening one.
+    let lease = pool::admit(ticket).expect("the released connection gave its slot back");
+    let held = pool::take(&lease, Instant::now()).expect("this core released one under this key");
+    let held = held
+        .into_any()
+        .downcast::<Connection>()
+        .expect("this crate filed it, so this crate's type is what comes back");
+    let Connection::MariaDb(warm) = *held else {
+        panic!("the driver under test on this leg is MariaDB")
+    };
+    // § 13's reset is the acquiring request's and not the releasing one's, and
+    // it consumes the connection — so a reset that failed could not hand one
+    // back here at all.
+    let mut warm = warm.reset().expect("a healthy connection resets");
+
+    assert_eq!(
+        mariadb_one_value(&mut warm, MYSQL_ID).as_deref(),
+        Some(first.as_str()),
+        "the second request is talking to the first request's session, over its socket",
+    );
+    assert_eq!(
+        mariadb_one_value(&mut warm, MYSQL_MARKER),
         None,
         "§ 13's reset removed the session state the first request left behind",
     );
