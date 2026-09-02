@@ -1,0 +1,31 @@
+--TEST--
+A key only one arm of `Db\Settings` requires is required of the call that selects that arm, asked of both arms — ADR 0135 § 2
+--FILE--
+<?nvs
+// The half of § 2 that the merged list understates rather than overstates. A
+// key is required of the *merged* parameter only where every arm requires it,
+// which for `Db\Settings` is `driver` alone — so before arm selection a server
+// literal could omit `user` and a SQLite literal could omit `path`, and the
+// helper would read a slot § 3 promises is filled.
+var $server = Core\Db::open({
+    driver: Core\Db\Driver::Postgres,
+    host: "db.example.test",
+    database: "shop",
+    password: "hunter2",
+});
+
+// Both arms, because a rule written for one of them reads the same on the line
+// that has it and refuses nothing on the line that does not: the SQLite arm
+// requires `path`, and the arm this literal selects is the one its `driver`
+// value names.
+var $file = Core\Db::open({
+    driver: Core\Db\Driver::Sqlite,
+});
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0402]: this member requires the shape key `user`
+%A
+error[E0402]: this member requires the shape key `path`
+%A
+error: aborting due to 2 errors

@@ -1,0 +1,35 @@
+--TEST--
+A settings literal is held to the one arm it selects, so `host` beside `Driver::Sqlite` is refused while compiling and so is the server arm's key set under that driver — ADR 0135 § 2, ADR 0067 § 3
+--FILE--
+<?nvs
+// ADR 0067 § 3: a SQLite connection is a file. Its arm declares no `host` at
+// all, because there is no server to send credentials to — and ADR 0135 § 3's
+// merged list *does* declare one, since the server arm does. So this is the
+// exact literal a check against the merged key set accepts and § 2's arm
+// selection refuses: one key from the arm this literal did not select.
+var $file = Core\Db::open({
+    driver: Core\Db\Driver::Sqlite,
+    path: "/srv/shop/shop.db",
+    host: "db.example.test",
+});
+
+// The other direction, and the one a key-only reading of § 2 would miss: every
+// key here belongs to the server arm, and the `driver` value names the arm that
+// declares none of them. An arm accepts on its values as well as its keys, so
+// what is reported is the field the two arms declare differently — nothing
+// declares `driver` to be a discriminant, and § 2 needs nothing to.
+var $crossed = Core\Db::open({
+    driver: Core\Db\Driver::Sqlite,
+    host: "db.example.test",
+    database: "shop",
+    user: "app",
+    password: "hunter2",
+});
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0454]: `host` is not a key of the form this literal writes
+%A
+error[E0401]: expected `Core\Db\Driver::MySql|Core\Db\Driver::MariaDb|Core\Db\Driver::Postgres|Core\Db\Driver::SqlServer`, found `Core\Db\Driver::Sqlite`
+%A
+error: aborting due to 2 errors
