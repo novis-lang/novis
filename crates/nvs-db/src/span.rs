@@ -35,13 +35,18 @@
 //! not measurable, which is why the span is built unconditionally rather than
 //! behind the capability check § 11 gates the *output* on.
 //!
-//! Nothing emits one into a trace yet. ADR 0041's event kind is unbuilt —
-//! `nvs_runtime::TraceEvent` has no kind field at all and its own doc comment
-//! says every event is a `call` — so a span is a value the driver hands up and
-//! the layer above has nowhere to file. § 11's `slow_query` threshold and
-//! `executeMany`'s own span wait on the same thing: `executeMany` answers with
-//! a count rather than a handle, so there is no place to hang one until there
-//! is a sink to send it to.
+//! **A span reaches a trace as its own rendering, not as its fields.**
+//! `Core\Db`'s reader files one under `nvs_runtime::TraceKind::Query` once the
+//! rows have ended, and what crosses is [`QuerySpan`]'s `Display` — `nvs-db`
+//! depends on `nvs-runtime`, so the alternative is this field set written a
+//! second time in that crate, and `Ctx::record_query` is where that is argued.
+//! The gate is `DebugFlags::TRACE` rather than § 11's capability, which no
+//! capability set can express yet.
+//!
+//! Two halves of § 11 are still open. The `slow_query` threshold writes these
+//! same facts to `Core\Log` and has no reader here; and `executeMany` answers
+//! with a count rather than a handle, so its span has nowhere to be hung until
+//! the routine builds and files one itself.
 
 use std::time::{Duration, Instant};
 
@@ -119,10 +124,14 @@ impl QuerySpan {
     /// from a program-supplied `Db\Settings` through `open` has no name at all.
     /// So the layer that resolved the name puts it on, and a span without one
     /// is the honest answer rather than a placeholder.
-    #[must_use]
-    pub fn named(mut self, connection: &str) -> QuerySpan {
+    ///
+    /// **In place rather than a builder**, because the layer that knows the name
+    /// meets the span through the statement's handle — `Core\Db`'s reader has a
+    /// `&mut PgRows`, which owns its span and cannot hand it over — so a
+    /// consuming `named(self) -> Self` would be reachable only by replacing a
+    /// running statement's span with a clone of itself.
+    pub fn name(&mut self, connection: &str) {
         self.connection = Some(connection.to_owned());
-        self
     }
 
     /// Counts one row handed back to the caller.

@@ -3464,6 +3464,9 @@ fn queried_rows(
     // costs no message of its own.
     let source = args[1].as_text();
     let sending: Vec<Option<&[u8]>> = statement.binds.iter().map(|one| one.as_deref()).collect();
+    // Read before the statement takes the context, because it holds it for as
+    // long as the rows do — see [`traced_query`] for the rest.
+    let tracing = traced_query(ctx);
     let postgres = postgres_of(ctx, statement.key, &statement.block, named)?;
     // Read before the statement borrows the connection, and once for the whole
     // result: § 9's zone-less `TIMESTAMP` is decoded in the zone this
@@ -3473,6 +3476,7 @@ fn queried_rows(
     let mut answered = postgres
         .query(&statement.sql, &sending)
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    name_span(&mut answered, &statement.block);
     // Taken before the first row: a `PgRows` lends its columns and its rows
     // out of one borrow, and the rows are read with it held mutably.
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
@@ -3502,10 +3506,46 @@ fn queried_rows(
         }
         rows.append(Value::array(one));
     }
+    // After the drain, so the span carries the duration the caller waited and
+    // the rows it actually got, and after the last read of `answered`, which is
+    // what ends the borrow on the context.
+    let filed = tracing.then(|| answered.span().to_string());
+    // Explicit because `PgRows` has a `Drop` — it releases the statement — so
+    // its borrow of the context runs to the end of the scope unless the stream
+    // is dropped here, and the context is what the event is filed on.
+    drop(answered);
+    if let Some(span) = filed {
+        ctx.record_query(&span);
+    }
     Ok(Answered {
         rows,
         columns: described,
     })
+}
+
+/// Whether this request is recording [ADR 0041](../../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+/// § 1's trace, asked **before** a statement borrows the context.
+///
+/// A statement holds `ctx` mutably for as long as its rows do
+/// ([`postgres_of`]), so the flag cannot be read at the point the event is
+/// filed. Reading it early also means a request that turns tracing on midway
+/// through a statement does not get half an event — the span is either filed
+/// whole or not at all, unlike a call site's pair, which ADR 0018 deliberately
+/// lets straddle a change.
+fn traced_query(ctx: &nvs_runtime::Ctx) -> bool {
+    ctx.debug_flags().contains(nvs_runtime::DebugFlags::TRACE)
+}
+
+/// Puts the `[db.<name>]` block on a running statement's span.
+///
+/// `nvs_db::QuerySpan::name` owns why the driver cannot do this itself. The
+/// block is the `Statement`'s own, so a `connect`'d connection names itself and
+/// ADR 0067 § 2's unnamed `open` — which has no block at all — leaves the field
+/// empty rather than carrying a made-up name.
+fn name_span(rows: &mut nvs_db::PgRows<'_>, block: &Value) {
+    if let Some(name) = block.as_text() {
+        rows.name_connection(name);
+    }
 }
 
 /// The row description as spec § 18's `array<Column>`: one [`COLUMN`] per
@@ -3755,10 +3795,13 @@ nvs_runtime::nvs_helper! {
         let source = args[1].as_text();
         let sending: Vec<Option<&[u8]>> =
             statement.binds.iter().map(|one| one.as_deref()).collect();
+        // As `query`, and for the reason [`traced_query`] gives.
+        let tracing = traced_query(ctx);
         let postgres = postgres_of(ctx, statement.key, &statement.block, EXECUTE)?;
         let mut answered = postgres
             .query(&statement.sql, &sending)
             .map_err(|refused| statement_failure(EXECUTE, &statement.block, source, &refused))?;
+        name_span(&mut answered, &statement.block);
         while answered
             .next_row()
             .map_err(|refused| statement_failure(EXECUTE, &statement.block, source, &refused))?
@@ -3767,6 +3810,15 @@ nvs_runtime::nvs_helper! {
 
         let changed = answered.affected();
         let last_id = answered.last_id();
+        // § 11's event is a *statement's*, not a reader's: a write files one on
+        // the same terms as `query`, carrying the affected count `finished`
+        // froze on the span above.
+        let filed = tracing.then(|| answered.span().to_string());
+        // As `query`, and for the same borrow reason given there.
+        drop(answered);
+        if let Some(span) = filed {
+            ctx.record_query(&span);
+        }
         Ok(crate::instance::build(
             &WRITE,
             [

@@ -2549,6 +2549,12 @@ impl<S: Read + Write> PgRows<'_, S> {
         &self.span
     }
 
+    /// Names the `[db.<name>]` block this statement ran on, for the layer that
+    /// resolved it — [`QuerySpan::name`] owns why the driver cannot.
+    pub fn name_connection(&mut self, connection: &str) {
+        self.span.name(connection);
+    }
+
     /// The next row, or `None` once the stream has ended.
     ///
     /// Ending it is what returns the connection to [`State::Idle`]: the
@@ -5977,7 +5983,8 @@ mod tests {
 
         // The one field the driver does not fill, filled: a named connection
         // adds the block's name and still no value.
-        let named = span.named("main");
+        let mut named = span.clone();
+        named.name("main");
         let shown = named.to_string();
         assert!(shown.contains("connection=main"), "{shown}");
         assert!(!shown.contains(BOUND), "{shown}");
