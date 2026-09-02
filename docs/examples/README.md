@@ -59,6 +59,12 @@ how an expected output is created, never how a red example is made green** — t
 goals state for fixtures. An example that has stopped printing what it used to has either found a
 regression or needs rewriting, and re-blessing decides which without looking.
 
+Where the disagreement is the binary's fault and the fix is larger than the slice, record it rather
+than re-blessing: a `# Known gaps` entry in the owning crate's module doc, and a marker on the
+example naming it — `// dossier: known-gap crates/…/foo.rs -- what is wrong`. The sweep counts it as
+`known-gap` instead of a failure, and a marked example that passes fails the sweep, so the marker
+comes off with the fix.
+
 ## `// requires: unimplemented`
 
 An example for a feature that does not run yet carries that line and is skipped rather than failed.

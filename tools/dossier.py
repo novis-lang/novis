@@ -52,7 +52,12 @@ afford to run is a check nobody runs:
   trees, one `git log -1` per implementing file. Seconds, whatever the roster's size.
 * **Perf is re-measured only where the implementation moved.** The `impl_commit` currency rule
   above is the whole mechanism: an untouched member is never re-timed, so a sweep after a change to
-  one crate measures that crate.
+  one crate measures that crate. `--record-perf` measures only what has no current figure unless
+  `--force`, so it is safe to run at the end of every slice.
+* **A figure from any machine satisfies the gate.** A fresh clone on a new box owes nothing it
+  already has a current record for -- the ledger travels with the repository, and re-taking a
+  number to learn what the last machine already recorded proves nothing about the language. Only
+  `--perf-report` insists on this machine's own records, because only a delta needs them.
 * **`--run` remembers a green verdict against the bytes that produced it** — the program's own hash
   and the binary's — in `.loop/dossier-green.json`. Identical bytes into a deterministic run cannot
   reach a different verdict, which is the argument `verify.py` and `loop.py` both already make for
@@ -75,6 +80,25 @@ It goes in the `--FILE--` block of a `.nvst` case, or above a Rust `#[test]`, wh
 the `fn` beneath it. For a `Core` member the scan additionally credits a case that plainly calls it
 (`Core\\Str::length(`), so the 1,678 cases that existed before this file counts without being
 rewritten -- `--id` says which of the two found each one. Nothing else is inferred.
+
+## When a proof fails
+
+It has found something, and there are two honest answers: **fix it**, or **record it**. Recording is
+a `# Known gaps` entry in the owning crate's module doc -- this repository's existing home for
+exactly this fact -- plus a marker on the proof that found it:
+
+    // dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence saying what breaks
+
+The sweep then counts that file as `known-gap` rather than a failure, so an unattended run continues
+past a bug too large for the slice that found it, and `--gaps` keeps the list in front of anyone who
+asks. Two things stop this from becoming a way to make anything green: the marker must name a file
+that really carries a `# Known gaps` section, and **a marked proof that passes fails the sweep** --
+so removing the marker is part of whatever fix eventually lands. `--run … --strict` fails on them
+outright, which is what a person runs to see the real debt.
+
+**Weakening the proof is not one of the two answers** -- not softening an attack until it survives,
+not re-blessing an example to whatever the binary now prints, not `[skip]`ping the feature. Those
+turn a finding into a green check, which is the one outcome this file exists to prevent.
 
 ## What is owed, per kind
 
@@ -168,6 +192,10 @@ ITER_RE = re.compile(r"(?://|#)\s*bench:\s*iterations\s+([0-9_]+)")
 TIMEOUT_RE = re.compile(r"(?://|#)\s*hostile:\s*timeout-ms\s+([0-9]+)")
 #: `// hostile: expect-refusal` -- this attack's whole point is that the compiler says no.
 REFUSAL_EXPECTED_RE = re.compile(r"(?://|#)\s*hostile:\s*expect-refusal")
+#: `// dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence`. A proof that found a real
+#: bug too large for the slice that found it. The path names the module doc whose `# Known gaps`
+#: section carries the entry, which is where this repository already keeps exactly this fact.
+KNOWN_GAP_RE = re.compile(r"(?://|#)\s*dossier:\s*known-gap\s+(\S+)\s*(.*)")
 #: A Novis compile diagnostic. A runtime failure does not look like this -- an uncaught throw is a
 #: structured log line -- so this distinguishes "the attack was refused before it ran" from "the
 #: attack ran and the runtime handled it", which are opposite verdicts.
@@ -476,8 +504,10 @@ class Proofs:
     examples: list[str] = field(default_factory=list)
     hostile: list[str] = field(default_factory=list)
     bench: str = ""
-    perf: dict | None = None
+    perf: dict | None = None        # the newest record taken on THIS machine, for the report
+    perf_any: dict | None = None    # the newest current record from ANY machine, for the gate
     inferred: int = 0               # tests credited by a call rather than by a marker
+    gaps: list[str] = field(default_factory=list)   # proofs that found a bug nobody has fixed yet
 
 
 def scan_markers() -> dict[str, list[str]]:
@@ -553,16 +583,20 @@ def is_rust(label: str) -> bool:
     return ".rs" in label
 
 
-def ledger_records() -> dict[str, dict]:
-    """The newest perf record per (feature, machine) pair, keyed by feature id.
+def ledger_records() -> dict[str, list[dict]]:
+    """Every perf record, grouped by feature, oldest first. An append-only ledger is the history;
+    this is it, and the callers pick what they need out of each list.
 
-    An append-only ledger is the history; this is the front of it. Only records from *this* machine
-    are returned, because a wall-clock figure from another one is not a figure about this build.
+    **The gate reads records from any machine and the report reads only this one's**, and that split
+    is the whole point. A figure taken on a colleague's Linux box at the same `impl_commit` is a
+    measurement of the same code: the feature is documented, and re-taking it here would prove
+    nothing about the language. But a *delta* between the two boxes is meaningless, so
+    `--perf-report` never crosses a fingerprint. Without this split a fresh clone owes 759 figures
+    it already has, and the first thing anyone would do is turn the proof off.
     """
     if not LEDGER.exists():
         return {}
-    me = fingerprint()["id"]
-    out: dict[str, dict] = {}
+    out: dict[str, list[dict]] = {}
     for line in read(LEDGER).splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
@@ -571,8 +605,7 @@ def ledger_records() -> dict[str, dict]:
             rec = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if rec.get("machine") == me:
-            out[rec.get("id", "")] = rec
+        out.setdefault(rec.get("id", ""), []).append(rec)
     return out
 
 
@@ -580,6 +613,7 @@ def collect(entries: list[Entry]) -> dict[str, Proofs]:
     markers = scan_markers()
     calls = scan_calls()
     perf = ledger_records()
+    me = fingerprint()["id"]
     out: dict[str, Proofs] = {}
     for e in entries:
         p = Proofs()
@@ -596,9 +630,17 @@ def collect(entries: list[Entry]) -> dict[str, Proofs]:
             p.examples = sorted(rel(f) for f in e.examples_dir.glob("*.nvs"))
         if e.hostile_dir.is_dir():
             p.hostile = sorted(rel(f) for f in e.hostile_dir.glob("*.nvs"))
+        for d in (e.examples_dir, e.hostile_dir):
+            if d.is_dir():
+                p.gaps += [rel(f) for f in sorted(d.glob("*.nvs")) if known_gap(read(f))]
         if e.bench_file.exists():
             p.bench = rel(e.bench_file)
-        p.perf = perf.get(e.id)
+        records = perf.get(e.id, [])
+        mine = [r for r in records if r.get("machine") == me]
+        p.perf = mine[-1] if mine else None
+        current = e.impl_file and last_commit(e.impl_file)
+        fresh = [r for r in records if not current or r.get("impl_commit") == current]
+        p.perf_any = fresh[-1] if fresh else None
         out[e.id] = p
     return out
 
@@ -623,12 +665,15 @@ def owed(entry: Entry, proofs: Proofs, policy: dict, skips: dict) -> dict[str, s
     if "hostile" not in skip and len(proofs.hostile) < want["hostile"]:
         out["hostile"] = f"{len(proofs.hostile)} of {want['hostile']} in {rel(entry.hostile_dir)}"
     if want["perf"] and "perf" not in skip:
+        # `perf_any` and not `perf`: a figure taken on another machine at this same implementation
+        # commit documents the feature just as well, and a fresh clone that owed every figure it
+        # already has is a proof nobody would keep switched on. `--record-perf` is how a machine
+        # gets its own numbers, and `--perf-report` is the only thing that insists on them.
         if not proofs.bench:
             out["perf"] = f"no bench at {rel(entry.bench_file)}"
-        elif not proofs.perf:
-            out["perf"] = "never measured on this machine"
-        elif entry.impl_file and proofs.perf.get("impl_commit") != last_commit(entry.impl_file):
-            out["perf"] = f"stale: {entry.impl_file} changed since it was measured"
+        elif not proofs.perf_any:
+            out["perf"] = ("never measured" if not entry.impl_file else
+                           f"stale: {entry.impl_file} changed since it was last measured")
     return out
 
 
@@ -717,6 +762,42 @@ def run_one_hostile(nvs: Path, path: Path, valgrind: bool) -> tuple[str, str]:
     return "ok", ""
 
 
+def known_gap(source: str) -> tuple[str, str] | None:
+    """The `known-gap` marker in a proof file, as (module doc path, reason), or None."""
+    m = KNOWN_GAP_RE.search(source)
+    return (m.group(1), m.group(2).strip(" -\t")) if m else None
+
+
+def judge_gap(path: Path, verdict: str, why: str) -> tuple[str, str]:
+    """Re-judge one result against the file's `known-gap` marker, if it carries one.
+
+    **A proof that fails has found something, and the only two honest answers are to fix it or to
+    record it.** Weakening the proof is neither, and it is the cheapest thing an unattended session
+    could do, so this makes the third path a real one: mark the file, and the failure becomes a
+    counted, printed `known-gap` rather than a red check the run cannot get past.
+
+    Two things keep that from becoming a way to make anything green. The marker must name a module
+    doc that actually carries a `# Known gaps` section -- this repository's existing home for
+    exactly this fact -- so recording a bug means writing it where the crate's own readers will
+    find it. And a marked file that *passes* fails: the gap it names is fixed, and the marker has
+    to go with it.
+    """
+    marker = known_gap(read(path))
+    if not marker:
+        return verdict, why
+    doc, reason = marker
+    target = ROOT / doc
+    if not target.exists():
+        return "fail", f"`known-gap` names {doc}, which does not exist"
+    if "# Known gaps" not in read(target):
+        return "fail", f"`known-gap` names {doc}, which has no `# Known gaps` section to hold it"
+    if verdict == "ok":
+        return "fail", f"passes, but is still marked `known-gap` against {doc} -- remove the marker"
+    if verdict == "skip":
+        return verdict, why
+    return "known", f"{reason or why} (recorded in {doc})"
+
+
 def binary_key(nvs: Path) -> str:
     """The binary, cheaply: size and modification time. Hashing 80 MB per invocation to learn what
     a `stat` already answered is the sort of cost this cache exists to avoid."""
@@ -742,7 +823,7 @@ def save_green(doc: dict) -> None:
 
 
 def run_suite(nvs: Path, what: str, files: list[Path], valgrind: bool, quiet: bool,
-              use_cache: bool = True) -> int:
+              use_cache: bool = True, strict: bool = False) -> int:
     """Run one suite, remembering what was green.
 
     **A green verdict is keyed on the bytes that produced it** -- the program's own hash, the
@@ -781,7 +862,7 @@ def run_suite(nvs: Path, what: str, files: list[Path], valgrind: bool, quiet: bo
             futures = {pool.submit(runner, nvs, p): (p, d) for p, d in todo}
             for fut in concurrent.futures.as_completed(futures):
                 path, digest = futures[fut]
-                verdict, why = fut.result()
+                verdict, why = judge_gap(path, *fut.result())
                 results.append((path, verdict, why))
                 if verdict == "ok":
                     green[f"{tag}:{rel(path)}"] = [digest, bkey]
@@ -792,14 +873,20 @@ def run_suite(nvs: Path, what: str, files: list[Path], valgrind: bool, quiet: bo
 
     ok = sum(1 for _, v, _ in results if v == "ok") + cached
     skipped = sum(1 for _, v, _ in results if v == "skip")
+    gaps = [(p, w) for p, v, w in results if v == "known"]
     bad = [(p, w) for p, v, w in results if v == "fail"]
+    if strict:
+        bad += gaps
+        gaps = []
     for path, why in sorted(bad, key=lambda r: str(r[0])):
         print(f"  FAIL  {rel(path)}: {why}")
+    for path, why in sorted(gaps, key=lambda r: str(r[0])):
+        print(f"  gap   {rel(path)}: {why}")
     if not quiet:
         for path, verdict, why in sorted(results, key=lambda r: str(r[0])):
             if verdict == "skip":
                 print(f"  skip  {rel(path)}: {why}")
-    print(f"dossier {what}: {ok} ok, {skipped} skipped, {len(bad)} failed "
+    print(f"dossier {what}: {ok} ok, {skipped} skipped, {len(gaps)} known-gap, {len(bad)} failed "
           f"({len(files)} files, {cached} unchanged since they last passed, "
           f"{width} at a time, {time.time() - started:.1f}s)")
     return 1 if bad else 0
@@ -867,8 +954,19 @@ def calibrate(nvs: Path, reps: int) -> tuple[float, float]:
     return floor, unit_ns
 
 
-def record_perf(nvs: Path, entries: list[Entry], reps: int, note: str) -> int:
+def record_perf(nvs: Path, entries: list[Entry], reps: int, note: str, proofs: dict[str, Proofs],
+                policy: dict, skips: dict, force: bool) -> int:
+    """Measure and append. **By default only what has no current figure**, which is what makes this
+    safe to put at the end of a slice: a session that edited one file re-measures that file's
+    features and nothing else, and running it twice costs a walk. `--force` re-measures everything
+    in scope, for when the question is the machine rather than the code."""
     todo = [e for e in entries if e.bench_file.exists()]
+    if not force:
+        todo = [e for e in todo if "perf" in owed(e, proofs[e.id], policy, skips)]
+        if not todo:
+            print("dossier: every bench in scope already has a current figure "
+                  "(--force re-measures anyway).")
+            return 0
     if not todo:
         print("dossier: no bench programs in scope -- nothing to measure.")
         return 0
@@ -1016,6 +1114,7 @@ def group_rows(entries: list[Entry], proofs: dict[str, Proofs], policy: dict,
             "kind": members[0].kind,
             "features": len(members),
             "complete": complete,
+            "gaps": sum(len(proofs[e.id].gaps) for e in members),
             **{p: counts[p] for p in PROOFS},
         })
     rows.sort(key=lambda r: (r["complete"] / r["features"], -r["features"], r["group"]))
@@ -1042,6 +1141,12 @@ def print_status(rows: list[dict], columns: tuple[str, ...]) -> None:
     print()
     print(f"  {done}/{total} features complete "
           f"({done / total * 100:.1f}%)" if total else "  nothing on the roster")
+    gaps = sum(r["gaps"] for r in rows)
+    if gaps:
+        print(f"  {gaps} proof(s) carry a `known-gap` marker: a bug the proof found and nobody has")
+        print("  fixed yet, recorded in the owning crate's `# Known gaps`. `--run … --strict` fails")
+        print("  on them; `--owed --gaps` lists them. This number going up is the point of the")
+        print("  hostile tree, and it going down is the point of the rest of the repository.")
 
 
 def print_group(name: str, entries: list[Entry], proofs: dict[str, Proofs], policy: dict,
@@ -1102,6 +1207,11 @@ def print_entry(fid: str, entries: list[Entry], proofs: dict[str, Proofs], polic
     print(f"   hostile   {len(p.hostile)} in {rel(match.hostile_dir)}")
     for f in p.hostile:
         print(f"     {f}")
+    if p.gaps:
+        print(f"   known-gap {len(p.gaps)} proof(s) found a bug nobody has fixed:")
+        for f in p.gaps:
+            gap = known_gap(read(ROOT / f))
+            print(f"     {f} -> {gap[0] if gap else '?'}: {gap[1] if gap else ''}")
     print()
     if missing:
         print("   OWED:")
@@ -1328,7 +1438,33 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "- **A feature that genuinely cannot carry a proof** — a member whose program exits, a",
         "  directive with no runtime cost — goes in `tools/data/dossier-policy.toml`'s `[skip]`",
         "  with the reason in one sentence, and the session says so in its commit. That is a",
-        "  recorded decision, not a gap.",
+        "  recorded decision, not a gap. It is **not** the answer to a proof that fails; see below.",
+        "",
+        "### When a proof finds a bug",
+        "",
+        "It will. An attack written to break a member sometimes does, and an example written",
+        "against the documented behaviour sometimes disagrees with the binary. **That is the",
+        "program working, not a problem with the slice**, and there are exactly two honest",
+        "answers — in this order:",
+        "",
+        "1. **Fix it.** This is the default and it is in scope: the fix, a `.nvst` case pinning the",
+        "   corrected behaviour, and the proof that found it, in the same slice. Most will be small.",
+        "2. **Record it**, when the fix is genuinely larger than a slice — a representation change, a",
+        "   design question, a refusal that needs an ADR. Add the entry to the owning crate's module",
+        "   doc `# Known gaps` (this repository's existing home for exactly this fact), and mark the",
+        "   proof with the file that carries it:",
+        "",
+        "       // dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence saying what breaks",
+        "",
+        "   The sweep then counts it as `known-gap` rather than a failure, so the run continues and",
+        "   the bug stays visible in `python tools/dossier.py --gaps`. A marked proof that *passes*",
+        "   fails the sweep, so removing the marker is part of whatever fix eventually lands.",
+        "",
+        "**Weakening the proof is not one of the two.** Do not soften an attack until it stops",
+        "failing, do not bless an example's `.out` to whatever the binary currently prints, and do",
+        "not `[skip]` the feature. Those all turn a finding into a green check, which is the one",
+        "outcome this whole program exists to prevent. If you are unsure whether the binary or the",
+        "proof is right, the ADR that owns the member decides; say which one you read in the commit.",
         "- **No numbered ADR is opened by this goal.** Nothing here is a design decision; it is",
         "  proof for designs that already landed. A finding that contradicts an ADR goes in the",
         "  handoff's `## Backlog`.",
@@ -1497,7 +1633,7 @@ def run_scoped(nvs: Path, what: str, scope: list[Entry], args) -> int:
         paths = {e.path for e in scope}
         files = [f for f in files if any(rel(f).startswith(f"{prefix}{p}/") for p in paths)]
     return run_suite(nvs, what, files, what == "hostile" and args.valgrind, args.quiet,
-                     not args.no_cache)
+                     not args.no_cache, args.strict)
 
 
 def bless(nvs: Path, targets: list[Path]) -> int:
@@ -1536,6 +1672,8 @@ def main() -> int:
                          "class gates on")
     ap.add_argument("--id", dest="feature", help="one feature, by its full id")
     ap.add_argument("--owed", action="store_true", help="only what is missing, as a worklist")
+    ap.add_argument("--gaps", action="store_true",
+                    help="every proof carrying a `known-gap` marker: the bugs the proofs found")
     ap.add_argument("--limit", type=int, default=40, help="rows before a summary line (0 = all)")
     ap.add_argument("--json", action="store_true", help="the audit as JSON")
     ap.add_argument("--gate", action="store_true",
@@ -1553,8 +1691,14 @@ def main() -> int:
                          "the benches are untouched, so switching it back on resumes")
     ap.add_argument("--no-cache", action="store_true",
                     help="with --run: re-run every program, even one unchanged since it passed")
+    ap.add_argument("--strict", action="store_true",
+                    help="with --run: a `known-gap` proof fails rather than being counted. What a "
+                         "person runs to see the language's real debt; the loop does not")
     ap.add_argument("--record-perf", action="store_true", help="measure and append to the ledger")
     ap.add_argument("--reps", type=int, default=5, help="timed runs per program; the fastest wins")
+    ap.add_argument("--force", action="store_true",
+                    help="with --record-perf: re-measure everything in scope, not only what has "
+                         "no current figure")
     ap.add_argument("--note", default="", help="a word recorded with each measurement")
     ap.add_argument("--perf-report", action="store_true", help="regenerate docs/perf/members.md")
     ap.add_argument("--bless", nargs="+", metavar="FILE",
@@ -1600,8 +1744,8 @@ def main() -> int:
     proofs = collect(entries)
 
     if args.record_perf:
-        return record_perf(nvs, scope, args.reps, args.note) or (perf_report() if args.perf_report
-                                                                 else 0)
+        rc = record_perf(nvs, scope, args.reps, args.note, proofs, policy, skips, args.force)
+        return rc or (perf_report() if args.perf_report else 0)
 
     if args.verify:
         # One process for the gate and both suites, because every check written into a generated
@@ -1639,6 +1783,19 @@ def main() -> int:
                      "hostile": len(proofs[e.id].hostile),
                      "perf": bool(proofs[e.id].perf)},
         } for e in scope], indent=2))
+        return 0
+
+    if args.gaps:
+        rows = [(e, f) for e in scope for f in proofs[e.id].gaps]
+        print(f"== BUGS THE PROOFS FOUND  ({len(rows)} marked proof(s))")
+        print("-- each is a real failure a session could not fix in the slice that found it, and is")
+        print("-- recorded in the named crate's `# Known gaps`. Removing the marker is part of the")
+        print("-- fix: a marked proof that passes fails the sweep.")
+        print()
+        for e, f in rows:
+            gap = known_gap(read(ROOT / f))
+            print(f"  {e.id:44} {f}")
+            print(f"  {'':44}   -> {gap[0] if gap else '?'}: {gap[1] if gap else ''}")
         return 0
 
     if args.feature:

@@ -108,12 +108,20 @@ question: *we changed something — what did it cost?*
   two of them**. Wall clock is not comparable across machines — that is [0026](0026-performance-measurement-methodology.md)'s
   whole finding — and `units` divides out the clock speed well enough to travel to about a tenth,
   which is enough to see a 3× regression and not enough to claim 5%.
+- **The gate accepts a record from any machine; only the report insists on this one's.** A figure
+  taken on another box at the same `impl_commit` measures the same code, so a fresh clone owes
+  nothing it already has a current record for. Gating on a local record instead would make every
+  new machine owe every figure in the ledger on its first run, and the first thing anyone would do
+  is switch the proof off.
 - **Nothing here gates a build.** A regression is a row with a `Δ` on it. The guards that fail a
   build are `benches/abi-probe/tests/perf_guards.rs` and stay exactly as they are.
 
 **A figure is re-measured only when the commit that last touched its implementing file changes.**
 That currency rule is what makes a roster of hundreds affordable: change `crates/nvs-stdlib/src/str.rs`
-and every `Core\Str` figure goes stale at once; change anything else and nothing is re-measured.
+and every `Core\Str` figure goes stale at once; change anything else and nothing is re-measured. The
+granularity is the file and not the member, which is conservative in the only safe direction — a
+comment-only edit stales its file's figures, and `--record-perf` measures exactly what is stale, so
+the cost of being wrong here is one command at the end of a slice rather than a wrong number.
 
 Callgrind instruction counts — 0026's cross-machine headline — are deliberately **not** what this
 ledger records. They are Linux-only and about fifty times slow, so a sweep of every feature is an
@@ -137,6 +145,32 @@ sink handed a tainted value, a capability used without being granted — the cas
 Freezing the output instead was rejected: every one of these programs is written to produce output
 nobody can predict, and a suite whose expectations must be maintained is a suite that gets weakened
 until it passes.
+
+### 5a. A proof that fails is fixed or recorded, and never weakened
+
+An attack written to break a member sometimes does, and an example written against the documented
+behaviour sometimes disagrees with the binary. That is the program working. Two answers, in order:
+
+1. **Fix it**, in the slice that found it, with a `.nvst` case pinning the corrected behaviour. This
+   is the default and most findings will be small.
+2. **Record it**, when the fix is genuinely larger than a slice: an entry in the owning crate's
+   module doc `# Known gaps` — [AGENTS.md](../../AGENTS.md) already makes that the home for what a
+   file still owes — plus a marker on the proof naming it:
+
+       // dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence saying what breaks
+
+The sweep counts a marked proof as `known-gap` rather than a failure, so an unattended run of
+several hundred sessions is not stopped by one bug it cannot fix, and `--gaps` keeps the list
+visible. Two rules stop that from becoming a way to make anything green: the marker must name a file
+that really carries a `# Known gaps` section, so recording a bug means writing it where the crate's
+own readers will find it; and **a marked proof that passes fails the sweep**, so removing the marker
+is part of whatever fix eventually lands.
+
+**Weakening the proof is not one of the two**, and naming that is the point of this section. Under an
+unattended loop the cheapest path past a red check is to soften the attack, re-bless the example, or
+`[skip]` the feature — each of which turns a finding into a green check, which is the single outcome
+this ADR exists to prevent. The `[skip]` list is for a proof that *cannot exist*, never for one that
+fails.
 
 ### 6. One slice is one feature, not one proof
 

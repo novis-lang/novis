@@ -62,10 +62,26 @@ Write what an attacker writes. The shapes that have found things in languages li
 
 Every case carries a first-line comment saying which of these it is and what it hopes to break.
 
-## The three directives a case may carry
+## When a case actually breaks something
+
+That is the point of the tree, and there are two honest answers: **fix it**, or **record it**. Record
+it with an entry in the owning crate's module doc `# Known gaps` and a marker on the case:
+
+    // dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence saying what breaks
+
+The sweep then counts the case as `known-gap` instead of a failure, so a long unattended run is not
+stopped by a bug too big for the session that found it, and `python tools/dossier.py --gaps` keeps
+the list in front of anyone who asks. **A marked case that passes fails the sweep**, so the marker
+comes off with the fix.
+
+**Softening the attack until it survives is not one of the two answers.** A case that has been
+weakened to go green is worse than no case: it reports that a thing was tried and held.
+
+## The four directives a case may carry
 
     // hostile: timeout-ms 4000     how long it may run before it counts as unbounded (default 10s)
     // hostile: expect-refusal      the compiler saying no is this case's assertion
+    // dossier: known-gap <file>    it breaks something; the fix is recorded there, not here
     // requires: unimplemented      skip: the feature does not run yet
 
 A case needing longer than a few seconds is usually measuring the machine rather than the runtime —

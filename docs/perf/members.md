@@ -18,4 +18,4 @@ is not one.
 
 | Feature | ns/op | units | Δ | Measured at | Implementation |
 |---|---:|---:|---:|---|---|
-| `Core\Str::length` | 39.5 | 11.865 |  | ec31e3884e16 | 2c93d0cfde44 |
+| `Core\Str::length` | 39.7 | 12.075 | +0.4% | 5c7c823bac04 | 5c7c823bac04 |
