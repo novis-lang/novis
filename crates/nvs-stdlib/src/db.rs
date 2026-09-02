@@ -5407,4 +5407,105 @@ mod tests {
         discard(reason);
         discard(scope);
     }
+
+    /// ADR 0067 § 2's memoization, asserted where it is written: a second
+    /// `Core\Db::connect("main")` in one request answers the connection the
+    /// first one opened, and performs no handshake of its own.
+    ///
+    /// **The first call is stood in for by its own last statement.** What sits
+    /// between a `connect` and its memo entry is a socket, a TLS session and a
+    /// login — a server, which no `-p nvs-stdlib` test has — and this case is
+    /// about what the *second* call does. So the context starts where the
+    /// first call leaves it: one connection filed under `main`, by the
+    /// [`nvs_runtime::Ctx::hold_open_connection`] that is the line
+    /// [`open_named`] ends on.
+    ///
+    /// **"No handshake" is asserted by making one impossible.** This context
+    /// carries no configuration at all, so every path past the memo refuses
+    /// before it can read a `[db.main]` block, let alone open a socket. The
+    /// shared call answering a key is therefore proof it returned at
+    /// [`nvs_runtime::Ctx::memoized_connection`] and nowhere later, and the
+    /// `{shared: false}` call reaching that refusal on the same context is the
+    /// other half of the same evidence — § 2's opt-out is charged again, as
+    /// [`CONNECT_DOC`] tells a caller it is.
+    ///
+    /// **One connection, counted rather than read off the key.** A memoized
+    /// call that answered the right key and *also* filed a connection would
+    /// pass every assertion above while leaving the request holding two, so
+    /// the next name filed has to land at the slot after the first.
+    #[test]
+    fn a_named_connection_is_memoized_for_the_request() {
+        /// A connection that has already been opened, which is the whole of
+        /// what this case needs one to be: the memo answers with a key and
+        /// never asks what the key holds.
+        #[derive(Debug)]
+        struct Opened;
+
+        impl nvs_runtime::HeldConnection for Opened {
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
+
+            fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
+                self
+            }
+        }
+
+        // The default the two bare calls in § 2's sentence are made under:
+        // memoization is what a program gets for writing no option at all, and
+        // `{shared: false}` is the only way out of it.
+        let connect = CLASS
+            .methods
+            .iter()
+            .find(|row| row.name == "connect")
+            .expect("spec § 18's `connect` is this class's own row");
+        let Some(CoreTy::Options(options)) = connect.params.last() else {
+            panic!("R2's one trailing options bag is `connect`'s last parameter")
+        };
+        let shared = options
+            .iter()
+            .find(|option| option.name == "shared")
+            .expect("§ 2's opt-out is an option of that bag");
+        assert_eq!(
+            format!("{:?}", shared.default),
+            format!("{:?}", Const::Bool(true)),
+            "a `connect` that writes no option is a shared one, which is what \
+             makes the pair below the ordinary case rather than an opt-in"
+        );
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let first = ctx.hold_open_connection(Some("main".to_owned()), None, Box::new(Opened));
+
+        let second = open_named(&mut ctx, "main", true, None, CONNECT)
+            .expect("§ 2's memo answers before anything reads a configuration");
+        assert_eq!(
+            first, second,
+            "two `connect(\"main\")` calls in one request name one connection"
+        );
+
+        let refused = open_named(&mut ctx, "main", false, None, CONNECT).expect_err(
+            "`{shared: false}` bypasses the memo, and there is no `[db.main]` behind it",
+        );
+        let Fault::Thrown(ThrownClass::Runtime, message) = refused else {
+            panic!("a name with no configuration behind it refuses as a plain `RuntimeError`")
+        };
+        assert!(
+            message.contains("no configuration at all"),
+            "the unshared call got past the memo and refused for want of a \
+             block — which is what the shared one did not do: {message}"
+        );
+
+        let other = ctx.hold_open_connection(Some("reports".to_owned()), None, Box::new(Opened));
+        assert_eq!(
+            other,
+            first + 1,
+            "the memoized call filed nothing, so the next name takes the very \
+             next slot — one connection, not two under one key"
+        );
+        assert_eq!(
+            ctx.memoized_connection("main"),
+            Some(first),
+            "and the name still resolves to the connection the first call opened"
+        );
+    }
 }
