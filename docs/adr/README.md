@@ -64,6 +64,7 @@ so you never have to open this file to route a topic.
 | `FFI`, `dl()`, native modules, stream wrappers, `php://`/`phar://`, `shmop`/`sysv*`/APCu, `eval`, `putenv`, `setlocale`, or "why can't userland do X at all" | [0052](0052-closed-doors.md) |
 | Whether a `.nvsx` can be an injection sink or source, `tainted`/`secret` at an extension call, what the manifest may declare | [0055](0055-extension-qualifier-declarations.md) |
 | What a `Core` member looks like — argument order, options, failure signalling, naming, mutation, callbacks; whether a PHP built-in survives at all | [0063](0063-core-api-conventions.md) for the shape rules; [docs/spec/01-core-library.md](../spec/01-core-library.md) for every signature |
+| How a `Core` member takes a fixed-key shape argument, a discriminated union of two shapes, why it must be written at the call site, and how it reaches the ABI | [0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) for the shape parameter; [0063](0063-core-api-conventions.md) R2 for the trailing options bag it generalises |
 | Where an implemented `Core` member's documentation lives — descriptions, parameter names, shape keys, errors; `nvs meta --json`; who wins when the spec and the registry both speak | [0117](0117-an-implemented-core-member-documents-itself-in-the-registry.md) |
 | "What happened to `<php_function>`?" — any PHP built-in by name, and whether it became a member, a construct or nothing | [docs/spec/02-php-migration.md](../spec/02-php-migration.md), one row per name; `python tools/check-migration.py --report` lists what is still undecided |
 | Durations and dates — `30s`/`1h30m` literals, `strtotime`, `DateTime` arithmetic, `sleep`, timeouts, why there is no `shift` | [0070](0070-duration-literals.md) for the literal; [docs/spec/01-core-library.md](../spec/01-core-library.md) § 4 for `Core\Time` |
@@ -368,6 +369,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0132](0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) | A driver is a sans-IO codec plus its own state machine over the parking stream, and the five are an enum rather than a trait | Accepted |
 | [0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md) | A launderer answers its sink's carrier, and only an idempotent escape answers a `string` | Accepted |
 | [0134](0134-every-shipped-feature-owes-four-proofs.md) | Every shipped feature owes four proofs, and the roster of features is derived rather than kept | Accepted |
+| [0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) | A fixed-key shape parameter is one `CoreTy` carrying its arms, and it flattens at the ABI exactly as an options bag does | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

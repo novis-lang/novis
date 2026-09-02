@@ -223,6 +223,10 @@ spellings rejected, and the reasoning.
 - **Every `Core` member has the same shape: subject first, one trailing options shape, nothing mutates,
   failure throws, absence is `?T`, and every parameter is callable by the spec's `$name`**
   ([0063](0063-core-api-conventions.md)).
+- **A fixed-key shape parameter is one `CoreTy` carrying its arms, and it flattens at the ABI exactly as an
+  options bag does** — written as a literal at the call site, arms pairwise disjoint so the discriminant
+  falls out of checking
+  ([0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)).
 - **Arrays combine by the member's name, never by a key's type** — `overlay`/`underlay`/`appendAll`, no
   `merge`, and `array + array` does not compile
   ([0069](0069-array-combination-is-key-type-independent.md)).

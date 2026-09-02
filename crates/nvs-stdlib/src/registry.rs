@@ -71,6 +71,15 @@
 //!   shape literal at the call site, or omitted — a diagnostic, never silence.
 //!   That is exactly the set of programs that can run today, since
 //!   `ExprKind::ObjectLiteral` has no lowering of its own at all.
+//!
+//! A **required, positional** fixed-key shape parameter — `Core\Db::open`'s
+//! `Db\Settings`, the first the spec writes — generalises all four, and is
+//! [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)'s
+//! `CoreTy::Shape`: a list of *arms*, flattened by the same rule, one arm for
+//! the ordinary case and two or more for a discriminated union. The bag keeps
+//! its own variant rather than being folded into it, because the two differ in
+//! *call-site rules* and not in checking — both intern to one type, so the
+//! exact-key check, the flatten and `E0453`/`E0454` are written once.
 
 /// [ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 /// § 2's qualifier classification, declared **per parameter** on the

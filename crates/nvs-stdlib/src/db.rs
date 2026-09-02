@@ -70,10 +70,17 @@
 //!    has no [`CoreTy`] for a shape **parameter** at all: `CoreTy::Options` is
 //!    a trailing bag, flattened to one ABI argument per option and optional by
 //!    construction, and no row in this crate has ever declared a fixed-key
-//!    shape argument. So `open` is blocked on a registry type rather than on
-//!    anything about databases, and adding one decides how every future shape
-//!    parameter is passed — which is a language-surface question and not this
-//!    module's to answer in passing.
+//!    shape argument.
+//!
+//!    **How that type works is settled**, so what is left is building it rather
+//!    than deciding it:
+//!    [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+//!    makes it one `CoreTy::Shape` carrying its *arms*, flattening at the call
+//!    site into one ABI argument per field of the arms merged in order — so
+//!    `open`'s helper is an ordinary `args: [12]`, and the union needs no
+//!    declared discriminant because ADR 0047's enum-case types already make the
+//!    two arms disjoint. `open` stays blocked on the registry rather than on
+//!    anything about databases.
 //! 2. **Two drivers open, and MySQL runs only `query` of the four members that
 //!    send.** `connect`
 //!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block
