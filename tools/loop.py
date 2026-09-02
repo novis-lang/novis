@@ -1227,6 +1227,16 @@ PREBUILD_LOCK = threading.Lock()
 # calling-convention divergence hides, and a TextMate grammar has no calling convention.
 
 
+def measures_release_cli(c):
+    """Whether this check reads `target/release/nvs.exe`, which nothing else here builds.
+
+    Recognized by the tool rather than by a field on the check, because `tools/bench.py` is the
+    only thing in the repository that measures that binary and a `needs = "release-cli"` key would
+    be a second place to keep one fact. `Goal.release_cli` owns what is done about it.
+    """
+    return c["kind"] == "command" and any("bench.py" in a for a in c["argv"])
+
+
 class GoalError(ValueError):
     """`loop-goal.toml` parsed as TOML but is not an acceptance list this driver can run.
 
@@ -1417,13 +1427,23 @@ class Goal:
             if self.verbose and spent >= 1:
                 say(f"   .. {'':>7}  {label} took {mmss(spent)}", C.GRAY)
 
+    def join_prebuild(self):
+        """Waits out the background release build, if one is still in flight.
+
+        Called from the two places that must not read a half-built release profile: the `cargo`
+        invocation the prebuild was warming, and a `command` check that measures the release CLI.
+        """
+        if not self._prebuild:
+            return
+        self.trace("waiting for the release build started at the top of the sweep")
+        self.timed("release prebuild (overlapped)", self._prebuild.join)
+        self._prebuild = None
+
     def cargo(self, args):
         """`cargo` with the result shared by every check that asks for the same argument list."""
         key = tuple(args)
-        if key == self._prebuilt and self._prebuild:
-            self.trace("waiting for the release build started at the top of the sweep")
-            self.timed("release prebuild (overlapped)", self._prebuild.join)
-            self._prebuild = None
+        if key == self._prebuilt:
+            self.join_prebuild()
         if key not in self._cargo:
             self._cargo[key] = capture("cargo", args)
         return self._cargo[key]
@@ -1533,6 +1553,25 @@ class Goal:
             return None if self.remembered(c["name"]) else c["args"]
         return None
 
+    def release_cli(self):
+        """The other release build: `target/release/nvs.exe`, when a check measures it.
+
+        `tools/bench.py` measures that binary and deliberately builds nothing — its own
+        `warn_if_stale` says the numbers are about the build on disk rather than the tree — and no
+        other leg here produces it, since `NativeLeg` builds the debug CLI. So the warm-start check
+        was measuring whatever had last been built by hand, which twice meant a binary too old to
+        read the tree's own `nvs.toml` and reported a *configuration* error as the start figure.
+
+        Built in `prebuild`'s thread rather than before the check: it is the same profile, the same
+        lock and the same argument as the release test build above — the build overlaps the sweep
+        and the measurement does not.
+        """
+        for c in self.checks:
+            if not measures_release_cli(c):
+                continue
+            return None if self.remembered(c["name"]) else ["build", "--release", "-p", "nvs-cli"]
+        return None
+
     def prebuild(self):
         """Start that build now, in the background, and let the rest of the sweep run beside it.
 
@@ -1546,7 +1585,8 @@ class Goal:
         not the cost. So the BUILD overlaps and the RUN does not -- `cargo()` joins this thread
         before it starts the real invocation, which by then is a no-op build and a 3s test run."""
         args = self.release_args()
-        if not args:
+        cli = self.release_cli()
+        if not args and not cli:
             return
         def build():
             # One at a time across the whole run. A sweep that fails before it reaches the guard
@@ -1554,9 +1594,15 @@ class Goal:
             # way -- and `load_goal()` hands the next session a fresh `Goal` that knows nothing
             # about it. Without the lock those two cargos would build the same units at once.
             with PREBUILD_LOCK:
-                capture("cargo", [*args, "--no-run"])
+                if args:
+                    capture("cargo", [*args, "--no-run"])
+                if cli:
+                    capture("cargo", cli)
 
-        self._prebuilt = tuple(args)
+        # The test profile's args, or nothing to match: a key is a tuple, so a `cargo()` looking
+        # for one never matches the `None` a CLI-only prebuild leaves here, and the thread is
+        # joined by the bench check instead.
+        self._prebuilt = tuple(args) if args else None
         self._prebuild = threading.Thread(target=build, daemon=True)
         self._prebuild.start()
         self.trace("release build started in the background")
@@ -1707,6 +1753,10 @@ class Goal:
             # either hard-code a profile-dependent path or pay for a second `cargo run`, which is
             # one workspace fingerprint scan to start a binary already sitting on disk.
             argv = [(leg.binary if a == "{nvs}" else a) for a in c["argv"]]
+            # A check that measures the release CLI waits for the build of it that started at the
+            # top of the sweep -- `release_cli` owns why that build is this driver's job at all.
+            if measures_release_cli(c):
+                self.join_prebuild()
             r = self.timed(label, lambda: capture(argv[0], argv[1:],
                                                   cwd=ROOT / c.get("cwd", ".")))
             # Some commands fail by design -- `nvs config check` over a file that must be refused
