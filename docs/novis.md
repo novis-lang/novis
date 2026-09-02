@@ -17248,7 +17248,9 @@ Runs one statement exactly as `query` does and answers its rows as the class wri
 | `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
 | `$params` | `array<mixed>` | The values to bind, under `query`'s own rule — one array, list-keyed for `?` and string-keyed for `:name`. |
 
-**Returns** `Core\Db\Rows<T>` — A `Core\Db\Rows<T>` holding one `T` per row, in the server's order. **The hydration itself is `nvs_stdlib::db`'s known gap 9**: the member is declared, generic and callable, and calling it faults naming that gap rather than answering.
+**Returns** `Core\Db\Rows<T>` — A `Core\Db\Rows<T>` holding one `T` per row, in the server's order. A row is built when it is handed out — by `all`, by `first` or by a `foreach` — so a result that is only counted constructs nothing.
+
+**Throws** `LogicError` — The type argument is an `array<...>`, which a result set already is one row per row of; or `T` carries no `#[Db\Derive]`, so there is no column mapping to build it from. Both are properties of the call site and would be compile-time diagnostics if either type band had a code left.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not `?T`, or a field whose declared type has no column mapping at all. Every bad column of the row is reported at once, in `issues`, each `path` the column's name.
 
 <a id="core-core-db-connection-execute"></a>
 #### `Core\Db\Connection->execute`
@@ -17349,7 +17351,9 @@ Runs one statement exactly as `query` does and answers its rows as the class wri
 | `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
 | `$params` | `array<mixed>` | The values to bind, under `query`'s own rule — one array, list-keyed for `?` and string-keyed for `:name`. |
 
-**Returns** `Core\Db\Rows<T>` — A `Core\Db\Rows<T>` holding one `T` per row, in the server's order. **The hydration itself is `nvs_stdlib::db`'s known gap 9**: the member is declared, generic and callable, and calling it faults naming that gap rather than answering.
+**Returns** `Core\Db\Rows<T>` — A `Core\Db\Rows<T>` holding one `T` per row, in the server's order. A row is built when it is handed out — by `all`, by `first` or by a `foreach` — so a result that is only counted constructs nothing.
+
+**Throws** `LogicError` — The type argument is an `array<...>`, which a result set already is one row per row of; or `T` carries no `#[Db\Derive]`, so there is no column mapping to build it from. Both are properties of the call site and would be compile-time diagnostics if either type band had a code left.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not `?T`, or a field whose declared type has no column mapping at all. Every bad column of the row is reported at once, in `issues`, each `path` the column's name.
 
 <a id="core-core-db-transaction-execute"></a>
 #### `Core\Db\Transaction->execute`

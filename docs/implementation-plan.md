@@ -55,13 +55,13 @@
 > three, with `columns()` owed on a `ColumnType` enum. `open` waits on a shape-parameter type. **§
 > 7's `transaction` is on both classes** and `Core\Db\Isolation` is registered; `nvs.toml` now opens
 > `[db.main]` and grants `db.connect` to the two fixtures, which verify the compose CA through the
-> new `tls_ca_file`; `Rows` is generic at `T`, and **`queryAs<T>`'s row is on both `Queryable`
-> classes** — an instance member may take the class its call site wrote, and the hydration over
-> `ClassDesc::db_codec` is `db.rs`'s gap 9. The pool is Stages 3 to 7, and **ADR 0132 has claimed
-> the goal's one ADR slot**: a driver is a sans-IO codec plus a state machine over the parking
-> stream, the five an enum not a trait. **Goals 1-4 and M4 are closed and are this goal's Stage 1
-> floor** — `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4
-> records. Conformance 1411, differential 250, its gate met, migration 90%/74%.
+> new `tls_ca_file`; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over
+> `ClassDesc::db_codec`, so `examples/db.nvs` runs end to end; gap 9 is now only that its refusals
+> are per row and not at compile time. The pool is Stages 3 to 7, and **ADR 0132 has claimed the
+> goal's one ADR slot**: a driver is a sans-IO codec plus a state machine over the parking stream,
+> the five an enum not a trait. **Goals 1-4 and M4 are closed and are this goal's Stage 1 floor** —
+> `Core`'s capability-bearing half in full, with `ring` the one C dependency ADR 0051 § 4 records.
+> Conformance 1411, differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
