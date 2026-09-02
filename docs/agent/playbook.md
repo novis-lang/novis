@@ -4470,6 +4470,16 @@ is why" — is this file.
   `expected i32, found Fault`. The pair is worth more than the shorter route: `ctx.take_pending()`
   **is** a `catch (Throwable)` — it clears the pending exception and nothing else — so a case that
   has to prove something survives a catch performs one rather than describing one.
+- **A `catch` variable is a declaration in the enclosing scope, so two sibling `try` blocks cannot
+  both name `$e`.** A case pinning one class against four `catch` shapes wrote `$e` in every clause
+  and got `E0406: `$e` is already declared` once per repeat — and then a further error that reads
+  like the real bug and is not: every later clause resolves `$e` against the *first* declaration's
+  class, so `catch (Core\Db\RolledBack $e) { … $e->reason … }` was reported as "`Core\Db\DbError`
+  has no property named `reason`" against a clause whose own class declares one. Give each clause
+  its own name and both go;
+  `tests/conformance/error/a-db-error-is-in-the-tree-beside-a-rolled-back.nvst` is the shape, and
+  `nvs-ir`'s `two_catch_clauses_lower_to_an_instanceof_chain_ending_in_a_rethrow` is the assurance
+  that a multi-clause `try` is otherwise fine.
 
 ## Splitting a file that got too big
 
