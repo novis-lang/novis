@@ -6309,6 +6309,17 @@ sibling in the same namespace unqualified.
   explicit `drop(answered)` between reading the span and touching `ctx`. The general shape:
   anything handed out of `&mut Ctx` that releases something when it falls — a row stream, a
   held connection — cannot be followed by a second `ctx` call in the same scope without one.
+- Giving a shared type a **defaulted** type parameter breaks every unqualified associated path on
+  it, and the two look unrelated. `StatementCache<H = String>` compiles, and then
+  `StatementCache::capacity_for(block)` — untouched, three files away — fails with `E0283: cannot
+  infer type of the type parameter H`. A default is not inference fallback
+  (`default_type_parameter_fallback` is still unstable); rustc only unifies `H` from a *concrete*
+  inherent impl, which is why `HashMap::new()` works and this does not. Do not reach for a turbofish:
+  move the items that never mention `H` out of the impl instead. `capacity_for` and
+  `DEFAULT_CAPACITY` became the free `statement_cache_for` and `DEFAULT_STATEMENT_CACHE` beside
+  `time_zone_for`, which is where a `[db.<name>]` field's reader already lived. A 20-line probe
+  under `.agent-tmp/` compiled with `rustc --crate-type lib` answers this in one call, and is worth
+  it before a rename spreads across two crates' doc comments.
 
 ## Divergences and refusals already pinned
 
