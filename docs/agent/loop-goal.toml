@@ -2918,18 +2918,31 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "5 transactions"
-name = "nvs-db (transactions and errors)"
+name = "nvs-db (the commands, and § 8's tables)"
 args = ["test", "-p", "nvs-db"]
 tests = [
-  "a_transaction_is_a_closure_and_transaction_is_a_queryable",
   "savepoints_nest",
-  # The case a naive implementation loses: the catch swallows the signal the rollback was waiting on.
-  "roll_back_survives_an_intervening_catch_of_throwable",
-  "retries_recover_an_induced_deadlock",
-  # § 8 -- four drivers, FIVE dialects. MariaDB needs its own code table.
+  # § 8 -- four drivers, FIVE dialects. MariaDB needs its own code table, and the point of a normalised
+  # kind is that the SAME condition answers the SAME kind on every one of them.
   "every_driver_normalises_its_codes_to_one_error_kind",
   "mariadb_uses_its_own_code_table_and_not_mysqls",
   "a_db_error_message_contains_no_bound_value",
+]
+
+# § 7's closure is not a driver question. The `BEGIN`, the `SAVEPOINT` and the `ROLLBACK` are `nvs-db`'s
+# and are checked above; the closure itself, the scope guard, the rollback flag that survives a catch and
+# the retry loop are all `nvs_core_db_connection_transaction`'s, which lives in `nvs_stdlib::db` -- a
+# driver is never asked to re-run anything. Filed there, as § 9's rows that are rules already are.
+[[check]]
+kind = "cargo-named"
+stage = "5 transactions"
+name = "nvs-stdlib (§ 7's closure)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_transaction_is_a_closure_and_transaction_is_a_queryable",
+  # The case a naive implementation loses: the catch swallows the signal the rollback was waiting on.
+  "roll_back_survives_an_intervening_catch_of_throwable",
+  "retries_recover_an_induced_deadlock",
 ]
 
 [[check]]
