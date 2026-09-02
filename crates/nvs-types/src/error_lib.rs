@@ -234,7 +234,7 @@ fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
 /// `new LogicError("…")` supplies one argument and
 /// [`MethodSig::required`](crate::signatures::MethodSig::required) is 1. The
 /// flattening at the call site is generic over any signature carrying a
-/// [`Ty::Options`](crate::ty::Ty::Options) parameter — `nvs_ir::lower::call`'s
+/// [`Ty::CoreShape`](crate::ty::Ty::CoreShape) parameter — `nvs_ir::lower::call`'s
 /// `lower_options_arg` — so a seeded constructor reaches it on exactly the
 /// terms a `Core` member does.
 ///

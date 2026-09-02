@@ -73,14 +73,17 @@
 //!    [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
 //!    makes it one [`CoreTy::Shape`] carrying its *arms*, and that variant and
 //!    its [`crate::registry::CoreField`] are on disk with the three invariants
-//!    ADR 0135 §§ 1-3 state held by tests. What is left is the checker's half —
-//!    `nvs_types::ty::Ty::Options` renamed and given per-field required-ness,
-//!    and `nvs_ir::lower::lower_call_args` flattening a shape into one argument
-//!    per field of the arms merged in order — after which `open`'s helper is an
-//!    ordinary `args: [12]`, and the union needs no declared discriminant
-//!    because ADR 0047's enum-case types already make the two arms disjoint.
-//!    `open` stays blocked on that half rather than on anything about
-//!    databases.
+//!    ADR 0135 §§ 1-3 state held by tests. **The checker's half is built too:**
+//!    `nvs_types::ty::Ty::CoreShape` carries per-field required-ness and
+//!    `nvs_types::core_lib` interns a `CoreTy::Shape` into it as § 3's merged,
+//!    name-deduplicated field list. What is left is `nvs_ir::lower`'s
+//!    `lower_call_args` flattening one of those into one argument per merged
+//!    field, and ADR 0135 § 2's *exactly one arm accepts it* selection, which
+//!    the merged list cannot state — `Ty::CoreShape`'s own doc owns that gap.
+//!    After both, `open`'s helper is an ordinary `args: [12]`, and the union
+//!    needs no declared discriminant because ADR 0047's enum-case types already
+//!    make the two arms disjoint. `open` stays blocked on that half rather than
+//!    on anything about databases.
 //! 2. **Two drivers open, and MySQL runs only `query` of the four members that
 //!    send.** `connect`
 //!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block

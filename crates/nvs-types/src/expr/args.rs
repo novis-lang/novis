@@ -453,7 +453,7 @@ fn parameter_names(sig: &MethodSig) -> String {
 ///
 /// The fork exists because a bag is a *type* with no assignability rule: an
 /// ADR 0036 object literal infers to a [`Ty::Shape`], and a shape is never
-/// assignable to a [`Ty::Options`] — deliberately, since the two are checked
+/// assignable to a [`Ty::CoreShape`] — deliberately, since the two are checked
 /// by opposite rules (width subtyping accepts an unnamed extra field, an
 /// options bag refuses one). Routing the argument here rather than teaching
 /// [`is_assignable`] about bags keeps that asymmetry in one place, and keeps
@@ -467,10 +467,10 @@ pub(crate) fn check_arg(
     env: &mut Env<'_>,
 ) -> TypeId {
     if let Some(id) = expected
-        && let Ty::Options(options) = env.interner.get(id)
+        && let Ty::CoreShape(fields) = env.interner.get(id)
     {
-        let options = options.clone();
-        return check_options_arg(value, id, &options, live, scope, ctx, env);
+        let fields = fields.clone();
+        return check_options_arg(value, id, &fields, live, scope, ctx, env);
     }
     check_expr(value, expected, live, scope, ctx, env)
 }
@@ -518,7 +518,7 @@ impl Admitted {
 /// and a caller that read a laundered type here would launder by argument.
 ///
 /// [`check_arg`]'s options-bag fork is deliberately not repeated: a bag is a
-/// [`Ty::Options`], never one of the eight qualifiable atoms, so no slot that
+/// [`Ty::CoreShape`], never one of the eight qualifiable atoms, so no slot that
 /// reaches here is one.
 fn check_arg_admitting_quals(
     value: &Expr,
@@ -596,7 +596,7 @@ pub(crate) fn carries_contagion(
 pub(crate) fn check_options_arg(
     value: &Expr,
     options_ty: TypeId,
-    options: &[(String, TypeId)],
+    options: &[crate::ty::CoreShapeField],
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
@@ -625,8 +625,8 @@ pub(crate) fn check_options_arg(
         let name = span_text(env.src, field.name);
         let declared = options
             .iter()
-            .find(|(option, _)| option == name)
-            .map(|(_, ty)| *ty);
+            .find(|option| option.name == name)
+            .map(|option| option.ty);
         check_arg(&field.value, declared, live, scope, ctx, env);
         if declared.is_none() {
             let names = option_names(options);
@@ -671,7 +671,7 @@ pub(crate) fn check_options_arg(
 ///
 /// **Asked of every object literal in the call, not of the trailing argument.**
 /// A bag written by name (`options: {...}`) is not last, and the alternative —
-/// re-deriving which argument filled the [`Ty::Options`] parameter — is the
+/// re-deriving which argument filled the [`Ty::CoreShape`] parameter — is the
 /// slot mapping this function is deliberately not handed. The overreach that
 /// buys is an object literal at the *URL* position naming `retryAttempts`,
 /// which is an `E_TYPE_MISMATCH` in the same breath.
@@ -731,10 +731,10 @@ pub(crate) fn reject_keyless_retry(
 /// The declared option names, comma-separated — the help text every
 /// [`check_options_arg`] diagnostic ends with, so a typo is answered with the
 /// list rather than with a type spelling nobody wrote.
-pub(crate) fn option_names(options: &[(String, TypeId)]) -> String {
+pub(crate) fn option_names(options: &[crate::ty::CoreShapeField]) -> String {
     options
         .iter()
-        .map(|(name, _)| name.as_str())
+        .map(|option| option.name.as_str())
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -1104,7 +1104,7 @@ fn bind_callable_shape(value: &Expr, env: &mut Env<'_>) -> TypeId {
 /// own `an_options_bag_is_last_and_never_empty` holds mechanically.
 pub(crate) fn options_param(sig: &MethodSig, interner: &TypeInterner) -> Option<usize> {
     let last = sig.params.len().checked_sub(1)?;
-    matches!(interner.get(sig.params[last]), Ty::Options(_)).then_some(last)
+    matches!(interner.get(sig.params[last]), Ty::CoreShape(_)).then_some(last)
 }
 
 /// The `<...>` list written between a member name and its `(`, checked

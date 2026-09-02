@@ -247,28 +247,43 @@ pub enum Ty {
     /// no flattening to do, since a shape field's type is never itself
     /// required to be a shape.
     Shape(Vec<(String, TypeId)>),
-    /// ADR 0063 R2's trailing options bag — `{step?: int}`, one entry per
-    /// declared option.
+    /// A `Core` parameter whose keys are fixed — ADR 0063 R2's trailing options
+    /// bag (`{step?: int}`) and ADR 0135's fixed-key shape parameter, which are
+    /// **one** checked type because they differ in call-site rules rather than
+    /// in checking (ADR 0135 § 4).
+    ///
+    /// Named for the shape and not for the bag because the bag is the narrower
+    /// of the two uses: it is this type with every
+    /// [`required`](CoreShapeField::required) false. Both registry spellings
+    /// arrive through [`crate::core_lib`], which is the one place either
+    /// translation happens — `CoreTy::Options` one field per declared option,
+    /// `CoreTy::Shape` its arms **merged in declaration order and deduplicated
+    /// by name**, which is ADR 0135 § 3's ABI.
     ///
     /// The second type in this enum no source text can spell (see
-    /// [`Self::TypeVar`] for the first): it only ever enters the interner from
-    /// `nvs_stdlib::registry`'s `CoreTy::Options` through [`crate::core_lib`].
-    /// A *value* of this type is still written by hand — an ADR 0036 object
-    /// literal at the call site — but the type itself is never written, which
-    /// is why there is no `?` in the surface type grammar.
+    /// [`Self::TypeVar`] for the first). A *value* of this type is still
+    /// written by hand — an ADR 0036 object literal at the call site — but the
+    /// type itself is never written, which is why there is no `?` in the
+    /// surface type grammar.
     ///
     /// Deliberately not a [`Self::Shape`]. A shape is checked by ADR 0036 § 3's
-    /// **width** subtyping, which accepts a field the target does not name; an
-    /// options bag must refuse one, because a mistyped option name that is
-    /// silently ignored is exactly the failure ADR 0063 R2 exists to prevent.
+    /// **width** subtyping, which accepts a field the target does not name;
+    /// this one must refuse one, because a mistyped key that is silently
+    /// ignored is exactly the failure ADR 0063 R2 exists to prevent.
     /// [`crate::expr`] owns that check.
     ///
     /// Fields keep their **declared order** rather than being sorted the way
     /// [`TypeInterner::shape`] sorts a shape's: that order is the order
-    /// `nvs_ir::lower::lower_call_args` flattens the bag into ABI arguments,
-    /// so two members whose options differ only in order are genuinely two
-    /// different types and must not intern to one.
-    Options(Vec<(String, TypeId)>),
+    /// `nvs_ir::lower::lower_call_args` flattens them into ABI arguments, so
+    /// two members whose keys differ only in order are genuinely two different
+    /// types and must not intern to one.
+    ///
+    /// **Known gap.** A merged list cannot state ADR 0135 § 2's *exactly one
+    /// arm accepts it*: a two-arm shape reaches here as the union of its arms'
+    /// keys, so a literal drawing keys from both arms would be accepted. No row
+    /// declares a second arm yet, and the slice that writes the arm-selection
+    /// check is the one that has to widen this variant to carry the arms.
+    CoreShape(Vec<CoreShapeField>),
     /// `A|B|...` — flattened, deduplicated, and sorted by member `TypeId`.
     /// Always at least two members; a one-member union collapses to that
     /// member directly (see [`TypeInterner::make_union`]).
@@ -297,6 +312,33 @@ pub enum Ty {
     /// unconstrained by the call," and the only one that keeps a later pass
     /// from meeting a variable it has no rule for.
     TypeVar(String),
+}
+
+/// One key of a [`Ty::CoreShape`] — the checked half of
+/// `nvs_stdlib::registry`'s `CoreOption` and `CoreField`, which are the two
+/// registry spellings ADR 0135 § 4 collapses into this one.
+///
+/// A named struct rather than the pair this replaced, because the third member
+/// is a bare `bool`: `("host", id, false)` at a construction site says nothing
+/// about which way round the flag runs, and there are enough sites to make that
+/// a real reading cost.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct CoreShapeField {
+    /// The key a call site writes on the left of the `:`, `camelCase` per ADR
+    /// 0029 — an option's own name, or a field's.
+    pub name: String,
+    /// Its declared type, already lowered. Never itself a [`Ty::CoreShape`] and
+    /// never nullable: `nvs_stdlib::registry`'s
+    /// `a_shape_is_only_ever_a_whole_parameter` and
+    /// `a_shape_field_is_never_nullable` hold both over the rows this is built
+    /// from, so nothing here re-checks them.
+    pub ty: TypeId,
+    /// Whether a call site must write this key. **False for every field of an
+    /// options bag** — ADR 0063 R2 makes the whole bag omittable, so an option
+    /// that had to be written could not exist — and for a shape field it is
+    /// ADR 0135 § 1's `CoreField::default` read the other way round: a field
+    /// with no default is required.
+    pub required: bool,
 }
 
 /// Interns [`Ty`] values, giving structurally identical types the same
@@ -458,10 +500,13 @@ impl TypeInterner {
                     .join(", ");
                 format!("{{{inner}}}")
             }
-            Ty::Options(options) => {
-                let inner = options
+            Ty::CoreShape(fields) => {
+                let inner = fields
                     .iter()
-                    .map(|(name, ty)| format!("{name}?: {}", self.describe(*ty)))
+                    .map(|field| {
+                        let opt = if field.required { "" } else { "?" };
+                        format!("{}{opt}: {}", field.name, self.describe(field.ty))
+                    })
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("{{{inner}}}")
@@ -738,14 +783,37 @@ impl TypeInterner {
         self.intern(Ty::Shape(fields))
     }
 
-    /// Interns ADR 0063 R2's options bag — see [`Ty::Options`], which owns why
-    /// `options` is interned in the order given rather than sorted the way
-    /// [`Self::shape`] sorts. Two callers, and both seed a signature the
-    /// program did not write: [`crate::core_lib`] for a `Core` member's bag,
-    /// and [`crate::error_lib`] for the exception constructor's `{previous}`.
+    /// Interns ADR 0063 R2's options bag — every option optional, which is what
+    /// makes a bag the narrow case of [`Ty::CoreShape`] rather than a second
+    /// type (ADR 0135 § 4). That variant owns why the order given is kept
+    /// rather than sorted the way [`Self::shape`] sorts.
+    ///
+    /// Two callers, and both seed a signature the program did not write:
+    /// [`crate::core_lib`] for a `Core` member's bag, and [`crate::error_lib`]
+    /// for the exception constructor's `{previous}`.
     #[must_use]
     pub fn options(&mut self, options: Vec<(String, TypeId)>) -> TypeId {
-        self.intern(Ty::Options(options))
+        let fields = options
+            .into_iter()
+            .map(|(name, ty)| CoreShapeField {
+                name,
+                ty,
+                required: false,
+            })
+            .collect();
+        self.intern(Ty::CoreShape(fields))
+    }
+
+    /// Interns ADR 0135's fixed-key shape parameter, `fields` already being the
+    /// arms merged in declaration order and deduplicated by name — the ABI § 3
+    /// specifies. [`crate::core_lib`] is the only caller, and does that merge.
+    ///
+    /// Separate from [`Self::options`] only in what it is handed: a bag has no
+    /// required key to state, so making it pass one `false` per option would be
+    /// a lie every call site had to write.
+    #[must_use]
+    pub fn core_shape(&mut self, fields: Vec<CoreShapeField>) -> TypeId {
+        self.intern(Ty::CoreShape(fields))
     }
 
     /// Whether `id` is `null` itself, or a union with `null` as one of its

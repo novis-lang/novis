@@ -564,7 +564,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         | Ty::Never
         | Ty::Union(_)
         | Ty::Intersection(_)
-        | Ty::Options(_)
+        | Ty::CoreShape(_)
         | Ty::TypeVar(_)
         // Beside `TypeVar` for its reason: a binding site is substituted away
         // before any expression is checked, so nothing ever compares one.

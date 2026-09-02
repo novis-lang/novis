@@ -102,9 +102,12 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
         Ty::Union(members) | Ty::Intersection(members) => members
             .iter()
             .any(|member| mentions_type_var(*member, interner)),
-        Ty::Shape(fields) | Ty::Options(fields) => fields
+        Ty::Shape(fields) => fields
             .iter()
             .any(|(_, field)| mentions_type_var(*field, interner)),
+        Ty::CoreShape(fields) => fields
+            .iter()
+            .any(|field| mentions_type_var(field.ty, interner)),
         _ => false,
     }
 }
@@ -258,20 +261,27 @@ pub(crate) fn bind(
         // a class, and `null` binds nothing — so the interner's canonical
         // member order does not decide the answer.
         (Ty::Union(members), _) => members.iter().map(|member| (*member, actual)).collect(),
-        // A bag never appears on the `actual` side — a call site writes an
-        // object literal, which infers to a `Ty::Shape` — so the pair below
-        // covers both, and binding a bag's option types against a matching
-        // written field is the same walk either way.
-        (
-            Ty::Shape(declared_fields) | Ty::Options(declared_fields),
-            Ty::Shape(actual_fields) | Ty::Options(actual_fields),
-        ) => declared_fields
+        // Neither a bag nor ADR 0135's shape parameter ever appears on the
+        // `actual` side — a call site writes an object literal, which infers to
+        // a `Ty::Shape` — so the two arms below cover every pair that occurs,
+        // and binding a declared key's type against a matching written field is
+        // the same walk either way.
+        (Ty::Shape(declared_fields), Ty::Shape(actual_fields)) => declared_fields
             .iter()
             .filter_map(|(name, declared_field)| {
                 actual_fields
                     .iter()
                     .find(|(n, _)| n == name)
                     .map(|(_, actual_field)| (*declared_field, *actual_field))
+            })
+            .collect(),
+        (Ty::CoreShape(declared_fields), Ty::Shape(actual_fields)) => declared_fields
+            .iter()
+            .filter_map(|declared| {
+                actual_fields
+                    .iter()
+                    .find(|(name, _)| *name == declared.name)
+                    .map(|(_, actual_field)| (declared.ty, *actual_field))
             })
             .collect(),
         _ => Vec::new(),
@@ -342,14 +352,20 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
                 .collect();
             interner.shape(fields)
         }
-        // Substituted in place, never through `shape`: an options bag keeps
-        // its declared order because that order is its ABI (`Ty::Options`).
-        Ty::Options(options) => {
-            let options: Vec<(String, TypeId)> = options
+        // Substituted in place, never through `shape`: a bag and a shape
+        // parameter both keep their declared order because that order is their
+        // ABI (`Ty::CoreShape`), and the required flag rides along untouched —
+        // substitution rewrites a key's type, never whether it must be written.
+        Ty::CoreShape(fields) => {
+            let fields: Vec<crate::ty::CoreShapeField> = fields
                 .iter()
-                .map(|(name, ty)| (name.clone(), substitute(*ty, bindings, interner)))
+                .map(|field| crate::ty::CoreShapeField {
+                    name: field.name.clone(),
+                    ty: substitute(field.ty, bindings, interner),
+                    required: field.required,
+                })
                 .collect();
-            interner.options(options)
+            interner.core_shape(fields)
         }
         Ty::Class(qname, args) => {
             let args: Vec<TypeId> = args

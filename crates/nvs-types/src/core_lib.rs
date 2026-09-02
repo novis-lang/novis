@@ -512,13 +512,20 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // nothing to translate beyond the value itself.
         CoreTy::IntLiteral(value) => interner.int_literal(*value),
         // The registry's order is kept, not sorted: it is the order the bag
-        // flattens into ABI arguments. `Ty::Options` owns why.
+        // flattens into ABI arguments. `Ty::CoreShape` owns why.
         CoreTy::Options(options) => {
             let options = options
                 .iter()
                 .map(|option| (option.name.to_owned(), lower(&option.ty, interner)))
                 .collect();
             interner.options(options)
+        }
+        // ADR 0135 § 3's ABI, built here and nowhere else: the arms in
+        // declaration order, each arm's fields in declaration order, a name
+        // already emitted skipped. See [`merge_shape_arms`].
+        CoreTy::Shape(arms) => {
+            let fields = merge_shape_arms(arms, interner);
+            interner.core_shape(fields)
         }
         // `Mixed` and anything a later registry variant adds: `mixed` is the
         // registry's own "unchecked position" spelling, and is the only safe
@@ -528,11 +535,113 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
     }
 }
 
+/// ADR 0135 § 3's merged field list: the arms in declaration order, each arm's
+/// fields in declaration order, a name a previous arm already emitted skipped.
+///
+/// A name more than one arm declares occupies **one** slot whose type is the
+/// union of what those arms declare for it — that is what lets `Db\Settings`'s
+/// `driver` arrive as one `Driver` value the helper switches on rather than as
+/// one slot per arm.
+///
+/// A key is required of the merged parameter only where **every** arm requires
+/// it. A key an arm does not declare at all is one that arm's call site
+/// legitimately omits, so treating "required in the arm that has it" as
+/// required of the parameter would refuse every other arm's literal.
+fn merge_shape_arms(
+    arms: &[&'static [nvs_stdlib::registry::CoreField]],
+    interner: &mut TypeInterner,
+) -> Vec<crate::ty::CoreShapeField> {
+    let mut merged: Vec<crate::ty::CoreShapeField> = Vec::new();
+    for arm in arms {
+        for field in *arm {
+            let ty = lower(&field.ty, interner);
+            if let Some(existing) = merged.iter_mut().find(|slot| slot.name == field.name) {
+                existing.ty = interner.make_union([existing.ty, ty]);
+                continue;
+            }
+            let required = arms.iter().all(|arm| {
+                arm.iter()
+                    .any(|other| other.name == field.name && other.default.is_none())
+            });
+            merged.push(crate::ty::CoreShapeField {
+                name: field.name.to_owned(),
+                ty,
+                required,
+            });
+        }
+    }
+    merged
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::signatures::resolve_method;
+    use crate::ty::Ty;
     use nvs_hir::ClassGraph;
+    use nvs_stdlib::registry::CoreField;
+
+    /// ADR 0135 § 3's ABI, held over a two-arm shape because no registry row
+    /// declares one yet: the arms in declaration order, a name a previous arm
+    /// already emitted taking **one** slot whose type is the union of what the
+    /// arms declare for it, and a key required only where every arm requires
+    /// it. Written here rather than over `Core\Db::open` so it still holds when
+    /// that row's arms change.
+    #[test]
+    fn a_shapes_arms_merge_in_declaration_order_and_deduplicate_by_name() {
+        const SERVER: &[CoreField] = &[
+            CoreField {
+                name: "driver",
+                ty: CoreTy::Str,
+                default: None,
+            },
+            CoreField {
+                name: "host",
+                ty: CoreTy::Str,
+                default: None,
+            },
+            CoreField {
+                name: "port",
+                ty: CoreTy::Int,
+                default: Some(Const::Int(5432)),
+            },
+        ];
+        const FILE: &[CoreField] = &[
+            CoreField {
+                name: "driver",
+                ty: CoreTy::Int,
+                default: None,
+            },
+            CoreField {
+                name: "path",
+                ty: CoreTy::Str,
+                default: None,
+            },
+        ];
+
+        let mut interner = TypeInterner::new();
+        let id = lower(&CoreTy::Shape(&[SERVER, FILE]), &mut interner);
+        let Ty::CoreShape(fields) = interner.get(id) else {
+            panic!("a `CoreTy::Shape` lowers to a `Ty::CoreShape`");
+        };
+        assert_eq!(
+            fields.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(),
+            ["driver", "host", "port", "path"],
+            "the arms in declaration order, `driver` deduplicated to one slot",
+        );
+        // `driver` is declared and required by both arms; `host` and `path` are
+        // required by one arm each, and the *other* arm's call site legitimately
+        // omits them, so neither is required of the parameter.
+        assert_eq!(
+            fields.iter().map(|f| f.required).collect::<Vec<_>>(),
+            [true, false, false, false],
+        );
+        assert_eq!(
+            interner.describe(fields[0].ty),
+            "string|int",
+            "the shared key's slot is the union of the arms' declarations",
+        );
+    }
 
     #[test]
     fn a_registered_member_resolves_with_its_declared_shape() {

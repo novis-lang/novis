@@ -257,7 +257,7 @@ pub use nvs_stdlib::script::{
 pub use nvs_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
 pub use nvs_stdlib::{CodecField, CodecTy, EnumCases, FieldDefault};
 pub use routes::{ApiError, ParamIn, Route, RouteParam, RouteTable};
-pub use ty::{Ty, TypeId, TypeInterner};
+pub use ty::{CoreShapeField, Ty, TypeId, TypeInterner};
 
 use nvs_diagnostics::{SourceFile, Span};
 use nvs_hir::{AliasTable, ClassGraph, QName, SymbolTable};

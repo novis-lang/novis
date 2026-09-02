@@ -195,7 +195,7 @@ impl<'a> Lowering<'a> {
         // ADR 0063 R2's options bag: not one argument but one *per declared
         // option*, so it never reaches `lower_checked_ty` — it has no IR type
         // at all. See [`Self::lower_options_arg`].
-        if let CheckedTy::Options(options) = checked_types.get(sig.param_tys[index]) {
+        if let CheckedTy::CoreShape(options) = checked_types.get(sig.param_tys[index]) {
             let options = options.clone();
             let defaults = options_defaults(&sig.defaults, index);
             self.lower_options_arg(
@@ -272,7 +272,7 @@ impl<'a> Lowering<'a> {
         // it is also what gives an omitted option the same widening into its
         // declared slot that a written one gets.
         if let nvs_types::ConstArg::Options(options) = default {
-            let CheckedTy::Options(declared) = checked_types.get(sig.param_tys[index]) else {
+            let CheckedTy::CoreShape(declared) = checked_types.get(sig.param_tys[index]) else {
                 panic!(
                     "nvs-ir: parameter {index} carries an options-bag default but its declared \
                      type is not an options bag — nvs_types is trusted to record the two together"
@@ -518,7 +518,7 @@ impl<'a> Lowering<'a> {
     pub(crate) fn lower_options_arg(
         &mut self,
         written: Option<&Expr>,
-        options: &[(String, TypeId)],
+        options: &[nvs_types::CoreShapeField],
         defaults: &[(String, nvs_types::ConstArg)],
         checked_types: &TypeInterner,
         ownership: ArgOwnership,
@@ -540,7 +540,8 @@ impl<'a> Lowering<'a> {
             },
             None => Vec::new(),
         };
-        for (name, option_ty) in options {
+        for option in options {
+            let name = &option.name;
             // Each flattened option is widened into the slot its *declared*
             // type erases to, exactly as a positional argument is. A helper's
             // slot is a whole `Value` and would take either representation
@@ -548,7 +549,7 @@ impl<'a> Lowering<'a> {
             // a compiled Novis function's slot is typed, and `Throwable|null`
             // being `Ty::Tagged` is what makes the exception constructor's
             // `{previous}` bag reach it at all.
-            let expected = lower_checked_ty(*option_ty, checked_types);
+            let expected = lower_checked_ty(option.ty, checked_types);
             if let Some((_, value)) = fields.iter().find(|(field, _)| field == name) {
                 let (v, ty) = self.lower_expr(value, Some(expected), env, cur);
                 let aliasing = self.aliasing_read(value);
