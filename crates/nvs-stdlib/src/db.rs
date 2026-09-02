@@ -478,8 +478,12 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 /// carry it, a nested call on the second being the savepoint § 7 asks for.
 ///
 /// **The options bag is owed and its absence is a subset, not a divergence.**
-/// § 7's `{isolation?, readOnly?, retries?}` needs a `Core\Db\Isolation` enum
-/// this registry has no row for and a retry that suspends the coroutine; what
+/// § 7's `{isolation?, readOnly?, retries?}` is an options bag this row does
+/// not declare, and two of the three things it needs have since landed:
+/// [`ISOLATION`] is registered, and [`nvs_db::DbErrorKind::is_retryable`]
+/// already answers which failures § 7 re-runs on, that being the half only a
+/// driver can answer. What is left is a retry that suspends the coroutine
+/// rather than blocking the core. What
 /// is here is the shape with all three at their § 7 defaults — the driver's own
 /// isolation, read-write, and no retries, which is the default § 7 argues for
 /// because re-running a closure that sends mail is worse than surfacing the
@@ -4395,6 +4399,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nvs_runtime::{Ctx, OutputSink, call};
 
     /// The two halves of one enum name the same fourteen cases —
     /// [`COLUMN_TYPE`]'s doc is where "the wire one is authoritative" is
@@ -4445,5 +4450,174 @@ mod tests {
         assert_eq!(COLUMN.slot(DECLARED_SLOT), DECLARED_AT);
         assert_eq!(COLUMN.slot(NULLABLE_SLOT), NULLABLE_AT);
         assert_eq!(ROWS.slot(ROWS_COLUMNS_SLOT), ROWS_COLUMNS_AT);
+    }
+
+    /// ADR 0067 § 7's two halves, and the second is the one a forwarding body
+    /// would pass while still drifting.
+    ///
+    /// **A transaction is a closure**: [`TRANSACTION_ROW`] takes one
+    /// `callable` and answers at *its* `T`, which is what lets a transaction
+    /// wrap an existing expression without retyping it. Its consequence is
+    /// asserted as an absence — § 7 removes `commit`, `rollBack` and
+    /// `inTransaction` from the connection outright, and a pair a program can
+    /// leave half-done is exactly what nesting made unnecessary.
+    ///
+    /// **`Transaction implements Queryable by $connection`** is asserted over
+    /// [`CONNECTION`]'s whole roster rather than member by member, so a member
+    /// added there fails here until [`TRANSACTION`] carries it: the rows must
+    /// be *identical*, symbol included, since ADR 0043's delegation is one
+    /// body reached through either handle and a second body would agree on
+    /// name and arity on the day it was written and on nothing afterwards.
+    /// `stream` and `streamAs` are owed on both and so are outside the sweep
+    /// by construction.
+    #[test]
+    fn a_transaction_is_a_closure_and_transaction_is_a_queryable() {
+        assert_eq!(TRANSACTION_ROW.name, "transaction");
+        // § 7's `$fn`, and R9's allowance that the closure may declare no
+        // parameter at all is why the arity is not sayable in the row.
+        assert_eq!(TRANSACTION_ROW.names, ["fn"]);
+        assert_eq!(
+            format!("{:?}", TRANSACTION_ROW.params),
+            format!("{:?}", [CoreTy::CallableTo("T")]),
+            "§ 7's `transaction` takes the closure and nothing else — an \
+             options bag is owed, and this module's known gaps carry it"
+        );
+        assert_eq!(
+            format!("{:?}", TRANSACTION_ROW.return_ty),
+            format!("{:?}", CoreTy::Var("T")),
+            "§ 7's `: T` — the member's answer is the closure's own"
+        );
+
+        // "no `commit()`, no `rollBack()` on the connection and no
+        // `inTransaction()`": nesting removed the reason each existed, so
+        // their absence is the decision rather than an unlanded row.
+        for member in CONNECTION.members() {
+            assert!(
+                !matches!(
+                    member.name,
+                    "begin" | "commit" | "rollBack" | "savepoint" | "inTransaction"
+                ),
+                "`{}` declares `{}` — § 7 replaced that surface with a closure",
+                CONNECTION.name,
+                member.name
+            );
+        }
+
+        let declared: Vec<String> = CONNECTION
+            .instance
+            .iter()
+            .map(|row| format!("{row:?}"))
+            .collect();
+        let forwarded: Vec<String> = TRANSACTION
+            .instance
+            .iter()
+            .filter(|row| CONNECTION.instance.iter().any(|had| had.name == row.name))
+            .map(|row| format!("{row:?}"))
+            .collect();
+        assert_eq!(
+            declared, forwarded,
+            "`{}` is `{}`'s query surface delegated, not restated: every row \
+             agrees down to its symbol and its position",
+            TRANSACTION.name, CONNECTION.name
+        );
+
+        // What the delegation is allowed to add, in full: § 7's own hazard,
+        // and it is on the transaction because that is what holds the flag.
+        let own: Vec<&str> = TRANSACTION
+            .instance
+            .iter()
+            .map(|row| row.name)
+            .filter(|name| !CONNECTION.instance.iter().any(|had| had.name == *name))
+            .collect();
+        assert_eq!(own, ["rollBack"]);
+
+        // Load-bearing rather than tidy, per [`TRANSACTION`]'s own doc: one
+        // statement path reads either handle, which is what makes the shared
+        // symbols above reachable at all.
+        assert_eq!(
+            &TRANSACTION.slots[..CONNECTION.slots.len()],
+            CONNECTION.slots
+        );
+    }
+
+    /// ADR 0067 § 7's second hazard, asserted at the seam where Doctrine's
+    /// `setRollbackOnly()` loses: the decision is on the receiver, so throwing
+    /// it away does not undo it.
+    ///
+    /// **Dropping the [`Fault`] is what an intervening `catch (Throwable)`
+    /// does**, and this case does exactly that between the raise and the read
+    /// — [`nvs_core_db_transaction_roll_back`] records the reason in
+    /// [`REASON_SLOT`] *and* throws, and
+    /// [`nvs_core_db_connection_transaction`] reads that slot rather than the
+    /// exception it did not catch. A member that only threw would pass every
+    /// assertion here but the last one.
+    ///
+    /// **The read happens after the scope is closed**, which is the order the
+    /// owning frame runs in: the `$tx` is refusing further work by then, and
+    /// the decision it holds still has to be legible. Both sides are named,
+    /// since a transaction nobody abandoned reads back as the same `null` a
+    /// broken recording would.
+    #[test]
+    fn roll_back_survives_an_intervening_catch_of_throwable() {
+        let scope = crate::instance::build(
+            &TRANSACTION,
+            [
+                Value::uint(1),
+                Value::str(NvsStr::new(b"main")),
+                Value::bool(true),
+                Value::null(),
+            ],
+        );
+        let receiver =
+            crate::instance::receiver(scope, &TRANSACTION, "rollBack").expect("a built instance");
+        assert!(
+            crate::instance::slot(receiver, REASON_AT)
+                .as_text()
+                .is_none(),
+            "a transaction nobody abandoned carries no reason, which is the \
+             `commit` half of the same read"
+        );
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let reason = Value::str(NvsStr::new(b"the cart is gone"));
+        if call(
+            nvs_core_db_transaction_roll_back,
+            &mut ctx,
+            &[scope, reason],
+        )
+        .is_ok()
+        {
+            panic!("§ 7 gives `rollBack` a `void` return because it always throws");
+        }
+        assert_eq!(
+            ctx.pending_class().as_deref(),
+            Some(r"Core\Db\RolledBack"),
+            "§ 7's signal is the class it names, not a bare `RuntimeError`"
+        );
+        assert_eq!(ctx.pending().as_deref(), Some("the cart is gone"));
+
+        // The catch, and this is the whole of one: clearing the pending
+        // exception is what a `catch (Throwable)` frame does. Everything below
+        // runs in the state `setRollbackOnly()` cannot recover from.
+        assert!(ctx.take_pending().is_some());
+        assert!(ctx.pending().is_none());
+
+        crate::instance::set_slot(receiver, SCOPE_AT, Value::bool(false));
+        assert_eq!(
+            crate::instance::slot(receiver, REASON_AT).as_text(),
+            Some("the cart is gone"),
+            "the flag outlives both the exception and the scope — it is what \
+             the owning frame rolls back on"
+        );
+
+        // And the scope guard is the first hazard, still closed: a `$tx` the
+        // closure stored cannot abandon a transaction that has moved on.
+        assert!(matches!(
+            transaction_of(scope, "rollBack"),
+            Err(Fault::Thrown(ThrownClass::Logic, _))
+        ));
+
+        discard(reason);
+        discard(scope);
     }
 }
