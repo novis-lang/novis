@@ -6,7 +6,7 @@
   removed; the sinks that refuse a tainted value (HTML output, SQL query text, process arguments, HTTP
   header values, filesystem paths); the `Core\Html\Markup` safe-markup type and the HTML output sink's
   auto-escape default.
-- **Amended by:** 0033, 0044, 0046, 0055, 0058, 0067, 0077, 0086, 0087, 0088, 0105
+- **Amended by:** 0033, 0044, 0046, 0055, 0058, 0067, 0077, 0086, 0087, 0088, 0105, 0133
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — adds a `tainted` qualifier axis to the conversion
   table for `string`/`bytes`, following the same total/checked shape as every other conversion; every other
   row is unchanged.
@@ -107,12 +107,20 @@ says nothing about whether the content is safe for a given sink.
 ### 3. Laundering functions are narrow, sink-named, and never generic
 
 The only way to remove a `tainted` qualifier from a `string`/`bytes` value (short of the conversions in
-§ 2) is a `Core` function whose return type is the plain, unqualified type and whose contract states which
-one sink it is safe for — `Core\Html::escape(tainted string): string` for HTML text,
+§ 2) is a `Core` function whose contract states which one sink it is safe for —
+`Core\Html::escape(tainted string): Core\Html\Markup` for HTML text,
 `Core\Db::quoteIdentifier(tainted string): string` for a dynamic table/column name, and others as each
 sink's stdlib class is designed (illustrative, not fixed — see *Revisiting*). There is deliberately no
 generic `sanitize()` or `clean()`: a value safe for HTML text is not safe for a shell argument, and a single
 catch-all invites exactly the false confidence this ADR exists to prevent.
+
+**Which of those two return types a launderer takes is a predicate, not a per-member choice**, and
+[ADR 0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+§ 1 owns it: the answer is the sink's **carrier type** when that sink launders automatically *and* the
+transform is not idempotent, and the plain unqualified type otherwise. Only § 5's HTML sink meets both
+today, which is why `escape` answers a `Markup` and every other launderer on the roster answers a
+`string`. A laundered `string` that re-entered an auto-escaping sink would be escaped a second time with
+nothing in the type able to say so.
 
 One narrow escape hatch exists for the case no built-in launderer fits — the developer has validated the
 value themselves and needs to say so: `Core\Taint::assertTrusted(tainted string, string $reason): string`.
@@ -187,7 +195,15 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   `tainted` string can **never** become `Markup` via `as`; only a literal token qualifies, which closes the
   obvious bypass ("compute the escape-defeating payload at runtime, then cast it").
 - `Markup` **+** `Markup` is `Markup` — composing trusted fragments (what templating already does) stays
-  cheap and stays trusted.
+  cheap and stays trusted. `+` and not `.`: concatenation answers a `string`, which would lose exactly what
+  the carrier carries, and a mixed `$markup + "x"` is **refused** rather than escaped, because this
+  operator is not a sink.
+- **`Core\Html::escape` answers a `Markup`**, and so will the `sanitize` [ADR 0051](0051-standard-library-tiers.md)
+  § 3 owes this class — the two laundering routes to a carrier, and `sanitize` the only one of the four
+  that may take a runtime-computed string, which is why it must rebuild the document from a known-good
+  grammar rather than filter what looks dangerous. `Core\Html::toSource(Markup, string $reason): string` is
+  the one way back out, on § 3's escape-hatch terms; there is no `Markup as string`. All of this is
+  [ADR 0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md).
 - Interpolating any **non-`Markup`** value — tainted or not — into a `Markup`-building position (the
   existing inline-HTML `<?= expr ?>` slot from M1's dual-mode lexer, or a future templating helper)
   auto-escapes it via `Core\Html::escape()` and lifts the result to `Markup`. This is the sink's *only*

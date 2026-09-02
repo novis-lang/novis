@@ -162,6 +162,7 @@ so you never have to open this file to route a topic.
 | epoll/kqueue/IOCP, the reactor, what wakes a parked task, why a socket read looks blocking and is not, `WouldBlock`, how big a coroutine's stack is and who pays for it | [0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md) |
 | What an isolate's "arena" actually is, whether entering one maps memory, what a wholesale release runs, what one isolate costs, why a crossing may move rather than copy, where a byte cap attaches | [0116](0116-an-isolates-arena-is-an-ownership-root.md) |
 | XSS, SQL injection, command/header/path injection, taint tracking, `tainted string`, `Core\Html\Markup` | [0024](0024-taint-tracking-for-injection-sinks.md) |
+| Double escaping, `&amp;amp;`, what an escaper *returns*, why `Core\Html::escape` answers `Markup` and `Core\Db::quoteIdentifier` a `string`, whether `Markup` converts back, `Core\Html::toSource`, `Core\Html::sanitize`'s return type | [0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md) |
 | Whether a given parameter is a sink, what an unclassified one does, what `echo` writes to in a request / a CLI / an isolate / a scheduled run, how a JSON or plain-text response body is written, `Core\Response::json` | [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) |
 | A database — `Core\Db`, `PDO`/`mysqli`/`pgsql`/`sqlite3`, drivers, connections, prepared statements, transactions, result rows, an ORM | [0067](0067-core-db.md) — signatures in [spec § 18](../spec/01-core-library.md) |
 | Writing a database driver — `crates/nvs-db`, which wire crate backs which driver, `postgres-protocol`/`mysql_common`/TDS, why there is no `sqlx` and no `tokio`, TLS on a database socket, whether a connection is busy, why the drivers are an enum and not a trait | [0132](0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) |
@@ -364,6 +365,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0130](0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md) | Usage telemetry is opt-in, counts only operator actions, and a serving process never uploads | Accepted |
 | [0131](0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md) | A temporary directory dies with its script, and the runtime's sweep never throws | Accepted |
 | [0132](0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) | A driver is a sans-IO codec plus its own state machine over the parking stream, and the five are an enum rather than a trait | Accepted |
+| [0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md) | A launderer answers its sink's carrier, and only an idempotent escape answers a `string` | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

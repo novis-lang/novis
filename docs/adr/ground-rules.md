@@ -156,6 +156,11 @@ spellings rejected, and the reasoning.
 - **Untrusted input carries a `tainted` qualifier that `Core` sinks refuse until it is laundered** — the
   HTML sink additionally auto-escapes by default
   ([0024](0024-taint-tracking-for-injection-sinks.md)).
+- **A launderer answers its sink's carrier type when that sink escapes on its own and the escape is not
+  idempotent** — so `Core\Html::escape` answers `Core\Html\Markup` and cannot be escaped a second time,
+  every other launderer on the roster keeps its plain `string`, and `Core\Html::toSource` with a written
+  reason is the only way back out
+  ([0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)).
 - **A sink is a parameter whose content becomes an instruction, and an unclassified one refuses** — `echo`
   binds to the terminal sink everywhere but an HTTP request, where a body is one typed `Core\Response`
   member ([0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md)).
