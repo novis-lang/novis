@@ -777,18 +777,30 @@ impl PgConn {
 }
 
 impl Drop for PgConn {
-    /// Says goodbye rather than vanishing.
-    ///
-    /// `Terminate` lets the backend exit on its own instead of discovering a
-    /// reset socket, which is one fewer error line in the server's log per
-    /// connection and one backend freed a round trip earlier. Best effort by
-    /// definition: the connection is going away whatever the write reports, so
-    /// there is nobody left to tell.
+    /// Says goodbye rather than vanishing — [`say_goodbye`] has the reasoning.
     fn drop(&mut self) {
-        let mut out = BytesMut::new();
-        frontend::terminate(&mut out);
-        drop(self.wire.send(&mut out));
+        say_goodbye(&mut self.wire);
     }
+}
+
+/// The last thing a destroyed connection writes: `Terminate`, best effort.
+///
+/// It lets the backend exit on its own instead of discovering a reset socket,
+/// which is one fewer error line in the server's log per connection and one
+/// backend freed a round trip earlier. Best effort by definition: the
+/// connection is going away whatever the write reports, so there is nobody
+/// left to tell.
+///
+/// Free and generic in the stream rather than written inside [`Drop`] for the
+/// reason every other sequence in this module is: `PgConn`'s wire is a
+/// `Wire<NvsTls<NvsTcp>>`, which no unit test can build, so what a *destroyed*
+/// connection puts on the wire would otherwise be unassertable without a socket
+/// and a certificate. `a_failed_reset_destroys_the_connection_rather_than_returning_it`
+/// is what asserts it.
+fn say_goodbye<S: Read + Write>(wire: &mut Wire<S>) {
+    let mut out = BytesMut::new();
+    frontend::terminate(&mut out);
+    drop(wire.send(&mut out));
 }
 
 /// Asks for § 3's in-band upgrade and reads the one-byte answer.
@@ -3385,7 +3397,7 @@ mod tests {
     use nvs_config::tree::Database;
 
     use super::{
-        BlockError, CancelKey, PgColumn, PgDate, PgScalar, PgTarget, PgTime, State, Wire,
+        BlockError, CancelKey, PgColumn, PgConn, PgDate, PgScalar, PgTarget, PgTime, State, Wire,
         affected_rows, authenticate, execute_many, oid, posix_time_zone, request_tls,
         start_statement,
     };
@@ -5346,6 +5358,57 @@ mod tests {
         // means — so § 13 destroys this connection through `PgConn::reset`
         // taking `self`, not by claiming the stream is unreadable.
         assert_eq!(state.get(), State::Idle);
+    }
+
+    /// ADR 0067 § 13's "a connection that cannot be proven clean is closed": a
+    /// refused reset hands the caller an error and **no connection**, so there
+    /// is nothing left that could rejoin the pool carrying one request's
+    /// session state into the next one's.
+    ///
+    /// Two halves, because the enforcement is a type and the destruction is a
+    /// write.
+    ///
+    /// The type: `PgConn::reset` takes `self` **by value** and names a `PgConn`
+    /// only inside its `Ok`, so the coercion below is the whole assertion — a
+    /// `&mut self` reset, or one handing the connection back beside the error,
+    /// does not compile against this signature. The caller of a failed reset
+    /// therefore has nothing to return, rather than a connection it must
+    /// remember not to reuse.
+    ///
+    /// The write: what dropping it does is [`super::say_goodbye`], driven here
+    /// over the same refused batch, and the assertion is that the connection's
+    /// last flush is one `Terminate` and that no seventh command went out after
+    /// the six. A driver that answered a failed reset by carrying on would
+    /// write one here.
+    ///
+    /// The two are asserted apart because `PgConn`'s `wire` is a
+    /// `Wire<NvsTls<NvsTcp>>` — no unit test can build one, so no unit test can
+    /// call `reset` and watch the real drop. `nvs_stdlib`'s `warm_connection`
+    /// is where they meet in a running program: `postgres.reset().ok()`, whose
+    /// `None` is both an empty pool and a connection that has just been closed.
+    #[test]
+    fn a_failed_reset_destroys_the_connection_rather_than_returning_it() {
+        let _: fn(PgConn) -> io::Result<PgConn> = PgConn::reset;
+
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut out = ready(); // ROLLBACK
+            out.extend_from_slice(&error_response("42501", "permission denied"));
+            out.extend_from_slice(&ready()); // RESET ALL, refused
+            out.extend_from_slice(&ready().repeat(4));
+            out
+        }));
+
+        super::reset_session(&mut wire, &state).expect_err("a refused reset passed");
+        // The `?` in `reset` is reached, which drops `self` — and this is the
+        // whole of what dropping it does.
+        super::say_goodbye(&mut wire);
+
+        let sent = &wire.peer().sent;
+        assert_eq!(sent.len(), 2, "a destroyed connection wrote a third time");
+        assert_eq!(queries(&sent[0]).len(), super::RESET_COMMANDS.len());
+        // `X` and a length of four: the message has no body at all.
+        assert_eq!(sent[1].as_slice(), b"X\x00\x00\x00\x04");
     }
 
     /// A wire that fails part way through the batch poisons the connection: six
