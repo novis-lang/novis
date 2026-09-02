@@ -52,16 +52,16 @@
 > `executeMany` — bound in § 5's rewriter's order — and § 18's readers: all six of `Rows`', all
 > fourteen of `Row`, `Write`'s three, and `Db\Column`'s three. `open` waits on a shape-parameter
 > type. **§ 7's `transaction` is on both classes with all three options, retrying either conflict,
-> no backoff** and a refusal throws `Db\DbError` carrying four of § 8's five; `nvs.toml` grants
-> `db.connect` to its three fixtures; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over
-> `ClassDesc::db_codec`, and § 9's five structured columns build the `Core\Time`/`Core\Uuid`
-> instance `Row`'s typed readers and a `#[Db\Derive]` field answer with, so `examples/db.nvs` runs
-> that end to end and pins a real refusal's § 8 values. Stages 3-4 are green in `-p nvs-db`, Stage 5
-> four of seven, two in `-p nvs-stdlib`, **§ 13's pool is complete — reuse, ceiling, `pool = false`
-> and the park live**, `lifetime` and `idle` live too, the park from a `Core\Task` child carrying
-> its config, **the matrix anchors each driver**, two servers `n/a`, and **ADR 0132 has claimed the
-> goal's one ADR slot**. **Goals 1-4 and M4 are closed**, this goal's Stage 1 floor — `Core`'s
-> capability-bearing half. Conformance 1415, differential 250, its gate met, migration 90%/74%.
+> no backoff** and a refusal throws `Db\DbError` carrying four of § 8's five;  `Rows` is generic at
+> `T` and **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and § 9's five structured columns
+> build the `Core\Time`/`Core\Uuid` instance `Row`'s typed readers and a `#[Db\Derive]` field answer
+> with, so `examples/db.nvs` runs that end to end and pins a real refusal's § 8 values. Stages 3-4
+> are green in `-p nvs-db`, Stage 5 four of seven, two in `-p nvs-stdlib`, **§ 13's pool is
+> complete, every bound and the park live**, **ADR 0084 § 2's `[queue]` resolves at boot** — the
+> `[db.<name>]` it names, `workers` and § 6's finite `max_attempts`, refused as `E0617`. **The
+> matrix anchors each driver**, two servers `n/a`, and **ADR 0132 has claimed the goal's one ADR
+> slot**. **Goals 1-4 and M4 are closed**, this goal's Stage 1 floor — `Core`'s capability-bearing
+> half. Conformance 1415, differential 250, its gate met, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

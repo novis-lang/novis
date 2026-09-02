@@ -6151,6 +6151,13 @@ sibling in the same namespace unqualified.
   compiles the moment the binding is renamed. So a closure inside a `try`/`catch` picks its own
   spelling for the exception, and a program that hits this panic is looking for a shadowed
   binding rather than for a capture it wrote.
+- **`nvs_config::value`'s `Unit::Duration` reads one unit and not a compound, so `"1m30s"` is
+  refused where `"90s"` and a bare `90` are the same duration.** ADR 0070's *literal* is `1h30m`,
+  the two spellings look like one feature, and a test asserting that two spellings of a bound agree
+  is exactly where the difference surfaces — as `is not a duration` against a value the language
+  itself accepts. The parser is `crates/nvs-config/src/value.rs`'s and nothing in a block's own
+  module widens it; write the second spelling as a bare count of the base unit instead, which is
+  what `nvs_config::db`'s own bounds do.
 
 ## Divergences and refusals already pinned
 
