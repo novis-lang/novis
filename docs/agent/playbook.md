@@ -2187,6 +2187,19 @@ is why" — is this file.
   good the anchor it was handed is. The fix is the `certs` volume `tests/db/compose.yaml` already
   builds for PostgreSQL, plus `--ssl-ca`/`--ssl-cert`/`--ssl-key` on the server and the matching
   `anchor=` in `tools/db-matrix.py`'s driver row. MariaDB and SQL Server are still in that position.
+- **A `cargo` command that dies with `failed to load manifest for workspace member` is naming a
+  directory nobody put a crate in, and it fails the *whole* workspace rather than that directory.**
+  The root `Cargo.toml` has `members = ["crates/*", "benches/*"]`, and cargo expands that glob before
+  it reads a single crate — so a `.nvs`/data tree added under `benches/` breaks every build, test and
+  clippy run in the repository until it is named in `exclude`, beside `benches/userland`. The tell is
+  that nothing you touched is in the message, and the user edits this tree too.
+- **`NVS_DB_MATRIX_CA` has to be an absolute path when you run one matrix leg by hand.** A relative
+  one resolves against the *test binary's* cwd, which is the crate directory and not the repo root,
+  and the case then dies on a `NotFound` naming a path rather than on anything about a certificate.
+  `python tools/db-matrix.py --list` prints the endpoints, and
+  `docker compose -f tests/db/compose.yaml cp mariadb:/certs/ca.crt <dir>` is the export the tool
+  itself does per run — the anchor belongs to a Docker volume and is reissued with it, so a copy kept
+  in the tree is right only until the next `down -v`.
 
 ## Writing a test case
 

@@ -55,13 +55,13 @@
 > (`E0617`), **`nvs queue migrate` applies § 2's schema, a worker claims, runs, reports and
 > dead-letters it**, **all four of § 1's members are live**, and **a shape encodes as a JSON
 > object**. **MariaDB is its own driver**: `maria.rs`, its own auth roster and its own § 8 table
-> over MySQL's framing, asserted by no socket yet. **MySQL runs a block end to end** and `connect`
-> opens and pools one: §§ 1, 3, 5, 9 and 13 follow its own driver, and a real MySQL holds § 3's
-> park, § 7, § 8 and § 13's pool. **Stage 9 is § 10's three diagnostics, ADR 0024 § 4's pair, and §
-> 11 whole: a `query` event per statement and a `slow_query` log line.** **ADR 0133's carrier
-> landed**: `Core\Html::escape` answers `Core\Html\Markup`, `toSource` is the one way out, and `.`,
-> `.=`, interpolation and `as string` refuse one. **Goals 1-4 and M4 are closed**. Conformance 1431,
-> differential 250, migration 90%/74%.
+> over MySQL's framing, and a real MariaDB holds § 3, § 9's zone and `RETURNING`. **MySQL runs a
+> block end to end** and `connect` opens and pools one: §§ 1, 3, 5, 9 and 13 follow its own driver,
+> and a real MySQL holds § 3's park, § 7, § 8 and § 13's pool. **Stage 9 is § 10's three
+> diagnostics, ADR 0024 § 4's pair, and § 11 whole: a `query` event per statement and a `slow_query`
+> log line.** **ADR 0133's carrier landed**: `Core\Html::escape` answers `Core\Html\Markup`,
+> `toSource` is the one way out, and `.`, `.=`, interpolation and `as string` refuse one. **Goals
+> 1-4 and M4 are closed**. Conformance 1431, differential 250, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
