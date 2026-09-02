@@ -1612,6 +1612,11 @@ is why" — is this file.
   timeout in one measured call. The scoping flag is `--in <glob>`, as in
   `python tools/peek.py --locate postgres_of --in 'crates/nvs-stdlib/**/*.rs'`; a plain `grep -n` over
   the one file you meant is cheaper still.
+- A `[context] adrs` gap does not close by naming the section in the handoff item. `orient.py` slices
+  that list and nothing else — it never reads an item's own `ADR 0067 § 7` — so four consecutive
+  sessions asked for § 7 and § 8 in the handoff, four re-sliced them by hand, and the list was
+  unchanged the whole time. Edit `docs/agent/loop-goal.toml` in the session that discovers the gap;
+  `tools/loop.py` expects a session to rewrite that file and reloads it every iteration.
 
 ## Running things
 
@@ -2173,6 +2178,15 @@ is why" — is this file.
   for `flate2` with `features = ["rust_backend"]`, which unifies onto `miniz-oxide`. Read the
   vendored crate's own `[features] default` before assuming `default-features = false` is only a
   slimming.
+- A `tools/db-matrix.py` leg can report `ok` without ever having opened a connection. Every case in
+  `nvs-db` returns without asserting on a leg testing another driver, so until the first *connecting*
+  case for that driver exists the leg is green over nothing — `mysql: ok` meant exactly that for the
+  whole of stage 6. When the case does arrive it fails on the **certificate**, not on the driver:
+  MySQL 8.4's auto-generated leaf carries no `subjectAltName` at all, which rustls reports as
+  `NotValidForNameContext { presented: [] }`, and no client that verifies a name can accept it however
+  good the anchor it was handed is. The fix is the `certs` volume `tests/db/compose.yaml` already
+  builds for PostgreSQL, plus `--ssl-ca`/`--ssl-cert`/`--ssl-key` on the server and the matching
+  `anchor=` in `tools/db-matrix.py`'s driver row. MariaDB and SQL Server are still in that position.
 
 ## Writing a test case
 
