@@ -87,9 +87,8 @@
 //!    or `constraint`. Nothing about the messages changes when it lands; what
 //!    changes is what a `catch` can name. `Db\RolledBack` *is* in the tree
 //!    (`nvs_hir::errors::TREE`), with the `reason` its message fills, and
-//!    `nvs_runtime::ThrownClass::DbRolledBack` is what a helper names to raise
-//!    one — nothing in this module raises one yet, because § 7's
-//!    `transaction` is what would.
+//!    `nvs_runtime::ThrownClass::DbRolledBack` is what
+//!    [`nvs_core_db_connection_transaction`] names to raise one.
 //! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
 //!    has landed of `Core\Db\Queryable`** (gap 8 is what `queryAs` still owes).
 //!    `stream` and `streamAs` are owed whole, and so are
@@ -124,6 +123,22 @@
 //!    `crate::json`'s reason, and the refusals carry § 5's `issues` on a
 //!    `ParseError` because gap 4's `Db\DbError` is not in the tree to carry
 //!    them.
+//! 9. **`transaction` declares `{retries: n}` and re-runs nothing.** Two of the
+//!    three things § 7's rule needs are here — [`ISOLATION`] and `readOnly`
+//!    reach the `BEGIN`, and [`nvs_db::DbErrorKind::is_retryable`] already
+//!    answers which two failures may be re-run, that being the half only a
+//!    driver can answer. What is missing is the *waiting*: § 7 specifies
+//!    exponential backoff with jitter that suspends the coroutine rather than
+//!    blocking the core, and `nvs-runtime`'s own known gap 3 is that a helper
+//!    cannot suspend yet. Sleeping on `nvs_host::blocking` instead would keep
+//!    the core free but hold a pool worker for the backoff, which is a
+//!    different bargain than the one § 7 struck and not one to make by
+//!    accident. The declared default of 0 is what a call that does not ask for
+//!    the option already gets, so the gap is reached only by a call site that
+//!    wrote `{retries: n}` and is answered with the conflict itself — weaker
+//!    than § 7, never wrong about what happened. Landing it also wants a
+//!    `depth` reader on [`nvs_db::PgConn`], since § 7 retries outermost
+//!    transactions only and nothing outside that crate can tell.
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 
@@ -473,21 +488,54 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// ADR 0067 § 7's `{isolation?, readOnly?, retries?}` — the bag
+/// [`TRANSACTION_ROW`] declares last, per ADR 0063 R2.
+///
+/// **Every default is § 7's own and each is a decision rather than a
+/// placeholder.** `isolation` is [`Const::Null`] and so *absent*, which is the
+/// only default that does not silently overrule the level the operator set on
+/// the server: the transaction runs at the connection's own. `readOnly` is
+/// false because a transaction is asked for by code that writes. `retries` is 0
+/// because § 7 says so out loud — a closure may have side effects that are not
+/// the database's, and re-running one that sends mail is worse than surfacing
+/// the conflict to the caller who can decide.
+///
+/// **`isolation` is the enum, not its ordinal.** Typing it
+/// [`CoreTy::Enum`] is what makes a level [`ISOLATION`] does not list an
+/// `E0401` at the call site rather than an integer arriving in the helper for
+/// it to re-check; [`isolation_of`] is the one place the two rosters are
+/// matched.
+const TRANSACTION_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "isolation",
+        ty: CoreTy::Enum(ISOLATION_NAME),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "readOnly",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "retries",
+        ty: CoreTy::Uint,
+        default: Const::Uint(0),
+    },
+];
+
 /// ADR 0067 § 7's `transaction`, written once because it is declared once: the
 /// row is `Core\Db\Queryable`'s and both [`CONNECTION`] and [`TRANSACTION`]
 /// carry it, a nested call on the second being the savepoint § 7 asks for.
 ///
-/// **The options bag is owed and its absence is a subset, not a divergence.**
-/// § 7's `{isolation?, readOnly?, retries?}` is an options bag this row does
-/// not declare, and two of the three things it needs have since landed:
-/// [`ISOLATION`] is registered, and [`nvs_db::DbErrorKind::is_retryable`]
-/// already answers which failures § 7 re-runs on, that being the half only a
-/// driver can answer. What is left is a retry that suspends the coroutine
-/// rather than blocking the core. What
-/// is here is the shape with all three at their § 7 defaults — the driver's own
-/// isolation, read-write, and no retries, which is the default § 7 argues for
-/// because re-running a closure that sends mail is worse than surfacing the
-/// conflict. This module's known gaps carry it.
+/// **Two of [`TRANSACTION_OPTIONS`]' three reach the `BEGIN` and the third does
+/// not yet.** [`nvs_db::PgConn::begin`] takes the level and the read-only flag
+/// and renders the command from them, and refuses a *nested* call that carries
+/// either rather than running it at the outer transaction's level. `retries` is
+/// declared here and read by nothing: the re-run § 7 asks for backs off between
+/// attempts by suspending the coroutine, and `nvs-runtime` has no yielder to
+/// suspend it with. This module's known gap 9 carries what is left, and the
+/// declared default of 0 is what every call that does not ask for the missing
+/// half already gets.
 const TRANSACTION_ROW: CoreMethod = CoreMethod {
     name: "transaction",
     names: &["fn"],
@@ -495,7 +543,10 @@ const TRANSACTION_ROW: CoreMethod = CoreMethod {
     // is a [`TRANSACTION`] and what it may declare is zero parameters or one,
     // and neither is sayable here — `nvs_runtime::call_closure` trims to the
     // arity the closure recorded, which is § 7's R9 allowance.
-    params: &[CoreTy::CallableTo("T")],
+    params: &[
+        CoreTy::CallableTo("T"),
+        CoreTy::Options(TRANSACTION_OPTIONS),
+    ],
     defaults: &[],
     // § 7's `: T`. The member's answer *is* the closure's, so the transaction
     // is scenery around a call that computes whatever it was going to compute
@@ -1497,14 +1548,37 @@ const TRANSACTION_DOC: MethodDoc = MethodDoc {
             throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` \
             and every savepoint member with the one shape that cannot be left open by an early \
             return.",
-    params: &[ParamDoc {
-        name: "fn",
-        desc: "The work. It is handed a `Core\\Db\\Transaction`, which has the same query surface \
-               the connection has, and may declare that parameter or no parameter at all. Called \
-               once — retries are not on by default, because a closure with side effects should \
-               not be re-run without being asked for.",
-        shape: &[],
-    }],
+    params: &[
+        ParamDoc {
+            name: "fn",
+            desc: "The work. It is handed a `Core\\Db\\Transaction`, which has the same query \
+                   surface the connection has, and may declare that parameter or no parameter at \
+                   all.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "isolation",
+            desc: "What this transaction may see of the work running beside it. Left out, it runs \
+                   at the level the server was configured with. A nested call may not ask for one \
+                   at all — the level belongs to the whole transaction, not to a savepoint inside \
+                   it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "readOnly",
+            desc: "Refuses writes for the length of the transaction, which lets the server plan \
+                   for a reader. False by default, and a nested call may not ask for it for the \
+                   reason `isolation` may not.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "retries",
+            desc: "How many times a deadlock or a serialization failure may re-run `$fn`. Zero by \
+                   default, because a closure with side effects should not be re-run without \
+                   being asked for; nothing else is ever retried.",
+            shape: &[],
+        },
+    ],
     ret: "What `$fn` returned, after the commit. A nested call on the same connection is a \
           savepoint, so a function that wraps its own writes stays callable from inside a \
           caller's transaction.",
@@ -1517,8 +1591,9 @@ const TRANSACTION_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "A statement inside the closure was refused for the way it was written, or the \
-                   transaction was reached after the call that owned it returned.",
+            desc: "A statement inside the closure was refused for the way it was written, the \
+                   transaction was reached after the call that owned it returned, or a nested \
+                   call asked for its own `isolation` or `readOnly`.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -1972,6 +2047,16 @@ const ROLL_BACK: &str = r"Core\Db\Transaction::rollBack";
 const SHARED_ARG: usize = 1;
 /// See [`SHARED_ARG`].
 const TIMEOUT_ARG: usize = 2;
+
+/// The ABI slot each of `transaction`'s options arrives in — the receiver, then
+/// the row's one positional parameter, then [`TRANSACTION_OPTIONS`] flattened
+/// in declaration order.
+///
+/// `retries` is slot 4 and has no constant because nothing reads it: this
+/// module's known gap 9 is the re-run that would.
+const ISOLATION_ARG: usize = 2;
+/// See [`ISOLATION_ARG`].
+const READ_ONLY_ARG: usize = 3;
 
 /// The instant the handshake must be done by, or `None` for a call that named
 /// no `timeout`.
@@ -3131,9 +3216,44 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The [`ISOLATION`] case an `{isolation: …}` option arrived as, or `None` for
+/// the call that left it out.
+///
+/// **The two rosters are matched by ordinal and written out**, not cast:
+/// [`ISOLATION`] states § 7's order for the program and [`nvs_db::Isolation`]
+/// states it again for the driver, in different crates for different readers,
+/// and a cast between them would answer the wrong level the first time either
+/// gained a case. `Core\Cli`'s `stream_of` is the same judgement.
+///
+/// `None` is the option's declared default and not a failure: § 7's absent
+/// `isolation` runs at the level the connection already has, which
+/// [`nvs_db::PgConn::begin`] renders by leaving the clause off the `BEGIN`.
+fn isolation_of(value: &Value, member: &str) -> Result<Option<nvs_db::Isolation>, Fault> {
+    if matches!(value.tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    match value.as_int() {
+        Some(0) => Ok(Some(nvs_db::Isolation::ReadUncommitted)),
+        Some(1) => Ok(Some(nvs_db::Isolation::ReadCommitted)),
+        Some(2) => Ok(Some(nvs_db::Isolation::RepeatableRead)),
+        Some(3) => Ok(Some(nvs_db::Isolation::Snapshot)),
+        Some(4) => Ok(Some(nvs_db::Isolation::Serializable)),
+        // Unreachable from source: the option is `CoreTy::Enum(ISOLATION_NAME)`
+        // in [`TRANSACTION_OPTIONS`], so anything that is not one of the five
+        // cases is `E0401` at the checker and compiled code writes the ordinal
+        // itself. `Core\Arr::sort`'s `order` states the same reasoning in full.
+        _ => Err(Fault::fatal(format!(
+            "{member} expected a `{ISOLATION_NAME}` case for `isolation`, got tag {} value {:?}",
+            value.tag_byte(),
+            value.as_int()
+        ))),
+    }
+}
+
 nvs_runtime::nvs_helper! {
-    /// `Core\Db\Queryable::transaction(callable $fn): T` — ADR 0067 § 7's whole
-    /// shape, and the only way to open a transaction on this surface.
+    /// `Core\Db\Queryable::transaction(callable $fn, {isolation?, readOnly?,
+    /// retries?}): T` — ADR 0067 § 7's whole shape, and the only way to open a
+    /// transaction on this surface.
     ///
     /// **The closure form is what removes the failure mode**, which § 7 argues
     /// and this body implements: there is no point between the `BEGIN` and the
@@ -3162,15 +3282,35 @@ nvs_runtime::nvs_helper! {
     /// from it, so a library that wraps its own writes composes with a caller's
     /// transaction without either of them knowing.
     ///
+    /// **`isolation` and `readOnly` are handed straight to that same call**,
+    /// which is where both the rendering and the one refusal live: a nested
+    /// call carrying either is an `InvalidInput` there and so a `LogicError`
+    /// here, because PostgreSQL settles both for the whole transaction and
+    /// running the closure at the outer one's level would be quietly weaker
+    /// than what its author wrote. Reading the two here and deciding nothing
+    /// with them is deliberate — the level a given backend can offer is the
+    /// driver's question, and [`TRANSACTION_OPTIONS`] owns what their defaults
+    /// mean.
+    ///
     /// **Rolling back after a throw discards its own failure.** The exception
     /// the closure raised is what the request is about, and a connection whose
     /// `ROLLBACK` was refused is one § 13's reset destroys rather than pools —
     /// so replacing the program's exception with the driver's would lose the
     /// only half a caller can act on.
-    fn nvs_core_db_connection_transaction(ctx, args: [2]) {
+    fn nvs_core_db_connection_transaction(ctx, args: [5]) {
         let (key, block) = handle_of(args[0], "transaction")?;
+        let isolation = isolation_of(&args[ISOLATION_ARG], TRANSACTION_MEMBER)?;
+        // Unreachable from source for `connect`'s reason: the option is
+        // declared `bool` and defaults to one, so the slot is never anything
+        // else.
+        let read_only = args[READ_ONLY_ARG].as_bool().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{TRANSACTION_MEMBER} expected a `bool` for `readOnly`, got tag {}",
+                args[READ_ONLY_ARG].tag_byte()
+            ))
+        })?;
         postgres_of(ctx, key, &block, TRANSACTION_MEMBER)?
-            .begin(None, false)
+            .begin(isolation, read_only)
             .map_err(|refused| statement_failure(TRANSACTION_MEMBER, &block, &refused))?;
 
         // The block name is handed on rather than looked up again: a
@@ -4478,9 +4618,31 @@ mod tests {
         assert_eq!(TRANSACTION_ROW.names, ["fn"]);
         assert_eq!(
             format!("{:?}", TRANSACTION_ROW.params),
-            format!("{:?}", [CoreTy::CallableTo("T")]),
-            "§ 7's `transaction` takes the closure and nothing else — an \
-             options bag is owed, and this module's known gaps carry it"
+            format!(
+                "{:?}",
+                [
+                    CoreTy::CallableTo("T"),
+                    CoreTy::Options(TRANSACTION_OPTIONS)
+                ]
+            ),
+            "§ 7's `transaction` takes the closure and R2's one trailing bag"
+        );
+        // § 7's three options, in its order, at its defaults — asserted as the
+        // whole bag rather than one lookup each, so an option added without
+        // being specified fails here too. The defaults are the half a call site
+        // never writes and so the half nothing else would catch: `isolation`
+        // absent leaves the server's own level standing, and `retries` at 0 is
+        // § 7's argument that a side-effecting closure is not re-run unasked.
+        assert_eq!(
+            TRANSACTION_OPTIONS
+                .iter()
+                .map(|option| (option.name, format!("{:?}", option.default)))
+                .collect::<Vec<_>>(),
+            [
+                ("isolation", format!("{:?}", Const::Null)),
+                ("readOnly", format!("{:?}", Const::Bool(false))),
+                ("retries", format!("{:?}", Const::Uint(0))),
+            ]
         );
         assert_eq!(
             format!("{:?}", TRANSACTION_ROW.return_ty),
