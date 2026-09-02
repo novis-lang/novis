@@ -82,13 +82,19 @@
 //!    per-core pool is what would change that, and it may only do so behind
 //!    that section's reset; [`nvs_runtime::Ctx::hold_open_connection`] is where
 //!    that is written down.
-//! 4. **`Db\DbError` is not in spec § 10's tree yet**, so a refusal here is a
-//!    plain `RuntimeError` or an `IOError` and carries no `kind`, `sqlState`
-//!    or `constraint`. Nothing about the messages changes when it lands; what
-//!    changes is what a `catch` can name. `Db\RolledBack` *is* in the tree
-//!    (`nvs_hir::errors::TREE`), with the `reason` its message fills, and
-//!    `nvs_runtime::ThrownClass::DbRolledBack` is what
-//!    [`nvs_core_db_connection_transaction`] names to raise one.
+//! 4. **`Db\DbError` is in spec § 10's tree and carries none of § 18's five
+//!    properties.** A refusal the server itself made is thrown as
+//!    `nvs_runtime::ThrownClass::DbError` ([`statement_failure`]), so a `catch`
+//!    can name the database instead of `RuntimeError` — which it still is,
+//!    being its parent, so nothing written against the old class stops
+//!    working. What a program cannot do is read `kind`, `sqlState`,
+//!    `driverCode`, `constraint` or `sql` off the object: the class declares no
+//!    slot of its own, and `nvs_hir::errors::OWN_PROPERTIES` says what each of
+//!    the five owes before it can. This crate holds the `kind` at the instant
+//!    it throws — `nvs_db::ServerError::of` reads it out of the driver's error
+//!    — and drops it, which is also the half of gap 9 the retry loop is still
+//!    missing. A failure of the *wire* rather than of the statement stays an
+//!    `IOError`: § 8's class is the server's answer, not the socket's.
 //! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
 //!    has landed of `Core\Db\Queryable`** (gap 8 is what `queryAs` still owes).
 //!    `stream` and `streamAs` are owed whole, and so are
@@ -121,8 +127,8 @@
 //!    is opened. Two smaller ones ride with them: a constructor parameter no
 //!    codec field fills is a fatal rather than ADR 0071 § 3's default, for
 //!    `crate::json`'s reason, and the refusals carry § 5's `issues` on a
-//!    `ParseError` because gap 4's `Db\DbError` is not in the tree to carry
-//!    them.
+//!    `ParseError` because `Db\DbError` has no `issues` slot to carry them —
+//!    gap 4's other half, spec § 10 giving it that property too.
 //! 9. **`transaction` re-runs the closure with no wait between attempts**, and
 //!    that is a deliberate narrowing of § 7 rather than an omission. Everything
 //!    else the rule needs is here — [`ISOLATION`] and `readOnly` reach the
@@ -1409,7 +1415,7 @@ const QUERY_DOC: MethodDoc = MethodDoc {
                    statement is already streaming on this connection.",
         },
         ErrorDoc {
-            error: "RuntimeError",
+            error: "Core\\Db\\DbError",
             desc: "The server refused the statement — a syntax error, a constraint, a permission \
                    — carrying its own `SQLSTATE` and message, or a column came back in a type \
                    this driver does not read back yet.",
@@ -1498,7 +1504,7 @@ const EXECUTE_DOC: MethodDoc = MethodDoc {
                    statement is already streaming on this connection.",
         },
         ErrorDoc {
-            error: "RuntimeError",
+            error: "Core\\Db\\DbError",
             desc: "The server refused the statement — a syntax error, a constraint, a permission \
                    — carrying its own `SQLSTATE` and message.",
         },
@@ -1543,7 +1549,7 @@ const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
                    bound form, or a statement is already streaming on this connection.",
         },
         ErrorDoc {
-            error: "RuntimeError",
+            error: "Core\\Db\\DbError",
             desc: "The server refused an execution — a syntax error, a constraint, a permission. \
                    Each execution is its own transaction, so the writes before the failing one \
                    stand; `transaction` is how a caller asks for all or nothing.",
@@ -1612,7 +1618,7 @@ const TRANSACTION_DOC: MethodDoc = MethodDoc {
                    call asked for its own `isolation` or `readOnly`.",
         },
         ErrorDoc {
-            error: "RuntimeError",
+            error: "Core\\Db\\DbError",
             desc: "The server refused the `BEGIN`, or refused the `COMMIT` after the closure \
                    returned — a serialization failure or a deferred constraint. The work is not \
                    committed either way.",
@@ -2488,19 +2494,27 @@ fn bound_of(value: Value) -> Bound {
 /// fixes by writing the call differently. `Other` is the server's own refusal,
 /// carrying its `SQLSTATE` and message. Everything left is the wire.
 ///
-/// This module's known gap 4 owns the ceiling on the middle one: `Db\DbError`
-/// is not in spec § 10's tree yet, so a server refusal arrives as a plain
-/// `RuntimeError` and a program cannot yet catch it by kind or read its
-/// `sqlState` off the object. Nothing about the message changes when it lands.
+/// The middle one is `Core\Db\DbError` — [ADR 0067](../../../docs/adr/0067-core-db.md)
+/// § 8's single class for every refusal the server made, sitting beside
+/// `Core\Db\RolledBack` in spec § 10's tree so that a `catch` can tell a
+/// refusal the program did not choose from one it did. Nothing about the
+/// message changes with the class, and § 8 requires it to carry no bound value.
+///
+/// What the throw still cannot carry is § 8's `kind`, which this crate has
+/// right here — `nvs_db::ServerError::of(refused)` reads it back out of the
+/// error this function is handed — and drops for want of a slot to write it to.
+/// That is this module's known gap 4, and it is why `transaction`'s retry rule
+/// branches on the *commit's* refusal and not on the closure's (gap 9).
 fn statement_failure(named: &str, block: &Value, refused: &std::io::Error) -> Fault {
     let name = block.as_text().unwrap_or("?");
     match refused.kind() {
         std::io::ErrorKind::InvalidInput => {
             Fault::thrown_as(ThrownClass::Logic, format!("{named}: {refused}"))
         }
-        std::io::ErrorKind::Other => Fault::thrown(format!(
-            "{named}: `[db.{name}]` refused the statement: {refused}"
-        )),
+        std::io::ErrorKind::Other => Fault::thrown_as(
+            ThrownClass::DbError,
+            format!("{named}: `[db.{name}]` refused the statement: {refused}"),
+        ),
         _ => Fault::thrown_as(
             ThrownClass::Io,
             format!("{named}: `[db.{name}]` failed while the statement was running: {refused}"),
