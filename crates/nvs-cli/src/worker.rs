@@ -65,12 +65,12 @@
 //!
 //! ## Known gap
 //!
-//! **An exhausted job is left claimed rather than dead-lettered.** [`report`] writes back every
-//! attempt — `Succeeded`, or back to `Pending` on § 6's ladder — but the branch where a job has
-//! used its last attempt only says so on standard error: § 6's move into `nvs_dead_jobs` is the
-//! next slice, and `nvs_stdlib::queue::MIGRATION`'s dead-letter table is already waiting for it.
-//! Until it lands such a row stays `Claimed` and becomes visible again on § 4's timeout, which is
-//! where every unreported attempt used to end up.
+//! **A dead-lettered row carries the last attempt's error and no earlier one's.** [`report`] writes
+//! every attempt back — `Succeeded`, back to `Pending` on § 6's ladder, or out of `nvs_jobs` and
+//! into `nvs_dead_jobs` where the job has used its last attempt — but § 2's jobs table has nowhere
+//! to keep what an earlier attempt threw, so the `errors` array § 6 asks for is one entry deep and
+//! every attempt before the last is visible only on this worker's standard error.
+//! [`nvs_stdlib::queue::MIGRATION`]'s own doc owns that decision and what a deeper array would cost.
 //!
 //! [ADR 0067]: ../../../docs/adr/0067-core-db.md
 //! [ADR 0084]: ../../../docs/adr/0084-durable-background-jobs.md
@@ -215,8 +215,8 @@ fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut nvs_db::PgConn, window: i64) -> i
             // shortest time between the two is the one that costs a fleet the least. The write-back
             // rides with it for the same reason — the row is released by [`report`] and not by the
             // end of the turn.
-            let ok = run(ctx, &job);
-            report(conn, &job, now, ok)?;
+            let failure = run(ctx, &job);
+            report(conn, &job, now, failure.as_ref())?;
             claimed = true;
         }
     }
@@ -358,7 +358,8 @@ const MAX_ATTEMPTS: usize = 4;
 const BACKOFF: usize = 5;
 
 /// Runs one claimed job as ADR 0084 § 5's root isolate: its own arena, its own budget, sharing only
-/// compiled code, answering whether the attempt is one [`report`] writes back as `Succeeded`.
+/// compiled code, answering with what the attempt threw — or `None`, which is the attempt
+/// [`report`] writes back as `Succeeded`.
 ///
 /// **The same `Isolate` a `spawn script` builds, through the same door**, which is § 5's "there is
 /// no second execution path" taken literally: a job is resolved by
@@ -368,10 +369,11 @@ const BACKOFF: usize = 5;
 /// writing is exactly the mixing that option exists to prevent.
 ///
 /// A refusal is written to standard error rather than answered, because there is nobody to answer:
-/// a worker has no caller. One line per refused job, and the answer is `false` either way — a job
+/// a worker has no caller. One line per refused job, and the answer is a failure either way — a job
 /// whose script does not resolve is a failed attempt like any other, so § 6's ladder is what
-/// bounds it rather than a second policy written here.
-fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> bool {
+/// bounds it rather than a second policy written here. It crosses as the same [`nvs_host::Failure`]
+/// a throw does, under [`refusal`]'s class, so a dead-letter row records the two in one shape.
+fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
     let program = match nvs_runtime::script::resolve(ctx, &job.script) {
         Ok(program) => program,
         Err(refused) => {
@@ -379,7 +381,7 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> bool {
                 "warning: the queued job `{}` was not run: {refused}",
                 job.script
             );
-            return false;
+            return Some(refusal(format!("the script did not resolve: {refused}")));
         }
     };
     // Ownership: `payload` hands over one reference and `Isolate::new` consumes exactly one, so
@@ -397,16 +399,24 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> bool {
         // out-of-memory". So the flag the isolate already computed is the whole judgement, and
         // there is no second reading of the completion beside it.
         Ok(completion) => {
-            if let Some(failure) = &completion.error {
-                // Until § 6's dead-letter row carries every attempt's error, this line is the only
-                // place a failed attempt is visible at all, and a queue whose failures are silent
-                // is the one thing that section exists to prevent.
-                eprintln!(
-                    "warning: the queued job `{}` threw {}: {}",
-                    job.script, failure.class, failure.message
-                );
+            if completion.ok {
+                return None;
             }
-            completion.ok
+            // `error` is present exactly when `ok` is false — [`nvs_host::Completion`]'s own doc —
+            // so the fallback is unreachable for a completion this host produced. Written rather
+            // than asserted, because an exhausted job still has to reach `nvs_dead_jobs` carrying
+            // something a reader can act on if it ever is reached.
+            let failure = completion.error.unwrap_or_else(|| {
+                refusal("the attempt ended without returning and named no failure".to_string())
+            });
+            // Only the *last* attempt's error reaches the dead-letter row, so for every attempt
+            // before it this line is the only place the failure is visible at all — and a queue
+            // whose failures are silent is the one thing § 6 exists to prevent.
+            eprintln!(
+                "warning: the queued job `{}` threw {}: {}",
+                job.script, failure.class, failure.message
+            );
+            Some(failure)
         }
         Err(refused) => {
             // The argument refusing to cross, which is the graph copy's answer and not the job's —
@@ -416,12 +426,29 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> bool {
                 "warning: the queued job `{}` was not run: its payload could not cross: {refused}",
                 job.script
             );
-            false
+            Some(refusal(format!("its payload could not cross: {refused}")))
         }
     }
 }
 
+/// A failure that was not a throw, in the shape [`report`] records a thrown one in.
+///
+/// `Error` is [`nvs_host::Failure`]'s own name for the class of a failure the child did not throw,
+/// so nothing here invents a spelling: a refusal and a throw differ in that field and in nothing
+/// else, which is what lets § 6's `errors` array hold either without a second entry shape.
+fn refusal(message: String) -> nvs_host::Failure {
+    nvs_host::Failure {
+        class: "Error".to_string(),
+        message,
+    }
+}
+
 /// ADR 0084 § 6's write-back: the row the claim took, told what the attempt did.
+///
+/// **Three branches and one lease.** An attempt that returned is `Succeeded`; one that failed with
+/// attempts still to come is armed for the next on § 6's ladder; one that failed on the job's last
+/// attempt is moved into `nvs_dead_jobs` carrying what it threw. Each is a single statement out of
+/// [`nvs_stdlib::queue`], which owns all three and every column they name.
 ///
 /// **Keyed on the lease `held_at`**, which is the `claimed_at` this worker's own claim wrote —
 /// [`nvs_stdlib::queue::SUCCEEDED`]'s doc owns why, and it is why this takes the turn's instant
@@ -433,27 +460,41 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> bool {
 /// spent however long it spent: a backoff measured from the claim would already be part-elapsed,
 /// and for a job that ran longer than its own base delay it would be wholly elapsed, which is
 /// § 6's ladder collapsed to a busy loop.
-fn report(conn: &mut nvs_db::PgConn, job: &Job, held_at: i64, ok: bool) -> io::Result<()> {
+fn report(
+    conn: &mut nvs_db::PgConn,
+    job: &Job,
+    held_at: i64,
+    failure: Option<&nvs_host::Failure>,
+) -> io::Result<()> {
     let id = job.id.to_string().into_bytes();
     let held = millis(held_at);
-    if ok {
+    let Some(failure) = failure else {
         return apply(
             conn,
             nvs_stdlib::queue::SUCCEEDED,
             &[Some(id.as_slice()), Some(held.as_slice())],
         );
-    }
+    };
     if job.attempts >= job.max_attempts {
-        // § 6's dead-letter move is the next slice, and until it lands an exhausted job is left
-        // exactly as this worker found it: claimed, and so invisible until § 4's timeout. Said out
-        // loud rather than swallowed, because a job that has stopped making progress and cannot be
-        // seen in `nvs_dead_jobs` yet is otherwise a queue that quietly lost work.
-        eprintln!(
-            "warning: the queued job `{}` has used all {} of its attempts; it is left claimed \
-             until the dead-letter move lands",
-            job.script, job.max_attempts
+        // § 6's floor: the attempt was the job's last, so the row moves rather than being armed
+        // again — one statement, keyed on the same lease, which is where "never deleted by the
+        // runtime" is actually kept. `>=` and not `==` because `[queue] max_attempts` is
+        // configuration an operator can lower under a job that has already used more than the new
+        // bound, and such a row is exhausted rather than owed an attempt it can no longer have.
+        let errors = nvs_stdlib::queue::dead_errors(held_at, &failure.class, &failure.message);
+        // The instant the attempt *ended*, read here rather than taken from the claim, for the
+        // reason the retry's own `run_at` is: the attempt has just spent however long it spent.
+        let failed = millis(nvs_stdlib::queue::now_millis());
+        return apply(
+            conn,
+            nvs_stdlib::queue::DEAD_LETTER,
+            &[
+                Some(id.as_slice()),
+                Some(held.as_slice()),
+                Some(failed.as_slice()),
+                Some(errors.as_bytes()),
+            ],
         );
-        return Ok(());
     }
     let due = millis(nvs_stdlib::queue::retry_at(
         nvs_stdlib::queue::now_millis(),

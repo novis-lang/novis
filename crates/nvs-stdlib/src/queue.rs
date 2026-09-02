@@ -165,9 +165,15 @@ pub struct Migration {
 ///   [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md) § 1's reload can move
 ///   it; a stored deadline would freeze the superseded bound onto every job already claimed.
 /// - **The dead-letter row is the job's own columns plus `failed_at` and `errors`**, where `errors`
-///   is the JSON array § 6 asks for — one entry per attempt, each carrying when it ran and what it
-///   threw. There is no `state`: a row is `Dead` by being in that table, which is exactly what
-///   [`STATUS`]'s second arm asserts by answering the ordinal as a literal.
+///   is the JSON array § 6 asks for — an entry carrying when an attempt ran and what it threw.
+///   **It is one entry deep, and that entry is the attempt that exhausted the job**, because the
+///   jobs table above has nowhere to keep what an earlier attempt threw: [`RETRY`] arms a failed
+///   row for the next attempt and keeps the count and nothing else. Recording all of them would be
+///   a text column on `nvs_jobs` appended to on every failure — a row rewritten once per attempt,
+///   carrying a value only the exhausted job ever reads, on the table § 4's claim contends over —
+///   so the array is § 6's shape at the depth this schema pays for, and [`dead_errors`] is where
+///   that trade is written down. There is no `state`: a row is `Dead` by being in that table, which
+///   is exactly what [`STATUS`]'s second arm asserts by answering the ordinal as a literal.
 pub const MIGRATION: &[Migration] = &[
     Migration {
         label: "jobs",
@@ -349,6 +355,52 @@ pub const SUCCEEDED: &str = "update nvs_jobs set state = 2, claimed_at = null \
 /// Keyed on the lease exactly as [`SUCCEEDED`] is, and for the same reason.
 pub const RETRY: &str = "update nvs_jobs set state = 0, run_at = $3::bigint, claimed_at = null \
     where id = $1::bigint and claimed_at = $2::bigint";
+
+/// § 6's third write-back and the floor under the other two: the attempt was the job's last, so the
+/// row leaves [`JOBS_TABLE`] for [`DEAD_TABLE`] instead of being armed again.
+///
+/// **One statement, because the move is one moment.** The `delete` is a data-modifying CTE whose
+/// `returning` list is what the `insert` selects from, so there is no instant in which the job is in
+/// both tables or in neither — which is exactly the claim [`STATUS`]'s doc makes about its two arms,
+/// held here rather than by a transaction a worker would otherwise have to open around two
+/// statements and keep right on every path out of them.
+///
+/// **Keyed on the lease exactly as [`SUCCEEDED`] and [`RETRY`] are**, and for the same reason: a
+/// worker that overran § 4's visibility window matches no row here, so it cannot dead-letter a job
+/// the claim that replaced it is still running.
+///
+/// The columns are listed rather than `select *`-ed because the two tables are deliberately not one
+/// shape: the job keeps its `id` and its `queue` ([`DEAD_TABLE`]'s doc says why), leaves `state` and
+/// `claimed_at` behind — a row is `Dead` by being here and nothing holds it — and gains `failed_at`
+/// and the `errors` array [`dead_errors`] builds.
+pub const DEAD_LETTER: &str = "with moved as (\
+     delete from nvs_jobs where id = $1::bigint and claimed_at = $2::bigint \
+     returning id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
+     created_at\
+ ) insert into nvs_dead_jobs \
+ (id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, dedupe_key, created_at, \
+ failed_at, errors) \
+ select id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
+ created_at, $3::bigint, $4::text from moved";
+
+/// § 6's `errors` array, as [`DEAD_LETTER`] binds it: one entry, the attempt that exhausted the job.
+///
+/// [`MIGRATION`]'s own doc owns *why* the array is this deep and not deeper, and it is the one home
+/// for that trade. What is decided here is the entry's shape: `at` is when the attempt started,
+/// which is the lease the move is keyed on, so the row says how long the last attempt ran for
+/// against `failed_at` beside it, and `class` and `message` are what the isolate answered with —
+/// data rather than an exception object, per
+/// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md).
+///
+/// Built through `serde_json` rather than formatted, because a thrown message is arbitrary text and
+/// a hand-rolled array is one unescaped quote away from a column no reader can parse.
+pub fn dead_errors(at: i64, class: &str, message: &str) -> String {
+    let mut entry = serde_json::Map::new();
+    entry.insert("at".to_string(), at.into());
+    entry.insert("class".to_string(), class.into());
+    entry.insert("message".to_string(), message.into());
+    serde_json::Value::Array(vec![serde_json::Value::Object(entry)]).to_string()
+}
 
 /// The ceiling ADR 0084 § 6 asks for and names no number for.
 ///
@@ -1709,10 +1761,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL, CLAIM, COUNTS, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING, QUEUES, RETRY,
-        RETRY_CAP_MS, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
-        STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
-        STATUS, SUCCEEDED, retry_at,
+        CANCEL, CLAIM, COUNTS, DEAD_LETTER, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING,
+        QUEUES, RETRY, RETRY_CAP_MS, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
+        STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT,
+        STATS_PENDING_SLOT, STATUS, SUCCEEDED, dead_errors, retry_at,
     };
 
     /// The statement with that label, or the test fails naming it: every assertion below is about
@@ -1724,6 +1776,33 @@ mod tests {
             .find(|one| one.label == label)
             .unwrap_or_else(|| panic!("`MIGRATION` carries no `{label}` statement"))
             .sql
+    }
+
+    /// The `errors` column is text a reader has to parse, and what a job threw is arbitrary text —
+    /// so the one thing this owes is that a message able to end the array early does not. Asserted
+    /// by parsing the answer back rather than by comparing it to a spelling, since the escaping is
+    /// `serde_json`'s business and only the shape is this module's.
+    #[test]
+    fn a_dead_letter_row_carries_the_exhausting_attempts_error() {
+        let written = dead_errors(
+            1_700_000_000_123,
+            "RuntimeError",
+            "the \"endpoint\" \\ refused",
+        );
+        let parsed: serde_json::Value =
+            serde_json::from_str(&written).expect("`dead_errors` writes a JSON document");
+        let entries = parsed.as_array().expect("§ 6's `errors` is an array");
+        assert_eq!(
+            entries.len(),
+            1,
+            "one entry, which is `MIGRATION`'s doc's decision and the depth `nvs_jobs` pays for"
+        );
+        assert_eq!(entries[0]["at"], 1_700_000_000_123_i64);
+        assert_eq!(entries[0]["class"], "RuntimeError");
+        assert_eq!(
+            entries[0]["message"], "the \"endpoint\" \\ refused",
+            "the message crosses the column unchanged, quotes and all"
+        );
     }
 
     /// [`MIGRATION`] is the only place the queue's columns exist and the statements above are their
@@ -1785,6 +1864,25 @@ mod tests {
                  this module reads of it"
             );
         }
+        // § 6's move is the only statement that writes `DEAD_TABLE`, so its column list is the
+        // widest claim anything makes about that table — the reading `INSERT`'s list gets above,
+        // against the other DDL.
+        let moved = DEAD_LETTER
+            .split_once(&format!("insert into {DEAD_TABLE} ("))
+            .and_then(|(_, rest)| rest.split_once(')'))
+            .expect("`DEAD_LETTER` names its columns as one parenthesised list")
+            .0;
+        for column in moved.split(',').map(str::trim) {
+            assert!(
+                dead.contains(&format!("{column} ")),
+                "the `dead_letter` DDL creates `{column}`, which `DEAD_LETTER` writes"
+            );
+        }
+        assert!(
+            DEAD_LETTER.contains(&format!("delete from {JOBS_TABLE} "))
+                && DEAD_LETTER.contains("claimed_at = $2::bigint"),
+            "the move takes the row out of the jobs table keyed on the lease, as `SUCCEEDED` is"
+        );
 
         assert!(
             labelled("jobs.dedupe").contains(&format!("where state = {PENDING}")),
