@@ -18,6 +18,18 @@
 //! one home for those, and a default here would be a second one that is wrong
 //! the first time someone edits the compose file.
 //!
+//! **A network endpoint carries its own trust anchor.** `NVS_DB_MATRIX_CA`
+//! names a PEM bundle on this machine, and it belongs to the required group
+//! with the host and the port rather than beside it: every server that file
+//! publishes is TLS-only, no public root vouches for any of them, and
+//! `nvs_host::tls` has no spelling for connecting without verifying. An
+//! endpoint with no anchor is therefore not an endpoint a case can reach at
+//! all, so reading one here is what makes a misconfigured matrix fail at the
+//! handshake rather than at an assertion. The anchor is a container's file
+//! rather than the tree's — `tests/db/ca.crt` is a copy of one and is not in
+//! git — so the harness exports it per run, and a driver whose server it
+//! cannot anchor is reported `n/a` and never run.
+//!
 //! **A case that finds `NVS_DB_MATRIX_DRIVER` unset returns without asserting
 //! anything.** That is what keeps `python tools/verify.py` green on a machine
 //! with no containers, and it is this crate's rule rather than the harness's:
@@ -49,6 +61,10 @@ pub struct Server {
     pub password: String,
     /// `NVS_DB_MATRIX_DATABASE`.
     pub database: String,
+    /// `NVS_DB_MATRIX_CA`: the PEM bundle holding the certificate that vouches
+    /// for this server, which is what `NvsTls::over_bundle` is handed. Required
+    /// rather than optional, for the reason this module's doc gives.
+    pub ca: PathBuf,
 }
 
 /// Where a driver's database is.
@@ -122,6 +138,7 @@ fn endpoint_from(lookup: impl Fn(&str) -> Option<String>) -> Option<Endpoint> {
             user: field("USER"),
             password: field("PASSWORD"),
             database: field("DATABASE"),
+            ca: PathBuf::from(field("CA")),
         })
     };
 
@@ -130,6 +147,8 @@ fn endpoint_from(lookup: impl Fn(&str) -> Option<String>) -> Option<Endpoint> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::{Endpoint, Location, endpoint_from};
     use crate::conn::Driver;
 
@@ -158,10 +177,11 @@ mod tests {
         );
     }
 
-    /// A network driver reads all five server fields, and the port is a number
-    /// rather than the string the environment carries.
+    /// A network driver reads all six server fields: the port is a number
+    /// rather than the string the environment carries, and the anchor is a
+    /// path.
     #[test]
-    fn a_network_driver_reads_its_five_server_fields() {
+    fn a_network_driver_reads_its_six_server_fields() {
         let found = endpoint_from(env(&[
             ("NVS_DB_MATRIX_DRIVER", "postgres"),
             ("NVS_DB_MATRIX_HOST", "127.0.0.1"),
@@ -169,6 +189,7 @@ mod tests {
             ("NVS_DB_MATRIX_USER", "novis"),
             ("NVS_DB_MATRIX_PASSWORD", "novis"),
             ("NVS_DB_MATRIX_DATABASE", "novis_test"),
+            ("NVS_DB_MATRIX_CA", "/tmp/novis-matrix/ca.crt"),
         ]))
         .expect("a named driver is an endpoint");
 
@@ -179,11 +200,29 @@ mod tests {
         assert_eq!(server.port, 55432);
         assert_eq!(server.host, "127.0.0.1");
         assert_eq!(server.database, "novis_test");
+        assert_eq!(server.ca, PathBuf::from("/tmp/novis-matrix/ca.crt"));
+    }
+
+    /// The anchor is in the required group and not beside it: a server nothing
+    /// vouches for cannot be connected to at all, so a set of fields without
+    /// one is the harness being wrong rather than a case with less to assert.
+    #[test]
+    #[should_panic(expected = "NVS_DB_MATRIX_CA is unset")]
+    fn a_network_driver_without_a_trust_anchor_stops_the_run() {
+        let _ = endpoint_from(env(&[
+            ("NVS_DB_MATRIX_DRIVER", "postgres"),
+            ("NVS_DB_MATRIX_HOST", "127.0.0.1"),
+            ("NVS_DB_MATRIX_PORT", "55432"),
+            ("NVS_DB_MATRIX_USER", "novis"),
+            ("NVS_DB_MATRIX_PASSWORD", "novis"),
+            ("NVS_DB_MATRIX_DATABASE", "novis_test"),
+        ]));
     }
 
     /// SQLite is the driver with no wire, so it reads a path and none of the
-    /// server fields — asserted by giving it a full set of them and checking
-    /// that what comes back carries only the file.
+    /// server fields — not the anchor either, since a file handle has nothing
+    /// to verify. Asserted by giving it a full set of them and checking that
+    /// what comes back carries only the file.
     #[test]
     fn sqlite_reads_a_path_and_no_server_fields() {
         let found = endpoint_from(env(&[
@@ -191,6 +230,7 @@ mod tests {
             ("NVS_DB_MATRIX_PATH", "/tmp/novis-matrix.db"),
             ("NVS_DB_MATRIX_HOST", "127.0.0.1"),
             ("NVS_DB_MATRIX_PORT", "not-a-port"),
+            ("NVS_DB_MATRIX_CA", "/tmp/novis-matrix/ca.crt"),
         ]))
         .expect("a named driver is an endpoint");
 

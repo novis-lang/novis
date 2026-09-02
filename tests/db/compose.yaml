@@ -20,8 +20,13 @@
 # TLS is on for all of them, because ADR 0067 verifies it per driver and `Core\Mail`'s endpoint shape
 # is 0067's:
 #
-# * MySQL 8.4 and MariaDB 11.4 generate their own self-signed certificate at first boot.
-# * SQL Server generates one too and encrypts the login packet regardless.
+# * MySQL 8.4 generates its own CA and leaf at first boot, in the data directory. `/var/lib/mysql/ca.pem`
+#   is the anchor, and `tools/db-matrix.py` copies it out per run.
+# * MariaDB 11.4 does NOT, as this file configures it -- `ssl_cert` comes back empty from the running
+#   server, so it serves no certificate and nothing can verify it. Giving it the `certs` volume below is
+#   Stage 6's own work; until then `tools/db-matrix.py` reports it `n/a` rather than running it.
+# * SQL Server generates one too and encrypts the login packet regardless, but keeps it inside the
+#   instance rather than on the filesystem, so there is no file to hand a client as an anchor.
 # * PostgreSQL, Redis and Mailpit do not, so the `certs` service below issues them one in a shared
 #   volume -- a private CA, and a leaf signed by it.
 #

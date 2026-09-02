@@ -84,17 +84,18 @@
 //! NVS_DB_MATRIX_USER
 //! NVS_DB_MATRIX_PASSWORD
 //! NVS_DB_MATRIX_DATABASE
+//! NVS_DB_MATRIX_CA         the PEM bundle vouching for that server, exported per run
 //! NVS_DB_MATRIX_PATH       sqlite only, a scratch file the harness creates and removes
 //! ```
 //!
 //! **The rule is this crate's, not the harness's: a case that finds
 //! `NVS_DB_MATRIX_DRIVER` unset returns without asserting anything**, so
 //! `python tools/verify.py` stays green on a machine with no containers.
-//! [`matrix::endpoint`] is the one reader of those fields — five test files
-//! each parsing the environment their own way is five places for that rule to
-//! be got wrong, and the ports and credentials themselves have exactly one home
-//! in `tests/db/compose.yaml`, which is why nothing here carries a default for
-//! any of them.
+//! [`matrix::endpoint`] is the one reader of those fields — were every test
+//! file to parse the environment its own way, that would be one place per file
+//! for the rule to be got wrong — and the ports and credentials themselves
+//! have exactly one home in `tests/db/compose.yaml`, which is why nothing here
+//! carries a default for any of them.
 //!
 //! # What is here, and what is not yet
 //!
@@ -118,14 +119,19 @@
 //! protocol pays nothing extra for a prepare and so exercises the design rather
 //! than the driver's own quirks.
 //!
-//! **No driver can yet complete a handshake against `tests/db/compose.yaml`.**
-//! Those servers serve a self-signed certificate and `nvs_host::tls` verifies
-//! against the compiled-in anchors with no seam for a private one, so the
-//! matrix reaches the upgrade and stops there. That is why [`pg`]'s exchange is
-//! asserted against a SCRAM server in its own tests rather than only against a
-//! container: the anchor seam is ADR 0132 § 3's "future `nvs.toml` anchor
-//! bundle", and until it exists a matrix-only test would be a green report for
-//! a run that never happened.
+//! **The anchor seam ADR 0132 § 3 anticipated exists**, so a handshake against
+//! `tests/db/compose.yaml`'s PostgreSQL completes: `NvsTls::over_bundle`
+//! verifies against a named PEM bundle alone, `[db.<name>] tls_ca_file` is
+//! where a program names one, and [`matrix`]'s `NVS_DB_MATRIX_CA` is where
+//! this crate's own cases get theirs. Two of the four servers still have no
+//! anchor a client can be handed — MariaDB's image serves no certificate as
+//! `tests/db/compose.yaml` configures it, and SQL Server's lives in the
+//! instance rather than in a file — and `tools/db-matrix.py` reports those two
+//! `n/a` rather than running them, because a leg that connected without
+//! verifying would report green for the handshake it skipped. [`pg`]'s
+//! exchange is still asserted against a scripted SCRAM server as well as
+//! against a container: a unit test that needs neither socket nor certificate
+//! is the one that keeps failing usefully when the servers are down.
 
 pub mod conn;
 pub mod matrix;

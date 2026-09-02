@@ -2861,6 +2861,12 @@ want = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the other four drivers, against real servers. MariaDB is a DISTINCT driver, argued at length
 # in ADR 0067's Context and not a simplification to rediscover.
+#
+# `mariadb: n/a` and `mssql: n/a` below are DID-NOT-RUN and not a regression: neither server offers a
+# trust anchor a client can be handed -- MariaDB serves no certificate as `tests/db/compose.yaml`
+# configures it, and SQL Server keeps its own inside the instance -- so `tools/db-matrix.py` reports them
+# rather than running them against a handshake that cannot verify. Giving MariaDB the `certs` volume
+# PostgreSQL already mounts, and SQL Server a certificate on disk, is this stage's own first work.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]

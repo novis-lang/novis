@@ -39,6 +39,7 @@ Discrete fields in the environment, never a connection string:
     NVS_DB_MATRIX_USER
     NVS_DB_MATRIX_PASSWORD
     NVS_DB_MATRIX_DATABASE
+    NVS_DB_MATRIX_CA         the PEM bundle vouching for that server, exported below
     NVS_DB_MATRIX_PATH       sqlite only, a scratch file this tool creates and removes
 
 ADR 0067 § 2 makes `Db\\Settings` five types rather than one loose shape, and Novis has no DSN
@@ -49,12 +50,33 @@ A case that finds `NVS_DB_MATRIX_DRIVER` unset is expected to return without ass
 `python tools/verify.py` stays green on a machine with no containers. That is the crate's rule, not
 this file's, and `crates/nvs-db`'s module doc owns it.
 
+## The trust anchor is exported from the container, per run
+
+Every server in `tests/db/compose.yaml` is TLS-only and no public root vouches for any of them, so
+a driver reaches its server against a private anchor or not at all -- `nvs_host::tls` has no
+spelling for connecting without verifying. That anchor is a file inside a container rather than one
+in this tree: `docker compose cp <service>:<path>` copies it into the same scratch directory the
+run already builds, and `NVS_DB_MATRIX_CA` names the copy. Per run and not once, because the file
+belongs to a Docker volume and is reissued whenever that volume is; `tests/db/ca.crt`, which
+`nvs.toml` names for the *fixtures*, is a copy of the same certificate and is deliberately not in
+git.
+
+Where that path is per image is knowledge about the images, like the credential keys above:
+PostgreSQL is served the `certs` service's CA, and MySQL issues its own at first boot. **Two
+drivers have no anchor a client can be handed** -- MariaDB serves no certificate at all as this
+compose file configures it, and SQL Server keeps its self-signed one in the instance rather than in
+a file. Those two print `n/a` and are not run. Running them without an anchor would report a green
+leg for a handshake that never happened, which is the one outcome a verification matrix must not
+produce, and giving them one is Stage 6's work rather than this file's.
+
 ## Exit status
 
-`0` only when every selected driver passed. `1` when one failed its assertions, `2` when the run
-could not happen at all -- no `docker`, no daemon, a compose file that will not parse, or a
-`crates/nvs-db` that does not exist yet. The missing crate prints `<driver>: n/a` rather than
-`ok`, because a harness that reports green when nothing ran is worse than one that fails.
+`0` only when every selected driver passed. `1` when one failed its assertions, `2` when a selected
+driver could not run at all -- no `docker`, no daemon, a compose file that will not parse, a
+`crates/nvs-db` that does not exist yet, or a server with no exportable trust anchor. A failure
+outranks an `n/a` when both happened, because assertions that ran and disagreed are the more
+actionable answer. Anything that did not run prints `<driver>: n/a` rather than `ok`, because a
+harness that reports green when nothing ran is worse than one that fails.
 """
 
 from __future__ import annotations
@@ -94,17 +116,30 @@ class Driver:
     user_key: str | None = None
     password_key: str | None = None
     database_key: str | None = None
+    #: The in-container path of the certificate that vouches for this server, copied out per run
+    #: and handed over as `NVS_DB_MATRIX_CA`. `None` is a server whose certificate is not reachable
+    #: as a file: that driver cannot be connected to and is reported `n/a` rather than run.
+    anchor: str | None = None
     #: A fixed user, for an image that names one in its command rather than its environment.
     user: str | None = None
     note: str = ""
 
 
 DRIVERS: tuple[Driver, ...] = (
-    Driver("mysql", "mysql", 3306, "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE"),
+    # MySQL generates its own CA into the data directory at first boot, and serves a leaf signed by
+    # it; nothing else vouches for that certificate.
+    Driver("mysql", "mysql", 3306, "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE",
+           anchor="/var/lib/mysql/ca.pem"),
+    # MariaDB serves no certificate as `compose.yaml` configures it -- `ssl_cert` is empty in the
+    # running server -- so there is nothing to anchor to and nothing to connect to. Stage 6 owes it
+    # the same `certs` volume PostgreSQL mounts.
     Driver("mariadb", "mariadb", 3306, "MARIADB_USER", "MARIADB_PASSWORD", "MARIADB_DATABASE"),
-    Driver("postgres", "postgres", 5432, "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"),
+    Driver("postgres", "postgres", 5432, "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB",
+           anchor="/certs/ca.crt"),
     # SQL Server has no `MSSQL_USER`: the image's only account is `sa`, and the database is created
-    # by the healthcheck rather than by the entrypoint — `compose.yaml`'s own comment says why.
+    # by the healthcheck rather than by the entrypoint — `compose.yaml`'s own comment says why. Its
+    # self-signed certificate lives in the instance rather than on the filesystem, so there is no
+    # `anchor` to copy out either.
     Driver("mssql", "mssql", 1433, None, "MSSQL_SA_PASSWORD", None, user="sa"),
     # The one driver with no wire at all (ADR 0132 § 3): a file this tool makes and removes.
     Driver("sqlite", None, None, note="a scratch file, no container"),
@@ -222,43 +257,75 @@ def bring_down() -> int:
     ).returncode
 
 
-def run_driver(driver: Driver, config: dict | None) -> tuple[bool, str]:
-    """Run `nvs-db`'s suite against one driver. Returns (passed, one-line detail)."""
+def export_anchor(driver: Driver, into: Path) -> Path:
+    """Copy the certificate that vouches for this driver's server out of its container.
+
+    Every run and not once: the file belongs to a Docker volume, is reissued whenever that volume
+    is, and a copy kept in the tree is right only until the next `down -v`.
+    """
+    assert driver.anchor is not None and driver.service is not None
+    dest = into / "ca.crt"
+    source = f"{driver.service}:{driver.anchor}"
+    r = subprocess.run(
+        ["docker", "compose", "-f", str(COMPOSE), "cp", source, str(dest)],
+        capture_output=True, text=True, timeout=120,
+    )
+    if r.returncode != 0 or not dest.is_file():
+        first = (r.stderr.strip().splitlines() or ["no output"])[0]
+        raise Fail(f"`docker compose cp {source}` did not produce a trust anchor -- {first}")
+    return dest
+
+
+def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
+    """Run `nvs-db`'s suite against one driver. Returns (verdict, one-line detail).
+
+    The verdict is `ok`, `FAILED` -- the assertions ran and disagreed -- or `n/a`, a driver whose
+    server could not be reached at all. A server with no exportable trust anchor is the second of
+    those and never the first: it is not connectable, so a run against it would assert nothing.
+    """
+    if driver.service is not None and driver.anchor is None:
+        return "n/a", "no trust anchor: that server serves no certificate a client can verify"
+
     env = dict(os.environ)
     env["NVS_DB_MATRIX_DRIVER"] = driver.name
-    scratch: Path | None = None
-    if driver.service is None:
-        scratch = Path(tempfile.mkdtemp(prefix="nvs-db-matrix-")) / "matrix.sqlite"
-        env["NVS_DB_MATRIX_PATH"] = str(scratch)
-        where = str(scratch)
-    else:
-        assert config is not None
-        endpoint = endpoint_of(driver, config)
-        env["NVS_DB_MATRIX_HOST"] = endpoint.host
-        env["NVS_DB_MATRIX_PORT"] = str(endpoint.port)
-        env["NVS_DB_MATRIX_USER"] = endpoint.user
-        env["NVS_DB_MATRIX_PASSWORD"] = endpoint.password
-        env["NVS_DB_MATRIX_DATABASE"] = endpoint.database
-        where = endpoint.describe()
-
-    say(f"db-matrix: {driver.name} against {where}")
+    scratch = Path(tempfile.mkdtemp(prefix="nvs-db-matrix-"))
     try:
-        r = subprocess.run(
-            ["cargo", "test", "-q", "-p", "nvs-db"],
-            cwd=ROOT, env=env, capture_output=True, text=True, timeout=TEST_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        return False, f"no verdict within {TEST_TIMEOUT}s"
+        if driver.service is None:
+            path = scratch / "matrix.sqlite"
+            env["NVS_DB_MATRIX_PATH"] = str(path)
+            where = str(path)
+        else:
+            assert config is not None
+            endpoint = endpoint_of(driver, config)
+            env["NVS_DB_MATRIX_HOST"] = endpoint.host
+            env["NVS_DB_MATRIX_PORT"] = str(endpoint.port)
+            env["NVS_DB_MATRIX_USER"] = endpoint.user
+            env["NVS_DB_MATRIX_PASSWORD"] = endpoint.password
+            env["NVS_DB_MATRIX_DATABASE"] = endpoint.database
+            env["NVS_DB_MATRIX_CA"] = str(export_anchor(driver, scratch))
+            where = endpoint.describe()
+
+        say(f"db-matrix: {driver.name} against {where}")
+        try:
+            r = subprocess.run(
+                ["cargo", "test", "-q", "-p", "nvs-db"],
+                cwd=ROOT, env=env, capture_output=True, text=True, timeout=TEST_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            return "FAILED", f"no verdict within {TEST_TIMEOUT}s"
+    except Fail as exc:
+        # One driver's endpoint being unreadable stops that driver rather than the run: the other
+        # four are still worth a verdict, and this one gets a line saying what was missing.
+        return "n/a", str(exc)
     finally:
-        if scratch is not None:
-            shutil.rmtree(scratch.parent, ignore_errors=True)
+        shutil.rmtree(scratch, ignore_errors=True)
 
     if r.returncode == 0:
-        return True, ""
+        return "ok", ""
     lines = [ln for ln in (r.stdout + r.stderr).splitlines() if ln.strip()]
     failed = [ln.strip() for ln in lines if ln.strip().startswith("---- ") or " FAILED" in ln]
     detail = failed[0] if failed else (lines[-1].strip() if lines else "no output")
-    return False, detail
+    return "FAILED", detail
 
 
 def main() -> int:
@@ -303,18 +370,27 @@ def main() -> int:
             return 0
 
         if not args.no_up:
-            bring_up([d.service for d in selected if d.service])
+            # Only the servers a run can actually reach: waiting minutes for one that will be
+            # reported `n/a` for want of a trust anchor buys nothing.
+            bring_up([d.service for d in selected if d.service and d.anchor])
 
         failures = 0
+        unrunnable = 0
         for driver in selected:
-            passed, detail = run_driver(driver, config)
-            if passed:
+            verdict, detail = run_driver(driver, config)
+            if verdict == "ok":
                 print(f"{driver.name}: ok")
+            elif verdict == "n/a":
+                unrunnable += 1
+                print(f"{driver.name}: n/a ({detail})")
             else:
                 failures += 1
                 print(f"{driver.name}: FAILED -- {detail}")
-        say(f"db-matrix: {len(selected) - failures}/{len(selected)} drivers ok")
-        return 1 if failures else 0
+        ran = len(selected) - failures - unrunnable
+        say(f"db-matrix: {ran}/{len(selected)} drivers ok")
+        if failures:
+            return 1
+        return 2 if unrunnable else 0
     except Fail as exc:
         say(f"db-matrix: {exc}")
         return 2
