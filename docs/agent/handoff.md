@@ -2,58 +2,53 @@
 
 ## State
 
-**`Core\Db\Column` is registered and `Core\Db\Rows::columns()` answers it**, so spec § 18's Results
-table is landed whole for a buffered result: three readers over three slots, built one object per
-described column beside the rows at query time. `ROWS_COLUMNS_SLOT`'s doc comment owns why that is
-eager where the hydration class in the slot before it is lazy — a description is per *statement* and
-bounded by the `select` list, and `nvs_db::PgRows` lends its row description out of the borrow the
-rows are read from, so it is captured there or not at all.
+**ADR 0067 § 4's streaming half is asserted**, which closes the two `nvs-db` names Stage 3's
+`cargo-named` check lists for it. `a_large_result_streams_at_constant_memory` reads the bound off
+`nvs_runtime::budget` while a hundred thousand rows go past — a row count is what a *buffering* driver
+passes too, so the heap while the rows move is the whole claim.
+`a_second_statement_on_a_busy_connection_is_a_logic_error` pins the classification rather than the
+refusal the case beside it already pins: one predicate decides it, and the connection is still usable
+once the caller reads its rows.
 
-**A `Core` enum needed no new machinery, which was the open question and is now answered by three
-cases rather than by a decision.** An enum *is* its case's ordinal at runtime (ADR 0010), which
-`Core\Cli::colorDepth` already answered with; `column_type_value` looks that ordinal up in the
-registered table rather than writing the fourteen numbers a third time, and
-`every_column_type_case_is_named` holds the two halves total in both directions. A conformance case
-can spell `Core\Db\ColumnType::Json` and compare it with `==` — the first in the corpus to spell a
-`Core` enum case at all, so that spelling is now known to compile.
+**A stream needs a server that does not buffer either.** `Peer`, this module's scripted server, keeps
+every byte it ever answered in `inbound`, so a large result read over it would measure the harness.
+`Firehose` generates one message at a time into the buffer the last one used, and its doc comment owns
+why the bound has to hold on both sides of the stream — server and driver are one thread and one heap.
 
-**`nullable()` answers `true` on every column and says so on its own card.** A PostgreSQL
-`RowDescription` carries no NOT NULL flag, and the catalog lookup that would is the per-statement
-round trip ADR 0067 § 9's type map is written to avoid. The alternative — dropping a reader § 18
-names, or answering `?bool` — would put a third answer in front of every caller to tell them
-nothing.
+**Stage 3's four remaining names are § 5's rewriter and none of them exists yet**; one has a landed
+near-twin under another name, which the next group's last item spells out.
 
 **The driver's acceptance line still names `examples/queue.nvs`**, which is Stage 8's unlanded
-`Core\Queue` (ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s
-module doc owns why.
+`Core\Queue` (ADR 0084) and not a regression. **The CA is still not in git**; `nvs_host::tls`'s module
+doc owns why.
 
 ## Next group
 
-**Stage 3's two named `nvs-db` tests — § 4's streaming half — and the file set is
-`crates/nvs-db/src/pg.rs` alone.** Nothing in `nvs-stdlib` moves; `stream`'s registry rows are the
-group after this one, and they are a bigger question (a cursor that holds the connection).
+**Stage 3's four remaining `nvs-db` names — ADR 0067 § 5's placeholder rewriter — and the file set is
+`crates/nvs-db/src/sql.rs` alone.** Nothing in `nvs-stdlib` moves. **Read the `[[check]]` block at
+`docs/agent/loop-goal.toml:2789` before writing anything**: its names are the specification, and the
+playbook's bullet on stage 2's comment header forbids renaming a landed test into one of them.
 
-- [ ] **`a_large_result_streams_at_constant_memory`** — § 4's one member that does not buffer,
-      asserted as a memory bound rather than as a row count. `crates/nvs-db/src/pg.rs:2374` is
-      `PgRows` and `crates/nvs-db/src/pg.rs:2514` its `next_row`, which is already the
-      row-at-a-time read `queried_rows` drains; what the test needs is the bound on both sides,
-      measured the way `crates/nvs-stdlib/tests/allocation_policy.rs` measures one — the playbook's
-      bullet on `nvs_runtime::budget` is why a second `#[global_allocator]` is not it. ADR 0067 § 4.
-- [ ] **`a_second_statement_on_a_busy_connection_is_a_logic_error`** — and **read the `[[check]]`
-      block at `docs/agent/loop-goal.toml:2791` before writing anything**:
-      `crates/nvs-db/src/pg.rs:4383` already holds
-      `a_second_statement_on_a_busy_connection_writes_nothing_and_is_refused`, which pins the same
-      claim under another name, and the playbook's bullet on stage 2's comment header is the trap
-      that renaming one to the check's spelling is forbidden where that block says so. ADR 0067 § 4.
+- [ ] **`the_rewriter_skips_string_literals_and_comments`** — § 5's naive-scanner case: a `:name` or a
+      `?` inside a string literal or a `--`/`/* */` comment is text, not a placeholder.
+      `crates/nvs-db/src/sql.rs:423` is `rewrite` and `crates/nvs-db/src/sql.rs:785` opens the test
+      module. ADR 0067 § 5.
+- [ ] **`a_postgres_cast_and_a_jsonb_question_mark_survive_the_rewrite`** — the same scanner's two
+      PostgreSQL spellings that look like the driver's own syntax, `::text` and `?`/`?|`/`?&`, in one
+      query. `crates/nvs-db/src/sql.rs:423`. ADR 0067 § 5.
+- [ ] **`a_named_parameter_used_twice_binds_one_value_once`** — the arity § 1's statement cache keys on
+      is the *bind* count, so a name repeated in the SQL is one value and one slot.
+      `crates/nvs-db/src/sql.rs:423`. ADR 0067 § 5.
+- [ ] **`in_list_expands_and_an_empty_list_throws`** — `crates/nvs-db/src/sql.rs:882` already holds
+      `in_list_expands_to_a_parenthesised_run_and_moves_the_arity`, which pins the expansion half only;
+      the empty list's throw is what this adds, so it is a new case beside that one and never a rename.
+      ADR 0067 § 5.
 
 ## Backlog
 
-- `stream`/`streamAs` in `nvs-stdlib` — the cursor that holds the connection; spec § 18, ADR 0067 § 4.
-- `close` and `Connection`'s three readonly properties as readers — `crates/nvs-stdlib/src/db.rs`'s
-  known gap 5 is the list of what § 18 still owes there.
-- The pool, ADR 0067 § 13 — Stage 7's five named `nvs-db` tests, and the reset is a security boundary.
-- `Core\Queue`, ADR 0084 — Stage 8, and what the driver's acceptance line names.
-- `queryAs<T>`'s three run-time refusals want compile-time codes — `crates/nvs-stdlib/src/db.rs`'s
-  known gap 8; both bands the checker would take one from are full.
-- `open` waits on a shape-*parameter* `CoreTy` — gap 1, and a language-surface decision rather than
-  a database one.
+- `stream`'s registry rows in `nvs-stdlib` — a cursor that holds the connection past the call, ADR 0067
+  § 18.
+- Stage 4's § 9 type-map names under `-p nvs-db` — `docs/agent/loop-goal.toml`, stage `4 type map`.
+- `Core\Db::open` waits on a shape-parameter type — `docs/implementation-plan.md`, *Open now*.
+- `Core\Queue` is Stage 8 (ADR 0084) and is what the acceptance line names every iteration.
+- The compose CA is still not in git — `crates/nvs-host/src/tls.rs`'s module doc owns why.

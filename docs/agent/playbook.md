@@ -4433,6 +4433,15 @@ is why" — is this file.
   missing member. `python tools/try.py <case>.nvst` prints the exact wording, line and column of
   the block to freeze, for every case in one call, and it reads a `.nvst` in place — there is no
   scratch copy to keep in step.
+- **A memory bound read off `nvs_runtime::budget::live_bytes` alone can be vacuous, and the counter
+  that says so is `allocated_bytes`.** A stream measured with the buffer it reuses already allocated
+  peaks at *tens of bytes* — `a_large_result_streams_at_constant_memory` reads 56, at ten thousand rows
+  and at a hundred thousand alike — so a case that asserts only "the peak stayed under a bound" passes
+  identically when the drain never ran, when the driver answered `None` on the first row, and when the
+  counters are not being maintained at all. `budget`'s own module doc names the distinction ("a run that
+  allocated nothing has a zero balance too, so a guard reading `live_bytes` alone cannot tell 'released
+  everything' from 'never ran'"). The cheap discharge is to assert the *churn* grows with the input
+  while the live peak does not: two counters that have to disagree, which doing nothing cannot fake.
 
 ## Splitting a file that got too big
 
