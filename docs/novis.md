@@ -17206,11 +17206,12 @@ Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, 
 <a id="core-core-db-connection"></a>
 ### `Core\Db\Connection`
 
-Keywords: query, execute, executeMany, transaction
+Keywords: query, queryAs, execute, executeMany, transaction
 
 | Member | Signature |
 |---|---|
 | [`Core\Db\Connection->query`](#core-core-db-connection-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows<Core\Db\Row>` |
+| [`Core\Db\Connection->queryAs`](#core-core-db-connection-queryas) | `queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>` |
 | [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 | [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
 | [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable $fn): T` |
@@ -17232,6 +17233,22 @@ Runs one statement with its values bound, and reads every row it answers into me
 **Returns** `Core\Db\Rows<Core\Db\Row>` — A `Core\Db\Rows<Core\Db\Row>` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
 
 **Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-connection-queryas"></a>
+#### `Core\Db\Connection->queryAs`
+
+```nvs skip
+$connection->queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>
+```
+
+Runs one statement exactly as `query` does and answers its rows as the class written at the call site — `PDO::FETCH_CLASS` and the hand-written hydration loop, with the mapping generated from the class's own declared properties by `#[Db\Derive]` rather than matched up by hand.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
+| `$params` | `array<mixed>` | The values to bind, under `query`'s own rule — one array, list-keyed for `?` and string-keyed for `:name`. |
+
+**Returns** `Core\Db\Rows<T>` — A `Core\Db\Rows<T>` holding one `T` per row, in the server's order. **The hydration itself is `nvs_stdlib::db`'s known gap 9**: the member is declared, generic and callable, and calling it faults naming that gap rather than answering.
 
 <a id="core-core-db-connection-execute"></a>
 #### `Core\Db\Connection->execute`
@@ -17289,11 +17306,12 @@ Runs `$fn` inside a transaction and answers whatever it answered: returning comm
 <a id="core-core-db-transaction"></a>
 ### `Core\Db\Transaction`
 
-Keywords: query, execute, executeMany, transaction, rollBack
+Keywords: query, queryAs, execute, executeMany, transaction, rollBack
 
 | Member | Signature |
 |---|---|
 | [`Core\Db\Transaction->query`](#core-core-db-transaction-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows<Core\Db\Row>` |
+| [`Core\Db\Transaction->queryAs`](#core-core-db-transaction-queryas) | `queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>` |
 | [`Core\Db\Transaction->execute`](#core-core-db-transaction-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 | [`Core\Db\Transaction->executeMany`](#core-core-db-transaction-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
 | [`Core\Db\Transaction->transaction`](#core-core-db-transaction-transaction) | `transaction(callable $fn): T` |
@@ -17316,6 +17334,22 @@ Runs one statement with its values bound, and reads every row it answers into me
 **Returns** `Core\Db\Rows<Core\Db\Row>` — A `Core\Db\Rows<Core\Db\Row>` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
 
 **Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `RuntimeError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-transaction-queryas"></a>
+#### `Core\Db\Transaction->queryAs`
+
+```nvs skip
+$transaction->queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>
+```
+
+Runs one statement exactly as `query` does and answers its rows as the class written at the call site — `PDO::FETCH_CLASS` and the hand-written hydration loop, with the mapping generated from the class's own declared properties by `#[Db\Derive]` rather than matched up by hand.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
+| `$params` | `array<mixed>` | The values to bind, under `query`'s own rule — one array, list-keyed for `?` and string-keyed for `:name`. |
+
+**Returns** `Core\Db\Rows<T>` — A `Core\Db\Rows<T>` holding one `T` per row, in the server's order. **The hydration itself is `nvs_stdlib::db`'s known gap 9**: the member is declared, generic and callable, and calling it faults naming that gap rather than answering.
 
 <a id="core-core-db-transaction-execute"></a>
 #### `Core\Db\Transaction->execute`
