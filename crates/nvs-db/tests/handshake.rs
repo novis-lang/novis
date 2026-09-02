@@ -80,6 +80,17 @@ const DEADLINE: Duration = Duration::from_secs(10);
 /// inside it, and short enough that the case costs half a second.
 const QUIET: &str = "SELECT pg_sleep(0.5)";
 
+/// [`QUIET`]'s twin for
+/// [`a_mysql_connection_read_parks_its_coroutine_rather_than_blocking_the_core`],
+/// keeping that wire quiet for the same half second.
+///
+/// `SLEEP` is what `pg_sleep` is. The cast is owed to the helper rather than to
+/// the case: `SLEEP` answers a `BIGINT`, § 9 decodes that as
+/// [`MySqlScalar::Int`], and [`mysql_one_value`] reads a text column — so the
+/// statement asks for its answer in the one shape both drivers' helpers carry,
+/// the way the `GROUP_CONCAT` below already does.
+const MYSQL_QUIET: &str = "SELECT CAST(SLEEP(0.5) AS CHAR)";
+
 /// The companion task's wake interval, and the resolution of the observation it
 /// is making.
 const TURN: Duration = Duration::from_millis(10);
@@ -545,5 +556,158 @@ fn a_mysql_duplicate_key_carries_section_8s_kind_and_the_servers_own_code() {
         ),
         (DbErrorKind::UniqueViolation, Some(1062), "23000"),
         "the server's duplicate key did not land on § 8's row for it: {refusal}",
+    );
+}
+
+/// § 3 on the other driver: a read a MySQL connection is waiting on parks the
+/// coroutine, so the core turns another task in the meantime.
+///
+/// [`a_connection_read_parks_its_coroutine_rather_than_blocking_the_core`]'s
+/// question, asked of MySQL, and it is a separate case rather than a second leg
+/// of that one because the stack under the park is not the same stack. Both
+/// drivers sit on `NvsTls<NvsTcp>`, so the socket and the `rustls` session are
+/// shared, but everything above them is written per driver: MySQL reads a
+/// length-prefixed packet header and then its body, where PostgreSQL reads a
+/// tagged message, and § 1's `COM_STMT_PREPARE`/`COM_STMT_EXECUTE` pair means a
+/// first execution waits on the wire twice rather than once. A read-until-whole
+/// loop that had turned into a spin would be invisible to `mysql.rs`'s own
+/// cases for the reason the PostgreSQL twin gives: a scripted peer always has
+/// the next byte ready.
+///
+/// The assertion is the same one and is made the same way — a turn taken by
+/// somebody else strictly between the statement leaving and its answer
+/// arriving, so a driver holding the core scores zero rather than merely fewer.
+/// The connection is opened inside the spawned task for the same reason too:
+/// the handshake's own reads are then on a core, which is where a worker or a
+/// request has them, and here they are two round trips more than PostgreSQL's.
+#[test]
+fn a_mysql_connection_read_parks_its_coroutine_rather_than_blocking_the_core() {
+    let Some(server) = mysql() else {
+        return;
+    };
+
+    let mut sched = Scheduler::new();
+    let _installed = nvs_host::reactor::install(Reactor::new().expect("the OS refused a poll"));
+
+    // The query is in flight, the query is over: two flags rather than one, so
+    // the companion below can tell "not yet" from "already done" and count
+    // neither.
+    let running = Rc::new(Cell::new(false));
+    let done = Rc::new(Cell::new(false));
+    let turns = Rc::new(Cell::new(0_u32));
+
+    let in_flight = Rc::clone(&running);
+    let finished = Rc::clone(&done);
+    sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_ctx| {
+        let mut conn = mysql_open(&server);
+        in_flight.set(true);
+        mysql_one_value(&mut conn, MYSQL_QUIET);
+        in_flight.set(false);
+        finished.set(true);
+    });
+
+    let observed = Rc::clone(&turns);
+    let in_flight = Rc::clone(&running);
+    let finished = Rc::clone(&done);
+    sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_ctx| {
+        // Bounded rather than `while !finished`: a first task that never
+        // completes must not turn this one into a scheduler that never goes
+        // idle, and the count below says what happened either way.
+        for _ in 0..400 {
+            if finished.get() {
+                break;
+            }
+            if in_flight.get() {
+                observed.set(observed.get() + 1);
+            }
+            nvs_host::sleep(TURN);
+        }
+    });
+
+    run_until_idle(&mut sched).expect("the loop failed");
+
+    assert!(
+        done.get(),
+        "the task holding the connection never finished its statement",
+    );
+    assert!(
+        turns.get() > 0,
+        "no other task was turned while a MySQL connection's read was outstanding, so the read \
+         held the core instead of parking on it",
+    );
+}
+
+/// § 13 against a real MySQL: after the reset there is no temporary table, no
+/// session variable, no open transaction and no prepared statement the cache
+/// still believes in.
+///
+/// `mysql.rs`'s own cases hold that `reset` sends `COM_RESET_CONNECTION` and
+/// then re-sends the declared zone, against a peer that answers `OK` to
+/// whatever arrives. § 13 deliberately states the reset as a **property** and
+/// not as that command list — "a backend added later satisfies that property or
+/// is not pooled" — and a property about what a *session* no longer holds is
+/// one only the session's own server can answer. This is where the two meet:
+/// the same connection, before and after, asked what survived.
+///
+/// The prepared-statement half is the one that needs its shape explaining.
+/// § 1's cache is keyed on SQL text, and `COM_RESET_CONNECTION` drops the
+/// server's side of it — § 13 names that asymmetry with PostgreSQL as the
+/// protocol's rather than a choice. So the probe below is run *twice, spelled
+/// identically*: a driver that had kept the cache across the reset would send a
+/// `COM_STMT_EXECUTE` naming a statement id the server has already forgotten,
+/// and the server would refuse it with `1243`. The second run therefore proves
+/// the cache was invalidated by succeeding at all, and proves the session
+/// variable is gone by answering `NULL` — one statement for the two, which is
+/// also why it is a `CAST(… AS CHAR)`: a user variable's own column type is not
+/// something this case wants to be asserting about.
+#[test]
+fn a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement() {
+    let Some(server) = mysql() else {
+        return;
+    };
+    // Spelled once and used twice on purpose — the two runs must hash to the
+    // same entry of § 1's cache or the paragraph above is asserting nothing.
+    const PROBE: &str = "SELECT CAST(@novis_reset AS CHAR)";
+
+    let mut conn = mysql_open(&server);
+    mysql_run(
+        &mut conn,
+        "CREATE TEMPORARY TABLE novis_reset (id INT PRIMARY KEY)",
+    );
+    mysql_run(&mut conn, "SET @novis_reset = 'before'");
+    assert_eq!(
+        mysql_one_value(&mut conn, PROBE).as_deref(),
+        Some("before"),
+        "the session variable this case is about was never set on the session",
+    );
+
+    // Reset from *inside* a transaction: a connection is released at teardown
+    // whatever it was in the middle of, and § 13's first property is that the
+    // next request does not inherit it.
+    conn.begin(None, false).expect("the server began one");
+    assert_eq!(conn.depth(), 1, "the reset below runs inside a transaction");
+
+    let mut conn = conn.reset().expect("the server accepted the reset");
+
+    assert_eq!(
+        conn.depth(),
+        0,
+        "the reset left the connection believing it was still inside a transaction",
+    );
+    assert_eq!(
+        mysql_one_value(&mut conn, PROBE),
+        None,
+        "a session variable set before the reset was still readable after it",
+    );
+
+    let refused = mysql_try(&mut conn, "SELECT id FROM novis_reset")
+        .expect_err("a temporary table created before the reset survived it");
+    let refusal = ServerError::of(&refused).unwrap_or_else(|| {
+        panic!("the missing table was refused, but not by the server's own check: {refused}")
+    });
+    assert_eq!(
+        (refusal.sql_state.as_str(), refusal.driver_code),
+        ("42S02", Some(1146)),
+        "the refusal is not the server saying the temporary table no longer exists: {refusal}",
     );
 }
