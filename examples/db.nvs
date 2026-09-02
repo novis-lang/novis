@@ -16,7 +16,7 @@
 // than through hand-written hydration — read-only by design, because writing
 // rows from objects is an ORM concern and not `Core`'s.
 //
-// The six lines this prints are frozen in `docs/agent/loop-goal.toml`
+// The twelve lines this prints are frozen in `docs/agent/loop-goal.toml`
 // (stage 9); the source is not. The connection it opens is named in
 // root-owned config, so `nvs.toml` owes the `[db.main]` block this reads.
 
@@ -141,3 +141,23 @@ if ($person == null) {
 // than refused.
 var $dated = $db->queryAs<Day>("select date '2024-03-05' as day", [])->first();
 echo "typed day=", $dated?->day?->format("yyyy-MM-dd") ?? "null", "\n";
+
+// § 8: a refusal is not a message to parse. The server's own code is
+// normalised to one of `Db\ErrorKind`'s eleven cases and carried on the thrown
+// `Db\DbError` as `$kind`, so a program branches on the condition and reads
+// the same way on all five drivers — `23505` here, `1062` on MySQL, and
+// neither number appears. Row 1 is already in `people` from the `executeMany`
+// above, so writing it a second time is the primary key refusing rather than a
+// failure staged for this line.
+try {
+    $db->execute("insert into people (id, name) values (?, ?)", [1, "ada"]);
+    echo "kind=none", "\n";
+} catch (Core\Db\DbError $refused) {
+    // The `default` arm is not decoration: § 8's cases are a set and not a
+    // scale, so a program that names one of them still has to say what it does
+    // with the other ten.
+    echo "kind=", match ($refused->kind) {
+        Core\Db\ErrorKind::UniqueViolation => "UniqueViolation",
+        default => "other",
+    }, "\n";
+}
