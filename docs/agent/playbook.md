@@ -4442,6 +4442,13 @@ is why" — is this file.
   allocated nothing has a zero balance too, so a guard reading `live_bytes` alone cannot tell 'released
   everything' from 'never ran'"). The cheap discharge is to assert the *churn* grows with the input
   while the live peak does not: two counters that have to disagree, which doing nothing cannot fake.
+- A test that reads its own file with `include_str!` must not spell its needle as a literal: the
+  scan finds the assertion's own source and answers about that instead of about the code. In
+  `crates/nvs-db/src/pg.rs`, `affected_is_the_matched_count_and_changed_is_mysql_only` asserts the
+  driver grew no second row count by searching for `concat!("fn ", "changed")` — the same ten bytes
+  assembled from two literals that are not those ten bytes. `oid_constants` in the same module
+  escapes this only because it counts inside a slice of the file that its own body sits outside of,
+  which is luck rather than a pattern to copy.
 
 ## Splitting a file that got too big
 

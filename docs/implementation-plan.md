@@ -57,7 +57,7 @@
 > new `tls_ca_file`; `Rows` is generic at `T` and **`queryAs<T>` hydrates** over
 > `ClassDesc::db_codec`, and § 9's five structured columns build the `Core\Time`/`Core\Uuid`
 > instance both `Row`'s four typed readers and a `#[Db\Derive]` field answer with, so
-> `examples/db.nvs` runs all of that end to end. Stage 3's check and § 9's sweep are green, the pool
+> `examples/db.nvs` runs all of that end to end. Stages 3 and 4 are green in `-p nvs-db`, the pool
 > is 5 to 7, and **ADR 0132 has claimed the goal's one ADR slot**: a driver is a sans-IO codec plus
 > a state machine over the parking stream, the five an enum not a trait. **Goals 1-4 and M4 are
 > closed and are this goal's Stage 1 floor** — `Core`'s capability-bearing half in full, with `ring`
