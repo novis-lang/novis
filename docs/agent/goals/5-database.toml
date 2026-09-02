@@ -69,8 +69,12 @@ files = [
 # it exists. `src/*.rs` and not `src/**/*.rs` -- fnmatch's `*` crosses a `/` already.
 modules = [
   "crates/nvs-db/src/*.rs",
-  # The stream every driver is written over, and the pool a blocking call goes to.
-  "crates/nvs-host/src/stream.rs",
+  # The stream every driver is written over, the TLS client that layers on it (ADR 0132 § 3), and
+  # the pool a blocking SQLite call goes to. `net.rs` is the stream's file -- there is no
+  # `stream.rs`, which this list named until ADR 0132's session found the warning.
+  "crates/nvs-host/src/net.rs",
+  "crates/nvs-host/src/tls.rs",
+  "crates/nvs-host/src/blocking.rs",
   # Stage 0's pass, and the one it copies.
   "crates/nvs-types/src/derive.rs",
   # § 10's compile-time diagnostics on a literal query, and the qualifier half beside them.
@@ -135,6 +139,13 @@ target_dir = "/var/tmp/nvs-target-wsl"
 compose = "tests/db/compose.yaml"
 services = ["mysql", "mariadb", "postgres", "mssql", "redis"]
 memoize_on = ["crates/nvs-db", "tests/db"]
+
+# The `certs` service's CA, out of its volume and onto disk where `nvs.toml`'s `[db.main]
+# tls_ca_file` names it. Destination on the left because it is the thing that has to be true; the
+# right is where it comes from. It is regenerated whenever that volume is, so it is gitignored and
+# copied here rather than committed.
+[docker.copy]
+"tests/db/ca.crt" = "postgres:/certs/ca.crt"
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -2958,6 +2969,10 @@ want = [
   "day=2024-03-05", "clock=13:45:30", "at=2024-03-05T13:45:30Z",
   "id=4f9d5e2c-1a3b-4c7d-8e9f-0a1b2c3d4e5f",
   "affected=1", "typed row ok",
+  # The same five classes on the hydration side: a `#[Db\Derive]` field may be
+  # declared as one, and the instance the driver's components built is checked
+  # against it rather than refused.
+  "typed day=2024-03-05",
 ]
 
 

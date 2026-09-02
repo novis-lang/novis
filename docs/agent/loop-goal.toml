@@ -2969,6 +2969,10 @@ want = [
   "day=2024-03-05", "clock=13:45:30", "at=2024-03-05T13:45:30Z",
   "id=4f9d5e2c-1a3b-4c7d-8e9f-0a1b2c3d4e5f",
   "affected=1", "typed row ok",
+  # The same five classes on the hydration side: a `#[Db\Derive]` field may be
+  # declared as one, and the instance the driver's components built is checked
+  # against it rather than refused.
+  "typed day=2024-03-05",
 ]
 
 

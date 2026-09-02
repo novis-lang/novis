@@ -42,6 +42,19 @@ class Person {
     }
 }
 
+// § 9's structured half reaches a derived field too, not just `Row`'s typed
+// readers: the five SQL types whose Novis value is a class instance are as
+// declarable on a `#[Core\Db\Derive]` class as an `int` is, and hydration
+// checks the instance the driver built against the class the field named.
+#[Core\Db\Derive]
+class Day {
+    public Core\Time\Date $day;
+
+    public function constructor(Core\Time\Date $day) {
+        $this->day = $day;
+    }
+}
+
 // § 2: a connection is named, and the credentials behind the name live in a
 // root-owned `[db.main]` block. There is no DSN to build and nothing here
 // carries a password.
@@ -122,3 +135,9 @@ if ($person == null) {
         echo "typed row wrong", "\n";
     }
 }
+
+// The same hydration over § 9's class half: the `DATE` column arrives as the
+// `Core\Time\Date` the field declared, so a structured column is placed rather
+// than refused.
+var $dated = $db->queryAs<Day>("select date '2024-03-05' as day", [])->first();
+echo "typed day=", $dated?->day?->format("yyyy-MM-dd") ?? "null", "\n";
