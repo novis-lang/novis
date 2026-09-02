@@ -74,23 +74,24 @@
 //!    anything about databases, and adding one decides how every future shape
 //!    parameter is passed — which is a language-surface question and not this
 //!    module's to answer in passing.
-//! 2. **Two drivers open, and only PostgreSQL runs a statement.** `connect`
+//! 2. **Two drivers open, and MySQL runs only `query` of the four members that
+//!    send.** `connect`
 //!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block
 //!    and a `mysql` block each reach their own target, their own default port
 //!    and their own `nvs_db::Connection` variant. A block naming any of the
 //!    other three is still refused by `nvs_db::PgTarget::resolve` with the
 //!    message that names the driver it is, which is the honest answer while
 //!    those variants have no connect path behind them. Past the handshake the
-//!    list is shorter than that: [`postgres_of`] is what a statement goes
-//!    through, so a MySQL connection opens, pools and resets, and refuses
-//!    every member that would run something on it. Everything *before* the
-//!    send already follows the driver — [`rendering_of`] pairs § 5's dialect
-//!    with § 9's encoder off the connection's own [`nvs_db::Driver`], so a
-//!    MySQL statement is rewritten to `?` and bound as MySQL reads a
-//!    parameter, and it is the send that has nowhere to go. § 9's reading half
-//!    is here too — [`mysql_column_value`] and [`mysql_described_columns`]
-//!    read a MySQL row and its description — and both carry an
-//!    `#[expect(dead_code)]` that the branch calling them takes off by itself.
+//!    list is shorter than that. Binding is whole: [`rendering_of`] pairs § 5's
+//!    dialect with § 9's encoder off the connection's own [`nvs_db::Driver`],
+//!    so a MySQL statement is rewritten to `?` and bound as MySQL reads a
+//!    parameter. Sending is not: [`queried_rows`] branches on the connection
+//!    and [`mysql_rows`] drains a binary result set through § 9's decode, so
+//!    `query` and `queryAs` answer on either driver — but `execute`,
+//!    `executeMany` and `transaction` still go through [`postgres_of`] and
+//!    refuse a MySQL connection, and a MySQL `query` files no § 11 event
+//!    because a `MySqlRows` carries no span. MariaDB binds and then has
+//!    nowhere to send, which is the arm [`queried_rows`] refuses on.
 //! 3. **Only the two drivers that open are pooled.** ADR 0067 § 13's pool is
 //!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
 //!    teardown under the ticket `Core\Db::connect` files, and
@@ -3642,9 +3643,10 @@ struct Answered {
 ///
 /// # Errors
 ///
-/// [`statement_of`]'s and [`postgres_of`]'s refusals, [`statement_failure`] for
-/// anything the server refused, and [`column_value`]'s for a column whose value
-/// has no Novis representation.
+/// [`statement_of`]'s refusals, a thrown `RuntimeError` for a driver with no
+/// send path yet, [`statement_failure`] for anything the server refused, and
+/// [`column_value`]'s or [`mysql_column_value`]'s for a column whose value has
+/// no Novis representation.
 fn queried_rows(
     ctx: &mut nvs_runtime::Ctx,
     args: &[Value],
@@ -3662,14 +3664,55 @@ fn queried_rows(
     // Read before the statement takes the context, because it holds it for as
     // long as the rows do — see [`QueryWatch`] for the rest.
     let watch = QueryWatch::of(ctx, &statement.block);
-    let postgres = postgres_of(ctx, statement.key, &statement.block, named)?;
+    // The event is filed after the match and not inside it, because a driver's
+    // rows borrow the connection and the connection borrows the context — so
+    // the arm that read the span is still holding the thing the span is filed
+    // on. Each arm hands back what [`QueryWatch::taken`] took, which is `None`
+    // for a driver whose rows carry no span yet.
+    let (answered, taken) = match filed_connection(ctx, statement.key, named)? {
+        nvs_db::Connection::Postgres(postgres) => {
+            postgres_rows(postgres, &statement, &sending, source, watch, named)?
+        }
+        nvs_db::Connection::MySql(mysql) => (
+            mysql_rows(mysql, &statement, &sending, source, named)?,
+            None,
+        ),
+        other => {
+            let driver = other.driver();
+            return Err(Fault::thrown(format!(
+                "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL and MySQL run \
+                 a statement so far — this module's known gap 2 is the list",
+                statement.block.as_text().unwrap_or("?")
+            )));
+        }
+    };
+    watch.file(ctx, taken);
+    Ok(answered)
+}
+
+/// [`queried_rows`] over the PostgreSQL driver: the extended-query stream, § 9's
+/// decode of every row, and ADR 0067 § 11's span taken off the rows before they
+/// are dropped.
+///
+/// # Errors
+///
+/// [`statement_failure`] for anything the server refused, and [`column_value`]'s
+/// for a column whose value has no Novis representation.
+fn postgres_rows(
+    postgres: &mut nvs_db::PgConn,
+    statement: &Statement,
+    sending: &[Option<&[u8]>],
+    source: Option<&str>,
+    watch: QueryWatch,
+    named: &str,
+) -> Result<(Answered, Option<(String, std::time::Duration)>), Fault> {
     // Read before the statement borrows the connection, and once for the whole
     // result: § 9's zone-less `TIMESTAMP` is decoded in the zone this
     // connection declared, and that is a property of the connection rather
     // than of the row.
     let zone = postgres.time_zone();
     let mut answered = postgres
-        .query(&statement.sql, &sending)
+        .query(&statement.sql, sending)
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
     name_span(&mut answered, statement.block.as_text());
     // Taken before the first row: a `PgRows` lends its columns and its rows
@@ -3702,14 +3745,89 @@ fn queried_rows(
         rows.append(Value::array(one));
     }
     // After the drain, so the span carries the duration the caller waited and
-    // the rows it actually got, and after the last read of `answered`, which is
-    // what ends the borrow on the context.
+    // the rows it actually got.
     let taken = watch.taken(answered.span());
-    // Explicit because `PgRows` has a `Drop` — it releases the statement — so
-    // its borrow of the context runs to the end of the scope unless the stream
-    // is dropped here, and the context is what the event is filed on.
-    drop(answered);
-    watch.file(ctx, taken);
+    Ok((
+        Answered {
+            rows,
+            columns: described,
+        },
+        taken,
+    ))
+}
+
+/// [`queried_rows`] over the MySQL driver: ADR 0067 § 1's `COM_STMT_EXECUTE`,
+/// and § 9's decode of the binary rows it answers with.
+///
+/// **The same shape as [`postgres_rows`] and deliberately not shared with it.**
+/// The two drivers agree on what a row *is* — a keyed array under the labels the
+/// result set described — and on nothing else in the walk: the description is
+/// read off the stream here and off a cloned `PgColumn` there, a value is a
+/// `MyValue` read against its own definition rather than a body the column
+/// decodes, and the two `Scalar` enums are two sets of rows because MySQL has no
+/// `UUID` and no array type. A trait over that would be four abstract methods
+/// standing for eight concrete lines.
+///
+/// **No § 11 event yet**, which is why it hands back no span: a `MySqlRows`
+/// carries none, where a `PgRows` opens one itself. That is the last of this
+/// member's driver work and is its own slice.
+///
+/// # Errors
+///
+/// [`statement_failure`] for anything the server refused, [`mysql_column_value`]'s
+/// for a column whose value has no Novis representation, and a [`Fault::fatal`]
+/// for a row narrower than the definitions it was decoded against, which is a
+/// `nvs-db` bug rather than a program's.
+fn mysql_rows(
+    mysql: &mut nvs_db::MySqlConn,
+    statement: &Statement,
+    sending: &[Option<&[u8]>],
+    source: Option<&str>,
+    named: &str,
+) -> Result<Answered, Fault> {
+    // As [`postgres_rows`], and § 9's zone rule is the connection's on both
+    // drivers.
+    let zone = mysql.time_zone();
+    let mut answered = mysql
+        .query(&statement.sql, sending)
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    // Described before the first row, because the description is read out of a
+    // shared borrow of the stream and the rows out of a mutable one — the same
+    // ordering `postgres_rows` gets by cloning its columns, and here the clone
+    // is needed anyway: `nvs_db::mysql::scalar` reads a value against the
+    // definition it arrived under.
+    let described = mysql_described_columns(&answered);
+    let columns = answered.columns().to_vec();
+
+    let mut rows = NvsArray::new();
+    while let Some(row) = answered
+        .next_row()
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
+    {
+        // Built whole before it joins the result, for [`postgres_rows`]' reason.
+        let mut one = NvsArray::new();
+        for (index, column) in columns.iter().enumerate() {
+            // Unreachable: `nvs-db` decodes one value per definition, so a row
+            // is exactly as wide as this loop. It is a `fatal` rather than a
+            // refusal because a narrower row is that crate disagreeing with
+            // itself and not something a statement can ask for.
+            let body = row.value(index).ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{named}: the row has no column {index}, where the result set described {}",
+                    columns.len()
+                ))
+            })?;
+            let scalar = nvs_db::mysql::scalar(column, body)
+                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+            // A label is bytes on this driver and text on the other, and § 9
+            // reads both as UTF-8: the lossy decode is for the message only,
+            // where the key keeps the octets the server sent.
+            let label = String::from_utf8_lossy(column.name_ref());
+            let value = mysql_column_value(scalar, zone, named, &label)?;
+            one.set(NvsStr::new(column.name_ref()), value);
+        }
+        rows.append(Value::array(one));
+    }
     Ok(Answered {
         rows,
         columns: described,
@@ -3914,11 +4032,6 @@ fn described_columns(columns: &[nvs_db::PgColumn]) -> NvsArray {
 /// The label is taken as octets for [`described_columns`]'s reason: a column
 /// name is a key in the row array, and a lossy decode would rename a column
 /// rather than refuse it.
-#[expect(
-    dead_code,
-    reason = "§ 9's decode is landed ahead of the read path that calls it — `queried_rows` \
-              still goes through `postgres_of`, which is this module's known gap 2"
-)]
 fn mysql_described_columns(rows: &nvs_db::MySqlRows<'_>) -> NvsArray {
     let mut described = NvsArray::new();
     for (index, column) in rows.columns().iter().enumerate() {
@@ -4087,11 +4200,6 @@ fn civil_of(date: nvs_db::PgDate, time: nvs_db::PgTime) -> crate::time::Civil {
 /// driver the zero date, which its own decoder deliberately does not check —
 /// and a [`Fault::fatal`] for a row `nvs-db` answers no value for and this
 /// function does not build, which is a variant added there with no arm here.
-#[expect(
-    dead_code,
-    reason = "§ 9's decode is landed ahead of the read path that calls it — `queried_rows` \
-              still goes through `postgres_of`, which is this module's known gap 2"
-)]
 fn mysql_column_value(
     scalar: nvs_db::MySqlScalar<'_>,
     zone: i32,
@@ -4127,10 +4235,6 @@ fn mysql_column_value(
 /// to two protocols: PostgreSQL's components are parsed out of a rendering and
 /// MySQL's arrive as integers, and one type standing for both would say they
 /// are the same fact when only their shape is the same.
-#[expect(
-    dead_code,
-    reason = "as `mysql_column_value`, whose only caller this is"
-)]
 fn mysql_civil_of(date: nvs_db::MySqlDate, time: nvs_db::MySqlTime) -> crate::time::Civil {
     crate::time::Civil {
         year: date.year,
