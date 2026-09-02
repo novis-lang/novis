@@ -119,8 +119,8 @@ pub enum ThrownClass {
     /// composite assertion, a retry wrapper or a test *of* an assertion can
     /// intercept one by name.
     ///
-    /// `Core\Test\Failure`, [`Self::CliNotInteractive`] and
-    /// [`Self::DbRolledBack`] are the three entries in this roster whose names
+    /// `Core\Test\Failure`, [`Self::CliNotInteractive`], [`Self::DbError`] and
+    /// [`Self::DbRolledBack`] are the four entries in this roster whose names
     /// are namespaced; `nvs_hir::errors::TREE` says why they are classes in the
     /// tree rather than `nvs_stdlib::registry` rows, and nothing here has to
     /// care, the lookup below being by name either way.
@@ -133,6 +133,17 @@ pub enum ThrownClass {
     /// and it is [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md)'s
     /// "no spelling for an unbounded wait" on a second surface.
     CliNotInteractive,
+    /// `Core\Db\DbError` — the database refused a statement, a connection or a
+    /// commit ([ADR 0067](../../../docs/adr/0067-core-db.md) § 8): every
+    /// failure `Core\Db` reports that the program did not itself choose.
+    ///
+    /// One class rather than ten, because § 8 normalises the condition into a
+    /// `kind` instead of naming a type per condition — some of those boundaries
+    /// are a driver's rather than the language's. That `kind` is not a slot on
+    /// the object yet, and `nvs_hir::errors::OWN_PROPERTIES` says what it is
+    /// waiting for, so what a `catch` reads today is the message — which § 8
+    /// requires to carry no bound value.
+    DbError,
     /// `Core\Db\RolledBack` — a transaction the program itself rolled back
     /// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 7), propagated out of
     /// the closure that owned it.
@@ -160,6 +171,7 @@ impl ThrownClass {
             Self::Arithmetic => "ArithmeticError",
             Self::TestFailure => "Core\\Test\\Failure",
             Self::CliNotInteractive => "Core\\Cli\\NotInteractive",
+            Self::DbError => "Core\\Db\\DbError",
             Self::DbRolledBack => "Core\\Db\\RolledBack",
         }
     }
@@ -175,6 +187,7 @@ impl ThrownClass {
         Self::Arithmetic,
         Self::TestFailure,
         Self::CliNotInteractive,
+        Self::DbError,
         Self::DbRolledBack,
     ];
 }

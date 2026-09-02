@@ -29,7 +29,7 @@
 /// Ordered parent-before-child so a consumer building a flattened supertype
 /// set can walk it in one pass.
 ///
-/// # Three entries are namespaced, and they are here rather than in the registry
+/// # Four entries are namespaced, and they are here rather than in the registry
 ///
 /// `Core\Test\Failure` is [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
 /// § 5's assertion failure, and that section makes it "an ordinary
@@ -58,11 +58,21 @@
 /// the database saying no rather than a bug in the program, and the closure
 /// that owns the transaction propagates it to a `catch` written by name. It is
 /// the second entry after `ParseError` to declare a property of its own; see
-/// [`OWN_PROPERTIES`]. `Core\Db\DbError` joins it when § 18's `kind`,
-/// `sqlState`, `driverCode`, `constraint` and `sql` have somewhere to come
-/// from.
+/// [`OWN_PROPERTIES`].
 ///
-/// Those three are the entries whose names have more than one segment, which is
+/// `Core\Db\DbError` is the fourth, and it is § 18's other half: everything the
+/// server itself refused, which [ADR 0067](../../../docs/adr/0067-core-db.md)
+/// § 8 makes **one** class carrying a normalised `kind` rather than ten whose
+/// boundaries would differ per driver. It sits beside `Core\Db\RolledBack`
+/// under `RuntimeError` deliberately — a `catch` that has to tell "I gave up"
+/// from "the database said no" is the whole reason § 18 spells two names — and
+/// it declares no property of its own **yet**: each of § 8's `kind`,
+/// `sqlState`, `driverCode`, `constraint` and `sql` owes a seeded type in
+/// `nvs_types::error_lib::own_properties`, and `kind` is an enum nothing in
+/// this tree can name. Until it has them it carries the root's four, and its
+/// message is what the server said.
+///
+/// Those four are the entries whose names have more than one segment, which is
 /// why every consumer here goes through `QName::parse` rather than treating a
 /// row as a bare global segment. `QName::is_reserved_global_class`
 /// deliberately still answers only for the single-segment rows: what makes
@@ -80,6 +90,7 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     ("ArithmeticError", Some("Throwable")),
     ("Core\\Test\\Failure", Some("Throwable")),
     ("Core\\Cli\\NotInteractive", Some("RuntimeError")),
+    ("Core\\Db\\DbError", Some("RuntimeError")),
     ("Core\\Db\\RolledBack", Some("RuntimeError")),
 ];
 
@@ -121,7 +132,10 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// would cost sixteen bytes plus one empty-array allocation on a path that
 /// PHP-shaped code takes for ordinary control flow
 /// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)'s measured cost).
-/// `Core\Db\DbError` gains the same treatment when M8 adds it to [`TREE`].
+/// `Core\Db\DbError` is in [`TREE`] now and is deliberately still absent here:
+/// spec § 18 gives it five properties of its own, and each owes a type in
+/// `nvs_types::error_lib::own_properties` — which `panic!`s at seed time on a
+/// property it cannot type — before this row can exist.
 pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[
     (ROOT, PROPERTIES),
     ("ParseError", ISSUES),

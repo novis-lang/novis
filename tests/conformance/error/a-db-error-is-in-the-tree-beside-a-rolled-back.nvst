@@ -1,0 +1,42 @@
+--TEST--
+`Core\Db\DbError` is a class in spec § 10's tree under `RuntimeError`, caught by its own name, by its parent's and by the root's, and never by the sibling `Core\Db\RolledBack` — spec § 18, ADR 0067 § 8
+--FILE--
+<?nvs
+// ADR 0067 § 8: one class for every refusal the database itself made, rather
+// than one class per condition — the condition is a normalised `kind`.
+try {
+    throw new Core\Db\DbError("duplicate key value violates a unique constraint");
+} catch (Core\Db\DbError $duplicate) {
+    echo "own: ", $duplicate->message, "\n";
+}
+
+// Spec § 18 puts it under `RuntimeError`: the world said no. A handler written
+// for that reading catches it without naming the database at all.
+try {
+    throw new Core\Db\DbError("the connection was reset");
+} catch (RuntimeError $reset) {
+    echo "parent: ", $reset->message, "\n";
+}
+
+// And the root, which is what a `catch` meaning "anything at all" spells.
+try {
+    throw new Core\Db\DbError("deadlock detected");
+} catch (Throwable $deadlock) {
+    echo "root: ", $deadlock->message, "\n";
+}
+
+// The two § 18 names are siblings, not one name: a handler for the rollback the
+// program asked for does not swallow a refusal it never chose. ADR 0067 § 7 is
+// the other half.
+try {
+    throw new Core\Db\DbError("canceling statement due to statement timeout");
+} catch (Core\Db\RolledBack $rolled) {
+    echo "sibling: ", $rolled->reason, "\n";
+} catch (Core\Db\DbError $refused) {
+    echo "not the sibling\n";
+}
+--EXPECT--
+own: duplicate key value violates a unique constraint
+parent: the connection was reset
+root: deadlock detected
+not the sibling
