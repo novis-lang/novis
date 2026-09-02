@@ -6320,6 +6320,26 @@ sibling in the same namespace unqualified.
   `time_zone_for`, which is where a `[db.<name>]` field's reader already lived. A 20-line probe
   under `.agent-tmp/` compiled with `rustc --crate-type lib` answers this in one call, and is worth
   it before a rename spreads across two crates' doc comments.
+- **`nvs_db::encode` is PostgreSQL's text input format, not a driver-neutral rendering — and the
+  MySQL read path cannot reuse it.** It looks neutral: it takes a `Value` and answers
+  `Option<Vec<u8>>`, both drivers bind `&[Option<&[u8]>]`, and `mysql::execute`'s own doc says
+  `params` is "`crate::pg`'s shape". What it renders is not: a `bool` is `t`/`f`, which MySQL casts
+  to the number `0`; a `bytes` is `bytea`'s `\x61` hex, which a `BLOB` stores as four characters;
+  a non-finite `float` is `Infinity`/`NaN`, which `DOUBLE` reads as `0`. Every one of those is a
+  quietly wrong row rather than an error, so nothing fails when the wrong encoder is used.
+  `nvs_db::mysql::encode` (`crates/nvs-db/src/mysql.rs:1915`) is the other one. The same trap is in
+  `crates/nvs-stdlib/src/db.rs`'s `statement_of`, which hardcodes `nvs_db::Dialect::PostgreSql`
+  where `nvs_db::Dialect::of(driver)` is the answer: a second driver's `query` is not one branch in
+  the drain, it is the dialect and the encoder as well.
+
+- **A helper landed one slice ahead of its caller fails `verify.py` on `dead_code`, and
+  `#[expect(dead_code, reason = "…")]` is the marker that takes itself off.** `cargo clippy
+  --all-targets -- -D warnings` is the gate, so a private function nothing calls yet stops the
+  build — which is a real pull toward doing two slices at once in one session. `#[expect]` fails
+  the build the day the function *is* used, so the slice that wires it up cannot forget to remove
+  it; `#[allow]` is the spelling that goes stale silently. Do not pair it with a `#[cfg(test)]`
+  test of the same function: `--all-targets` builds the crate twice, the test build makes the
+  expectation unfulfilled, and `unfulfilled_lint_expectation` is a warning too.
 
 ## Divergences and refusals already pinned
 

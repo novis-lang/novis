@@ -160,7 +160,7 @@ use mysql_common::value::{BinValue, ServerSide, Value as MyValue, ValueDeseriali
 use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
-use nvs_runtime::{Decimal, NvsStr, Value};
+use nvs_runtime::{Decimal, NvsStr, Tag, Value};
 
 use crate::conn::{BlockError, ColumnType, Driver, MySqlConn, State, written_value};
 use crate::sql::{StatementCache, statement_cache_for, time_zone_for};
@@ -1879,6 +1879,92 @@ impl MySqlScalar<'_> {
     }
 }
 
+/// One bound parameter as the octets `COM_STMT_EXECUTE` carries it in:
+/// [`crate::encode`]'s opposite number, and deliberately not the same
+/// rendering.
+///
+/// **Every parameter is sent as a length-encoded string and the server casts it
+/// to the column's type** ([`execute`] says why that is not an escaping
+/// decision), so this is a text rendering exactly as PostgreSQL's is — and it
+/// is a *different* text rendering, because the two servers read different
+/// literals. Three rows of [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)
+/// differ, and each one is a value the other driver's rendering would store
+/// wrongly rather than fail on:
+///
+/// - A `bool` is `1`/`0`. PostgreSQL's `t`/`f` are not boolean input here at
+///   all — MySQL casts `'t'` to the number `0` — so the wrong rendering is a
+///   quietly wrong row and not an error.
+/// - A `bytes` is its own octets. `bytea` has a hex input form and `BLOB` has
+///   none, because a string parameter already *is* the octets, so `\x61` would
+///   be stored as those four characters.
+/// - A non-finite `float` is refused. MySQL has no `Infinity` or `NaN` literal
+///   and its `DOUBLE` holds neither value; the cast of the word is `0`, so a
+///   refusal naming the tag is the only answer that is not a wrong number in a
+///   column. PostgreSQL accepts all three, and that divergence is the servers'
+///   rather than this crate's.
+///
+/// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason: § 5's
+/// marker has expanded into one bound value per element by the time a statement
+/// has its bind list.
+///
+/// # Errors
+///
+/// `InvalidInput` for a value with no form to send — an array, an object, a
+/// closure, and the three non-finite floats — where the whole answer is the
+/// tag and never the value, for the reason [`malformed`] gives.
+pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
+    let rendered = match value.tag() {
+        Some(Tag::Null) => return Ok(None),
+        Some(Tag::Bool) => String::from(if value.as_bool() == Some(true) {
+            "1"
+        } else {
+            "0"
+        }),
+        Some(Tag::Int) => value.as_int().unwrap_or_default().to_string(),
+        Some(Tag::Uint) => value.as_uint().unwrap_or_default().to_string(),
+        Some(Tag::Float) => {
+            let float = value.as_float().unwrap_or_default();
+            if !float.is_finite() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "a `float` that is not finite has no MySQL literal and no `DOUBLE` value — \
+                     the three of them are what this driver cannot bind, and a program that \
+                     stores one writes its own text column",
+                ));
+            }
+            // Rust's shortest round-tripping form, which `DOUBLE`'s own string
+            // cast reads back to the same bits.
+            float.to_string()
+        }
+        // Exact on both sides, as PostgreSQL's is: ADR 0054's `decimal` renders
+        // as digits and a point, which is `DECIMAL`'s own input form, so
+        // nothing rounds here the way binding it as a `DOUBLE` would.
+        Some(Tag::Decimal) => value
+            .as_decimal()
+            .map(|exact| exact.to_string())
+            .unwrap_or_default(),
+        // A `string` is UTF-8 by ADR 0009 and the session is `utf8mb4` by the
+        // connect path, so the octets go out as they are — and so do a
+        // `bytes`'s, which is the row that differs from the other driver.
+        Some(Tag::Str) => {
+            return Ok(Some(value.as_str_bytes().unwrap_or_default().to_vec()));
+        }
+        Some(Tag::Bytes) => {
+            return Ok(Some(value.as_bytes().unwrap_or_default().to_vec()));
+        }
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "a value of tag {} has no form this driver can bind",
+                    value.tag_byte()
+                ),
+            ));
+        }
+    };
+    Ok(Some(rendered.into_bytes()))
+}
+
 /// One column's value as the Novis value § 9's table names, or `None` for the
 /// rows that are class instances.
 ///
@@ -2296,9 +2382,9 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        AuthContext, CLIENT_CAPABILITIES, COLLATION, Greeting, MySqlTarget, MyValue, Prepared,
-        State, Wire, authenticate, column_type, execute, offset_literal, read_greeting, read_ok,
-        request_tls, scalar, start_statement,
+        AuthContext, CLIENT_CAPABILITIES, COLLATION, Greeting, MySqlTarget, MyValue, NvsStr,
+        Prepared, State, Value, Wire, authenticate, column_type, encode, execute, offset_literal,
+        read_greeting, read_ok, request_tls, scalar, start_statement,
     };
     use crate::conn::ColumnType as NovisType;
     use crate::conn::{BlockError, Driver};
@@ -3767,6 +3853,60 @@ mod tests {
                     .is_some(),
                 "a scalar row is a value this crate mints itself"
             );
+        }
+    }
+
+    /// A bound parameter renders as *this* server reads it, and the three rows
+    /// where that differs from PostgreSQL are asserted against that driver's
+    /// own answer rather than on their own.
+    ///
+    /// Each of the three is a value `crate::encode` renders plausibly and this
+    /// server would store wrongly without failing: `t` casts to `0`, `\x61` is
+    /// four characters in a `BLOB`, and `Infinity` is `0` in a `DOUBLE`. So the
+    /// assertion is that the two encoders **disagree** here — an agreement is
+    /// the bug, and one written by copying the other passes every test that
+    /// only reads this one's output.
+    #[test]
+    fn a_bound_parameter_renders_as_mysql_reads_it_and_never_as_postgresqls_text() {
+        let sent = [
+            (Value::bool(true), b"1".to_vec()),
+            (Value::bool(false), b"0".to_vec()),
+            (Value::int(-7), b"-7".to_vec()),
+            (Value::uint(u64::MAX), u64::MAX.to_string().into_bytes()),
+            (Value::float(1.5), b"1.5".to_vec()),
+            (
+                Value::bytes(NvsStr::new(&[0x00, 0x61, 0xFF])),
+                vec![0x00, 0x61, 0xFF],
+            ),
+            (
+                Value::str(NvsStr::new("é".as_bytes())),
+                "é".as_bytes().to_vec(),
+            ),
+        ];
+        for (value, octets) in sent {
+            assert_eq!(
+                encode(value).expect("a value § 9 binds"),
+                Some(octets),
+                "bound as MySQL reads it"
+            );
+        }
+
+        for divergent in [Value::bool(true), Value::bytes(NvsStr::new(&[0x61]))] {
+            assert_ne!(
+                encode(divergent).expect("a value § 9 binds"),
+                crate::encode(divergent).expect("the other driver binds it too"),
+                "the two drivers render this row differently, and this is what says so"
+            );
+        }
+
+        // A bitmap bit and not a rendering, on both drivers.
+        assert_eq!(encode(Value::null()).expect("SQL NULL"), None);
+
+        // The three values PostgreSQL binds and this driver refuses.
+        for outside in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            let refused = encode(Value::float(outside)).expect_err("no `DOUBLE` holds it");
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+            assert!(crate::encode(Value::float(outside)).is_ok());
         }
     }
 
