@@ -4375,6 +4375,228 @@ mod tests {
         assert!(state.get().is_poolable());
     }
 
+    /// One row's body, wide enough that a result of them is megabytes.
+    ///
+    /// The width is the point rather than the content: the bound below only
+    /// means something against a volume that dwarfs it, and it is the *server*
+    /// that decides that volume.
+    const WIDE_ROW: &[u8] = b"a row body wide enough that the volume, and not the row count, is what this case is about";
+
+    /// A server that answers a result of any size **without holding it**.
+    ///
+    /// This is the half [`Peer`] cannot do: `Peer` keeps every byte it ever
+    /// answered in `inbound` and every byte it was ever sent in `sent`, so a
+    /// large result read over it would measure the test rather than the driver.
+    /// A bound on a stream has to hold on both sides of it — the server that
+    /// generates the rows and the driver that reads them are on one thread and
+    /// on one heap, so a harness that buffers fails the measurement exactly as
+    /// a driver that buffers would.
+    ///
+    /// One message is generated at a time, into the buffer the last one used.
+    /// What the driver writes is dropped: this case asserts nothing about what
+    /// was sent, and the cases above own that question.
+    struct Firehose {
+        /// How many `DataRow`s this result has.
+        rows: usize,
+        /// How many messages have been generated, the prologue included.
+        emitted: usize,
+        /// The message being read, and never more than one.
+        out: Vec<u8>,
+        /// How much of that message has been handed over.
+        read: usize,
+        /// Every byte ever generated — the volume the bound is stated against.
+        served: usize,
+    }
+
+    impl Firehose {
+        fn new(rows: usize) -> Firehose {
+            Firehose {
+                rows,
+                emitted: 0,
+                out: Vec::new(),
+                read: 0,
+                served: 0,
+            }
+        }
+
+        /// Generates the next message over the last one, answering `false` once
+        /// the result has ended — which is the peer having nothing left to
+        /// send, not a closed connection.
+        fn refill(&mut self) -> bool {
+            self.out.clear();
+            self.read = 0;
+            let at = self.emitted;
+            self.emitted += 1;
+            if at == 0 {
+                self.out.extend_from_slice(&message(b'1', b"")); // ParseComplete
+                self.out.extend_from_slice(&message(b'2', b"")); // BindComplete
+                self.out
+                    .extend_from_slice(&row_description(b"greeting", 25));
+            } else if at <= self.rows {
+                self.out.extend_from_slice(&data_row(&[Some(WIDE_ROW)]));
+            } else if at == self.rows + 1 {
+                let tag = format!("SELECT {}\0", self.rows);
+                self.out.extend_from_slice(&message(b'C', tag.as_bytes()));
+                self.out.extend_from_slice(&message(b'Z', b"I"));
+            } else {
+                return false;
+            }
+            self.served += self.out.len();
+            true
+        }
+    }
+
+    impl Write for Firehose {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Read for Firehose {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            if self.read == self.out.len() && !self.refill() {
+                return Ok(0);
+            }
+            let left = &self.out[self.read..];
+            let take = left.len().min(buf.len());
+            buf[..take].copy_from_slice(&left[..take]);
+            self.read += take;
+            Ok(take)
+        }
+    }
+
+    /// What one drained result cost, as [`drained`] read it.
+    struct Drain {
+        /// How many rows arrived.
+        rows: usize,
+        /// How many bytes the server generated for them.
+        served: usize,
+        /// The most the thread's live heap ever stood above where the stream
+        /// opened — the number the bound is on.
+        peak: isize,
+        /// How many bytes the drain asked the allocator for, in total. A stream
+        /// that is working spends this and gives it back, so it is the reading
+        /// that separates a flat `peak` from a measurement that never ran —
+        /// `nvs_runtime::budget`'s own module doc makes that distinction.
+        churn: usize,
+    }
+
+    /// Drains a result of `rows` rows off a [`Firehose`].
+    ///
+    /// The counters are `nvs_runtime::budget`'s, which every profile maintains
+    /// because the memory limit is read off them; this binary installs no
+    /// allocator of its own and could not, since `nvs-runtime` registers one in
+    /// every `not(test)` build and it is linked here as a dependency.
+    fn drained(rows: usize) -> Drain {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Firehose::new(rows));
+        let mut result =
+            start_statement(&mut wire, &state, &mut no_cache(), "select greeting", &[])
+                .expect("the portal opened");
+
+        // Read with the portal already open and the description already
+        // decoded: the fixed cost of having *a* stream is not what is being
+        // bounded, the cost of having a long one is.
+        let floor = nvs_runtime::budget::live_bytes();
+        let spent = nvs_runtime::budget::allocated_bytes();
+        let mut peak = 0;
+        let mut seen = 0;
+        while let Some(row) = result.next_row().expect("the stream drained") {
+            // A row that is read is a row that is really there — a driver
+            // answering `None` early would otherwise pass this on a flat heap.
+            assert_eq!(row.column(0).expect("column 0 exists"), Some(WIDE_ROW));
+            seen += 1;
+            peak = peak.max(nvs_runtime::budget::live_bytes() - floor);
+        }
+        let churn = nvs_runtime::budget::allocated_bytes() - spent;
+
+        let tag = format!("SELECT {rows}");
+        assert_eq!(result.command_tag(), Some(tag.as_str()));
+        assert_eq!(state.get(), State::Idle);
+        drop(result);
+        Drain {
+            rows: seen,
+            served: wire.peer().served,
+            peak,
+            churn,
+        }
+    }
+
+    /// ADR 0067 § 4's one member that does not buffer, asserted as a **memory
+    /// bound** rather than as a row count.
+    ///
+    /// A row count is what a buffering driver passes: it hands back every row,
+    /// in order, having read them all first. What separates streaming from that
+    /// is the heap while the rows are going past, so that is what is read here
+    /// — [`PgRows::next_row`] reads one message and answers with a row that
+    /// borrows the inbox, and the inbox is bounded by `READ_CHUNK` and the
+    /// widest message in it.
+    ///
+    /// Measured at two sizes an order of magnitude apart so that the bound is
+    /// visibly not a function of the row count. Both readings come out in the
+    /// tens of *bytes*, because the inbox is already allocated by the time the
+    /// stream opens and streaming reuses it; the bound is left at several
+    /// `READ_CHUNK`s anyway, since what it is written to catch is a driver
+    /// holding megabytes and not one holding a buffer more.
+    #[test]
+    fn a_large_result_streams_at_constant_memory() {
+        /// Ten times `SMALL`, so a driver that keeps a row it has already
+        /// handed back fails this by an order of magnitude and not by a margin.
+        const LARGE: usize = 100_000;
+        const SMALL: usize = 10_000;
+        /// Several times the 16 KiB `READ_CHUNK` the inbox grows by, and a tiny
+        /// fraction of the volume the assertion below requires to have gone
+        /// past. Between those two it does not need to be tight.
+        const BOUND: isize = 128 * 1024;
+
+        let small = drained(SMALL);
+        let large = drained(LARGE);
+
+        assert_eq!(
+            (small.rows, large.rows),
+            (SMALL, LARGE),
+            "every row of both results arrived"
+        );
+        assert!(
+            isize::try_from(large.served).expect("a test volume fits in an isize") > 40 * BOUND,
+            "the server generated only {} bytes, which is too close to the {BOUND}-byte bound for \
+             holding all of it to fail this test",
+            large.served
+        );
+
+        // The two readings the bound is made of, and they have to disagree:
+        // what the drain *spends* grows with the result, and what it *holds*
+        // does not. A stream that never ran would have both flat and would pass
+        // the second assertion alone.
+        assert!(
+            large.churn >= 5 * small.churn,
+            "{} rows asked the allocator for {} bytes against {} for {} rows, which is not the \
+             per-row cost a real drain has: the counters are not seeing this run",
+            LARGE,
+            large.churn,
+            small.churn,
+            SMALL
+        );
+        assert!(
+            small.peak <= BOUND && large.peak <= BOUND,
+            "a stream of {SMALL} rows peaked at {} bytes and one of {LARGE} rows at {}, against a \
+             bound of {BOUND}: the rows are being buffered rather than streamed",
+            small.peak,
+            large.peak
+        );
+        assert!(
+            (large.peak - small.peak).abs() <= BOUND / 2,
+            "ten times the rows moved the peak from {} to {} bytes, so what the driver holds is a \
+             function of the result's size",
+            small.peak,
+            large.peak
+        );
+    }
+
     /// ADR 0067 § 4's refusal, and the half of it that matters is that
     /// **nothing reaches the wire**: writing a second statement over an
     /// unfinished one is the shape § 4 exists to prevent, not merely one it
@@ -4392,6 +4614,93 @@ mod tests {
             assert!(wire.peer().sent.is_empty(), "{busy:?} reached the wire");
             assert_eq!(state.get(), busy, "{busy:?} was changed by a refusal");
         }
+    }
+
+    /// ADR 0067 § 4's refusal is a **`LogicError`** — a mistake in the program
+    /// rather than a failure of the connection — and this is the half of that
+    /// the driver decides.
+    ///
+    /// `nvs-stdlib` words the throw, because the fault class and the call
+    /// site's spelling are its to know ([`State::may_start_statement`]'s own
+    /// doc says so). What has to be true *here* is what makes that class the
+    /// right one: the refusal is decided by one predicate rather than by a busy
+    /// test each driver grew, and it is recoverable by fixing the program —
+    /// read the rows and the very same statement runs on the very same wire,
+    /// with nothing reconnected. The case above pins that nothing was *sent*;
+    /// this one pins that nothing was *spent*.
+    ///
+    /// [`State::Poisoned`] is the other side of that: it refuses the same
+    /// statement and is deliberately not the same answer, since a wire that is
+    /// not at a message boundary is closed rather than reused (§ 13).
+    #[test]
+    fn a_second_statement_on_a_busy_connection_is_a_logic_error() {
+        // One predicate and one permitted state. A variant added later has to
+        // be added here too, which is the point: a driver that answered this
+        // question for itself could disagree with the class the caller catches.
+        let states = [
+            State::Idle,
+            State::Executing,
+            State::Streaming,
+            State::Poisoned,
+        ];
+        let permitted: Vec<State> = states
+            .into_iter()
+            .filter(|state| state.may_start_statement())
+            .collect();
+        assert_eq!(
+            permitted,
+            vec![State::Idle],
+            "§ 4 permits a statement on an idle connection and on no other"
+        );
+
+        // The two busy states that are *healthy*. `Poisoned` refuses for its
+        // own reason and is below.
+        for busy in [State::Executing, State::Streaming] {
+            let state = Cell::new(busy);
+            let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+                one_statement(vec![data_row(&[Some(b"hello")])])
+            }));
+
+            let refused =
+                start_statement(&mut wire, &state, &mut no_cache(), "select greeting", &[])
+                    .expect_err("a second statement was accepted");
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidInput, "{busy:?}");
+            assert_eq!(
+                state.get(),
+                busy,
+                "{busy:?}: the refusal moved the connection it refused on"
+            );
+
+            // The caller reads its rows — or abandons them, which drains the
+            // same way — and then re-runs what was refused. That it needs no
+            // reconnect is the whole difference between § 4's refusal and a
+            // wire failure, and it is why the class is `LogicError`.
+            state.set(State::Idle);
+            let mut rows =
+                start_statement(&mut wire, &state, &mut no_cache(), "select greeting", &[])
+                    .expect("the connection was still usable after the refusal");
+            assert!(
+                rows.next_row().expect("the stream drained").is_some(),
+                "{busy:?}: the re-run statement returned no rows"
+            );
+            drop(rows);
+
+            assert_eq!(state.get(), State::Idle, "{busy:?}");
+            assert_eq!(
+                wire.peer().sent.len(),
+                1,
+                "{busy:?}: the refusal spent a round trip of its own"
+            );
+        }
+
+        assert!(
+            !State::Poisoned.may_start_statement() && !State::Poisoned.is_poolable(),
+            "a poisoned connection refuses a statement and is closed rather than reused"
+        );
+        assert!(
+            State::Idle.is_poolable(),
+            "the state a refused caller recovers to is the one the pool takes back"
+        );
     }
 
     /// § 4 does not only require the refusal — it requires it to name **both**
