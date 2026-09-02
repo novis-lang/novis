@@ -121,6 +121,20 @@ pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 /// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
 pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 
+/// The slot `Core\Db\DbError::$sql` occupies — the statement that was refused,
+/// as the program wrote it ([ADR 0067](../../../docs/adr/0067-core-db.md) § 8).
+///
+/// § 8 lets the text ride the throw where it lets no bound value ride it: the
+/// SQL is developer-authored and the values are the request's, which is
+/// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+/// line and not a judgement made here. It is `?string` because a refusal is not
+/// always *of* a statement a caller spelled — § 7's `BEGIN`, `COMMIT` and
+/// `SAVEPOINT` are this runtime's own text — and an unwritten slot already
+/// reads `null`. `nvs_hir::errors::SQL_SLOT` is the compiler's copy, held to
+/// this one by `nvs-codegen`'s
+/// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
+pub const SQL_SLOT: usize = KIND_SLOT + 4;
+
 /// The slot `Core\Db\RolledBack::$reason` occupies —
 /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 7's abandoned transaction,
 /// worded by the program that abandoned it.

@@ -151,6 +151,18 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                     let null = interner.null();
                     interner.make_union([text, null])
                 }
+                // `Core\Db\DbError::$sql` — the statement that was refused, and
+                // a plain `string` rather than a `tainted` one because § 8 only
+                // allows the text on the error at all on the grounds that it is
+                // developer-authored; a bound value, which is where the
+                // request's own bytes are, never joins it. `?string` for the
+                // member that has no caller-written statement to name — § 7's
+                // `BEGIN` and `COMMIT` are the runtime's own.
+                "sql" => {
+                    let text = interner.string();
+                    let null = interner.null();
+                    interner.make_union([text, null])
+                }
                 other => panic!("no type seeded for `{name}::{other}`"),
             };
             ((*property).to_owned(), ty)

@@ -349,8 +349,8 @@ pub use string::{
 };
 pub use throwable::{
     BACKTRACE_SLOT, CONSTRAINT_SLOT, DRIVER_CODE_SLOT, ISSUES_SLOT, KIND_SLOT, LOCATION_SLOT,
-    MESSAGE_SLOT, PREVIOUS_SLOT, REASON_SLOT, SLOT_COUNT, SQL_STATE_SLOT, Thrown, ThrownClass,
-    nvs_raise, nvs_raise_new, nvs_take_thrown, nvs_trace_push,
+    MESSAGE_SLOT, PREVIOUS_SLOT, REASON_SLOT, SLOT_COUNT, SQL_SLOT, SQL_STATE_SLOT, Thrown,
+    ThrownClass, nvs_raise, nvs_raise_new, nvs_take_thrown, nvs_trace_push,
 };
 pub use trace_context::TraceContext;
 pub use value::{Tag, Value, nvs_value_release, nvs_value_retain};

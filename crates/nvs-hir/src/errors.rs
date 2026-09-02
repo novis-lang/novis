@@ -66,11 +66,10 @@
 /// boundaries would differ per driver. It sits beside `Core\Db\RolledBack`
 /// under `RuntimeError` deliberately — a `catch` that has to tell "I gave up"
 /// from "the database said no" is the whole reason § 18 spells two names. It
-/// declares § 8's `kind` in [`OWN_PROPERTIES`], and `sqlState` and `driverCode`
-/// beside it; the last two raw values there — `constraint` and `sql` — each
-/// still owe a seeded type in `nvs_types::error_lib::own_properties`, so until
-/// they have one the class carries the root's four, the normalised kind, the
-/// raw pair, and a message that is what the server said.
+/// declares all five of § 8's properties in [`OWN_PROPERTIES`] — the normalised
+/// `kind`, the raw `sqlState`, `driverCode` and `constraint` the server worded,
+/// and the `sql` the program wrote — so the class carries the root's four,
+/// those five, and a message that is what the server said.
 ///
 /// Those four are the entries whose names have more than one segment, which is
 /// why every consumer here goes through `QName::parse` rather than treating a
@@ -135,12 +134,12 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// The third is `Core\Db\DbError`, which
 /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8 gives a normalised `kind`
 /// so that an application branches on the condition rather than on a vendor
-/// code, and the raw `sqlState` and `driverCode` it was read off. Spec § 18
-/// gives that class two more — `constraint` and `sql` — and each is absent here
-/// until it has a type in `nvs_types::error_lib::own_properties`, which
-/// `panic!`s at seed time on a property it cannot type. That is a *narrowing*
-/// rule and not a queue: a row added here without the arm there fails the very
-/// first seed.
+/// code, and beside it the raw `sqlState`, `driverCode` and `constraint` it was
+/// read off plus the `sql` that was refused. All five of spec § 18's are here,
+/// and none of them could have been added without a type in
+/// `nvs_types::error_lib::own_properties`, which `panic!`s at seed time on a
+/// property it cannot type. That is a *narrowing* rule and not a queue: a row
+/// added here without the arm there fails the very first seed.
 pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[
     (ROOT, PROPERTIES),
     ("ParseError", ISSUES),
@@ -152,9 +151,10 @@ pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[
 const ISSUES: &[&str] = &["issues"];
 
 /// `Core\Db\DbError`'s own row of [`OWN_PROPERTIES`] — ADR 0067 § 8's five
-/// properties, narrowed to the four that have a seeded type, in § 8's own
-/// order so that a value landing later is appended and moves nothing.
-const KIND: &[&str] = &["kind", "sqlState", "driverCode", "constraint"];
+/// properties, all of them, in § 8's own order. The order is the rule and not
+/// an accident of how they arrived: a sixth value § 8 gained later would be
+/// appended here too, so that no slot already compiled into a program moves.
+const KIND: &[&str] = &["kind", "sqlState", "driverCode", "constraint", "sql"];
 
 /// `Core\Db\RolledBack`'s own row of [`OWN_PROPERTIES`].
 const REASON: &[&str] = &["reason"];
@@ -185,9 +185,10 @@ pub const REASON_SLOT: usize = PROPERTIES.len();
 /// derived from the other and a property added to either must not move the
 /// other's. `db_error_s_own_slot_starts_after_the_root_s` holds it.
 ///
-/// It stays 0-relative-to-the-root as § 8's raw values land after it: each is
-/// appended to [`KIND`], so `kind` keeps this index. Three of the four have —
-/// [`SQL_STATE_SLOT`], [`DRIVER_CODE_SLOT`] and [`CONSTRAINT_SLOT`].
+/// It is 0-relative-to-the-root and stays there: § 8's other four are appended
+/// to [`KIND`] after it rather than inserted before it, so `kind` keeps this
+/// index. They are [`SQL_STATE_SLOT`], [`DRIVER_CODE_SLOT`],
+/// [`CONSTRAINT_SLOT`] and [`SQL_SLOT`].
 pub const KIND_SLOT: usize = PROPERTIES.len();
 
 /// The slot `Core\Db\DbError::$sqlState` occupies — ADR 0067 § 8's raw
@@ -213,6 +214,16 @@ pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 /// case here is the common one and not a driver's gap.
 /// `nvs_runtime::CONSTRAINT_SLOT` is the runtime's copy.
 pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
+
+/// The slot `Core\Db\DbError::$sql` occupies — ADR 0067 § 8's statement text,
+/// the last of the five and the only one the client rather than the server
+/// worded.
+///
+/// Derived from [`KIND_SLOT`] like its three siblings above, and `?string` for
+/// a third reason again: a refusal is not always *of* a statement the caller
+/// spelled, since § 7's `BEGIN`, `COMMIT` and `SAVEPOINT` are the runtime's own
+/// text. `nvs_runtime::SQL_SLOT` is the runtime's copy.
+pub const SQL_SLOT: usize = KIND_SLOT + 4;
 
 /// `name`'s own instance properties, in slot order — empty for a class that
 /// declares none, and for a name that is not in [`TREE`] at all.
@@ -320,16 +331,17 @@ mod tests {
         let inherited: usize = above.iter().map(|name| own_properties(name).len()).sum();
         assert_eq!(inherited, KIND_SLOT);
         // The one class in the tree declaring more than one property, so it is
-        // also the only place the *order* of a row is load-bearing: § 8's three
-        // raw values are appended, which is what keeps `kind` at slot 0
-        // relative to the root as `sql` lands after them.
+        // also the only place the *order* of a row is load-bearing: § 8's other
+        // four are appended, which is what keeps `kind` at slot 0 relative to
+        // the root however many of them there are.
         assert_eq!(
             own_properties("Core\\Db\\DbError"),
-            &["kind", "sqlState", "driverCode", "constraint"]
+            &["kind", "sqlState", "driverCode", "constraint", "sql"]
         );
         assert_eq!(inherited + 1, SQL_STATE_SLOT);
         assert_eq!(inherited + 2, DRIVER_CODE_SLOT);
         assert_eq!(inherited + 3, CONSTRAINT_SLOT);
+        assert_eq!(inherited + 4, SQL_SLOT);
         assert_eq!(above, vec!["RuntimeError", "Throwable"]);
     }
 
