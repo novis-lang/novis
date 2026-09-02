@@ -705,8 +705,31 @@ pub struct MySqlConn {
 /// treating it as a flag is a design error, not a simplification.
 #[derive(Debug)]
 pub struct MariaConn {
+    /// The stream, the bytes not yet a whole packet, and the sequence counter —
+    /// [`MySqlConn::wire`]'s twin, and the *same* type.
+    ///
+    /// One protocol is framed once. What differs between the two servers is
+    /// carried on that wire as `crate::mysql::Backend`: the name a refusal
+    /// reports and ADR 0067 § 8's table its codes are read against, which for
+    /// MariaDB is `crate::maria`'s and not MySQL's.
+    pub(crate) wire: MyWire,
     /// ADR 0132 § 4's busy state; the reasoning is on [`PgConn`].
     pub(crate) state: Cell<State>,
+    /// What the two ends agreed this connection can do — [`MySqlConn`]'s field
+    /// and its reason, MariaDB's packets being as self-describing as MySQL's,
+    /// which is to say not at all.
+    pub(crate) capabilities: CapabilityFlags,
+    /// ADR 0067 § 1's LRU of server-side prepared statements.
+    ///
+    /// [`MySqlConn::cache`]'s twin down to the handle type: `COM_STMT_PREPARE`
+    /// answers with a statement id on either server, and § 13's
+    /// `COM_RESET_CONNECTION` drops the statements along with everything else.
+    pub(crate) cache: StatementCache<crate::mysql::Prepared>,
+    /// ADR 0067 § 9's declared zone, as seconds east of UTC.
+    pub(crate) time_zone: i32,
+    /// How many of ADR 0067 § 7's transactions are open — [`MySqlConn::depth`]'s
+    /// twin, spent on the same commands.
+    pub(crate) depth: Cell<u32>,
 }
 
 /// A SQL Server connection over TDS 7.4, all of which is written here: there is

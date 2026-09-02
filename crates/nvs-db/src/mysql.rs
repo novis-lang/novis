@@ -428,6 +428,35 @@ impl std::fmt::Debug for MySqlTarget<'_> {
     }
 }
 
+/// The two facts about a server that the framing below cannot answer for
+/// itself: what to call it, and which table its error codes are read against.
+///
+/// **This is not MariaDB-as-a-flag**, which ADR 0067 rejects and this crate's
+/// [`crate::maria`] exists instead of. A flag would be one connection type
+/// whose *surface* — its plugin roster, its statement syntax, its error kinds —
+/// forked on a bit. The two connections are separate types with separate
+/// rosters; what they share is the packet framing, and framing has one place
+/// where it must name the server it is framing for. Carrying that on the
+/// [`Wire`] rather than on every reader's signature is what keeps
+/// [`read_answer`] and the twelve routines around it from growing a parameter
+/// each in order to say `"mysql"` or `"mariadb"` at the one point either of
+/// them ever says it.
+pub(crate) struct Backend {
+    /// What a [`ServerError`] off this connection calls the server it came
+    /// from — the word an operator reads in the rendered sentence.
+    pub(crate) name: &'static str,
+    /// [ADR 0067 § 8](../../../docs/adr/0067-core-db.md)'s table for this
+    /// server's vendor codes. MariaDB's is not MySQL's, which is § 8's own
+    /// sentence and the reason this field is a function rather than a bool.
+    pub(crate) kind_of: fn(u16, &str) -> DbErrorKind,
+}
+
+/// This module's server: MySQL's name and [`kind_of`], MySQL's table.
+pub(crate) const MYSQL: Backend = Backend {
+    name: "mysql",
+    kind_of,
+};
+
 /// A MySQL connection's stream, the bytes read off it that are not yet a whole
 /// packet, and the sequence-id state that says which packet is next.
 ///
@@ -436,9 +465,15 @@ impl std::fmt::Debug for MySqlTarget<'_> {
 /// this crate, and the reason every routine here takes a `&mut Wire<S>` instead
 /// of being an inherent method on [`MySqlConn`]. A real connection's wire is
 /// the `NvsTls<NvsTcp>` the default names.
+///
+/// [`crate::maria`] frames its packets with this too, through [`Wire::on`]: one
+/// protocol is framed one way, and a second copy of the sequence-id discipline
+/// would be a second place for it to go wrong.
 pub(crate) struct Wire<S: Read + Write = NvsTls<NvsTcp>> {
     stream: S,
     inbox: BytesMut,
+    /// Which server is on the other end — see [`Backend`].
+    pub(crate) backend: &'static Backend,
     /// `mysql_common`'s framing, and the sequence counter with it. It survives
     /// [`Wire::upgrade`] because MySQL's TLS upgrade happens *inside* the
     /// packet stream: the `SSLRequest` is packet 1 and the handshake response
@@ -465,11 +500,20 @@ impl<S: Read + Write> Wire<S> {
     /// speaks first, so the greeting is read through the codec on a plaintext
     /// socket and the same codec continues once the socket is encrypted.
     fn new(stream: S) -> Wire<S> {
+        Wire::on(&MYSQL, stream)
+    }
+
+    /// The same wire, framing for a named server.
+    ///
+    /// [`crate::maria`]'s constructor: the framing is one protocol's and the
+    /// [`Backend`] is the half of it that differs.
+    pub(crate) fn on(backend: &'static Backend, stream: S) -> Wire<S> {
         let mut codec = PacketCodec::default();
         codec.max_allowed_packet = MAX_PACKET as usize;
         Wire {
             stream,
             inbox: BytesMut::new(),
+            backend,
             codec,
         }
     }
@@ -488,13 +532,14 @@ impl<S: Read + Write> Wire<S> {
     /// # Errors
     ///
     /// Whatever `wrap` reported.
-    fn upgrade<T: Read + Write>(
+    pub(crate) fn upgrade<T: Read + Write>(
         self,
         wrap: impl FnOnce(S) -> io::Result<T>,
     ) -> io::Result<Wire<T>> {
         Ok(Wire {
             stream: wrap(self.stream)?,
             inbox: self.inbox,
+            backend: self.backend,
             codec: self.codec,
         })
     }
@@ -595,7 +640,7 @@ fn codec_failed(error: PacketCodecError) -> io::Error {
 /// has not been checked. Only the fields the next two steps cannot proceed
 /// without are kept.
 #[derive(Debug)]
-struct Greeting {
+pub(crate) struct Greeting {
     /// The capability bits the server claims, already checked against
     /// [`REQUIRED_CAPABILITIES`].
     capabilities: CapabilityFlags,
@@ -618,10 +663,14 @@ struct Greeting {
 /// [`REQUIRED_CAPABILITIES`] — including TLS — `InvalidData` for a packet that
 /// is not a greeting, and the server's own refusal where it declined the
 /// connection before greeting at all.
-fn read_greeting<S: Read + Write>(wire: &mut Wire<S>) -> io::Result<Greeting> {
+pub(crate) fn read_greeting<S: Read + Write>(wire: &mut Wire<S>) -> io::Result<Greeting> {
     let packet = wire.read_packet()?;
     if packet.first() == Some(&0xFF) {
-        return Err(server_refusal(&packet, CapabilityFlags::empty()));
+        return Err(server_refusal(
+            wire.backend,
+            &packet,
+            CapabilityFlags::empty(),
+        ));
     }
 
     let handshake = HandshakePacket::deserialize((), &mut ParseBuf(&packet))?;
@@ -657,7 +706,10 @@ fn read_greeting<S: Read + Write>(wire: &mut Wire<S>) -> io::Result<Greeting> {
 /// # Errors
 ///
 /// Whatever the stream reported.
-fn request_tls<S: Read + Write>(wire: &mut Wire<S>, greeting: &Greeting) -> io::Result<()> {
+pub(crate) fn request_tls<S: Read + Write>(
+    wire: &mut Wire<S>,
+    greeting: &Greeting,
+) -> io::Result<()> {
     let mut payload = Vec::new();
     SslRequest::new(
         CLIENT_CAPABILITIES.intersection(greeting.capabilities),
@@ -692,6 +744,29 @@ fn plugin_or_refuse(name: &[u8]) -> io::Result<AuthPlugin<'static>> {
             ),
         )),
     }
+}
+
+/// Who to be on a connection, and which plugins the driver opening it will
+/// prove that with.
+///
+/// [`authenticate`] takes this rather than a [`MySqlTarget`] because the
+/// exchange is the protocol's and the *roster* is the driver's: MariaDB names
+/// plugins MySQL has never heard of and refuses one MySQL defaults to, and
+/// [`crate::maria`] passes its own gate here rather than owning a second copy
+/// of the loop that runs it. Which plugins each driver answers is the security
+/// question this crate takes most seriously, so it is one field with one
+/// meaning rather than something inferred from the connection's type.
+pub(crate) struct Login<'a> {
+    /// The user to log in as.
+    pub(crate) user: &'a str,
+    /// The password, used only to derive a challenge response.
+    pub(crate) password: &'a str,
+    /// The schema named in the handshake response.
+    pub(crate) database: &'a str,
+    /// The plugin a server-named plugin selects, or the refusal that name
+    /// earns — [`plugin_or_refuse`] for this driver, and MariaDB's own for the
+    /// other.
+    pub(crate) roster: fn(&[u8]) -> io::Result<AuthPlugin<'static>>,
 }
 
 /// What a plugin is allowed to know while it composes a response.
@@ -741,18 +816,18 @@ impl AuthContextTrait for AuthContext<'_> {
 /// schema that does not exist — with § 8's kind, its `SQLSTATE` and its message,
 /// `InvalidData` for a packet the protocol does not allow at that point, and
 /// whatever the stream reported.
-fn authenticate<S: Read + Write>(
+pub(crate) fn authenticate<S: Read + Write>(
     wire: &mut Wire<S>,
-    target: &MySqlTarget<'_>,
+    login: &Login<'_>,
     greeting: &Greeting,
 ) -> io::Result<CapabilityFlags> {
     let capabilities = CLIENT_CAPABILITIES.intersection(greeting.capabilities);
     let context = AuthContext {
-        password: target.password.as_bytes(),
+        password: login.password.as_bytes(),
         nonce: &greeting.nonce,
     };
 
-    let plugin = plugin_or_refuse(&greeting.plugin)?;
+    let plugin = (login.roster)(&greeting.plugin)?;
     let mut exchange = AuthProc::init(&plugin)
         .map_err(|e| io::Error::new(io::ErrorKind::ConnectionRefused, e.to_string()))?;
     let first = exchange
@@ -763,8 +838,8 @@ fn authenticate<S: Read + Write>(
     HandshakeResponse::new(
         first.data().map(<[u8]>::to_vec),
         greeting.server_version,
-        Some(target.user.as_bytes()),
-        Some(target.database.as_bytes()),
+        Some(login.user.as_bytes()),
+        Some(login.database.as_bytes()),
         Some(plugin),
         capabilities,
         None,
@@ -778,12 +853,12 @@ fn authenticate<S: Read + Write>(
         match packet.first() {
             // `OK`, and the only way out of this loop that is a connection.
             Some(0x00) => return Ok(capabilities),
-            Some(0xFF) => return Err(server_refusal(&packet, capabilities)),
+            Some(0xFF) => return Err(server_refusal(wire.backend, &packet, capabilities)),
             // `AuthSwitchRequest`: the server names a different plugin, and the
             // gate applies again — this is the packet the module doc is about.
             Some(0xFE) => {
                 let switch = AuthSwitchRequest::deserialize((), &mut ParseBuf(&packet))?;
-                let named = plugin_or_refuse(switch.auth_plugin().as_bytes())?;
+                let named = (login.roster)(switch.auth_plugin().as_bytes())?;
                 let challenge = switch.plugin_data().to_vec();
                 exchange = AuthProc::init(&named)
                     .map_err(|e| io::Error::new(io::ErrorKind::ConnectionRefused, e.to_string()))?;
@@ -855,7 +930,11 @@ fn auth_failed(error: mysql_common::auth::plugins::Error) -> io::Error {
 /// § 8 keeps them available for the conditions normalising does not reach. MySQL
 /// sends neither a severity nor a constraint name, so the first is the constant
 /// the packet means and the second is `None`.
-fn server_refusal(packet: &[u8], capabilities: CapabilityFlags) -> io::Error {
+pub(crate) fn server_refusal(
+    backend: &Backend,
+    packet: &[u8],
+    capabilities: CapabilityFlags,
+) -> io::Error {
     let Ok(err) = ErrPacket::deserialize(capabilities, &mut ParseBuf(packet)) else {
         return io::Error::new(
             io::ErrorKind::InvalidData,
@@ -875,13 +954,13 @@ fn server_refusal(packet: &[u8], capabilities: CapabilityFlags) -> io::Error {
         .unwrap_or_else(|| "HY000".to_owned());
     let code = error.error_code();
     io::Error::other(ServerError {
-        kind: kind_of(code, &sql_state),
+        kind: (backend.kind_of)(code, &sql_state),
         sql_state,
         severity: String::from("ERROR"),
         message: error.message_str().into_owned(),
         constraint: None,
         driver_code: Some(code),
-        backend: "mysql",
+        backend: backend.name,
     })
 }
 
@@ -1061,7 +1140,7 @@ pub(crate) fn read_answer<S: Read + Write>(
                 last_id: ok.last_insert_id().unwrap_or(0),
             })
         }
-        Some(0xFF) => Err(server_refusal(&packet, capabilities)),
+        Some(0xFF) => Err(server_refusal(wire.backend, &packet, capabilities)),
         Some(0xFB) => {
             let named = LocalInfilePacket::deserialize((), &mut ParseBuf(&packet))
                 .map(|request| request.file_name_str().into_owned())
@@ -1228,7 +1307,7 @@ pub(crate) fn column_type(column: &Column) -> ColumnType {
 /// As [`read_ok`]. A server that refuses this refuses the connection: a
 /// connection whose zone is not the declared one would decode every zone-less
 /// column wrong, silently.
-fn set_session_time_zone<S: Read + Write>(
+pub(crate) fn set_session_time_zone<S: Read + Write>(
     wire: &mut Wire<S>,
     capabilities: CapabilityFlags,
     seconds_east: i32,
@@ -1303,7 +1382,13 @@ impl MySqlConn {
             None => NvsTls::over(tcp, target.host),
         })?;
 
-        let capabilities = authenticate(&mut wire, target, &greeting)?;
+        let login = Login {
+            user: target.user,
+            password: target.password,
+            database: target.database,
+            roster: plugin_or_refuse,
+        };
+        let capabilities = authenticate(&mut wire, &login, &greeting)?;
         set_session_time_zone(&mut wire, capabilities, target.time_zone)?;
 
         Ok(MySqlConn {
@@ -1490,7 +1575,7 @@ impl Drop for MySqlConn {
 /// # Errors
 ///
 /// As [`read_ok`], for either of the two commands.
-fn reset_session<S: Read + Write>(
+pub(crate) fn reset_session<S: Read + Write>(
     wire: &mut Wire<S>,
     capabilities: CapabilityFlags,
     seconds_east: i32,
@@ -1563,7 +1648,7 @@ pub(crate) fn prepare<S: Read + Write>(
 
     let packet = wire.read_packet()?;
     if packet.first() == Some(&0xFF) {
-        return Err(server_refusal(&packet, capabilities));
+        return Err(server_refusal(wire.backend, &packet, capabilities));
     }
     let stmt = StmtPacket::deserialize((), &mut ParseBuf(&packet)).map_err(|_| {
         io::Error::new(
@@ -1954,7 +2039,7 @@ fn execute_one<S: Read + Write>(
 /// `InvalidInput` for a nested call carrying either option, otherwise as
 /// [`simple_command`]. The depth moves only after a command the server
 /// accepted, so a refused begin leaves the connection at the level it had.
-fn begin<S: Read + Write>(
+pub(crate) fn begin<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
     capabilities: CapabilityFlags,
@@ -2045,7 +2130,7 @@ fn isolation_command(level: Isolation) -> &'static str {
 /// worded by one, so neither carries a [`ServerError`] and neither moves the
 /// depth. A refused `RELEASE SAVEPOINT` says nothing of the kind and moves
 /// nothing either, as in [`roll_back`].
-fn commit<S: Read + Write>(
+pub(crate) fn commit<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
     capabilities: CapabilityFlags,
@@ -2095,7 +2180,7 @@ fn commit<S: Read + Write>(
 /// [`simple_command`]. A refused rollback leaves the depth where it was: the
 /// level is still open as far as the server is concerned, and the level above
 /// it rolls back over this one anyway.
-fn roll_back<S: Read + Write>(
+pub(crate) fn roll_back<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
     capabilities: CapabilityFlags,
@@ -2923,7 +3008,7 @@ impl<S: Read + Write> MySqlRows<'_, S> {
                 self.span.finished(None);
                 Err(poison_on_write(
                     self.state,
-                    server_refusal(&packet, self.capabilities),
+                    server_refusal(self.wire.backend, &packet, self.capabilities),
                 ))
             }
             _ => Err(poison_on_write(
@@ -2986,7 +3071,7 @@ fn poison_on_write(state: &Cell<State>, error: io::Error) -> io::Error {
 /// side instead of discovering a reset socket, which is one fewer error line in
 /// its log per connection. Best effort by definition — the connection is going
 /// away whatever the write reports, so there is nobody left to tell.
-fn say_goodbye<S: Read + Write>(wire: &mut Wire<S>) {
+pub(crate) fn say_goodbye<S: Read + Write>(wire: &mut Wire<S>) {
     wire.codec.reset_seq_id();
     let _ = wire.send(&[COM_QUIT]);
 }
@@ -2996,10 +3081,11 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        AuthContext, CLIENT_CAPABILITIES, COLLATION, COM_QUERY, DbErrorKind, Greeting, MySqlTarget,
-        MyValue, NvsStr, Prepared, ServerError, State, Value, Wire, authenticate, begin,
-        column_type, commit, encode, execute, execute_many, kind_of, offset_literal, read_greeting,
-        read_ok, request_tls, roll_back, scalar, server_refusal, start_statement,
+        AuthContext, CLIENT_CAPABILITIES, COLLATION, COM_QUERY, DbErrorKind, Greeting, Login,
+        MYSQL, MySqlTarget, MyValue, NvsStr, Prepared, ServerError, State, Value, Wire,
+        authenticate, begin, column_type, commit, encode, execute, execute_many, kind_of,
+        offset_literal, plugin_or_refuse, read_greeting, read_ok, request_tls, roll_back, scalar,
+        server_refusal, start_statement,
     };
     use crate::conn::ColumnType as NovisType;
     use crate::conn::{BlockError, Driver, Isolation};
@@ -3122,6 +3208,20 @@ mod tests {
     }
 
     /// The target every case authenticates as.
+    /// [`target`]'s login half, with this driver's own roster.
+    ///
+    /// Separate from the target because [`authenticate`] takes the credential
+    /// and the plugin gate rather than a whole target — the split
+    /// [`crate::maria`] authenticates through, with its roster in this field.
+    fn login() -> Login<'static> {
+        Login {
+            user: "novis",
+            password: PASSWORD,
+            database: "shop",
+            roster: plugin_or_refuse,
+        }
+    }
+
     fn target() -> MySqlTarget<'static> {
         MySqlTarget {
             host: "db.example.internal",
@@ -3185,7 +3285,7 @@ mod tests {
 
         let greeting = read_greeting(&mut wire).expect("the greeting decodes");
         request_tls(&mut wire, &greeting).expect("the upgrade request goes out");
-        let agreed = authenticate(&mut wire, &target(), &greeting).expect("the server says OK");
+        let agreed = authenticate(&mut wire, &login(), &greeting).expect("the server says OK");
 
         let response = wire.peer().sent[1].clone();
         // Past the four-byte header, `HandshakeResponse` is a capability word,
@@ -3276,7 +3376,7 @@ mod tests {
 
         let greeting = read_greeting(&mut wire).expect("the greeting decodes");
         request_tls(&mut wire, &greeting).expect("the upgrade request goes out");
-        let refused = authenticate(&mut wire, &target(), &greeting)
+        let refused = authenticate(&mut wire, &login(), &greeting)
             .expect_err("`mysql_clear_password` is not a plugin this driver answers");
 
         assert_eq!(refused.kind(), io::ErrorKind::ConnectionRefused);
@@ -5069,6 +5169,7 @@ mod tests {
     #[test]
     fn a_server_refusal_carries_the_kind_and_both_raw_codes() {
         let refused = server_refusal(
+            &MYSQL,
             &error_packet(1213, "40001", "Deadlock found when trying to get lock"),
             CLIENT_CAPABILITIES,
         );

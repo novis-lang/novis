@@ -540,7 +540,21 @@ postgres-types = "0.2"
 # feature ADR 0067 does not offer. With the default off, `flate2` is
 # `miniz-oxide` and the whole graph stays pure Rust; `derive` goes with it, and
 # nothing here derives a row from a struct.
-mysql_common = { version = "0.38", default-features = false }
+#
+# The two features named back on are MariaDB's authentication plugins, and ADR
+# 0051 § 4 names this exact case in advance: `client_ed25519` and `parsec` reach
+# attacker-controlled data, so the answer is a Rust implementation of the plugin
+# or a documented refusal to support that auth method. `mysql_common` has both,
+# pure Rust -- `curve25519-dalek` behind the first, `ed25519-dalek`, `pbkdf2` and
+# `rand` behind the second -- so this is the first outcome and not the second,
+# and `crates/nvs-db/src/maria.rs`'s roster is what the features are for. Left
+# off, the plugins still *parse* and their `run` answers `FeatureRequired`, which
+# would refuse the connection with a message about a Cargo feature rather than
+# about MariaDB.
+mysql_common = { version = "0.38", default-features = false, features = [
+  "client_ed25519",
+  "client_parsec",
+] }
 # Not a codec of ours and not one we call: this entry exists to *choose*
 # `mysql_common`'s compression backend. That crate takes `flate2` with no
 # default features and selects one through its own `default` set, which names

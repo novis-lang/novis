@@ -138,17 +138,16 @@
 //! `tests/db/compose.yaml`'s PostgreSQL completes: `NvsTls::over_bundle`
 //! verifies against a named PEM bundle alone, `[db.<name>] tls_ca_file` is
 //! where a program names one, and [`matrix`]'s `NVS_DB_MATRIX_CA` is where
-//! this crate's own cases get theirs. Two of the four servers still have no
-//! anchor a client can be handed — MariaDB's image serves no certificate as
-//! `tests/db/compose.yaml` configures it, and SQL Server's lives in the
-//! instance rather than in a file — and `tools/db-matrix.py` reports those two
-//! `n/a` rather than running them, because a leg that connected without
-//! verifying would report green for the handshake it skipped. [`pg`]'s
-//! exchange is still asserted against a scripted SCRAM server as well as
-//! against a container: a unit test that needs neither socket nor certificate
-//! is the one that keeps failing usefully when the servers are down.
+//! this crate's own cases get theirs. **All four servers now serve one**, the
+//! last two by `tests/db/compose.yaml`'s own arrangement rather than by their
+//! images' — that file's two block comments own how — so `tools/db-matrix.py`
+//! runs every leg rather than reporting any `n/a`. [`pg`]'s exchange is still
+//! asserted against a scripted SCRAM server as well as against a container: a
+//! unit test that needs neither socket nor certificate is the one that keeps
+//! failing usefully when the servers are down.
 
 pub mod conn;
+pub mod maria;
 pub mod matrix;
 pub mod mysql;
 pub mod pg;
@@ -159,6 +158,7 @@ pub use conn::{
     BlockError, ColumnType, Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn,
     PgConn, ServerError, SqliteConn, State, TdsConn,
 };
+pub use maria::MariaTarget;
 pub use mysql::{MySqlDate, MySqlRow, MySqlRows, MySqlScalar, MySqlTarget, MySqlTime};
 pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode};
 pub use span::{QuerySpan, SQL_LIMIT};
