@@ -2967,9 +2967,21 @@ tests = [
 [[check]]
 kind = "command"
 stage = "8 queue"
-name = "nvs queue migrate creates both tables"
+name = "nvs queue migrate prints both tables"
 argv = ["{nvs}", "queue", "migrate", "--connection", "main", "--dry-run"]
 want = ["jobs", "dead_letter"]
+
+# The applying half, and it has to run before the fixture below: `examples/queue.nvs` pushes a row into
+# `nvs_jobs`, and nothing else in this sweep creates that table. Order here is run order (a `0`-prefixed
+# stage is the only thing that jumps the queue), so this block staying above that one is load-bearing.
+# It is also the assertion that the command is idempotent, since the sweep runs it against a server the
+# previous iteration already migrated -- every statement carries `if not exists`.
+[[check]]
+kind = "command"
+stage = "8 queue"
+name = "nvs queue migrate creates both tables"
+argv = ["{nvs}", "queue", "migrate", "--connection", "main"]
+want = ["jobs: applied", "dead_letter: applied"]
 
 [[check]]
 kind = "exact"

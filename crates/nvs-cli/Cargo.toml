@@ -29,6 +29,11 @@ nvs-runtime.workspace = true
 # there has to be one. `main.rs`'s § *What `run` executes* owns the rest.
 nvs-host.workspace = true
 nvs-test.workspace = true
+# `nvs queue migrate` opens the `[db.<name>]` it proved and runs ADR 0084 § 2's
+# statements on it. This is the only path in this binary that talks to a server
+# outside a request, and `queue.rs`'s module doc owns why that needs a driver
+# here rather than a task borrowed from `run`.
+nvs-db.workspace = true
 # `nvs meta --json` prints the `Core` registry, which is `nvs-stdlib`'s data
 # read directly — ADR 0117 § 2 makes this binary the owner of that contract.
 nvs-stdlib.workspace = true
