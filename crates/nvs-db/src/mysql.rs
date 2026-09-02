@@ -132,6 +132,7 @@
 //! and it costs nothing, where a `SET NAMES` after the fact would be a round
 //! trip and a window in which one was not set.
 
+use std::borrow::Cow;
 use std::cell::Cell;
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
@@ -162,7 +163,7 @@ use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 use nvs_runtime::{Decimal, NvsStr, Tag, Value};
 
-use crate::conn::{BlockError, ColumnType, Driver, MySqlConn, State, written_value};
+use crate::conn::{BlockError, ColumnType, Driver, Isolation, MySqlConn, State, written_value};
 use crate::span::QuerySpan;
 use crate::sql::{StatementCache, statement_cache_for, time_zone_for};
 
@@ -1230,6 +1231,8 @@ impl MySqlConn {
             // § 9's zone-less row is decoded a layer up, where the target is
             // gone — see the field.
             time_zone: target.time_zone,
+            // § 7's nesting, which a fresh connection is outside of.
+            depth: Cell::new(0),
         })
     }
 
@@ -1292,6 +1295,64 @@ impl MySqlConn {
         )
     }
 
+    /// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s `START TRANSACTION`,
+    /// or the `SAVEPOINT` a nested `transaction()` is.
+    ///
+    /// The driver half of § 7 and nothing more — the closure, the
+    /// rollback-only flag and the retry rule are `nvs-stdlib`'s, exactly as on
+    /// [`crate::PgConn::begin`]. [`begin`] owns which command a nesting depth
+    /// gets and how the two options are rendered, including the second round
+    /// trip an isolation level costs on this protocol and not on PostgreSQL's.
+    ///
+    /// # Errors
+    ///
+    /// As [`begin`].
+    pub fn begin(
+        &mut self,
+        isolation: Option<Isolation>,
+        read_only: bool,
+    ) -> io::Result<QuerySpan> {
+        begin(
+            &mut self.wire,
+            &self.state,
+            self.capabilities,
+            &self.depth,
+            isolation,
+            read_only,
+        )
+    }
+
+    /// How many transaction levels are open on this connection — 0 outside one,
+    /// 1 inside an outermost `transaction()`, deeper inside a nested one.
+    ///
+    /// [`crate::PgConn::depth`] owns why this is public at all: § 7 retries a
+    /// serialization failure only for an outermost transaction, and the caller
+    /// cannot tell the two apart on its own.
+    #[must_use]
+    pub fn depth(&self) -> u32 {
+        self.depth.get()
+    }
+
+    /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one — a
+    /// normal return out of the closure either way.
+    ///
+    /// # Errors
+    ///
+    /// As [`commit`].
+    pub fn commit(&mut self) -> io::Result<QuerySpan> {
+        commit(&mut self.wire, &self.state, self.capabilities, &self.depth)
+    }
+
+    /// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one —
+    /// a throw out of the closure, or `rollBack`'s own signal.
+    ///
+    /// # Errors
+    ///
+    /// As [`roll_back`].
+    pub fn roll_back(&mut self) -> io::Result<QuerySpan> {
+        roll_back(&mut self.wire, &self.state, self.capabilities, &self.depth)
+    }
+
     /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, before this
     /// connection may be handed to another request.
     ///
@@ -1309,6 +1370,11 @@ impl MySqlConn {
             self.time_zone,
             &mut self.cache,
         )?;
+        // `COM_RESET_CONNECTION` rolls back whatever transaction was open, so
+        // every level this count named is gone with it — and a connection
+        // pooled at a depth it no longer has would open the next request's
+        // outermost `transaction()` as a `SAVEPOINT` against nothing.
+        self.depth.set(0);
         Ok(self)
     }
 }
@@ -1761,6 +1827,276 @@ fn execute_one<S: Read + Write>(
     let mut rows = start_statement(wire, state, capabilities, cache, sql, set)?;
     while rows.next_row()?.is_some() {}
     Ok(rows.affected().unwrap_or(0))
+}
+
+/// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s `START TRANSACTION`, or
+/// the `SAVEPOINT` a nested `transaction()` opens.
+///
+/// **The depth decides which**, as in [`crate::pg`]'s `begin`, and § 7's
+/// composition is the reason: a library that wraps its own writes cannot ask
+/// whether it is already inside a caller's transaction, so which command a
+/// level gets is the connection's answer rather than the caller's.
+///
+/// **An isolation level costs a second round trip here and none on
+/// PostgreSQL.** MySQL has no `START TRANSACTION ISOLATION LEVEL`: the
+/// characteristic is set by a `SET TRANSACTION` that applies to the *next*
+/// transaction started on this session, so a level asked for is a command of
+/// its own ahead of the one that opens the transaction. Both are inside one
+/// § 11 span, because the caller waited for both and timing only the second
+/// would price a serializable transaction as a plain one.
+///
+/// **A `START TRANSACTION` the server refuses after it accepted the
+/// `SET TRANSACTION` poisons the connection**, which is this module's one use
+/// of that state for a wire that is still at a boundary. The armed
+/// characteristic belongs to the *session* and no command disarms it, so a
+/// connection returned to § 13's pool would run some later request's
+/// unqualified `transaction()` at a level nobody there asked for — and where
+/// the armed level is `READ UNCOMMITTED`, that is priority 2's exact failure,
+/// weaker semantics than the program asked for and silently.
+/// [`State::is_poolable`] is the only lever that says "close this rather than
+/// reuse it", and one handshake on a path a healthy server never takes is
+/// cheap for it.
+///
+/// `read_only` renders `READ ONLY` or nothing, never `READ WRITE`, for the
+/// reason [`crate::pg`]'s `begin_command` gives in full: the option's absence
+/// means the server's own default, and widening that from inside a program is
+/// the wrong direction for a priority-1 rule.
+///
+/// # Errors
+///
+/// `InvalidInput` for a nested call carrying either option, otherwise as
+/// [`simple_command`]. The depth moves only after a command the server
+/// accepted, so a refused begin leaves the connection at the level it had.
+fn begin<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    capabilities: CapabilityFlags,
+    depth: &Cell<u32>,
+    isolation: Option<Isolation>,
+    read_only: bool,
+) -> io::Result<QuerySpan> {
+    let open = depth.get();
+    if open > 0 {
+        if isolation.is_some() || read_only {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "a transaction nested {open} deep asked for its own isolation level or \
+                     read-only mode, and MySQL settles both for the whole transaction: ask for \
+                     them on the outermost `transaction()`, or give this one a `{{shared: false}}` \
+                     connection of its own"
+                ),
+            ));
+        }
+        let command = format!("SAVEPOINT {}", crate::pg::savepoint_name(open));
+        let span = simple_command(wire, state, capabilities, &command)?;
+        depth.set(open + 1);
+        return Ok(span);
+    }
+
+    let start = if read_only {
+        "START TRANSACTION READ ONLY"
+    } else {
+        "START TRANSACTION"
+    };
+    let Some(level) = isolation else {
+        let span = simple_command(wire, state, capabilities, start)?;
+        depth.set(1);
+        return Ok(span);
+    };
+
+    let set = isolation_command(level);
+    let mut span = QuerySpan::opened(Driver::MySql, &format!("{set}; {start}"));
+    text_command(wire, state, capabilities, set)?;
+    if let Err(refused) = text_command(wire, state, capabilities, start) {
+        state.set(State::Poisoned);
+        return Err(refused);
+    }
+    span.finished(None);
+    depth.set(1);
+    Ok(span)
+}
+
+/// The `SET TRANSACTION` one of § 7's five isolation levels renders to.
+///
+/// **Only [`Isolation::Snapshot`] collapses**, onto `REPEATABLE READ`: InnoDB
+/// reads that level from one snapshot established at the transaction's first
+/// read, which is the guarantee `Snapshot` names — so asking for either gets
+/// the same thing under the name this server uses, and neither is the missing
+/// level § 7 says to throw over. The other four are MySQL's own spellings.
+///
+/// Five `&'static str`s rather than [`crate::pg`]'s composed `String`, because
+/// nothing composes here: the command that opens a MySQL transaction takes no
+/// isolation option, so a level is a whole command and there are five of them.
+fn isolation_command(level: Isolation) -> &'static str {
+    match level {
+        Isolation::ReadUncommitted => "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED",
+        Isolation::ReadCommitted => "SET TRANSACTION ISOLATION LEVEL READ COMMITTED",
+        Isolation::RepeatableRead | Isolation::Snapshot => {
+            "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"
+        }
+        Isolation::Serializable => "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE",
+    }
+}
+
+/// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` that closes a nested level.
+///
+/// # Errors
+///
+/// `InvalidInput` for a connection in no transaction, otherwise as
+/// [`simple_command`]. **The count follows the connection where the server took
+/// it**: an outermost `COMMIT` the server refused has already rolled the
+/// transaction back, so that level really is gone and the depth goes to 0 — a
+/// caller that opens the next transaction on the connection, which § 7's
+/// `{retries: n}` is, must get a `START TRANSACTION` and not a `SAVEPOINT`
+/// against nothing. Which refusals those are is [`poison_on_write`]'s split,
+/// read back off the state it left rather than re-tested here: only a refusal
+/// the server worded leaves the connection [`State::Idle`], while § 4's busy
+/// check never reached the wire and a wire failure poisons. A refused `RELEASE
+/// SAVEPOINT` says nothing of the kind and moves nothing, as in [`roll_back`].
+fn commit<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    capabilities: CapabilityFlags,
+    depth: &Cell<u32>,
+) -> io::Result<QuerySpan> {
+    let open = crate::pg::open_transaction(depth, "commit")?;
+    let command: Cow<'_, str> = if open == 1 {
+        Cow::Borrowed("COMMIT")
+    } else {
+        Cow::Owned(format!(
+            "RELEASE SAVEPOINT {}",
+            crate::pg::savepoint_name(open - 1)
+        ))
+    };
+
+    let span = match simple_command(wire, state, capabilities, &command) {
+        Ok(span) => span,
+        Err(refused) => {
+            if open == 1 && state.get() == State::Idle {
+                depth.set(0);
+            }
+            return Err(refused);
+        }
+    };
+    depth.set(open - 1);
+    Ok(span)
+}
+
+/// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` that undoes a nested level.
+///
+/// **One command where [`crate::pg`]'s nested rollback is two, and MySQL's own
+/// savepoint rule is what decides that.** PostgreSQL releases the savepoint it
+/// returned to, because a second `SAVEPOINT` of the same name leaves the first
+/// one behind and a loop that opens and abandons a nested transaction per
+/// iteration would leave the server holding one per iteration. MySQL deletes
+/// the savepoint a same-named `SAVEPOINT` finds, so re-opening a level reuses
+/// `nvs_1` instead of adding to it and the server holds at most one name per
+/// open level. The `RELEASE` would therefore buy nothing and cost a round trip
+/// of its own: it cannot ride along with the rollback, because this driver
+/// never asks for `CLIENT_MULTI_STATEMENTS` ([`REQUIRED_CAPABILITIES`]) and a
+/// connection that accepted two statements in one command is one an injection
+/// reaches further into.
+///
+/// # Errors
+///
+/// `InvalidInput` for a connection in no transaction, otherwise as
+/// [`simple_command`]. A refused rollback leaves the depth where it was: the
+/// level is still open as far as the server is concerned, and the level above
+/// it rolls back over this one anyway.
+fn roll_back<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    capabilities: CapabilityFlags,
+    depth: &Cell<u32>,
+) -> io::Result<QuerySpan> {
+    let open = crate::pg::open_transaction(depth, "roll back")?;
+    let command: Cow<'_, str> = if open == 1 {
+        Cow::Borrowed("ROLLBACK")
+    } else {
+        Cow::Owned(format!(
+            "ROLLBACK TO SAVEPOINT {}",
+            crate::pg::savepoint_name(open - 1)
+        ))
+    };
+
+    let span = simple_command(wire, state, capabilities, &command)?;
+    depth.set(open - 1);
+    Ok(span)
+}
+
+/// One of § 7's commands, sent as text, as [ADR 0067 § 11](../../../docs/adr/0067-core-db.md)'s
+/// span.
+///
+/// **`COM_QUERY` rather than § 1's prepared statements**, which is where the
+/// two halves of § 1 stop pulling together: a prepare would cost the extra
+/// round trip § 1 charges for a first execution and then hold a slot in a cache
+/// sized for the request's real statements, to run a command of five words that
+/// binds nothing. It is the second text this driver composes, after
+/// [`set_session_time_zone`], and § 1's no-emulated-prepares rule has nothing to
+/// bite on either time: no caller's SQL and no bound value reaches this path,
+/// and the only thing interpolated is a savepoint name this module minted.
+///
+/// The span carries no count. § 7's commands change no rows themselves, and
+/// `affected` says "this statement reported a count" rather than "it reported
+/// zero".
+///
+/// # Errors
+///
+/// As [`text_command`].
+fn simple_command<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    capabilities: CapabilityFlags,
+    sql: &str,
+) -> io::Result<QuerySpan> {
+    let mut span = QuerySpan::opened(Driver::MySql, sql);
+    text_command(wire, state, capabilities, sql)?;
+    span.finished(None);
+    Ok(span)
+}
+
+/// One `COM_QUERY`, and the status packet a command with no result set owes.
+///
+/// Free and generic in the stream for this crate's usual reason, and split from
+/// [`simple_command`] for a second one: [`begin`]'s isolation level is two
+/// commands that the caller waited for as one, so the span belongs to the pair
+/// rather than to either half of it.
+///
+/// # Errors
+///
+/// `InvalidInput` for a connection that is not [`State::Idle`], in
+/// [`crate::pg`]'s `second_statement` wording because § 4 is the rule being
+/// broken and both of its fixes are what that caller needs to hear; otherwise
+/// as [`read_ok`]. [`poison_on_write`] decides what a failure leaves behind —
+/// the server's own refusal leaves the connection idle and poolable, and
+/// anything else leaves a wire no packet boundary can be found in.
+fn text_command<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    capabilities: CapabilityFlags,
+    sql: &str,
+) -> io::Result<()> {
+    if !state.get().may_start_statement() {
+        return Err(crate::pg::second_statement(state));
+    }
+
+    let mut payload = Vec::with_capacity(1 + sql.len());
+    payload.push(COM_QUERY);
+    payload.extend_from_slice(sql.as_bytes());
+
+    state.set(State::Executing);
+    wire.codec.reset_seq_id();
+    if let Err(e) = wire.send(&payload) {
+        return Err(poison_on_write(state, e));
+    }
+    match read_ok(wire, capabilities) {
+        Ok(()) => {
+            state.set(State::Idle);
+            Ok(())
+        }
+        Err(e) => Err(poison_on_write(state, e)),
+    }
 }
 
 /// One row, already decoded out of the packet the wire framed it from.
@@ -2563,12 +2899,13 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        AuthContext, CLIENT_CAPABILITIES, COLLATION, Greeting, MySqlTarget, MyValue, NvsStr,
-        Prepared, State, Value, Wire, authenticate, column_type, encode, execute, execute_many,
-        offset_literal, read_greeting, read_ok, request_tls, scalar, start_statement,
+        AuthContext, CLIENT_CAPABILITIES, COLLATION, COM_QUERY, Greeting, MySqlTarget, MyValue,
+        NvsStr, Prepared, State, Value, Wire, authenticate, begin, column_type, commit, encode,
+        execute, execute_many, offset_literal, read_greeting, read_ok, request_tls, roll_back,
+        scalar, start_statement,
     };
     use crate::conn::ColumnType as NovisType;
-    use crate::conn::{BlockError, Driver};
+    use crate::conn::{BlockError, Driver, Isolation};
     use mysql_common::constants::{CapabilityFlags, ColumnFlags, ColumnType, StatusFlags};
     use mysql_common::io::ParseBuf;
     use mysql_common::packets::{Column, ComStmtExecuteRequestBuilder, HandshakePacket};
@@ -3292,6 +3629,229 @@ mod tests {
     /// cases above assert a round trip count rather than a payload.
     fn commands(sent: &[Vec<u8>]) -> Vec<Option<u8>> {
         sent.iter().map(|message| message.get(4).copied()).collect()
+    }
+
+    /// The text of every `COM_QUERY` the driver flushed.
+    ///
+    /// § 7's cases assert this rather than [`commands`]' bytes, because every
+    /// one of these commands is this module's own SQL and *which* one a level
+    /// got is the whole question.
+    fn text_commands(sent: &[Vec<u8>]) -> Vec<String> {
+        sent.iter()
+            .filter(|message| message.get(4) == Some(&COM_QUERY))
+            .map(|message| String::from_utf8_lossy(&message[5..]).into_owned())
+            .collect()
+    }
+
+    /// A server that answers every text command with a bare `OK`.
+    fn accepting() -> impl FnMut(&[u8]) -> Vec<u8> {
+        |sent: &[u8]| match sent.get(4) {
+            Some(&COM_QUERY) => packet(1, &ok_packet(0, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }
+    }
+
+    /// ADR 0067 § 7 on this protocol: the depth picks the command, and a nested
+    /// rollback is one round trip because MySQL's savepoints are not
+    /// PostgreSQL's.
+    ///
+    /// **Three claims, each failing differently.** A driver that spelled the
+    /// outermost level `BEGIN` would have no way to render `readOnly`. One that
+    /// named its savepoints from a counter would leave the server a name per
+    /// nested transaction a loop opened. And one that copied `crate::pg`'s
+    /// `ROLLBACK TO SAVEPOINT …; RELEASE SAVEPOINT …` would be sending two
+    /// statements in a command this driver never negotiated
+    /// `CLIENT_MULTI_STATEMENTS` for — a server error at best, and the shape an
+    /// injection wants at worst.
+    #[test]
+    fn the_depth_picks_section_sevens_command_and_a_nested_rollback_releases_nothing() {
+        let mut wire = Wire::new(Peer::new(accepting()));
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+
+        begin(&mut wire, &state, CLIENT_CAPABILITIES, &depth, None, false)
+            .expect("an outermost transaction the server opened");
+        assert_eq!(depth.get(), 1);
+        begin(&mut wire, &state, CLIENT_CAPABILITIES, &depth, None, false)
+            .expect("a nested transaction the server opened");
+        assert_eq!(depth.get(), 2);
+        begin(&mut wire, &state, CLIENT_CAPABILITIES, &depth, None, false)
+            .expect("a second nesting the server opened");
+        roll_back(&mut wire, &state, CLIENT_CAPABILITIES, &depth)
+            .expect("a nested rollback the server accepted");
+        commit(&mut wire, &state, CLIENT_CAPABILITIES, &depth)
+            .expect("a nested commit the server accepted");
+        commit(&mut wire, &state, CLIENT_CAPABILITIES, &depth)
+            .expect("an outermost commit the server accepted");
+
+        assert_eq!(
+            text_commands(&wire.peer().sent),
+            [
+                "START TRANSACTION",
+                "SAVEPOINT nvs_1",
+                "SAVEPOINT nvs_2",
+                "ROLLBACK TO SAVEPOINT nvs_2",
+                "RELEASE SAVEPOINT nvs_1",
+                "COMMIT",
+            ],
+            "§ 7's nesting is a savepoint named by the depth it opened at, and \
+             MySQL deletes a same-named one rather than stacking it — so the \
+             `RELEASE` PostgreSQL owes after a rollback buys nothing here"
+        );
+        assert_eq!(depth.get(), 0, "every level this case opened was closed");
+        assert_eq!(state.get(), State::Idle, "the connection is poolable");
+    }
+
+    /// § 7's isolation level is a command of its own on MySQL, and `Snapshot`
+    /// is the one of the five that collapses.
+    ///
+    /// The `SET TRANSACTION` has to come *first* and has to be its own round
+    /// trip: MySQL takes no isolation option on the statement that opens a
+    /// transaction, and the characteristic it sets applies to the next
+    /// transaction started on the session. A driver that spelled
+    /// `START TRANSACTION ISOLATION LEVEL …` would be refused by every server
+    /// it ever met.
+    #[test]
+    fn an_isolation_level_is_its_own_command_and_snapshot_is_repeatable_read() {
+        let mut wire = Wire::new(Peer::new(accepting()));
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+
+        let span = begin(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &depth,
+            Some(Isolation::Serializable),
+            true,
+        )
+        .expect("a serializable read-only transaction the server opened");
+        assert_eq!(
+            span.sql(),
+            "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; START TRANSACTION READ ONLY",
+            "§ 11's one span covers both round trips the caller waited for"
+        );
+
+        commit(&mut wire, &state, CLIENT_CAPABILITIES, &depth).expect("a commit");
+        begin(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &depth,
+            Some(Isolation::Snapshot),
+            false,
+        )
+        .expect("a snapshot transaction the server opened");
+
+        assert_eq!(
+            text_commands(&wire.peer().sent),
+            [
+                "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE",
+                "START TRANSACTION READ ONLY",
+                "COMMIT",
+                "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+                "START TRANSACTION",
+            ],
+            "the level is armed by its own command, `readOnly` rides on the \
+             start and never spells `READ WRITE`, and § 7's `Snapshot` is what \
+             InnoDB calls `REPEATABLE READ`"
+        );
+    }
+
+    /// A nested `transaction()` carrying either option is refused before a
+    /// byte, because a savepoint cannot answer for it.
+    ///
+    /// The refusal is priority 2's: MySQL settles both characteristics for the
+    /// whole transaction, so running the closure at the outer level while its
+    /// author wrote `Isolation::Serializable` would be weaker semantics than
+    /// the program asked for, silently.
+    #[test]
+    fn a_nested_transaction_asking_for_an_option_is_refused_before_a_byte() {
+        let mut wire = Wire::new(Peer::new(accepting()));
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(1);
+
+        let refused = begin(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &depth,
+            Some(Isolation::Serializable),
+            false,
+        )
+        .expect_err("a nested transaction may not ask for its own level");
+
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            wire.peer().sent.is_empty(),
+            "nothing was written for a call this driver refused itself"
+        );
+        assert_eq!(depth.get(), 1, "a refused begin opens no level");
+    }
+
+    /// An outermost `COMMIT` the *server* refused leaves no transaction open,
+    /// and a `START TRANSACTION` refused after its level was armed leaves no
+    /// connection.
+    ///
+    /// Two counts that only look alike. The server rolls the transaction back
+    /// before it refuses a commit, so the level is gone and § 7's `{retries: n}`
+    /// must get a `START TRANSACTION` on the next attempt rather than a
+    /// savepoint against nothing. The armed `SET TRANSACTION`, by contrast,
+    /// survives on the *session* with no command able to clear it — so that
+    /// connection is closed rather than pooled, which is the only thing
+    /// `State::Poisoned` can say.
+    #[test]
+    fn a_refused_commit_closes_the_level_and_a_refused_start_closes_the_connection() {
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(&COM_QUERY) if sent.ends_with(b"COMMIT") => {
+                packet(1, &error_packet(1213, "40001", "Deadlock found"))
+            }
+            Some(&COM_QUERY) => packet(1, &ok_packet(0, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(1);
+
+        commit(&mut wire, &state, CLIENT_CAPABILITIES, &depth)
+            .expect_err("a commit the server refused");
+        assert_eq!(
+            depth.get(),
+            0,
+            "the server rolled the transaction back before refusing, so the \
+             level is gone and the next attempt owes a `START TRANSACTION`"
+        );
+        assert_eq!(
+            state.get(),
+            State::Idle,
+            "a refusal the server worded arrived whole, so the connection is \
+             still at a packet boundary"
+        );
+
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(&COM_QUERY) if sent.ends_with(b"START TRANSACTION") => {
+                packet(1, &error_packet(1568, "25001", "cannot start"))
+            }
+            Some(&COM_QUERY) => packet(1, &ok_packet(0, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+
+        begin(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &depth,
+            Some(Isolation::ReadUncommitted),
+            false,
+        )
+        .expect_err("a start the server refused");
+        assert_eq!(depth.get(), 0, "no level was opened");
+        assert!(
+            !state.get().is_poolable(),
+            "the session is holding an isolation level nothing can clear, so \
+             this connection is closed rather than handed to another request"
+        );
     }
 
     /// A result set that a server answers three definitions and one row of,

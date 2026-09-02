@@ -677,6 +677,16 @@ pub struct MySqlConn {
     /// Held for [`PgConn::time_zone`]'s reason: the decode of that row happens
     /// in `nvs-stdlib`, and the target does not outlive the handshake.
     pub(crate) time_zone: i32,
+    /// How many of ADR 0067 § 7's transactions are open on this connection —
+    /// [`PgConn::depth`]'s twin, counted by the same rule and spent on
+    /// different commands.
+    ///
+    /// `crate::mysql`'s `begin` is where the depth decides which one goes out,
+    /// and the two drivers differ there rather than here: MySQL's outermost
+    /// level is a `START TRANSACTION`, and its nested `ROLLBACK TO SAVEPOINT`
+    /// needs no `RELEASE` after it because a same-named `SAVEPOINT` replaces
+    /// the one it finds.
+    pub(crate) depth: Cell<u32>,
 }
 
 /// A MariaDB connection: `mysql_common`'s codec, its own auth plugins and its

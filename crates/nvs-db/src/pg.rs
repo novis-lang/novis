@@ -3078,10 +3078,14 @@ fn roll_back<S: Read + Write>(
 /// sending a bare `ROLLBACK` that PostgreSQL answers with a warning nobody
 /// reads.
 ///
+/// Shared with [`crate::mysql`] rather than written twice: the wording is about
+/// § 7's surface — which has no `commit()` on any backend — and not about
+/// anything one protocol does.
+///
 /// # Errors
 ///
 /// `InvalidInput`, naming the depth it was asked to close.
-fn open_transaction(depth: &Cell<u32>, verb: &str) -> io::Result<u32> {
+pub(crate) fn open_transaction(depth: &Cell<u32>, verb: &str) -> io::Result<u32> {
     match depth.get() {
         0 => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -3098,8 +3102,10 @@ fn open_transaction(depth: &Cell<u32>, verb: &str) -> io::Result<u32> {
 /// a transaction that opens and closes a nested one a thousand times reuses
 /// `nvs_1` rather than leaving the server a thousand names. § 7 has no explicit
 /// savepoint API, so no program can name one of these and nothing outside this
-/// module may depend on the spelling.
-fn savepoint_name(depth: u32) -> String {
+/// crate may depend on the spelling — [`crate::mysql`] takes the same names for
+/// the same reason, so one backend's savepoint and another's read alike in a
+/// server log.
+pub(crate) fn savepoint_name(depth: u32) -> String {
     format!("nvs_{depth}")
 }
 
