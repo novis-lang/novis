@@ -6355,6 +6355,14 @@ sibling in the same namespace unqualified.
   error appears to be about the function whose attribute you just removed. One
   `grep -n 'expect(' <the module>` for every reason naming the path being enabled, before the build,
   is the whole check.
+- **A driver's `io::ErrorKind` decides whether a refusal reaches Novis as a `Db\DbError` at all.**
+  `nvs_stdlib::db`'s `statement_failure` builds ADR 0067 § 8's error from its `ErrorKind::Other` arm
+  alone and answers an `IOError` for every other kind, so a driver that words the server's own `ERR`
+  packet as anything else — MySQL's said `PermissionDenied`, meaning it well — strips the `kind`, the
+  `sqlState` and the `driverCode` off every refusal a program catches, with every unit test in the
+  driver crate still green. A refusal the server worded is `io::Error::other(ServerError { … })`, and
+  `ServerError::of` is what tells it from a wire failure — never the `ErrorKind`, which has no room
+  to say which of § 8's eleven conditions this was.
 
 ## Divergences and refusals already pinned
 
