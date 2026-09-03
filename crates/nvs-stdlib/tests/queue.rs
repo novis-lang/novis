@@ -837,6 +837,46 @@ fn status(conn: &mut Conn, id: &str, queue: &str) -> Option<String> {
     (!found.is_empty()).then(|| found.remove(0).remove(0).expect("`state` is not null"))
 }
 
+/// § 1's `cancel` on the framed dialect, answering the count the server says it
+/// affected.
+///
+/// **[`queue::CANCEL_MYSQL`] and not a dialect switch**, unlike [`status`]:
+/// PostgreSQL's twin reads its answer off a `returning id` and this one off the
+/// affected count, so a helper spanning both would hand back two shapes and
+/// each caller would unwrap the one its own leg produced. No case sends the
+/// PostgreSQL text, which is the half `Core\Queue::cancel`'s own
+/// `counted_row` already covers.
+fn cancel(conn: &mut Conn, id: &str, queue: &str) -> u64 {
+    apply(
+        conn,
+        queue::CANCEL_MYSQL,
+        &[Some(id.as_bytes()), Some(queue.as_bytes())],
+    )
+}
+
+/// §§ 1 and 6's `stats` on the framed dialect, as the four columns
+/// [`queue::COUNTS_MYSQL`] answers with.
+///
+/// **The columns stay `Option`**, unlike [`one`]'s, because half of what the
+/// case that calls this asks is that none of the four is ever null: `count`
+/// over no rows and `coalesce`d `sum` are what make that true, and a helper
+/// that unwrapped here would assert it by panicking somewhere the message
+/// blamed the helper.
+///
+/// **The name is bound twice** for [`landed`]'s reason: the outer `where` and
+/// the dead-letter subquery are two `?` positions, where
+/// [`queue::COUNTS_POSTGRES`] names `$1` twice.
+fn stats(conn: &mut Conn, queue: &str) -> Vec<Option<String>> {
+    let name = queue.as_bytes();
+    let mut answered = rows(conn, queue::COUNTS_MYSQL, &[Some(name), Some(name)]);
+    assert_eq!(
+        answered.len(),
+        1,
+        "an aggregate with no `group by` is one row however empty the table is"
+    );
+    answered.remove(0)
+}
+
 /// An epoch-millisecond instant as the text a `$n::bigint` placeholder is sent
 /// as — `nvs-cli`'s worker binds every instant this way.
 fn millis(at: i64) -> Vec<u8> {
@@ -2368,5 +2408,211 @@ fn a_framed_rolled_back_write_leaves_no_job() {
         ),
         "0",
         "and the write it was enqueued beside is gone with it"
+    );
+}
+
+/// § 1's `cancel` on the framed dialect: the statement decides, and the answer
+/// is the count it affected.
+///
+/// **What needs a server is that the count is the same number PostgreSQL's
+/// `returning id` produces.** [`queue::CANCEL_MYSQL`]'s doc rests the two
+/// spellings on one reading — `set state = 4 where … and state = 0` changes
+/// every row it matches — and that argument is load-bearing here in a way it is
+/// not on PostgreSQL: MySQL's affected count is *changed* rows, not matched
+/// ones, so a guard that let the statement match a row it then wrote the same
+/// value into would answer `0` for a cancel that happened. The `and state = 0`
+/// is what makes changed and matched one number, and only a server can say so.
+///
+/// **The cancel that lost the race answers `0` rather than throwing**, which is
+/// § 1's whole reason for a `bool` return: the claim below lands between the
+/// push and the cancel exactly as a worker's would, and the statement — not a
+/// read before it — is what declines. A cancel of an already-cancelled job is
+/// the same answer for the same reason, since `state = 4` fails the same guard.
+///
+/// **The wrong-queue read is the third claim, and it is asked of a job that is
+/// otherwise cancellable.** Two `?` are two positions, so a text that named the
+/// id alone, or that transposed the pair, would still cancel from another
+/// queue; the last two assertions separate "this job cannot be cancelled" from
+/// "this pair does not name it" by cancelling the same row a line later.
+#[test]
+fn a_framed_cancel_is_decided_by_the_statement_and_read_off_the_affected_count() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-cancel";
+    const OTHER: &str = "nvs-stdlib-tests-framed-cancel-elsewhere";
+    const DUE: i64 = 8_000;
+    const TAKEN: i64 = 8_500;
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    let pending = push(&mut conn, QUEUE, DUE, "2");
+    assert_eq!(
+        cancel(&mut conn, &pending, QUEUE),
+        1,
+        "a pending job is cancellable, and one row changed is the `true` the member answers"
+    );
+    assert_eq!(
+        status(&mut conn, &pending, QUEUE).as_deref(),
+        Some("4"),
+        "the row is still there carrying `Cancelled`, which is why this is an update and not a \
+         delete"
+    );
+    assert_eq!(
+        cancel(&mut conn, &pending, QUEUE),
+        0,
+        "and cancelling it again changes nothing, because `state = 4` fails the same guard"
+    );
+
+    let running = push(&mut conn, QUEUE, DUE, "2");
+    let took = claim(&mut conn, QUEUE, TAKEN, 0);
+    assert_eq!(took.len(), 1, "the cancelled job is not work a worker sees");
+    assert_eq!(
+        took[0][ID].as_deref(),
+        Some(running.as_str()),
+        "so the one claimed row is the job pushed after it"
+    );
+    assert_eq!(
+        cancel(&mut conn, &running, QUEUE),
+        0,
+        "a cancel that lost the race to that claim answers zero rather than throwing"
+    );
+    assert_eq!(
+        status(&mut conn, &running, QUEUE).as_deref(),
+        Some("1"),
+        "and it left the claim alone: cancelling does not stop work in flight"
+    );
+
+    let elsewhere = push(&mut conn, QUEUE, DUE, "2");
+    assert_eq!(
+        cancel(&mut conn, &elsewhere, OTHER),
+        0,
+        "the pair keys the update and the id alone does not"
+    );
+    assert_eq!(
+        status(&mut conn, &elsewhere, QUEUE).as_deref(),
+        Some("0"),
+        "the job the wrong queue named is untouched"
+    );
+    assert_eq!(
+        cancel(&mut conn, &elsewhere, QUEUE),
+        1,
+        "and it was cancellable all along, which is what separates the wrong pair from a job past \
+         cancelling"
+    );
+}
+
+/// §§ 1 and 6's `stats` on the framed dialect, over a queue walked from empty to
+/// one job pending, one claimed and one dead-lettered.
+///
+/// **This is the text worth a server most**, and [`queue::COUNTS_MYSQL`]'s doc
+/// says why: `count(case when … then 1 end)` is the aggregate filter nothing
+/// else in the roster spells, and `cast(coalesce(sum(attempts), 0) as signed)`
+/// is there because MySQL answers a `sum` over an integer column as a
+/// `decimal`. Both are claims about what a server does with a construct, not
+/// about what this module agrees with itself.
+///
+/// **The empty queue is the first assertion because it is where a `sum` would
+/// diverge from a `count`.** § 6 means zero for a queue with no rows, and a
+/// `sum(case when … then 1 end)` — the obvious spelling — answers `null` over
+/// no rows while `count` ignores the `null` its `case` falls through to. Four
+/// non-null zeros over an empty table is that difference, and it is also why
+/// this helper hands back `Option`s.
+///
+/// **The four counters are asserted as one row rather than one at a time**, so
+/// a pair swapped in the select list fails here: `pending` and `claimed` are
+/// two `case when`s differing only in an ordinal, and each is a plausible
+/// number for the other to answer.
+///
+/// **The third read is the dead-letter move, and it moves two counters at
+/// once.** § 6 takes the row out of `nvs_jobs`, so the depth subquery gains one
+/// and the `attempts` sum — which reads [`queue::JOBS_TABLE`] alone — loses the
+/// attempt that job had used. A sum written over both tables would still be
+/// `1` here.
+///
+/// **The last read is of the other queue**, which is what asks whether both
+/// `?`s were bound to the queue the caller named: the subquery counts a table
+/// the outer `where` never touches, so a text that scoped one and not the other
+/// would report this queue's dead job under a queue that has none.
+#[test]
+fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-stats";
+    const OTHER: &str = "nvs-stdlib-tests-framed-stats-elsewhere";
+    const DUE: i64 = 9_000;
+    const TAKEN: i64 = 9_500;
+    const FAILED: i64 = 9_900;
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+    clear(&mut conn, OTHER);
+
+    let four = |counts: [&str; 4]| counts.map(|c| Some(c.to_owned())).to_vec();
+
+    assert_eq!(
+        stats(&mut conn, QUEUE),
+        four(["0", "0", "0", "0"]),
+        "an empty queue answers four zeros and no nulls, which is the whole reason the counters \
+         count rather than sum"
+    );
+
+    let dying = push(&mut conn, QUEUE, DUE, "1");
+    let took = claim(&mut conn, QUEUE, TAKEN, 0);
+    assert_eq!(took.len(), 1, "one due job is one claimed row");
+    let waiting = push(&mut conn, QUEUE, DUE, "2");
+    let _ = push(&mut conn, OTHER, DUE, "2");
+
+    assert_eq!(
+        stats(&mut conn, QUEUE),
+        four(["1", "1", "1", "0"]),
+        "one job in each state, and the attempt the claim wrote is the sum's whole content"
+    );
+
+    // § 6's move, run as `a_framed_status_walks_a_job_through_both_of_the_tables_it_can_be_in`
+    // runs it: what this case adds is the counters that have to follow the row.
+    let errors = queue::dead_errors(TAKEN, "IOError", "the receipt service refused the order");
+    let lease = millis(TAKEN);
+    let split = queue::DEAD_LETTER_MYSQL;
+    conn.begin(None, false)
+        .expect("the server opened the transaction");
+    apply(
+        &mut conn,
+        split.first,
+        &[
+            Some(millis(FAILED).as_slice()),
+            Some(errors.as_bytes()),
+            Some(dying.as_bytes()),
+            Some(lease.as_slice()),
+        ],
+    );
+    apply(
+        &mut conn,
+        split.then,
+        &[Some(dying.as_bytes()), Some(lease.as_slice())],
+    );
+    conn.commit()
+        .expect("the server closed the transaction the pair was one moment inside");
+
+    assert_eq!(
+        stats(&mut conn, QUEUE),
+        four(["1", "0", "0", "1"]),
+        "the exhausted job is depth rather than work, and its attempt left `nvs_jobs` with it"
+    );
+    assert_eq!(
+        status(&mut conn, &waiting, QUEUE).as_deref(),
+        Some("0"),
+        "the job the first counter is still reporting is the one that never left"
+    );
+
+    assert_eq!(
+        stats(&mut conn, OTHER),
+        four(["1", "0", "0", "0"]),
+        "and the other queue sees its own pending job and none of this one's depth, which is both \
+         `?`s bound to the name that was asked about"
     );
 }

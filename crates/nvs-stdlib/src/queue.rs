@@ -70,15 +70,14 @@
 //!    what says those texts are ones a *server* accepts rather than ones this module agrees with
 //!    itself about: § 2's schema, § 4's claim, § 6's two write-backs and its move run against a
 //!    real MySQL and a real MariaDB there, beside the PostgreSQL cases they were written from,
-//!    and the roster and `status` — [`QUEUES_MYSQL`] and [`STATUS_MYSQL`] — do now as well, with
-//!    § 4's `skip locked` asserted over the [`Split`] that carries it. That leaves two texts no
-//!    server has ever parsed, and they are worth unequal amounts: [`CANCEL_MYSQL`] is
-//!    [`SUCCEEDED_MYSQL`]'s own shape — a conditional `update` whose whole answer is the affected
-//!    count — so a real server has already had its opinion of that shape, while
-//!    [`COUNTS_MYSQL`] carries the one construct nothing else here does, `count(case when … then
-//!    1 end)` beside a `cast(… as signed)` over the `sum` MySQL answers as a `decimal`, and is
-//!    therefore the next text worth a server. What is left after that is the two drivers that
-//!    send no statement at all, which is [`crate::db`]'s gap 2 and not this module's to close.
+//!    and § 5's three readers — [`QUEUES_MYSQL`], [`STATUS_MYSQL`], [`CANCEL_MYSQL`] and
+//!    [`COUNTS_MYSQL`] — do now as well, with § 4's `skip locked` asserted over the [`Split`] that
+//!    carries it. **Every text this module sends has now been parsed by a real server of both
+//!    framed drivers**, down to the two constructs nothing else in the roster spells: an `update`
+//!    whose whole answer is the affected count, and `count(case when … then 1 end)` beside the
+//!    `cast(… as signed)` over the `sum` MySQL answers as a `decimal`. What is left of this gap is
+//!    therefore not a text at all — it is the two drivers that send no statement, which is
+//!    [`crate::db`]'s gap 2 and not this module's to close.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -853,7 +852,7 @@ const CANCEL_POSTGRES: &str = "update nvs_jobs set state = 4 \
 /// one number, and [`Counted::touched`] is where the two spellings are read as one fact. MariaDB
 /// answers `returning` for an `insert` and a `delete` and not for an `update`, so this is the text
 /// both drivers run rather than a MySQL-only concession.
-const CANCEL_MYSQL: &str = "update nvs_jobs set state = 4 \
+pub const CANCEL_MYSQL: &str = "update nvs_jobs set state = 4 \
     where id = ? and queue = ? and state = 0";
 
 /// ADR 0084 §§ 1 and 6's `stats`, as one aggregate over one queue.
@@ -894,7 +893,7 @@ const COUNTS_POSTGRES: &str = "select \
 /// **The third counter is cast and the first two are not**, which is § 9 rather than an
 /// inconsistency: MySQL answers `sum` over an integer column as a `decimal`, so the cast is what
 /// keeps all four columns one type for one reader, while `count` is already a `bigint`.
-const COUNTS_MYSQL: &str = "select \
+pub const COUNTS_MYSQL: &str = "select \
     count(case when state = 0 then 1 end), \
     count(case when state = 1 then 1 end), \
     cast(coalesce(sum(attempts), 0) as signed), \
