@@ -1727,6 +1727,17 @@ is why" — is this file.
   command, written `valgrind … && echo OK || echo FAILED`, read red — and the sweep those runs were
   meant to clear had been failing for the whole run. Use `&&`/`||` or `if cmd; then … fi`, never `$?`;
   and put the varying part in `xargs -I@`, which substitutes before any shell sees it.
+- **The loop driver runs the `tools/loop.py` it imported when the run started, so a fix to the
+  acceptance sweep itself cannot go green until the *next* run.** Session 0004 gave the valgrind
+  sweep an anchored `tools/valgrind.supp` and moved its error exit code from 1 to 97, verified
+  twelve of the thirteen fixtures green by hand, committed — and the very next acceptance check
+  reported the same thirteen red with `exit 1`. The code on disk cannot produce that string: it
+  appends a failure only where `r.code == vg_error`, and `vg_error` is 97, so a failure reading
+  `exit 1` came from an import made before the edit existed. This is the same family as the
+  `True`-detail bullet above and a different cause — there the check was wrong, here the tree was
+  right and the *process* was old. The tell is a failure whose text the current source could not
+  emit; when that happens the check is unclosable from inside the run, so say so in the handoff
+  instead of spending the session re-fixing what is already fixed.
 
 ## Running things
 
