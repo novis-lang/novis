@@ -1,253 +1,270 @@
-# Loop goal 5 — `Core\Db` and five drivers
+# Loop goal 6 — the server, and the parity program's last gate
 
-Finish **M8's database half** — [ADR 0067](../adr/0067-core-db.md) is the design and
-[01-core-library.md](../spec/01-core-library.md) § 18 is the signature list. **One API replaces `PDO`,
-`mysqli`, `pgsql` and `sqlite3`**, over pure-Rust MySQL, MariaDB, PostgreSQL and SQL Server drivers plus
-SQLite.
+Finish **M7** — [docs/plan/m7.md](../plan/m7.md) is the scope and this file does not restate it.
+`nvs serve` accepts a request, dispatches it into a **root isolate of a request tree** — the same
+`Isolate` goal 2 built, not a second isolation path — and answers it.
 
-This is order 5 of the parity program ([goals/README.md](goals/README.md)). It is a separate goal from goal 4
-purely because `nvs-db` shares no file with `Core\Cli` — the two would have made one manifest naming every
-module in the workspace, which is the cost loop-authoring.md § 2 exists to avoid.
+This is order 5 of the milestone table and the **last goal of the parity program**
+([goals/README.md](goals/README.md)). Everything the request-facing half of `Core` was waiting on now exists,
+and `python tools/check-migration.py` reaching **100% classified** is this goal's final stage and the
+program's stop condition.
 
-**This goal has an external precondition and the driver enforces it.** ADR 0067 verifies against real
-servers, so `python tools/loop.py --chain` preflights a reachable Docker daemon before this goal's first
-session and stops the run naming it. A run that grinds for six hours against a check that cannot pass is
-worse than one that stops in the first minute.
+## Two things every session must hold
 
-**And PHP is now a real oracle for this goal, which it was not when the program was written.** The
-oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29, so the three APIs this goal replaces
-can be *run* rather than only described. Two things follow. The migration table gains 227 names that are
-all this goal's — a fifth of the whole inventory, and the reason its floor is 94% where every earlier
-goal's is in the thirties or seventies. And a `--ORACLE--` case can now put `Core\Db` beside `mysqli` or
-`pg_query` against the same server and compare, which is the only way the "PHP-compatible observable
-behaviour" half of ADR 0067 § 9's type map is checkable at all: `TINYINT(1)`, `BIGINT UNSIGNED` past
-`i64::MAX`, a zone-less `DATETIME` and `affected` versus `changed` are all rows where PHP's answer is the
-specification. Write those as differential cases, not as frozen ones.
+**`hyper`, and how it runs with no async runtime.** `hyper` with `default-features = false, features =
+["http1", "server"]` depends on `http`, `http-body`, `bytes`, `futures-core` and `pin-project-lite`, and on
+no `tokio`. h1 requires no `Executor` and `serve_connection` spawns nothing, so the connection future is
+driven by a **`block_on` on the coroutine that owns the connection** — a waker that marks the coroutine
+ready, poll, park on `Pending` — over `hyper::rt::Read`/`Write` adapters wrapping goal 2's parking stream.
+That is one polled future per connection and not a second scheduler, so ADR 0072's rejection of tokio's
+task primitives is untouched. Hand-rolling h1 was weighed and refused: `docs/plan/design.md` gives the
+reason about FCGI and it applies here — framing is where request smuggling lives, and it is not a parser
+to own.
 
-## The shape every session must hold
-
-**A driver is synchronous code over goal 2's parking stream.** `rustls` layers on the same stream for TLS.
-There is no async runtime and `sqlx`, `tokio-postgres` and `tiberius` are not usable here — not as a
-preference but structurally, because they need a runtime that spawns. What *is* usable is the wire-protocol
-half of the ecosystem: `mysql_common`, `postgres-protocol`, and our own TDS. SQLite is `rusqlite`, and it
-is [ADR 0051 § 4](../adr/0051-standard-library-tiers.md)'s **one audited C exception** — its test suite
-is orders of magnitude larger than its source and it is continuously fuzzed, which is the exceptional
-verification record that question 2 asks for. Nothing else clears that bar, and goal 4 built the
-enumeration check that says so.
-
-**Every statement is prepared, and emulated prepares do not exist in any form** (§ 1). That is what makes
-escaping-based APIs — `PDO::quote`, `mysqli_real_escape_string` — have nothing to be the correct answer
-to. A driver that interpolates inside itself has reintroduced exactly the thing this ADR removes.
+**A filesystem path is never derived from a URL at request time.**
+[ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 2 is the server's governing rule, and
+§ 4's five-step resolution is how it is kept: a request selects a **mount** from a table whose globs were
+expanded against disk **at boot**. The test that says the rule holds is not a traversal fixture — it is the
+assertion that **the set of paths the server can execute after boot equals the expanded mount table**, and
+that is stated in Stage 9 rather than left to a suite of attempted escapes.
 
 ## Stage 0 — the catch-up
 
-1. **`Core\Html::escape` answers `Core\Html\Markup`, and `Core\Html::toSource` is the one way back** —
-   [ADR 0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
-   §§ 1–3, accepted after M4 reported `Core\Html` done, which is what puts it in the catch-up class: an
-   escaped value returned as a `string` re-enters ADR 0024 § 2's concatenation and is escaped a second
-   time by § 5's sink, so every case written against the old return type is written against the wrong
-   rule. **This item shares no file with the rest of the goal and gets its own session.** The sites:
-   [`html.rs:76`](../../crates/nvs-stdlib/src/html.rs) is the row whose `return_ty` becomes
-   `CoreTy::Instance(MARKUP_NAME)`; `html.rs:241` is the body, which returns a `Value::str` today and must
-   build the carrier the way [`cli.rs:1936`](../../crates/nvs-stdlib/src/cli.rs)'s `Core\Cli\Text::plain`
-   already does; `html.rs:20-25`'s "three ways to obtain one" becomes four. **Check `.` before anything
-   else**: [30-expressions.md](../reference/lang/30-expressions.md) admits an object implementing
-   `Stringable` on either side of `.`, so if `Markup` is one, that is the real bug and it is fixed here —
-   [`operators.rs:1076`](../../crates/nvs-types/src/expr/operators.rs)'s `+` row is already correct and
-   needs nothing. `Core\Html::toSource(Core\Html\Markup $markup, string $reason): string` is the new
-   member; there is **no** `Markup as string`, and a computed or empty `$reason` is a diagnostic.
-2. **`#[Db\Derive]` and `#[Db\Field]` join `nvs_types::derive::ATTRIBUTES`.** They are deliberately absent
-   today — [derive.rs:47](../../crates/nvs-types/src/derive.rs) says so: "a closed list that names
-   something with no pass behind it is worse than a short one." It is the same pass over a second format,
-   and it goes first because § 6's `queryAs<T>` is written against it and a row-mapping written without it
-   is written twice.
-3. **An empty array is a per-thread singleton, not an allocation** —
-   [userland-gap.md](../perf/userland-gap.md) § K is the whole design, the pricing and the two things it
-   rules out; this item is only the pointer and the sites. **It shares no file with the rest of the goal
-   and gets its own session**, exactly as item 1 does, and it is in the catch-up class for the same reason
-   item 1 is: it is `nvs-runtime` work that nothing in stages 2–10 will ever open, so the alternative is
-   that it waits behind five drivers, a pool and a queue for no reason. The sites:
-   [`array.rs:1212`](../../crates/nvs-runtime/src/array.rs) is `nvs_array_new`, and it is **the only
-   function that changes** — it stops boxing a header and answers the thread-local instead;
-   [`array.rs:990`](../../crates/nvs-runtime/src/array.rs) is `make_unique`, which is what makes that
-   sound and needs no edit at all, since a singleton the thread-local holds a reference to never has a
-   refcount of 1 and therefore always separates before a write. `retain`, `release` and the teardown path
-   are untouched and **no hot path gains a pointer comparison** — if a slice finds itself adding one, the
-   design has been mis-read. [`alloc.rs:99`](../../crates/nvs-runtime/src/alloc.rs) is the const-init
-   `thread_local!` pattern to copy, and its own § *The one trap* is why the singleton is a
-   `Cell<*mut ArrayHeader>` rather than the header by value.
-   **Read § K before writing anything**: it records why this is deliberately *not* the immortal-header
-   arrangement [`string.rs:96`](../../crates/nvs-runtime/src/string.rs) § *An immortal string* gives a
-   string literal — a read takes `table.borrow()` and writes the `RefCell` flag, so a header shared
-   between threads is a race on every `count()` — and why null-is-the-empty-array is ruled out rather
-   than open. The guard is `an_empty_array_allocates_nothing` in `array.rs`, over
-   `counting_alloc::allocated_bytes`, which is `pub(crate)` and so fixes the test's home; the playbook's
-   control rule applies, since the same test must show that writing into one *does* allocate. **Price it
-   first and say the number in the commit** — § K is explicitly unpriced, and if the measurement lands in
-   the noise then deleting § K and this item, rather than landing the singleton, is the right outcome.
+Nothing. Every deferred half this goal picks up — `Core\Router::match`, `Core\Session`, `Core\Metrics`,
+`[http.*]`'s runtime behaviour, `nvs ctl` — was deferred *to* this goal by name, in the goal that deferred
+it, and is work rather than debt.
 
 ## Stage 1 — the floor
 
-M4's and goals 1–4's whole acceptance lists, **never traded.**
+M4's and goals 1–5's whole acceptance lists — five goals deep, **never traded.** This is the goal where
+that matters most: a listener is where an old assumption about isolation, capabilities or the graph copy
+gets its first adversarial traffic.
 
-## Stage 2 — the keystone: one connection, one prepared statement, one row
+## Stage 2 — the keystone: one connection, one request, one isolate
 
-**No second driver is written until the first one is green end to end.** PostgreSQL first: its extended
-protocol pays nothing extra for a prepare (§ *Context*), `postgres-protocol` is the cleanest of the wire
-crates, and it has the reset that § 13 calls the good case. The other four are then the same shape.
+1. **`crates/nvs-server` exists, and `nvs serve` answers one request.** Per-core accept and dispatch, a
+   connection on a coroutine, `hyper` h1 over the `block_on` above. **No mount table, no routing, no
+   response policy yet** — just the path from a socket to a root isolate and back.
+2. **The request is the root isolate of a request tree**, and it is goal 2's `Isolate`. m7.md says "not a
+   second isolation path" and that is the item: if this stage grows its own isolation, the state-bleed
+   suite in Stage 9 is testing two mechanisms and proving neither.
+3. **`Core\Request` and `Core\Server`, populated from it** — [ADR 0012](../adr/0012-no-superglobals.md)'s
+   replacement for `$_GET`/`$_POST`/`$_SERVER`/`$_COOKIE`/`$_FILES`. **Every value originating outside the
+   process is `tainted`** ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)), and that is
+   not decoration: goal 4 built every launderer, and this is the stage that gives them something to launder.
+4. **The shapes that are rules, not fields.** `method` reports `Get` for a `HEAD` request so a `Get`-only
+   route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` resolve from the
+   socket peer **unless a peer in `[server] trusted_proxies` asserted otherwise** (ADR 0097 § 6); `path` is
+   the request path with the matched mount's prefix **removed**, and `mount()` is what was removed.
 
-3. **`crates/nvs-db` exists, and a PostgreSQL connection is opened, TLS-wrapped and authenticated.** Over
-   goal 2's `NvsTcp` with `rustls` on it — the item is the *seam*, and it is this goal's ADR slot.
-4. **A connection is named, or built from settings, and is memoized for the request** — § 2. The settings
-   are **five types, not one loose shape**: SQLite takes a `path` and has no `host`, so a `host` on a
-   SQLite settings literal is a **compile error** rather than a silently ignored field.
-5. **`db.connect` and `db.open`, and what they mean for ADR 0058** — § 3. Connections are named in
-   root-owned config. A `connect`-named private-range endpoint succeeds with **no `net.connect` grant**,
-   while a `db.open` target in a denied range fails — the two capabilities answer different questions and
-   collapsing them is the mistake.
-6. **`LOCAL INFILE` is refused**, and the fixture that proves it stands up a rogue MySQL server and
-   asserts no file is sent. § 3's own verification names it: a malicious server can answer any query with
-   a `LOCAL INFILE` request, so this is a property of the *client*.
-7. **The connection charset is forced to UTF-8** (`utf8mb4` on MySQL/MariaDB), so text columns arrive as
-   text and nothing downstream guesses.
+## Stage 3 — the mount table
 
-## Stage 3 — the statement
+5. **The mount table, expanded at boot** — ADR 0097 § 3, and § 4's five-step resolution over it. This is
+   what makes several entry points under one document root, and vhost-per-module, cost one line each.
+6. **Prefix stripping and the relocatable module it buys**, and **static-file serving as one policy in both
+   modes** — the development server and the proxied origin differ in what they serve, not in how they
+   decide.
+7. **The `[server]` block**, § 5: four finite idle timeouts, `max_in_flight` with its pre-allocation `503`,
+   the optional health path, and `Core\Server::isDraining()`. `max_in_flight` is **the result of an
+   arithmetic against the memory budget** rather than a number someone picked — ADR 0106 amended § 5 to say
+   so, and picking a number is the regression.
+8. **A mount routes and carries nothing else; policy is the per-app block's** — § 10. A mount that grows a
+   limit or a grant has re-implemented goal 3's `[[app]]`.
 
-8. **Five ways to run a statement, and only one of them streams** — § 4. Large-result streaming at
-   constant memory, and a second statement on a busy connection is a `LogicError` — SQL Server's MARS
-   could lift that restriction and it is deliberately not lifted, so that code written against one driver
-   runs on all four.
-9. **`?` or `:name`, and one parameter is one value** — § 5. The rewriter maps to each driver's own form
-   (`$1` on PostgreSQL, `@p1` on SQL Server) and **skips string literals, comments and PostgreSQL's `::`
-   cast**; a `:name` used twice binds one value once, which positional form cannot express. `inList`
-   expansion and its empty-list throw ride here. The `::` cast and a jsonb `?` operator **in the same
-   query** is the case that catches a naive rewriter.
-10. **A row is dynamic or declared, and the requested type drives the conversion** — § 6. `queryAs<T>`
-    throws **naming the column** for a type mismatch, a missing column and a NULL in a non-nullable field.
-    Naming the column is the item: a row mapper that throws without one is unusable at 40 columns.
+## Stage 4 — the response
 
-## Stage 4 — the type map
+9. **`Core\Response`'s body surface is five typed members** — `html`, `json`, `text`, `bytes`, `sendFile` —
+   each setting its own `Content-Type`, with `echo` the **HTML-only sixth path** and **mixing the two a
+   compile error** ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 4).
+   This is where a JSON body stops being an `echo` the auto-escape sink would corrupt.
+10. **The `echo` binding table is enforced from here** — § 3. The HTML sink is attached **by a request and
+    by nothing else**, so a scheduled script's and an isolate's `echo` take the terminal sink's
+    neutralization instead. Goal 4 built that terminal sink; this is what decides which one is attached.
+11. **The response policy applies with nothing configured** —
+    [ADR 0074](../adr/0074-http-defaults-safe-and-finite.md) §§ 1–4: secure headers, closed CORS,
+    `Secure; HttpOnly; SameSite=Lax` cookies, every directive `Runtime` so a request may change it for
+    itself and `setHeader` still wins. Goal 3 landed the *boot-time* refusals; this is the runtime half.
 
-11. **Every row of § 9's map round-trips.** The rows that are rules rather than mappings, each of which
-    has its own case: MySQL's `TINYINT(1)` reads `int` **and** `bool` and throws for a stored `7`;
-    `BIGINT UNSIGNED` past `i64::MAX` reads `uint` and throws for `int`; a `DECIMAL` into a `float` field
-    **throws** rather than rounding; a zone-less column reads as `DateTime` in the declared zone and a
-    `TIMESTAMPTZ` ignores it; `affected` is the matched count on all four drivers while `changed` is
-    non-null only on MySQL/MariaDB.
-12. **"Everything is a string" does not happen.** § *Context* names it as an artefact of the MySQL text
-    protocol and the reason `$row['id'] == 1` silently fails in PHP. A driver that returns strings has
-    reproduced the defect this API exists to remove.
-13. **Two things come from goal 1 and goal 4**: `Core\Time`'s types for the date columns, and `Core\Json`
-    for the JSON ones — which are **not** auto-decoded.
+## Stage 5 — routing, sessions, uploads
 
-## Stage 5 — transactions
+12. **`Core\Router::match`, over the table goal 1 compiled**, plus `methodsFor` and `urlAbsolute`. ADR 0102
+    § 1: **the match happens once, before the handler, and travels on the request** as
+    `Core\Request::route()` — which is what the CSRF check and the `route` metric label read rather than
+    matching again. § 2: a missing path and a refused verb are different answers (empty ⇒ 404, else 405 +
+    `Allow:`).
+13. **§ 7's mount captures are how one table serves many tenants**, and § 8's split: CSRF is the server's,
+    the access decision is the dispatcher's.
+14. **`Core\Session`**, which **may not be backed by `Core\Cache`'s local tier** — ADR 0059 § 4 names it as
+    a hole that tier must not fill, and a session that vanishes because a core evicted it is an
+    authentication bug.
+15. **Uploads** — [ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+    whole: `files()` is a lazy iterator and **the only way to receive an uploaded file**; a part is a file
+    part iff `Content-Disposition` carries `filename`; three ways to consume one; goal 4's
+    `Core\IO::writeStream` is where it reaches disk; **there is still no temp file and no
+    `move_uploaded_file`**. Its two caps, `request_body` and `upload_total`, are new rows in goal 3's
+    `[limits]`/`[limits.hard]` pair, and `upload_total` is refused **pre-dispatch** when `Content-Length`
+    already exceeds it.
+16. **`bodyStream()` is the raw-body alternative to `body`**, exclusive with it and with `files` on one
+    request (ADR 0097 §§ 3, 6, 7, 8).
 
-14. **A transaction is a closure, and `Transaction` is a `Queryable` rather than a second surface** — § 7.
-    Savepoint nesting, and **`rollBack` surviving an intervening `catch (Throwable)`**, which is the case
-    a naive implementation loses because the catch swallows the signal the rollback was waiting on.
-15. **`{retries: n}` against an induced deadlock**, and `SerializationFailure` is the kind that makes it
-    safe to retry at all.
-16. **One `DbError`, with a normalised `kind`** — § 8, across four drivers and **five dialects**: MariaDB
-    needs its own code table and not MySQL's. SQLite's `SQLITE_BUSY`/`SQLITE_LOCKED` map to the same kinds
-    everything else does. `sqlState` and `driverCode` stay available for what normalisation does not cover,
-    and **a `DbError`'s message contains no bound value.**
+## Stage 6 — what runs beside a request
 
-## Stage 6 — the other four drivers
+17. **The `[[schedule]]` ticker** — [ADR 0073](../adr/0073-scheduled-work-is-config.md): each entry
+    fires as a **root** isolate through goal 2's `Isolate`, with the fleet lease over goal 4's shared
+    store. Goal 3 landed its boot-time validation; this is the runtime half.
+18. **`Core\Task::afterResponse`'s tree stays alive past the connection**, bounded by `[deferred]
+    max_concurrent` — ADR 0072 §§ 6–7. Goal 2 built the member under compiled-in defaults; this is where
+    the connection actually ends while the tree does not.
+19. **The observability export** — [ADR 0076](../adr/0076-observability-export.md): `Core\Metrics`, the
+    default series, W3C `traceparent` **inbound**, with a trace id generated for every request **whether
+    sampled or not**, and spans derived from ADR 0041's existing event kinds **with no probe added to ADR
+    0018's measured path**. Goal 4 built the outbound half; this closes the loop.
 
-17. **MySQL, MariaDB, SQL Server, SQLite**, each to the shape Stage 2 set. MariaDB is a **distinct driver
-    and not a MySQL flag** — § *Context* argues it: `RETURNING`, a bulk-execute protocol MySQL lacks, a
-    native `UUID` type, and its own error-code table. `executeMany` uses `COM_STMT_BULK_EXECUTE` on
-    MariaDB 10.2+.
-18. **MariaDB's `ed25519` and `parsec` authentication plugins.** ADR 0051 § 4 named this case in advance
-    so it would be answered by the test rather than by convenience: an authentication handshake handles
-    attacker-reachable data, so question 2 applies, and the answer is **a Rust implementation of the
-    plugin, or a documented refusal to support that auth method** — never a C dependency.
+## Stage 6b — persistent connections
 
-## Stage 7 — the pool
+[ADR 0083](../adr/0083-persistent-connections-are-isolates.md) whole. [m7.md](../plan/m7.md) places
+it in this milestone and no stage above carries it. A connection is a **root isolate** opened by a request
+that then ends normally, so this stage adds a lifetime, not an isolation path — and item 25's state-bleed
+suite gains connections as its third parameterisation rather than a second suite.
 
-19. **The pool is per core, keyed as `connect`/`open` already key** — § 13. Per core because a heap is
-    only ever touched by one thread and a cross-core pool would need atomics on the path a request takes.
-20. **The reset is a security boundary, not an optimisation.** PostgreSQL's targeted reset preserves the
-    statement cache; MySQL's and SQL Server's protocol resets do not; **a failed reset destroys the
-    connection rather than returning it.** A connection returned to the pool carrying one request's state
-    is one request reading another's, which is why this is stated as a boundary.
+19a. **The upgrade seam.** `hyper`'s `on_upgrade` hands back the `Upgraded` io, which downcasts to the
+    coroutine's own `NvsStream`; RFC 6455 framing is `tungstenite` over that stream — it is a plain
+    `Read + Write`, so the sync crate fits with no adapter — with its `max_frame_size` and
+    `max_message_size` set from § 7's caps. Framing is not owned, for the reason h1 is not: it is where the
+    smuggling-class bugs live. The connection isolate is goal 2's `Isolate` with the socket moved in, and
+    **the upgrading request's arena is released while the connection is open** — the memory probe in the
+    ADR's *Verification*, and the claim that a connection is not a held request.
+19b. **`Core\Socket::upgrade` and the entry rule it shares with `spawn script`.** `upgrade` takes ADR 0006's
+    operand — a file path, or a static method — and 0006's options as ordinary named arguments (`args:`,
+    `limits:`, `grants:`, `on:`), and returning it is what performs it. The operand's method half lands
+    **first at `spawn script`**: the parser, the type check that binds `args:` to the entry's parameters by
+    name and refuses an `fn` literal or a `callable`-typed variable with a diagnostic naming the method
+    form, and a function→`Program` arm beside `program_over` in `crates/nvs-cli/src/script.rs`; `upgrade`
+    then reuses all three rather than growing a check of its own.
+19c. **`Core\Socket::current`, `Socket\Message`, `send`, `receive`, `close`** — ADR 0083 § 3. `receive()`
+    is **the one wait**, over the peer *and* the connection's subscribed topics, answering a peer frame
+    (payload `tainted`) or a topic delivery (the copied value and the topic's name); there is no
+    `Core\Topic::receive()` and no two-task scaffold in a connection script. `send` suspends until the frame
+    is buffered and throws on the send timeout.
+19d. **`Core\Topic`** — § 4, the one place thread-per-core is crossed on purpose. A publish serialises
+    once with Stage 5's byte carrier (goal 2 item 16) and each subscriber unserialises into its own arena;
+    the wake across cores is `Reactor::remote_wake`; the per-subscriber queue is bounded and **overflow
+    closes that subscriber with a defined code**, never blocking the publisher. A `tainted` topic name and
+    a `secret` value are compile errors, the fixtures goal 4's qualifier suite already has a shape for.
+19e. **`Core\Sse::upgrade`** — § 5: the same isolate with no `receive`, and the line it draws — a stream
+    that ends with its request is a streaming response (Stage 4) and stays in the request isolate.
+19f. **Bounds and lifetimes** — § 7: connections per process, frame and message size, idle, lifetime and
+    send timeouts, subscriber queue depth — every one finite with nothing configured, on the timer table
+    goal 2 built, asserted the way ADR 0074's defaults are. A connection exceeding its memory, CPU or
+    lifetime budget closes with the defined code and reports as that, never as an out-of-memory.
+19g. **Reload and drain** — § 7, over items 20 and 22: an open connection keeps the compiled unit it began
+    with and one opened after the swap runs the new one; `nvs ctl reload` and graceful shutdown close every
+    connection with the defined code after the drain period, and none outlives it.
 
-## Stage 8 — `Core\Queue`
+## Stage 7 — the operator's surface
 
-21. **[ADR 0084](../adr/0084-durable-background-jobs.md), whole**: the jobs and dead-letter tables,
-    `nvs queue migrate`, per-backend `SKIP LOCKED`-shaped claiming, the visibility timeout, bounded retries
-    with jittered backoff.
-22. **The transactional-enqueue property is the reason for the whole design** — § 3: an enqueue commits
-    with your write, so a job never exists for a row that was rolled back. A queue that is a separate
-    broker cannot have that property, and § 8 says why there is no broker.
-23. **Queued work and scheduled work are different** — § 7. `[[schedule]]`'s validation landed in goal 3;
-    this is the other half and the two are not unified.
+20. **The control socket and `nvs ctl`** — [ADR 0078](../adr/0078-config-reload-and-control-socket.md)
+    §§ 3, 6: a local unix socket (named pipe on Windows), created `0600`, **refused if its directory is
+    world-writable**, speaking HTTP so a network listener would later be a second `bind` rather than a
+    second protocol. `nvs ctl reload` is its **only** operation and there is **no control port in either
+    direction of configuration**. Goal 3 built the snapshot this swaps.
+21. **`nvs service`** — [ADR 0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md),
+    the only copy. SCM registration on Windows with the hosted argv in a quoted absolute `ImagePath`, a
+    per-service virtual account, `STOP_PENDING` from the graceful drain and `PARAMCHANGE` into the reload;
+    a printed hardened systemd unit on Linux, written to disk only on an explicit `--install`. **The
+    installer is a sink and fails closed**: a closed `serve`/`run` allowlist, no relative path, no install
+    whose output would go nowhere, no password on a command line, and a refusal to install from an ADR 0048
+    bundle.
+22. **Hot-reload of the compiled-unit cache** — [ADR 0017](../adr/0017-hot-reload-without-restart.md),
+    the only copy: a per-path pointer over goal 3's content-addressed cache, revalidated lazily and
+    rate-capped, **swapped without ever blocking a request-serving core**, with `validate`'s startup default
+    selected by the run mode. This is what makes "no restart to see an edit" true of a running server.
 
-## Stage 9 — what `nvs check` proves, and the trace
+## Stage 8 — the testing surface the server unlocks
 
-24. **§ 10's three compile-time diagnostics on a literal query**: a placeholder-count mismatch, mixed
-    placeholder styles, and an `open` host matching no grant. Plus the security half: **a `tainted` value
-    at a query-text parameter is a compile-time diagnostic and the same value at a bound parameter
-    compiles**, and a **two-statement literal query** is a diagnostic. A `tainted` `Settings.host` is a
-    diagnostic naming `Core\Taint::assertTrusted`.
-25. **A query emits a `query` span with no parameter values anywhere in it** — § 11.
+23. **`Core\Test::request`'s in-process dispatch through the compiled route table**, `#[Test(db:)]`'s
+    rolled-back transaction, `#[Test(server: true)]`'s ephemeral listener, and inline snapshots with their
+    source updater — [ADR 0079](../adr/0079-testing-is-a-language-feature.md) §§ 14, 17, 18. Each waited
+    for a capability that now exists, and `#[Test(db:)]` waited for goal 5.
 
-## The harness this goal owes, and it is Stage 2's first slice
+## Stage 9 — the load-bearing assertions, and the program's last gate
 
-Two files that do not exist, and the goal cannot verify itself without them. They are named here rather
-than left to be invented at 2 a.m. by the session that first needs a server:
+24. **10k concurrent cold requests for the same file compile it exactly once**, asserted via a compile
+    counter, with no stalled requests. This is m7.md's *core requirement* and it is the one number the
+    whole hot-reload design exists to make true.
+25. **A state-bleed suite proves nothing leaks between requests, and the same suite runs across an isolate
+    boundary** — which the shared `Isolate` makes a *parameterisation* rather than a second suite. If it is
+    two suites, item 2 was not done.
+26. **The set of paths the server can execute after boot equals the expanded mount table.** ADR 0097's
+    governing rule, stated as a test rather than as a suite of attempted escapes.
+27. **A multipart body far larger than any in-memory bound is received in full at bounded resident
+    memory**, asserted against a high-water mark — ADR 0105's load-bearing case.
+28. **Path traversal, header injection and request-smuggling suites pass**, and a request whose isolates
+    are still running when the client disconnects leaves none of them behind.
+31. **Live bytes are O(in-flight) under a cycle-building load.** A soak of many thousands of requests,
+    each building object cycles, holds a flat live-byte measure across the run — the server-side proof of
+    [ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md) § 2's teardown sweep, which goal
+    4's stage 11 lands. Added 2026-09-01, when the drain-only teardown was found to retain cycles for the
+    life of the process; numbered out of sequence because item 30 was already written as the program's
+    last gate and stays it.
+29. **`wrk`/`oha` throughput against PHP 8.5 + FPM + opcache, recorded in `benches/`.** A number, committed.
+30. **`python tools/check-migration.py` reports 100% classified.** Every one of the oracle build's 1151
+    functions and 253 types is a `member`, `language` or `dropped` row; every `member` row's member is
+    registered; every one of them has a conformance case. **This is the parity program's stop condition**
+    and the last check in the chain.
 
-- **`tests/db/compose.yaml`** — MySQL, MariaDB, PostgreSQL, SQL Server and Redis, each pinned to a version
-  and each with a healthcheck, so `docker compose up -d --wait` means *healthy* rather than *started*.
-  Redis is there because goal 4's shared cache tier and goal 6's fleet lease both use it, and one compose
-  file is better than two that drift.
-- **`python tools/db-matrix.py`** — runs ADR 0067's per-driver list against those servers and prints one
-  `<driver>: ok` line each. It is a harness rather than a test: the assertions are `nvs-db`'s own, and
-  this is what points them at five endpoints and reports which one failed.
+## The harness this goal owes
 
-Write both before the first driver, not after: a driver with no server to run against is a driver whose
-tests are all mocks, and that is the one shape ADR 0067's *Verification* refuses.
+**`python tools/bench.py --serve-vs-fpm --record benches/serve.json`** — item 29. m7.md asks for the
+number to be *recorded*, not merely produced, so the flag writes it and the check asserts it was written.
+PHP 8.5 is already on this machine and in the WSL distro as the differential oracle; FPM and opcache are
+what this adds.
 
 ## Acceptance
 
-**The checks live in [`5-database.toml`](goals/5-database.toml), and only there.** Four of the five drivers are
-verified against real servers in containers, brought up once per run and memoized against `crates/nvs-db`
-like the WSL leg already is.
+**The checks live in [`6-server.toml`](goals/6-server.toml), and only there.**
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
 - **Decide and record; never `BLOCKED` for a design call.**
-- **Stage 0's item 1 opens no ADR — its ADR is already written.**
-  [0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
-  is accepted and folded into 0024 §§ 3 and 5. `Markup as string` was considered and refused, and carriers
-  for `Core\Uri`, `Core\Db::quoteIdentifier` and `Core\Regex::quote` were considered and refused — neither
-  is a question to re-open, and both are argued in that ADR's *Alternatives rejected*.
-- **One ADR slot: the driver crate's shape and its wire I/O** (Stage 2, item 3), and it is that stage's
-  first slice. Which protocol crate backs which driver, how TLS layers on the parking stream, how a
-  connection's busy state is tracked, and how the five drivers share code without a trait that flattens
-  their differences. ADR 0067 specifies *behaviour* and deliberately does not specify this.
-- **No async runtime, and this is structural rather than a preference.** `sqlx`, `tokio-postgres` and
-  `tiberius` need a runtime that spawns. If a driver appears to require one, that is a real `BLOCKED`
-  naming the driver — not a judgement call, and not a reason to add `tokio` behind a feature flag.
-- **Emulated prepares do not exist in any form.** A driver that interpolates a value into SQL internally
-  has reintroduced the thing ADR 0067 removes, however careful the escaping.
-- **MariaDB is its own driver.** Treating it as a MySQL flag is a design error ADR 0067 argues at length
-  and not a simplification to rediscover.
-- **A failed connection reset destroys the connection.** Returning it to the pool is one request reading
-  another's state.
-- **PostgreSQL first, then the rest.** Its extended protocol pays nothing extra for a prepare, so the
-  first driver is the one that exercises the design rather than the driver's own quirks.
-- **SQLite's C dependency is the one audited exception**, under ADR 0051 § 4's second question, and goal 4
-  built the enumeration check that fails on any *addition* to that list. A second C dependency is a
-  `BLOCKED`.
-- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4, with
-  the three obligations a Rust dependency owes.
+- **One ADR slot: the `block_on` seam** (Stage 2, item 1), and it is that stage's first slice. How a
+  `hyper` connection future is driven from a coroutine, what the waker does, what happens when the future
+  wakes on a core other than the one that parked it, and why this is not an executor. Every other design in
+  this goal is already argued — 0012, 0017, 0072, 0073, 0074, 0076, 0077, 0078, 0079, 0088, 0093, 0097,
+  0102, 0105.
+- **`hyper` stays, and h1 only.** No TLS listener and no h2c — ADR 0097 § 1 dropped both, and a proxy
+  terminates TLS. If a capability appears to need h2, that is Backlog, not a scope decision.
+- **One isolation path.** The request is goal 2's `Isolate`. A second one makes Stage 9's state-bleed suite
+  meaningless, which is why item 2 is stated as an item rather than assumed.
+- **`max_in_flight` is an arithmetic, not a number.** ADR 0106 amended ADR 0097 § 5 to say so.
+- **`tungstenite` is the framing crate**, sync, over `NvsStream` with no adapter, picked under ADR 0051
+  § 4's pre-authorization; owning RFC 6455 is refused for the reason owning h1 is.
+- **`receive()` selects over both sources** — ADR 0083 § 3 — and an isolate's entry is a path or a
+  static method with `args:` bound to its parameters — ADR 0006. Both are decided in those bodies; a
+  session that wants a `Core\Topic::receive()`, an `fn` literal entry or a capturing closure has found the
+  decision, not a gap.
+- **`Core\Session` may not use the local cache tier.** ADR 0059 § 4.
+- **A mount routes and carries nothing else.** Policy is the per-app block's, which goal 3 built.
+- **`nvs ctl reload` is the socket's only operation**, and there is no network-reachable control surface in
+  either direction of configuration. ADR 0078 § 6.
+- **No session installs a service, and item 21's checks are deliberately not end-to-end.** Registering
+  with the SCM needs administrator rights the loop does not have and should not be given, and a systemd
+  unit written to disk on an unattended box is a change nobody asked for. What is checked is what can be
+  checked without either: **every refusal** — the closed `serve`/`run` allowlist, a relative path, a
+  password on a command line, an install whose output would go nowhere, an ADR 0048 bundle — plus the
+  *shape* of what would be installed: a quoted absolute `ImagePath` on Windows, a printed unit on Linux
+  with `--install` withheld. That is the whole of ADR 0093's *Verification* that does not require a
+  privileged machine, and a session that finds the coverage thin has found this decision rather than a
+  gap. Real installation is a manual gate, fired by the user on a machine they chose.
+- **Raw/unparsed body access for an arbitrary content-type is an open gap**, flagged by ADR 0024's
+  *Revisiting* and narrowed by m7.md to what `body()` and `bodyStream()` do not already answer. If a
+  session finds it genuinely needed, that is a decided-and-recorded call in `Core\Request`'s module doc —
+  not a new ADR and not a `BLOCKED`.
+- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4.
 
 ## What this goal does not touch
 
-`Web\Migration`, which [ADR 0082](../adr/0082-the-first-party-framework.md) § 7 records as deliberately
-blocked until an ADR closes it — ordering, transactional DDL, fleet locking, reversibility, safety against
-a live multi-tenant database. `nvs queue migrate` is **not** that: it creates two tables this ADR
-specifies, and a session that finds itself generalising it has drifted into the blocked design. The
-listener and everything request-shaped (goal 6), including `#[Test(db:)]`'s rolled-back transaction, which
-needs the test-server half that arrives with it.
+The extension system (M9), `nvs fmt` and the editor (M4B and M10), the transpiler (M11), packages (M15)
+and the `nvs/web` package (M16). `Web\Migration` stays blocked by ADR 0082 § 7. A session that reaches one
+of these puts it in `## Backlog` and moves on — and when the last check here goes green, the parity
+program is finished and the chain has no next goal.

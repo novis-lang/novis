@@ -2,57 +2,52 @@
 
 ## State
 
-**M8 goal 5, stage 10. The driver's failing acceptance check is closed**: the differential suite is
-**256** against its floor of 255. The six new cases are `tests/differential/core/db-*.nvst`, each
-running a live SQLite `Core\Db` with PHP's own `SQLite3` as the oracle — `execute`/`query`'s counts,
-a bound value as data, § 7's closure against a hand-written `BEGIN`/`COMMIT`/`ROLLBACK`, `inList`
-against the implode-of-question-marks idiom, `executeMany` against the loop it replaces, and
-`connect`'s memoization as an `--ORACLE-DIVERGES--` because `mysqli_connect` has no behaviour here
-to compare against.
+**Goal 6 — the last goal of the parity program — has just started; nothing of it has landed yet.** M4 and
+goals 1–5 reached their whole acceptance lists and all six are now this goal's Stage 1 floor. That floor
+matters more here than anywhere else in the chain: a listener is where an old assumption about isolation,
+capabilities or the graph copy gets its first adversarial traffic.
 
-**A `.nvst` case can run a real database, and this is the technique the next group rests on** — the
-playbook bullet owns it, along with why the queue is the one thing it does *not* reach.
+**`crates/nvs-server` does not exist yet.** Two things every session holds:
 
-**The previous handoff's next group is not writable as it was specified, and none of it is missing
-work.** Item 1's claim is already pinned one layer down by
-`crates/nvs-stdlib/src/queue.rs:3204`'s `every_stats_counter_reads_the_slot_its_member_is_named_for`,
-which sweeps all four counters across member name, slot roster and `*_AT` index — a `.nvst` could
-only restate it, and could not run `stats()` at all. Items 2 and 3 are runtime queue claims and are
-out of reach for the same reason. `python tools/gaps.py --coverage` ranks `Core\Queue\Stats` thin
-because it counts `.nvst` cases, which is the wrong denominator for a class no case can call.
+- **`hyper` runs with no async runtime.** `default-features = false, features = ["http1", "server"]` brings
+  no `tokio`; h1 needs no `Executor` and `serve_connection` spawns nothing, so the connection future is
+  driven by a `block_on` on the coroutine that owns the connection, over `hyper::rt` adapters wrapping
+  goal 2's parking stream. One polled future per connection is not a second scheduler.
+- **A filesystem path is never derived from a URL at request time.** ADR 0097 § 2 is the governing rule and
+  § 4's five-step resolution is how it is kept. The test that says it holds is Stage 9's set equality, not
+  a traversal suite.
 
-**Orientation gap, carried:** `[context]` still has no field that can name a `docs/spec/` file.
+Goal 5's containers are still up — the session store and the fleet lease both need Redis, and
+`#[Test(db:)]` needs a database.
 
 ## Next group
 
-**One file set: `tests/conformance/core/db-*.nvst`, each a live SQLite case over the block in the
-playbook bullet, with the registry rows in `crates/nvs-stdlib/src/db.rs`.** These are the three
-thinnest `Core\Db` members `python tools/gaps.py --coverage` names that are now reachable at all,
-and each adds a boundary rather than another row of the same shape.
+**Stage 2: a socket to a root isolate and back, and nothing else.** No mount table, no routing, no response
+policy — those are Stages 3 and 4, and building them into the first connection is how the seam ends up
+untestable.
 
-- [ ] **`Core\Db\Write::changed` against `affected`, over a write where the two differ.** The pair
-      is the whole reason `changed` exists, and an update that sets a column to the value it already
-      holds is where SQLite's own counting separates them. `crates/nvs-stdlib/src/db.rs:1711`
-      (`changed`), `crates/nvs-stdlib/src/db.rs:1702` (`affected`), extending
-      `tests/conformance/core/db-write-tells-an-absent-count-from-a-zero-one.nvst`.
-- [ ] **`Core\Db\Column::nullable` read off a declared schema, both sides of the bound.** A `not
-      null` column, a plain one, and a computed column the declaration does not describe — ADR 0067
-      § 9's last sentence is what decides the third. `crates/nvs-stdlib/src/db.rs:1783`
-      (`nullable`), `crates/nvs-stdlib/src/db.rs:1774` (`type`), beside
-      `tests/conformance/core/db-columns-describe-a-statement-and-not-a-row.nvst`.
-- [ ] **`Core\Db\Transaction::executeMany` rolls back whole where the connection's own does not.**
-      § 4 makes a batch not a transaction; inside § 7's closure it is one, and the failing set
-      therefore takes the sets before it with it. `crates/nvs-stdlib/src/db.rs:926`
-      (`Transaction::executeMany`), `crates/nvs-stdlib/src/db.rs:762` (`Connection::executeMany`) —
-      `tests/differential/core/db-execute-many-sums-the-counts-a-hand-written-loop-of-sqlite3stmt-execute-sums.nvst`
-      pins the outside half already.
+One file set: `crates/nvs-server/src/`, `crates/nvs-host/src/stream.rs`,
+`crates/nvs-host/src/isolate.rs`.
+
+- [ ] **The `block_on` seam**, which carries this goal's one pre-authorized ADR slot and is its first
+      slice. How a `hyper` connection future is driven from a coroutine, what the waker does, what happens
+      when the future wakes on a core other than the one that parked it, and why this is not an executor.
+      Write the ADR, then the code; the number comes from `python tools/brief.py`, re-checked immediately
+      before the file is created.
+- [ ] **`nvs serve` answers one request**, per-core accept and dispatch, a connection on a coroutine.
+- [ ] **The request is the root isolate of a request tree** — goal 2's `Isolate`, not a second isolation
+      path. This is stated as its own item rather than assumed because Stage 9's state-bleed suite is a
+      *parameterisation* over one mechanism; if it ends up two suites, this item was not done.
+- [ ] **`tokio_appears_in_neither_the_manifest_nor_the_lockfile` still passes** with `hyper` in the tree.
+      The claim has always been about a runtime rather than about the `Future` trait, and ADR 0099's own
+      bullet now says so — this is the check that keeps the distinction honest rather than assumed.
 
 ## Backlog
 
-- The queue's depth items must change layer, not wording: `cancel` and `status`'s runtime claims are
-  `-p nvs-stdlib` `#[test]`s or `tests/db/` fixtures (`crates/nvs-stdlib/src/queue.rs`).
-- `[context]` gains no `docs/spec/` selector (`docs/agent/loop-goal.toml`).
-- `python tools/gaps.py --differential` now names only `Core\Db::quoteIdentifier`, whose twin needs a
-  connection PHP will not give without a server (`tools/gaps.py`).
-- `Core\IO\Metadata` is the thinnest class in the tree at depth 1.0, and is outside this goal
-  (`docs/agent/loop-goal.toml`).
+- Raw/unparsed body access for an arbitrary content-type is an open gap ADR 0024's *Revisiting* flags,
+  narrowed by m7.md to what `body()` and `bodyStream()` do not already answer. Decided-and-recorded in
+  `Core\Request`'s module doc if it comes up — not a new ADR and not a `BLOCKED`.
+- No TLS listener and no h2c: ADR 0097 § 1 dropped both and a proxy terminates TLS.
+- When Stage 9's last check goes green — `check-migration.py` at 100% — **the parity program is finished**
+  and the driver switches to goal 7, the post-parity temp sweep (ADR 0131), the chain's last entry. The
+  milestone table's order 6 is M4B, whose staged goal is `docs/agent/next-goal-m4b.md`.
