@@ -2,11 +2,18 @@
 //! durations — with the two magnitudes that would leave a connection unbounded — and `listen` as
 //! the sockets to bind.
 //!
-//! Those two are the only parts of `[server]` that resolve to something other than what was
-//! written *here*, so this module is small on purpose: everything else in the block is a path or a
-//! word read directly off [`crate::tree::Server`]. The third thing that resolves is the mount
-//! table, and it is [`mod@crate::mount`]'s because it needs a disk to expand a glob against —
-//! [`validate`] runs the half of it that does not.
+//! Those two and `max_in_flight` are the only parts of `[server]` that resolve to something other
+//! than what was written *here*, so this module is small on purpose: everything else in the block
+//! is a path or a word read directly off [`crate::tree::Server`]. The fourth thing that resolves is
+//! the mount table, and it is [`mod@crate::mount`]'s because it needs a disk to expand a glob
+//! against — [`validate`] runs the half of it that does not.
+//!
+//! **`max_in_flight` resolves to three numbers rather than to one**, which is
+//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! § 13: the written ceiling, the cap one request may hold, and what this machine has. [`Capacity`]
+//! is those three and nothing more — the division is `nvs_server::admit`'s, because the clamp is an
+//! admission decision and the counter that enforces it lives beside it. This module is the half
+//! that reads a file and asks the operating system one question; it decides nothing.
 //!
 //! **All four are *idle* waits and none of them is a total.** A slow 2 GB upload completes while a
 //! stalled socket does not, which is § 5's own sentence and the reason the server refreshes a
@@ -291,6 +298,196 @@ fn classify(entry: &str, origins: &BTreeMap<String, Origin>) -> Result<Listen, D
     })
 }
 
+/// § 5's own number, transcribed rather than chosen — the ADR writes it out.
+const DEFAULT_MAX_IN_FLIGHT: u64 = 10_000;
+
+/// The three numbers ADR 0106 § 13's admission arithmetic is over: what the file asked for, what
+/// one request may hold, and what this machine has.
+///
+/// Deliberately **not** the answer — the division, the clamp and the log line are
+/// `nvs_server::admit`'s, because the ceiling is enforced by a counter that has to live beside the
+/// thing it refuses. What this type says is that all three inputs exist and where each came from;
+/// a configuration crate that also decided the ceiling would be deciding an admission policy from
+/// the wrong end of the process.
+///
+/// `per_request` and `budget` are both `Option` because both are genuinely absent on real
+/// deployments, and the absences mean different things: a tree that states no `[limits] memory` has
+/// no per-request cap for a concurrency ceiling to have a relationship *with*, and a host that
+/// answers no budget has not been asked a question this crate can put to it. § 13's arithmetic is
+/// inert either way, and inert means the configured number stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Capacity {
+    /// `[server] max_in_flight`, or § 5's own `10000` where the key is unwritten.
+    pub configured: u64,
+    /// The bytes one request may hold at its most: `[limits.hard] memory` where a ceiling is
+    /// written, and otherwise the `[limits] memory` a request starts with. `None` where the tree
+    /// states neither, and where `[limits.hard] memory = false` removed the ceiling — ADR 0005's
+    /// spelling for "no ceiling" is exactly the case § 13 has nothing to divide by.
+    pub per_request: Option<u64>,
+    /// What this machine affords the process, as [`memory_budget`] read it.
+    pub budget: Option<u64>,
+}
+
+/// § 5's `max_in_flight` and the two numbers § 13 divides against it.
+///
+/// A tree with no `[server]` block is § 5's default ceiling and not an absence, for [`waits_for`]'s
+/// reason. The per-request cap is read from `[limits]` rather than from `[server]` because that is
+/// where it is written; this function is the one place the two blocks are read together, which is
+/// the whole of what § 13 added.
+///
+/// # Errors
+///
+/// `E0622` for a `max_in_flight` of `0`, and whatever [`mod@crate::value`] refuses a `[limits]`
+/// memory setting for. Nothing here refuses a configured ceiling the budget cannot afford: § 13
+/// clamps that one and logs it, which is `nvs_server::admit`'s and is a decision rather than an
+/// omission — a server that will not boot because two directives disagree is the worse outage.
+pub fn capacity_for(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Capacity, Diagnostic> {
+    let configured = match config
+        .server
+        .as_ref()
+        .and_then(|server| server.max_in_flight)
+    {
+        None => DEFAULT_MAX_IN_FLIGHT,
+        Some(0) => {
+            return Err(Diagnostic::error(
+                code::E_NO_ADMISSION,
+                "`server.max_in_flight` is `0`, which is a server that refuses every request",
+            )
+            .with_note(format!(
+                "the ceiling is the point at which a request is answered `503` instead of being \
+                 run, so a ceiling of zero is that answer to all of them{}",
+                origin_note(origins.get("server.max_in_flight"))
+            ))
+            .with_help(
+                "write how many requests may be in flight at once, as `10000`, or leave \
+                 `server.max_in_flight` out to keep ADR 0097 § 5's own default",
+            ));
+        }
+        Some(written) => written,
+    };
+    Ok(Capacity {
+        configured,
+        per_request: per_request_cap(config, origins)?,
+        budget: memory_budget(),
+    })
+}
+
+/// The bytes one request may hold, as the tree's `[limits]` states them.
+///
+/// The *hard* ceiling wins where one is written, because that is the number a request can actually
+/// reach: `[limits] memory` is only where it starts, and a request that raises itself to the
+/// ceiling is what the machine has to hold. A cap of zero is read as no cap rather than divided by
+/// — a request that may hold nothing is a tree that is wrong about something else, and this
+/// function is not the place that says so.
+fn per_request_cap(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Option<u64>, Diagnostic> {
+    let Some(limits) = config.limits.as_ref() else {
+        return Ok(None);
+    };
+    let (key, written) = match limits.hard.as_ref().and_then(|hard| hard.memory.as_ref()) {
+        Some(hard) => ("limits.hard.memory", hard),
+        None => match limits.memory.as_ref() {
+            Some(start) => ("limits.memory", start),
+            None => return Ok(None),
+        },
+    };
+    let quantity = Quantity::parse(key, Unit::Bytes, written)
+        .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
+    Ok(match quantity {
+        Quantity::Bytes(0) | Quantity::Unbounded => None,
+        Quantity::Bytes(bytes) => Some(bytes),
+        // `Unit::Bytes` yields nothing else.
+        _ => None,
+    })
+}
+
+/// What this machine affords the process, in bytes, or `None` where it does not answer.
+///
+/// **A container's limit is the answer where there is one**, and the machine's own memory only
+/// where there is not. A cgroup-limited process on a 256 GB host has 256 MB, and an admission
+/// arithmetic that read the host's number there would compute a ceiling whose whole purpose —
+/// keeping the out-of-memory killer from being the real admission control — it had already given
+/// away. That is why this reads the two cgroup files before `/proc/meminfo`.
+///
+/// `None` is not a failure: it is a host this function has no question for, and § 13's arithmetic
+/// treats it as an absent bound rather than as a zero. Every path here is read once at boot and
+/// never on a request.
+#[must_use]
+pub fn memory_budget() -> Option<u64> {
+    platform::memory_budget()
+}
+
+#[cfg(unix)]
+mod platform {
+    //! The three files a Unix host answers with, in the order a container makes correct.
+    //!
+    //! All three are plain reads, so this half needs no `unsafe` and no `libc`: cgroup v2's
+    //! `memory.max` is a decimal number or the word `max`, cgroup v1's `memory.limit_in_bytes` is a
+    //! decimal number with [`NO_LIMIT`]'s sentinel for the same thing, and `/proc/meminfo` states
+    //! `MemTotal` in kibibytes. A host with none of them — macOS is the one that matters — answers
+    //! `None`, which is § 13's inert case and not a wrong number.
+
+    /// Anything at or above this is a sentinel rather than a limit: cgroup v1 spells "no limit" as
+    /// a number near `u64::MAX` rounded down to a page, and no machine has four exabytes.
+    const NO_LIMIT: u64 = 1 << 62;
+
+    /// The first of the three that answers.
+    pub(super) fn memory_budget() -> Option<u64> {
+        cgroup("/sys/fs/cgroup/memory.max")
+            .or_else(|| cgroup("/sys/fs/cgroup/memory/memory.limit_in_bytes"))
+            .or_else(mem_total)
+    }
+
+    /// One cgroup limit file: a decimal count of bytes, `max`, or the v1 sentinel.
+    fn cgroup(path: &str) -> Option<u64> {
+        let bytes: u64 = std::fs::read_to_string(path).ok()?.trim().parse().ok()?;
+        (bytes > 0 && bytes < NO_LIMIT).then_some(bytes)
+    }
+
+    /// `/proc/meminfo`'s `MemTotal`, which is stated in kibibytes.
+    fn mem_total() -> Option<u64> {
+        let file = std::fs::read_to_string("/proc/meminfo").ok()?;
+        let line = file.lines().find(|line| line.starts_with("MemTotal:"))?;
+        let kib: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+        kib.checked_mul(1024)
+    }
+}
+
+#[cfg(windows)]
+mod platform {
+    //! `GlobalMemoryStatusEx`, which is the whole of the question on Windows.
+    //!
+    //! There is no container limit to prefer here: a Windows container reports its own quota
+    //! through this same call, so the one answer is already the right one.
+
+    use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+
+    /// The installed physical memory, or `None` where the call fails.
+    #[expect(
+        unsafe_code,
+        reason = "`GlobalMemoryStatusEx` fills a caller-owned struct whose `dwLength` says how big \
+                  it is; the call is unsafe only because it is `extern`"
+    )]
+    pub(super) fn memory_budget() -> Option<u64> {
+        // A plain-old-data struct of integers, so an all-zero one is a valid value of it and the
+        // call is what fills it.
+        let mut status: MEMORYSTATUSEX = unsafe { std::mem::zeroed() };
+        // The API's own version check: a zero here is what makes the call fail.
+        status.dwLength = u32::try_from(size_of::<MEMORYSTATUSEX>()).ok()?;
+        // `status` is a live, correctly sized `MEMORYSTATUSEX` owned by this frame, and the call
+        // writes only inside it.
+        if unsafe { GlobalMemoryStatusEx(&mut status) } == 0 {
+            return None;
+        }
+        (status.ullTotalPhys > 0).then_some(status.ullTotalPhys)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -343,6 +540,59 @@ mod tests {
                 "for {written:?}"
             );
         }
+    }
+
+    /// § 13's three inputs, read from the two blocks they are written in. The *hard* ceiling wins
+    /// where one is there, because that is the number a request can actually reach — a cap read
+    /// from `[limits] memory` under a `[limits.hard] memory` four times its size would afford four
+    /// times the concurrency the machine can hold.
+    #[test]
+    fn the_per_request_cap_is_the_ceiling_a_request_can_reach() {
+        let none = capacity_for(&tree(""), &BTreeMap::new()).expect("an empty tree was refused");
+        assert_eq!(none.configured, DEFAULT_MAX_IN_FLIGHT);
+        assert_eq!(none.per_request, None, "an unwritten cap became a number");
+
+        let started = capacity_for(&tree("[limits]\nmemory = \"64M\"\n"), &BTreeMap::new())
+            .expect("a written `[limits]` was refused");
+        assert_eq!(started.per_request, Some(64 * 1024 * 1024));
+
+        let ceilinged = capacity_for(
+            &tree("[limits]\nmemory = \"64M\"\n\n[limits.hard]\nmemory = \"256M\"\n"),
+            &BTreeMap::new(),
+        )
+        .expect("a written ceiling was refused");
+        assert_eq!(
+            ceilinged.per_request,
+            Some(256 * 1024 * 1024),
+            "the cap a request can raise itself to did not win"
+        );
+
+        // ADR 0005's spelling for "no ceiling" is exactly the case § 13 has nothing to divide by,
+        // and reading it as the `[limits] memory` underneath would afford a concurrency the
+        // request is free to exceed.
+        let unbounded = capacity_for(
+            &tree("[limits]\nmemory = \"64M\"\n\n[limits.hard]\nmemory = false\n"),
+            &BTreeMap::new(),
+        )
+        .expect("a removed ceiling was refused");
+        assert_eq!(
+            unbounded.per_request, None,
+            "a removed ceiling became a cap"
+        );
+    }
+
+    /// The one magnitude of `max_in_flight` that is a refusal rather than a clamp: a ceiling the
+    /// budget cannot afford is § 13's clamp-and-log, but a ceiling the *operator* wrote as zero is
+    /// a server that accepts a connection and answers `503` to everything on it.
+    #[test]
+    fn a_ceiling_of_zero_is_a_server_that_refuses_every_request() {
+        let refused = capacity_for(&tree("[server]\nmax_in_flight = 0\n"), &BTreeMap::new())
+            .expect_err("a ceiling of zero was accepted");
+        assert_eq!(refused.code, Some(code::E_NO_ADMISSION));
+
+        let written = capacity_for(&tree("[server]\nmax_in_flight = 32\n"), &BTreeMap::new())
+            .expect("a written ceiling was refused");
+        assert_eq!(written.configured, 32);
     }
 
     /// A value that is not a duration at all stays `mod@crate::value`'s refusal and does not

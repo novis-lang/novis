@@ -1468,6 +1468,23 @@ pub mod code {
     /// holds none of the files; the second needs the tree it mounts.
     pub const E_BAD_MOUNT: Code = Code::new("E0621");
 
+    /// A `[server] max_in_flight` written as `0`. ADR 0097 § 5's ceiling is a
+    /// safety valve, and that spelling asks for a process that accepts a
+    /// connection and then refuses every request on it — the same deployment
+    /// `E0620` refuses when `listen` is written empty, reached from the other
+    /// end. `false` is not the other half of this refusal because the key is a
+    /// plain count rather than a `Setting`: ADR 0005's ceiling-removing
+    /// spelling does not typecheck against it, so removing this valve is not
+    /// something the file can say.
+    ///
+    /// Only the written magnitude is this code's: the *effective* ceiling is an
+    /// arithmetic against the memory budget
+    /// ([ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// § 13) and a configured number the budget cannot afford is clamped and
+    /// logged rather than refused, because a server that will not boot because
+    /// two directives disagree is the worse outage.
+    pub const E_NO_ADMISSION: Code = Code::new("E0622");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

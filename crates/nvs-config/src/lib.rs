@@ -86,7 +86,7 @@ pub use capability::{Cap, Scope};
 pub use directive::{Apply, Class, DIRECTIVES, Directive};
 pub use request::Request;
 pub use resolve::{Origin, Override, Resolved, Roots};
-pub use server::Waits;
+pub use server::{Capacity, Waits};
 pub use snapshot::{Current, Reload, Snapshot};
 pub use tree::{Config, Setting};
 pub use value::{Quantity, Unit};

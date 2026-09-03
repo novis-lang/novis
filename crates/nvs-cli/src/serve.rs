@@ -63,14 +63,15 @@ use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use nvs_config::mount::Mounted;
-use nvs_config::server::{Listen, listen_on, waits_for};
+use nvs_config::server::{Listen, capacity_for, listen_on, waits_for};
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::{Program, Resolver as _};
 use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
-use nvs_server::{OnDisk, Reply, Table, What};
+use nvs_server::{Admission, Ceiling, OnDisk, Reply, Table, What};
 
 use crate::script::Compiler;
 
@@ -118,6 +119,21 @@ pub(crate) fn run(
         Ok(entries) => entries,
         Err(diagnostic) => return report(diagnostic, &sources),
     };
+    // ADR 0106 § 13: the ceiling is the smaller of what the file asked for and
+    // what this machine affords at the per-request cap, and a clamp is logged
+    // **once, here**, naming both directives and both numbers. Silently is what
+    // that section rejected — the observed capacity of a small instance changes
+    // with the arithmetic, and an operator surprised by that should be able to
+    // find out why from a line rather than from a benchmark.
+    let capacity = match capacity_for(&snapshot.config, &origins) {
+        Ok(capacity) => capacity,
+        Err(diagnostic) => return report(diagnostic, &sources),
+    };
+    let ceiling = Ceiling::of(&capacity);
+    if let Some(note) = ceiling.clamp_note() {
+        eprintln!("note: {note}");
+    }
+    let admission = Arc::new(Admission::new(&ceiling));
     let addr = match address(&configured, listen, port) {
         Ok(addr) => addr,
         Err(refusal) => {
@@ -255,9 +271,10 @@ pub(crate) fn run(
             // `ControlFlow::Continue` forever: a development server runs until
             // the process is stopped, and ADR 0097 § 5's drain is the slice that
             // gives this command a control socket to be asked by.
-            let served = nvs_server::serve_on_this_core(&mut listener, &handler, waits, || {
-                ControlFlow::Continue(())
-            });
+            let served =
+                nvs_server::serve_on_this_core(&mut listener, &handler, waits, &admission, || {
+                    ControlFlow::Continue(())
+                });
             if let Err(error) = served {
                 eprintln!("error: the accept loop stopped: {error}");
                 stopped.set(true);

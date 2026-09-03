@@ -41,6 +41,14 @@
 //! security model: nothing in that module takes a mode or a switch, so the
 //! `[server]` switches decide only whether step 3 runs.
 //!
+//! [`admit`] is § 5's in-flight ceiling, and it is an **arithmetic** rather than
+//! the number the file wrote: ADR 0106 § 13 takes the smaller of `max_in_flight`
+//! and what the memory budget affords against the per-request cap, because a
+//! concurrency ceiling and a memory cap with no stated relationship leave the
+//! out-of-memory killer as the real admission control. The valve is asked before
+//! the handler is — a `503` with `Retry-After: 1` and no isolate allocated for
+//! it — and that module's docs own why the order *is* the guarantee.
+//!
 //! What is **not** here yet is the rest of `[server]`. [`serve`]'s own docs
 //! § *What this module does not decide yet* is the list.
 //!
@@ -66,11 +74,13 @@
 //! The workspace `Cargo.toml`'s comment above the dependency is the home of that
 //! reading and of what pinning `hyper` backwards would have cost instead.
 
+pub mod admit;
 pub mod io;
 pub mod mount;
 pub mod serve;
 pub mod statics;
 
+pub use admit::{Admission, Ceiling, InFlight};
 pub use io::{ConnectionIo, Phase};
 pub use mount::{Dispatch, Existing, OnDisk, Selection, Table, What};
 pub use serve::{Answer, Reply, serve_connection, serve_on_this_core};

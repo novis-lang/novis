@@ -52,11 +52,12 @@
 //!   § 3's rendering of a failure into a development response are both the
 //!   configuration slice's, because a mode is what decides them and this loop
 //!   has not been given one.
-//! - **No `max_in_flight` and no accept backoff.** ADR 0097 § 5's other two
-//!   bounds are process-wide rather than per connection — a fixed `503` before
-//!   an isolate is allocated, and a listener that backs off on descriptor
-//!   exhaustion — and both belong to the slice that gives this loop a core
-//!   count to be process-wide across. The four waits *are* here:
+//! - **No accept backoff.** ADR 0097 § 5's last process-wide bound — a listener
+//!   that backs off on descriptor exhaustion rather than logging at the speed of
+//!   the loop — is not here yet. `max_in_flight` now is: [`crate::admit`] is the
+//!   arithmetic and the counter, and the refusal is taken in the service below
+//!   *before* the handler is asked for a [`Reply`], which is the order § 5 makes
+//!   the whole point of the valve. The four waits are here too:
 //!   [`crate::io::Phase`] is which one is in force, and the connection loop
 //!   below is what moves it.
 //! - **One core.** The name says so: a listener bound once and handed to several
@@ -69,6 +70,7 @@ use std::io;
 use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use hyper::body::{Body, Bytes, Frame, Incoming, SizeHint};
@@ -82,6 +84,7 @@ use nvs_host::{
 use nvs_runtime::{Ctx, OutputSink, TaskRoot};
 
 use crate::ConnectionIo;
+use crate::admit::Admission;
 use crate::io::Phase;
 
 /// A response body this server already holds in full, sent as one frame.
@@ -230,6 +233,11 @@ impl Reply {
 /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
 /// lazily yielded parts are the slice that reads one.
 ///
+/// **`admission` is § 5's valve, and it is asked before `handler` is.** A
+/// request over the ceiling is answered with [`crate::admit::over_capacity`] and
+/// nothing is started for it; [`crate::admit`]'s own docs own the order and why
+/// it is the whole of the guarantee.
+///
 /// **`waits` is the clock, and it is a parameter and not a default.** ADR 0097
 /// § 5's four waits bound this connection from the moment it is accepted, and
 /// [`crate::io`]'s § *The clock* is where they are actually enforced; what this
@@ -250,6 +258,7 @@ pub fn serve_connection<H>(
     ctx: &mut Ctx,
     handler: &H,
     waits: Waits,
+    admission: &Admission,
 ) -> hyper::Result<()>
 where
     H: Fn(Request<Incoming>) -> Reply,
@@ -264,6 +273,17 @@ where
         // waiting for from here is the body, and then nothing until the answer
         // exists.
         phase.set(Phase::Body);
+        // ADR 0097 § 5, and this line is the *order* rather than the number:
+        // the ceiling is asked before the handler is, so a refused request has
+        // selected no mount, allocated no isolate, compiled nothing and run no
+        // Novis code. A valve that allocated in order to refuse would not
+        // protect what it exists to protect. The guard lives to the end of this
+        // closure, which is the whole of what "in flight" means here — the
+        // answer exists by then.
+        let Some(_in_flight) = admission.admit() else {
+            phase.set(Phase::Write);
+            return std::future::ready(Ok::<_, Infallible>(crate::admit::over_capacity()));
+        };
         let answered = match handler(request) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
@@ -338,6 +358,11 @@ fn failed() -> Response<Answer> {
 /// control socket is one such caller) and this loop has no business polling for
 /// it.
 ///
+/// `admission` is shared with every other core rather than cloned per core,
+/// which is ADR 0097 § 5's "counted process-wide": a per-core share would let
+/// one hot core refuse while its neighbours idle. Every connection this loop
+/// hands over gets a handle on the same count.
+///
 /// `waits` is handed to every connection unchanged and is never re-read: ADR
 /// 0097 § 5 makes `[server]` `Boot`-class precisely because `header_timeout`
 /// and `keepalive_timeout` apply before any Novis code exists on a connection,
@@ -357,6 +382,7 @@ pub fn serve_on_this_core<H>(
     listener: &mut NvsListener,
     handler: &Rc<H>,
     waits: Waits,
+    admission: &Arc<Admission>,
     mut keep_serving: impl FnMut() -> ControlFlow<()>,
 ) -> io::Result<()>
 where
@@ -374,6 +400,10 @@ where
     loop {
         let (stream, _peer) = listener.accept()?;
         let handler = Rc::clone(handler);
+        // An `Arc` and not an `Rc`: § 5's valve is counted process-wide, so the
+        // one it is cloned from is shared by every core rather than by every
+        // connection on this one.
+        let admission = Arc::clone(admission);
         // Counted in *here* rather than inside the body, so that a connection
         // handed over is already outstanding by the time the shutdown below can
         // look; `Served`'s `Drop` is what counts it back out, and it is a drop
@@ -396,7 +426,13 @@ where
             // is the one that failed, and the accept loop above must not stop
             // for it — the log this belongs in is the slice that gives this
             // loop a configuration.
-            drop(serve_connection(stream, ctx, handler.as_ref(), waits));
+            drop(serve_connection(
+                stream,
+                ctx,
+                handler.as_ref(),
+                waits,
+                &admission,
+            ));
         });
         if spawned.is_none() {
             // Unreachable while `Wake::current` answered above, and the guard
@@ -457,6 +493,8 @@ impl Drop for Served {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::admit::Ceiling;
+    use nvs_config::Capacity;
     use nvs_host::{Output, Program};
     use nvs_runtime::Value;
     use std::io::{Read as _, Write as _};
@@ -492,6 +530,17 @@ mod tests {
             });
             Reply::Run(Isolate::new(program, Value::null(), Output::Capture))
         })
+    }
+
+    /// A valve every case but the last one is not about: § 5's own default
+    /// ceiling with no memory budget to divide it against, which is what an
+    /// unconfigured tree resolves to.
+    fn wide_open() -> Arc<Admission> {
+        Arc::new(Admission::new(&Ceiling::of(&Capacity {
+            configured: 10_000,
+            per_request: None,
+            budget: None,
+        })))
     }
 
     /// Reads until `needle` has arrived, so a test can stop in the middle of a
@@ -531,9 +580,13 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &echo_the_path(), Waits::default(), || {
-                ControlFlow::Break(())
-            })
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_path(),
+                Waits::default(),
+                &wide_open(),
+                || ControlFlow::Break(()),
+            )
             .expect("the accept loop failed");
         });
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
@@ -589,9 +642,13 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &echo_the_path(), Waits::default(), || {
-                ControlFlow::Break(())
-            })
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_path(),
+                Waits::default(),
+                &wide_open(),
+                || ControlFlow::Break(()),
+            )
             .expect("the accept loop failed");
         });
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
@@ -647,9 +704,13 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &handler, Waits::default(), || {
-                ControlFlow::Break(())
-            })
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                || ControlFlow::Break(()),
+            )
             .expect("the accept loop failed");
         });
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
@@ -695,7 +756,7 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &echo_the_path(), waits, || {
+            serve_on_this_core(&mut listener, &echo_the_path(), waits, &wide_open(), || {
                 ControlFlow::Break(())
             })
             .expect("the accept loop failed");
@@ -750,7 +811,7 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &echo_the_path(), waits, || {
+            serve_on_this_core(&mut listener, &echo_the_path(), waits, &wide_open(), || {
                 ControlFlow::Break(())
             })
             .expect("the accept loop failed");
@@ -765,6 +826,84 @@ mod tests {
         assert!(
             closed,
             "an idle kept-alive connection was still open a header wait later: {seen}"
+        );
+    }
+
+    /// ADR 0097 § 5's valve, and the load-bearing half of it is the **order**:
+    /// the handler is never asked, so no mount was selected, no isolate was
+    /// allocated and no Novis code ran for a request the ceiling refused. A
+    /// case that only asserted the `503` would pass just as well against a cap
+    /// that allocated in order to refuse, which is the cap § 5 says does not
+    /// protect what it exists to protect.
+    #[test]
+    fn an_over_capacity_request_is_refused_with_503_before_it_is_allocated() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let admission = Arc::new(Admission::new(&Ceiling::of(&Capacity {
+            configured: 1,
+            per_request: None,
+            budget: None,
+        })));
+        // The same count the loop is given, held here so the guard below can
+        // outlive the handle the accept task takes.
+        let serving = Arc::clone(&admission);
+        // The one place this valve has, taken and held for the whole run: the
+        // request below therefore arrives *at* the ceiling, which is the state
+        // the assertions are about and not a race to reproduce.
+        let _at_the_ceiling = admission.admit().expect("a fresh valve refused");
+
+        // Set by the handler, and the point of the case is that it stays false.
+        let asked = Rc::new(Cell::new(false));
+        let handler = Rc::new({
+            let asked = Rc::clone(&asked);
+            move |_request: Request<Incoming>| {
+                asked.set(true);
+                Reply::not_found()
+            }
+        });
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(b"GET /busy HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(&mut listener, &handler, Waits::default(), &serving, || {
+                ControlFlow::Break(())
+            })
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let answer = client.join().expect("the client thread panicked");
+        assert!(
+            answer.starts_with("HTTP/1.1 503 Service Unavailable\r\n"),
+            "a request at the ceiling was not refused: {answer}"
+        );
+        assert!(
+            answer.to_ascii_lowercase().contains("retry-after: 1"),
+            "the refusal gave a proxy nothing to fail over on: {answer}"
+        );
+        assert!(
+            !asked.get(),
+            "the handler was asked for a request the ceiling had already refused"
         );
     }
 }

@@ -148,6 +148,9 @@ windows-sys = { version = "0.61", features = [
     "Win32_Security_Authorization",
     "Win32_Storage_FileSystem",
     "Win32_System_Console",
+    # `GlobalMemoryStatusEx`: ADR 0106 § 13's admission arithmetic divides the memory budget by the
+    # per-request cap, and on Windows this is the one call that answers what the budget is.
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
 ] }
 
