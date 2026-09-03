@@ -3149,16 +3149,25 @@ stage = "10 corpus"
 name = "conformance"
 args = ["test", "tests/conformance/"]
 min_passing = 1350
+# The corpus is flat directories with a subsystem prefix on the *file* name, so `tests/conformance/db/`
+# does not exist and never did; these names were drafted before that was settled. Three of the nine are
+# also claims another check in this same file already measures, and a claim listed twice reads as open
+# work forever while buying nothing:
+#   * `a-two-statement-literal-query-is-refused` is stage 9's `a_two_statement_literal_query_is_a_diagnostic`.
+#   * `an-enqueue-commits-with-the-write-that-made-it` and `an-exhausted-job-is-dead-lettered-and-not-discarded`
+#     are stage 8's `an_enqueue_commits_with_the_write_that_made_it` and
+#     `an_exhausted_job_reaches_the_dead_letter_table_and_is_not_discarded`, and neither is a claim a
+#     `.nvst` case could ask: one needs two connections to one server, the other a worker loop.
 cases = [
-  "tests/conformance/db/a-prepared-statement-binds-by-name-and-by-position.nvst",
-  "tests/conformance/db/a-transaction-is-a-closure-that-rolls-back-on-a-throw.nvst",
-  "tests/conformance/db/a-roll-back-survives-a-catch-of-throwable.nvst",
-  "tests/conformance/db/a-typed-row-throws-naming-the-column.nvst",
-  "tests/conformance/reject/a-tainted-value-at-a-query-text-parameter-is-refused.nvst",
-  "tests/conformance/reject/a-two-statement-literal-query-is-refused.nvst",
-  "tests/conformance/reject/a-host-on-a-sqlite-settings-literal-is-refused.nvst",
-  "tests/conformance/db/an-enqueue-commits-with-the-write-that-made-it.nvst",
-  "tests/conformance/db/an-exhausted-job-is-dead-lettered-and-not-discarded.nvst",
+  "tests/conformance/core/db-a-prepared-statement-binds-by-name-and-by-position.nvst",
+  # § 7's closure rolling back on a throw, with the nested level it also pins.
+  "tests/conformance/core/db-a-sqlite-transaction-nests-as-a-savepoint.nvst",
+  "tests/conformance/core/db-a-roll-back-survives-a-catch-of-throwable.nvst",
+  "tests/conformance/core/db-a-typed-row-throws-naming-the-column.nvst",
+  # ADR 0024 § 4's pair, the binding half included.
+  "tests/conformance/core/db-query-refuses-a-tainted-statement-and-binds-one-freely.nvst",
+  # ADR 0135 § 2's arm selection, of which a `host` written under `Driver::Sqlite` is the refusing half.
+  "tests/conformance/core/db-settings-are-checked-against-the-one-arm-they-select.nvst",
 ]
 
 [[check]]
