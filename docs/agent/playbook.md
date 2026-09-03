@@ -6841,9 +6841,6 @@ every session. Nothing below was reworded on the way.
   not callable at all. Both members read one `window` helper, and putting a window's own slice back
   into it reproduces the subject on all 90 ASCII cells and all 72 multibyte ones — **PHP's pair
   holds that identity too**, which the `replaceRange` doc comment used to deny and no longer does.
-- **A frozen `--EXPECT--` must never render a decomposed cluster**: `e`+U+0301 and U+00E9 are
-  indistinguishable in an editor and are different strings, so a divergence case echoes
-  `Core\Encoding::toHex($s as bytes)` for those cells instead.
 - **`Core\Str::before`/`::after` and `::compare` are closed, and each parts from a *twin* rather
   than from a rule.** Both cut members exclude the needle where `strstr` keeps it, so the port of a
   program that wanted PHP's shape is `$needle . Str::after(...)`, and an absent needle is `null`
