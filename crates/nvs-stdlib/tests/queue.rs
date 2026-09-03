@@ -24,14 +24,19 @@
 //! **Every case owns a queue name and shares nothing else.** Cargo runs them on
 //! threads of one process against one database, and a queue is exactly the key
 //! every statement here is claimed, counted and ordered by, so a name each is
-//! the whole of the isolation — no case reads a row another wrote, and each
-//! clears its own before it pushes so a re-run starts where the first run did.
+//! the whole of the isolation *in the rows* — no case reads a row another wrote,
+//! and each clears its own before it pushes so a re-run starts where the first
+//! run did. It is not the whole of the isolation in the **locks**, which is a
+//! different question and one the framed dialect answers differently:
+//! [`FRAMED_WRITES`] owns why those cases hold a lock the PostgreSQL ones do not
+//! need.
 //! The schema itself is the one thing they do share, and [`schema`] says why
 //! that needs a `Once` rather than a call each.
 
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::sync::Once;
+use std::ops::Deref;
+use std::sync::{Mutex, MutexGuard, Once};
 use std::time::{Duration, Instant};
 
 use nvs_db::matrix::{self, Location, Server};
@@ -101,9 +106,55 @@ fn postgres() -> Option<Leg> {
 /// it is a text MariaDB runs unchanged, so a case written against either is a
 /// case against both and running it twice is the matrix's job, not this
 /// predicate's.
-fn framed() -> Option<Leg> {
+fn framed() -> Option<FramedLeg> {
     let leg = endpoint()?;
-    matches!(leg.driver, Driver::MySql | Driver::MariaDb).then_some(leg)
+    matches!(leg.driver, Driver::MySql | Driver::MariaDb).then(|| FramedLeg {
+        leg,
+        // Poisoning is ignored on purpose: a case that panicked while holding
+        // this has already reported, and cascading a `PoisonError` into every
+        // case after it would bury the one failure that matters.
+        _serial: FRAMED_WRITES
+            .lock()
+            .unwrap_or_else(|held| held.into_inner()),
+    })
+}
+
+/// The lock one framed case holds for its whole body, and the reason a queue
+/// name each is not the whole of the isolation on this dialect.
+///
+/// **InnoDB locks what a statement *scans*, not what it matches.** The rows a
+/// case owns are its own, but the locks taken over them are not: [`clear`]'s
+/// `delete … where queue = ?` over a table of a dozen rows is a scan the
+/// optimizer is free to take whole, and it holds every row it looked at until
+/// that statement commits. A neighbouring case's `for update skip locked` then
+/// *skips its own row* — the claim answers nothing and the case reads it as a
+/// queue that lost its work — or the case's `update` waits and the server
+/// answers a deadlock instead. Both were measured, in two different cases, in
+/// two of eight runs of the framed leg before this lock existed.
+///
+/// **On this gate rather than on [`endpoint`]**, because it is InnoDB's rule and
+/// not a database's: PostgreSQL's readers take no lock a writer waits on, and
+/// its cases have never contended. A leg runs one driver, so the framed cases
+/// are the only writers on a framed leg and serializing them is total.
+static FRAMED_WRITES: Mutex<()> = Mutex::new(());
+
+/// A framed leg, holding [`FRAMED_WRITES`] for as long as the case does.
+///
+/// The guard is a field rather than a second binding at each case, so there is
+/// no case that can forget to take it and none that can drop it early: the
+/// [`Deref`] is what keeps `schema(&server)` and `open(&server)` reading as they
+/// did when this was a [`Leg`].
+struct FramedLeg {
+    leg: Leg,
+    _serial: MutexGuard<'static, ()>,
+}
+
+impl Deref for FramedLeg {
+    type Target = Leg;
+
+    fn deref(&self) -> &Leg {
+        &self.leg
+    }
 }
 
 /// A connection to `leg`'s server, as a request that found the pool empty opens
@@ -676,6 +727,60 @@ fn landed(conn: &mut Conn, queue: &str) -> (String, String) {
     (jobs, orders)
 }
 
+/// § 2's roster: the queues a worker idling at `now` would find work in, with a
+/// lease taken at or before `cutoff` counting as abandoned.
+///
+/// The section is § 2 and not § 1 because a roster is not one of that section's
+/// four members — [`queue::QUEUES_POSTGRES`]'s own doc calls it § 2's unanswered
+/// question, answered by the table because the config block names no queues.
+///
+/// **The answer is the whole table's and not one queue's**, which is the point
+/// of the statement — a worker asks it once and claims against the names it got
+/// back — and it is also why every assertion over it here is a *membership*
+/// question about a name the case owns. Cargo runs these cases on threads of one
+/// process against one database, so a case asserting the vector itself would be
+/// asserting what its neighbours happened to be doing at that instant.
+///
+/// Both dialects bind the same two instants in the same order, which is what
+/// [`queue::QUEUES_MYSQL`]'s doc means by the transcription changing nothing but
+/// the placeholder spelling.
+fn roster(conn: &mut Conn, now: i64, cutoff: i64) -> Vec<String> {
+    let (now, cutoff) = (millis(now), millis(cutoff));
+    let bound = [Some(now.as_slice()), Some(cutoff.as_slice())];
+    let sql = if conn.driver() == Driver::Postgres {
+        queue::QUEUES_POSTGRES
+    } else {
+        queue::QUEUES_MYSQL
+    };
+    rows(conn, sql, &bound)
+        .into_iter()
+        .map(|mut row| row.remove(0).expect("`queue` is not null"))
+        .collect()
+}
+
+/// § 1's `status` for one job, or `None` where neither of § 2's tables holds it.
+///
+/// **The framed arm binds the pair twice, and that is the statement's whole
+/// difference.** `$1` may be named as often as a statement likes and a `?` may
+/// not, so [`queue::STATUS_MYSQL`] carries four placeholders for the two values
+/// [`queue::STATUS_POSTGRES`] binds. `counted_row` is where the member doubles
+/// them once rather than at each of the two call sites; this doubles them here,
+/// in the same order, so the wrong-queue read below is asked of the doubling a
+/// caller actually sends.
+fn status(conn: &mut Conn, id: &str, queue: &str) -> Option<String> {
+    let (id, queue) = (id.as_bytes(), queue.as_bytes());
+    let (sql, bound) = if conn.driver() == Driver::Postgres {
+        (queue::STATUS_POSTGRES, vec![Some(id), Some(queue)])
+    } else {
+        (
+            queue::STATUS_MYSQL,
+            vec![Some(id), Some(queue), Some(id), Some(queue)],
+        )
+    };
+    let mut found = rows(conn, sql, &bound);
+    (!found.is_empty()).then(|| found.remove(0).remove(0).expect("`state` is not null"))
+}
+
 /// An epoch-millisecond instant as the text a `$n::bigint` placeholder is sent
 /// as — `nvs-cli`'s worker binds every instant this way.
 fn millis(at: i64) -> Vec<u8> {
@@ -882,9 +987,12 @@ fn a_visibility_timeout_returns_an_abandoned_job_to_the_queue() {
 /// is the reason this file's one hand-written `set` exists. A matrix leg that
 /// hangs reports nothing at all.
 ///
-/// The name says *every backend that has it* and this asserts one, because
-/// PostgreSQL is the only driver with a statement path at all; the second
-/// backend brings its own claim statement and answers here beside this one.
+/// The name says *every backend that has it* and this asserts the one whose
+/// claim is a single statement. `a_framed_claim_skips_the_row_another
+/// _transaction_holds` is the other half, and it is a separate case rather than
+/// a second arm of this one because on that dialect the lock and the write are
+/// two statements, so the holder is set up differently — not because the
+/// property differs.
 #[test]
 fn claiming_is_skip_locked_shaped_on_every_backend_that_has_it() {
     const QUEUE: &str = "nvs-stdlib-tests-skip-locked";
@@ -1741,5 +1849,319 @@ fn a_framed_visibility_timeout_returns_an_abandoned_job_to_the_queue() {
             Some((now + 2).to_string()),
         ]],
         "the lease moved to the claim that took it over, and the column agrees with what it answered"
+    );
+}
+
+/// § 2's roster on the framed dialect, asserted on both sides of each of its two
+/// arms.
+///
+/// **What a server is being asked here is that the two arms stay keyed to their
+/// own instant.** [`queue::QUEUES_MYSQL`] is one `where` with an `or` in it, and
+/// a transcription that let `now` reach the lease arm — or the cutoff reach the
+/// due arm — answers plausibly for a queue with any work at all in it, which is
+/// the shape a case asking one question per arm would pass. So each bound is
+/// named on both sides: a job due at the instant asked about is due and one due
+/// a millisecond later is not, and a lease is abandoned at the cutoff and not
+/// before it, asked with a `now` far past the row's own `run_at` so that only
+/// the second arm can be what answered.
+///
+/// **`distinct` is the other claim, and it is the one the doc costs out.** § 2's
+/// `nvs_jobs_due` is `(queue, state, run_at)`, so neither dialect answers
+/// `distinct queue` off the index's leading column: both walk the due rows.
+/// What the statement owes in return is that two due jobs in one queue are one
+/// name — the difference between a roster and a backlog, and the reason a worker
+/// asks this once per idle turn rather than once per job.
+#[test]
+fn a_framed_roster_names_a_queue_on_either_arm_and_not_past_either_bound() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-roster";
+    const DUE: i64 = 6_000;
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    let held = |named: Vec<String>| named.iter().filter(|name| name.as_str() == QUEUE).count();
+
+    assert_eq!(
+        held(roster(&mut conn, DUE, DUE)),
+        0,
+        "an empty queue is no queue at all: the roster names what has work and not what has a name"
+    );
+
+    let id = push(&mut conn, QUEUE, DUE, "3");
+    assert_eq!(
+        held(roster(&mut conn, DUE, 0)),
+        1,
+        "a job due at the instant asked about is due — `run_at <= ?` is the bound and this is its \
+         last accepted value"
+    );
+    assert_eq!(
+        held(roster(&mut conn, DUE - 1, 0)),
+        0,
+        "and the millisecond before it is the first refused one"
+    );
+
+    let second = push(&mut conn, QUEUE, DUE, "3");
+    assert_ne!(second, id, "that is a second row and not the first again");
+    assert_eq!(
+        held(roster(&mut conn, DUE, 0)),
+        1,
+        "two due jobs in one queue are one name, which is what `distinct` is paid for"
+    );
+
+    // Both rows leased at `DUE`, written directly rather than through `claim`:
+    // what is under test is the roster's reading of the two columns, and a claim
+    // would decide for itself how many rows it took. Keyed by `id` and not by
+    // `queue`, so what it locks is two rows rather than whatever a scan for a
+    // queue reaches — every case here shares this table with the others running
+    // beside it.
+    let lease = millis(DUE);
+    for row in [&id, &second] {
+        apply(
+            &mut conn,
+            "update nvs_jobs set state = 1, claimed_at = ? where id = ?",
+            &[Some(lease.as_slice()), Some(row.as_bytes())],
+        );
+    }
+    assert_eq!(
+        held(roster(&mut conn, DUE + 60_000, DUE - 1)),
+        0,
+        "a lease inside its window is nobody else's however late the instant asked about: `now` \
+         reaches the due arm alone, and no row is in that arm any more"
+    );
+    assert_eq!(
+        held(roster(&mut conn, 0, DUE)),
+        1,
+        "and a lease taken at the cutoff is abandoned work the roster names, answered with a `now` \
+         before every `run_at` in the queue so the second arm is what answered"
+    );
+}
+
+/// §§ 1 and 6's `status` on the framed dialect, walked through both of the
+/// tables § 2 lets a job be in.
+///
+/// **The `union all` is the construct worth a server.** [`queue::STATUS_MYSQL`]
+/// is not a [`queue::Split`] — its own doc says so, because two `select`s joined
+/// this way are one statement in both dialects — but "MySQL parses it the same
+/// way" is a claim about MySQL, and a `limit` sitting after a `union` is exactly
+/// where the two dialects are known to differ about what the limit binds to.
+/// Here it must bind to the whole union: the first arm is tried first and the
+/// `limit 1` takes it.
+///
+/// **The four placeholders are the second claim, and the wrong-queue read is
+/// what asks it.** The framed spelling binds `(id, queue)` twice where
+/// PostgreSQL names `$1` and `$2` again, so a doubling that transposed the pair
+/// would still answer `Pending` for a job asked about by its own id — and would
+/// answer it for *any* queue. A read naming the right id and the wrong queue is
+/// the assertion that separates those, and it is made against both arms, since
+/// the dead-letter arm carries its own copy of the same condition.
+#[test]
+fn a_framed_status_walks_a_job_through_both_of_the_tables_it_can_be_in() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-status";
+    const OTHER: &str = "nvs-stdlib-tests-framed-status-elsewhere";
+    const DUE: i64 = 7_000;
+    const TAKEN: i64 = 7_500;
+    const FAILED: i64 = 7_900;
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    let id = push(&mut conn, QUEUE, DUE, "1");
+    assert_eq!(
+        status(&mut conn, &id, QUEUE).as_deref(),
+        Some("0"),
+        "a pushed job is `Pending`, off the state column the first arm reads"
+    );
+    assert_eq!(
+        status(&mut conn, &id, OTHER),
+        None,
+        "the pair keys the read and the id alone does not, which is what a transposed doubling \
+         would get wrong"
+    );
+
+    let took = claim(&mut conn, QUEUE, TAKEN, 0);
+    assert_eq!(took.len(), 1, "one due job is one claimed row");
+    assert_eq!(
+        status(&mut conn, &id, QUEUE).as_deref(),
+        Some("1"),
+        "the same arm answers `Claimed` off the column the claim wrote"
+    );
+
+    // § 6's move, run as `a_framed_exhausted_job_moves_to_the_dead_letter_table_in_one_transaction`
+    // runs it: what this case adds is the reader that has to follow the row.
+    let errors = queue::dead_errors(TAKEN, "IOError", "the receipt service refused the order");
+    let lease = millis(TAKEN);
+    let split = queue::DEAD_LETTER_MYSQL;
+    conn.begin(None, false)
+        .expect("the server opened the transaction");
+    apply(
+        &mut conn,
+        split.first,
+        &[
+            Some(millis(FAILED).as_slice()),
+            Some(errors.as_bytes()),
+            Some(id.as_bytes()),
+            Some(lease.as_slice()),
+        ],
+    );
+    apply(
+        &mut conn,
+        split.then,
+        &[Some(id.as_bytes()), Some(lease.as_slice())],
+    );
+    conn.commit()
+        .expect("the server closed the transaction the pair was one moment inside");
+
+    assert_eq!(
+        status(&mut conn, &id, QUEUE).as_deref(),
+        Some("3"),
+        "the second arm answers for a row that has left `nvs_jobs`: a caller asking what became of \
+         its job is owed `Dead` rather than the absence the first arm alone would report"
+    );
+    assert_eq!(
+        status(&mut conn, &id, OTHER),
+        None,
+        "and that arm carries the same pair, so the doubling is asserted on the side the first arm \
+         cannot answer for"
+    );
+}
+
+/// § 4's `skip locked` on the framed dialect: two workers claiming at once take
+/// different jobs rather than one queueing behind the other.
+///
+/// **The holder is set up differently here, and that difference is the case.**
+/// `claiming_is_skip_locked_shaped_on_every_backend_that_has_it` opens a
+/// transaction and runs a whole claim inside it, because [`queue::CLAIM_POSTGRES`]
+/// is one statement. [`queue::CLAIM_MYSQL`] is a [`queue::Split`], and running
+/// its halves through [`claim`] would open a second transaction on a connection
+/// already inside one — which on this dialect commits the first rather than
+/// nesting. So the holder runs the `select` half alone: that statement is where
+/// `for update skip locked` is written, and the lock it takes is the whole of
+/// what the second worker must not queue behind.
+///
+/// **`innodb_lock_wait_timeout` is this dialect's `statement_timeout`**, and it
+/// is here for that case's reason: without `skip locked` the second claim blocks
+/// rather than answering wrongly, so a case cannot assert its way to a verdict
+/// and a matrix leg that hangs reports nothing at all. Three seconds is long
+/// enough that a loaded container is not mistaken for a lock.
+///
+/// **What the second worker is answered *with* is the planner's, and the case
+/// does not pin it.** § 4's property is that a claim is answered rather than
+/// queued behind a lock, and that no worker takes a row another holds — both of
+/// which are asserted. Which rows remain available is a different question, and
+/// this dialect answers it differently: measured against MySQL 8.4, the second
+/// worker is answered with *nothing* where the PostgreSQL twin is answered with
+/// the next due job, because `for update` locks the rows the `select` examined
+/// while the `limit` applies to the sorted result — a scan over an `or` of two
+/// state arms examines every due row in the queue. That is a throughput
+/// property of a small table and a chosen plan, so a case fixing it would fail
+/// the day either changes. What is fixed is what happens next: once the holder
+/// commits, the deferred row is claimable, which is the difference between work
+/// a lock delayed and work a claim lost.
+///
+/// **Both halves of the split are asserted to have survived the other worker.**
+/// The holder finishes its own claim before it commits, so the case ends where
+/// the PostgreSQL one does — two jobs claimed, one attempt each — which is the
+/// property stated as a count rather than read off the two rows. A `then` keyed
+/// by an id its own `select` did not name would pass every assertion above it
+/// and fail that one.
+#[test]
+fn a_framed_claim_skips_the_row_another_transaction_holds() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-skip-locked";
+    /// Seconds, which is the unit this server takes; the PostgreSQL twin's
+    /// `statement_timeout` is milliseconds.
+    const BLOCKED: &str = "set session innodb_lock_wait_timeout = 3";
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut first = open(&server);
+    clear(&mut first, QUEUE);
+
+    let now = queue::now_millis();
+    // Two jobs, due in the order `CLAIM_MYSQL`'s `order by run_at, id` takes them.
+    let older = push(&mut first, QUEUE, now, "3");
+    let newer = push(&mut first, QUEUE, now + 1, "3");
+
+    let (taken, cutoff) = (millis(now + 2), millis(now));
+    let bound = [
+        Some(QUEUE.as_bytes()),
+        Some(taken.as_slice()),
+        Some(cutoff.as_slice()),
+    ];
+    first
+        .begin(None, false)
+        .expect("the server opened a transaction");
+    let held = rows(&mut first, queue::CLAIM_MYSQL.first, &bound);
+    assert_eq!(
+        held.len(),
+        1,
+        "the first worker locked a row inside its transaction"
+    );
+    assert_eq!(
+        held[0][ID].as_deref(),
+        Some(older.as_str()),
+        "the claim took the oldest due job"
+    );
+
+    let mut second = open(&server);
+    apply(&mut second, BLOCKED, &[]);
+    let took = claim(&mut second, QUEUE, now + 2, now);
+    assert!(
+        took.iter()
+            .all(|row| row[ID].as_deref() != Some(older.as_str())),
+        "the second worker was answered rather than left waiting, and nothing it was answered with \
+         is the row the holder is inside a transaction over"
+    );
+
+    // The holder's own `update`, which is the half the split still owes, run
+    // against the id its `select` named and inside the transaction that named
+    // it.
+    assert_eq!(
+        apply(
+            &mut first,
+            queue::CLAIM_MYSQL.then,
+            &[Some(taken.as_slice()), Some(older.as_bytes())],
+        ),
+        1,
+        "the row the holder locked is still the holder's to write"
+    );
+    first.commit().expect("the server closed the transaction");
+
+    // Whatever the lock covered, it covered it for one transaction: the work
+    // the second worker did not get is work, not a row that went missing.
+    let mut claimed = took.len();
+    if claimed == 0 {
+        let after = claim(&mut second, QUEUE, now + 3, now);
+        assert_eq!(
+            after.len(),
+            1,
+            "the row a lock deferred is claimable the moment that lock is gone"
+        );
+        assert_eq!(
+            after[0][ID].as_deref(),
+            Some(newer.as_str()),
+            "and it is the other job, which no worker has taken yet"
+        );
+        claimed += after.len();
+    }
+    assert_eq!(claimed, 1, "one job each and neither worker took two");
+
+    assert_eq!(
+        one(
+            &mut second,
+            "select count(*) from nvs_jobs where queue = ? and state = 1 and attempts = 1",
+            &[Some(QUEUE.as_bytes())],
+        ),
+        "2",
+        "two jobs, one attempt each, and no job claimed by both workers"
     );
 }
