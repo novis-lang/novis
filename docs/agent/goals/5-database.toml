@@ -2969,10 +2969,10 @@ tests = [
   # with it, and that the same statement after it costs the prepare again; MariaDB's `reset` rides the
   # same `crate::mysql::reset_session`, so it is that function's case and not a second one.
   "a_reset_invalidates_the_statement_cache",
-  # The half that CANNOT be written yet, and the reason is that the feature does not exist rather than
-  # a filing bug: `crates/nvs-db/src/conn.rs`'s `TdsConn` is a stub carrying `state` and nothing else --
-  # no wire, no statement cache to lose, and no `sp_reset_connection` to lose it through. It lands with
-  # the TDS driver and not before, and until then this is the name this stage reports.
+  # The MSSQL half, landed with the driver that made it writable: `crates/nvs-db/src/tds.rs`'s
+  # `reset_session` and the `TdsPlan` cache it empties. MS-TDS spells the procedure as a header bit
+  # rather than as a call, so what the test asserts is that `Status::RESET_CONNECTION` rode a message of
+  # its own, that the cache emptied with it, and that the same statement then costs the prepare again.
   "mssql_resets_through_sp_reset_connection_and_loses_its_cache",
   "a_failed_reset_destroys_the_connection_rather_than_returning_it",
   "no_session_state_survives_a_return_to_the_pool",
