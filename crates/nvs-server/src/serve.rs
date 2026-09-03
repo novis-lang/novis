@@ -22,8 +22,12 @@
 //!
 //! **What it spends**, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
 //! one coroutine stack and one `hyper` connection state per connection being
-//! served, plus the accepting task's own. O(in-flight) and nothing per
-//! connection already closed.
+//! served, plus the accepting task's own, plus — while a request is actually
+//! running on one of them — that request's isolate, which is one `Ctx` and one
+//! pooled task stack under
+//! [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+//! § 3's accounting. O(in-flight) at both levels: nothing is held per connection
+//! already closed or per request already answered.
 //!
 //! # What this module does not decide yet
 //!
@@ -32,6 +36,15 @@
 //!   § 4's five steps are the slice that puts a table in front of it. § 2's rule
 //!   is kept trivially in the meantime: nothing here reads a path from request
 //!   bytes at all.
+//! - **No response policy beyond a status.** A request that ran answers `200`
+//!   carrying what it echoed, and one that did not answers `500` carrying
+//!   nothing; `answer`'s own docs are the home of that second call.
+//!   [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 2's
+//!   secure headers and
+//!   [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//!   § 3's rendering of a failure into a development response are both the
+//!   configuration slice's, because a mode is what decides them and this loop
+//!   has not been given one.
 //! - **No deadline on a connection.** [`crate::io::ConnectionIo::stream_mut`]
 //!   exists for exactly that and nothing calls it here, so a peer that opens a
 //!   socket and says nothing holds a coroutine until it goes away.
@@ -43,7 +56,7 @@
 //!   cores through [`nvs_host::NvsListener::from_std`] is the fan-out, and it is
 //!   the same loop on each of them.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::convert::Infallible;
 use std::io;
 use std::ops::ControlFlow;
@@ -54,8 +67,10 @@ use std::task::{Context, Poll};
 use hyper::body::{Body, Bytes, Frame, Incoming, SizeHint};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{Request, Response};
-use nvs_host::{NvsListener, NvsTcp, Waiting, Wake, block_on, spawn_child, suspend_current};
+use hyper::{Request, Response, StatusCode};
+use nvs_host::{
+    Completion, Isolate, NvsListener, NvsTcp, Waiting, Wake, block_on, spawn_child, suspend_current,
+};
 use nvs_runtime::{Ctx, OutputSink, TaskRoot};
 
 use crate::ConnectionIo;
@@ -121,12 +136,32 @@ impl Body for Answer {
 /// nothing, so there is no executor to install and no second scheduler to
 /// reconcile with [`nvs_host::Scheduler`].
 ///
-/// `handler` is called once per request on the connection and answers with the
-/// bytes to send. It runs **inside the connection future's poll**, so it may not
-/// park — which is the reason it is a `Fn` returning a `Response` rather than
-/// anything that could wait. The request that runs Novis code is an isolate and
-/// is the slice after this one; ADR 0006's isolate is a task, and a task is what
-/// a park needs.
+/// `handler` is asked once per request for the [`Isolate`] that request *is*:
+/// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)'s isolate,
+/// the same type `spawn script` runs, and deliberately **not** a second
+/// isolation path — M7's state-bleed suite is a parameterisation of one
+/// mechanism and would prove nothing about two of them.
+///
+/// **That isolate runs inside the connection future's poll, and it may park.**
+/// That is what ADR 0138 § 1 bought: the future is driven on this coroutine's
+/// own stack, so the join's suspend parks the whole stack — `hyper`'s poll
+/// frame included — and the resume lands back inside that same poll, with the
+/// core having served its other connections in between. Nothing re-enters
+/// while it is parked, because a suspended task runs nothing at all, which is
+/// what gives the borrow below one borrower by construction.
+///
+/// `ctx` is the connection task's, and that makes it the root of this
+/// connection's request tree
+/// ([ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+/// § 1): a request's isolate is a child of the connection, so a client that
+/// goes away takes its request's tasks with it rather than leaving them
+/// behind.
+///
+/// The request is handed to `handler` with its body unread. Nothing in this
+/// slice consumes an [`Incoming`], so a request that carried one ends its
+/// connection rather than being followed by a second —
+/// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
+/// lazily yielded parts are the slice that reads one.
 ///
 /// # Errors
 ///
@@ -134,16 +169,64 @@ impl Body for Answer {
 /// h1, a socket that failed under it, or a request it refused to frame. A
 /// cancelled task is not one of them — the drive answers `None` and this
 /// reports `Ok`, because the connection ended for a reason its caller already
-/// knows about.
-pub fn serve_connection<H>(stream: NvsTcp, handler: &H) -> hyper::Result<()>
+/// knows about. **A request's own failure is not one either**: ADR 0006's
+/// failure is a value, so it becomes a response instead.
+pub fn serve_connection<H>(stream: NvsTcp, ctx: &mut Ctx, handler: &H) -> hyper::Result<()>
 where
-    H: Fn(Request<Incoming>) -> Response<Answer>,
+    H: Fn(Request<Incoming>) -> Isolate,
 {
+    let ctx = RefCell::new(ctx);
     let service = service_fn(|request: Request<Incoming>| {
-        std::future::ready(Ok::<_, Infallible>(handler(request)))
+        let isolate = handler(request);
+        let answered = match isolate.run(&mut ctx.borrow_mut()) {
+            Ok(done) => answer(done),
+            // The *argument* had no meaning on the other side, so no request
+            // was ever started. Everywhere else that is the parent's to raise;
+            // here the parent is a connection with nobody to raise it in, so it
+            // is one more `500`.
+            Err(_refused) => failed(),
+        };
+        std::future::ready(Ok::<_, Infallible>(answered))
     });
     let connection = http1::Builder::new().serve_connection(ConnectionIo::new(stream), service);
     block_on(connection).unwrap_or(Ok(()))
+}
+
+/// The response one finished request is.
+///
+/// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// § 3's table in code: inside an HTTP request `echo` writes to the response
+/// body, and an isolate's `echo` reaches its own capture buffer, so
+/// [`Completion::output`] **is** the body and no call site had to name a
+/// format.
+///
+/// A request that failed answers `500` **with no body at all**, discarding
+/// whatever it echoed before it failed. That is a decision rather than an
+/// omission: a page rendered half-way is worse than none, and the failure
+/// itself reaches a response only where a mode says it may
+/// ([ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// § 3's HTML rendering of a `Throwable`, in development), which is the
+/// configuration slice's. Until there is a mode to ask, the fail-closed answer
+/// is the status and nothing else.
+fn answer(mut done: Completion) -> Response<Answer> {
+    // There is nowhere to move the child's returned value to — a request
+    // answers with what it wrote, not with what it returned — and that field
+    // carries one reference this crate would otherwise leak. `discard_value`
+    // is the safe discharge, which is the whole reason it exists: this crate
+    // forbids `unsafe_code`.
+    done.discard_value();
+    if done.ok {
+        Response::new(Answer::new(done.output))
+    } else {
+        failed()
+    }
+}
+
+/// `500`, carrying nothing — `answer`'s docs own why the body is empty.
+fn failed() -> Response<Answer> {
+    let mut response = Response::new(Answer::empty());
+    *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+    response
 }
 
 /// Accepts on `listener`, giving every connection its own coroutine, until
@@ -174,7 +257,7 @@ pub fn serve_on_this_core<H>(
     mut keep_serving: impl FnMut() -> ControlFlow<()>,
 ) -> io::Result<()>
 where
-    H: Fn(Request<Incoming>) -> Response<Answer> + 'static,
+    H: Fn(Request<Incoming>) -> Isolate + 'static,
 {
     // Taken once, and it is also the check that this is a task at all: a wake
     // exists exactly when `spawn_child` has a parent to hang a child off.
@@ -198,14 +281,19 @@ where
             outstanding: Rc::clone(&outstanding),
             parent: Rc::clone(&parent),
         };
-        let spawned = spawn_child(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+        let spawned = spawn_child(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |ctx| {
             let _served = served;
+            // This task's context is the root of one connection's request tree,
+            // and `OutputSink::Sink` because a connection of itself writes
+            // nothing: a request's bytes are captured by its own isolate and
+            // come back as data (ADR 0088 § 3).
+            //
             // A connection's own failure is the connection's. There is nobody
             // to report a reset peer to, the socket that would carry the report
             // is the one that failed, and the accept loop above must not stop
             // for it — the log this belongs in is the slice that gives this
             // loop a configuration.
-            drop(serve_connection(stream, handler.as_ref()));
+            drop(serve_connection(stream, ctx, handler.as_ref()));
         });
         if spawned.is_none() {
             // Unreachable while `Wake::current` answered above, and the guard
@@ -266,15 +354,30 @@ impl Drop for Served {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nvs_host::{Output, Program};
+    use nvs_runtime::Value;
     use std::io::{Read as _, Write as _};
     use std::net::TcpStream;
 
-    /// The handler both tests answer with: the path back, so that a response
-    /// asserted below is the answer to the request that asked for it and not
-    /// merely a well-formed response.
-    fn echo_the_path() -> Rc<impl Fn(Request<Incoming>) -> Response<Answer>> {
+    /// The isolate the first two tests answer with: a program that echoes the
+    /// path back, so that a response asserted below is the answer to the
+    /// request that asked for it and not merely a well-formed response.
+    ///
+    /// A closure is the program a test at this level can build — turning a path
+    /// into runnable code is `nvs_runtime::script`'s seam and there is no
+    /// compiler in this crate — and it writes through `Ctx::write_output`,
+    /// which is the buffer a compiled `echo` reaches under ADR 0088 § 3's
+    /// table.
+    fn echo_the_path() -> Rc<impl Fn(Request<Incoming>) -> Isolate> {
         Rc::new(|request: Request<Incoming>| {
-            Response::new(Answer::new(format!("hello {}", request.uri().path())))
+            let path = request.uri().path().to_owned();
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                child
+                    .write_output(format!("hello {path}").as_bytes())
+                    .expect("a buffer");
+                Value::null()
+            });
+            Isolate::new(program, Value::null(), Output::Capture)
         })
     }
 
@@ -385,6 +488,61 @@ mod tests {
             seen.matches("HTTP/1.1 200 OK").count(),
             2,
             "the two answers were not two responses: {seen}"
+        );
+    }
+
+    /// A request that fails is a **response**, not a dropped connection: ADR
+    /// 0006's failure is a value, so a request that gave up still leaves the
+    /// connection able to answer, and what it answers is `answer`'s decision —
+    /// a status and no body.
+    ///
+    /// A panic is the failure a test at this level can raise without a
+    /// compiler in front of it; `nvs_host::isolate`'s own tests are the home of
+    /// why that arrives as `ok = false` rather than as an unwind through the
+    /// parent.
+    #[test]
+    fn a_request_that_fails_is_a_response_and_not_a_dropped_connection() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(b"GET /boom HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let handler = Rc::new(|_request: Request<Incoming>| {
+            let program: Program =
+                Box::new(|_: &mut Ctx, _args| panic!("the request gave up loudly"));
+            Isolate::new(program, Value::null(), Output::Capture)
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(&mut listener, &handler, || ControlFlow::Break(()))
+                .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let answer = client.join().expect("the client thread panicked");
+        assert!(
+            answer.starts_with("HTTP/1.1 500 Internal Server Error\r\n"),
+            "a failed request did not answer with a status: {answer}"
+        );
+        assert!(
+            answer.to_ascii_lowercase().contains("content-length: 0"),
+            "a failed request answered with a body: {answer}"
         );
     }
 }

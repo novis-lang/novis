@@ -15,14 +15,18 @@
 //! [`nvs_host::NvsTcp`], driven by [`nvs_host::block_on()`] on the coroutine that
 //! owns the connection. The second is the socket on either end of it — accept,
 //! one child task per connection, one connection future per task — and it
-//! answers a request with whatever its caller's handler returns.
+//! answers a request by **running** it: its caller's handler names the isolate
+//! a request is, [`nvs_host::Isolate`] runs it as a child of the connection's
+//! own task, and what that isolate echoed is the response body
+//! ([ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+//! § 3). There is one isolation path in this tree and that is it; a second one
+//! would leave M7's state-bleed suite proving nothing.
 //!
-//! What is **not** here yet is the mount table, the response policy and the
-//! request itself: a handler cannot park, so the request that runs Novis code is
-//! ADR 0006's isolate and is the slice after these. [`serve`]'s own docs § *What
-//! this module does not decide yet* is the list, and it includes the one that
-//! matters most — a connection carries no deadline, so nothing user-reachable
-//! starts this loop until it does.
+//! What is **not** here yet is the mount table that decides *which* isolate a
+//! request selects, and the `[server]` configuration. [`serve`]'s own docs
+//! § *What this module does not decide yet* is the list, and it includes the
+//! one that matters most — a connection carries no deadline, so nothing
+//! user-reachable starts this loop until it does.
 //!
 //! # Why `hyper` and not our own h1
 //!
