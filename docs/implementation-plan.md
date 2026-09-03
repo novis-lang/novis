@@ -58,10 +58,10 @@
 > 13's pool. **SQL Server holds §§ 1, 3, 4, 7 and 13 on a real server, and SQLite runs §§ 4, 7, 9
 > and 13 off the blocking pooland reads a column back as declared; a block's paths resolve against
 > their own file, in the table too**. **`[]` is a per-thread singleton**. **Stage 9's `E0618`
-> refuses a literal `Db::open` host no `db.open` grant covers**, off `Env::grants`. **ADR 0133's
-> carrier landed**: `Core\Html::escape` answers `Core\Html\Markup`, `toSource` is the one way out,
-> and `.`, `.=`, interpolation and `as string` refuse one. **Goals 1-4 and M4 are closed**.
-> Conformance 1441, differential 250, migration 90%/74%.
+> refuses a literal `Db::open` host no `db.open` grant covers**, and a `tainted` one names
+> `assertTrusted`. **ADR 0133's carrier landed**: `Core\Html::escape` answers `Core\Html\Markup`,
+> `toSource` is the one way out, and `.`, `.=`, interpolation and `as string` refuse one. **Goals
+> 1-4 and M4 are closed**. Conformance 1441, differential 250, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
