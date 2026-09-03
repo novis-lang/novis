@@ -167,42 +167,10 @@
 //!    `crate::json`'s reason, and the refusals carry § 5's `issues` on a
 //!    `ParseError` because `Db\DbError` has no `issues` slot to carry them —
 //!    gap 4's other half, spec § 10 giving it that property too.
-//! 9. **`transaction` re-runs the closure with no wait between attempts**, and
-//!    that is a deliberate narrowing of § 7 rather than an omission. Everything
-//!    else the rule needs is here — [`ISOLATION`] and `readOnly` reach the
-//!    `BEGIN`, [`nvs_db::PgConn::depth`] says which call is the outermost one,
-//!    and [`nvs_db::DbErrorKind::is_retryable`] names the two failures that may
-//!    be re-run, that being the half only a driver can answer. What is missing
-//!    is the *backoff*: § 7 specifies exponential backoff with jitter that
-//!    **suspends the coroutine**, and `nvs-runtime`'s own known gap 3 is that a
-//!    helper cannot suspend yet.
-//!
-//!    Of the two ways to wait without a yielder, neither is § 7's and the
-//!    cheaper one is no wait at all. Sleeping on the core is out — that is the
-//!    one thing § 7 forbids. Sleeping on `nvs_host::blocking` keeps the core
-//!    free but parks a pool worker for the whole backoff, and a retry storm is
-//!    by definition many requests waiting at once: the conflicts that make
-//!    retries fire are correlated, so the pool every other request needs for
-//!    real blocking work — a `Core\Process` wait, a file read — is drained by
-//!    calls doing nothing. That is priority 3 paid across the whole core to buy
-//!    one request's politeness, and it is the bargain § 7 explicitly did not
-//!    strike. Retrying immediately spends nothing shared: PostgreSQL reports a
-//!    deadlock or a serialization failure only once it has already resolved the
-//!    conflict, so the second attempt is not spinning against a lock still
-//!    held. What it loses is the de-correlation the jitter bought, and the
-//!    bound on that is `retries` itself, which defaults to 0.
-//!
-//!    **A conflict raised by a statement *inside* the closure is retried on the
-//!    same four conditions**, and only the shape it arrives in differs. The
-//!    commit's refusal is an `io::Error` carrying its own
-//!    [`nvs_db::ServerError`]; the closure's is a pending exception on the
-//!    context, so its kind is read back off that object's
-//!    [`nvs_runtime::KIND_SLOT`] and turned into a
-//!    [`nvs_db::DbErrorKind`] by [`error_kind_of`]. Both then ask
-//!    [`nvs_db::DbErrorKind::is_retryable`], which is the one place the rule
-//!    lives.
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
+
+use rand::RngExt as _;
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
@@ -830,10 +798,10 @@ const TRANSACTION_OPTIONS: &[CoreOption] = &[
 /// read-only flag and renders the command from them, and refuses a *nested*
 /// call that carries either rather than running it at the outer transaction's
 /// level. `retries` is read by the helper instead, which re-runs the closure on
-/// a conflict the driver says may be re-run — with no wait between attempts,
-/// since § 7's backoff suspends the coroutine and `nvs-runtime` has no yielder.
-/// This module's known gap 9 is that narrowing and why it is the safe half of
-/// it; the declared default of 0 is what every call that does not ask gets.
+/// a conflict the driver says may be re-run, after the wait § 7 asks for.
+/// [`retry_backoff`] draws that wait exponentially and with full jitter and
+/// [`wait_between_attempts`] gives the core back for it; the declared default
+/// of 0 is what every call that does not ask gets.
 const TRANSACTION_ROW: CoreMethod = CoreMethod {
     name: "transaction",
     names: &["fn"],
@@ -5542,8 +5510,8 @@ nvs_runtime::nvs_helper! {
     /// **Either conflict re-runs it**: the commit's own refusal, and one a
     /// statement inside the closure raised, which arrives as a pending
     /// `Core\Db\DbError` instead and is read through
-    /// [`nvs_runtime::Ctx::pending_slot`]. The wait between attempts is what
-    /// this module's known gap 9 still holds. The loop itself is
+    /// [`nvs_runtime::Ctx::pending_slot`]. [`wait_between_attempts`] is the
+    /// wait § 7 puts between two of them. The loop itself is
     /// [`transacted`], which is handed its connection rather than reading one
     /// back out of the context — see [`Attempts`] for why that seam is where
     /// it is.
@@ -5724,6 +5692,87 @@ struct Attempted {
     retries: u64,
 }
 
+/// The first rung of § 7's backoff, and the base every rung after it doubles
+/// from.
+///
+/// § 7 names no number and `{retries: n}` has no key for one, which is the
+/// right shape rather than an omission: the wait is not spent letting a lock
+/// clear. A server reports a deadlock or a serialization failure only once it
+/// has already *resolved* the conflict — PostgreSQL detects a deadlock by
+/// breaking it — so what the wait buys is the de-correlation of two requests
+/// that conflicted with each other and would otherwise re-run into each other
+/// on the same schedule. Ten milliseconds is a spread wide enough for that and
+/// narrow enough that a request retried once does not notice it.
+const RETRY_BACKOFF: std::time::Duration = std::time::Duration::from_millis(10);
+
+/// The ceiling one rung may reach, however many retries were asked for.
+///
+/// `retries` is a `uint`, so the rung is capped here or a program naming sixty
+/// of them draws its wait out of a range measured in years. A second is already
+/// past the point where waiting longer buys anything — it is the whole latency
+/// budget of the request the retry exists to save.
+const RETRY_BACKOFF_CAP: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// § 7's wait before the retry with `taken` of them already spent: full jitter
+/// over an exponential rung, capped at [`RETRY_BACKOFF_CAP`].
+///
+/// **Full jitter — uniform in `[0, base × 2^taken]` — and not the rung
+/// itself**, which is `crate::http::transport`'s shape for
+/// [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 6 and
+/// holds here for a sharper reason: two requests that deadlocked against each
+/// other were, by construction, running at the same time, so an unjittered
+/// backoff hands them the same next instant and they collide again. Spreading
+/// them is the whole of what the wait is for.
+///
+/// Unlike `crate::queue`'s ladder, which mixes a job's own id, this draws from
+/// a random source, because a transaction has nothing to mix: the two
+/// conflicting requests share their statements and their timing and differ in
+/// nothing this function can read. `rand` is already this crate's, for the
+/// jitter above, so the draw costs no dependency and reopens no question under
+/// [ADR 0051](../../../docs/adr/0051-standard-library-tiers.md) § 4.
+fn retry_backoff(taken: u32) -> std::time::Duration {
+    // Clamped before the shift rather than after: sixteen rungs is already past
+    // the cap for this base, and a shift by 32 is undefined rather than
+    // saturating.
+    let ceiling = RETRY_BACKOFF
+        .saturating_mul(1_u32 << taken.min(16))
+        .min(RETRY_BACKOFF_CAP);
+    let nanos = u64::try_from(ceiling.as_nanos()).unwrap_or(u64::MAX);
+    std::time::Duration::from_nanos(rand::rng().random_range(0..=nanos))
+}
+
+/// § 7's suspension between two attempts — the coroutine waits and the core
+/// does not.
+///
+/// [`nvs_runtime::host::Host::sleep`] and deliberately not the bounded park
+/// [`wait_for_slot`] takes, on that trait's own distinction between the two: a
+/// backoff is a wait **for the clock**, with no state a peer could change to
+/// end it early, and nothing that could wake it would mean anything — a
+/// connection coming free says nothing about a deadlock that is already broken.
+///
+/// With no host on the thread the wait still happens, blocking, for
+/// `Core\Time::sleep`'s reason: there is no scheduler under the call, so there
+/// is no neighbour for
+/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// § 6's tier-B failure to have as its victim.
+///
+/// # Errors
+///
+/// [`nvs_runtime::Ctx::cancel`]'s status for a task cancelled mid-wait, which
+/// no `catch` sees. The attempt this waits after was already rolled back by the
+/// conflict that ended it, so there is nothing left open to close.
+fn wait_between_attempts(ctx: &mut nvs_runtime::Ctx, taken: u32) -> Result<(), Fault> {
+    let waited = retry_backoff(taken);
+    match nvs_runtime::host::with_current(|host| host.sleep(waited)) {
+        Some(nvs_runtime::host::Woken::Cancelled) => Err(ctx.cancel()),
+        Some(nvs_runtime::host::Woken::Elapsed) => Ok(()),
+        None => {
+            std::thread::sleep(waited);
+            Ok(())
+        }
+    }
+}
+
 /// § 7's whole transaction, from the `BEGIN` to the answer, over a connection
 /// it is handed.
 ///
@@ -5731,6 +5780,15 @@ struct Attempted {
 /// — four conditions over two conflict channels, and the one part of § 7 that
 /// belongs to no driver — has a caller other than a member that can only reach
 /// a real server. [`Attempts`] is where what that buys is written down.
+///
+/// **The two channels differ only in the shape a conflict arrives in.** The
+/// commit's refusal is an `io::Error` carrying its own [`nvs_db::ServerError`];
+/// a conflict a statement *inside* the closure raised is a pending exception on
+/// the context instead, so its kind is read back off that object's
+/// [`nvs_runtime::KIND_SLOT`] and turned into a [`nvs_db::DbErrorKind`] by
+/// [`error_kind_of`]. Both then ask [`nvs_db::DbErrorKind::is_retryable`],
+/// which is the one place the rule lives, and both wait
+/// [`wait_between_attempts`] before the re-run.
 ///
 /// # Errors
 ///
@@ -5825,7 +5883,12 @@ fn transacted(
                 // the caller is concerned, and a pending failure left on
                 // the context would surface against whatever ran next.
                 drop(ctx.take_thrown());
+                let taken = u32::try_from(call.retries.saturating_sub(left)).unwrap_or(u32::MAX);
                 left -= 1;
+                // After the rollback and after the context is clear, so a
+                // cancellation arriving mid-wait ends a call with nothing open
+                // and nothing pending.
+                wait_between_attempts(ctx, taken)?;
                 continue;
             }
         };
@@ -5868,12 +5931,16 @@ fn transacted(
 
         // § 7's `{retries: n}`, and the four conditions are all of it: an
         // outermost transaction, an attempt left, nothing that asked to be
-        // rolled back, and a conflict the driver says may be re-run. The
-        // wait § 7 also asks for is this module's known gap 9.
+        // rolled back, and a conflict the driver says may be re-run.
         let conflicted =
             nvs_db::ServerError::of(&refused).is_some_and(|server| server.kind.is_retryable());
         if outermost && left > 0 && abandoned.is_none() && conflicted {
+            // The rung is how many re-runs this call has already spent, so the
+            // first wait is one base and each one after it doubles. Read before
+            // the decrement, where it is still 0.
+            let taken = u32::try_from(call.retries.saturating_sub(left)).unwrap_or(u32::MAX);
             left -= 1;
+            wait_between_attempts(ctx, taken)?;
             continue;
         }
         return Err(statement_failure(
@@ -7867,6 +7934,46 @@ mod tests {
         drop(ctx.take_thrown());
         discard(closure);
         discard(block);
+    }
+
+    /// ADR 0067 § 7's backoff, asserted as bounds over the whole ladder rather
+    /// than as numbers: the draw is random, so there is no value to name.
+    ///
+    /// **Both halves are asserted because either alone passes for the wrong
+    /// reason.** A `retry_backoff` answering its ceiling every time grows and
+    /// caps correctly and loses the entire point — two requests that
+    /// deadlocked against each other are handed one next instant and collide
+    /// again — while one drawing over a fixed range is jittered and retries a
+    /// hopeless conflict at the same rate forever.
+    #[test]
+    fn the_backoff_is_exponential_jittered_and_capped() {
+        for taken in 0..24_u32 {
+            let ceiling = RETRY_BACKOFF
+                .saturating_mul(1_u32 << taken.min(16))
+                .min(RETRY_BACKOFF_CAP);
+            for _ in 0..64 {
+                let drawn = retry_backoff(taken);
+                assert!(
+                    drawn <= ceiling,
+                    "rung {taken} drew past the ceiling full jitter is uniform under"
+                );
+                assert!(
+                    drawn <= RETRY_BACKOFF_CAP,
+                    "rung {taken} drew past the cap a `uint` of retries is bounded by"
+                );
+            }
+        }
+
+        let drawn: std::collections::BTreeSet<_> = (0..64).map(|_| retry_backoff(4)).collect();
+        assert!(drawn.len() > 1, "an unjittered backoff draws one value");
+
+        // The ceiling doubles per rung, which no single draw shows, so it is
+        // asserted on the maximum of enough of them to reach past the rung
+        // below: 256 draws all landing in rung 0's tenth of rung 3's range is
+        // not a flake anyone will see.
+        let low = (0..256).map(|_| retry_backoff(0)).max().expect("256 draws");
+        let high = (0..256).map(|_| retry_backoff(3)).max().expect("256 draws");
+        assert!(high > low, "rung 3's range did not reach past rung 0's");
     }
 
     /// ADR 0067 § 2's memoization, asserted where it is written: a second
