@@ -50,5 +50,5 @@ Two things about the shape of this goal that are easy to get wrong:
   no-argument output byte-identical, which is what protects the website's `sync:core` too.
 - Take diagnostic codes from `python tools/brief.py` at the moment you write them — parser `E01xx`,
   name resolution `E03xx` — never from the ADR, which names bands deliberately.
-- When this goal's last check goes green the chain is finished. The milestone table's order 6 is M4B,
-  whose staged goal is `docs/agent/next-goal-m4b.md`, and which now starts with its tree half done.
+- When this goal's last check goes green the driver takes goal 12 — the resilient tree, the first of
+  M4B's four entries, which starts with the trivia half this goal built already done.

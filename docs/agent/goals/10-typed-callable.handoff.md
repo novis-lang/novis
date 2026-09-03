@@ -45,5 +45,5 @@ dereference, paid per argument per call. This goal makes it a compile-time proof
 - Stage 6 is the codegen and the valgrind leg, and it is the only stage that touches `nvs-ir`,
   `nvs-codegen` and `nvs-runtime`. It shares nothing with the four before it — expect it to want its own
   session.
-- When this goal's last check goes green the chain is finished. The milestone table's order 6 is M4B,
-  whose staged goal is `docs/agent/next-goal-m4b.md`.
+- When this goal's last check goes green the driver takes goal 11 — ADR 0137's doc comments, whose
+  stage 2 is M4B's trivia layer landing early. The chain then runs to goal 15.

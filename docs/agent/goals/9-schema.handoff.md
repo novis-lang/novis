@@ -42,5 +42,5 @@ including the steps `apply` refuses.
   mattering: stage 5's property — apply, introspect, empty plan — is asserted on every backend.
 - Stage 6 crosses into `nvs-stdlib` and `nvs-cli` for the first time; stage 7 goes back to
   `crates/nvs-stdlib/src/queue.rs` alone.
-- When this goal's last check goes green the chain is finished. The milestone table's order 6 is M4B,
-  whose staged goal is `docs/agent/next-goal-m4b.md`.
+- When this goal's last check goes green the driver takes goal 10 — ADR 0136's typed `callable`. The
+  chain runs to goal 15; M4B is its last four entries.

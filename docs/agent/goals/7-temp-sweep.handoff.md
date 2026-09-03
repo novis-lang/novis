@@ -34,5 +34,4 @@ liveness, never age, and every ambiguity resolves toward *skip*.
   first creates it, the other reuses it; its per-platform edges are a standing decision in the goal
   prose.
 - When this goal's last check goes green the driver takes goal 8 — `Core\Program::id()`,
-  `docs/agent/goals/8-program-id.md`. The milestone table's order 6 is M4B, whose staged goal is
-  `docs/agent/next-goal-m4b.md`.
+  `docs/agent/goals/8-program-id.md`. The chain runs to goal 15; M4B is its last four entries.

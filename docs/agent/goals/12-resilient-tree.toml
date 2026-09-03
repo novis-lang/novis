@@ -1,0 +1,193 @@
+# Goal 12 -- the resilient tree, and one home for a position. The acceptance test, as data.
+#
+# `12-resilient-tree.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+# The floor brings its own fixtures; this goal adds none. Every property here is asserted from Rust,
+# because a lossless tree and an offset conversion have no stdout to freeze.
+files = []
+
+[context]
+
+modules = [
+  # `MemberName` and `ExprKind::Error` -- what stage 2 makes explicit.
+  "crates/nvs-syntax/src/ast.rs",
+  # Where the synthesized member name is made today.
+  "crates/nvs-syntax/src/parser/expr.rs",
+  # `Parsed` and the two entry points; the index joins `stmts` and `trivia` here.
+  "crates/nvs-syntax/src/parser/mod.rs",
+  # `line_col` counts chars -- neither encoding a client can negotiate. Stage 5's one home.
+  "crates/nvs-diagnostics/src/source.rs",
+  # The section lexer stage 6 extracts, and the module doc that names the section set.
+  "crates/nvs-test/src/case.rs",
+  "crates/nvs-test/src/lib.rs",
+  # `run_ast` -- stage 7's two flags.
+  "crates/nvs-cli/src/main.rs",
+]
+
+rules = ["0099", "0040", "0137", "0092", "0009", "0134"]
+
+# 0099 s1 is the tree being finished; s5 is the case format stage 6 prepares for and does not build.
+# 0040 s3 is the AST panel's assumption that `--json` already exists.
+adrs = ["0099 §1", "0099 §5", "0040 §3"]
+
+shapes = ["A `.nvst` test case", "A commit message", "A diagnostic"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+# The acceptance paragraph, not the whole milestone: M4B's item list now lives in this goal's own
+# prose and in goals 13-15, and the milestone page whole is 6,000 tokens of it a second time.
+milestones = ["M4B:verify"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goals 4-11's container-backed checks.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- recovery a consumer can read. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 explicit recovery"
+name = "nvs-syntax (recovery is explicit, not an empty span)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_missing_member_name_is_explicit_not_an_empty_span",
+  "a_member_name_the_user_wrote_is_never_missing",
+  "an_error_expression_carries_the_span_it_stood_in_for",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the index, and the promise that the strict path did not move. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the index"
+name = "nvs-syntax (the syntax index)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "the_syntax_index_answers_the_innermost_node_at_an_offset",
+  "the_syntax_index_answers_the_ancestor_path_outward_in_order",
+  "the_index_is_filled_by_one_walk",
+  # The regression this whole goal is one bad refactor away from.
+  "the_strict_entry_point_reports_exactly_what_it_reported_before",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the prefix sweep. The fuzz target itself rides CI's `fuzz-smoke` job beside `lex` and
+# `parse`, as those two already do; what runs every iteration is the in-process property.
+# Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the prefix sweep"
+name = "nvs-syntax (every prefix of every example)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "every_prefix_of_every_example_parses_without_panicking",
+  "every_prefix_answers_a_syntax_index_lookup_at_its_end",
+  "an_incomplete_prefix_still_reports_a_diagnostic",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- position arithmetic, in one crate. Invisible on ASCII, wrong on everything else.
+# Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 positions"
+name = "nvs-diagnostics (utf16_col and offset_of)"
+args = ["test", "-p", "nvs-diagnostics"]
+tests = [
+  "utf16_col_counts_code_units_not_chars",
+  "offset_of_inverts_line_col_on_a_multibyte_line",
+  "a_position_round_trips_through_utf16_and_utf8",
+  "an_offset_past_the_last_line_is_clamped_rather_than_panicking",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- one section lexer, two formats. The `.nvst` half must not move. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the section lexer"
+name = "nvs-test (the shared section lexer)"
+args = ["test", "-p", "nvs-test"]
+tests = [
+  "the_section_lexer_reads_a_header_with_an_argument",
+  "the_section_lexer_is_reusable_by_a_second_format",
+  "every_nvst_section_parses_exactly_as_it_did_before_the_extraction",
+]
+
+# The floor already runs both `nvs test` suites at their frozen counts; this is the same claim from the
+# other side, and it is the one that would catch an extraction that changed a case's meaning.
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- `nvs ast --json --resilient`, frozen. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 ast json"
+name = "nvs-cli (ast --json)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "ast_json_matches_its_frozen_schema",
+  "ast_json_renders_a_file_that_does_not_compile",
+  "ast_json_includes_trivia_and_recovery_nodes",
+  "ast_resilient_is_the_default_and_strict_is_opt_in",
+]
+
+[[check]]
+kind = "command"
+stage = "7 ast json"
+name = "nvs ast --json emits the node shape"
+argv = ["{nvs}", "ast", "--json", "examples/hello.nvs"]
+want = ['"kind"', '"span"', '"children"']
+
+# A chapter edit that stops regenerating is how `docs/novis.md` goes quietly stale.
+[[check]]
+kind = "command"
+stage = "7 ast json"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]

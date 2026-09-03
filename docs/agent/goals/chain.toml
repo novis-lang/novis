@@ -121,3 +121,54 @@ toml = "docs/agent/goals/11-doc-comments.toml"
 handoff = "docs/agent/goals/11-doc-comments.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+
+# M4B, as four goals. It is order 6 of the milestone table and it sits here because everything it reads
+# is now built: goal 11 landed the trivia layer, goal 10 the typed `callable`, and the request set is
+# written against a language that can open a file and reach a database. The split is by file set, the
+# way the parity program's was -- no manifest names both a parser module and a TypeScript tree.
+
+# The tree half ADR 0099 s1 still owes: the `SyntaxIndex` and explicit recovery, plus the one home for a
+# position (`utf16_col`/`offset_of`), the section lexer `.lspt` will share, and `nvs ast --json`.
+# Everything after it is unwritable without this, which is why it is first.
+[[goal]]
+name = "12 resilient-tree"
+md = "docs/agent/goals/12-resilient-tree.md"
+toml = "docs/agent/goals/12-resilient-tree.toml"
+handoff = "docs/agent/goals/12-resilient-tree.handoff.md"
+milestone = "M4B"
+preflight = "docker"
+
+# The two M1 items scheduled after M4 and never taken -- ADR 0098's pipeline operator and ADR 0124's PHP
+# 8.6 refusals. Here rather than anywhere else because goal 15's grammar must colour `|>` and `let`/`is`
+# as things Novis REJECTS, and `|>` stops being one the moment 0098 lands. A grammar written against a
+# surface that changes two goals later is written twice.
+[[goal]]
+name = "13 surface"
+md = "docs/agent/goals/13-surface.md"
+toml = "docs/agent/goals/13-surface.toml"
+handoff = "docs/agent/goals/13-surface.handoff.md"
+milestone = "M1"
+preflight = "docker"
+
+# `crates/nvs-lsp`: nine standard requests, one of Novis's own (ADR 0101's `nvs/redactions`) and two code
+# actions, over `lsp-server` and `lsp-types` with no async runtime. Its stage 3 builds the `.lspt` case
+# and `nvs lsp-test` BEFORE any handler, because this is the first thing the loop verifies that no
+# program prints.
+[[goal]]
+name = "14 lsp-server"
+md = "docs/agent/goals/14-lsp-server.md"
+toml = "docs/agent/goals/14-lsp-server.toml"
+handoff = "docs/agent/goals/14-lsp-server.handoff.md"
+milestone = "M4B"
+preflight = "docker"
+
+# `editors/vscode` -- the first non-Rust source in the repository, and the last entry on the chain. Two
+# TextMate grammars, the client, the Tasks and their problem matcher, the AST panel, `secret`
+# concealment, and the extension-host tier that is memoized and never gates an iteration.
+[[goal]]
+name = "15 editor"
+md = "docs/agent/goals/15-editor.md"
+toml = "docs/agent/goals/15-editor.toml"
+handoff = "docs/agent/goals/15-editor.handoff.md"
+milestone = "M4B"
+preflight = "docker"

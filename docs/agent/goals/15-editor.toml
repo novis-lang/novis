@@ -1,0 +1,134 @@
+# Goal 15 -- `editors/vscode`. The acceptance test, as data.
+#
+# `15-editor.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. A grammar snapshot is re-frozen
+# deliberately, with the reason in the commit message, and never to make a run go green.
+#
+# A `command` check is not a PROGRAM_KIND, so it runs ONCE between the legs rather than per leg --
+# which is right: a TextMate grammar has no calling convention, and the WSL leg exists for the one
+# thing that does. The distro therefore needs no Node.
+
+files = []
+
+[context]
+
+modules = [
+  # The extension's own source. `orient.py` reads `editors/*/src/**/*.ts` for its first `//`/JSDoc
+  # line the same way it reads a crate's `//!`. Until stage 2 creates the directory it warns that the
+  # pattern matched no module: expected on this goal's first session, and not a tooling bug to chase.
+  "editors/vscode/src/**",
+  # The section set the second grammar colours -- read this, never the corpus.
+  "crates/nvs-test/src/lib.rs",
+  # The diagnostic renderer's format, which the problemMatcher's two regexes must match exactly.
+  "crates/nvs-diagnostics/src/render.rs",
+  # The legend the server declares; the client registers the same one or nothing lines up.
+  "crates/nvs-lsp/src/**",
+]
+
+rules = ["0099", "0101", "0016", "0040", "0051", "0134"]
+
+# The colour lists and the frozen contribution roster are this goal's entire specification; 0101's
+# client half is stage 6.
+adrs = ["0099 §4", "0099 §6", "0101 §3", "0016 §5"]
+
+shapes = ["An `.lspt` case", "A commit message"]
+
+playbook = [
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Writing a test case > a rule',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+# The acceptance paragraph alone; the colour lists are ADR 0099 §§ 4 and 6, already named above.
+milestones = ["M4B:verify"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goals 4-14's container-backed checks.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stages 2-7 -- the headless tier, which runs every iteration. Three suites behind one script: the
+# TextMate grammar snapshots, the contributions/allowlist test, and the protocol round-trip against
+# the real `nvs lsp` binary. Each names itself so a ledger line says which one broke.
+# Goal prose stages 2, 3, 4, 5, 6 and 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 headless"
+name = "vscode (headless)"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:headless"]
+want = ["grammar:", "contributions:", "protocol:", "0 failing"]
+# `contributions:` covers more than it sounds like -- the dependency allowlist, the absence of any
+# colour-customization default, `wordPattern` matching `$total` whole, the extension id, and the
+# twelve frozen setting and command ids. All of them break a user's config silently rather than
+# loudly, which is why they are asserted over `package.json` rather than reviewed.
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the extension host and the artifact. Memoized against the green tree the way the valgrind
+# sweep is: it needs a display and a downloaded VS Code build, and neither belongs on the
+# per-iteration path. Goal prose stage 8.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "8 extension host"
+name = "vscode (extension host)"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:host"]
+memoize = true
+want = ["0 failing"]
+
+[[check]]
+kind = "command"
+stage = "8 extension host"
+name = "vsix packages"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "package"]
+memoize = true
+want = [".vsix"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the reference chapter's last heading. Goal prose stage 9.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "9 the reference"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "9 the reference"
+name = "the extension heading owes no proof"
+argv = ["python", "tools/dossier.py", "--only", "tools:editor/the-vs-code-extension", "--gate"]

@@ -17,6 +17,12 @@ callbacks so their registry rows are converted once rather than twice. An eleven
 ADR 0099 § 1's trivia layer because a doc comment cannot be read without it, so **M4B starts with its
 own tree half already done**.
 
+**Then M4B itself, as four goals** — [12 resilient-tree](12-resilient-tree.md),
+[13 surface](13-surface.md), [14 lsp-server](14-lsp-server.md) and [15 editor](15-editor.md). Goal 13 is
+not editor work: it is ADR 0098's pipeline operator and ADR 0124's PHP 8.6 refusals, the two M1 items
+scheduled after M4 and never taken, and it sits before the grammar because a grammar written against a
+surface about to change is written twice. Goal 15 is the last entry on the chain.
+
 [loop-authoring.md](../loop-authoring.md) owns how a goal is *written* and [coordinator.md](../coordinator.md)
 owns how one is *driven*. This file owns only what is specific to running six of them back to back, and it
 does not restate either.
@@ -45,6 +51,10 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [9 schema](9-schema.md) | post-parity, one ADR slot | `nvs-db`, `nvs-stdlib`, `nvs-cli` |
 | [10 typed-callable](10-typed-callable.md) | post-parity, ADR 0136 | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
 | [11 doc-comments](11-doc-comments.md) | post-parity, ADR 0137 + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
+| [12 resilient-tree](12-resilient-tree.md) | M4B, ADR 0099 § 1's other half | `nvs-syntax`, `nvs-diagnostics`, `nvs-test`, `nvs-cli` |
+| [13 surface](13-surface.md) | M1 items 5-6, ADR 0098 + ADR 0124 | `nvs-syntax`, `nvs-diagnostics` |
+| [14 lsp-server](14-lsp-server.md) | M4B, ADR 0099 §§ 3+5 + ADR 0101 | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
+| [15 editor](15-editor.md) | M4B, ADR 0099 §§ 4+6 | **`editors/vscode`** (new, TypeScript) |
 
 ## The chain contract
 
@@ -120,8 +130,7 @@ locking, reversibility — which [ADR 0082](../../adr/0082-the-first-party-frame
 deliberately blocked. Goal 9 builds convergence, which needs none of them, and does not close that gap.
 
 Doc trimming and dependency sweeps, both of which the user fires and never a session
-([doc-cleanup.md](../doc-cleanup.md), [dependency-update.md](../dependency-update.md)). M4B's staged goal
-([next-goal-m4b.md](../next-goal-m4b.md)) stays unamended for order 6 of the milestone table. And **PHP's
+([doc-cleanup.md](../doc-cleanup.md), [dependency-update.md](../dependency-update.md)). And **PHP's
 optional extensions** — `gd`, `intl`, `imap`, `zip` and the rest of the unaudited list in
 [02-php-migration.md](../../spec/02-php-migration.md) — are not parity work: they are M9's, and a session
 that finds one on its path puts it in the handoff's `## Backlog` and moves on.

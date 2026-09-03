@@ -1,0 +1,163 @@
+# Goal 13 -- the pipeline operator and the PHP 8.6 refusals. The acceptance test, as data.
+#
+# `13-surface.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/pipeline.nvs",
+]
+
+[context]
+
+modules = [
+  # The `|>` token, and the reserved set `let` and `is` join.
+  "crates/nvs-syntax/src/token.rs",
+  # Where the hole is substituted, and where precedence is expressed.
+  "crates/nvs-syntax/src/parser/expr.rs",
+  # `finally`, constructors and `readonly` -- the three refusals' declaration side.
+  "crates/nvs-syntax/src/parser/decl.rs",
+  # The code registry: three reassigned numbers and three new ones, or they do not exist.
+  "crates/nvs-diagnostics/src/lib.rs",
+]
+
+rules = ["0098", "0124", "0063", "0034", "0134"]
+
+# 0098 whole: it is the operator's entire design, and its diagnostics table is what stage 0 folds.
+# 0124's four refusals and the one it does not adopt.
+adrs = ["0098", "0124"]
+
+shapes = ["A diagnostic", "A `.nvst` test case", "An ADR", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+# The acceptance paragraph alone. What these two items build is ADR 0098 and ADR 0124, both of which
+# this manifest already names whole.
+milestones = ["M1:verify"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goals 4-12's container-backed checks.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- CATCH-UP. ADR 0098's three numbers were allocated elsewhere after it was written. The
+# registry is the allocator; the ADR's table moves. Goal prose stage 0.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "nvs-diagnostics (the pipeline codes, reassigned)"
+args = ["test", "-p", "nvs-diagnostics"]
+tests = [
+  "the_pipeline_codes_are_the_next_free_parser_band_numbers",
+  "the_codes_adr_0098_originally_named_still_belong_to_their_owners",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the operator. The identity claim is the design, so it is asserted rather than inspected.
+# Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the pipeline"
+name = "nvs-syntax (the hole, substituted at parse time)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_pipeline_produces_the_same_ast_as_the_nested_spelling",
+  "a_pipeline_chain_associates_left_to_right",
+  "the_hole_binds_to_the_nearest_enclosing_right_side",
+  "a_right_side_with_no_hole_is_refused",
+  "a_right_side_with_two_holes_is_refused",
+  "a_hole_outside_a_pipeline_is_refused",
+  "the_php_callable_shape_is_named_in_the_help_of_the_no_hole_refusal",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the pipeline"
+name = "conformance (the pipeline's three refusals)"
+args = ["test", "tests/conformance/reject/pipeline"]
+
+[[check]]
+kind = "exact"
+stage = "2 the pipeline"
+file = "examples/pipeline.nvs"
+want = [
+  "a chain reads left to right",
+  "the nested spelling answers the same",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the PHP 8.6 refusals. Asserted as cases rather than as a crate's unit tests: what is
+# frozen is the refusal a user sees, not which pass produced it. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the refusals"
+name = "nvs-syntax (two reserved spellings)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "let_is_a_reserved_spelling",
+  "is_is_a_reserved_spelling",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the refusals"
+name = "conformance (return in finally, a constructor's value, a readonly default)"
+args = ["test", "tests/conformance/reject/php86"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the reference follows, and the one new heading pays for itself. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 the reference"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
+
+# Scoped to the one heading this goal adds. The rest of the chapter's roster is the four-proofs
+# program's debt and is deliberately not imported here.
+[[check]]
+kind = "command"
+stage = "4 the reference"
+name = "the pipeline operator owes no proof"
+argv = ["python", "tools/dossier.py", "--only", "lang:expressions/the-pipeline-operator", "--gate"]

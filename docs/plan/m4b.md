@@ -4,7 +4,11 @@
 into an editor early, and on 2026-08-28 it was placed behind orders 1–5 for the same reason it was placed
 behind M4: completion, hover and diagnostics written against a language that cannot open a file or reach a
 database are written twice, and every `.lspt` case authored in the meantime is authored against a surface
-about to change. [next-goal-m4b.md](../agent/next-goal-m4b.md) stays staged and unamended.
+about to change. It runs as **four chain goals** —
+[12 resilient-tree](../agent/goals/12-resilient-tree.md), [13 surface](../agent/goals/13-surface.md),
+[14 lsp-server](../agent/goals/14-lsp-server.md) and [15 editor](../agent/goals/15-editor.md) — which are
+the item list's one home; goal 13 is M1's two unfinished front-end items, pulled in because the grammar
+must colour their surface.
 
 **One assertion in *Verify* re-anchors.** "`tokio` appears in neither `Cargo.toml` nor `Cargo.lock`" is
 still exactly true and still checked by `crates/nvs-runtime/tests/manifest_policy.rs` — but by the time
