@@ -2656,6 +2656,93 @@ mod tests {
     }
 
     #[test]
+    fn a_refused_append_neither_separates_nor_re_points() {
+        // The order of `try_append`'s two steps is what compiled code rests
+        // on, and it is reachable from source: `$b = $a; $a[] = 1;` over an
+        // array already holding `i64::MAX`. `nvs_codegen`'s `emit_array_append`
+        // loads the yielded pointer **only** on the continuation edge, so a
+        // refusal that had already separated would leave the frame releasing a
+        // reference the call consumed and the clone with nobody to release it.
+        // Measured rather than asserted about: a refcount agreeing with itself
+        // is not the memory coming back.
+        let mut ctx = crate::Ctx::buffered();
+        let before = live_bytes();
+        {
+            let mut full = NvsArray::new();
+            full.set_index(i64::MAX, Value::int(1));
+            let alias = full.clone();
+            let given = full.into_raw();
+
+            let value = Value::int(2);
+            let mut out: *mut ArrayHeader = std::ptr::null_mut();
+            #[expect(unsafe_code, reason = "this test owns every reference it hands over")]
+            let status =
+                unsafe { nvs_array_append(&raw mut ctx, given, &raw const value, &raw mut out) };
+
+            assert_eq!(status, crate::THROWN, "the next integer key is occupied");
+            assert_eq!(
+                out, given,
+                "the occupancy test runs before the separation, so a refusal \
+                 leaves the caller's own pointer to hand back"
+            );
+            #[expect(unsafe_code, reason = "this test owns the reference it releases")]
+            unsafe {
+                nvs_array_release(out);
+            }
+            drop(alias);
+        }
+        drop(ctx.take_pending());
+        assert_eq!(live_bytes(), before);
+    }
+
+    #[test]
+    fn a_refused_spread_hands_back_the_separation_it_had_already_made() {
+        // The spread is the one faulting write that *can* re-point, because it
+        // writes before it refuses — so it writes the handle back through `out`
+        // ahead of deciding on the fault, and the clone is never dropped. No
+        // program reaches this state (a literal under construction is solely
+        // owned unless it is still the empty singleton, which has no next index
+        // to occupy), so the state is built here directly.
+        let mut ctx = crate::Ctx::buffered();
+        let before = live_bytes();
+        {
+            // Shared, so the first write separates; already at `i64::MAX`, so a
+            // renumbered entry is refused.
+            let mut dest = NvsArray::new();
+            dest.set_index(i64::MAX, Value::int(1));
+            let alias = dest.clone();
+            let given = dest.into_raw();
+
+            // A string key first — copied under its own name, and the write
+            // that separates — then an integer key, which is renumbered and
+            // refused.
+            let mut subject = NvsArray::new();
+            subject.set(key("name"), Value::int(2));
+            subject.set_index(0, Value::int(3));
+            let borrowed = subject.into_raw();
+
+            let mut out: *mut ArrayHeader = std::ptr::null_mut();
+            #[expect(unsafe_code, reason = "this test owns every reference it hands over")]
+            let status = unsafe { nvs_array_spread(&raw mut ctx, given, borrowed, &raw mut out) };
+
+            assert_eq!(status, crate::THROWN, "the next integer key is occupied");
+            assert_ne!(
+                out, given,
+                "the copy the string key's write installed is what comes back"
+            );
+            #[expect(unsafe_code, reason = "this test owns every reference it releases")]
+            unsafe {
+                assert_eq!(NvsArray::refcount_of(out), 1, "the copy is solely owned");
+                nvs_array_release(out);
+                nvs_array_release(borrowed);
+            }
+            drop(alias);
+        }
+        drop(ctx.take_pending());
+        assert_eq!(live_bytes(), before);
+    }
+
+    #[test]
     fn a_deeply_nested_array_releases_without_recursing() {
         // The depth that would overflow a recursive release. See this module's
         // "freeing is iterative" decision.
