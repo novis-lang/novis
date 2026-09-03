@@ -352,9 +352,10 @@ class StatusLine:
     def keys(self):
         """The row under the status line: what a keypress would do *right now*.
 
-        Contextual on purpose, and that is the whole design. `[r]` appears only while a usage wall
-        is up, because a wall is the only thing it ends -- offered at any other time it is a key
-        that silently does nothing. `[s]` is always there, and once armed the row says so and says
+        Contextual on purpose, and that is the whole design. `[r]` appears only while the run is
+        parked -- behind a usage wall or an API overload -- because a wait is the only thing it
+        ends, and offered at any other time it is a key that silently does nothing. `[s]` is
+        always there, and once armed the row says so and says
         how to take it back: a keypress that cannot be undone is worse than no keypress at all.
 
         Painted as one colour rather than per-word, so what a narrow terminal truncates is text
@@ -422,8 +423,9 @@ class Control:
 
     Three rules the shape follows, each of which is a mistake it would otherwise make:
 
-    * **`r` exists only while a wall is up.** It has nothing to end at any other time, and a key
-      that silently does nothing is a key that gets pressed twice and then distrusted.
+    * **`r` exists only while a wall is up** -- a usage window that has closed, or an API that
+      answered `529 Overloaded`. It has nothing to end at any other time, and a key that silently
+      does nothing is a key that gets pressed twice and then distrusted.
     * **`s` is undoable.** Pressed by accident it would otherwise cost the rest of a run, so it
       toggles, and it is acted on `STOP_GRACE` seconds late -- long enough that even a parked run,
       which reads the flag four times a second, can be told to carry on.
@@ -529,7 +531,8 @@ class Control:
                         self.retry = True
                         say("   [r] retry requested -- the wait ends now", C.GREEN)
                     else:
-                        say("   [r] does nothing right now; it ends a usage limit wait", C.GRAY)
+                        say("   [r] does nothing right now; it ends a usage or overload wait",
+                            C.GRAY)
 
     # -- what the driver asks ----------------------------------------------------------
 
@@ -2738,14 +2741,75 @@ def wait_out_limit(limit, opts):
     return ""
 
 
-def mark_interrupted(index, limit):
+# -------------------------------------------------------------------- the overload wall
+#
+# `529 Overloaded` is the other non-failure that arrives as a non-zero exit, and unlike a usage
+# wall it is nothing to do with the account: the server is busy. The CLI fights it first -- ten
+# `api_retry` events under its own exponential backoff, about four minutes of them -- and when it
+# gives up it says exactly what happened, on the one event that reports how the session ended:
+#
+#     {"type":"result","is_error":true,"terminal_reason":"api_error","api_error_status":529,
+#      "result":"API Error: 529 Overloaded. This is a server-side issue, usually temporary...",..}
+#
+# Counted as a crash, that was three retries and about three minutes to end a run: measured on
+# 2026-09-03, run 20260903-151807, which stopped at session 3 with `cli-failed` and the goal
+# untouched. So an overloaded session is re-run instead, and re-run FOREVER -- there is no
+# deadline to sleep to the way a closed usage window has one, and nothing about the tree is wrong,
+# so the only recovery available is to keep asking. A run that ends itself at 03:00 costs every
+# session that would have run before somebody looked at it.
+#
+# **Parsed, never grepped**, for the same reason the usage wall above is: `api_error_status` is a
+# field on the terminal event, while the words "529 Overloaded" appear in any session that reads
+# this file, or the log of a session that hit one.
+
+#: The API statuses a session is re-run for rather than counted against `--max-retries`. Just the
+#: one, deliberately: a 529 is the server saying "not now", where a 500 can as easily be a request
+#: that will fail identically every time it is sent -- and retrying *that* forever is a run that
+#: serves no sessions and never stops. Another status is one entry here, once it is known to be
+#: transient.
+OVERLOAD_STATUS = frozenset({529})
+
+#: What the driver waits before re-running an overloaded session, by consecutive attempt; the last
+#: entry repeats for as long as the overload lasts. It opens at a minute because the CLI has
+#: already spent about four fighting the same 529, and stops climbing at ten because a busy server
+#: is not an escalating problem -- waiting longer past that only makes the run slower to pick up
+#: the moment it clears.
+OVERLOAD_BACKOFF = (60, 120, 300, 600)
+
+
+def api_error_status(line):
+    """The HTTP status a session's terminal `result` event blames for its exit, or 0.
+
+    Read as a field off that one event, so a session that quoted an error while working -- or read
+    the log of a session that hit one -- cannot supply the number itself."""
+    try:
+        e = json.loads(line)
+    except json.JSONDecodeError:
+        return 0
+    if e.get("type") != "result":
+        return 0
+    try:
+        return int(e.get("api_error_status") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def overload_wait(n):
+    """How long to wait before the nth consecutive re-run of an overloaded session."""
+    return OVERLOAD_BACKOFF[min(max(n, 1), len(OVERLOAD_BACKOFF)) - 1]
+
+
+def mark_interrupted(index, why=None):
     """Record that a session was cut off with work still in the tree. Returns the path count.
 
     A session stopped mid-slice has committed everything it FINISHED -- one commit per slice is
     what buys that -- but whatever it was in the middle of is still uncommitted, and the handoff
     it never reached does not mention it. Without this the next session finds those files and has
     no way to tell them from the state it was supposed to start in. `orient.py` reads this file
-    and says so at the top of the pack; the next session to leave a clean tree deletes it."""
+    and says so at the top of the pack; the next session to leave a clean tree deletes it.
+
+    `why` is a `RateLimit`, a sentence, or nothing at all -- the three things that cut a session
+    off, in the order the driver can explain them."""
     dirty = [ln for ln in git("status", "--porcelain").split("\n") if ln.strip()]
     if not dirty:
         INTERRUPTED.unlink(missing_ok=True)
@@ -2753,7 +2817,8 @@ def mark_interrupted(index, limit):
     try:
         INTERRUPTED.write_text(
             json.dumps({"session": index, "when": f"{datetime.now():%Y-%m-%d %H:%M:%S}",
-                        "why": limit.describe() if limit else "the CLI exited non-zero",
+                        "why": (why.describe() if isinstance(why, RateLimit)
+                                else why or "the CLI exited non-zero"),
                         "head": git("rev-parse", "HEAD"), "files": dirty}, indent=1),
             encoding="utf-8", newline="\n",
         )
@@ -2811,6 +2876,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
     session_id = ""
     limit = None  # the last `rate_limit_event` this session reported; see `RateLimit`
     said_limit = False  # the text fallback, read only off a non-zero exit's `result` event
+    api_error = 0  # the HTTP status its terminal `result` event blamed; see `api_error_status`
     # The pack's size, recorded beside the transcript that paid for it. Two sessions with
     # different pack sizes are a two-point regression against their measured `ctx_start`,
     # which is how `loop-stats.py --calibrate` derives bytes-per-token instead of assuming
@@ -2861,10 +2927,12 @@ def run_session(run_id, index, prompt_text, opts, renderer):
                     if fresh.status != "allowed" and (not limit or fresh.status != limit.status):
                         step(f"the account reports: {fresh.describe()}", C.YELLOW)
                     limit = fresh
-            elif '"type":"result"' in line and LIMIT_TEXT.search(line):
+            elif '"type":"result"' in line:
                 # The terminal event only. `"type":"tool_result"` does not match this, which is
                 # the point: a session that read this very file would otherwise supply the words.
-                said_limit = True
+                if LIMIT_TEXT.search(line):
+                    said_limit = True
+                api_error = api_error_status(line) or api_error
             if not session_id and '"session_id"' in line:
                 try:
                     e = json.loads(line)
@@ -2901,7 +2969,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         step(f"a usage limit was reported in text but no event named a reset -- treating it as a "
              f"wall and coming back in {hms(BLIND_WAIT)}", C.YELLOW)
         limit = RateLimit({"status": "rejected", "resetsAt": int(time.time()) + BLIND_WAIT})
-    return proc.returncode, log, session_id, limit
+    return proc.returncode, log, session_id, limit, api_error
 
 
 # ------------------------------------------------------------------- subagent transcripts
@@ -3317,6 +3385,8 @@ def drive(opts, goal, chain=None):
     served = 0
     PROGRESS.update(served=0, run_id=run_id)
     walls = 0
+    overloads = 0  # consecutive sessions the API refused as overloaded; see `OVERLOAD_STATUS`
+    overloaded_since = 0.0  # monotonic, when the current overload streak began
     wall = standing_limit()  # left standing by a driver killed or rebooted during one
     if wall:
         step(f"{rel_to_root(LIMIT)} says {wall.describe()}", C.YELLOW)
@@ -3352,7 +3422,8 @@ def drive(opts, goal, chain=None):
             say(f"   {rel_to_root(PROMPT)} did not read, using the last good one -- {e}", C.YELLOW)
 
         session_started = time.monotonic()
-        cli_exit, log, session_id, limit = run_session(run_id, index, prompt_text, opts, renderer)
+        cli_exit, log, session_id, limit, api_error = run_session(
+            run_id, index, prompt_text, opts, renderer)
         step(f"session {index} ended after {mmss(time.monotonic() - session_started)}, "
              f"claude exit {cli_exit}", C.CYAN)
 
@@ -3373,6 +3444,39 @@ def drive(opts, goal, chain=None):
             wall = limit
             continue
 
+        # Overload is the other exit that is not a crash, and it is judged before the exit code
+        # for the same reason the wall is: it explains it. The server is busy, there is no
+        # deadline to sleep to and nothing in the tree to fix, so the session is simply run again
+        # -- for as long as it takes, costing neither a `--max-sessions` slot nor a retry.
+        if cli_exit != 0 and api_error in OVERLOAD_STATUS:
+            overloads += 1
+            if overloads == 1:
+                overloaded_since = session_started
+            back = overload_wait(overloads)
+            open_paths = mark_interrupted(index, f"the API answered {api_error} Overloaded")
+            ledger(f"- {index:04d} refused by the API -- {api_error} Overloaded"
+                   + (f"; {open_paths} path(s) left uncommitted" if open_paths
+                      else "; the tree is clean")
+                   + f"; overloaded {hms(time.monotonic() - overloaded_since)} so far, retry "
+                   f"{overloads + 1} in {hms(back)}"
+                   f" -- see {log.relative_to(ROOT).as_posix()}")
+            step(f"the API answered {api_error} Overloaded -- the server is busy, not the account, "
+                 f"so this session is re-run rather than counted as a crash. Retry {overloads + 1} "
+                 f"in {hms(back)}, and there is no cap on how many", C.YELLOW)
+            TICKER.set(phase="waiting out an API overload",
+                       detail=f"{api_error} Overloaded, {overloads} in a row")
+            # Parked, so `r` has something to end: a person watching the status page come back
+            # should not have to sit out the rest of a ten-minute backoff to act on it.
+            RETRY.unlink(missing_ok=True)
+            CONTROL.parked = True
+            try:
+                wait(back, f"{api_error} Overloaded, retrying", until=CONTROL.pending)
+                if CONTROL.take_retry():
+                    step("retrying now at your request -- the backoff is dropped", C.GREEN)
+            finally:
+                CONTROL.parked = False
+            continue
+
         if cli_exit != 0:
             fails += 1
             mark_interrupted(index, None)
@@ -3391,6 +3495,7 @@ def drive(opts, goal, chain=None):
             continue
         fails = 0
         walls = 0
+        overloads = 0
         served += 1
         PROGRESS["served"] = served
 

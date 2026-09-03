@@ -85,6 +85,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
      committed, and any [docker] services the goal declares are brought up once)
     if a rate_limit_event said `rejected`  -> sleep until its resetsAt, then re-run this session --
                                               not a failure, not a stall, and not one of --max-sessions
+    if the result event blamed a 529       -> back off and re-run this session, forever -- not a failure,
+                                              not a stall, and not one of --max-sessions
     if the CLI exited non-zero             -> exponential backoff, retry; give up after --max-retries
     copy this session's subagent transcripts into .loop/logs/<run>-NNNN.subagents/
     read .loop/status.txt, diff HEAD, append one ledger line
@@ -134,6 +136,23 @@ into the same wall. `--max-limit-wait` bounds the sleep — 6h by default, which
 inside and a weekly one does not, so a weekly limit ends the run naming the time to come back rather than
 sleeping for days.
 
+### The overload wall
+
+`529 Overloaded` reaches the driver the same way — a non-zero exit — and means the opposite thing: not
+the account's window, but the server's load. The CLI fights it first, ten `api_retry` events under its
+own backoff and about four minutes of them, and when it gives up its terminal `result` event carries
+`"terminal_reason":"api_error"` and `"api_error_status":529`. Counted as a crash that was three retries
+and three minutes to end a run — measured on run `20260903-151807`, which stopped at session 3 with the
+goal untouched.
+
+So an overloaded session is **re-run forever**: 1m, 2m, 5m, then 10m between attempts, no cap on the
+number of them, and it spends neither a `--max-sessions` slot nor a `--max-retries` attempt. There is no
+`resetsAt` to sleep to and nothing in the tree to fix, so the only recovery is to keep asking — and a run
+that ends itself at 03:00 costs every session that would have run before somebody looked. The status is
+read as a *field* off the terminal event, never grepped, because "529 Overloaded" appears in the log of
+any session that reads about it. Only 529 is treated this way: a 500 can be a request that will fail
+identically every time, and retrying that forever is a run that serves nothing and never stops.
+
 **And the wait is interruptible, because the thing that ends one early happens outside this driver.**
 Logging into another account is not something the loop takes part in; it can only be *told*. So a parked
 run offers two keys, on their own row under the status line: **`r`** drops the wall now and runs the
@@ -142,7 +161,8 @@ seconds late, so pressing it by accident costs a keypress rather than the rest o
 only while a wall is up, because a wall is the only thing it ends. Each has a file behind it —
 `.loop/retry` and `.loop/stop` — for a run started with its output redirected, where there is no console
 to type at. If the account turns out to be limited after all, the retried session is refused again and a
-new wall goes up: one launch spent, and then it waits properly.
+new wall goes up: one launch spent, and then it waits properly. An overload backoff is parked the same
+way, and `r` drops it the same way.
 
 Nothing landed was ever lost to this, before or after: every session commits its own slices, so a wall
 costs only the slice in flight. `.loop/interrupted.json` is what keeps even that from costing twice — it
