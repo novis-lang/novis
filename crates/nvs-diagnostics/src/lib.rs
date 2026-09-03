@@ -1441,6 +1441,19 @@ pub mod code {
     /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
     pub const E_UNBOUNDED_WAIT: Code = Code::new("E0619");
 
+    /// A `[server] listen` entry the server cannot bind, or a written array
+    /// with nothing in it. ADR 0097 § 5's array is one flat list whose entries
+    /// are a `host:port` or an absolute path meaning a Unix socket, and the
+    /// overload is unambiguous because no address can begin with a separator.
+    ///
+    /// A host *name* is refused rather than resolved: a name that answers with
+    /// two addresses is two sockets rather than one, and resolving it at boot
+    /// makes the server's start depend on a nameserver being up. An empty array
+    /// is refused for the same reason `E0619` refuses `false` — it is a
+    /// deployment that accepts nothing, and leaving the key out is how § 5's
+    /// own default is kept.
+    pub const E_BAD_LISTEN: Code = Code::new("E0620");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

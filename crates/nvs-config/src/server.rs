@@ -1,9 +1,10 @@
-//! [ADR 0097] § 5's four `[server]` waits, read into durations: what bounds one connection, and
-//! the two magnitudes that would leave it unbounded.
+//! [ADR 0097] § 5's `[server]` block, read into what a server starts on: the four waits as
+//! durations — with the two magnitudes that would leave a connection unbounded — and `listen` as
+//! the sockets to bind.
 //!
-//! The waits are the only part of `[server]` that resolves to something other than what was
-//! written, so this module is small on purpose: everything else in the block is a path, a list or
-//! a word the mount table reads directly off [`crate::tree::Server`].
+//! Those two are the only parts of `[server]` that resolve to something other than what was
+//! written, so this module is small on purpose: everything else in the block is a path or a word
+//! the mount table reads directly off [`crate::tree::Server`].
 //!
 //! **All four are *idle* waits and none of them is a total.** A slow 2 GB upload completes while a
 //! stalled socket does not, which is § 5's own sentence and the reason the server refreshes a
@@ -18,13 +19,24 @@
 //! half of it. Reading `false` as "keep the default" would be worse than refusing, because an
 //! operator who wrote it asked for the one thing the ADR does not offer and would be told nothing.
 //!
-//! Cost: one pass over one optional block at boot and at reload, and four `Duration`s held per
-//! configuration generation. Nothing here runs on a request path.
+//! **A `listen` entry beginning with a path separator is a Unix socket**, which is § 5's own
+//! overload and is unambiguous because no `host:port` can be spelled that way. A `host:port` is
+//! parsed as a literal address and a host *name* is refused under `E0620`: a name that answers
+//! with two addresses is two sockets rather than one, and a boot that resolves one has made the
+//! server's start depend on a nameserver. Which of the classified entries a given process actually
+//! binds is the caller's — [`Listen`] says what each entry *is* and nothing about how many cores
+//! there are.
+//!
+//! Cost: one pass over one optional block at boot and at reload, and four `Duration`s plus one
+//! address per written `listen` entry held per configuration generation. Nothing here runs on a
+//! request path.
 //!
 //! [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
 //! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use std::collections::BTreeMap;
+use std::net::{Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use nvs_diagnostics::{Diagnostic, code};
@@ -65,13 +77,16 @@ impl Default for Waits {
     }
 }
 
-/// The four waits resolve — the boot half of [`waits_for`].
+/// The block resolves — the boot half of [`waits_for`] and of [`listen_on`].
 ///
 /// # Errors
 ///
-/// Whatever [`waits_for`] refuses.
+/// Whatever either of them refuses, the waits first. A tree is refused for the first thing wrong
+/// with it everywhere else in this crate, so the order decides nothing but which sentence an
+/// operator who wrote two mistakes reads first.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
-    waits_for(config, origins).map(|_| ())
+    waits_for(config, origins)?;
+    listen_on(config, origins).map(|_| ())
 }
 
 /// The waits the tree's `[server]` asks for, over [`Waits::default`].
@@ -181,6 +196,95 @@ fn refuse(
     ))
 }
 
+/// One classified `[server] listen` entry: the two transports § 5's flat array spells.
+///
+/// A classification and not a socket — nothing here binds anything, and a process holding this
+/// has not yet decided how many of the entries it will take. The module doc owns why the overload
+/// is unambiguous.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Listen {
+    /// A `host:port` entry, parsed as a literal address.
+    Tcp(SocketAddr),
+    /// An entry beginning with a path separator: the Unix-domain socket § 5 says a proxy should
+    /// prefer, and the one that makes FastCGI unnecessary.
+    Unix(PathBuf),
+}
+
+/// § 5's own default, in both modes: loopback is the proxied shape as well as the development one,
+/// so requiring an explicit `listen` in production would be friction with no safety in it.
+const DEFAULT_PORT: u16 = 8000;
+
+/// The sockets the tree's `[server] listen` asks for, in the order written.
+///
+/// A tree with no `[server]` block, and one that leaves the key out, are both § 5's default —
+/// `127.0.0.1:8000` — for [`waits_for`]'s reason: an unconfigured server is the deployment the ADR
+/// describes rather than an absence to be filled in later.
+///
+/// # Errors
+///
+/// `E0620` for an entry that is neither a literal `host:port` nor an absolute path, and for a
+/// written array with nothing in it; the code's own declaration owns why a host name is one of
+/// them. `origins` names the file a refusal points at, exactly as it does for a wait.
+pub fn listen_on(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Vec<Listen>, Diagnostic> {
+    let default = || {
+        vec![Listen::Tcp(SocketAddr::from((
+            Ipv4Addr::LOCALHOST,
+            DEFAULT_PORT,
+        )))]
+    };
+    let Some(written) = config
+        .server
+        .as_ref()
+        .and_then(|server| server.listen.as_ref())
+    else {
+        return Ok(default());
+    };
+    if written.is_empty() {
+        return Err(Diagnostic::error(
+            code::E_BAD_LISTEN,
+            "`server.listen` is written as an empty array, which is a server that accepts nothing",
+        )
+        .with_note(format!(
+            "a process with no listening socket is not a smaller deployment, it is one that \
+             answers no request at all{}",
+            origin_note(origins.get("server.listen"))
+        ))
+        .with_help(
+            "leave `server.listen` out to keep ADR 0097 § 5's own `127.0.0.1:8000`, or write the \
+             address this deployment answers on",
+        ));
+    }
+    written
+        .iter()
+        .map(|entry| classify(entry, origins))
+        .collect()
+}
+
+/// One entry, read as whichever transport it spells.
+fn classify(entry: &str, origins: &BTreeMap<String, Origin>) -> Result<Listen, Diagnostic> {
+    if entry.starts_with(std::path::is_separator) {
+        return Ok(Listen::Unix(PathBuf::from(entry)));
+    }
+    entry.parse::<SocketAddr>().map(Listen::Tcp).map_err(|_| {
+        Diagnostic::error(
+            code::E_BAD_LISTEN,
+            format!("`server.listen` entry `{entry}` is not an address and a port"),
+        )
+        .with_note(format!(
+            "every socket this server binds is chosen before it accepts anything, so an entry \
+             that has to be looked up is one the start depends on a nameserver for{}",
+            origin_note(origins.get("server.listen"))
+        ))
+        .with_help(
+            "write a literal address, as `127.0.0.1:8000` or `[::1]:8000`, or an absolute path \
+             for a Unix-domain socket",
+        )
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,5 +350,58 @@ mod tests {
         )
         .expect_err("`soon` was read as a duration");
         assert_eq!(refused.code, Some(code::E_BAD_DIRECTIVE));
+    }
+
+    /// § 5's default is the same in both modes, and an unwritten key is it — the same reading the
+    /// waits get one function up, asserted here because a server that defaulted to nothing would
+    /// have to be told where to listen before it could be started at all.
+    #[test]
+    fn a_tree_that_writes_no_listen_answers_with_loopback_on_8000() {
+        let entries = listen_on(&tree(""), &BTreeMap::new()).expect("an empty tree was refused");
+        assert_eq!(
+            entries,
+            vec![Listen::Tcp(SocketAddr::from((Ipv4Addr::LOCALHOST, 8000)))]
+        );
+        assert_eq!(
+            listen_on(&tree("[server]\nroot = \"/www\"\n"), &BTreeMap::new())
+                .expect("a `[server]` without the key was refused"),
+            entries
+        );
+    }
+
+    /// § 5's overload, asserted on both sides of it in one case: the two transports are told apart
+    /// by the first character and by nothing else, so a case that only looked at an address would
+    /// pass against a reading that classified everything as one.
+    #[test]
+    fn an_entry_beginning_with_a_separator_is_a_socket_and_everything_else_is_an_address() {
+        let entries = listen_on(
+            &tree("[server]\nlisten = [\"0.0.0.0:80\", \"/run/nvs.sock\", \"[::1]:8080\"]\n"),
+            &BTreeMap::new(),
+        )
+        .expect("§ 5's own spellings were refused");
+        assert_eq!(
+            entries,
+            vec![
+                Listen::Tcp("0.0.0.0:80".parse().expect("a literal address")),
+                Listen::Unix(PathBuf::from("/run/nvs.sock")),
+                Listen::Tcp("[::1]:8080".parse().expect("a literal address")),
+            ]
+        );
+    }
+
+    /// The two refusals, named together because each is plausible on its own: a name is the entry
+    /// an operator is most likely to write, and an empty array is the one spelling of "listen on
+    /// nothing" that § 5 has no version of.
+    #[test]
+    fn a_host_name_and_an_empty_array_are_both_refused() {
+        for written in [
+            "[server]\nlisten = [\"localhost:8000\"]\n",
+            "[server]\nlisten = [\"8000\"]\n",
+            "[server]\nlisten = []\n",
+        ] {
+            let refused = listen_on(&tree(written), &BTreeMap::new())
+                .expect_err("an unbindable `listen` was accepted");
+            assert_eq!(refused.code, Some(code::E_BAD_LISTEN), "for {written:?}");
+        }
     }
 }
