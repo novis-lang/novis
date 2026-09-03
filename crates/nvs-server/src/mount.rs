@@ -47,6 +47,12 @@
 //! `../` is; a `%` that is not two hex digits is refused rather than taken
 //! literally.
 //!
+//! Step 3 has one addition to that, and it is lexical too: a remainder ending in
+//! `/` names a directory below the mount root, and § 4's **sole default
+//! document** `index.html` is looked for inside it ([`default_document`]). Never
+//! at the mount root, and never for step 4 — that is [`crate::statics`]'s docs
+//! § *Decision*.
+//!
 //! **What it spends**, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
 //! nothing per request that outlives it. A selection borrows its mount from the
 //! table and owns one `PathBuf` — the file steps 3-5 chose — and steps 3 and 4
@@ -200,7 +206,8 @@ impl Table {
             under(&mount.root, remainder, disk).filter(|file| is_nvs(file) == wanted_nvs)
         };
         let what = if self.serve_static
-            && let Some(file) = under_root(false)
+            && let Some(file) =
+                under_root(false).or_else(|| default_document(mount, remainder, disk))
         {
             What::Static(file)
         } else if self.dispatch == Dispatch::Path
@@ -332,6 +339,27 @@ fn under(root: &Path, remainder: &str, disk: &dyn Existing) -> Option<PathBuf> {
     }
     let file = disk.file(&path)?;
     file.starts_with(root).then_some(file)
+}
+
+/// § 4's sole default document, or `None` where there is not one to serve.
+///
+/// `index.html` and nothing else, for a remainder that spells a directory
+/// *below* the mount root — `/docs/` finds `docs/index.html` — and never for the
+/// mount root itself, which is [`crate::statics`]'s docs § *Decision*: a mount
+/// whose root holds both `index.nvs` and an `index.html` would otherwise stop
+/// running its own application the moment `static` was turned on.
+///
+/// The trailing `/` is the whole test, which keeps this lexical: a remainder
+/// that does not end in one is a *file* the peer named, and step 3 already
+/// declined it. There is no redirect from `/docs` to `/docs/` because § 4 has no
+/// spelling for one — that request reaches step 5 and the application answers
+/// it. The join goes through [`under`] like every other, so a default document
+/// is subject to the same two containment checks.
+fn default_document(mount: &Mounted, remainder: &str, disk: &dyn Existing) -> Option<PathBuf> {
+    if !remainder.ends_with('/') || remainder.split('/').all(str::is_empty) {
+        return None;
+    }
+    under(&mount.root, &format!("{remainder}index.html"), disk)
 }
 
 /// One path segment with its percent escapes resolved, or `None` when it is not

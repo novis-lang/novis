@@ -38,10 +38,11 @@
 //!   can do with one. Nothing here reads a path from request bytes — that
 //!   module's docs own the one place a remainder meets a filesystem, and § 2's
 //!   rule with it.
-//! - **No static file body yet.** A [`crate::mount::What::Static`] selection is
-//!   a path this server may send; turning it into bytes with § 4's `ETag`,
-//!   `Range` and MIME policy is the next slice, and until it lands a caller that
-//!   receives one answers a status.
+//! - **No response policy for a request that *ran*, beyond a status.** A
+//!   [`crate::mount::What::Static`] selection is answered in full by
+//!   [`crate::statics`] — § 4's `ETag`, `Range` and MIME policy, one policy in
+//!   both deployments — and this loop only carries the [`Reply`] back. What a
+//!   *program's* response may say is the next paragraph.
 //! - **No response policy beyond a status.** A request that ran answers `200`
 //!   carrying what it echoed, and one that did not answers `500` carrying
 //!   nothing; `answer`'s own docs are the home of that second call.
@@ -109,6 +110,18 @@ impl Answer {
     #[must_use]
     pub fn empty() -> Self {
         Self(None)
+    }
+
+    /// The bytes this body carries, empty where it carries none.
+    ///
+    /// A Novis response body is one buffer this crate already holds whole, so
+    /// reading it needs no poll and no `Context`. That is what makes
+    /// [`crate::statics`]'s cases assertions about *bytes* — the one range that
+    /// was asked for, and the empty body of a `304` — rather than about a status
+    /// and a header pair that happen to look right.
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        self.0.as_deref().unwrap_or_default()
     }
 }
 

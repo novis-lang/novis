@@ -33,8 +33,15 @@
 //! filesystem at all, and its own docs § *What a remainder may be* are why doing
 //! so keeps § 2 rather than spending it.
 //!
-//! What is **not** here yet is a static file's *bytes* — § 4's `ETag`, `Range`
-//! and MIME policy — and the rest of `[server]`. [`serve`]'s own docs
+//! [`statics`] is the other half of that answer: the file § 4 step 3 chose,
+//! turned into a response under that section's own paragraph — the exact file
+//! and never a listing, `no-cache` with a strong `ETag` over `(size,
+//! mtime_nanos)`, one `Range` and a refused multi-range, a fixed extension
+//! table. **One policy in both deployments**, because a second one is a second
+//! security model: nothing in that module takes a mode or a switch, so the
+//! `[server]` switches decide only whether step 3 runs.
+//!
+//! What is **not** here yet is the rest of `[server]`. [`serve`]'s own docs
 //! § *What this module does not decide yet* is the list.
 //!
 //! # Why `hyper` and not our own h1
@@ -62,7 +69,9 @@
 pub mod io;
 pub mod mount;
 pub mod serve;
+pub mod statics;
 
 pub use io::{ConnectionIo, Phase};
 pub use mount::{Dispatch, Existing, OnDisk, Selection, Table, What};
 pub use serve::{Answer, Reply, serve_connection, serve_on_this_core};
+pub use statics::{Source, Stat};
