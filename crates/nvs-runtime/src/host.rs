@@ -248,12 +248,50 @@ pub struct Completion {
     pub ok: bool,
     /// The child's returned value, copied into the caller's ownership root.
     /// `null` whenever `ok` is false.
+    ///
+    /// **One reference, and collecting a `Completion` is taking it on.** The
+    /// copy is made while the child's context is still alive and is rooted in
+    /// the *caller's* ownership, so the arena teardown that follows reclaims
+    /// nothing of it: a collector either moves this value somewhere that owns
+    /// it — `Core\Script`'s `ScriptResult` is the one that does — or calls
+    /// [`crate::release`] on it. A collector with nobody to answer, `nvs
+    /// queue`'s worker being the one, is still a collector, and dropping the
+    /// field there leaks a graph per child that returned one.
     pub value: Value,
     /// What the child wrote. Emptied by [`Output::Inherit`], which has already
     /// handed the bytes to the parent's own stream.
     pub output: Vec<u8>,
     /// Present exactly when `ok` is false.
     pub error: Option<Failure>,
+}
+
+impl Completion {
+    /// Discharges [`Completion::value`]'s obligation for a collector that has
+    /// nowhere to move it, leaving `null` in its place.
+    ///
+    /// This exists so that "nobody reads the answer" is spellable **safely**.
+    /// `nvs-cli` denies `unsafe_code` outright, and the collector that most
+    /// needs this — the queue worker, which runs a job for nobody — lives
+    /// there, so without a safe discharge the only two options open to it were
+    /// the crate's first `unsafe` block or the leak. Idempotent: the field is
+    /// `null` afterwards, and releasing a `null` is a no-op.
+    pub fn discard_value(&mut self) {
+        // `take`, not a `replace` with `Value::null()`: `Value`'s `Default` is
+        // that null, and clippy refuses the longer spelling of it.
+        let value = std::mem::take(&mut self.value);
+        #[expect(
+            unsafe_code,
+            reason = "the field carries exactly the one reference the copy out \
+                      of the child rooted here, and it is replaced with `null` \
+                      in the same breath so nothing can give it up twice"
+        )]
+        // SAFETY: `value` is the reference `finish` copied into this
+        // completion's ownership, and the `replace` above is what makes this
+        // the last read of it.
+        unsafe {
+            value.release();
+        }
+    }
 }
 
 /// An isolate that has already been started and has not been collected yet —

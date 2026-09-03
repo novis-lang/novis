@@ -581,7 +581,16 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
         // memory, CPU or time budget is a failed attempt, reported as that rather than as an
         // out-of-memory". So the flag the isolate already computed is the whole judgement, and
         // there is no second reading of the completion beside it.
-        Ok(completion) => {
+        Ok(mut completion) => {
+            // A job has no caller, so nothing downstream ever reads its answer —
+            // and [`nvs_host::Completion`]'s `value` is a reference *copied into
+            // this frame's ownership*, not a borrow of the arena that has already
+            // gone. Dropping it without releasing it leaks the whole returned
+            // graph, once per job that returns one, which grows with jobs served
+            // rather than with jobs in flight: AGENTS.md's priority 5 calls that a
+            // leak and not a footprint. Released before the verdict is read
+            // because the obligation is the same on both arms.
+            completion.discard_value();
             if completion.ok {
                 return None;
             }
