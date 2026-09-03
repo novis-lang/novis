@@ -146,6 +146,40 @@
 ///   `secret` value into a pattern exposes it exactly as much as not quoting
 ///   it did, so a `Launder` row that also admitted `secret` would leak at
 ///   every one of the sites that mark exists to make safe.
+///
+/// # How the `tainted` escape hatch is spelled
+///
+/// **With [`Self::Launder`], and with no sixth variant.**
+/// [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+/// § 3's `Core\Taint::assertTrusted(tainted string, string $reason): string` is
+/// the one launderer that names no single sink, and
+/// [ADR 0067](../../../../docs/adr/0067-core-db.md) § 3 makes it the only way
+/// through `Settings.host`, which has no launderer of its own — so it earns a
+/// row, and it earns one before anything else it unblocks, because
+/// `nvs_types::expr::args`' shape-field diagnostic already advises the call and
+/// the name it advises resolves to nothing. Recorded here for the reason the
+/// `secret` paragraph above is: what it decides is how a *row* is written.
+///
+/// * **Not a sixth variant.** A mark decides which qualifier a parameter
+///   accepts and whether the answer carries it, and this member's effect is
+///   [`Self::Launder`]'s exactly. A variant checking identically would be
+///   `Launder` under a second spelling at every site that matches on one —
+///   which is not what separates [`Self::Reveal`] from `Launder`, since those
+///   two remove *different* qualifiers and the bullet above is why they may
+///   not share one.
+/// * **What is exceptional here is the contract, not the type rule**, and the
+///   contract already has a home: [`Self::Launder`] obliges a doc comment
+///   naming the sink it launders for, and this is the row whose doc comment
+///   names all of them and argues once why that is allowed.
+/// * **So the exception is held on the roster, not on the mark**, the way
+///   [`Self::Reveal`]'s two-class roster is held rather than spelled — the
+///   `tainted` twin of that test being that `Core\Taint` is the only class
+///   whose `Launder` row names no one sink.
+/// * **It answers a plain `string`, not a carrier**, by
+///   [ADR 0133](../../../../docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+///   § 1's predicate: the transform is the identity, so it is idempotent, and
+///   a value the developer has just sworn is trusted re-entering a sink is the
+///   case that predicate exists to let pass.
 // `Hash` because `nvs_types::ty::CoreShapeField` carries one — ADR 0135 § 3's
 // classification lands on the field, and a `Ty` is interned by hash.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
