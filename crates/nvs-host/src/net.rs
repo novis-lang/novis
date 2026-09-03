@@ -64,6 +64,14 @@
 //! is the only error channel those traits have and is why this needs no type
 //! of its own.
 //!
+//! **A task holds one timer entry and a stream has two interests**, so the
+//! entry is lifted by the interest that filed it and by no other. A connection
+//! future polls the readable half, gets `Pending`, and polls the writable half
+//! in the same pass; a `Ready` there that lifted the deadline would leave the
+//! task parked on readiness alone, which is an idle timeout a write silently
+//! cancels. `NvsStream::timed` is where that is kept, and
+//! `nvs_server::io`'s § *The clock* is the caller it was found by.
+//!
 //! A *deadline* and not a per-call duration, deliberately:
 //! [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 5
 //! bounds an operation, and a duration re-read on each wait would push the
@@ -154,6 +162,17 @@ pub struct NvsStream<S: Source> {
     /// nowhere to pass one, which is the same reason the parking is under them
     /// rather than beside them.
     deadline: Option<Instant>,
+    /// The interest whose `Pending` filed this stream's deadline with the core's
+    /// timers, or `None` when no filing of this stream's is outstanding.
+    ///
+    /// A task holds **one** timer entry, and one stream can have both interests
+    /// in flight at once: a connection future polls the readable half, gets
+    /// `Pending`, and then polls the writable half in the same pass. Without
+    /// this, the second poll's `Ready` would lift the first one's deadline and
+    /// the task would park on readiness alone with nothing left to wake it on
+    /// the clock — an idle timeout a write silently cancels. So the entry is
+    /// lifted by the interest that filed it and by no other.
+    timed: Option<Interest>,
 }
 
 /// The parking stream over TCP — what an accept loop on a listening port and
@@ -168,6 +187,7 @@ impl<S: Source> NvsStream<S> {
             inner,
             registered: None,
             deadline: None,
+            timed: None,
         }
     }
 
@@ -384,16 +404,20 @@ impl NvsListener {
     pub fn poll_accept(&mut self) -> Poll<io::Result<(NvsTcp, SocketAddr)>> {
         loop {
             match self.0.inner.accept() {
-                Ok((stream, peer)) => return self.0.answer(Ok((NvsStream::new(stream), peer))),
+                Ok((stream, peer)) => {
+                    return self
+                        .0
+                        .answer(Interest::READABLE, Ok((NvsStream::new(stream), peer)));
+                }
                 Err(err) if lost_in_the_backlog(&err) => {}
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
                     match self.0.arm_only(Interest::READABLE) {
                         Ok(true) => return Poll::Pending,
                         Ok(false) => {}
-                        Err(err) => return self.0.answer(Err(err)),
+                        Err(err) => return self.0.answer(Interest::READABLE, Err(err)),
                     }
                 }
-                Err(err) => return self.0.answer(Err(err)),
+                Err(err) => return self.0.answer(Interest::READABLE, Err(err)),
             }
         }
     }
@@ -609,6 +633,11 @@ impl<S: Source> NvsStream<S> {
                     armed?;
                     let resumed = suspend_current(Waiting::Parked);
                     if deadline.is_some() {
+                        // This path files nothing on `timed` — it takes its own
+                        // entry back out here, where the wait has plainly ended
+                        // — but a poll on the other interest may have left one,
+                        // and it is the same entry.
+                        self.timed = None;
                         reactor::with_current(|reactor| reactor.timers().disarm(me));
                     }
                     if resumed.cancelled() {
@@ -695,16 +724,16 @@ impl<S: Source> NvsStream<S> {
     {
         loop {
             match self.inner.read(buf) {
-                Ok(read) => return self.answer(Ok(read)),
+                Ok(read) => return self.answer(Interest::READABLE, Ok(read)),
                 Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
                     match self.arm_only(Interest::READABLE) {
                         Ok(true) => return Poll::Pending,
                         Ok(false) => {}
-                        Err(err) => return self.answer(Err(err)),
+                        Err(err) => return self.answer(Interest::READABLE, Err(err)),
                     }
                 }
-                Err(err) => return self.answer(Err(err)),
+                Err(err) => return self.answer(Interest::READABLE, Err(err)),
             }
         }
     }
@@ -720,32 +749,38 @@ impl<S: Source> NvsStream<S> {
     {
         loop {
             match self.inner.write(buf) {
-                Ok(written) => return self.answer(Ok(written)),
+                Ok(written) => return self.answer(Interest::WRITABLE, Ok(written)),
                 Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
                     match self.arm_only(Interest::WRITABLE) {
                         Ok(true) => return Poll::Pending,
                         Ok(false) => {}
-                        Err(err) => return self.answer(Err(err)),
+                        Err(err) => return self.answer(Interest::WRITABLE, Err(err)),
                     }
                 }
-                Err(err) => return self.answer(Err(err)),
+                Err(err) => return self.answer(Interest::WRITABLE, Err(err)),
             }
         }
     }
 
-    /// Ends a poll, lifting the deadline the stream may have filed with the
-    /// core's timers on its way to a `Pending`.
+    /// Ends a poll on `waited_on`, lifting the deadline that interest may have
+    /// filed with the core's timers on its way to a `Pending`.
     ///
     /// The parking path takes its timer entry back out on the far side of the
     /// suspend, where the wait has plainly ended. A poll has no far side — the
     /// resume lands in [`crate::block_on()`]'s loop and arrives back here as an
     /// ordinary call — so the entry is lifted by whichever poll answers
     /// `Ready`. Same rule, stated where this shape can keep it.
-    fn answer<T>(&mut self, outcome: io::Result<T>) -> Poll<io::Result<T>> {
-        if self.deadline.is_some()
+    ///
+    /// **Only the interest that filed it lifts it**, which is [`Self::timed`]'s
+    /// whole reason: the other half of this stream may still be parked on the
+    /// same clock, and a `Ready` there would otherwise leave that park with
+    /// nothing to end it.
+    fn answer<T>(&mut self, waited_on: Interest, outcome: io::Result<T>) -> Poll<io::Result<T>> {
+        if self.timed == Some(waited_on)
             && let Some(me) = current_task()
         {
+            self.timed = None;
             reactor::with_current(|reactor| reactor.timers().disarm(me));
         }
         Poll::Ready(outcome)
@@ -770,6 +805,9 @@ impl<S: Source> NvsStream<S> {
                     && let Some(at) = deadline
                 {
                     reactor.timers().arm(me, at);
+                    // Whose entry it is, so that the other interest's `Ready`
+                    // does not lift it — [`Self::answer`] owns that rule.
+                    self.timed = Some(interest);
                 }
                 armed
             })
@@ -783,6 +821,9 @@ impl<S: Source> NvsStream<S> {
 
     /// Drops the reactor-side registration, if this stream holds one.
     fn unregister(&mut self) {
+        // Whatever this stream filed with the timers is no longer its to lift:
+        // the registration the filing belonged to is going away with it.
+        self.timed = None;
         let Some((task, _)) = self.registered.take() else {
             return;
         };
