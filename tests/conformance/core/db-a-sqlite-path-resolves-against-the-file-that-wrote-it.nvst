@@ -1,0 +1,38 @@
+--TEST--
+A `[db.<name>] path` resolves against the directory of the file it was written in, so a block in an included file names a database beside that file and not beside the running program — ADR 0103 § 5, ADR 0067 § 3
+--FILE--
+<?nvs
+// The block that names this database lives in `conf/db.toml`, one directory
+// away from the program and from the root configuration alike. `path` is the
+// bare name `main.db`, so § 5's rule and the two ways of getting it wrong all
+// answer a different file, which is what makes this case decide anything.
+var $db = Core\Db::connect("main");
+var $made = $db->execute("create table t (id integer primary key)", []);
+
+// Both sides of the bound, because either half alone reads plausibly. A
+// resolver that did nothing would put the file beside the program; so would one
+// that resolved against the *root* configuration's directory, which is the same
+// directory here on purpose — only the block's own file is a third answer.
+echo "beside the block: ", Core\IO::exists("conf/main.db") ? "y" : "n", "\n";
+echo "beside the program: ", Core\IO::exists("main.db") ? "y" : "n", "\n";
+--FILE conf/db.toml--
+# § 5: a relative path is relative to the file it was written in. This one, not
+# the root `nvs.toml` that included it.
+[db.main]
+driver = "sqlite"
+path = "main.db"
+--FILE nvs.toml--
+# § 3: a config-written path is covered by `db.connect` alone — there is no
+# address, and nothing here is program-supplied.
+[capabilities.db]
+connect = ["main"]
+
+# Only so the case can look at where the file landed.
+[capabilities.fs]
+read = ["."]
+
+[[include]]
+path = "conf/db.toml"
+--EXPECT--
+beside the block: y
+beside the program: n
