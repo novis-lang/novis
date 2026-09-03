@@ -66,8 +66,12 @@ HANDOFF_PATH = re.compile(r"\b((?:crates|tools|tests|benches|examples|fuzz)/[\w.
 #: artifact that exists only while a loop runs, not a file that has gone missing.
 TREE_DIRS = ("crates/", "tools/", "docs/", "tests/", "benches/", "examples/", "fuzz/", ".github/")
 
-#: A path in prose collects punctuation and a line anchor. Strip both before asking the disk.
-PATH_TRIM = re.compile(r"(:\d+(-\d+)?|[.,;:)\]'\"]+)$")
+#: A path in prose collects punctuation and a locator. Strip both before asking the disk. The
+#: locator is any of `peek.py`'s target forms -- `:120-160`, `:120+30`, `:@sym`, `:re:pattern` --
+#: because a bullet quoting one of those is naming a file that IS in the tree: `--check` reported
+#: `docs/agent/loop-goal.toml:re:a_named_connection_is_memoized` as a missing path for as long as
+#: it only knew about `:\d+`, and an optimization pass paid to re-derive that it was not.
+PATH_TRIM = re.compile(r"(:re:.*|:@[\w:.-]+|:\d+([-+]\d+)?|[.,;:)\]'\"]+)$")
 
 
 def nbytes(text: str) -> int:
