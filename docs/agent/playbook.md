@@ -1708,6 +1708,18 @@ is why" — is this file.
   way `defmt`'s row names Cargo's one-version token. And run `python tools/gen-attribution.py`
   after, not only `--check-c-deps`: new crates in the graph change `THIRD-PARTY-LICENSES.txt`, and
   that is a second gate with a separate failure.
+- **The oracle PHP build will tell you an extension's real signatures, and a migration row written
+  from memory instead is wrong in a way no test catches.** `docs/spec/02-php-migration.md` owes one
+  audited row per PHP name, and `pgsql`'s 120 arrived as a bare name list from
+  `tools/check-migration.py --report` — which spelling is the deprecated alias of which, whether
+  `pg_result` is a result or a fetch, and what `pg_jit` even returns are not derivable from the name.
+  A six-line `ReflectionFunction` loop over `get_defined_functions()["internal"]`, run as
+  `php .agent-tmp/<name>.php`, prints every parameter type, the return type and `isDeprecated()` for
+  the whole family in one call: that is where "24 of these 120 are PHP's own deprecated spellings"
+  came from, and it is one call against ten guesses. The other half of getting a row right is
+  cheaper still — `check-migration.py` validates every `Core\X::y` a cell names against
+  `01-core-library.md` and fails the audit on a spelling that does not exist, so copy the member
+  spellings out of an already-green sibling section rather than inventing them.
 
 ## Running things
 

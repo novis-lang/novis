@@ -2,27 +2,34 @@
 
 ## State
 
-**M8 goal 5, stage 10 — the corpus.** The driver's acceptance failure was the stage-10 `nvs-suite`
-check: its `cases` list named `tests/conformance/db/…`, a directory this corpus never adopted, which
-is the playbook's own trap about a drafted directory layout. The list now names the corpus's flat
-`core/db-…` paths and is six entries rather than nine, with a comment above it saying where the other
-three went.
+**M8 goal 5, stage 10.** The driver's failing acceptance check was `check-migration at 94%`, and it
+was a coverage floor rather than a missing test: 120 names were unclassified and every one of them
+was `pg_*`. `docs/spec/02-php-migration.md` now carries the `pgsql` section — 120 audited rows in
+nine subsections — so the table is at **100% of this build's 1,151 inventory functions** and every
+`--min` floor in the program is green, goal 6's included.
 
-**Three of the six are new and green.** ADR 0067 § 5's two binding spellings, including a `:name`
-written once and read twice; § 6's three typed-reader refusals, each asserted to *name the column*
-rather than to have a frozen wording; and § 7's rollback-only flag surviving a `catch (Throwable)`
-between `rollBack` and the closure's own return. All three run against a live `:memory:` SQLite
-connection — the one backend a conformance case can really reach.
+The header still says `Complete: no` on purpose. That percentage is over the inventory *a build
+produced*, and `check-migration.py`'s `UNAUDITED` list is not empty: `mbstring`, `curl`, `intl`,
+`gd` and the rest are a known hole that becomes rows the day the inventory is regenerated against a
+build loading them. Flipping the header is goal 6's stop condition, not this goal's.
 
-**Three drafted names were dropped rather than repathed**, each already measured by an earlier stage
-of the same goal file: stage 9's `a_two_statement_literal_query_is_a_diagnostic`, and stage 8's
-`an_enqueue_commits_with_the_write_that_made_it` and
-`an_exhausted_job_reaches_the_dead_letter_table_and_is_not_discarded`. `docs/agent/goals/5-database.toml`
-carries the identical edit, so the next `goal-switch.py` does not restore the old list.
+Rows were written against the oracle build's own reflection output, not from memory — the playbook
+bullet added this session has the shape. Outcomes follow the `mysqli` section's precedents exactly
+where a name has a twin there (`fetch_array` and `fetch_row` dropped under R17, `fetch_assoc`,
+`fetch_all`, `fetch_object` and the column readers members), a deprecated alias takes its modern
+spelling's outcome, and § 12's three deferrals — `COPY`, `LISTEN`/`NOTIFY`, large objects — are
+`dropped` rows naming what replaces them today rather than `open` ones.
 
-**The `Core\Taint::assertTrusted` gap is untouched**, and it is now confirmed to be a whole class and
-not a missing row: `grep` finds no `Core\Taint` anywhere in `nvs-stdlib`, so a diagnostic already names
-a member the tree cannot resolve.
+**The `Core\Taint::assertTrusted` group below was not started.** It arrived as this session's item
+and the failed check outranked it; nothing about it has changed since the last handoff, including
+that `grep` finds no `Core\Taint` anywhere in `nvs-stdlib`, so a diagnostic already names a member
+the tree cannot resolve.
+
+**Orientation gap:** `[context]` has no field that can name a `docs/spec/` file — `modules` takes
+`crates/**` paths and builds the map from module docs — so a session whose failing check is about
+the migration table starts blind and spends five calls re-deriving the table's row format, its
+`Core\X::y` validation rule and the `mysqli` precedents. A `docs = [...]` selector, or `modules`
+learning to take a `docs/spec/*.md` path, would pay for itself the next time an extension is audited.
 
 ## Next group
 
@@ -36,19 +43,18 @@ a member the tree cannot resolve.
       `Launder` doc says a launderer names *the sink it launders for*, and this member launders for
       every sink — the `tainted` twin of `Qual::Reveal`. `crates/nvs-stdlib/src/secret.rs:41` is
       `Core\Secret`, the same escape hatch one axis over and the model to copy, `$reason` included.
-- [ ] **If it earns one, write the five edits** — the row, the card, the body, the `address()` arm and
-      three `.nvst` cases, all in a new `crates/nvs-stdlib/src/taint.rs` modelled on
-      `crates/nvs-stdlib/src/secret.rs:41`, registered beside its siblings in
-      `crates/nvs-stdlib/src/registry.rs:152`'s crate.
-- [ ] **Then hold the roster the way the `secret` axis is held.** `crates/nvs-types/src/core_lib.rs:979`
-      is where `Qual::Reveal`'s roster is closed and `crates/nvs-types/src/core_lib.rs:1007` is the
-      predicate that reads it; `crates/nvs-types/src/expr/quals.rs:319` is the contagion half. The
-      `tainted` axis needs the same three, or the new mark is a rule held nowhere near its row.
+- [ ] **If it earns one, write the five edits** — the row, the card, the body, the `address()` arm
+      and three `.nvst` cases — modelled on `crates/nvs-stdlib/src/secret.rs:41`, which is the same
+      shape one axis over. `crates/nvs-stdlib/src/registry.rs:152` is the mark the row must pick.
+- [ ] **Then hold the roster the way the `secret` axis is held**, at
+      `crates/nvs-types/src/core_lib.rs:979`, so the two escape hatches are listed by one rule
+      rather than by two that can drift apart.
 
 ## Backlog
 
-- Stage 10's `min_passing = 1350` is well under the corpus's real count — `docs/agent/loop-goal.toml`.
-- `crates/nvs-types/src/intrinsics.rs` known gaps 5-7 still stand as written.
-- `E0618`'s host-grant check is still untouched — `docs/adr/0067-core-db.md` § 3.
-- The migration floor is 94% against 90%/74% on disk — `tools/check-migration.py`.
-- `tests/conformance/reject/` has no `Core\Db` case at all; every refusal above is a runtime one.
+- Flip `**Complete:** yes` in `docs/spec/02-php-migration.md` — goal 6's stop condition, once the
+  unaudited extension list is empty or explicitly accounted for.
+- `[context]` cannot select a `docs/spec/` file — `docs/agent/loop-goal.toml`.
+- The remaining stage 10 conformance cases in that check's `cases` list — `docs/agent/loop-goal.toml`.
+- `docs/spec/02-php-migration.md`'s `mysqli`/`pgsql` rows are unchecked against `nvs-stdlib`'s
+  registry until that generated layer exists — the file's own header says so.

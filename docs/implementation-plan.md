@@ -55,13 +55,13 @@
 > three, and real servers hold every statement it sends**. **MySQL and MariaDB both run a block end
 > to end**: `connect` and `open` pool either, §§ 1, 3, 5, 7, 9 and 13 follow each driver's own, and
 > a real server of each holds § 3's park, § 7, § 8 and § 13's pool. **SQL Server holds §§ 1, 3, 4, 7
-> and 13 on a real server, and SQLite runs §§ 4, 7, 9 and 13 off the blocking pooland reads a column
-> back as declared; a block's paths resolve against their own file, in the table too**. **Stage 9's
-> `E0618` refuses a literal `Db::open` host no `db.open` grant covers**, and a `tainted` one names
-> `assertTrusted`. **ADR 0133's carrier landed**: `Core\Html::escape` answers `Core\Html\Markup`,
-> `toSource` is the one way out, and `.`, `.=`, interpolation and `as string` refuse one. **Goals
-> 1-4 and M4 are closed**. **Stage 10's corpus opened**: § 5's bindings, § 6's naming, § 7's flag.
-> Conformance 1444, differential 250, migration 90%/74%.
+> and 13 on a real server, and SQLite runs §§ 4, 7, 9 and 13 off the blocking pool and reads a
+> column back as declared; a block's paths resolve against their own file, in the table too**.
+> **Stage 9's `E0618` refuses a literal `Db::open` host no `db.open` grant covers**, and a `tainted`
+> one names `assertTrusted`. **ADR 0133's carrier landed**: `Core\Html::escape` answers
+> `Core\Html\Markup`, `toSource` is the one way out, and `.`, `.=`, interpolation and `as string`
+> refuse one. **Goals 1-4 and M4 are closed**. **Stage 10's corpus opened**: § 5's bindings, § 6's
+> naming, § 7's flag. Conformance 1444, differential 250, migration 100%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
