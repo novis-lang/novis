@@ -140,6 +140,27 @@ pub(crate) fn boot_snapshot(
     entry: &Path,
     sources: &mut SourceMap,
 ) -> Result<Arc<nvs_config::Snapshot>, Diagnostic> {
+    boot_origins(config, entry, sources).map(|(snapshot, _)| snapshot)
+}
+
+/// [`boot_snapshot`], keeping the map of **where each key was written**.
+///
+/// A snapshot is the effective tree and holds no spans, so a boot pass that has
+/// to refuse a value — `nvs_config::server::waits_for`, `listen_on`, and
+/// `nvs_config::mount::expand`, which resolves a relative `[server] root`
+/// against the file that wrote it — needs this beside it. Callers that only
+/// read values take [`boot_snapshot`] and never see it.
+pub(crate) fn boot_origins(
+    config: &[PathBuf],
+    entry: &Path,
+    sources: &mut SourceMap,
+) -> Result<
+    (
+        Arc<nvs_config::Snapshot>,
+        std::collections::BTreeMap<String, nvs_config::resolve::Origin>,
+    ),
+    Diagnostic,
+> {
     let files = LocalFiles;
     let cwd = working_directory()?;
     // ADR 0103 § 1: every `--config` in the order given, else `./nvs.toml`,
@@ -147,7 +168,8 @@ pub(crate) fn boot_snapshot(
     // the whole of the CLI's part in choosing what is read.
     let roots = nvs_config::resolve::roots(config, &cwd, &files);
     let resolved = nvs_config::resolve::resolve(&roots, sources, &files)?;
-    nvs_config::Snapshot::build(&resolved, entry, &files)
+    let snapshot = nvs_config::Snapshot::build(&resolved, entry, &files)?;
+    Ok((snapshot, resolved.origins))
 }
 
 /// `nvs config check [<file>...]` — resolve the tree and report what it holds,

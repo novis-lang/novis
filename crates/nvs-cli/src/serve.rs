@@ -7,27 +7,33 @@
 //! only the binary can supply — the socket the loop accepts on, the clock it
 //! holds a connection to, and the handler that says which isolate a request is.
 //!
-//! # Decision: the entry file is named on the command line, and it is a table of one
+//! # Decision: the configuration's mounts are the table, and a bare file is a table of one
 //!
 //! [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
 //! § 2 is the server's governing rule — a request *selects* an entry point from
 //! a set enumerated before it arrived and may never construct one — and § 4's
-//! mount table is how that set is normally built. This command is *told* its
-//! entry, so [`one_mount`] is that table with one row in it: mounted at `/`, with
-//! the file's own directory as the mount root, and compiled **before the socket
-//! is bound**. Every request then goes through
-//! [`nvs_server::Table::select`]'s five steps, so what selects a program here is
-//! the same code a deployment's fleet of mounts selects through — a set of one is
-//! still a set, and § 2's rule is about the enumeration and not about its size.
+//! mount table is that set. A tree that writes `[[server.mount]]` gets **the
+//! whole of it**: [`nvs_config::mount::expand`] walked § 3's globs against the
+//! disk, and this command binds a socket over the table that produced. A tree
+//! that writes none is served through [`one_mount`], the file named on the
+//! command line at `/` with its own directory as the mount root — not `expand`'s
+//! implicit mount, which names a default entry nobody here was told to serve.
 //!
-//! Expanding `[[server.mount]]` against the disk
-//! ([`nvs_config::mount::expand`]) belongs to the deployment path that has no
-//! `<file>` argument to be told; `[server] static` and `dispatch` are read off
-//! the tree here as written, which is
-//! [`nvs_server::Table::from_config`]'s fail-closed reading of them. A step 3
-//! selection is answered by the mount's entry until the slice that sends a
-//! file's bytes lands — the handler's own comment is why that is the closed
-//! answer rather than a status.
+//! **The argument does not override the table; it has to be in it.** A `<file>`
+//! that is not one of the mounted entries is refused before the socket exists,
+//! because a command told to serve a file and then serving a different
+//! application is the one outcome neither reading wants. What the argument
+//! always decides is *which* configuration this is: ADR 0104 § 2 layers the
+//! `[[app]]` blocks that match it, and there is no second spelling for that.
+//!
+//! **Every mounted entry is compiled before the socket is bound**, which is what
+//! § 2 buys — a program that does not compile is a start that fails rather than
+//! a request that does — and every request then goes through
+//! [`nvs_server::Table::select`]'s five steps. `[server] static` and `dispatch`
+//! are read off the tree as written, which is
+//! [`nvs_server::Table::from_config`]'s fail-closed reading of them, and a step 3
+//! selection is answered by [`nvs_server::statics`]: one static policy, the same
+//! one a proxied origin serves under.
 //!
 //! # Decision: one socket, and the flag is the last word
 //!
@@ -44,15 +50,14 @@
 //! classification does not.
 //!
 //! **What it spends**, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
-//! one compiled unit for the entry, held for the life of the process and shared
-//! by every request that runs it ([ADR 0006]'s "shares immutable compiled code",
+//! one compiled unit per mounted entry, held for the life of the process and
+//! shared by every request that runs it ([ADR 0006]'s "shares immutable compiled code",
 //! which is [`crate::script`]'s cache and nothing else), plus whatever the accept
 //! loop holds per connection in flight. Nothing accumulates per request answered.
 //!
 //! [ADR 0006]: ../../../docs/adr/0006-isolated-script-execution.md
 
 use std::cell::Cell;
-use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
@@ -61,7 +66,6 @@ use std::rc::Rc;
 
 use nvs_config::mount::Mounted;
 use nvs_config::server::{Listen, listen_on, waits_for};
-use nvs_config::tree::Config;
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::{Program, Resolver as _};
@@ -70,12 +74,14 @@ use nvs_server::{OnDisk, Reply, Table, What};
 
 use crate::script::Compiler;
 
-/// `nvs serve <file>` — resolve the tree, compile the entry, bind the socket and
-/// run the accept loop until this process is stopped.
+/// `nvs serve <file>` — resolve the tree, build § 4's mount table, compile every
+/// entry in it, bind the socket and run the accept loop until this process is
+/// stopped.
 ///
 /// The order is the whole of § 2's rule: the configuration is refused before
-/// anything is compiled, the entry is compiled before anything is bound, and the
-/// socket exists only once there is something for it to answer with.
+/// anything is compiled, every mounted entry is compiled before anything is
+/// bound, and the socket exists only once there is something for it to answer
+/// with.
 pub(crate) fn run(
     path: &Path,
     listen: Option<&str>,
@@ -87,8 +93,8 @@ pub(crate) fn run(
     // The `[server]` block is `Boot`-class as a whole (ADR 0097 § 5), so this
     // is the only time it is read.
     let mut sources = SourceMap::new();
-    let snapshot = match crate::config::boot_snapshot(config, path, &mut sources) {
-        Ok(snapshot) => snapshot,
+    let (snapshot, origins) = match crate::config::boot_origins(config, path, &mut sources) {
+        Ok(both) => both,
         Err(diagnostic) => return report(diagnostic, &sources),
     };
     if !snapshot.warnings.is_empty() {
@@ -102,9 +108,8 @@ pub(crate) fn run(
     // Both halves of § 5 this loop can keep today. Neither can refuse here in
     // practice — `nvs_config::server::validate` is the boot pass and it ran
     // above — but a resolution reported twice is better than one swallowed,
-    // and the origins map is empty for the reason `nvs run`'s `queue_for` call
-    // has an empty one: what it adds is the line a refusal points at.
-    let origins = BTreeMap::new();
+    // and the origins map `boot_origins` kept is what points a refusal at the
+    // line it came from.
     let waits = match waits_for(&snapshot.config, &origins) {
         Ok(waits) => waits,
         Err(diagnostic) => return report(diagnostic, &sources),
@@ -121,28 +126,57 @@ pub(crate) fn run(
         }
     };
 
-    // § 4's table, of one: the file named on the command line, at `/`, with the
-    // directory it sits in as the mount root. Canonical on both sides because
-    // that is what § 4 steps 3 and 4 compare a resolved remainder against, and
-    // because the compile below is keyed by the same string every request then
-    // resolves.
-    let table = match one_mount(path, &snapshot.config) {
-        Ok(table) => table,
-        Err(refusal) => {
-            eprintln!("error: {refusal}");
-            return ExitCode::FAILURE;
+    // § 4's table. A tree that writes `[[server.mount]]` is served through the
+    // whole of it — `expand` has already walked § 3's globs against the disk —
+    // and one that writes none is the file named on the command line, at `/`,
+    // with the directory it sits in as the mount root. The module doc's
+    // § *Decision* owns which of the two a run gets and why the argument still
+    // has the last word over neither.
+    let deployed = snapshot
+        .config
+        .server
+        .as_ref()
+        .is_some_and(|server| !server.mount.is_empty());
+    let mounts = if deployed {
+        match nvs_config::mount::expand(&snapshot.config, &origins, &crate::config::LocalFiles) {
+            Ok(mounts) => mounts,
+            Err(diagnostic) => return report(diagnostic, &sources),
+        }
+    } else {
+        match one_mount(path) {
+            Ok(mount) => vec![mount],
+            Err(refusal) => {
+                eprintln!("error: {refusal}");
+                return ExitCode::FAILURE;
+            }
         }
     };
-    let entry = table.mounts()[0].entry.to_string_lossy().into_owned();
-
-    // § 2, kept before the socket exists: the one path this server can execute
-    // is compiled now, so a program that does not compile is a start that fails
-    // rather than a request that does. The front end renders its own
-    // diagnostics (`script`'s module doc), so the message here is the summary.
-    let compiler = Rc::new(Compiler::default());
-    if let Err(message) = compiler.resolve(&entry) {
-        eprintln!("error: {message}");
+    // A file this table cannot reach is a request nobody could make: the command
+    // was told to serve it, so a table that does not mount it is a refusal
+    // rather than a server quietly answering with somebody else's application.
+    if deployed && !mounts.iter().any(|mount| mount.entry == snapshot.entry) {
+        eprintln!(
+            "error: `{}` is not one of the {} entries `[[server.mount]]` mounts; serve one of \
+             those, or remove the blocks to serve this file alone",
+            path.display(),
+            mounts.len()
+        );
         return ExitCode::FAILURE;
+    }
+    let table = Rc::new(Table::from_config(mounts, &snapshot.config));
+
+    // § 2, kept before the socket exists: **every** path this server can execute
+    // is compiled now, so a program that does not compile is a start that fails
+    // rather than a request that does. That is the rule the enumeration exists
+    // for, and it costs one compile per mounted entry at boot rather than one
+    // per entry per request. The front end renders its own diagnostics
+    // (`script`'s module doc), so the message here is the summary.
+    let compiler = Rc::new(Compiler::default());
+    for mounted in table.mounts() {
+        if let Err(message) = compiler.resolve(&mounted.entry.to_string_lossy()) {
+            eprintln!("error: {message}");
+            return ExitCode::FAILURE;
+        }
     }
 
     let mut listener = match NvsListener::bind(addr) {
@@ -163,12 +197,14 @@ pub(crate) fn run(
         );
     }
 
-    // Every request goes through § 4's five steps and then runs what they chose
-    // as ADR 0006's isolate — the same type `spawn script` runs, and deliberately
-    // not a second isolation path (ADR 0097's crate doc). With one mount at `/`
-    // and `dispatch = "entry"` that is step 5 every time and the resolve is a
-    // cache hit on the unit compiled above, so what it costs per request is one
-    // `Program` over shared code.
+    // Every request goes through § 4's five steps, and what they chose is either
+    // a file to send — `nvs_server::statics`, the same policy a configured
+    // deployment serves under — or a file to run as ADR 0006's isolate, the same
+    // type `spawn script` runs and deliberately not a second isolation path
+    // (ADR 0097's crate doc). With one mount at `/` and `dispatch = "entry"`
+    // that is step 5 every time and the resolve is a cache hit on the unit
+    // compiled above, so what it costs per request is one `Program` over shared
+    // code.
     let handler = Rc::new({
         let compiler = Rc::clone(&compiler);
         let table = Rc::clone(&table);
@@ -180,12 +216,13 @@ pub(crate) fn run(
             };
             let file = match selected.what {
                 What::Run(file) => file,
-                // Step 3 chose a file to *send*, and the slice that sends bytes
-                // has not landed. Running the mount's entry is exactly what
-                // `static = false` selects for the same request, so a tree that
-                // turned the switch on early gets the answer it would have had
-                // with it off rather than a status nothing promised.
-                What::Static(_) => selected.mount.entry.clone(),
+                // Step 3 chose a file to *send*, and sending it is one policy
+                // this command shares with every other deployment rather than a
+                // development reading of one (`nvs_server::statics`). Nothing is
+                // run for it: it is already an answer.
+                What::Static(file) => {
+                    return nvs_server::statics::send(&file, request.headers(), &OnDisk);
+                }
             };
             let program: Program = match compiler.resolve(&file.to_string_lossy()) {
                 Ok(program) => program,
@@ -269,20 +306,19 @@ pub(crate) fn run(
     ExitCode::SUCCESS
 }
 
-/// ADR 0097 § 4's table for this command: the file named on the command line,
-/// mounted at `/`, with the directory it sits in as the mount root.
+/// ADR 0097 § 4's one row for a tree that mounts nothing: the file named on the
+/// command line, mounted at `/`, with the directory it sits in as the mount
+/// root.
 ///
-/// One row rather than [`nvs_config::mount::expand`]'s expansion of
-/// `[[server.mount]]`, because this command was *told* which entry to serve and
-/// § 2's rule is about the set being enumerated before a request arrives rather
-/// than about how many rows it has. The module doc's § *Decision* is the whole of
-/// why, and the deployment that has no `<file>` to be told is what calls `expand`.
+/// Not [`nvs_config::mount::expand`]'s implicit mount, which names § 3's default
+/// entry — a file this command was not told to serve and may not even have. § 2's
+/// rule is about the set being enumerated before a request arrives rather than
+/// about how many rows it has, and a set of one is still a set. The module doc's
+/// § *Decision* is the whole of why.
 ///
 /// Canonical on both sides: § 4 steps 3 and 4 compare a resolved remainder
 /// against the mount root, and a `starts_with` between a canonical path and a
-/// written one answers `false` for every file in the tree. `[server] static` and
-/// `dispatch` come off the tree as written, which is
-/// [`nvs_server::Table::from_config`]'s fail-closed reading.
+/// written one answers `false` for every file in the tree.
 ///
 /// # Errors
 ///
@@ -290,24 +326,21 @@ pub(crate) fn run(
 /// a filesystem root and so has no directory to be a mount root. Both are a
 /// sentence rather than a [`nvs_diagnostics::Diagnostic`], for [`address`]'s
 /// reason: the value came from a command line and there is no span to point into.
-fn one_mount(path: &Path, config: &Config) -> Result<Rc<Table>, String> {
+fn one_mount(path: &Path) -> Result<Mounted, String> {
     let entry = nvs_config::trust::canonical(path)
         .map_err(|why| format!("`{}` cannot be served: {why}", path.display()))?;
     let root = entry
         .parent()
         .ok_or_else(|| format!("`{}` is not a file in a directory", entry.display()))?
         .to_path_buf();
-    Ok(Rc::new(Table::from_config(
-        vec![Mounted {
-            prefix: "/".to_string(),
-            host: None,
-            entry,
-            root,
-            origin: None,
-            captures: Vec::new(),
-        }],
-        config,
-    )))
+    Ok(Mounted {
+        prefix: "/".to_string(),
+        host: None,
+        entry,
+        root,
+        origin: None,
+        captures: Vec::new(),
+    })
 }
 
 /// The one address this core binds: the file's first entry, then whichever flag
