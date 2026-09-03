@@ -2361,6 +2361,18 @@ is why" — is this file.
   ceiling and so exits 1 — was indistinguishable from a leak. The sweep uses 97 now, as
   `tools/leak-check.sh` always did. Before reading a red sweep as a refcount bug,
   `grep -c "definitely lost"` its stderr: `0` means neither cause is yours.
+- **A valgrind stack whose allocation site is `NvsArray::make_unique` under `nvs_array_set`
+  names an array *literal*, not the array write path.** Since the empty array became a
+  per-thread singleton, `nvs_array_new` hands back a header whose count is never 1, so
+  `nvs_codegen`'s `emit_array_new` chain always separates on its **first** `nvs_array_set` —
+  which makes `make_unique` the allocation site of every non-empty literal in the program.
+  A leak report with that stack is therefore saying "an array literal was never released"
+  and nothing whatever about copy-on-write; reading it as a dropped clone costs a whole
+  session auditing a path that is balanced. Both doc comments that would have said so were
+  stale from before the singleton landed (`emit_array_new`'s "the pointer never actually
+  changes here", `nvs_array_row_for_write`'s "a fresh empty array with a count of one") and
+  now say it. The general shape: after a representation changes to share a header, every
+  "this is solely owned" claim written before it is a suspect.
 
 ## Writing a test case
 
