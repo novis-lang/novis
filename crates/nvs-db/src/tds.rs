@@ -63,24 +63,27 @@
 //! and [`Tokens`], which reads that message's answer as far as `LOGINACK`,
 //! `ENVCHANGE`, `ERROR`, `INFO` and `DONE`.
 //!
-//! **Nothing sends any of it yet.** `TdsConn` in [`mod@crate::conn`] is a
-//! busy-state flag with no wire in it, so the sequencing that would call
-//! [`negotiate_tls`], write a LOGIN7 and read its tokens has nowhere to keep
-//! the connection it opened. That is the next slice, and after it the result
-//! set: [`Tokens`] reads a whole message and the row path cannot, for the
-//! reason the first section gives.
+//! **The handshake now runs**: [`TdsConn::connect`] opens the socket and
+//! [`login`] sends the credential and reads what came back, so a `TdsConn`
+//! holds a live encrypted wire and the framing the server's `ENVCHANGE`
+//! settled. What is not here is everything a statement needs — `COLMETADATA`
+//! and `ROW` over [`Wire::read_packet`], ADR 0067 § 1's cache over
+//! `sp_prepexec`, and § 13's reset — and the row path is the one that cannot
+//! use [`Tokens`] as it stands, for the reason the first section gives.
 
 use std::cell::Cell;
 use std::io::{self, Read, Write};
+use std::net::SocketAddr;
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
+use std::time::Instant;
 
 use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 
-use crate::conn::{BlockError, DbErrorKind, Driver, written_value};
+use crate::conn::{BlockError, DbErrorKind, Driver, ServerError, State, TdsConn, written_value};
 use crate::sql::{statement_cache_for, time_zone_for};
 
 /// The header in front of every packet: type, status, length, SPID, packet id,
@@ -605,7 +608,13 @@ fn fill<S: Read>(stream: &mut S, inbox: &mut Vec<u8>) -> io::Result<usize> {
 /// and the buffered remainder, so no caller can write half a packet, and the
 /// default type parameter is the stream a real connection has while a test
 /// substitutes anything that reads and writes.
-pub struct Wire<S: Read + Write = NvsTls<NvsTcp>> {
+///
+/// That default carries a [`Tunnel`] where the other drivers' carry the socket
+/// itself, and it is not decoration: § 3's TLS handshake is *tunnelled* here,
+/// so the `rustls` session a live connection ends up holding was handshaken
+/// over the framing rather than over the socket. [`TdsConn::connect`] is where
+/// that type is built, and [`negotiate_tls`] is what answers it.
+pub struct Wire<S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     stream: S,
     inbox: Vec<u8>,
     codec: Codec,
@@ -659,6 +668,17 @@ impl<S: Read + Write> Wire<S> {
     /// The framing, for the negotiation that resizes it.
     pub fn codec(&mut self) -> &mut Codec {
         &mut self.codec
+    }
+
+    /// The framing as it now stands.
+    ///
+    /// A [`Codec`] is `Copy` and holds one number, so this hands back the value
+    /// rather than a borrow: a caller reading the packet size while it also
+    /// holds the message it read is the ordinary case, and a shared borrow of
+    /// the wire would make it the awkward one.
+    #[must_use]
+    pub fn framing(&self) -> Codec {
+        self.codec
     }
 
     /// The stream underneath, for the tests that assert on what was written to
@@ -1952,6 +1972,195 @@ impl<'a> Tokens<'a> {
     }
 }
 
+/// What [`ServerError::backend`] calls this one, and what its rendered sentence
+/// therefore opens with.
+///
+/// The `[db.<name>]` block's own spelling, so an operator reading a refusal and
+/// an operator reading the configuration that produced it are reading one word
+/// — and deliberately not [`Driver::matrix_name`], which is a harness key
+/// [`ServerError::backend`]'s own doc refuses to tie this to.
+const BACKEND: &str = "sqlserver";
+
+/// The server's refusal, as the `io::Error` every entry point here answers
+/// with.
+///
+/// [`crate::mysql`]'s `server_refusal` and [`crate::pg`]'s `server_error` with
+/// this backend's two absences. TDS sends **no `SQLSTATE`**, so
+/// [`ServerError::sql_state`] is empty — that field's own doc owns what the
+/// empty string means, and inventing ODBC's five characters here would fill the
+/// slot a program reads with a value this driver made up, which is what
+/// [`kind_of`] refuses to key its table on for the same reason. And its
+/// severity is a number rather than a word, so [`ServerMessage::is_fatal`] is
+/// what picks between the two words [`ServerError::severity`] is documented to
+/// carry.
+///
+/// `constraint` is `None` on every refusal this backend words: SQL Server names
+/// the index or the key inside the sentence and in no field of its own, and
+/// § 8's rule against matching on message text is exactly the rule that stops
+/// this driver taking it from there.
+pub(crate) fn server_refusal(message: &ServerMessage) -> io::Error {
+    io::Error::other(ServerError {
+        kind: message.kind(),
+        sql_state: String::new(),
+        severity: String::from(if message.is_fatal() { "FATAL" } else { "ERROR" }),
+        message: message.message.clone(),
+        constraint: None,
+        driver_code: Some(message.number),
+        backend: BACKEND,
+    })
+}
+
+/// LOGIN7 out over an encrypted wire, and the token stream that answers it read
+/// to its end.
+///
+/// A free function generic in the stream for [`negotiate_tls`]'s reason: a
+/// method on [`TdsConn`] could only be reached through a real socket and a real
+/// certificate, and this is the half worth a unit test.
+///
+/// **The whole answer is read before anything acts on it.** The packet size an
+/// `ENVCHANGE` announces is in force from the packet *after* the one that
+/// carried it, and a refused login sends its `ERROR` before the `DONE` that
+/// ends the message, so a reader that applied either mid-stream would be acting
+/// on a message it had not finished. The first `ERROR` is the one kept: what
+/// follows it is the server describing the consequences of the first, and the
+/// `DONE` that ends a failed login says only that something failed.
+///
+/// The [`LoginAck`] is answered rather than kept, because the one thing on it a
+/// driver could act on is the dialect — and this checks that itself: a server
+/// answering a version other than [`TDS_VERSION`] is one this driver would need
+/// a second set of readers for, and reading its tokens as 7.4's would be
+/// guessing at the bytes rather than refusing them.
+///
+/// # Errors
+///
+/// [`login7_request`]'s `InvalidInput` for a field past [`MAX_FIELD_CHARS`]; an
+/// `Other` carrying a [`ServerError`] for the login the server refused —
+/// [`DbErrorKind::Permission`] for the usual one, since `18456` is what a wrong
+/// password, an unknown login and a database this login may not open all
+/// arrive as; `InvalidData` for an answer that is not a token stream, for one
+/// that neither accepts nor refuses, for a dialect this driver does not speak
+/// and for a packet size outside [`Codec::set_packet_size`]'s range; and
+/// whatever the stream reported.
+pub fn login<S: Read + Write>(wire: &mut Wire<S>, target: &TdsTarget<'_>) -> io::Result<LoginAck> {
+    let request = login7_request(target, wire.framing().packet_size())?;
+    wire.send(PacketType::Login7, Status::NORMAL, &request)?;
+
+    let answer = wire.read_message()?;
+    if answer.kind != PacketType::TabularResult {
+        return Err(malformed(format!(
+            "a LOGIN7 was answered with a packet of type 0x{:02X}",
+            answer.kind.byte()
+        )));
+    }
+
+    let mut tokens = Tokens::over(&answer.payload);
+    let mut refusal = None;
+    let mut ack = None;
+    let mut packet_size = None;
+    while let Some(token) = tokens.next_token()? {
+        match token {
+            Token::Error(message) if refusal.is_none() => refusal = Some(message),
+            Token::LoginAck(answered) => ack = Some(answered),
+            Token::Env(EnvChange::PacketSize { to }) => packet_size = Some(to),
+            Token::Error(_) | Token::Info(_) | Token::Env(_) | Token::Done(_) => {}
+        }
+    }
+
+    if let Some(message) = refusal {
+        return Err(server_refusal(&message));
+    }
+    let Some(ack) = ack else {
+        return Err(malformed(String::from(
+            "a LOGIN7 was answered without either a LOGINACK or an ERROR",
+        )));
+    };
+    if ack.tds_version != TDS_VERSION {
+        return Err(malformed(format!(
+            "the server answered a TDS 7.4 login speaking 0x{:08X}, which this driver has no readers for",
+            ack.tds_version
+        )));
+    }
+    if let Some(size) = packet_size {
+        wire.codec().set_packet_size(size)?;
+    }
+    Ok(ack)
+}
+
+impl TdsConn {
+    /// [ADR 0067 § 3](../../../docs/adr/0067-core-db.md)'s handshake end to
+    /// end: a socket, PRELOGIN, the TLS session tunnelled inside it, LOGIN7 and
+    /// the tokens that answer it.
+    ///
+    /// [`crate::MySqlConn::connect`]'s shape and its rules. `addr` is where to
+    /// connect and `target.host` is only the name the certificate is checked
+    /// against: resolving one to the other belongs to whoever checked
+    /// `db.connect`, and a driver that re-resolved the name would be connecting
+    /// somewhere nobody approved. `deadline` covers the whole handshake rather
+    /// than each step, because what a caller bounds is how long opening a
+    /// connection may take.
+    ///
+    /// Unlike the other three drivers this one sends nothing after the login.
+    /// There is no charset to force — TDS carries text as UCS-2 and § 9's rows
+    /// decode from that — and no session time zone to set, which
+    /// [`TdsTarget::time_zone`] owns; LOGIN7's own option flags carry the ANSI
+    /// defaults § 7's closure rests on, so the connection is usable the moment
+    /// the login is acknowledged.
+    ///
+    /// # Errors
+    ///
+    /// [`prelogin`]'s `InvalidData` for a server that would leave the session
+    /// in plaintext, [`negotiate_tls`]'s for a certificate that does not verify
+    /// against `target.tls_ca_file`'s anchors, [`login`]'s for the login the
+    /// server refused, `TimedOut` when the deadline passes, and whatever the
+    /// socket itself reported.
+    pub fn connect(
+        addr: SocketAddr,
+        target: &TdsTarget<'_>,
+        deadline: Option<Instant>,
+    ) -> io::Result<TdsConn> {
+        let mut tcp = match deadline {
+            Some(at) => {
+                NvsTcp::connect_timeout(addr, at.saturating_duration_since(Instant::now()))?
+            }
+            None => NvsTcp::connect(addr)?,
+        };
+        tcp.set_deadline(deadline);
+
+        let mut wire = negotiate_tls(Wire::new(tcp), target.host, target.tls_ca_file)?;
+        login(&mut wire, target)?;
+
+        Ok(TdsConn {
+            wire,
+            state: Cell::new(State::Idle),
+            // § 9's zone-less row is decoded a layer up, where the target is
+            // gone — see the field.
+            time_zone: target.time_zone,
+        })
+    }
+
+    /// The zone a `datetime` or `datetime2` off this connection is read in, as
+    /// seconds east of UTC.
+    ///
+    /// [`crate::MySqlConn::time_zone`]'s twin with one difference this method
+    /// cannot show: no server was told. [`TdsTarget::time_zone`] owns why SQL
+    /// Server has nowhere to be told.
+    #[must_use]
+    pub fn time_zone(&self) -> i32 {
+        self.time_zone
+    }
+
+    /// The size this connection's messages are split at, which is what LOGIN7's
+    /// answer settled.
+    ///
+    /// A server is free to answer a request for one size by using another, and
+    /// the `ENVCHANGE` that says so is the only place it appears — so this is
+    /// read off the framing rather than off the block that asked.
+    #[must_use]
+    pub fn packet_size(&self) -> u16 {
+        self.wire.framing().packet_size()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3043,5 +3252,144 @@ mod tests {
         let refused = tokens(&env_token(ENV_PACKET_SIZE, "large", "4096"))
             .expect_err("a size that is not a number");
         assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+    }
+
+    /// One `TabularResult` message carrying `payload`, as a server writes it.
+    fn answer(payload: &[u8]) -> Vec<u8> {
+        packet(PacketType::TabularResult, Status::EOM, 1, payload)
+    }
+
+    /// A wire over a server that answers one login and says nothing else.
+    fn logging_in(payload: &[u8]) -> Wire<Script> {
+        Wire::new(Script::answering(answer(payload), READ_CHUNK))
+    }
+
+    #[test]
+    fn a_login_sends_login7_and_the_servers_answer_settles_the_framing() {
+        let block = block();
+        let target = TdsTarget::resolve(&block).expect("a complete block resolves");
+
+        let mut payload = env_token(ENV_DATABASE, "novis_test", "master");
+        payload.extend_from_slice(&env_token(ENV_PACKET_SIZE, "8192", "4096"));
+        payload.extend_from_slice(&login_ack_token());
+        payload.extend_from_slice(&done_token(0, 0));
+        let mut wire = logging_in(&payload);
+
+        let ack = login(&mut wire, &target).expect("a login this server accepted");
+        assert_eq!(ack.tds_version, TDS_VERSION);
+        assert_eq!(ack.version, (16, 0, 4035));
+
+        assert_eq!(
+            wire.peer().sent,
+            packet(PacketType::Login7, Status::EOM, 1, &login7(&block)),
+            "what went out is the message `login7_request` built, framed whole"
+        );
+        assert_eq!(
+            wire.framing().packet_size(),
+            8192,
+            "the ENVCHANGE is the only place a server says what size it will \
+             actually use, so the framing follows it rather than what LOGIN7 asked"
+        );
+    }
+
+    /// § 8's four fields for a refusal this backend words, all of them at once.
+    ///
+    /// Both absences are asserted here rather than left to a reader's
+    /// assumption: TDS sends no `SQLSTATE`, and no constraint name outside the
+    /// sentence. A driver that filled either from ODBC's table or from the
+    /// message text would still answer the right kind and would fail here.
+    #[test]
+    fn a_refused_login_is_the_servers_own_refusal_with_its_number_and_no_sqlstate() {
+        let block = block();
+        let target = TdsTarget::resolve(&block).expect("a complete block resolves");
+
+        let mut payload = message_token(TOKEN_ERROR, 18456, 14, "Login failed for user 'novis'.");
+        payload.extend_from_slice(&done_token(DONE_ERROR, 0));
+        let mut wire = logging_in(&payload);
+
+        let refused = login(&mut wire, &target).expect_err("this login was refused");
+        let server = ServerError::of(&refused).expect("a refusal the server worded");
+        assert_eq!(server.kind, DbErrorKind::Permission);
+        assert_eq!(
+            server.driver_code,
+            Some(18456),
+            "the number is the whole of what a caller branches on past § 8's kind"
+        );
+        assert_eq!(server.sql_state, "", "TDS has no such field to fill");
+        assert_eq!(server.severity, "ERROR");
+        assert_eq!(server.constraint, None);
+        assert_eq!(
+            refused.to_string(),
+            "sqlserver ERROR: Login failed for user 'novis'.",
+            "an absent SQLSTATE is omitted from the sentence, not rendered empty"
+        );
+
+        // A `THROW` past a `u16`, which is the width this field used to be and
+        // the reason it is not any more: the whole user-defined range is above
+        // it, so a narrower field would answer `None` for every error an
+        // application raised itself.
+        let mut raised = message_token(TOKEN_ERROR, 90_001, 16, "the application said no");
+        raised.extend_from_slice(&done_token(DONE_ERROR, 0));
+        let mut wire = logging_in(&raised);
+        let refused = login(&mut wire, &target).expect_err("this login was refused");
+        let server = ServerError::of(&refused).expect("a refusal the server worded");
+        assert_eq!(server.driver_code, Some(90_001));
+        assert_eq!(server.kind, DbErrorKind::Other);
+
+        // At `FATAL_CLASS` the server has already closed the socket, so § 13's
+        // pool must destroy this connection rather than reset it — which is
+        // what the kind says and what the severity has to agree with.
+        let mut fatal = message_token(TOKEN_ERROR, 9001, 21, "the log is not available");
+        fatal.extend_from_slice(&done_token(DONE_ERROR, 0));
+        let mut wire = logging_in(&fatal);
+        let refused = login(&mut wire, &target).expect_err("this login was refused");
+        let server = ServerError::of(&refused).expect("a refusal the server worded");
+        assert_eq!(server.kind, DbErrorKind::ConnectionLost);
+        assert_eq!(server.severity, "FATAL");
+    }
+
+    /// The three answers that are neither an acceptance nor a refusal.
+    ///
+    /// Each is a stream this driver could read *something* out of and must not:
+    /// a login that ended with no verdict, a server speaking another dialect,
+    /// and an answer that is not a token stream at all. The first is the one a
+    /// reader trusting `LOGINACK`'s absence to mean failure would get wrong.
+    #[test]
+    fn a_login_answer_that_decides_nothing_is_refused_rather_than_assumed() {
+        let block = block();
+        let target = TdsTarget::resolve(&block).expect("a complete block resolves");
+
+        let mut nothing = message_token(TOKEN_INFO, 5701, 0, "Changed database context.");
+        nothing.extend_from_slice(&done_token(0, 0));
+        let mut wire = logging_in(&nothing);
+        let refused = login(&mut wire, &target).expect_err("nothing here accepted the login");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+        assert!(refused.to_string().contains("LOGINACK"), "{refused}");
+        assert!(
+            ServerError::of(&refused).is_none(),
+            "the server refused nothing, so this is a protocol failure and not \
+             a condition § 8 normalises"
+        );
+
+        // TDS 7.3, which a server before SQL Server 2012 answers with. Its
+        // token stream is close enough to read wrongly and not close enough to
+        // read right.
+        // The version is the four bytes after the token byte, its length and
+        // the interface byte — `login_ack_token` is what says so.
+        let mut older = login_ack_token();
+        older[4..8].copy_from_slice(&0x730B_0003u32.to_le_bytes());
+        older.extend_from_slice(&done_token(0, 0));
+        let mut wire = logging_in(&older);
+        let refused = login(&mut wire, &target).expect_err("this driver speaks 7.4 alone");
+        assert!(refused.to_string().contains("0x730B0003"), "{refused}");
+
+        // The server answering a LOGIN7 with a PRELOGIN: the stream is out of
+        // sync, and the tokens would be read out of whatever arrived instead.
+        let mut wire = Wire::new(Script::answering(
+            packet(PacketType::PreLogin, Status::EOM, 1, &[PL_TERMINATOR]),
+            READ_CHUNK,
+        ));
+        let refused = login(&mut wire, &target).expect_err("0x12 answers nothing here");
+        assert!(refused.to_string().contains("type 0x12"), "{refused}");
     }
 }

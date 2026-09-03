@@ -139,9 +139,11 @@
 //! written here — the eight-byte header, the split a message longer than the
 //! negotiated packet size takes, and the reassembly a token stream needs
 //! because a token is cut wherever that size lands rather than at a message
-//! boundary. Nothing above framing is on disk: reading a `[db.<name>]` block,
-//! PRELOGIN, § 3's TLS tunnelled inside PRELOGIN packets and LOGIN7 are the
-//! slices after it, and [`TdsConn`] is still the stub its own doc describes.
+//! boundary. Its handshake is whole on top of that — a `[db.<name>]` block,
+//! PRELOGIN, § 3's TLS tunnelled inside PRELOGIN packets, LOGIN7 and the tokens
+//! that answer it — so [`TdsConn`] holds a live wire and is no longer the stub
+//! its own doc used to describe. What is left there is the statement: the row
+//! path, § 1's cache and § 13's reset.
 //! SQLite is then what is left, PostgreSQL having gone first throughout because
 //! its extended protocol pays nothing extra for a prepare and so exercises the
 //! design rather than the driver's own quirks.

@@ -1007,7 +1007,9 @@ pub(crate) fn server_refusal(
         severity: String::from("ERROR"),
         message: error.message_str().into_owned(),
         constraint: None,
-        driver_code: Some(code),
+        // Widened where it is held, not here: MySQL's own field is the `u16`
+        // this packet carries and `kind_of` above is keyed on it.
+        driver_code: Some(u32::from(code)),
         backend: backend.name,
     })
 }

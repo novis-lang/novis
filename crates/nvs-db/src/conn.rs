@@ -38,6 +38,7 @@ use mysql_common::constants::CapabilityFlags;
 use crate::mysql::Wire as MyWire;
 use crate::pg::{CancelKey, Wire};
 use crate::sql::StatementCache;
+use crate::tds::Wire as TdsWire;
 
 /// The five backends [ADR 0067 § 12](../../../docs/adr/0067-core-db.md) closes
 /// the set at.
@@ -539,7 +540,18 @@ impl DbErrorKind {
 pub struct ServerError {
     /// § 8's normalised kind, from the driver's own code table.
     pub kind: DbErrorKind,
-    /// The five-character `SQLSTATE`, as the server sent it.
+    /// The five-character `SQLSTATE`, as the server sent it, or **empty on a
+    /// backend that sends none**.
+    ///
+    /// § 8 makes the field `?string` and SQL Server is why: TDS has no
+    /// `SQLSTATE` at all, and the five characters PDO reports for it are ODBC's
+    /// own mapping from the error number rather than anything the server said.
+    /// An empty string is not a `SQLSTATE` any server can send, so it carries
+    /// the absence without widening the field to an `Option` every reader of
+    /// the other four drivers would then have to unwrap; the two readers there
+    /// are — this type's `Display` below, and `nvs_stdlib`'s `sqlState` slot —
+    /// both treat it as one, which is what makes the program-visible value
+    /// `null` rather than `""`.
     pub sql_state: String,
     /// The server's non-localized severity — `ERROR`, `FATAL`, `PANIC`.
     pub severity: String,
@@ -550,10 +562,19 @@ pub struct ServerError {
     /// § 8's `driverCode`: the server's own integer, on a backend that sends
     /// one beside the `SQLSTATE`.
     ///
-    /// `u16` is the width MySQL's `ERR` packet carries it in, and it is the
-    /// input its code table is keyed on — the raw value stays here for the
-    /// conditions [`DbErrorKind`] does not name, exactly as `sql_state` does.
-    pub driver_code: Option<u16>,
+    /// `u32` because SQL Server's is a `LONG` and a `THROW` may raise one past
+    /// 65535 — the whole user-defined range starts at 50000 — where MySQL's
+    /// `ERR` packet carries a `u16`. The narrower width was this field's until
+    /// SQL Server arrived, and keeping it would have lost `driverCode` for
+    /// every error an application raised itself, which is the half of § 8 a
+    /// normalised kind cannot cover. § 8 spells the field `?int`, so nothing
+    /// above this widens with it.
+    ///
+    /// The raw value stays here for the conditions [`DbErrorKind`] does not
+    /// name, exactly as `sql_state` does — and on SQL Server it is the *only*
+    /// raw value there is, since that server sends no `SQLSTATE` to fall back
+    /// to.
+    pub driver_code: Option<u32>,
     /// What the rendered sentence calls this backend.
     ///
     /// [`Driver::matrix_name`] is deliberately not this: those are harness keys
@@ -577,15 +598,22 @@ impl ServerError {
 impl std::fmt::Display for ServerError {
     /// Severity, message and `SQLSTATE`: the three fields an operator acts on.
     ///
+    /// The third is omitted rather than rendered empty where the backend sends
+    /// none — see [`ServerError::sql_state`]. `(SQLSTATE )` would read as a
+    /// server that answered nothing when the truth is a protocol that has no
+    /// such field, and the number that *is* this backend's code is already in
+    /// the sentence the server wrote.
+    ///
     /// Bound parameters are not among them and never will be — ADR 0067 § 8
     /// makes a `Throwable` message a `secret` sink, and this sentence is what
     /// reaches one.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} {}: {} (SQLSTATE {})",
-            self.backend, self.severity, self.message, self.sql_state
-        )
+        write!(f, "{} {}: {}", self.backend, self.severity, self.message)?;
+        if self.sql_state.is_empty() {
+            Ok(())
+        } else {
+            write!(f, " (SQLSTATE {})", self.sql_state)
+        }
     }
 }
 
@@ -742,8 +770,25 @@ pub struct MariaConn {
 /// transport.
 #[derive(Debug)]
 pub struct TdsConn {
+    /// The stream and the bytes read off it that are not yet a whole packet,
+    /// once [`crate::tds::TdsConn::connect`] has upgraded it.
+    ///
+    /// Its type is the one that says what § 3 costs on this protocol: a TLS
+    /// session over a [`Tunnel`](crate::tds::Tunnel) over the socket, where the
+    /// other drivers' is a session over the socket itself. The tunnel is dead
+    /// weight after the handshake — it passes bytes through once its end is
+    /// told the handshake is done — and it stays in the type because `rustls`
+    /// cannot be handed a different stream than the one it handshook over.
+    pub(crate) wire: TdsWire,
     /// ADR 0132 § 4's busy state; the reasoning is on [`PgConn`].
     pub(crate) state: Cell<State>,
+    /// ADR 0067 § 9's declared zone, as seconds east of UTC — what a `datetime`
+    /// or `datetime2` off this connection is read in.
+    ///
+    /// Held for [`PgConn::time_zone`]'s reason, and **not** also sent: this is
+    /// the one driver with no session time zone to send it to, which
+    /// [`crate::tds::TdsTarget::time_zone`] owns.
+    pub(crate) time_zone: i32,
 }
 
 /// A SQLite connection: `rusqlite`, a file handle, and no bytes on any wire.

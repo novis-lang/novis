@@ -3705,14 +3705,20 @@ fn statement_failure(
                 // backend that sends a vendor integer as well — MySQL does and
                 // PostgreSQL does not, and `nvs_db::ServerError` owns why. It is
                 // never the `SQLSTATE` again under a second name.
+                //
+                // And the `SQLSTATE` itself joins only where there is one:
+                // § 8 spells it `?string` because TDS has no such field at all,
+                // and an empty `sql_state` is how that driver says so — the
+                // field's own doc owns the reading. Writing it anyway would put
+                // `""` where a program tests for `null`.
                 Some(server) => {
-                    let mut slots = vec![
-                        (nvs_runtime::KIND_SLOT, error_kind_value(server.kind)),
-                        (
+                    let mut slots = vec![(nvs_runtime::KIND_SLOT, error_kind_value(server.kind))];
+                    if !server.sql_state.is_empty() {
+                        slots.push((
                             nvs_runtime::SQL_STATE_SLOT,
                             Value::str(NvsStr::new(server.sql_state.as_bytes())),
-                        ),
-                    ];
+                        ));
+                    }
                     if let Some(code) = server.driver_code {
                         slots.push((nvs_runtime::DRIVER_CODE_SLOT, Value::int(i64::from(code))));
                     }
