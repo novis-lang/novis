@@ -42,23 +42,23 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 5 of the parity program — `Core\Db`, M8 — is running.**  **`crates/nvs-db`'s
-> PostgreSQL is whole**, § 3's upgrade through § 13's reset.  § 9's whole type map decodes over it.
-> § 7's `BEGIN`/`COMMIT`/`ROLLBACK` is on it, nesting as a `SAVEPOINT` to any depth. **`Core\Db` has
-> opened in `nvs-stdlib`**: § 18's `connect` over a memoized connection, `inList`, `quoteIdentifier`
-> and § 4's `query`, `execute` and `executeMany` ,  **`open` is live** and pools on § 13's settings
-> hash. **§ 7's `transaction` is on both classes with all three options, retrying either conflict,
-> jittered backoff** and a refusal throws `Db\DbError` carrying four of § 8's five; **`queryAs<T>`
-> hydrates** over `ClassDesc::db_codec` into the `Core\Time`/`Core\Uuid` instances `Row`'s typed
-> readers answer with, and § 6's *request* converts — a `TINYINT(1)` reads as `bool` and a stored
-> `7` throws; `examples/db.nvs` runs end to end.  **§ 13's pool is complete, every bound and the
-> park live**, **ADR 0084 § 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue migrate`
-> applies § 2's schema in either dialect, § 1's four members run on either, §§ 4 and 6's statements
-> have both dialects, a worker runs on all three, and real servers hold every statement it sends**,
-> and **a shape encodes as a JSON object**. **MySQL and MariaDB both run a block end to end**:
-> `connect` and `open` open and pool either, §§ 1, 3, 5, 7, 9 and 13 follow each driver's own —
-> MariaDB's auth roster and § 8 table are its own over MySQL's framing, and `Framed` is the one send
-> body — and a real server of each holds § 3's park, § 7, § 8 and § 13's pool. **Stage 9 is § 10's
-> three diagnostics, ADR 0024 § 4's pair, and § 11 whole.** **ADR 0133's carrier landed**:
+> PostgreSQL is whole**, § 3's upgrade through § 13's reset.  § 9's type map decodes over it, and §
+> 7's `BEGIN`/`COMMIT`/`ROLLBACK` nests as a `SAVEPOINT` to any depth. **`Core\Db` has opened in
+> `nvs-stdlib`**: § 18's `connect` over a memoized connection, `inList`, `quoteIdentifier` and § 4's
+> `query`, `execute` and `executeMany` ,  **`open` is live** and pools on § 13's settings hash. **§
+> 7's `transaction` is on both classes with all three options, retrying either conflict, jittered
+> backoff** and a refusal throws `Db\DbError` carrying four of § 8's five; **`queryAs<T>` hydrates**
+> over `ClassDesc::db_codec` into the `Core\Time`/`Core\Uuid` instances `Row`'s typed readers answer
+> with, and § 6's *request* converts — a `TINYINT(1)` reads as `bool` and a stored `7` throws;
+> `examples/db.nvs` runs end to end.  **§ 13's pool is complete, every bound and the park live**,
+> **ADR 0084 § 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue migrate` applies § 2's
+> schema in either dialect, §§ 1, 4 and 6 run on both, a worker runs on all three, and real servers
+> hold every statement it sends**, and **a shape encodes as a JSON object**. **MySQL and MariaDB
+> both run a block end to end**: `connect` and `open` pool either, §§ 1, 3, 5, 7, 9 and 13 follow
+> each driver's own — MariaDB's auth roster and § 8 table over MySQL's framing, `Framed` the one
+> send body — and a real server of each holds § 3's park, § 7, § 8 and § 13's pool. **SQL Server has
+> opened**: TDS 7.4's framing is sans-IO and `TdsTarget` reads a block. **Stage 9 is § 10's three
+> diagnostics, ADR 0024 § 4's pair, and § 11 whole.** **ADR 0133's carrier landed**:
 > `Core\Html::escape` answers `Core\Html\Markup`, `toSource` is the one way out, and `.`, `.=`,
 > interpolation and `as string` refuse one. **Goals 1-4 and M4 are closed**. Conformance 1436,
 > differential 250, migration 90%/74%.
