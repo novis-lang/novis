@@ -2,58 +2,57 @@
 
 ## State
 
-**Stage 5's acceptance check was two checks wearing one name, exactly as stage 4's was.** Three of its
-seven tests are § 7's *closure* — the scope guard, the flag that survives a `catch (Throwable)`, the
-retry loop — and none is a question `nvs-db` can be asked: the `BEGIN`, the `SAVEPOINT` and the
-`ROLLBACK` are the driver's, but re-running a closure is
-`nvs_core_db_connection_transaction`'s and nothing in a driver is ever asked to. They are now a
-`-p nvs-stdlib` check of their own in both `docs/agent/loop-goal.toml` and
-`docs/agent/goals/5-database.toml`; the four driver-level names stay where they were. The two goal files
-are still **not** byte-identical — the live one carries ADR 0133's stage 0 — so an edit goes into both by
-hand rather than by copying.
+**Stage 5's `-p nvs-stdlib` check is closed — all three of its names run.** § 7's retry loop is no
+longer inside `nvs_core_db_connection_transaction`: it is `transacted` at
+`crates/nvs-stdlib/src/db.rs:5652`, handed an `Attempts` — the four questions an attempt asks of its
+connection — instead of reading one back out of the ctx at four points. `Filed` is the only
+implementation the runtime builds and does exactly what those four sites did; the trait's own doc
+owns why the methods take the context rather than borrow out of it, and why three of them answer a
+`Result` inside a `Result`.
 
-**§ 8's normalisation is now asserted across the drivers, not only down each one.**
-`every_driver_normalises_its_codes_to_one_error_kind` in `crates/nvs-db/src/conn.rs` reads one condition
-per row as PostgreSQL, MySQL and MariaDB each spell it and asserts the three answer one `DbErrorKind`;
-the three `kind_of`s are `pub(crate)` for it, and its exhaustive `match` on the kind makes a twelfth
-condition a build failure in that table. SQL Server and SQLite have no code table yet and so no column.
+**`retries_recover_an_induced_deadlock` induces the conflict the way a server does.** The scripted
+closure throws what `statement_failure` renders a PostgreSQL `40P01` into, so the loop's decision
+goes through `Ctx::pending_slot` and § 8's normalised kind exactly as it does in a request. It reads
+the commands back in order rather than counting attempts, and asserts both sides of § 7's bound —
+at `retries: 0` the same conflict reaches the caller with the closure run once.
 
-**`retries_recover_an_induced_deadlock` is the one name still open, and what it has is a wall rather
-than a missing author.** `nvs_core_db_connection_transaction` reaches its connection through
-`transacting`, which downcasts to a real `nvs_db::Connection::Postgres`/`::MySql`, and a `-p nvs-stdlib`
-test can build neither — the playbook's `PgConn` bullet is the same wall one crate over. The closure
-half is already reachable (`allocation_policy.rs`'s `closure_of`), so hoisting the loop off the ctx is
-the whole of it, and it is the next group's first item.
-
-**`nvs_stdlib::db`'s known gap 1 is untouched**: `open` still files its connection with no lease,
-because § 13 keys an `open` pool on a hash of every settings field and
-`nvs_runtime::pool::Ticket::for_block` takes a block *name*. Within a request § 2's memo holds.
+**`nvs_stdlib::db`'s known gap 1 is untouched, and one thing about it is now known:** an `open` pool
+has no `[db.<name>].pool` table to take its bounds from. `connect` resolves them with
+`nvs_config::db::pool_for(name, block, …)` at `crates/nvs-stdlib/src/db.rs:2916`, and a settings
+literal has no block — so slice 1 below has to decide what bounds a blockless pool gets (the
+defaults, or `PoolBounds::OFF`) before it can build a ticket. Within a request § 2's memo holds.
 
 ## Next group
 
-**The retry loop's testability, then § 13's pool for `open`. File set: `crates/nvs-stdlib/src/db.rs`
-with `crates/nvs-runtime/src/pool.rs`.** The first item closes the stage 5 check this session split; the
-second and third are the group the last two handoffs named and are unchanged.
+**§ 13's pool for `open`, then what the docs still say about it. File set:
+`crates/nvs-stdlib/src/db.rs` with `crates/nvs-runtime/src/pool.rs`.** The first two are the group
+the last three handoffs named and are unchanged; the third is the paragraph they invalidate.
 
-- [ ] **The retry loop runs with no server in front of it** (0067 § 7). Hoist the body of the `loop` at
-      `crates/nvs-stdlib/src/db.rs:5490` into a function that is *handed* its connection instead of
-      reading it back out of the ctx at four points, so `retries_recover_an_induced_deadlock` can script
-      one attempt that conflicts and one that commits. `crates/nvs-stdlib/src/db.rs:4293` is
-      `Transacting` and `crates/nvs-stdlib/src/db.rs:4360` is the `transacting` that downcasts;
-      `crates/nvs-stdlib/src/db.rs:7212` is the neighbouring case whose shape the new one takes.
-- [ ] **A ticket keyed on the settings hash, so `open` pools** (0067 § 13).
-      `crates/nvs-runtime/src/pool.rs:1` is the pool and `Ticket::for_block`'s block-name key;
-      `crates/nvs-stdlib/src/db.rs:2995` is the merged-slot list `settings_key` hashes, and
-      `crates/nvs-stdlib/src/db.rs:64` is known gap 1, which this closes. The key is § 2's — the hash,
-      scoped to the configuration generation it was read from, exactly as a named block's is.
-- [ ] **`{shared: false}` still draws from and returns to that pool** (0067 § 13).
-      `crates/nvs-stdlib/src/db.rs:2986` is the comment that already says so with no lease behind it,
-      and `crates/nvs-runtime/src/pool.rs:1` is where the draw happens.
+- [ ] **A ticket keyed on the settings hash, so `open` pools** (0067 § 13). `Ticket` is
+      `crates/nvs-runtime/src/pool.rs:127` and its one constructor
+      `crates/nvs-runtime/src/pool.rs:152` takes a block *name*, which
+      `crates/nvs-runtime/src/pool.rs:180` renders as `{generation:p}:{name}`; the hash `open`
+      already computes is `crates/nvs-stdlib/src/db.rs:3132` and cannot collide with a name.
+      `crates/nvs-stdlib/src/db.rs:2916` is `connect`'s bounds-then-ticket-then-`admit`, the shape
+      to follow, and `crates/nvs-stdlib/src/db.rs:3284` is `open`'s `hold_open_connection` with the
+      `None` lease that is the whole gap. Decide the blockless bounds question named in `## State`
+      and say what it spends.
+- [ ] **`{shared: false}` still draws from and returns to that pool** (0067 § 13). § 13 says the
+      option bypasses memoization within the request and never pooling across requests;
+      `crates/nvs-stdlib/src/db.rs:2986` is where `connect` already words that and files the lease
+      beside a `None` memo, and `crates/nvs-stdlib/src/db.rs:3284` is where `open` must do the same.
+- [ ] **The two places that still say `open` does not pool** (0067 § 13). Known gap 1 is
+      `crates/nvs-stdlib/src/db.rs:66` and names `Ticket::for_block` as the reason; the member's own
+      *what it spends* paragraph is `crates/nvs-stdlib/src/db.rs:3165`. Both are wrong the moment
+      slice 1 lands, and `OPEN_DOC`'s card is worth a look beside them.
 
 ## Backlog
 
-- **`open`'s reset is the one a failed reset destroys** — `docs/adr/0067-core-db.md` § 13.
-- **SQL Server and SQLite owe a `kind_of` and a column in the new agreement table** —
-  `crates/nvs-db/src/conn.rs`, and § 8's "four drivers, five dialects" is not met until they have one.
-- **§ 7's backoff and jitter between retries is unwritten** — `nvs_stdlib::db`'s known gap 9.
-- **`Core\Db::open` has no pool of its own until known gap 1 closes** — `nvs_stdlib::db` known gap 1.
+- § 7's wait between attempts — exponential backoff and jitter that suspends the coroutine. This
+  module's known gap 9, `crates/nvs-stdlib/src/db.rs`.
+- MariaDB and SQL Server have no `connect`, so `open` refuses both. Known gap 2, same module.
+- § 8's `sql` is the fifth raw value and no throw carries it yet — ADR 0067 § 8.
+- SQLite has no code table, so it contributes no column to
+  `every_driver_normalises_its_codes_to_one_error_kind` in `crates/nvs-db/src/conn.rs`.
+- `docs/agent/loop-goal.toml` and `docs/agent/goals/5-database.toml` are still not byte-identical —
+  the live one carries ADR 0133's stage 0, so an edit goes into both by hand.

@@ -4728,6 +4728,18 @@ is why" — is this file.
   temporary table PostgreSQL no longer has, where MySQL answers error `1146`, so a twin that needs
   absence as a value marks the session with a user variable and reads `NULL` back — and asserts the
   missing table separately, as a `ServerError`.
+- **A `-p nvs-stdlib` test that asserts anything a member reads off a *throw's own slot* has to
+  install an exception class table first, and the failure blames the member rather than the
+  fixture.** `Ctx::pending_slot` answers `None` on a context that never took a
+  `set_runtime_error_class`, because `pending_conforms_to` refuses a null descriptor — so ADR 0067
+  § 7's retry loop, which decides on the `KIND_SLOT` of a pending `Core\Db\DbError`, saw no conflict
+  and re-raised, and the case read as though the retry rule were broken. Two `ClassTable::define`
+  calls are the whole fix: spec § 10's four-slot `RuntimeError` as the root the handle names, and
+  the subclass under it with enough fields to hold the slot — `nvs_runtime::KIND_SLOT` *is* the
+  root's `SLOT_COUNT`, so `Core\Db\DbError` needs those four plus its own five, and a narrower
+  descriptor drops the value silently (`Thrown::new_as`). `crates/nvs-stdlib/src/db.rs`'s
+  `retries_recover_an_induced_deadlock` is the shape; the playbook's `Ctx::class_desc` bullet is the
+  same seam reached for a different reason.
 
 ## Splitting a file that got too big
 
