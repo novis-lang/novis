@@ -3492,9 +3492,16 @@ mod tests {
             );
 
             self.client_first_bare = client_first["n,,".len()..].to_owned();
+            // `n=<user>,r=<nonce>`, split on the attribute's own delimiter and
+            // not on a bare `r=`. RFC 5802's nonce is printable ASCII with the
+            // comma excluded — `postgres_protocol` draws 24 of those — so it
+            // may contain `r=` and cannot contain `,r=`. Splitting on the
+            // shorter needle read a *suffix* of the nonce roughly one time in
+            // 368, the server echoed a prefix the client never sent, and the
+            // driver correctly refused its own exchange.
             let client_nonce = self
                 .client_first_bare
-                .rsplit_once("r=")
+                .split_once(",r=")
                 .expect("a client nonce")
                 .1
                 .to_owned();
@@ -3539,6 +3546,37 @@ mod tests {
             out.extend_from_slice(&startup_tail());
             out
         }
+    }
+
+    /// The fake server echoes the client's **whole** nonce, including one that
+    /// contains `r=`.
+    ///
+    /// This pins the fixture rather than the driver, and it is here because the
+    /// fixture's own bug is indistinguishable from a driver bug at the point it
+    /// shows: `authenticate` refuses a `server-first` whose nonce does not begin
+    /// with the one it sent, so a fake that echoed a suffix failed inside
+    /// whichever SCRAM case the run happened to reach. `postgres_protocol` draws
+    /// 24 characters from RFC 5802's comma-free printable set, so `r=` lands in
+    /// a nonce about one run in 368 — often enough to have failed an acceptance
+    /// check, rarely enough to pass every re-run of it.
+    #[test]
+    fn the_fake_server_echoes_a_client_nonce_that_contains_the_attribute_marker() {
+        const NONCE: &str = "abcr=defr=ghi";
+        let mut sent = vec![b'p', 0, 0, 0, 0];
+        sent.extend_from_slice(super::SCRAM_SHA_256.as_bytes());
+        sent.push(0);
+        sent.extend_from_slice(&0i32.to_be_bytes());
+        sent.extend_from_slice(format!("n,,n=,r={NONCE}").as_bytes());
+
+        let mut scram = Scram::new("Novis-Test-Pw1");
+        scram.first(&sent);
+        assert!(
+            scram
+                .server_first
+                .starts_with(&format!("r={NONCE}{SERVER_NONCE},")),
+            "the server echoed something other than the whole client nonce: {}",
+            scram.server_first
+        );
     }
 
     fn target<'a>(password: &'a str) -> PgTarget<'a> {
