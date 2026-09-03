@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Switch the loop to a new goal, carrying the old goal's checks in as the non-regression floor.
 
-    python tools/goal-switch.py docs/agent/next-goal-m4b.toml
-    python tools/goal-switch.py docs/agent/next-goal-m4b.toml --dry-run
+    python tools/goal-switch.py docs/agent/goals/12-resilient-tree.toml
+    python tools/goal-switch.py docs/agent/goals/12-resilient-tree.toml --dry-run
 
 [loop-authoring.md](../docs/agent/loop-authoring.md) § 6 makes the previous goal's whole acceptance
 list the next goal's Stage 1 -- "a non-regression floor, never traded for anything above it." That is
