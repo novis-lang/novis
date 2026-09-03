@@ -2373,6 +2373,29 @@ is why" — is this file.
   changes here", `nvs_array_row_for_write`'s "a fresh empty array with a count of one") and
   now say it. The general shape: after a representation changes to share a header, every
   "this is solely owned" claim written before it is a suspect.
+- **`wsl.exe -- bash /mnt/d/...` run through the *Bash* tool is rewritten by Git Bash's path
+  conversion, and the failure looks like a pass.** `wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh
+  examples/queue.nvs` came back as
+  `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory` — and
+  **exit 0**, because the status is `bash`'s own and the tool reported success. A leak leg that
+  silently runs nothing and reports green is the worst shape a check can take. MSYS rewrites any
+  argument that looks like an absolute POSIX path before `wsl.exe` ever sees it, so the WSL legs in
+  `docs/agent/commands.md` go through the **PowerShell** tool, or through Bash with
+  `MSYS_NO_PATHCONV=1`. The tell is the `C:/Program Files/Git/` prefix glued to a path you wrote
+  as `/mnt/...`.
+
+- **`tools/leak-check.sh` prints one grep across *every* loss record, so the frames under its
+  `exit 97` are usually not the leaking stack.** Its filter is
+  `grep -E "definitely lost|nvs_stdlib|nvs_ir|nvs_runtime::" | head -12`, which matches
+  crate-named frames in the *possibly lost* and *still reachable* records too — and a TLS client
+  config or a pooled connection out-allocates the leak, so those frames come first and the twelve
+  lines run out before the definitely-lost record is reached. On `examples/queue.nvs` that printed
+  `db::open_named` / `PgConn::connect` / `queue::push` three times over, and a session read it as
+  a database leak on the throwing statement path; the one definite loss was an array literal
+  returned by a job, in a different crate. **Read the record, not the summary**: the script leaves
+  the whole run in `/tmp/leak-err` inside WSL, so
+  `wsl.exe -- grep -n -B2 -A14 "definitely lost" /tmp/leak-err` is the next call after any
+  `exit 97`, and only a block headed `… are definitely lost in loss record N` is yours.
 
 ## Writing a test case
 

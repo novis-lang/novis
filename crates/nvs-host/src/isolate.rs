@@ -685,6 +685,50 @@ mod tests {
         assert_eq!(ctx.statics_len(), 1, "the parent still has its one slot");
     }
 
+    /// ADR 0116 § 5's copy is rooted in the **collector's** ownership, so a
+    /// completion still holds the answer after the child's arena has gone and
+    /// discarding it is what frees the graph. The collector that has to act on
+    /// that is the one with nobody to answer — `nvs queue`'s worker, which runs
+    /// a job and reports only whether it threw.
+    ///
+    /// Counted rather than read off a field, because a boundary that handed
+    /// back a *borrow* of the child's arena would answer `ok` and `value`
+    /// exactly as this one does while leaking one graph per job served. The
+    /// null-answering half is the control: the same run owning nothing frees
+    /// nothing, so the bytes below are the answer's and not the fixture's.
+    #[test]
+    fn a_completions_answer_is_held_here_until_it_is_discarded() {
+        let freed_by_discarding = |answer: fn() -> Value| -> isize {
+            let mut ctx = parent();
+            let program: Program = Box::new(move |_: &mut Ctx, _args| answer());
+            let mut done = run(
+                Isolate::new(program, Value::null(), Output::Capture),
+                &mut ctx,
+            )
+            .expect("a null argument crosses");
+            assert!(done.ok, "{:?}", done.error);
+            let holding = nvs_runtime::budget::live_bytes();
+            done.discard_value();
+            holding - nvs_runtime::budget::live_bytes()
+        };
+
+        let array = freed_by_discarding(|| {
+            let mut out = nvs_runtime::NvsArray::new();
+            out.set(nvs_runtime::NvsStr::new(b"receipted"), Value::bool(true));
+            Value::array(out)
+        });
+        assert!(
+            array > 0,
+            "the child is gone and its answer is alive in this frame, so the \
+             discard is what frees it — it freed {array} bytes"
+        );
+        assert_eq!(
+            freed_by_discarding(Value::null),
+            0,
+            "and an answer owning nothing costs nothing to discard"
+        );
+    }
+
     /// The child buffers into its own context, so nothing it writes reaches the
     /// parent's stream — under `Capture` the bytes come back as data instead.
     #[test]
