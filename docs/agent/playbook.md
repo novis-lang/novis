@@ -6587,6 +6587,18 @@ sibling in the same namespace unqualified.
   derives nothing, so `read[i]` moving out of a `Vec` does not compile — match it by reference —
   and its `Text`/`Bytes` borrow the row rather than owning octets the way `PgScalar` does, so a
   value that outlives the loop iteration is a `to_string()` and not an `into_owned()`.
+- **A TLS handshake carried inside another protocol's frames is a `Read`/`Write` adapter that must
+  buffer on `write` and frame on `flush`, and the switch that ends it has to be shared *before*
+  `rustls` takes the stream.** TDS tunnels the handshake in `PreLogin` packets, and two things about
+  that look decidable later and are not. Framing each `write` call as its own packet looks right and
+  is not: `rustls` writes a flight in several calls, so the packets would cut TLS records at
+  arbitrary offsets — buffer instead and emit one message per `flush`, which is exact, because
+  `ConnectionCommon::complete_io` does `if wrlen > 0 { io.flush()? }` after every write flight and
+  before it reads (`rustls-0.23.43/src/conn.rs`). And once `NvsTls::over` has taken the adapter,
+  `StreamOwned` hands nothing back, so there is no way to reach in and turn the framing off:
+  `crates/nvs-db/src/tds.rs:989`'s `Tunnel` keeps the flag in an `Rc<Cell<bool>>` and the caller
+  takes its `TunnelEnd` *before* the handshake starts. The adapter then stays in the stream type for
+  the connection's life, transparent — that is the price of the shape, not a leak to clean up.
 
 ## Divergences and refusals already pinned
 
