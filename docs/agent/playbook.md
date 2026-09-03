@@ -1720,6 +1720,13 @@ is why" — is this file.
   cheaper still — `check-migration.py` validates every `Core\X::y` a cell names against
   `01-core-library.md` and fails the audit on a spelling that does not exist, so copy the member
   spellings out of an already-green sibling section rather than inventing them.
+- **A `$` in a `wsl.exe -- bash -lc '…'` command string does not reach WSL, so `$?` reads 0 and a
+  measured exit code is a fiction.** Single quotes do not protect it:
+  `wsl.exe -- bash -lc 'false; echo "CODE=$?"'` prints `CODE=0`, and a `for f in a b; do … $f …; done`
+  runs with `$f` empty every iteration. Three valgrind runs read as green that way before the same
+  command, written `valgrind … && echo OK || echo FAILED`, read red — and the sweep those runs were
+  meant to clear had been failing for the whole run. Use `&&`/`||` or `if cmd; then … fi`, never `$?`;
+  and put the varying part in `xargs -I@`, which substitutes before any shell sees it.
 
 ## Running things
 
@@ -2332,6 +2339,17 @@ is why" — is this file.
   the anchor as an absolute path, take the password out of the compose file, and treat
   `python tools/db-matrix.py --driver <name> --no-up` as the authoritative answer — the by-hand
   run is only for reading the panic message a whole-suite `FAILED` line does not print.
+- **A red valgrind sweep is `ring`'s assembly before it is your refcounts, and its second cause is
+  the fixture's own exit status.** Every fixture whose queue worker lives long enough to open
+  `[db.main]` over TLS reports two contexts — `Memcheck:Cond` in `ring::aead::…::open_within`, and a
+  `sendto` carrying the sealed record's tag — because memcheck cannot follow the masking in AES-NI
+  assembly and calls the block's tail undefined. `tools/valgrind.supp` holds both, anchored on a
+  `ring`/`rustls` frame so an uninitialised value Novis produced is still red. The second cause reads
+  identically from the driver's report and is unrelated: valgrind passes the *fixture's* exit status
+  through, so under `--error-exitcode=1` `examples/limits.nvs` — which exists to cross the memory
+  ceiling and so exits 1 — was indistinguishable from a leak. The sweep uses 97 now, as
+  `tools/leak-check.sh` always did. Before reading a red sweep as a refcount bug,
+  `grep -c "definitely lost"` its stderr: `0` means neither cause is yours.
 
 ## Writing a test case
 
