@@ -85,14 +85,9 @@ modules = [
   # The two things the type map borrows: Time's types for date columns, Json's for the JSON ones.
   "crates/nvs-stdlib/src/time.rs",
   "crates/nvs-stdlib/src/json.rs",
-  # Stage 0 item 1's two files, and ONLY that item's. Take both back out of this list -- and `0133` out
-  # of `rules` and `adrs` below -- in the wrap that lands it, the way stage "0 casing" already did.
-  # Nothing else in this goal opens either file, so every later session is paying for them.
-  "crates/nvs-stdlib/src/html.rs",
-  "crates/nvs-types/src/expr/operators.rs",
 ]
 
-rules = ["0067", "0084", "0071", "0051", "0058", "0024", "0133", "0054", "0063", "0082"]
+rules = ["0067", "0084", "0071", "0051", "0058", "0024", "0054", "0063", "0082"]
 
 # The sections EVERY session of this goal reads. § 1 is why there is no escaping API to reach for, § 9's
 # map is the one every driver item is measured against, and § 13's reset is a security boundary that a
@@ -101,10 +96,6 @@ rules = ["0067", "0084", "0071", "0051", "0058", "0024", "0133", "0054", "0063",
 # selector**, and an item that names `ADR 0067 § 7` in its own text does not get § 7, because nothing
 # parses the item. The sections not here are still one `sed -n` around the heading away.
 adrs = [
-  # Stage 0 item 1's whole decision. Out of this list once the item lands.
-  "0133 §1",
-  "0133 §2",
-  "0133 §3",
   "0067 §1",
   "0067 §3",
   "0067 §7",
