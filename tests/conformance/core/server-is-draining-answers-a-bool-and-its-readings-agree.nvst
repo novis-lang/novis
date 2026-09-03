@@ -1,0 +1,45 @@
+--TEST--
+`Core\Server::isDraining` answers the `bool` itself — it binds to one, its negation inverts it and its one conversion is the textual one, with no falsy stand-in behind any of the three — ADR 0097 § 5, ADR 0063 R4
+--FILE--
+<?nvs
+// The question here is the *type* of the answer, not its value. ADR 0063 R4
+// keeps a `Core` member from reporting a state through a falsy return, and the
+// three readings below are the ones a caller writes: the binding, which a
+// non-`bool` return would not compile against; the negation, which a value
+// that were merely falsy would still satisfy; and the textual reading, which
+// is the only conversion ADR 0007 § 2 gives a `bool` — a number out of a
+// predicate is a branch said out loud, so `$answer as int` does not compile
+// and is deliberately not what this case asks.
+bool $answer = Core\Server::isDraining();
+
+if ($answer) {
+    echo "bound: draining\n";
+} else {
+    echo "bound: accepting\n";
+}
+
+// The negation of the same binding, named on the same run: a member answering
+// one of these and not the other would be answering two different questions.
+if (!$answer) {
+    echo "negated: not draining\n";
+} else {
+    echo "negated: draining\n";
+}
+
+// The conversion, delimited so an empty rendering is still visible on the
+// line — which is the reading that would hide a `null` or an empty string
+// standing in for the `bool`.
+echo "as string: [", ($answer as string), "]\n";
+
+// And the member read directly, without the binding between: the two are one
+// call, so a member whose answer depended on being bound first would part here.
+if (!Core\Server::isDraining()) {
+    echo "direct: not draining\n";
+} else {
+    echo "direct: draining\n";
+}
+--EXPECT--
+bound: accepting
+negated: not draining
+as string: []
+direct: not draining

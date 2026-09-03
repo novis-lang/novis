@@ -1358,6 +1358,13 @@ pub const CLASSES: &[CoreClass] = &[
     // capability *optional* has a branch to take — and [`crate::cap`]'s module
     // doc owns why reporting a grant is not widening one.
     crate::cap::CLASS,
+    // § 15's third class that needs no request — so far. What is registered is
+    // ADR 0097 § 5's `isDraining`, which asks the same kind of question those
+    // two do about the *process* rather than about a request; the rest of
+    // `Core\Server` is the request's own environment and waits on a served
+    // request carrying it. [`crate::server`]'s module doc owns that gap, and
+    // why the bit it reads lives in `nvs-runtime`.
+    crate::server::CLASS,
     // ADR 0020 § 1, and no spec § of its own: the escalation ladder's ADR is
     // where this member is specified, because what it registers is a rung of
     // that ladder rather than a library facility. [`crate::fatal`] owns why the

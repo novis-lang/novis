@@ -59,8 +59,8 @@
 > route it; `nvs serve` boots the whole mount table on one core and § 4's static policy sends a
 > file; `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is an arithmetic against
 > the memory budget, `503` before an isolate exists; § 8's accept backs off, § 10's mount holds no
-> policy, and § 5's `health_path` answers ahead of every mount — `200` accepting, `503` draining.
-> **Stage 10's corpus opened**: § 5's bindings, § 6's naming, § 7's flag. Conformance 1447,
+> policy, and § 5's drain answers the probe ahead of every mount and `Core\Server::isDraining()`.
+> **Stage 10's corpus opened**: § 5's bindings, § 6's naming, § 7's flag. Conformance 1450,
 > differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized

@@ -6939,6 +6939,13 @@ sibling in the same namespace unqualified.
   caller decides"), so the fix is the caller's: loop while `RunReport::parked > 0`. Measured with
   `(Get-Process nvs).CPU` across six idle seconds, that does not spin — the stale readiness is
   delivered once, not level-triggered forever. `crates/nvs-cli/src/serve.rs`'s loop is the shape.
+- **A new `Core` class in a private module declares `pub(crate) const CLASS`, not `pub`.**
+  `conventions.md`'s worked example is `crates/nvs-stdlib/src/json.rs`, which is a `pub mod`, so
+  copying its `pub const CLASS: CoreClass` into a `mod` line — which is most of them — builds and
+  then warns `unreachable pub item`, and the workspace lint policy makes that a `verify.py` failure
+  rather than a note. Every private domain module already spells it `pub(crate)`
+  (`crates/nvs-stdlib/src/env.rs:109`, `cap.rs:79`, `out.rs:66`); `address` is `pub(crate)` in all of
+  them for the same reason.
 
 ## Divergences and refusals already pinned
 

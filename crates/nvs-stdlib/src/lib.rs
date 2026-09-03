@@ -271,6 +271,7 @@ pub mod router;
 pub mod script;
 mod secret;
 mod serialize;
+mod server;
 mod signed_cookie;
 mod storage;
 pub mod str;
@@ -401,6 +402,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| script::address(symbol))
         .or_else(|| secret::address(symbol))
         .or_else(|| serialize::address(symbol))
+        .or_else(|| server::address(symbol))
         .or_else(|| signed_cookie::address(symbol))
         .or_else(|| storage::address(symbol))
         .or_else(|| taint::address(symbol))

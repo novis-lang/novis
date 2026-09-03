@@ -1,0 +1,39 @@
+--TEST--
+`Core\Server::isDraining` is one process-wide fact rather than a per-call one: swept over a hundred calls, every answer agrees with the first and the count says so — ADR 0097 § 5
+--FILE--
+<?nvs
+// § 5 puts the drain process-wide on purpose: a shutdown drains the process,
+// so a bit answered from whichever core or whichever call took the question
+// would report different things about one server. That is a property of the
+// whole sweep and not of any line in it — a member that constructed its answer
+// per call, or read a fact belonging to the caller rather than to the process,
+// prints plausibly on every single line and fails only on the count.
+bool $first = Core\Server::isDraining();
+
+int $asked = 0;
+int $agreed = 0;
+int $i = 0;
+for ($i = 0; $i < 100; $i = $i + 1) {
+    bool $answer = Core\Server::isDraining();
+    $asked = $asked + 1;
+    if ($answer == $first) {
+        $agreed = $agreed + 1;
+    }
+}
+
+// Counted, not read off a line: `asked` and `agreed` are equal only if the
+// answer never moved under a hundred readings of one unchanging process.
+echo "asked: ", $asked, "\n";
+echo "agreed: ", $agreed, "\n";
+
+// The sweep would also pass if every answer were the *wrong* one consistently,
+// so the value the run agreed on is named beside the count.
+if ($first) {
+    echo "agreed on: draining\n";
+} else {
+    echo "agreed on: accepting\n";
+}
+--EXPECT--
+asked: 100
+agreed: 100
+agreed on: accepting

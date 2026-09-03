@@ -1,0 +1,29 @@
+--TEST--
+`Core\Server::isDraining` answers a program that no accept loop is draining, rather than refusing a question about a server that is not there — ADR 0097 § 5
+--FILE--
+<?nvs
+// ADR 0097 § 5's last sentence hands an application the fact `[server]
+// health_path` answers a proxy with, so that an endpoint of its own can report
+// the same shutdown. A CLI program is the case with no server at all, and the
+// answer here is the boundary: `false`, not a throw and not a refusal, because
+// nothing has begun a shutdown and that is a thing this program may be told.
+//
+// The member reads one process-wide bit that the accept loop is the only
+// writer of — `crates/nvs-runtime/src/drain.rs` owns it, and `nvs-stdlib`
+// reads it there rather than from `nvs-server`, which it does not depend on. A
+// member that instead read a *server's* own state would have nothing to read
+// on this line at all.
+if (Core\Server::isDraining()) {
+    echo "draining\n";
+} else {
+    echo "accepting\n";
+}
+
+// Asked with no `nvs.toml` and no grant: the drain is a fact about the process
+// rather than a door, so nothing has to be configured or granted for the
+// question to have an answer. A case that needed either would be testing the
+// configuration and not this member.
+echo "asked with nothing configured\n";
+--EXPECT--
+accepting
+asked with nothing configured
