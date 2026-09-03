@@ -55,6 +55,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use nvs_config::tree::Database;
+use nvs_runtime::{Tag, Value};
 use rusqlite::types::{ToSqlOutput, ValueRef};
 
 use crate::conn::{
@@ -248,6 +249,112 @@ impl rusqlite::types::ToSql for SqliteValue {
             SqliteValue::Blob(bytes) => ValueRef::Blob(bytes),
         }))
     }
+}
+
+/// One bound parameter as the storage class SQLite will hold it in —
+/// [`crate::encode`]'s, [`crate::mysql::encode`]'s and [`crate::tds::encode`]'s
+/// opposite number, and the one of the four that renders no text at all.
+///
+/// The other three answer octets because their protocols carry a parameter as
+/// octets. SQLite carries a *value*, so this converts rather than renders and
+/// [`SqliteValue`]'s five arms are the whole target — which is also why it
+/// answers a bare [`SqliteValue`] where the others answer `Option<Vec<u8>>`:
+/// `NULL` is a storage class here rather than the absence of one.
+///
+/// Four of the arms are decisions and not mappings:
+///
+/// - **A `bool` is `1`/`0`.** SQLite has no boolean storage class and its own
+///   `true` and `false` keywords *are* the integers, so this is the engine's
+///   spelling rather than a driver's choice. A column declared `BOOLEAN` reads
+///   back as [`ColumnType::Bool`] ([`SqliteColumn::column_type`]), which is the
+///   other half of the same rule.
+/// - **A `uint` past [`i64::MAX`] is refused.** There is no unsigned storage
+///   class — [`SqliteValue::Int`] says so — so such a value has no `INTEGER`
+///   form, and the two forms it could take are both wrong: a `REAL` drops the
+///   low bits, and a `TEXT` compares as text against every integer already in
+///   the column. Refusing is the one answer that does not lose it silently.
+/// - **A `NaN` is refused and the two infinities are not.** SQLite stores a
+///   bound `NaN` as `NULL` — a value the program did not write, reaching a
+///   column that may not even admit it — where `±Infinity` round-trips as
+///   `REAL` exactly. This is where this driver parts from
+///   [`crate::mysql::encode`] and [`crate::tds::encode`], which refuse all
+///   three: those two write a *literal* into text and neither dialect has one
+///   for any of them, where this binds a double and two of the three survive it.
+/// - **A `decimal` goes out as `TEXT`, and what becomes of it then is the
+///   column's.** [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s
+///   digits are exact and text is the only arm that keeps them so; a column with
+///   `TEXT` affinity holds them exactly, and one with `NUMERIC` affinity — which
+///   is what `DECIMAL(10,2)` has — converts them to a `REAL` by SQLite's own
+///   affinity rule and rounds. That is the engine's storage model rather than an
+///   encoding decided here, and the alternative is refusing `decimal` on this
+///   backend outright, which would leave
+///   [ADR 0067](../../../docs/adr/0067-core-db.md) § 9's `decimal` row with a
+///   read half and no write half.
+///
+/// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason: § 5's
+/// marker has expanded into one bound value per element by the time a statement
+/// has its bind list.
+///
+/// # Errors
+///
+/// `InvalidInput` for a value with no storage class to take — an array, an
+/// object, a closure, a `uint` past [`i64::MAX`] and a `NaN` — where the whole
+/// answer is the tag and never the value, for the reason [`crate::tds::encode`]
+/// gives.
+pub fn encode(value: Value) -> io::Result<SqliteValue> {
+    let refused = |why: String| io::Error::new(io::ErrorKind::InvalidInput, why);
+    Ok(match value.tag() {
+        Some(Tag::Null) => SqliteValue::Null,
+        Some(Tag::Bool) => SqliteValue::Int(i64::from(value.as_bool() == Some(true))),
+        Some(Tag::Int) => SqliteValue::Int(value.as_int().unwrap_or_default()),
+        Some(Tag::Uint) => {
+            let held = value.as_uint().unwrap_or_default();
+            let narrowed = i64::try_from(held).map_err(|_| {
+                refused(format!(
+                    "the `uint` {held} is past what a SQLite `INTEGER` holds: there is no unsigned \
+                     storage class here, and the two forms it could take — a `REAL` that drops the \
+                     low bits and a `TEXT` that compares as text — both lose it silently"
+                ))
+            })?;
+            SqliteValue::Int(narrowed)
+        }
+        Some(Tag::Float) => {
+            let float = value.as_float().unwrap_or_default();
+            if float.is_nan() {
+                return Err(refused(
+                    "a `NaN` binds as SQL `NULL` on SQLite, which would put a value the program \
+                     did not write into the column — the two infinities bind as themselves and \
+                     are not refused"
+                        .to_owned(),
+                ));
+            }
+            SqliteValue::Real(float)
+        }
+        Some(Tag::Decimal) => SqliteValue::Text(
+            value
+                .as_decimal()
+                .map(|exact| exact.to_string())
+                .unwrap_or_default(),
+        ),
+        // A `string` is UTF-8 by ADR 0009, so this checks a guarantee rather
+        // than converting one. [`SqliteValue::read`] checks the other direction
+        // because the *file* may hold anything, and this side may not.
+        Some(Tag::Str) => {
+            let bytes = value.as_str_bytes().unwrap_or_default();
+            let text = std::str::from_utf8(bytes)
+                .map_err(|e| refused(format!("a `string` parameter is not UTF-8: {e}")))?;
+            SqliteValue::Text(text.to_owned())
+        }
+        // The one arm SQL Server has no answer for at all: a `BLOB` is an
+        // ordinary storage class here, so § 9's `bytes` row needs no gap.
+        Some(Tag::Bytes) => SqliteValue::Blob(value.as_bytes().unwrap_or_default().to_vec()),
+        _ => {
+            return Err(refused(format!(
+                "a value of tag {} has no form this driver can bind",
+                value.tag_byte()
+            )));
+        }
+    })
 }
 
 /// One result column, as the statement described it before it was stepped.
@@ -1612,5 +1719,91 @@ mod tests {
         );
         assert_eq!(conn.depth(), 0);
         drop(rows);
+    }
+
+    /// § 9's write half: a bound value takes a storage class rather than a text
+    /// rendering, and `NULL` is one of the five rather than an absence.
+    ///
+    /// Asserted against a real bind rather than only on the enum, because the
+    /// pair that matters is `encode` and [`SqliteValue`]'s `ToSql`: a value that
+    /// converts and then binds as something else is what a comparison against
+    /// the enum alone would miss.
+    #[test]
+    fn a_bound_value_takes_a_storage_class_and_not_a_rendering() {
+        use nvs_runtime::Value;
+
+        assert_eq!(
+            super::encode(Value::null()).expect("SQL NULL"),
+            SqliteValue::Null
+        );
+        // The engine's own spelling, not this driver's: `true` *is* `1` here.
+        assert_eq!(
+            super::encode(Value::bool(true)).expect("a boolean binds"),
+            SqliteValue::Int(1)
+        );
+        assert_eq!(
+            super::encode(Value::int(-7)).expect("an integer binds"),
+            SqliteValue::Int(-7)
+        );
+        assert_eq!(
+            super::encode(Value::uint(u64::try_from(i64::MAX).expect("it fits")))
+                .expect("the widest `uint` an `INTEGER` holds"),
+            SqliteValue::Int(i64::MAX)
+        );
+
+        let conn = connect();
+        let mut rows = conn
+            .query(
+                "select typeof(?), typeof(?), typeof(?)",
+                vec![
+                    super::encode(Value::null()).expect("it binds"),
+                    super::encode(Value::bool(false)).expect("it binds"),
+                    super::encode(Value::float(1.5)).expect("it binds"),
+                ],
+            )
+            .expect("it runs");
+        assert_eq!(
+            rows.next_row(),
+            Some(vec![
+                SqliteValue::Text(String::from("null")),
+                SqliteValue::Text(String::from("integer")),
+                SqliteValue::Text(String::from("real")),
+            ]),
+            "the engine agrees with the class this driver chose"
+        );
+    }
+
+    /// The three values with no storage class, refused rather than narrowed —
+    /// and the infinity that is not one of them, which is where this driver
+    /// parts from MySQL's and SQL Server's encoders.
+    ///
+    /// A bound on both sides for the `uint`: the widest one an `INTEGER` holds
+    /// is asserted above, and the first one past it is asserted here, so an
+    /// encoder that stopped one value early fails.
+    #[test]
+    fn a_value_with_no_storage_class_is_refused_and_an_infinity_is_not() {
+        use nvs_runtime::Value;
+
+        let past = super::encode(Value::uint(u64::try_from(i64::MAX).expect("it fits") + 1))
+            .expect_err("no `INTEGER` holds it");
+        assert_eq!(past.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            past.to_string().contains("unsigned"),
+            "the refusal says what SQLite has none of: {past}"
+        );
+
+        let nan = super::encode(Value::float(f64::NAN)).expect_err("it would bind as NULL");
+        assert!(
+            nan.to_string().contains("NULL"),
+            "the refusal says what SQLite would have stored instead: {nan}"
+        );
+        for finite in [f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(
+                super::encode(Value::float(finite)).expect("an infinity is a `REAL` here"),
+                SqliteValue::Real(finite),
+                "MySQL and SQL Server refuse this one for want of a literal; this driver binds a \
+                 double and has no literal to want"
+            );
+        }
     }
 }
