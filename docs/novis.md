@@ -111,6 +111,7 @@ Conventions the whole file uses:
 | [`Core\Config`](#core-core-config) | the request-local view of `nvs.toml` — read a directive, move one for this request only, put it back |
 | [`Core\Env`](#core-core-env) |  |
 | [`Core\Cap`](#core-core-cap) |  |
+| [`Core\Server`](#core-core-server) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
 | [`Core\Taint`](#core-core-taint) | the one way a value loses the `tainted` qualifier when no sink-named launderer fits — a call that says so by name and carries a written reason |
@@ -15731,6 +15732,26 @@ Reports whether the code running here holds `$capability` at this point in the r
 | `$capability` | `string` (neutral) | A capability name as `nvs.toml` grants it under — `fs.read`, `net.connect`. A written name outside that roster is a compile error, and a computed one that is not a capability answers `false`. |
 
 **Returns** `bool` — `true` where the capability is granted for something, `false` otherwise. A `true` is not a promise about a particular path or host: a scoped grant still refuses an argument outside it, at the door.
+
+<a id="core-core-server"></a>
+### `Core\Server`
+
+Keywords: isDraining
+
+| Member | Signature |
+|---|---|
+| [`Core\Server::isDraining`](#core-core-server-isdraining) | `isDraining(): bool` |
+
+<a id="core-core-server-isdraining"></a>
+#### `Core\Server::isDraining`
+
+```nvs skip
+Core\Server::isDraining(): bool
+```
+
+Reports whether this server has begun a graceful shutdown — the same fact `[server] health_path` answers a proxy with, for an application endpoint of its own.
+
+**Returns** `bool` — `true` once the server has stopped accepting connections, `false` while it is still accepting and in any process that is not serving.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
