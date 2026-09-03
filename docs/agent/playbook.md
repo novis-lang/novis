@@ -4808,6 +4808,13 @@ is why" — is this file.
   is a `Mutex` a framed case holds for its whole body (`FRAMED_WRITES`, taken by the `framed()` gate
   so no case can forget it), and the tell that you need it is a `db-matrix` leg that fails in a case
   you did not touch — rerun it three times before believing the name it reported.
+- **A TDS request counted in *packets* is not a request.** A case that splits `Script`'s recorded
+  bytes at every header and asserts how many requests went out passes on short values and fails the
+  moment one is `nvarchar(max)`: 4,001 characters is 8,002 bytes of UCS-2 against a negotiated packet
+  size of 4,096, so one `sp_prepexec` leaves as three packets and the count reads 5 where the driver
+  sent 3. Reassemble to `Status::EOM` before counting — `crates/nvs-db/src/tds.rs`'s `flushed` is the
+  helper — and keep the **first** packet's status, since that is the one
+  `Status::RESET_CONNECTION` rides.
 
 ## Splitting a file that got too big
 
