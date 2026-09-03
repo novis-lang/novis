@@ -129,10 +129,22 @@
 //! pool is above this crate — `nvs_runtime::pool` is the store and `nvs-stdlib`
 //! the acquire path — so what is here is the halves only a driver can hold:
 //! [`Connection::is_poolable`]'s release gate and [`pg`]'s reset, met over a
-//! real server in `tests/pool_reuse.rs`. The other four drivers are what is
-//! still to come, PostgreSQL first throughout because its extended protocol
-//! pays nothing extra for a prepare and so exercises the design rather than the
-//! driver's own quirks.
+//! real server in `tests/pool_reuse.rs`. [`maria`] is the third, and is that
+//! same framing under an authentication roster and a § 8 code table of its own
+//! — which is the whole of why ADR 0067 makes MariaDB a driver rather than a
+//! flag.
+//!
+//! [`tds`] is where SQL Server begins, and it begins one layer below where the
+//! others did: TDS 7.4 has no sans-IO crate to borrow, so its packet framing is
+//! written here — the eight-byte header, the split a message longer than the
+//! negotiated packet size takes, and the reassembly a token stream needs
+//! because a token is cut wherever that size lands rather than at a message
+//! boundary. Nothing above framing is on disk: reading a `[db.<name>]` block,
+//! PRELOGIN, § 3's TLS tunnelled inside PRELOGIN packets and LOGIN7 are the
+//! slices after it, and [`TdsConn`] is still the stub its own doc describes.
+//! SQLite is then what is left, PostgreSQL having gone first throughout because
+//! its extended protocol pays nothing extra for a prepare and so exercises the
+//! design rather than the driver's own quirks.
 //!
 //! **The anchor seam ADR 0132 § 3 anticipated exists**, so a handshake against
 //! `tests/db/compose.yaml`'s PostgreSQL completes: `NvsTls::over_bundle`
@@ -153,6 +165,7 @@ pub mod mysql;
 pub mod pg;
 pub mod span;
 pub mod sql;
+pub mod tds;
 
 pub use conn::{
     BlockError, ColumnType, Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn,
