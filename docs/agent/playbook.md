@@ -4815,6 +4815,20 @@ is why" — is this file.
   sent 3. Reassemble to `Status::EOM` before counting — `crates/nvs-db/src/tds.rs`'s `flushed` is the
   helper — and keep the **first** packet's status, since that is the one
   `Status::RESET_CONNECTION` rides.
+- **A sans-io driver's own fixture can agree with its parser on a byte order the wire does not
+  use, and every gate this repo runs will be green.** `crates/nvs-db/src/tds.rs`'s `login_ack`
+  read LOGINACK's `TDSVersion` with `long` — little-endian, the order LOGIN7 *writes* it in — and
+  `login_ack_token`, the fixture two doors down, wrote it the same way, so
+  `a_login_sends_login7_and_the_servers_answer_settles_the_framing` passed on a message no server
+  sends. A real SQL Server answers that one field high half first, so `login`'s comparison against
+  `TDS_VERSION` saw `0x04000074` and refused every connection at the last step of a handshake that
+  had otherwise worked. Nothing in `cargo test`, the conformance corpus or `tools/db-matrix.py`
+  could find it: the matrix leg runs the crate's own cases, which are the fixture's, and no `.nvst`
+  case can open a socket. **One program against the container is what finds this class of bug** —
+  a five-line `.nvs` under `.agent-tmp/` with an `nvs.toml` naming `tests/db/compose.yaml`'s
+  endpoint, run with `target/debug/nvs.exe run`, costs three calls. Do it for any slice whose claim
+  is that a handshake now reaches a server, and prefer it to a fourth fixture asserting what the
+  third one already assumed.
 
 ## Splitting a file that got too big
 
