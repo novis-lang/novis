@@ -4775,6 +4775,18 @@ is why" — is this file.
   a fixture that parses with a needle the value it is parsing may contain is a coin flip, not a
   fixture, and the tell is an acceptance failure that does not reproduce at the same commit. Split on
   the attribute's own delimiter — `,r=` here — which the grammar guarantees the value cannot hold.
+- **A matrix case's queue name isolates its rows but not its *locks*, and the failure lands in a
+  neighbouring case rather than in the one you wrote.** `crates/nvs-stdlib/tests/queue.rs` gives every
+  case its own queue, which is exactly the key every statement is claimed and counted by — and on
+  MySQL and MariaDB that is not enough, because InnoDB locks what a statement **scans**, not what it
+  matches: `clear`'s `delete … where queue = ?` over a table of a dozen rows is a scan the optimizer
+  is free to take whole, and it holds every row it looked at until that statement commits. A
+  neighbour's `for update skip locked` then skips *its own* row and the case reads it as a queue that
+  lost its work, or its `update` waits and the server answers a deadlock. Two of eight runs of the
+  framed leg failed that way, in two different cases, neither of them the case being added. The fix
+  is a `Mutex` a framed case holds for its whole body (`FRAMED_WRITES`, taken by the `framed()` gate
+  so no case can forget it), and the tell that you need it is a `db-matrix` leg that fails in a case
+  you did not touch — rerun it three times before believing the name it reported.
 
 ## Splitting a file that got too big
 
