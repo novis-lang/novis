@@ -796,6 +796,22 @@ pub struct TdsConn {
     /// is not enough to decide a hit on this protocol. § 13's reset empties it,
     /// as MySQL's does and unlike PostgreSQL's.
     pub(crate) cache: StatementCache<crate::tds::TdsPlan>,
+    /// How many of ADR 0067 § 7's transactions are open — [`MySqlConn::depth`]'s
+    /// twin, spent on `BEGIN TRANSACTION` and `SAVE TRANSACTION`.
+    pub(crate) depth: Cell<u32>,
+    /// Whether this session sits at an isolation level a `transaction()` asked
+    /// for rather than at the server's own default.
+    ///
+    /// **The one piece of state the other three drivers do not need.** T-SQL's
+    /// `SET TRANSACTION ISOLATION LEVEL` is *session*-scoped: MySQL's applies to
+    /// the next transaction and PostgreSQL's rides the `BEGIN`, but this one
+    /// outlives the transaction that asked for it and would silently become the
+    /// level of every later statement on the connection. So the level is put
+    /// back when the outermost transaction ends, and this flag is what says a
+    /// restore is owed — [`crate::tds::begin`] owns the whole rule, including
+    /// why the flag is set before the `SET` is written rather than after it
+    /// lands.
+    pub(crate) isolation_moved: Cell<bool>,
 }
 
 /// A SQLite connection: `rusqlite`, a file handle, and no bytes on any wire.

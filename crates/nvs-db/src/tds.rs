@@ -75,9 +75,13 @@
 //! 0067 § 1's cache holds the handle the `RETURNVALUE` came back with,
 //! [`start_statement`] is the sequencing both `query` and `execute` are,
 //! [`execute_many`] is § 4's batch over that same sequencing once per parameter
-//! set, and [`reset_session`] is § 13's `sp_reset_connection`. What has no
-//! primitive here yet is § 7: a transaction is the one member that needs
-//! commands of its own rather than another statement.
+//! set, and [`reset_session`] is § 13's `sp_reset_connection`. **§ 7's commands
+//! are here too**: [`begin`], [`commit`] and [`roll_back`] send T-SQL over
+//! [`batch_command`], the one path in this module that is text rather than an
+//! RPC, and [`begin`]'s own doc owns the two rules that are this dialect's
+//! alone — a session-scoped isolation level this driver has to put back, and no
+//! read-only transaction to offer at all. Every member ADR 0067 declares is
+//! therefore reachable on this backend.
 //!
 //! # The one gap, and it is a bind rather than a read
 //!
@@ -114,7 +118,8 @@ use nvs_host::tls::NvsTls;
 use nvs_runtime::{Decimal, NvsStr, Tag, Value};
 
 use crate::conn::{
-    BlockError, ColumnType, DbErrorKind, Driver, ServerError, State, TdsConn, written_value,
+    BlockError, ColumnType, DbErrorKind, Driver, Isolation, ServerError, State, TdsConn,
+    written_value,
 };
 use crate::span::QuerySpan;
 use crate::sql::{Dialect, StatementCache, statement_cache_for, time_zone_for};
@@ -4304,6 +4309,29 @@ const PROC_SP_UNPREPARE: u16 = 15;
 /// batch did would be session state the reset had just finished removing.
 const RESET_STATEMENT: &str = "select 1";
 
+/// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s outermost transaction, in
+/// T-SQL's spelling.
+///
+/// `BEGIN TRANSACTION` and not `START TRANSACTION`, which SQL Server does not
+/// accept, and carrying no options at all: the level is a session setting sent
+/// separately ([`isolation_command`]) and there is no read-only transaction
+/// here for an option to ask for ([`begin`]).
+const BEGIN_TRANSACTION: &str = "BEGIN TRANSACTION";
+
+/// § 7's outermost commit.
+const COMMIT_TRANSACTION: &str = "COMMIT TRANSACTION";
+
+/// § 7's outermost rollback.
+const ROLLBACK_TRANSACTION: &str = "ROLLBACK TRANSACTION";
+
+/// The level a session sits at when nothing has moved it, and what [`begin`],
+/// [`commit`] and [`roll_back`] put back.
+///
+/// SQL Server's own default for a login, so a connection this driver never
+/// asked for a level on is already here and is never sent it — the restore is
+/// owed only by a session an isolation level moved.
+const DEFAULT_ISOLATION: &str = "SET TRANSACTION ISOLATION LEVEL READ COMMITTED";
+
 /// `NameLenProcID`'s first field when what follows is a procedure *id* rather
 /// than a name.
 const PROC_ID_SWITCH: u16 = 0xFFFF;
@@ -4462,12 +4490,19 @@ fn unprepare_request(handle: i32) -> Vec<u8> {
     out
 }
 
-/// The batch [`RESET_STATEMENT`] goes out as, carrying no headers of its own
+/// The `SQL_BATCH` message one text goes out as, carrying no headers of its own
 /// beyond the transaction descriptor every request needs.
-fn reset_request() -> Vec<u8> {
+///
+/// Two callers and both of them this driver's own text: § 13's
+/// [`RESET_STATEMENT`] and § 7's commands. **No caller's SQL ever reaches this
+/// function** — a program's statement is an `sp_prepexec` with its values as
+/// parameters ([`start_statement`]), which is § 1's no-emulated-prepares rule,
+/// and the only thing composed into a batch here is a savepoint name this
+/// module minted.
+fn batch_request(sql: &str) -> Vec<u8> {
     let mut out = Vec::new();
     all_headers(&mut out);
-    out.extend_from_slice(&ucs2_of(RESET_STATEMENT));
+    out.extend_from_slice(&ucs2_of(sql));
     out
 }
 
@@ -4951,6 +4986,292 @@ fn execute_one<S: Read + Write>(
     Ok(rows.affected().unwrap_or(0))
 }
 
+/// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s `BEGIN TRANSACTION`, or
+/// the `SAVE TRANSACTION` a nested `transaction()` is.
+///
+/// [`crate::mysql::begin`]'s shape and its depth accounting, with T-SQL's
+/// spellings and the two facts that are this backend's alone.
+///
+/// **SQL Server has no read-only transaction at all**, so `read_only` is
+/// refused at any depth rather than dropped. Every other backend § 7 reaches
+/// enforces the option, and a driver that accepted it here and opened an
+/// ordinary writable transaction would hand a program the word without the
+/// guarantee — the one failure mode a `readOnly` exists to prevent.
+///
+/// **`SET TRANSACTION ISOLATION LEVEL` is session-scoped here**, where MySQL's
+/// applies to the next transaction and PostgreSQL's rides the `BEGIN`. A level
+/// therefore outlives the transaction that asked for it and would become the
+/// level of every later statement on the connection, so putting it back is this
+/// driver's own work: [`TdsConn::isolation_moved`](crate::conn::TdsConn) records
+/// that a restore is owed, [`commit`] and [`roll_back`] pay it when the
+/// outermost level closes, and an outermost `begin` asking for no level pays it
+/// first. The second is not redundant — a `COMMIT TRANSACTION` the server
+/// refused ends the transaction with the restore still owed — and § 13's
+/// `sp_reset_connection` covers only the *pool*, not a second `transaction()`
+/// in the same request.
+///
+/// The flag is set **before** the `SET` is written rather than after it lands:
+/// what it records is that a restore may be owed, and a `SET` that failed on
+/// the wire has not been proven not to have reached the server.
+///
+/// # Errors
+///
+/// `InvalidInput` for a `read_only` at any depth and for a nested call asking
+/// for an isolation level, otherwise as [`simple_command`]. The depth moves only
+/// after a command the server accepted, so a refused begin leaves the connection
+/// at the level it had. A `BEGIN TRANSACTION` refused after its `SET` landed
+/// poisons the connection, as [`crate::mysql::begin`] does and for a sharper
+/// reason: the session is sitting at a level no transaction is going to end.
+pub(crate) fn begin<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    depth: &Cell<u32>,
+    moved: &Cell<bool>,
+    isolation: Option<Isolation>,
+    read_only: bool,
+) -> io::Result<QuerySpan> {
+    if read_only {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "a transaction asked to be read-only and SQL Server has no read-only transaction: \
+             drop the option, or take the guarantee where this backend really offers one — a \
+             login without write permission, or a read-only replica named by its own \
+             `[db.<name>]` block",
+        ));
+    }
+
+    let open = depth.get();
+    if open > 0 {
+        if isolation.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "a transaction nested {open} deep asked for its own isolation level, and SQL \
+                     Server settles one for the whole session: ask for it on the outermost \
+                     `transaction()`, or give this one a `{{shared: false}}` connection of its own"
+                ),
+            ));
+        }
+        let command = format!("SAVE TRANSACTION {}", crate::pg::savepoint_name(open));
+        let span = simple_command(wire, state, &command)?;
+        depth.set(open + 1);
+        return Ok(span);
+    }
+
+    let Some(level) = isolation else {
+        // The restore a refused outermost commit left owed, before this
+        // transaction inherits a level nobody asked it for.
+        restore_isolation(wire, state, moved)?;
+        let span = simple_command(wire, state, BEGIN_TRANSACTION)?;
+        depth.set(1);
+        return Ok(span);
+    };
+
+    let set = isolation_command(level);
+    let mut span = QuerySpan::opened(Driver::SqlServer, &format!("{set}; {BEGIN_TRANSACTION}"));
+    moved.set(true);
+    batch_command(wire, state, set)?;
+    if let Err(refused) = batch_command(wire, state, BEGIN_TRANSACTION) {
+        state.set(State::Poisoned);
+        return Err(refused);
+    }
+    span.finished(None);
+    depth.set(1);
+    Ok(span)
+}
+
+/// The `SET TRANSACTION ISOLATION LEVEL` one of § 7's five levels renders to.
+///
+/// **Nothing collapses here, and this is the backend [`Isolation::Snapshot`] is
+/// named after**: SQL Server implements it as a level of its own rather than as
+/// a spelling of `REPEATABLE READ`, which is what the other two row-versioning
+/// drivers fold it onto. A database with `ALLOW_SNAPSHOT_ISOLATION` off refuses
+/// the command, and that refusal is § 7's "throwing where a driver lacks the
+/// level" arriving as the server's own error rather than as a guess this driver
+/// made about the database's settings.
+fn isolation_command(level: Isolation) -> &'static str {
+    match level {
+        Isolation::ReadUncommitted => "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED",
+        Isolation::ReadCommitted => DEFAULT_ISOLATION,
+        Isolation::RepeatableRead => "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+        Isolation::Snapshot => "SET TRANSACTION ISOLATION LEVEL SNAPSHOT",
+        Isolation::Serializable => "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE",
+    }
+}
+
+/// Puts the session's isolation level back at [`DEFAULT_ISOLATION`], where a
+/// transaction that asked for one moved it.
+///
+/// Costs nothing at all when no transaction asked: the flag is false and no
+/// message goes out, which is every transaction a program did not give an
+/// `{isolation}` to. [`begin`] owns why the flag exists and when it is paid.
+///
+/// # Errors
+///
+/// As [`batch_command`]. The flag survives a failure, so the restore is still
+/// owed and the next outermost [`begin`] attempts it again.
+fn restore_isolation<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    moved: &Cell<bool>,
+) -> io::Result<()> {
+    if !moved.get() {
+        return Ok(());
+    }
+    batch_command(wire, state, DEFAULT_ISOLATION)?;
+    moved.set(false);
+    Ok(())
+}
+
+/// § 7's `COMMIT TRANSACTION`, or the nested commit that has nothing to send.
+///
+/// **T-SQL has no `RELEASE SAVEPOINT`**, and there is nothing to send in its
+/// place: a `COMMIT TRANSACTION` inside a nested level would commit the *whole*
+/// transaction, `@@TRANCOUNT` being 1 for a nesting this driver spells as
+/// `SAVE TRANSACTION`. So a nested commit moves the depth and costs no round
+/// trip, and the savepoint it leaves behind is released by the outermost commit
+/// along with every other one. Its span therefore carries no SQL text — § 11's
+/// event says a commit happened and that nothing went out, which is what
+/// happened, and naming a command the wire never saw would be the lie a trace
+/// exists to prevent.
+///
+/// # Errors
+///
+/// `InvalidInput` for a connection in no transaction, otherwise as
+/// [`simple_command`]. **The count follows the connection where the server took
+/// it**, [`crate::mysql::commit`]'s rule and its reasoning in full: an outermost
+/// commit the server refused has already rolled the transaction back, so the
+/// depth goes to 0 and § 7's `{retries: n}` opens the next attempt with a
+/// `BEGIN TRANSACTION` rather than a `SAVE TRANSACTION` against nothing. That
+/// path leaves the isolation restore owed rather than sending it, so the error
+/// the caller sees is the server's own — [`begin`] pays it instead.
+pub(crate) fn commit<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    depth: &Cell<u32>,
+    moved: &Cell<bool>,
+) -> io::Result<QuerySpan> {
+    let open = crate::pg::open_transaction(depth, "commit")?;
+    if open > 1 {
+        depth.set(open - 1);
+        let mut span = QuerySpan::opened(Driver::SqlServer, "");
+        span.finished(None);
+        return Ok(span);
+    }
+
+    let span = match simple_command(wire, state, COMMIT_TRANSACTION) {
+        Ok(span) => span,
+        Err(refused) => {
+            if ServerError::of(&refused).is_some() {
+                depth.set(0);
+            }
+            return Err(refused);
+        }
+    };
+    depth.set(0);
+    restore_isolation(wire, state, moved)?;
+    Ok(span)
+}
+
+/// § 7's `ROLLBACK TRANSACTION`, or the `ROLLBACK TRANSACTION <name>` that
+/// undoes a nested level.
+///
+/// **One command where [`crate::pg`]'s nested rollback is two**, for
+/// [`crate::mysql::roll_back`]'s reason and under T-SQL's own savepoint rule: a
+/// second `SAVE TRANSACTION` of a name already used is what a later
+/// `ROLLBACK TRANSACTION` of that name returns to, so re-opening a level reuses
+/// `nvs_1` rather than adding to it, and there is no release to pay for. There
+/// is no `RELEASE` in this dialect to pay it with either — see [`commit`].
+///
+/// # Errors
+///
+/// `InvalidInput` for a connection in no transaction, otherwise as
+/// [`simple_command`]. A refused rollback leaves the depth where it was: the
+/// level is still open as far as the server is concerned, and the level above it
+/// rolls back over this one anyway. The isolation restore rides the outermost
+/// rollback exactly as it rides the outermost commit.
+pub(crate) fn roll_back<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    depth: &Cell<u32>,
+    moved: &Cell<bool>,
+) -> io::Result<QuerySpan> {
+    let open = crate::pg::open_transaction(depth, "roll back")?;
+    let command: Cow<'_, str> = if open == 1 {
+        Cow::Borrowed(ROLLBACK_TRANSACTION)
+    } else {
+        Cow::Owned(format!(
+            "{ROLLBACK_TRANSACTION} {}",
+            crate::pg::savepoint_name(open - 1)
+        ))
+    };
+
+    let span = simple_command(wire, state, &command)?;
+    depth.set(open - 1);
+    if open == 1 {
+        restore_isolation(wire, state, moved)?;
+    }
+    Ok(span)
+}
+
+/// One of § 7's commands, sent as a `SQL_BATCH` message, with
+/// [ADR 0067 § 11](../../../docs/adr/0067-core-db.md)'s span around it.
+///
+/// **A batch rather than § 1's prepared statements**, which is where the two
+/// halves of § 1 stop pulling together — [`crate::mysql::simple_command`]'s
+/// reasoning, and one more that is this protocol's: an `sp_prepexec` of
+/// `BEGIN TRANSACTION` would file a plan in a cache sized for the request's real
+/// statements, to run a command of two words that binds nothing.
+///
+/// The span carries no count. § 7's commands change no rows themselves, and
+/// `affected` says "this statement reported a count" rather than "it reported
+/// zero".
+///
+/// # Errors
+///
+/// As [`batch_command`].
+fn simple_command<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    sql: &str,
+) -> io::Result<QuerySpan> {
+    let mut span = QuerySpan::opened(Driver::SqlServer, sql);
+    batch_command(wire, state, sql)?;
+    span.finished(None);
+    Ok(span)
+}
+
+/// One text sent as a `SQL_BATCH` message and its answer read to the end.
+///
+/// Reading to the end is not optional here for [`drain`]'s reason: every TDS
+/// request has an answer, and one left on the wire is read as the next
+/// statement's.
+///
+/// # Errors
+///
+/// `InvalidInput` for a command written to a connection that is not idle — § 4's
+/// rule, which is a property of the connection and not of what is being sent —
+/// otherwise as [`read_rows`]. A write that failed part-way leaves the
+/// connection [`State::Poisoned`], because a half-written packet is not a
+/// boundary anything can be found from.
+fn batch_command<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    sql: &str,
+) -> io::Result<()> {
+    if !state.get().may_start_statement() {
+        return Err(crate::pg::second_statement(state));
+    }
+    send_request(
+        wire,
+        state,
+        PacketType::SqlBatch,
+        Status::NORMAL,
+        &batch_request(sql),
+    )?;
+    drain(wire, state)
+}
+
 /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, and the cache it
 /// takes with it.
 ///
@@ -4989,7 +5310,7 @@ pub fn reset_session<S: Read + Write>(
         state,
         PacketType::SqlBatch,
         Status::RESET_CONNECTION,
-        &reset_request(),
+        &batch_request(RESET_STATEMENT),
     )?;
     drain(wire, state)?;
     cache.clear();
@@ -5123,6 +5444,11 @@ impl TdsConn {
             // § 1's capacity is the `[db.<name>]` block's, already read by
             // `statement_cache_for` and carried here on the target.
             cache: StatementCache::new(target.statement_cache),
+            depth: Cell::new(0),
+            // LOGIN7 leaves the session at the login's own default, which is
+            // `DEFAULT_ISOLATION`, so nothing is owed until a `transaction()`
+            // asks for a level.
+            isolation_moved: Cell::new(false),
         })
     }
 
@@ -5138,6 +5464,13 @@ impl TdsConn {
     /// As [`reset_session`]. The connection is consumed either way.
     pub fn reset(mut self) -> io::Result<TdsConn> {
         reset_session(&mut self.wire, &self.state, &mut self.cache)?;
+        // `sp_reset_connection` rolls back whatever transaction was open and
+        // puts the session's isolation level back at the login's default, so
+        // both of § 7's counters are answered by it — and a connection pooled at
+        // a depth it no longer has would open the next request's outermost
+        // `transaction()` as a `SAVE TRANSACTION` against nothing.
+        self.depth.set(0);
+        self.isolation_moved.set(false);
         Ok(self)
     }
 
@@ -5179,6 +5512,74 @@ impl TdsConn {
     /// As [`execute_many`].
     pub fn execute_many(&mut self, sql: &str, sets: &[&[Option<&[u8]>]]) -> io::Result<u64> {
         execute_many(&mut self.wire, &self.state, &mut self.cache, sql, sets)
+    }
+
+    /// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s `BEGIN TRANSACTION`,
+    /// or the `SAVE TRANSACTION` a nested `transaction()` is.
+    ///
+    /// The driver half of § 7 and nothing more — the closure, the rollback-only
+    /// flag and the retry rule are `nvs-stdlib`'s, exactly as on
+    /// [`crate::MySqlConn::begin`]. [`begin`] owns which command a nesting depth
+    /// gets, why `read_only` is refused on this backend, and how a
+    /// session-scoped isolation level is put back.
+    ///
+    /// # Errors
+    ///
+    /// As [`begin`].
+    pub fn begin(
+        &mut self,
+        isolation: Option<Isolation>,
+        read_only: bool,
+    ) -> io::Result<QuerySpan> {
+        begin(
+            &mut self.wire,
+            &self.state,
+            &self.depth,
+            &self.isolation_moved,
+            isolation,
+            read_only,
+        )
+    }
+
+    /// How many transaction levels are open on this connection — 0 outside one,
+    /// 1 inside an outermost `transaction()`, deeper inside a nested one.
+    ///
+    /// [`crate::PgConn::depth`] owns why this is public at all: § 7 retries a
+    /// serialization failure only for an outermost transaction, and the caller
+    /// cannot tell the two apart on its own.
+    #[must_use]
+    pub fn depth(&self) -> u32 {
+        self.depth.get()
+    }
+
+    /// § 7's `COMMIT TRANSACTION`, or the nested commit that sends nothing — a
+    /// normal return out of the closure either way.
+    ///
+    /// # Errors
+    ///
+    /// As [`commit`].
+    pub fn commit(&mut self) -> io::Result<QuerySpan> {
+        commit(
+            &mut self.wire,
+            &self.state,
+            &self.depth,
+            &self.isolation_moved,
+        )
+    }
+
+    /// § 7's `ROLLBACK TRANSACTION`, or the one naming the savepoint that undoes
+    /// a nested level — a throw out of the closure, or `rollBack`'s own signal.
+    ///
+    /// # Errors
+    ///
+    /// As [`roll_back`].
+    pub fn roll_back(&mut self) -> io::Result<QuerySpan> {
+        roll_back(
+            &mut self.wire,
+            &self.state,
+            &self.depth,
+            &self.isolation_moved,
+        )
     }
 
     /// The zone a `datetime` or `datetime2` off this connection is read in, as
@@ -8293,6 +8694,234 @@ mod tests {
             State::Idle,
             "a set the server refused leaves the connection at a boundary, so the batch \
              could carry on and § 13 can still pool it"
+        );
+    }
+
+    /// The T-SQL one flushed `SQL_BATCH` message carried, past the `ALL_HEADERS`
+    /// every request writes.
+    fn batch_text(body: &[u8]) -> String {
+        let text = &body[ALL_HEADERS_BYTES as usize..];
+        let units: Vec<u16> = text
+            .chunks_exact(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .collect();
+        String::from_utf16(&units).expect("UCS-2 this driver wrote")
+    }
+
+    /// Every batch text the driver flushed, in order.
+    fn batches(sent: &[u8]) -> Vec<String> {
+        flushed(sent)
+            .iter()
+            .map(|(kind, _, body)| {
+                assert_eq!(*kind, PacketType::SqlBatch, "§ 7's commands are batches");
+                batch_text(body)
+            })
+            .collect()
+    }
+
+    /// A `DONE` for a command that counted nothing, which is what every one of
+    /// § 7's answers with.
+    fn done() -> Vec<u8> {
+        done_token(0, 0)
+    }
+
+    /// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s nesting in T-SQL's
+    /// own vocabulary, and the one command in it that does not exist.
+    ///
+    /// The spellings are the driver's whole contribution here — `BEGIN`, not
+    /// `START TRANSACTION`; `SAVE TRANSACTION`, not `SAVEPOINT`;
+    /// `ROLLBACK TRANSACTION <name>`, not `ROLLBACK TO SAVEPOINT` — and a
+    /// dialect error in any of them is a runtime refusal from the server that no
+    /// type checks. The claim that cannot be read off a spelling is the fourth
+    /// message that is *not there*: T-SQL has no `RELEASE SAVEPOINT`, and a
+    /// nested commit that sent `COMMIT TRANSACTION` in its place would commit
+    /// the whole transaction while the depth still said two levels were open.
+    #[test]
+    fn a_transaction_nests_as_t_sql_spells_it_and_a_nested_commit_sends_nothing() {
+        let mut wire = answering_each(&[done(), done(), done(), done(), done()]);
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let moved = Cell::new(false);
+
+        let refused = commit(&mut wire, &state, &depth, &moved)
+            .expect_err("a connection in no transaction has nothing to commit");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+
+        for level in 1..=3 {
+            begin(&mut wire, &state, &depth, &moved, None, false).expect("a level the server took");
+            assert_eq!(depth.get(), level);
+        }
+        roll_back(&mut wire, &state, &depth, &moved).expect("the innermost level, undone");
+        assert_eq!(depth.get(), 2);
+        let span = commit(&mut wire, &state, &depth, &moved).expect("a nested commit");
+        assert_eq!(depth.get(), 1);
+        assert!(
+            span.sql().is_empty(),
+            "§ 11's event for a commit that sent nothing names no statement"
+        );
+        commit(&mut wire, &state, &depth, &moved).expect("the outermost commit");
+        assert_eq!(depth.get(), 0);
+
+        assert_eq!(
+            batches(&wire.peer().sent),
+            [
+                "BEGIN TRANSACTION",
+                "SAVE TRANSACTION nvs_1",
+                "SAVE TRANSACTION nvs_2",
+                "ROLLBACK TRANSACTION nvs_2",
+                "COMMIT TRANSACTION",
+            ],
+            "the nested commit is the message that is not here"
+        );
+    }
+
+    /// § 7's `{isolation}` on the one backend where it is a **session** setting:
+    /// it is put back when the outermost transaction ends, and a transaction
+    /// that asked for nothing pays for none of it.
+    ///
+    /// The restore is what the other three drivers do not need and what
+    /// `sp_reset_connection` does not cover — § 13 resets a connection on its way
+    /// back to the pool, and a second `transaction()` in the *same request* never
+    /// goes near it. Without the fifth message here, that second transaction
+    /// would silently run `SERIALIZABLE`.
+    #[test]
+    fn a_session_isolation_level_is_put_back_when_the_outermost_transaction_ends() {
+        let mut wire = answering_each(&[done(), done(), done(), done(), done(), done()]);
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let moved = Cell::new(false);
+
+        let span = begin(
+            &mut wire,
+            &state,
+            &depth,
+            &moved,
+            Some(Isolation::Serializable),
+            false,
+        )
+        .expect("a level the server accepted");
+        assert!(moved.get(), "the session no longer sits at its default");
+        assert!(
+            span.sql().contains("SERIALIZABLE") && span.sql().contains(BEGIN_TRANSACTION),
+            "§ 11's event names both round trips the level cost: {}",
+            span.sql()
+        );
+
+        commit(&mut wire, &state, &depth, &moved).expect("the outermost commit");
+        assert!(!moved.get(), "the restore is paid, so none is owed");
+
+        begin(&mut wire, &state, &depth, &moved, None, false).expect("a second transaction");
+        roll_back(&mut wire, &state, &depth, &moved).expect("undone");
+
+        assert_eq!(
+            batches(&wire.peer().sent),
+            [
+                "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE",
+                "BEGIN TRANSACTION",
+                "COMMIT TRANSACTION",
+                DEFAULT_ISOLATION,
+                "BEGIN TRANSACTION",
+                "ROLLBACK TRANSACTION",
+            ],
+            "the second transaction inherits nothing and costs no restore of its own"
+        );
+    }
+
+    /// The two refusals § 7 owes a program on this backend, neither of which
+    /// touches the wire.
+    ///
+    /// **`readOnly` is refused rather than dropped**: SQL Server has no
+    /// read-only transaction, and every other backend § 7 reaches enforces the
+    /// option — a driver that accepted it and opened an ordinary writable
+    /// transaction would give a program the word without the guarantee. The
+    /// nested one is [`crate::mysql::begin`]'s, for a reason this backend states
+    /// more strongly: the level is not the nested transaction's to set, being the
+    /// whole session's.
+    #[test]
+    fn there_is_no_read_only_transaction_here_and_a_nested_one_may_not_set_the_level() {
+        let mut wire = answering_each(&[done()]);
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let moved = Cell::new(false);
+
+        let refused = begin(&mut wire, &state, &depth, &moved, None, true)
+            .expect_err("SQL Server has no read-only transaction");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            wire.peer().sent.is_empty(),
+            "the option is refused before anything opens"
+        );
+        assert_eq!(depth.get(), 0);
+
+        begin(&mut wire, &state, &depth, &moved, None, false).expect("an ordinary transaction");
+        let refused = begin(
+            &mut wire,
+            &state,
+            &depth,
+            &moved,
+            Some(Isolation::Snapshot),
+            false,
+        )
+        .expect_err("a nested level is the session's, not this transaction's");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(
+            batches(&wire.peer().sent),
+            ["BEGIN TRANSACTION"],
+            "the refused nesting wrote nothing and opened no level"
+        );
+        assert_eq!(depth.get(), 1, "a refused begin leaves the depth alone");
+    }
+
+    /// The path the restore would otherwise fall through: a commit the *server*
+    /// refused ends the transaction with the level still moved.
+    ///
+    /// The depth follows the connection where the server took it —
+    /// [`crate::mysql::commit`]'s rule — so § 7's `{retries: n}` opens the next
+    /// attempt with a `BEGIN TRANSACTION`. What this pins is that the restore
+    /// rides that begin instead of the commit that could not carry it: the error
+    /// the caller sees stays the server's own, and the next transaction still
+    /// runs at the level it asked for.
+    #[test]
+    fn a_commit_the_server_refused_leaves_the_restore_owed_and_the_next_begin_pays_it() {
+        let mut conflict = message_token(TOKEN_ERROR, 1205, 13, "Transaction was deadlocked");
+        conflict.extend_from_slice(&done_token(DONE_ERROR, 0));
+        let mut wire = answering_each(&[done(), done(), conflict, done(), done()]);
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let moved = Cell::new(false);
+
+        begin(
+            &mut wire,
+            &state,
+            &depth,
+            &moved,
+            Some(Isolation::Snapshot),
+            false,
+        )
+        .expect("a level the server accepted");
+
+        let refused = commit(&mut wire, &state, &depth, &moved).expect_err("the server refused it");
+        assert_eq!(
+            ServerError::of(&refused)
+                .expect("the server's own refusal")
+                .driver_code,
+            Some(1205),
+            "the caller sees the server's error and not a restore's"
+        );
+        assert_eq!(depth.get(), 0, "the server rolled the transaction back");
+        assert!(moved.get(), "and nothing put the level back");
+
+        begin(&mut wire, &state, &depth, &moved, None, false).expect("the next transaction");
+        assert!(!moved.get());
+        assert_eq!(
+            batches(&wire.peer().sent),
+            [
+                "SET TRANSACTION ISOLATION LEVEL SNAPSHOT",
+                "BEGIN TRANSACTION",
+                "COMMIT TRANSACTION",
+                DEFAULT_ISOLATION,
+                "BEGIN TRANSACTION",
+            ],
         );
     }
 }
