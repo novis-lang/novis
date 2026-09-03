@@ -1037,6 +1037,67 @@ mod tests {
         assert!(admits_secret_argument(Some(Qual::Reveal)));
     }
 
+    /// ADR 0024 § 3's escape hatch, asked the way the test above asks ADR 0033
+    /// § 3's: as a **closed set** rather than of the one row.
+    ///
+    /// [`Qual::Launder`] obliges a doc comment naming the sink the row launders
+    /// for, and `Core\Taint::assertTrusted` is the one row that names all of
+    /// them instead. `nvs_stdlib::registry`'s `Qual` doc comment argues why,
+    /// and holds that exception **on the roster rather than on the mark** —
+    /// exactly as `Qual::Reveal`'s two-class roster is held rather than spelled
+    /// into a variant. This is the `tainted` twin of that roster, and there is
+    /// nowhere else it could live: a second general-purpose hatch is invisible
+    /// from any one row, since every individual `Launder` looks exactly like
+    /// the sink-named ones.
+    ///
+    /// A doc comment cannot be read from here, so the property asserted is the
+    /// structural one a general-purpose hatch has and a sink-named launderer
+    /// does not: **its class is nothing else, and its answer is a plain
+    /// `string`.** `Core\Html`, `Core\Uri` and `Core\Regex` each launder for
+    /// the sink their other members are about, so a `Launder` row there is a
+    /// member of a domain. `Core\Cli\Text` is the near miss the second half
+    /// exists for — its whole roster is `Launder` rows, and they answer the
+    /// terminal's *carrier*, which makes them constructors for that sink rather
+    /// than an escape from every sink (`nvs_stdlib::html`'s
+    /// `every_launderer_for_an_auto_escaping_sink_answers_a_carrier` is where
+    /// that reading is argued, against ADR 0133 § 1's table).
+    #[test]
+    fn the_launderer_that_names_no_sink_is_one_class_and_one_row() {
+        use std::collections::BTreeSet;
+
+        let mut interner = TypeInterner::new();
+        let mut hatches: BTreeSet<(&'static str, &'static str)> = BTreeSet::new();
+        for class in CLASSES {
+            let mut whole_class: BTreeSet<(&'static str, &'static str)> = BTreeSet::new();
+            let mut every_row_is_one = false;
+            for method in class.members() {
+                let sig = method_sig(method, true, &mut interner);
+                let launders = sig
+                    .param_quals
+                    .iter()
+                    .flatten()
+                    .any(|qual| matches!(qual, Qual::Launder));
+                if !launders || interner.describe(sig.return_ty) != "string" {
+                    every_row_is_one = false;
+                    break;
+                }
+                every_row_is_one = true;
+                whole_class.insert((class.name, method.name));
+            }
+            if every_row_is_one {
+                hatches.extend(whole_class);
+            }
+        }
+
+        assert_eq!(
+            hatches,
+            BTreeSet::from([(r"Core\Taint", "assertTrusted")]),
+            "the roster of launderers that answer for every sink is closed at one — ADR 0024 § 3 \
+             makes laundering sink-named and names a single exception, and a second class here is \
+             the generic `sanitize()` that section exists to refuse"
+        );
+    }
+
     /// ADR 0060 § 5, which reads like an oversight and is a decision: a
     /// verified signature proves origin, not safety for any sink, so
     /// `Core\Jwt::verify`'s claims come back **`tainted`** — and the one
