@@ -12,7 +12,7 @@
   values satisfy `callable` is unchanged; that ADR is spelled in `callable` terms throughout, and
   `Closure::fromCallable` is dropped since nothing is left to convert from). All three folds are applied in
   those files.
-- **Amended by:** 0036, 0063, 0107
+- **Amended by:** 0036, 0063, 0107, 0136
 
 > **In short:** PHP's anonymous-function surface collapses to one literal and one type. **`fn(...)` is the
 > only closure literal** — with or without a body (`fn($x) => $x + 1` and `fn($x) => { ...; return $x; }`
@@ -111,7 +111,8 @@ to call itself once.
 ### 4. `callable` absorbs `Closure`; nothing is left for `Closure` to mean on its own
 
 `Closure` is retired as a type name. `callable` is the only spelling — for a parameter, a property, a return
-type, or a stdlib signature like `Core\Arr::map(array<T>, callable): array<U>`. This is a rename, not a
+type, or a stdlib signature like `Core\Arr::map(array<T>, callable(T, string): U): array<U>`, whose
+parameter list [0136](0136-a-callable-carries-its-signature.md) adds. This is a rename, not a
 behavior change: [ADR 0027](0027-callable-is-closures-only.md)'s decision (only a closure/arrow-function
 value or a first-class-callable-syntax reference satisfies it; PHP's string/array spellings and `__invoke`
 are still refused) is entirely unaffected, just read with `callable` in every place that ADR wrote `Closure`.
@@ -166,9 +167,10 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
 - The self-name (§ 3) gives `nvs convert` a mechanical, human-free rewrite for the one `use (&$fn)` idiom
   that was load-bearing (self-recursion), rather than needing to synthesize a wrapper class the way the
   function-`static` rewrite in [ADR 0008](0008-static-and-global.md) does.
-- `callable` replacing `Closure` costs nothing: [ADR 0007](0007-explicit-type-system.md) already made
-  `Closure` opaque with no signature, so the rename carries no type-checker behavior change, only a spelling
-  change propagated through diagnostics and stdlib signatures.
+- `callable` replacing `Closure` costs nothing: `Closure` carried no signature of its own for the rename to
+  drop, so it caused no type-checker behavior change, only a spelling change propagated through diagnostics
+  and stdlib signatures. The signature a `callable` may now carry is
+  [0136](0136-a-callable-carries-its-signature.md)'s, and it arrived on the one surviving name.
 - `Closure::fromCallable`, `call_user_func`, `call_user_func_array` all become dead code with nothing left
   to do, once `callable` has exactly one shape — three fewer stdlib entries to implement and document.
 
@@ -214,13 +216,13 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
   cross-closure sharing (as opposed to recursion, which § 3 already answers) is common enough that "write a
   one-property class every time" is a real ergonomics tax rather than a rare pattern. The fallback if so is
   a narrow, explicitly-named stdlib type — not reviving `use (&$y)` itself.
-- **Typed closure signatures** (`callable(int): string`) stay exactly where
-  [ADR 0007](0007-explicit-type-system.md) § 3 already left them, deferred rather than decided; this ADR's
-  rename of `Closure` to `callable` does not need that question answered and does not reopen it.
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 3 is a second concrete forcing case for
-  that deferral: with a typed signature, `Core\Program::implementing<T>()` could return constructor
-  references and an attributed static method could replace its marker interface outright; without one, the
-  interface is what supplies a type to call through.
+- **Typed closure signatures** (`callable(int): string`) are **decided**, in
+  [0136](0136-a-callable-carries-its-signature.md): the parameter list and return type this ADR's rename
+  did not need are now written on the one surviving name. Among what forced them,
+  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 3 is the case this entry had already
+  named — `Core\Program::implementing<T>()` can now return constructor references, and an attributed
+  static method can replace its marker interface outright, where without a signature the interface was
+  what supplied a type to call through.
 
 Verification, in the order it becomes possible:
 

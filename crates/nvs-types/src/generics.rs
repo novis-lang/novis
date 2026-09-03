@@ -75,9 +75,17 @@
 //! **Only a written `fn` literal binds.** The return type comes from the
 //! closure literal's own recorded entry, so an argument that is a variable, a
 //! parameter, or first-class callable syntax has none to read: it binds
-//! nothing, and the variable substitutes to `mixed` exactly as before. Closing
-//! that needs `callable` to carry a signature in the type grammar — a typed
-//! `callable` is its own decision, and ADR 0027 § 2 is where it would be taken.
+//! nothing, and the variable substitutes to `mixed` exactly as before.
+//!
+//! [ADR 0136](../../../docs/adr/0136-a-callable-carries-its-signature.md)
+//! closes it, and retires this whole special case with it: once `callable`
+//! carries a signature in the type grammar, `U` sits at a structural position
+//! like any other and [`bind`] reaches it by descending into the parameter
+//! type. Both binding-site variants go with it. That ADR § 6 is the one home
+//! for what [`bind`] gains instead — one descent into a callable type, and one
+//! shape rebuilt from its fields' return types — and for why neither costs
+//! this module its character: still one walk, still no constraint set, still
+//! no occurs check.
 
 use nvs_hir::{ClassGraph, QName};
 use rustc_hash::FxHashMap;

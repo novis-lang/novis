@@ -5,7 +5,7 @@
 - **Scope:** the type grammar; the declaration requirement at every binding site; `uint`; typed and
   nested arrays; string-only array keys; unions and `mixed`; the conversion operator; the result type of
   every arithmetic operator
-- **Amended by:** 0008, 0010, 0011, 0012, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036, 0037, 0047, 0053, 0054, 0063, 0066, 0069, 0090, 0109, 0114, 0125, 0126
+- **Amended by:** 0008, 0010, 0011, 0012, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036, 0037, 0047, 0053, 0054, 0063, 0066, 0069, 0090, 0109, 0114, 0125, 0126, 0136
 
 > **In short:** every binding — parameter, property, constant, local, loop variable, closure parameter,
 > return — declares a type, and **a binding's declared type never changes**. A *value's* type changes only
@@ -139,6 +139,7 @@ atom         := 'null' | 'bool' | 'int' | 'uint' | 'float' | 'decimal'
               | 'property' '<' Name '>'                    // the property key, 0126
               | 'object' | 'mixed' | 'void' | 'never' | 'true' | 'false'
               | 'iterable' | 'callable' | 'self' | 'static' | 'parent'
+              | 'callable' '(' (type (',' type)*)? ')' ':' type  // 0136
               | StringLiteral | IntLiteral                // 0047
               | '{' field (',' field)* '}'                // shape type, 0036
               | Name                                      // class, interface, enum, enum case, `type` alias
@@ -164,10 +165,12 @@ compiler-owned generic interface — `Iterator<User>` — and nothing else
 ([0053](0053-iteration-and-generators.md) § 2).
 
 `object` is the opaque top of every class type, and a `{a: int}` shape type is Novis's one structurally
-checked type ([0036](0036-anonymous-object-shapes.md)). `callable` is opaque as to signature — there is no
-`callable(int): string` — and is satisfied by exactly one shape of value, a closure
-([0031](0031-callable-is-the-only-closure-type.md)). Calling through one is a dynamic call with
-runtime-checked arguments, at `mixed`'s cost. Deferred, not rejected; see *Revisiting*.
+checked type ([0036](0036-anonymous-object-shapes.md)). `callable` is satisfied by exactly one shape of
+value, a closure ([0031](0031-callable-is-the-only-closure-type.md)), and **may carry its signature** —
+`callable(int): string`, the return type mandatory and the parameters unnamed
+([0136](0136-a-callable-carries-its-signature.md)). Bare `callable` is the top of that lattice: a closure
+whose signature is unknown, reached by a dynamic call with runtime-checked arguments, at `mixed`'s cost. A
+call through a written signature is checked where it is written and pays nothing at run time.
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()` —
 `Core\IO\File`, `Core\Process\Child` — which is what makes Novis's lack of destructors
@@ -345,8 +348,9 @@ One type parameter, not two, because the key type is fixed by the language.
   requires: **one pointer per array header**, plus the O(n) widening copies above.
 - The checker bounds descriptor nesting at depth 32 with a diagnostic, so a pathological type cannot make
   checking superlinear.
-- **The stdlib's array signatures are parametric in `T`** — `Core\Arr::map(array<T>, callable): array<U>`,
-  `Core\Arr::filter(array<T>, callable): array<T>`, `Core\Arr::overlay(array<T>, array<U>): array<T|U>`
+- **The stdlib's array signatures are parametric in `T`** — `Core\Arr::map(array<T>, callable(T, string):
+  U): array<U>`, `Core\Arr::filter(array<T>, callable(T, string): bool): array<T>`,
+  `Core\Arr::overlay(array<T>, array<U>): array<T|U>`
   (subject-first per [0063](0063-core-api-conventions.md) R1). Type variables are available to declarations
   the compiler owns: the built-ins, from M9 the WIT-declared extension functions, and — at a concrete
   argument only — a user class implementing a compiler-owned generic interface
@@ -461,13 +465,15 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
 
 ## Revisiting
 
-- **User-defined generics, typed callables (`callable(int): string`), generic classes** — parked against a
-  stated test, not against taste. **This entry is the one home for what forces the typed-`callable` half**,
-  and three things do: [0061](0061-compile-time-autoload-and-program-discovery.md) § 3's
-  `implementing<T>()`, [0031](0031-callable-is-the-only-closure-type.md)'s boxed-cell entry, and
-  [0072](0072-core-task-structured-concurrency.md) § 1's `Task::all`. Routing is not one of them
-  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 9). An ADR
-  that adds a fourth adds it here and nowhere else — a count kept in two files is a count that goes stale. Application code does not reach for them: a typed collection is
+- **User-defined generics and generic classes** — parked against a stated test, not against taste. The
+  typed-`callable` half this entry used to carry is **decided**, in
+  [0136](0136-a-callable-carries-its-signature.md). What forced it was
+  [0061](0061-compile-time-autoload-and-program-discovery.md) § 3's `implementing<T>()`,
+  [0031](0031-callable-is-the-only-closure-type.md)'s boxed-cell entry,
+  [0072](0072-core-task-structured-concurrency.md) § 1's `Task::all`, and the per-argument tag check
+  `nvs_runtime::closure::check_param_tags` was paying in a signature's place. Routing was never one of them
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 9). What
+  stays parked here is user-declared parametricity, and application code does not reach for it: a typed collection is
   `array<T>` and `Core\Arr`, a `Result<T, E>` is `?T` and a throw, an envelope is a structurally checked
   `{items: array<User>, total: uint}` shape ([0036](0036-anonymous-object-shapes.md)), and the two
   boundaries where a caller's type genuinely cannot be inferred already write it —

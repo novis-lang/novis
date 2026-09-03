@@ -7,8 +7,8 @@
   ever be invoked with `()` syntax; how a first-class-callable-syntax expression (`Foo::bar(...)`,
   `$obj->method(...)`) produces one
 - **Amends:** [0007](0007-explicit-type-system.md) § 3 — `callable` was an opaque atom with no stated rule
-  for *which values* satisfy it. Its opacity as to *signature* is unchanged and still deferred there.
-- **Amended by:** 0031, 0063
+  for *which values* satisfy it. Its *signature* is a separate question, and is decided in that same § 3.
+- **Amended by:** 0031, 0063, 0136
 
 > **In short:** `callable` means **a closure value — nothing else.** PHP's three dynamic spellings — a bare
 > string (`"strlen"`), an `"Class::method"` string, and a `[$obj, 'method']` array — are all rejected with a
@@ -87,10 +87,11 @@ Novis keeps exactly one way to take a reference to a declared method: PHP 8.1's 
 class-name-to-string operator, unrelated to producing a callable value. Adding a second reference-taking
 spelling next to one that already does the job is what [0015](0015-no-name-aliasing.md) argues against.
 
-A `callable` remains opaque as to *signature* — there is no `callable(int): string`, per
-[0007](0007-explicit-type-system.md) § 3. The resolvability this ADR is after comes from the reference at
-the value's creation site, not from the static type carrying a signature, so it does not need that question
-answered and does not reopen it.
+A `callable` may carry its *signature* — `callable(int): string` — per
+[0007](0007-explicit-type-system.md) § 3 and [0136](0136-a-callable-carries-its-signature.md). The
+resolvability this ADR is after comes from the reference at the value's creation site rather than from the
+static type, so it holds either way: a first-class callable reference resolves whether or not the slot it
+fills declares a signature.
 
 ### 3. Diagnostics
 
@@ -135,8 +136,9 @@ answered and does not reopen it.
   [0014](0014-property-observer.md) closed, and reopens a second operator-overload mechanism.
 - **A dedicated `MethodRef`/`FunctionRef` type.** A second type buys no behavior, just redundant surface.
 - **Reuse `::class` for a callable reference.** Would make one token mean two unrelated things.
-- **Decide typed closure signatures here too.** Already deferred in [0007](0007-explicit-type-system.md)
-  § 3; this ADR narrows which *values* satisfy `callable`, not what the checker sees through one.
+- **Decide typed closure signatures here too.** Left to [0007](0007-explicit-type-system.md) § 3, where
+  [0136](0136-a-callable-carries-its-signature.md) later took it; this ADR narrows which *values* satisfy
+  `callable`, not what the checker sees through one.
 
 ## Revisiting
 

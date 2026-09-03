@@ -100,6 +100,9 @@ spellings rejected, and the reasoning.
   ([0027](0027-callable-is-closures-only.md)).
 - **`fn` is the only closure literal, closures have no `use` clause, and `callable` is the only type name**
   ([0031](0031-callable-is-the-only-closure-type.md)).
+- **A `callable` may carry its signature** — `callable(int): string`, the return mandatory, arity a prefix
+  match, parameters contravariant and the return covariant, and a `fn` literal taking its parameter types
+  from the position it is written in ([0136](0136-a-callable-carries-its-signature.md)).
 - **What PHP 8.6 deprecates is refused outright, and its partial application is not adopted** — no `return`
   leaves a `finally` or carries a value out of a constructor, `let`/`is` are reserved, a `readonly`
   property has no default, and a session id the store did not issue is always rejected

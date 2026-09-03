@@ -140,6 +140,7 @@ so you never have to open this file to route a topic.
 | `static`, `global`, scoping, where state may live at all | [0008](0008-static-and-global.md) |
 | Free functions, global constants, the `Core` namespace, where a built-in lives | [0011](0011-functions-and-constants-are-class-members.md) |
 | `callable`, first-class callable syntax (`Foo::bar(...)`), `__invoke`, calling an object with `()` | [0027](0027-callable-is-closures-only.md) |
+| A typed callback — `callable(int): string`, a callable type's arity and variance, why a `fn` literal needs no parameter annotations, what retired `CoreTy::CallableTo` | [0136](0136-a-callable-carries-its-signature.md) |
 | The pipeline operator, `\|>`, the hole `$_`, method chaining, a fluent interface on a `string`/`array<T>`, why PHP 8.5's `\|>` spelling does not work here, `#[Fluentable]` | [0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md) for the operator; [0063](0063-core-api-conventions.md) R17-R19 for why there are no methods on scalars |
 | Anonymous functions, `fn`, arrow functions, closure capture, `use (...)`, recursive closures | [0031](0031-callable-is-the-only-closure-type.md) |
 | By-reference parameters, `inout`, `foreach (… as inout $v)`, the retired `&$x` spelling, whether a call site marks an argument it writes | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) |
@@ -370,6 +371,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md) | A launderer answers its sink's carrier, and only an idempotent escape answers a `string` | Accepted |
 | [0134](0134-every-shipped-feature-owes-four-proofs.md) | Every shipped feature owes four proofs, and the roster of features is derived rather than kept | Accepted |
 | [0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) | A fixed-key shape parameter is one `CoreTy` carrying its arms, and it flattens at the ABI exactly as an options bag does | Accepted |
+| [0136](0136-a-callable-carries-its-signature.md) | A `callable` carries its signature | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
@@ -630,9 +632,11 @@ Two declarations break that ordering, and both are refused where they are writte
 returns ([0053](0053-iteration-and-generators.md) § 4), so the staged cell is gone before the first
 `advance()` while the parked frame would still be addressing it — `E0492`,
 `nvs_types::check::check_generator_by_ref_params`. A **closure** has no call site that could stage anything:
-its type is `callable` and nothing else ([0031](0031-callable-is-the-only-closure-type.md) § 4), carrying no
-parameter list for a site to read, and § 2's by-value capture lets it outlive every frame in scope where it
-was written — `E0493`, `nvs_types::expr::calls::report_by_reference_parameter`. Neither is a lowering we
+§ 2's by-value capture lets it outlive every frame in scope where it was written, so there is no frame whose
+death the copy-back could be ordered against — `E0493`,
+`nvs_types::expr::calls::report_by_reference_parameter`. A written signature
+([0136](0136-a-callable-carries-its-signature.md)) does not reopen it: that gives a site a parameter list to
+read and still no call site at which to stage a cell. Neither is a lowering we
 chose not to write: there is no representation either could keep instead, because copying the value in would
 stop being a reference, which is the whole observable point of `inout`. The replacements are the ones those
 ADRs already name — for shared mutable state, § 2's ordinary object captured by value; for a generator,
@@ -674,8 +678,11 @@ at `E0700`. Both alternatives cost more than a second range: widening every band
 renumbers two hundred released codes and every `.nvst` case that names one, and filling the lowest hole
 inside `E04xx` reuses a retired number, which the same promise forbids. `tools/brief.py` reports a band
 whose max-plus-one would leave it as **full** rather than handing out the number past its end, so the
-next session reads this decision off the tool instead of re-deriving it. `E08xx` stays unallocated for
-whichever band fills next.
+next session reads this decision off the tool instead of re-deriving it. `E08xx` was held unallocated for
+whichever band filled next, and types is what filled it — a second time, at `E0799` — so
+[0136](0136-a-callable-carries-its-signature.md) opens **`E08xx` at `E0800`** for the diagnostics a
+written `callable` signature needs, a third row in that legend table for the one stage. `E10xx` is the
+reserve that replaces it, `E09xx` being internal compiler errors.
 
 **A `class`, `interface` or `enum` is declared at file scope, or not at all.** PHP declares a nested type
 when the statement *runs*, so `if ($legacy) { class Session { … } }` makes the very existence of a name a

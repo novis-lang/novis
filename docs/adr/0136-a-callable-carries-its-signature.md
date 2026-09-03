@@ -1,0 +1,328 @@
+# ADR 0136 — A `callable` carries its signature
+
+- **Status:** Accepted
+- **Date:** 2026-09-03
+- **Scope:** the `callable` type atom's parameter list and return type; how two callable types compare;
+  the arity rule; where a closure literal's parameter types come from; what replaces
+  `CoreTy::CallableTo` and `CoreTy::CallableShapeTo`; and the per-argument runtime tag check a
+  statically proven call site stops paying. Not in scope: *which values* satisfy `callable`, which is
+  [0027](0027-callable-is-closures-only.md) and is unchanged; the closure literal grammar and its
+  capture rule, which are [0031](0031-callable-is-the-only-closure-type.md) §§ 1-3 and are unchanged;
+  whole-body return-type inference, which [0031](0031-callable-is-the-only-closure-type.md)'s M2 entry
+  refused and this ADR does not reopen; and user-declared generic functions and classes, which stay
+  parked in [0007](0007-explicit-type-system.md) § *Revisiting*.
+- **Depends on:** [0007](0007-explicit-type-system.md), [0027](0027-callable-is-closures-only.md), [0031](0031-callable-is-the-only-closure-type.md)
+- **Amends:** [0007](0007-explicit-type-system.md) § 3 — the type grammar gains the atom and the
+  sentence "`callable` is opaque as to signature — there is no `callable(int): string`" is retired —
+  and [0007](0007-explicit-type-system.md) § *Revisiting*, whose typed-`callable` half is now decided,
+  leaving user-defined generics and generic classes parked there alone;
+  [0027](0027-callable-is-closures-only.md) § 2, whose closing paragraph deferred this question;
+  [0031](0031-callable-is-the-only-closure-type.md) § 4, whose `Core\Arr::map` example signature gains
+  the parameter list, and its *Revisiting* entry, which parked typed closure signatures. All four folds
+  are applied in those files.
+
+> **In short:** `callable` gains a written signature — **`callable(User, string): string`**, parameters
+> in parentheses, return type after a colon and **mandatory**. Bare `callable` survives unchanged as the
+> top of the callable lattice, keeping today's dynamic call path, so nothing already written breaks.
+> **Arity is a prefix match**: a closure of arity *n* satisfies `callable(T₁..Tₘ): R` when `n ≤ m`,
+> checking only the first *n* parameter types — which is what `nvs_runtime::closure::call_closure`
+> already does when it trims extra arguments, so the type describes the runtime rather than overruling
+> it. **Assignability is the standard function rule** — parameters contravariant, return covariant —
+> which `array<T>`'s invariance does not contradict, because that invariance was bought to stop an O(n)
+> restamp hiding inside an assignment and a callable conversion costs nothing at all. **A `fn` literal
+> takes its parameter types from the callable type expected where it is written**, so
+> `Core\Arr::map($users, fn($u) => $u->name)` types `$u` as `User` with no annotation. The two bespoke
+> binding-site variants, `CoreTy::CallableTo` and `CoreTy::CallableShapeTo`, become ordinary types and
+> are deleted. What this buys is not ergonomics: `check_param_tags` is a **priority 1** guard standing
+> between a mismatched argument and an arbitrary dereference, and a proven call site now discharges it
+> at compile time instead of paying it per argument, per call.
+
+## Context
+
+- [0007](0007-explicit-type-system.md) § 3 made `callable` opaque as to signature and deferred the
+  question. [0027](0027-callable-is-closures-only.md) § 2 and
+  [0031](0031-callable-is-the-only-closure-type.md) § 4 each re-stated the deferral rather than taking
+  it. [0007](0007-explicit-type-system.md) § *Revisiting* is the one home for what forces it and names
+  three: [0061](0061-compile-time-autoload-and-program-discovery.md) § 3's `implementing<T>()`,
+  [0031](0031-callable-is-the-only-closure-type.md)'s boxed-cell entry, and
+  [0072](0072-core-task-structured-concurrency.md) § 1's `Task::all`.
+- **The safety argument is the one that decides it, and it is already written down.**
+  `crates/nvs-runtime/src/closure.rs`'s module doc: with no parameter list "**no checker can compare a
+  call site against the body it will reach**, and the compiled `invoke` reads argument slot *i* at its
+  own declared representation. Hand it a mismatch and the callee reinterprets the payload — an `int`
+  read as an `NvsStr` pointer is an arbitrary dereference, not a fault, and
+  `Core\Arr::map($ints, fn (string $s): string => $s)` over an `array<int>` is all it takes to write
+  one." Every closure object therefore carries its parameter tags in `CLOSURE_PARAM_TAGS_SLOT`, and
+  `check_param_tags` compares one against each argument on every call. That is a mask-and-compare per
+  argument, on the path `Core\Arr::map` sits on, standing in for a check a type could have discharged.
+- **The stdlib already needs the signature and works around not having it.**
+  `CoreTy::CallableTo("U")` (`crates/nvs-stdlib/src/arr.rs:118`, and four more rows across `cli.rs` and
+  `db.rs`) is a parameter that is `callable` for every purpose except that it also names the variable
+  its *result* binds; `CoreTy::CallableShapeTo` is the same trick one level up for `Task::all`.
+  `crates/nvs-types/src/generics.rs` states the gap they leave: "**Only a written `fn` literal
+  binds.** … an argument that is a variable, a parameter, or first-class callable syntax has none to
+  read: it binds nothing, and the variable substitutes to `mixed`." Nothing types a callback's
+  *parameters* at all.
+- **The timing is the cheapest it will ever be.**
+  [0031](0031-callable-is-the-only-closure-type.md)'s M4 entry records that `$fn(...)` direct
+  invocation has no lowering yet — native `Core` code is the only caller today. The call site where a
+  signature pays for itself, in checking and in codegen alike, is unwritten. Deciding before it exists
+  is strictly cheaper than unpicking a shipped dynamic lowering afterwards.
+
+## Decision
+
+### 1. The type grammar gains one atom
+
+[0007](0007-explicit-type-system.md) § 3's `atom` production gains:
+
+```
+              | 'callable' '(' (type (',' type)*)? ')' ':' type
+```
+
+```php
+callable(User, string): string   $format;
+callable(): void                 $onExit;
+callable(int, int): bool         $compare;
+callable                         $anything;   // still legal — see § 2
+```
+
+The return type is **mandatory**. A `callable(int)` with no return would say strictly less than bare
+`callable` while costing a second spelling of "unknown", which is the redundant-surface pattern
+[0015](0015-no-name-aliasing.md) refuses. `void` and `never` are writable there as in any other return
+position.
+
+**No parameter names.** `callable(int $x): string` does not parse. A name in the type would imply
+calling through the value by name, which nothing supports —
+[0063](0063-core-api-conventions.md) R2's named arguments are a `Core` member's rule and a closure is
+not one — leaving the name as unenforced decoration, exactly what
+[0031](0031-callable-is-the-only-closure-type.md) rejected the `use ($y)` clause for.
+
+Ambiguity costs nothing: a `(` after `callable` is only ever a parameter list, because a type position
+has no call syntax to be confused with. This atom needs none of the checkpointed trial parse
+`array<T>` and `new Foo<...>` require.
+
+### 2. Bare `callable` is the top of the callable lattice
+
+`callable` keeps its current meaning — a closure value whose signature is unknown — and every callable
+type is assignable to it. Calling through one keeps today's dynamic path and today's per-argument tag
+check. It is what a converted PHP program lands on, and narrowing is opt-in, at whatever pace the code
+is read. Nothing is deprecated and no existing declaration changes meaning.
+
+### 3. Arity is a prefix match
+
+A closure of arity *n* satisfies `callable(T₁..Tₘ): R` when **`n ≤ m`**, and only the first *n*
+parameter types are compared. Arity *greater* than *m* is refused where it is written.
+
+```php
+// Core callbacks receive ($value, $key) — 0063 R9
+map(array<T> $a, callable(T, string): U $fn): array<U>
+
+Core\Arr::map($users, fn($u) => $u->name);              // 1 ≤ 2 — $u is User
+Core\Arr::map($users, fn($u, $k) => "{$k}: {$u->name}"); // 2 ≤ 2 — $k is string
+Core\Arr::map($users, fn($u, $k, $x) => …);              // refused
+```
+
+This is not tolerance invented for convenience: `nvs_runtime::closure::call_closure` already computes
+`args.get(..arity)` and hands the callee only what it declares, which is what lets a one-parameter
+callback satisfy [0063](0063-core-api-conventions.md) R9's two-argument convention today. The type
+system describes that behaviour. An exact-arity rule would instead make R9 visible in every callback
+ever written, growing an unused `$key` parameter across the corpus and turning the trimming into dead
+code.
+
+### 4. Parameters are contravariant, the return type covariant
+
+```php
+callable(User, string): string   $slot;
+
+fn (User $u, string $k): string => …    // exact          — accepted
+fn (mixed $u, mixed $k): string => …    // wider params   — accepted
+fn (User $u, string $k): never  => …    // narrower return — accepted
+fn (Admin $a, string $k): string => …   // narrower param  — refused
+fn (User $u, string $k): mixed  => …    // wider return    — refused
+```
+
+The standard rule, and the two refusals are the unsound directions: `$slot` may be handed any `User`,
+and its caller was promised a `string`.
+
+**This does not contradict [0007](0007-explicit-type-system.md) § 5's array invariance**, and the
+reason is the one that section argued from. `array<T>` is invariant because widening costs an O(n)
+restamp — one tag test per element — that § 5 refused to let hide inside an assignment. Converting a
+callable costs **nothing**: no restamp, no copy, no runtime work of any kind, because the check is
+discharged entirely in the checker. Same shape of question, different cost, therefore a different
+answer. What the rule buys is that a helper written once as `fn (mixed $v): string` stays assignable
+everywhere, which is the whole reason such a helper is written.
+
+### 5. A `fn` literal takes its parameter types from the position it is written in
+
+Where a closure literal appears in a position whose expected type is a callable type, each parameter
+the literal does not annotate takes its type from the corresponding position of that type. A parameter
+the literal *does* annotate is checked against it under § 4 and wins where it is wider.
+
+```php
+$users;                                        // array<User>
+Core\Arr::map($users, fn($u) => $u->name);     // $u : User, U : string ⇒ array<string>
+```
+
+`T` binds from argument 1 by the walk `crates/nvs-types/src/generics.rs` already performs; the
+substituted parameter type `callable(User, string): U` is then the expected type pushed into the
+literal. So the common callback gets *more* checking than today while writing *less* than today:
+`$u->name` stops being [0036](0036-anonymous-object-shapes.md) § 4's erased-receiver fetch and becomes
+a field proven present.
+
+**`E0450` is unchanged.** A block-bodied `fn` still declares its return type. Inferring one is
+whole-body return-type inference, which [0031](0031-callable-is-the-only-closure-type.md)'s M2 entry
+declined and [0007](0007-explicit-type-system.md) does not ask for; relaxing it under an expected type
+is a separate decision and is not taken here.
+
+### 6. The two binding-site variants are retired
+
+`CoreTy::CallableTo(name)` and `CoreTy::CallableShapeTo(name)`, and their `Ty` counterparts, are
+deleted. Every row that used one writes an ordinary type instead:
+
+```
+map(array<T> $a, callable(T, string): U $fn): array<U>
+all({name: callable(): T, …} $tasks, {limit?: uint, deadline?: Duration}): {name: T, …}
+```
+
+`crates/nvs-types/src/generics.rs` keeps its stated character — one structural walk, no constraint
+set, no occurs check, no variable bound to another variable. Two extensions, both structural:
+
+1. **`bind` descends into a callable type.** Walking a declared `callable(T, string): U` alongside an
+   actual `callable(User, string): string` binds `T` and `U` at their positions, the same rule already
+   applied inside `array<T>` and a shape's fields. The "first binding wins" ordering is unchanged, so
+   `T` still comes from the subject parameter per [0063](0063-core-api-conventions.md) R1.
+2. **A shape of callables rebuilds a shape.** `Task::all`'s `S` binds by walking each field of the
+   argument's shape type, taking that field's callable return type, and assembling a shape with the
+   same field names — one level of descent and one construction, in the same single pass.
+
+`Task::all`'s restriction that every field be a *written* `fn` literal, and the compile error naming
+the field that was not, are both **removed**: a `callable(): T`-typed variable now carries what the
+field needs. That restriction's home in [docs/spec/01-core-library.md](../spec/01-core-library.md)
+§ *Task* is edited to state the new rule.
+
+The property everything downstream relies on is untouched: a type variable never survives a call site,
+because `substitute` still rewrites the whole signature before a single argument is checked.
+
+### 7. A proven call site stops paying for the tag check
+
+Where a call reaches a `callable` whose type names its parameters, the argument types are proven at
+compile time and `nvs_runtime::closure::check_param_tags`'s per-argument mask-and-compare is **not
+emitted**. Where the callee's type is bare `callable`, the check is emitted exactly as today.
+
+`CLOSURE_PARAM_TAGS_SLOT` and `CLOSURE_ARITY_SLOT` remain on every closure object, because bare
+`callable` still needs both and a closure does not know at its literal which kind of site will call
+it. What is removed is the work at proven sites, not the metadata.
+
+This is the priority 1 argument's other half: the guard is not weakened, it is discharged earlier and
+more completely — a compile error where there was a runtime `LogicError`, and no per-argument cost on
+the way to it.
+
+## Diagnostics
+
+The types bands `E04xx` and `E07xx` are both full — the second filled at `E0799`, whose own doc comment
+says the next types diagnostic opens a new band rather than taking the number past the end of that one.
+This ADR is that next one, and it spends the reserve [docs/adr/README.md](README.md) § *Decisions taken
+at project start* had already set aside for exactly this: **types continues a third time in `E08xx`,
+opening at `E0800`**, one more row in `nvs_diagnostics::code`'s legend table. That section is the
+project-level home of the band rule, as it was for `E0500`; it records the allocation and names `E10xx`
+as the reserve that replaces it, `E09xx` being internal compiler errors.
+
+- `callable(int $x): string` → *a `callable` type does not name its parameters; write
+  `callable(int): string`*
+- `callable(int)` → *a `callable` type must declare its return type; write `callable(int): void` if it
+  returns nothing*
+- a closure of arity greater than the type's → *this closure declares N parameters; the `callable` it
+  is assigned to passes M*
+- a parameter narrower than the type's → *a closure assigned to `callable(User, …)` must accept every
+  `User`; this one declares `Admin`*
+- a return type wider than the type's → *this closure returns `mixed`; the `callable` it is assigned
+  to promises `string`*
+
+## Consequences
+
+**Positive**
+
+- **A whole class of memory-safety error moves to compile time** (priority 1). The mismatch
+  `closure.rs` names as "an arbitrary dereference, not a fault" is refused where it is written at every
+  site whose callable is typed.
+- **The request path gets shorter** (priority 3). `Core\Arr::map` over an *n*-element array drops *n* ×
+  arity mask-and-compares, and gains a direct call to the synthesized class's `invoke`.
+- **Two bespoke compiler variants become one ordinary type**, and the workaround they exist to be —
+  a binding site that is not at any position — stops existing. `generics.rs`'s "Known gap" is closed
+  rather than reworded.
+- **Callbacks are checked without being annotated** (§ 5), so the common case gets safer and shorter at
+  once, which is the outcome that makes adoption automatic rather than a migration.
+- **`Task::all` loses a restriction users would have reported as a bug** — a shape field holding a
+  perfectly good `callable` variable no longer fails to compile.
+
+**Negative**
+
+- **The language surface grows by one atom and one subtyping rule** (priority 4, spent deliberately to
+  buy the three above). Variance is the first place in Novis where a type is neither invariant nor
+  identical-only, so it is a genuinely new thing to know.
+- **Two type-checking paths for calls exist during and after the migration** — proven and dynamic —
+  though the dynamic one is the path that exists today and is not new work.
+- **A new diagnostic band** for the third time in the types area. Recorded rather than avoided; the
+  alternative is codes whose digits name no band.
+- Memory: **unchanged**. No new runtime representation, no new heap shape, no per-closure growth —
+  [0031](0031-callable-is-the-only-closure-type.md) § M4's synthesized class is untouched and both
+  metadata slots stay.
+
+## Alternatives rejected
+
+- **`callable<T, U, R>`, angle brackets**, for consistency with `array<T>`, `class<Name>` and
+  `Iterator<User>`. The return type would be positional and unmarked — nothing in
+  `callable<User, string, string>` says which argument is the result, and `callable<void>` reads as
+  taking a `void`. Consistency of bracket shape is worth less than being able to see the return type.
+- **An optional return type** (`callable(int)` meaning "parameters known, return unknown"). A third
+  level of partial knowledge that still cannot bind `U` in `map`, so it buys argument checking only,
+  at the price of a spelling.
+- **Exact arity.** Would make [0063](0063-core-api-conventions.md) R9's `($value, $key)` convention
+  visible in every callback in the corpus and the `.nvst` trees, each growing an unused parameter, and
+  would make `call_closure`'s trimming dead code. The runtime rule came first and is the better one.
+- **Exact arity for a typed `callable`, trimming for a bare one.** Two arity rules chosen by whether
+  the *callee* annotated — invisible at the call site, which is where the error would appear — and it
+  makes adding a signature a breaking change for every short callback.
+- **Invariance, matching `array<T>`.** The same answer as § 5 without the reason behind it: array
+  invariance was bought to keep an O(n) restamp from hiding in an assignment, and there is no restamp
+  here. It would put an `as` at every reusable-helper call site.
+- **Invariant parameters, covariant return.** Half the rule, and the half that matters least: the
+  refused case is the widely-typed helper, which is the reusable one.
+- **Inferring the return type too**, under an expected callable type. Bundles
+  [0031](0031-callable-is-the-only-closure-type.md)'s deliberate `E0450` into this decision and makes
+  the blast radius the checker's whole return path.
+- **Keeping `Closure` as a second name** for typed signatures.
+  [0031](0031-callable-is-the-only-closure-type.md) § 4 retired it, and this ADR is what its
+  *Alternatives rejected* predicted: "the natural spelling for that would be `callable(int): string`
+  anyway."
+
+## Revisiting
+
+- **Optional and variadic parameters in a callable type** — `callable(int, ?string = null): void`,
+  `callable(int, ...string): void` — are refused outright rather than deferred with a shape in mind.
+  § 3's prefix rule already covers the one demand that motivated them, a callback ignoring trailing
+  arguments it was offered. Reconsider only if a `Core` member appears whose callback's *own* arity
+  genuinely varies, which none does today.
+- **Relaxing `E0450` under an expected callable type** — a block-bodied `fn` inferring its return
+  where the position states it. Left where [0031](0031-callable-is-the-only-closure-type.md) put it; it
+  is now a strictly smaller question than it was, because § 5 already pushes the expected type in.
+- **User-declared generic functions and classes** are untouched by this ADR and stay parked against
+  [0007](0007-explicit-type-system.md) § *Revisiting*'s measured test, which this decision removes the
+  typed-`callable` half of but does not otherwise disturb.
+
+## Verification
+
+- **M2 (checker)** — the atom parses in every type position; assignability accepts and refuses the five
+  cases in § 4 and the three in § 3; a `fn` literal in an expected-callable position types its
+  parameters from it; `E0450` still fires on a block body with no declared return.
+- **M2 (stdlib signatures)** — every former `CoreTy::CallableTo` row (`arr.rs`, `cli.rs` ×2, `db.rs`
+  ×2) binds its result variable from a callback that is a **variable** rather than a written literal,
+  which is the case that bound nothing before; `Task::all` accepts a shape field holding a
+  `callable(): T` variable.
+- **M4 (lowering and codegen)** — a proven call site emits no `check_param_tags` sequence and a bare
+  `callable` site still does, held by a `nvs-codegen` fixture over both; a closure-heavy script stays
+  `valgrind --leak-check=full` clean, since § 7 changes what is emitted around a call whose refcount
+  protocol `call_closure` owns.
+- **The safety property, stated as a case**: `Core\Arr::map($ints, fn (string $s): string => $s)` over
+  an `array<int>` — `closure.rs`'s own example of writing an arbitrary dereference — is a compile error
+  rather than a runtime `LogicError`.
