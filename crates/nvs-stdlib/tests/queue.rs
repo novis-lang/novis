@@ -1,10 +1,11 @@
 //! [ADR 0084](../../../docs/adr/0084-durable-background-jobs.md)'s queue
-//! statements, run against a real PostgreSQL server rather than read.
+//! statements, run against a real server rather than read.
 //!
 //! **These cases live in this crate and not in `nvs-db`, and one edge's
 //! direction is the whole reason.** What they run is [`nvs_stdlib::queue`]'s
 //! statement roster — § 2's schema has one home and that is it — and the only
-//! thing that can run a statement is `nvs-db`'s `PgConn`. ADR 0132 § 1 fixes
+//! thing that can run a statement is `nvs-db`'s own connection, which is
+//! `PgConn`, `MySqlConn` or `MariaConn` as [`Conn`] holds it. ADR 0132 § 1 fixes
 //! which way that edge points: `nvs-stdlib` depends on `nvs-db` and never the
 //! reverse, so a `crates/nvs-db/tests/queue.rs` would need a `use
 //! nvs_stdlib::…` that closes a cycle in the workspace, and the alternative —
@@ -28,12 +29,16 @@
 //! The schema itself is the one thing they do share, and [`schema`] says why
 //! that needs a `Once` rather than a call each.
 
+use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Once;
 use std::time::{Duration, Instant};
 
 use nvs_db::matrix::{self, Location, Server};
-use nvs_db::{Driver, PgConn, PgTarget};
+use nvs_db::{
+    Driver, Isolation, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar, MySqlTarget,
+    PgConn, PgTarget, QuerySpan,
+};
 use nvs_stdlib::queue;
 
 /// How long the whole of one handshake here may take.
@@ -48,42 +53,272 @@ const DEADLINE: Duration = Duration::from_secs(10);
 /// the column are one representation rather than two.
 const PENDING: &[u8] = b"0";
 
-/// This process's PostgreSQL server, or `None` because nothing pointed it at
-/// one.
+/// The driver this process is testing, and the server the harness published for
+/// it.
 ///
-/// Two shapes of `None` and neither is a failure: no harness at all, and a leg
-/// testing one of the other four drivers, which runs every test in this file
-/// including these.
-fn postgres() -> Option<Server> {
-    let endpoint = matrix::endpoint()?;
-    if endpoint.driver != Driver::Postgres {
-        return None;
-    }
-    let Location::Server(server) = endpoint.location else {
-        unreachable!("SQLite is the only driver reached by path, and this is not it")
-    };
-    Some(server)
+/// One value rather than two arguments threaded side by side, because
+/// everything below that opens or spells a statement needs both:
+/// [`nvs_stdlib::queue`] is two dialects, and the endpoint is what says which
+/// one this leg runs.
+struct Leg {
+    /// Which backend this process was pointed at.
+    driver: Driver,
+    /// Where it is, and what vouches for it.
+    server: Server,
 }
 
-/// A connection to `server`, as a request that found the pool empty opens one.
-fn open(server: &Server) -> PgConn {
+/// This process's leg, when it names a driver [`queue::migration`] has a schema
+/// for.
+///
+/// Three shapes of `None` and none of them is a failure: no harness at all; a
+/// leg testing SQLite, which is reached by path and has no queue schema; and a
+/// leg testing SQL Server, which has neither a schema nor a driver that can
+/// send a statement. The per-case gates below narrow it once more, because a
+/// case is written against one dialect's spelling even where both have one.
+fn endpoint() -> Option<Leg> {
+    let endpoint = matrix::endpoint()?;
+    let Location::Server(server) = endpoint.location else {
+        return None;
+    };
+    queue::migration(endpoint.driver)?;
+    Some(Leg {
+        driver: endpoint.driver,
+        server,
+    })
+}
+
+/// This process's PostgreSQL leg, or `None` because this run is one of the
+/// others.
+fn postgres() -> Option<Leg> {
+    let leg = endpoint()?;
+    (leg.driver == Driver::Postgres).then_some(leg)
+}
+
+/// This process's MySQL or MariaDB leg, whichever the harness named.
+///
+/// **One gate for the two rather than one each**, because there is nothing for
+/// a second one to say: [`queue::MIGRATION_MYSQL`] and every statement beside
+/// it is a text MariaDB runs unchanged, so a case written against either is a
+/// case against both and running it twice is the matrix's job, not this
+/// predicate's.
+fn framed() -> Option<Leg> {
+    let leg = endpoint()?;
+    matches!(leg.driver, Driver::MySql | Driver::MariaDb).then_some(leg)
+}
+
+/// A connection to `leg`'s server, as a request that found the pool empty opens
+/// one.
+///
+/// **The three targets differ in their type and in nothing else**, so the arms
+/// are a macro rather than three copies of one field list: ADR 0067 § 2's
+/// settings are the same seven for every driver that has a wire, and what
+/// changes between them is which `connect` reads them.
+fn open(leg: &Leg) -> Conn {
+    let server = &leg.server;
     let addr: SocketAddr = (server.host.as_str(), server.port)
         .to_socket_addrs()
         .expect("the matrix host is an address")
         .next()
         .expect("the matrix host resolves to somewhere");
-    let target = PgTarget {
-        host: &server.host,
-        user: &server.user,
-        password: &server.password,
-        database: &server.database,
-        tls_ca_file: Some(server.ca.as_path()),
-        time_zone: 0,
-        statement_cache: 8,
-    };
+    let deadline = Some(Instant::now() + DEADLINE);
 
-    PgConn::connect(addr, &target, Some(Instant::now() + DEADLINE))
-        .expect("the matrix server accepts a handshake verified against its own anchor")
+    macro_rules! connect_as {
+        ($target:ident, $conn:ident, $arm:path) => {
+            $arm(
+                $conn::connect(
+                    addr,
+                    &$target {
+                        host: &server.host,
+                        user: &server.user,
+                        password: &server.password,
+                        database: &server.database,
+                        tls_ca_file: Some(server.ca.as_path()),
+                        time_zone: 0,
+                        statement_cache: 8,
+                    },
+                    deadline,
+                )
+                .expect("the matrix server accepts a handshake verified against its own anchor"),
+            )
+        };
+    }
+
+    match leg.driver {
+        Driver::Postgres => connect_as!(PgTarget, PgConn, Conn::Postgres),
+        Driver::MySql => connect_as!(MySqlTarget, MySqlConn, Conn::MySql),
+        Driver::MariaDb => connect_as!(MariaTarget, MariaConn, Conn::MariaDb),
+        // Spelled rather than left to a `_`, exactly as `crate::worker`'s own
+        // opener spells them: [`endpoint`] skips both before anything is
+        // connected, so a driver *gaining* a schema arrives here as a build
+        // failure rather than as a refusal that has stopped being true.
+        Driver::SqlServer | Driver::Sqlite => {
+            unreachable!("`endpoint` skips a driver `nvs_stdlib::queue` has no schema for")
+        }
+    }
+}
+
+/// The connection a case runs on, in the driver the harness named.
+///
+/// **Owned and three arms, where [`Dialect`] is borrowed and two**, which is
+/// `crates/nvs-cli/src/worker.rs`'s `Wire` one crate over and for its reason: a
+/// case holds its connection for its whole body, so there has to be a value
+/// that *is* the connection, and what every statement below branches on is the
+/// dialect it is written in.
+enum Conn {
+    /// [`queue::MIGRATION_POSTGRES`] and the single-statement roster beside it.
+    Postgres(PgConn),
+    /// [`queue::MIGRATION_MYSQL`] and the roster whose claim and dead-letter
+    /// move are [`queue::Split`]s.
+    MySql(MySqlConn),
+    /// MariaDB, which runs every one of MySQL's texts unchanged.
+    MariaDb(MariaConn),
+}
+
+impl Conn {
+    /// This connection borrowed as the dialect its statements are written in.
+    fn dialect(&mut self) -> Dialect<'_> {
+        match self {
+            Conn::Postgres(postgres) => Dialect::Postgres(postgres),
+            Conn::MySql(mysql) => Dialect::Framed(Framed::MySql(mysql)),
+            Conn::MariaDb(maria) => Dialect::Framed(Framed::MariaDb(maria)),
+        }
+    }
+
+    /// Which backend this is, for the helpers that pick a *statement* rather
+    /// than a reader.
+    ///
+    /// Taken off the arm rather than carried from the [`Leg`], so a connection
+    /// answers for itself: nothing below has both in hand, and two copies of
+    /// one fact is how the wrong dialect gets sent down a connection that
+    /// cannot run it.
+    fn driver(&self) -> Driver {
+        match self {
+            Conn::Postgres(_) => Driver::Postgres,
+            Conn::MySql(_) => Driver::MySql,
+            Conn::MariaDb(_) => Driver::MariaDb,
+        }
+    }
+
+    /// A `text` parameter in the first position, as this driver spells one.
+    ///
+    /// The ad-hoc statements in this file — the deletes a case clears with, the
+    /// counts it asserts over — are written in the driver's own spelling for
+    /// the reason [`queue`]'s two rosters are: ADR 0067 § 5's rewriter is what
+    /// a *program*'s statement goes through, and reaching for it here would put
+    /// a second translator between a case and the server it is asserting about.
+    fn text(&self) -> &'static str {
+        match self {
+            Conn::Postgres(_) => "$1::text",
+            Conn::MySql(_) | Conn::MariaDb(_) => "?",
+        }
+    }
+
+    /// ADR 0067 § 7's `BEGIN`, as the driver's own.
+    fn begin(&mut self, isolation: Option<Isolation>, read_only: bool) -> io::Result<QuerySpan> {
+        match self.dialect() {
+            Dialect::Postgres(postgres) => postgres.begin(isolation, read_only),
+            Dialect::Framed(mut framed) => framed.begin(isolation, read_only),
+        }
+    }
+
+    /// § 7's `COMMIT`.
+    fn commit(&mut self) -> io::Result<QuerySpan> {
+        match self.dialect() {
+            Dialect::Postgres(postgres) => postgres.commit(),
+            Dialect::Framed(mut framed) => framed.commit(),
+        }
+    }
+
+    /// § 7's `ROLLBACK`.
+    fn roll_back(&mut self) -> io::Result<QuerySpan> {
+        match self.dialect() {
+            Dialect::Postgres(postgres) => postgres.roll_back(),
+            Dialect::Framed(mut framed) => framed.roll_back(),
+        }
+    }
+
+    /// How many transactions deep this connection is, which is what a case
+    /// asserts a commit or a rollback by.
+    fn depth(&self) -> u32 {
+        match self {
+            Conn::Postgres(postgres) => postgres.depth(),
+            Conn::MySql(mysql) => mysql.depth(),
+            Conn::MariaDb(maria) => maria.depth(),
+        }
+    }
+}
+
+/// A borrowed [`Conn`], narrowed to the two dialects [`nvs_stdlib::queue`]
+/// writes.
+///
+/// The same two arms `crates/nvs-cli/src/worker.rs`'s `Dialect` has, and for
+/// the same reason: § 2's schema is two migration lists and §§ 4 and 6's
+/// statements two spellings, so a third arm here would be a driver with nothing
+/// to send.
+enum Dialect<'a> {
+    /// One statement in, one answer out.
+    Postgres(&'a mut PgConn),
+    /// The framed drivers, three of whose statements are pairs inside one
+    /// transaction — and MariaDB runs every one of them unchanged.
+    Framed(Framed<'a>),
+}
+
+/// The two drivers that share one dialect and one send path, borrowed as one.
+///
+/// **MariaDB is its own driver above the framing, not inside it**, and what it
+/// does not duplicate is the wire: `MariaConn::query` delegates into the same
+/// framing and hands back the same [`MySqlRows`]. So the only difference this
+/// file can observe between the two is the *type of the borrow*, and without
+/// this every reader below would grow a second arm copying the first line for
+/// line. `nvs-cli` has the same enum for the same reason, on the other side of
+/// ADR 0132 § 1's crate graph.
+enum Framed<'a> {
+    /// MySQL's framing of § 2's schema and § 4's statements.
+    MySql(&'a mut MySqlConn),
+    /// The same, framed as MariaDB.
+    MariaDb(&'a mut MariaConn),
+}
+
+impl Framed<'_> {
+    /// One statement and the rows it answers with, as the driver's own `query`.
+    fn query(&mut self, sql: &str, bound: &[Option<&[u8]>]) -> io::Result<MySqlRows<'_>> {
+        match self {
+            Framed::MySql(mysql) => mysql.query(sql, bound),
+            Framed::MariaDb(maria) => maria.query(sql, bound),
+        }
+    }
+
+    /// One statement run for its effect, as the driver's own `execute_many`.
+    fn execute_many(&mut self, sql: &str, sets: &[&[Option<&[u8]>]]) -> io::Result<u64> {
+        match self {
+            Framed::MySql(mysql) => mysql.execute_many(sql, sets),
+            Framed::MariaDb(maria) => maria.execute_many(sql, sets),
+        }
+    }
+
+    /// ADR 0067 § 7's `START TRANSACTION`.
+    fn begin(&mut self, isolation: Option<Isolation>, read_only: bool) -> io::Result<QuerySpan> {
+        match self {
+            Framed::MySql(mysql) => mysql.begin(isolation, read_only),
+            Framed::MariaDb(maria) => maria.begin(isolation, read_only),
+        }
+    }
+
+    /// § 7's `COMMIT`.
+    fn commit(&mut self) -> io::Result<QuerySpan> {
+        match self {
+            Framed::MySql(mysql) => mysql.commit(),
+            Framed::MariaDb(maria) => maria.commit(),
+        }
+    }
+
+    /// § 7's `ROLLBACK`.
+    fn roll_back(&mut self) -> io::Result<QuerySpan> {
+        match self {
+            Framed::MySql(mysql) => mysql.roll_back(),
+            Framed::MariaDb(maria) => maria.roll_back(),
+        }
+    }
 }
 
 /// § 2's schema, applied once for this whole binary however many cases run.
@@ -94,29 +329,28 @@ fn open(server: &Server) -> PgConn {
 /// moment, which answers a uniqueness error on the catalog rather than a
 /// no-op. Cargo runs these cases on threads of one process, so that race is the
 /// ordinary case here and not a rare one.
-fn schema(server: &Server) {
+fn schema(leg: &Leg) {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
-        let mut conn = open(server);
-        for step in queue::MIGRATION_POSTGRES {
+        let mut conn = open(leg);
+        let steps = queue::migration(leg.driver).expect("`endpoint` skipped the drivers with none");
+        for step in steps {
             apply(&mut conn, step.sql, &[]);
         }
     });
 }
 
 /// Whatever an earlier run left on `queue`, in both tables.
-fn clear(conn: &mut PgConn, queue: &str) {
+fn clear(conn: &mut Conn, queue: &str) {
     let name = queue.as_bytes();
-    apply(
-        conn,
-        "delete from nvs_jobs where queue = $1::text",
-        &[Some(name)],
-    );
-    apply(
-        conn,
-        "delete from nvs_dead_jobs where queue = $1::text",
-        &[Some(name)],
-    );
+    let text = conn.text();
+    for table in ["nvs_jobs", "nvs_dead_jobs"] {
+        apply(
+            conn,
+            &format!("delete from {table} where queue = {text}"),
+            &[Some(name)],
+        );
+    }
 }
 
 /// § 3's `insert into orders …`: the application table the two transactional
@@ -132,10 +366,16 @@ fn clear(conn: &mut PgConn, queue: &str) {
 ///
 /// The `Once` is [`schema`]'s and for [`schema`]'s reason, and the `delete` is
 /// [`clear`]'s half for the one table § 2 does not own.
-fn orders(server: &Server, conn: &mut PgConn, queue: &str) {
+///
+/// **The `create` is PostgreSQL's spelling and stays that way while its callers
+/// are**: § 3's two cases are the only ones, both are gated on [`postgres`],
+/// and `bigserial` is the one construct here with no framed spelling. A case
+/// that needs this table on another driver splits the statement the way
+/// [`queue::MIGRATION_MYSQL`] splits § 2's.
+fn orders(leg: &Leg, conn: &mut Conn, queue: &str) {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
-        let mut own = open(server);
+        let mut own = open(leg);
         apply(
             &mut own,
             "create table if not exists nvs_stdlib_tests_orders \
@@ -143,48 +383,103 @@ fn orders(server: &Server, conn: &mut PgConn, queue: &str) {
             &[],
         );
     });
+    let text = conn.text();
     apply(
         conn,
-        "delete from nvs_stdlib_tests_orders where queue = $1::text",
+        &format!("delete from nvs_stdlib_tests_orders where queue = {text}"),
         &[Some(queue.as_bytes())],
     );
 }
 
-/// Every row `sql` answers with, each column as the text PostgreSQL sent and
-/// `None` for SQL `NULL`.
+/// Every row `sql` answers with, each column as text and `None` for SQL `NULL`.
 ///
 /// It drains to the end of the stream whatever it found, for the reason
 /// `Core\Queue::push` does: the connection has to be back at a message boundary
 /// before the next statement on it starts.
-fn rows(conn: &mut PgConn, sql: &str, bound: &[Option<&[u8]>]) -> Vec<Vec<Option<String>>> {
-    let mut answered = conn
-        .query(sql, bound)
-        .expect("the server ran the statement");
-    // Taken before the first row, because a `PgRows` lends its columns and its
-    // rows out of one borrow.
-    let width = answered.columns().len();
-    let mut all = Vec::new();
-    while let Some(row) = answered
-        .next_row()
-        .expect("a row, or the end of the stream")
-    {
-        let mut one = Vec::with_capacity(width);
-        for at in 0..width {
-            one.push(
-                row.column(at)
-                    .expect("the row has that column")
-                    .map(|body| {
-                        String::from_utf8(body.to_vec()).expect("PostgreSQL's text format is UTF-8")
-                    }),
-            );
+///
+/// **The two arms are two protocols and not two spellings of one walk**, which
+/// is why nothing here is shared between them: PostgreSQL's extended query
+/// answers a column as the text it renders to, where the framed drivers send a
+/// `bigint` as octets against the column definition it arrived under —
+/// [`rendered`] is the whole of what that costs a case.
+fn rows(conn: &mut Conn, sql: &str, bound: &[Option<&[u8]>]) -> Vec<Vec<Option<String>>> {
+    match conn.dialect() {
+        Dialect::Postgres(postgres) => {
+            let mut answered = postgres
+                .query(sql, bound)
+                .expect("the server ran the statement");
+            // Taken before the first row, because a `PgRows` lends its columns
+            // and its rows out of one borrow.
+            let width = answered.columns().len();
+            let mut all = Vec::new();
+            while let Some(row) = answered
+                .next_row()
+                .expect("a row, or the end of the stream")
+            {
+                let mut one = Vec::with_capacity(width);
+                for at in 0..width {
+                    one.push(
+                        row.column(at)
+                            .expect("the row has that column")
+                            .map(|body| {
+                                String::from_utf8(body.to_vec())
+                                    .expect("PostgreSQL's text format is UTF-8")
+                            }),
+                    );
+                }
+                all.push(one);
+            }
+            all
         }
-        all.push(one);
+        Dialect::Framed(mut framed) => {
+            let mut answered = framed
+                .query(sql, bound)
+                .expect("the server ran the statement");
+            // Described before the first row for the same borrow reason, and
+            // needed whatever that reason: `nvs_db::mysql::scalar` reads a
+            // value against the definition it arrived under.
+            let columns = answered.columns().to_vec();
+            let mut all = Vec::new();
+            while let Some(row) = answered
+                .next_row()
+                .expect("a row, or the end of the stream")
+            {
+                let mut one = Vec::with_capacity(columns.len());
+                for (at, column) in columns.iter().enumerate() {
+                    let body = row.value(at).expect("the row has that column");
+                    one.push(rendered(
+                        nvs_db::mysql::scalar(column, body).expect("the column is one § 9 maps"),
+                    ));
+                }
+                all.push(one);
+            }
+            all
+        }
     }
-    all
+}
+
+/// One framed column as the text the same column arrives as on PostgreSQL.
+///
+/// **§ 2's schema is `bigint` and text columns and nothing else**, so the four
+/// rows below are the whole of what a statement in this file can answer with
+/// and every one of them has a rendering both protocols agree on. Anything else
+/// is this file reading a column § 2 does not declare, which says so rather
+/// than rendering something plausible a case would then assert against.
+fn rendered(read: MySqlScalar<'_>) -> Option<String> {
+    match read {
+        MySqlScalar::Null => None,
+        MySqlScalar::Int(at) => Some(at.to_string()),
+        MySqlScalar::UInt(at) => Some(at.to_string()),
+        MySqlScalar::Text(text) => Some(text.to_string()),
+        MySqlScalar::Bytes(octets) => Some(
+            String::from_utf8(octets.to_vec()).expect("§ 2 declares no column that is not text"),
+        ),
+        other => panic!("§ 2's schema declares no column that reads as {other:?}"),
+    }
 }
 
 /// One row's first column, as the text it arrived as.
-fn one(conn: &mut PgConn, sql: &str, bound: &[Option<&[u8]>]) -> String {
+fn one(conn: &mut Conn, sql: &str, bound: &[Option<&[u8]>]) -> String {
     let mut answered = rows(conn, sql, bound);
     assert_eq!(answered.len(), 1, "`{sql}` answered with one row");
     answered
@@ -194,49 +489,122 @@ fn one(conn: &mut PgConn, sql: &str, bound: &[Option<&[u8]>]) -> String {
 }
 
 /// A statement run for its effect, answering the count it affected.
-fn apply(conn: &mut PgConn, sql: &str, bound: &[Option<&[u8]>]) -> u64 {
-    conn.execute_many(sql, &[bound])
-        .expect("the server ran the statement")
+fn apply(conn: &mut Conn, sql: &str, bound: &[Option<&[u8]>]) -> u64 {
+    match conn.dialect() {
+        Dialect::Postgres(postgres) => postgres.execute_many(sql, &[bound]),
+        Dialect::Framed(mut framed) => framed.execute_many(sql, &[bound]),
+    }
+    .expect("the server ran the statement")
 }
 
-/// One pending job on `queue`, due at `at`, answering the id `INSERT_POSTGRES` returned.
+/// One pending job on `queue`, due at `at`, answering the id the insert wrote.
 ///
 /// `max_attempts` is the case's whole lever over § 6: a job pushed with `1` is
 /// exhausted by its first claim, and one pushed with more is owed another.
-fn push(conn: &mut PgConn, queue: &str, at: i64, max_attempts: &str) -> String {
+///
+/// **A push with no dedupe key is one statement in both dialects**, which is
+/// why this is not a [`queue::Split`] anywhere: [`queue::INSERT_MYSQL`]'s first
+/// half is the dedupe read, and `Core\Queue::push` skips it for exactly this
+/// case. What does differ is where the id comes from — PostgreSQL's
+/// `returning`, and the framed drivers' own OK packet, which
+/// [`nvs_db::MySqlRows::last_id`] carries and a `select last_insert_id()` would
+/// pay a third round trip for.
+fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
     let at = millis(at);
-    one(
-        conn,
-        queue::INSERT_POSTGRES,
-        &[
-            // No dedupe key: `INSERT_POSTGRES`'s `existing` arm is empty for a null
-            // `$1`, which is the ordinary push.
-            None,
-            Some(queue.as_bytes()),
-            Some(b"scripts/receipt.nvs"),
-            Some(br#"{"order":7}"#),
-            Some(PENDING),
-            Some(max_attempts.as_bytes()),
-            Some(b"1000"),
-            Some(at.as_slice()),
-            Some(at.as_slice()),
-        ],
-    )
+    let (script, args, backoff) = (
+        &b"scripts/receipt.nvs"[..],
+        &br#"{"order":7}"#[..],
+        &b"1000"[..],
+    );
+    if conn.driver() == Driver::Postgres {
+        return one(
+            conn,
+            queue::INSERT_POSTGRES,
+            &[
+                // No dedupe key: `INSERT_POSTGRES`'s `existing` arm is empty for a null
+                // `$1`, which is the ordinary push.
+                None,
+                Some(queue.as_bytes()),
+                Some(script),
+                Some(args),
+                Some(PENDING),
+                Some(max_attempts.as_bytes()),
+                Some(backoff),
+                Some(at.as_slice()),
+                Some(at.as_slice()),
+            ],
+        );
+    }
+
+    // `INSERT_MYSQL.then`'s own order, which is not `INSERT_POSTGRES`'s: the
+    // dedupe key is ninth here and first there, and `attempts` is a literal
+    // rather than a parameter.
+    let bound = [
+        Some(queue.as_bytes()),
+        Some(script),
+        Some(args),
+        Some(PENDING),
+        Some(max_attempts.as_bytes()),
+        Some(backoff),
+        Some(at.as_slice()),
+        None,
+        Some(at.as_slice()),
+    ];
+    let Dialect::Framed(mut framed) = conn.dialect() else {
+        unreachable!("every driver but PostgreSQL is the framed dialect here")
+    };
+    let mut answered = framed
+        .query(queue::INSERT_MYSQL.then, &bound)
+        .expect("the server ran the statement");
+    // An insert answers no result set, and draining is both what ends the
+    // statement on this driver and what lets `last_id` be read at all.
+    while answered
+        .next_row()
+        .expect("the end of the stream")
+        .is_some()
+    {}
+    answered
+        .last_id()
+        .filter(|id| *id != 0)
+        .expect("the insert answered the `AUTO_INCREMENT` id `MIGRATION_MYSQL` declares")
+        .to_string()
 }
 
 /// One claim against `queue`, taken at `now`, returning jobs whose lease was
 /// taken at or before `cutoff` as well as the ones nothing holds.
-fn claim(conn: &mut PgConn, queue: &str, now: i64, cutoff: i64) -> Vec<Vec<Option<String>>> {
+///
+/// **Three values in one order for both dialects**, exactly as
+/// `crates/nvs-cli/src/worker.rs`'s own claim sends them, and the answer is
+/// [`queue::CLAIM_POSTGRES`]'s `returning` list either way — that is what
+/// [`queue::CLAIM_MYSQL`]'s `select` is written to name. What differs is how
+/// many statements it took: the pair's `update` is keyed by the id its `select`
+/// just locked, and the transaction around them is what carries the lock across
+/// the gap a single statement did not have.
+fn claim(conn: &mut Conn, queue: &str, now: i64, cutoff: i64) -> Vec<Vec<Option<String>>> {
     let (now, cutoff) = (millis(now), millis(cutoff));
-    rows(
-        conn,
-        queue::CLAIM_POSTGRES,
-        &[
-            Some(queue.as_bytes()),
-            Some(now.as_slice()),
-            Some(cutoff.as_slice()),
-        ],
-    )
+    let bound = [
+        Some(queue.as_bytes()),
+        Some(now.as_slice()),
+        Some(cutoff.as_slice()),
+    ];
+    if conn.driver() == Driver::Postgres {
+        return rows(conn, queue::CLAIM_POSTGRES, &bound);
+    }
+
+    conn.begin(None, false)
+        .expect("the server opened the transaction");
+    let took = rows(conn, queue::CLAIM_MYSQL.first, &bound);
+    for row in &took {
+        let id = row[0].as_deref().expect("a claimed row names its id");
+        apply(
+            conn,
+            queue::CLAIM_MYSQL.then,
+            &[Some(now.as_slice()), Some(id.as_bytes())],
+        );
+    }
+    conn.commit()
+        .expect("the server closed the transaction the pair was one moment inside");
+    took
 }
 
 /// How many jobs and how many orders `queue` has, read in one statement.
@@ -244,7 +612,7 @@ fn claim(conn: &mut PgConn, queue: &str, now: i64, cutoff: i64) -> Vec<Vec<Optio
 /// **One read rather than two**, because § 3's property is about the pair: "one
 /// exists without the other" is a state two statements can each miss, since
 /// whatever happened between them is a moment neither one looked at.
-fn landed(conn: &mut PgConn, queue: &str) -> (String, String) {
+fn landed(conn: &mut Conn, queue: &str) -> (String, String) {
     let mut answered = rows(
         conn,
         "select (select count(*) from nvs_jobs where queue = $1::text), \
@@ -264,9 +632,11 @@ fn millis(at: i64) -> Vec<u8> {
     at.to_string().into_bytes()
 }
 
-/// `id`, `attempts` and `max_attempts`'s places in `CLAIM_POSTGRES`'s `returning` list,
-/// which that constant's doc owns.
+/// `id`, `script`, `attempts` and `max_attempts`'s places in `CLAIM_POSTGRES`'s
+/// `returning` list, which that constant's doc owns and which
+/// [`queue::CLAIM_MYSQL`]'s `select` names in the same order.
 const ID: usize = 0;
+const SCRIPT: usize = 1;
 const ATTEMPTS: usize = 3;
 const MAX_ATTEMPTS: usize = 4;
 
@@ -870,5 +1240,275 @@ fn retries_are_bounded_and_backoff_is_jittered() {
         ),
         "2",
         "both jobs are dead-lettered having spent every attempt they were given"
+    );
+}
+
+/// §§ 2 and 4 against a real MySQL or MariaDB server: the schema applies, a job
+/// pushed onto it is claimed once, and the claim answers the columns
+/// `CLAIM_POSTGRES` answers.
+///
+/// **This is the first assertion in this file that is not PostgreSQL's**, and
+/// what it is for is the half a unit agreement cannot reach: [`queue`]'s two
+/// rosters are held against each other by
+/// `both_dialects_answer_a_claim_with_the_same_columns`, which proves the two
+/// *texts* name the same columns and cannot prove that either text is one a
+/// server accepts. § 2's DDL, `skip locked`, the generated column and the
+/// `AUTO_INCREMENT` id are each a construct only a server can refuse.
+///
+/// **Three things here are the [`queue::Split`] and not the statement.**
+/// `attempts` is read as the value the row is *about to* have, because the
+/// `update` has not run when the `select` answers — a claim answering the
+/// pre-increment count would stop § 6's ladder one rung short. `claimed_at` is
+/// asserted by value, because the pair's second half binds the lease and the id
+/// in that order and a swapped pair still runs. And the second claim finding
+/// nothing is where the lock the transaction carries across the two round trips
+/// is observable at all.
+#[test]
+fn a_framed_push_is_claimed_once_and_answers_the_columns_postgresql_does() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed";
+    const DUE: i64 = 1_000;
+    const TAKEN: i64 = 2_000;
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    let id = push(&mut conn, QUEUE, DUE, "3");
+    let took = claim(&mut conn, QUEUE, TAKEN, 0);
+    assert_eq!(took.len(), 1, "one due job is one claimed row");
+    let row = &took[0];
+    assert_eq!(
+        row[ID].as_deref(),
+        Some(id.as_str()),
+        "the claim took the row the insert's own OK packet named"
+    );
+    assert_eq!(
+        row[SCRIPT].as_deref(),
+        Some("scripts/receipt.nvs"),
+        "the `select` answers what to run, at `CLAIM_POSTGRES`'s ordinal for it"
+    );
+    assert_eq!(
+        row[ATTEMPTS].as_deref(),
+        Some("1"),
+        "`attempts + 1` is the count this claim will have spent, not the one it found"
+    );
+    assert_eq!(
+        row[MAX_ATTEMPTS].as_deref(),
+        Some("3"),
+        "the job's own ceiling, which is what § 6's ladder is judged against"
+    );
+
+    let written = rows(
+        &mut conn,
+        "select state, attempts, claimed_at from nvs_jobs where id = ?",
+        &[Some(id.as_bytes())],
+    );
+    assert_eq!(
+        written,
+        vec![vec![
+            Some("1".to_string()),
+            Some("1".to_string()),
+            Some(TAKEN.to_string()),
+        ]],
+        "the pair's `update` armed the row it locked, and its lease is the instant it was sent"
+    );
+
+    assert!(
+        claim(&mut conn, QUEUE, TAKEN + 1, 0).is_empty(),
+        "a leased job is claimed once: nothing is due, and the lease is not past its cutoff"
+    );
+}
+
+/// § 6's two write-backs on the framed dialect: a report reaches the row it
+/// claimed and reaches no other.
+///
+/// **Both are keyed on the lease and the affected count is the whole answer**,
+/// because neither dialect's `update` has a `returning` here: a worker that
+/// overran § 4's visibility window is a report carrying a `claimed_at` the row
+/// no longer has, and what it must do is match nothing rather than cancel the
+/// attempt that replaced it. Asserted from both sides — a stale lease affects
+/// no row, the real one affects exactly its own.
+///
+/// **`RETRY_MYSQL` binds `run_at`, `id`, `claimed_at`** where its PostgreSQL
+/// twin binds `id`, `claimed_at`, `run_at`, a `?` being bound by the position
+/// it occupies and the `set` clause standing left of the `where`. That constant
+/// owns why; this is where the order meets a server, and a caller that reused
+/// PostgreSQL's would arm the row at an instant of the job's own id.
+#[test]
+fn a_framed_write_back_reaches_the_lease_it_was_claimed_with_and_no_other() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-report";
+    const TAKEN: i64 = 3_000;
+    const ARMED: i64 = 9_000;
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    let retried = push(&mut conn, QUEUE, 1_000, "3");
+    let succeeded = push(&mut conn, QUEUE, 1_001, "3");
+    assert_eq!(claim(&mut conn, QUEUE, TAKEN, 0).len(), 1, "the older job");
+    assert_eq!(claim(&mut conn, QUEUE, TAKEN, 0).len(), 1, "then the other");
+
+    assert_eq!(
+        apply(
+            &mut conn,
+            queue::SUCCEEDED_MYSQL,
+            &[
+                Some(succeeded.as_bytes()),
+                Some(millis(TAKEN - 1).as_slice())
+            ],
+        ),
+        0,
+        "a lease the row does not hold is a worker reporting on an attempt that is over"
+    );
+    assert_eq!(
+        apply(
+            &mut conn,
+            queue::SUCCEEDED_MYSQL,
+            &[Some(succeeded.as_bytes()), Some(millis(TAKEN).as_slice())],
+        ),
+        1,
+        "the lease it was claimed with names its own row and nothing else"
+    );
+
+    assert_eq!(
+        apply(
+            &mut conn,
+            queue::RETRY_MYSQL,
+            &[
+                Some(millis(ARMED).as_slice()),
+                Some(retried.as_bytes()),
+                Some(millis(TAKEN).as_slice()),
+            ],
+        ),
+        1,
+        "the retry is keyed on the same lease, in this dialect's own bind order"
+    );
+
+    let written = rows(
+        &mut conn,
+        "select id, state, run_at, claimed_at from nvs_jobs where queue = ? order by id",
+        &[Some(QUEUE.as_bytes())],
+    );
+    assert_eq!(
+        written,
+        vec![
+            vec![
+                Some(retried.clone()),
+                Some("0".to_string()),
+                Some(ARMED.to_string()),
+                None,
+            ],
+            vec![
+                Some(succeeded.clone()),
+                Some("2".to_string()),
+                Some("1001".to_string()),
+                None,
+            ],
+        ],
+        "one job is pending again at the instant the ladder chose, the other is done where it ran"
+    );
+
+    assert_eq!(
+        claim(&mut conn, QUEUE, ARMED, 0).len(),
+        1,
+        "an armed job is claimable at its new `run_at`, and a succeeded one never again"
+    );
+}
+
+/// § 6's move on the framed dialect: an exhausted job is in the dead-letter
+/// table or in the jobs table, and the pair is what holds it to one of them.
+///
+/// **The copy runs before the delete here, which is the reverse of
+/// PostgreSQL's**, and it is the only order there is once the `delete` cannot
+/// answer with what it removed. So the property one data-modifying CTE holds by
+/// construction is held by the transaction instead, and this is where that is
+/// asserted against a server: both halves keyed on the lease, and the row
+/// counted on both sides rather than only where it went.
+#[test]
+fn a_framed_exhausted_job_moves_to_the_dead_letter_table_in_one_transaction() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-dead";
+    const TAKEN: i64 = 4_000;
+    const FAILED: i64 = 4_500;
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    let id = push(&mut conn, QUEUE, 1_000, "1");
+    let took = claim(&mut conn, QUEUE, TAKEN, 0);
+    assert_eq!(took.len(), 1, "one due job is one claimed row");
+    assert_eq!(
+        (
+            took[0][ATTEMPTS].as_deref(),
+            took[0][MAX_ATTEMPTS].as_deref()
+        ),
+        (Some("1"), Some("1")),
+        "the claim spent the job's last attempt, which is what makes the move the legal one"
+    );
+
+    let errors = queue::dead_errors(TAKEN, "IOError", "the receipt service refused the order");
+    let lease = millis(TAKEN);
+    let split = queue::DEAD_LETTER_MYSQL;
+    conn.begin(None, false)
+        .expect("the server opened the transaction");
+    assert_eq!(
+        apply(
+            &mut conn,
+            split.first,
+            &[
+                Some(millis(FAILED).as_slice()),
+                Some(errors.as_bytes()),
+                Some(id.as_bytes()),
+                Some(lease.as_slice()),
+            ],
+        ),
+        1,
+        "the copy reads the columns while they still exist, keyed on the lease"
+    );
+    assert_eq!(
+        apply(
+            &mut conn,
+            split.then,
+            &[Some(id.as_bytes()), Some(lease.as_slice())],
+        ),
+        1,
+        "and the delete is keyed on the same lease, so it cannot take a row from its new owner"
+    );
+    conn.commit()
+        .expect("the server closed the transaction the pair was one moment inside");
+
+    assert_eq!(
+        one(
+            &mut conn,
+            "select count(*) from nvs_jobs where id = ?",
+            &[Some(id.as_bytes())],
+        ),
+        "0",
+        "the job left the jobs table rather than staying claimed"
+    );
+    let dead = rows(
+        &mut conn,
+        "select id, queue, errors, failed_at from nvs_dead_jobs where id = ?",
+        &[Some(id.as_bytes())],
+    );
+    assert_eq!(
+        dead,
+        vec![vec![
+            Some(id.clone()),
+            Some(QUEUE.to_string()),
+            Some(errors.clone()),
+            Some(FAILED.to_string()),
+        ]],
+        "it is in the other table, carrying its own columns and the array § 6 asks for"
     );
 }
