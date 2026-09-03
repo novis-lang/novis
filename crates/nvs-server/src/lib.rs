@@ -10,11 +10,19 @@
 //!
 //! # What is here so far
 //!
-//! [`io`], and nothing else. That module is the seam between a library that is
+//! [`io`] and [`serve`]. The first is the seam between a library that is
 //! `async` and a runtime that is not: `hyper`'s two IO traits over
 //! [`nvs_host::NvsTcp`], driven by [`nvs_host::block_on()`] on the coroutine that
-//! owns the connection. The listener, the mount table and the response policy
-//! are the slices after it.
+//! owns the connection. The second is the socket on either end of it — accept,
+//! one child task per connection, one connection future per task — and it
+//! answers a request with whatever its caller's handler returns.
+//!
+//! What is **not** here yet is the mount table, the response policy and the
+//! request itself: a handler cannot park, so the request that runs Novis code is
+//! ADR 0006's isolate and is the slice after these. [`serve`]'s own docs § *What
+//! this module does not decide yet* is the list, and it includes the one that
+//! matters most — a connection carries no deadline, so nothing user-reachable
+//! starts this loop until it does.
 //!
 //! # Why `hyper` and not our own h1
 //!
@@ -39,5 +47,7 @@
 //! reading and of what pinning `hyper` backwards would have cost instead.
 
 pub mod io;
+pub mod serve;
 
 pub use io::ConnectionIo;
+pub use serve::{Answer, serve_connection, serve_on_this_core};
