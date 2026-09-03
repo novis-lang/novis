@@ -57,7 +57,7 @@
 > both run a block end to end**: `connect` and `open` pool either, §§ 1, 3, 5, 7, 9 and 13 follow
 > each driver's own — MariaDB's auth roster and § 8 table over MySQL's framing, `Framed` the one
 > send body — and a real server of each holds § 3's park, § 7, § 8 and § 13's pool. **SQL Server
-> opens, reads and writes**: `connect`, `open`, `query`, `execute`; § 4's batch and § 7 refuse.
+> opens, reads, writes and batches**: `connect`, `open`, `execute`, `executeMany`; § 7 refuses.
 > **Stage 9 is § 10's three diagnostics, ADR 0024 § 4's pair, and § 11 whole.** **ADR 0133's carrier
 > landed**: `Core\Html::escape` answers `Core\Html\Markup`, `toSource` is the one way out, and `.`,
 > `.=`, interpolation and `as string` refuse one. **Goals 1-4 and M4 are closed**. Conformance 1436,

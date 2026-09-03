@@ -1689,6 +1689,15 @@ is why" — is this file.
   than the repository root, and the failure blames the wrong thing twice over: the first case
   panics inside `open` with a bare `NotFound`, and every case after it reports `Once instance has
   previously been poisoned` from `schema`, which reads as a broken fixture rather than a bad path.
+- **A handoff item can already be on disk, green, and still be the next item — one `--locate` says
+  which.** Stage 7's `mssql_resets_through_sp_reset_connection_and_loses_its_cache` was named as the
+  next slice by the session that had already written it, and `loop-goal.toml`'s comment beside the
+  check still said `TdsConn` was a stub the test could not be written against at all — so the item
+  read as open from two directions at once. `python tools/peek.py --locate <the test name>` is one
+  call and `cargo test -p <crate> <name>` is the second, and together they cost less than the first
+  `grep` of the file you were about to write it into. What the session then owes is the *comment*,
+  in both `docs/agent/loop-goal.toml` and `docs/agent/goals/5-database.toml`: they carry the same
+  check text, and fixing one leaves the other saying the feature does not exist.
 
 ## Running things
 
