@@ -4896,6 +4896,14 @@ is why" — is this file.
   raises `E0459` on both receivers, so the narrowing is per-`if` and does not ride a conjunction.
   One `if` per object receiver is the shape that compiles; a `?decimal` and a `?bool` need none at
   all, since `echo` and a ternary condition both take them.
+- **A `\` at the end of a line inside a Novis string literal is a literal backslash, not a
+  continuation — and a long SQL statement is where that bites.** Rust's `"…\` + newline eats the
+  newline and the next line's indentation, so a `create table` wrapped that way in a `.nvst` case
+  looks ordinary and reaches the driver as `…, \` + newline + five spaces: SQLite answered
+  `unrecognized token: "\"` and the failure names an offset in a statement the case never wrote.
+  Keep a statement literal on one line however long it gets, or build it by concatenation; the
+  corpus's other long statements are all one line, which is why nothing about this is visible from
+  reading them.
 
 ## Splitting a file that got too big
 

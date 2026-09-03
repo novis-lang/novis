@@ -61,7 +61,7 @@
 > declared**. **Stage 9 is § 10's three diagnostics, ADR 0024 § 4's pair, and § 11 whole.** **ADR
 > 0133's carrier landed**: `Core\Html::escape` answers `Core\Html\Markup`, `toSource` is the one way
 > out, and `.`, `.=`, interpolation and `as string` refuse one. **Goals 1-4 and M4 are closed**.
-> Conformance 1439, differential 250, migration 90%/74%.
+> Conformance 1440, differential 250, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
