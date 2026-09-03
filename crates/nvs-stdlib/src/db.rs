@@ -85,16 +85,16 @@
 //!    [`settings_driver`] is therefore a literal one arm has already accepted,
 //!    which is why it reads the discriminant before it reads anything else and
 //!    why every slot it then reads is filled.
-//! 2. **Three drivers open, and everything past the handshake follows.**
+//! 2. **Four drivers open, and everything past the handshake follows.**
 //!    `connect`
 //!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block,
-//!    a `mysql` block and a `mariadb` block each reach their own target, their
-//!    own default port and their own `nvs_db::Connection` variant, and `open`
-//!    branches the same three ways on the settings hash's own `driver`. A block
-//!    naming either of the other two is still refused by
+//!    a `mysql` block, a `mariadb` block and an `mssql` one each reach their own
+//!    target, their own default port and their own `nvs_db::Connection`
+//!    variant, and `open` branches the same four ways on the settings hash's own
+//!    `driver`. A block naming `sqlite` is still refused by
 //!    `nvs_db::PgTarget::resolve` with the
-//!    message that names the driver it is, which is the honest answer while
-//!    those variants have no connect path behind them. Past the handshake the
+//!    message that names the driver it is, which is the honest answer while that
+//!    variant has no connect path behind it. Past the handshake the
 //!    list is shorter than that. Binding is whole: [`rendering_of`] pairs § 5's
 //!    dialect with § 9's encoder off the connection's own [`nvs_db::Driver`],
 //!    so a MySQL statement is rewritten to `?` and bound as MySQL reads a
@@ -106,14 +106,14 @@
 //!    but the five points this module asks them at do not. MySQL and MariaDB
 //!    reach all of it through one body rather than two: [`Framed`] is that
 //!    seam, and its doc is where "its own driver above the framing, not inside
-//!    it" is argued. **SQL Server reads, once one is open**: [`rendering_for`]
-//!    binds a parameter through `nvs_db::tds::encode` and [`tds_rows`] drains
-//!    the token stream, so `query` and `queryAs` answer on it — but `connect`
-//!    and `open` have no arm that calls `nvs_db::TdsConn::connect`, so nothing
-//!    in a program can hold one yet and that arm is what stands between this
-//!    and § 4 running on the driver. `execute` has the same driver method
-//!    behind it as `query` and no arm here either; § 4's batch and § 7's
-//!    commands have no `nvs_db::TdsConn` primitive at all. What is still
+//!    it" is argued. **SQL Server opens and runs one statement**:
+//!    `nvs_db::TdsConn::connect` is reached from both openers,
+//!    [`rendering_for`] binds a parameter through `nvs_db::tds::encode`, and the
+//!    one `sp_prepexec` behind `nvs_db::TdsConn::query` answers all three
+//!    members built on it — [`tds_rows`] drains the token stream for `query` and
+//!    `queryAs`, [`tds_write`] drains it for `execute`'s count. § 4's batch and
+//!    § 7's commands have no `nvs_db::TdsConn` primitive at all and are the
+//!    driver's remaining refusals. What is still
 //!    PostgreSQL-only is [`crate::queue`]'s four members. Known gap 2 above the
 //!    handshake is therefore a roster per member rather than one list, which is
 //!    what [`driverless`] takes.
@@ -2947,15 +2947,17 @@ pub(crate) fn open_named(
     let opened = match pooled {
         Some(warm) => warm,
         // ADR 0067 § 2's `driver` decides which handshake goes out, and it is
-        // read here rather than inside a driver: the two openers share nothing
-        // but this shape — their own target, their own default port, their own
-        // `Connection` variant — and one resolver answering for both is the
-        // trait ADR 0132 § 5 declines to write.
+        // read here rather than inside a driver: the openers share nothing but
+        // this shape — their own target, their own default port, their own
+        // `Connection` variant — and one resolver answering for all of them is
+        // the trait ADR 0132 § 5 declines to write.
         //
         // Every other spelling goes to PostgreSQL, including the block that
         // writes no `driver` at all and the one whose `driver` no backend
         // answers to: `PgTarget::resolve` is where each of those refusals is
         // worded, and it names what was written rather than what it wanted.
+        // `sqlite` is one of those spellings and earns that refusal, since a
+        // file has no address for this path to resolve.
         None => match driver {
             Some(nvs_db::Driver::MySql) => {
                 let target = nvs_db::MySqlTarget::resolve(block).map_err(|refused| {
@@ -2976,6 +2978,15 @@ pub(crate) fn open_named(
                 let conn = nvs_db::MariaConn::connect(address, &target, deadline)
                     .map_err(|err| opening(address, &err))?;
                 nvs_db::Connection::MariaDb(conn)
+            }
+            Some(nvs_db::Driver::SqlServer) => {
+                let target = nvs_db::TdsTarget::resolve(block).map_err(|refused| {
+                    Fault::thrown(format!("{named}: {}", refused.refusal(name)))
+                })?;
+                let address = address_of(target.host, block.port, nvs_db::tds::DEFAULT_PORT, name)?;
+                let conn = nvs_db::TdsConn::connect(address, &target, deadline)
+                    .map_err(|err| opening(address, &err))?;
+                nvs_db::Connection::SqlServer(conn)
             }
             _ => {
                 let target = nvs_db::PgTarget::resolve(block).map_err(|refused| {
@@ -3359,9 +3370,20 @@ nvs_runtime::nvs_helper! {
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::Postgres(conn)
                     }
-                    // SQL Server, which binds and decodes but has no handshake
-                    // here — known gap 2's list, and the same refusal a block
-                    // naming it earns. SQLite left above, at its own field.
+                    nvs_db::Driver::SqlServer => {
+                        let mut target = nvs_db::TdsTarget::resolve(&block).map_err(refused)?;
+                        target.time_zone = zone;
+                        let address =
+                            SocketAddr::new(pinned, port_of(port, nvs_db::tds::DEFAULT_PORT));
+                        let conn = nvs_db::TdsConn::connect(address, &target, deadline)
+                            .map_err(|err| opening(address, &err))?;
+                        nvs_db::Connection::SqlServer(conn)
+                    }
+                    // SQLite is the only driver left, and it never arrives: its
+                    // arm is taken above at its own field, before a host is
+                    // resolved at all. This arm is what keeps the match total,
+                    // and the refusal it words is the honest one for a backend
+                    // added later whose opener has not landed with it.
                     other => {
                         return Err(Fault::thrown(format!(
                             "{OPEN}: `{}` is a driver this build has no connection path for yet, \
@@ -4178,9 +4200,9 @@ fn batch_of(
 /// and § 13 says of both that it drops the prepared statements with the session
 /// state.
 ///
-/// **Nothing reaches the SQL Server arm yet**, because `connect` and `open`
-/// have no handshake for that driver — the module doc's known gap 2 is the
-/// list. The arm is here rather than after it for the reason § 13 gives: a
+/// **The SQL Server arm is reached now**: both openers call
+/// `nvs_db::TdsConn::connect`, so a released connection is one this function is
+/// asked for. It was written before either did, for the reason § 13 gives: a
 /// driver that becomes openable while this function still answers `None` for it
 /// is a pool that quietly stops pooling, which nothing observable would report.
 fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connection> {
@@ -4496,7 +4518,12 @@ fn transacting<'a>(
         nvs_db::Connection::Postgres(postgres) => Ok(Transacting::Postgres(postgres)),
         nvs_db::Connection::MySql(mysql) => Ok(Transacting::MySql(mysql)),
         nvs_db::Connection::MariaDb(maria) => Ok(Transacting::MariaDb(maria)),
-        other => Err(driverless(named, block, other.driver(), BEYOND_READING)),
+        other => Err(driverless(
+            named,
+            block,
+            other.driver(),
+            BEYOND_ONE_STATEMENT,
+        )),
     }
 }
 
@@ -4609,37 +4636,51 @@ fn queried_rows(
         nvs_db::Connection::SqlServer(tds) => {
             tds_rows(tds, &statement, &sending, source, watch, named)?
         }
-        other => return Err(driverless(named, &statement.block, other.driver(), READING)),
+        other => {
+            return Err(driverless(
+                named,
+                &statement.block,
+                other.driver(),
+                ONE_STATEMENT,
+            ));
+        }
     };
     watch.file(ctx, taken);
     Ok(answered)
 }
 
-/// Known gap 2's roster for the two members that only read a result set —
-/// § 4's `query` and `queryAs`, both of them [`queried_rows`].
+/// Known gap 2's roster for the three members that are one statement over the
+/// driver's own `query` — § 4's `query` and `queryAs`, both of them
+/// [`queried_rows`], and `execute`, which is [`tds_write`]'s and
+/// [`mysql_write`]'s same send read for its count.
 ///
 /// **A roster per member and not one list**, which is the whole of what SQL
-/// Server changed here: it runs [`tds_rows`] and reaches no other send member,
-/// so a single sentence would either tell an operator calling `query` that the
-/// driver cannot or tell one calling `transaction` that it can. Each is a
-/// message an operator would act on wrongly.
-const READING: &[nvs_db::Driver] = &[
+/// Server changed here: it reaches every member built on one `query` and no
+/// member built on more, so a single sentence would either tell an operator
+/// calling `execute` that the driver cannot or tell one calling `transaction`
+/// that it can. Each is a message an operator would act on wrongly.
+///
+/// The name is the *shape of the send* and not the direction of the data,
+/// because that is the line the two rosters actually fall either side of: what
+/// SQL Server has is `nvs_db::TdsConn::query`, and whether a member reads the
+/// rows back or counts them is `nvs-stdlib`'s business rather than the
+/// driver's — `nvs_db::tds::TdsConn::query`'s own doc says `execute` is that
+/// same method.
+const ONE_STATEMENT: &[nvs_db::Driver] = &[
     nvs_db::Driver::Postgres,
     nvs_db::Driver::MySql,
     nvs_db::Driver::MariaDb,
     nvs_db::Driver::SqlServer,
 ];
 
-/// Known gap 2's roster for the three members that are more than one read —
-/// `execute`'s two counts, § 4's `executeMany` and § 7's `transaction`.
+/// Known gap 2's roster for the two members that are more than one statement —
+/// § 4's `executeMany` and § 7's `transaction`.
 ///
-/// It is [`READING`] less SQL Server, and the reason is `nvs_db::TdsConn`'s own
-/// surface rather than a decision taken here: it has `query` and a reset and
-/// nothing else, so there is no `execute_many` and no `begin` for an arm to
-/// reach. `execute` is the one of the three that could be written against the
-/// method already there — `nvs_db::tds::TdsConn::query`'s doc says `execute` is
-/// that same method — and it has no arm yet.
-const BEYOND_READING: &[nvs_db::Driver] = &[
+/// It is [`ONE_STATEMENT`] less SQL Server, and the reason is
+/// `nvs_db::TdsConn`'s own surface rather than a decision taken here: it has a
+/// `query`, a reset and nothing else, so there is no `execute_many` for
+/// `executeMany`'s arm to call and no `begin` for [`Transacting`] to hold.
+const BEYOND_ONE_STATEMENT: &[nvs_db::Driver] = &[
     nvs_db::Driver::Postgres,
     nvs_db::Driver::MySql,
     nvs_db::Driver::MariaDb,
@@ -4654,11 +4695,11 @@ const BEYOND_READING: &[nvs_db::Driver] = &[
 /// the block actually resolved to, because "this one is not supported" without
 /// saying which is what an operator cannot act on.
 ///
-/// **`reaching` is the caller's own roster**, [`READING`] or [`BEYOND_READING`],
-/// because the four members stopped agreeing when SQL Server gained one arm and
-/// not four. It is rendered by [`named_drivers`] rather than written into the
-/// sentence, so the list an operator reads is the list a `match` arm below
-/// actually has.
+/// **`reaching` is the caller's own roster**, [`ONE_STATEMENT`] or
+/// [`BEYOND_ONE_STATEMENT`], because the four members stopped agreeing when SQL
+/// Server gained the two built on one `query` and neither of the others. It is
+/// rendered by [`named_drivers`] rather than written into the sentence, so the
+/// list an operator reads is the list a `match` arm below actually has.
 fn driverless(
     named: &str,
     block: &Value,
@@ -5113,6 +5154,49 @@ fn mysql_write(
     let written = Written {
         changed: answered.affected(),
         last_id: answered.last_id().filter(|id| *id != 0),
+    };
+    let taken = watch.taken(answered.span());
+    Ok((written, taken))
+}
+
+/// `execute` over the SQL Server driver: the statement [`tds_rows`] sends, read
+/// for its count rather than for its rows.
+///
+/// **`lastId` is `null` on this driver and it is an answer, not a gap.** SQL
+/// Server puts no generated key in the token stream at all — `SCOPE_IDENTITY()`
+/// is a statement a caller writes — which is why `nvs_db::tds::TdsRows` has no
+/// `last_id` for this function to have missed, and § 4's field is `?uint` for
+/// the same absence PostgreSQL has.
+///
+/// **The rows are drained and discarded** for [`postgres_write`]'s reason, and
+/// this backend adds one of its own: `nvs_db::tds::TdsRows::affected` answers
+/// `None` until the stream has ended, because the count rides the `DONE` token
+/// behind the last row rather than arriving in front of it.
+///
+/// # Errors
+///
+/// [`statement_failure`] for anything the server refused.
+fn tds_write(
+    tds: &mut nvs_db::TdsConn,
+    statement: &Statement,
+    sending: &[Option<&[u8]>],
+    source: Option<&str>,
+    watch: QueryWatch,
+    named: &str,
+) -> Result<(Written, Option<(String, std::time::Duration)>), Fault> {
+    let mut answered = tds
+        .query(&statement.sql, sending)
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    name_span(&mut answered, statement.block.as_text());
+    while answered
+        .next_row()
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
+        .is_some()
+    {}
+
+    let written = Written {
+        changed: answered.affected(),
+        last_id: None,
     };
     let taken = watch.taken(answered.span());
     Ok((written, taken))
@@ -5788,12 +5872,15 @@ nvs_runtime::nvs_helper! {
                 watch,
                 EXECUTE,
             )?,
+            nvs_db::Connection::SqlServer(tds) => {
+                tds_write(tds, &statement, &sending, source, watch, EXECUTE)?
+            }
             other => {
                 return Err(driverless(
                     EXECUTE,
                     &statement.block,
                     other.driver(),
-                    BEYOND_READING,
+                    ONE_STATEMENT,
                 ));
             }
         };
@@ -5883,7 +5970,7 @@ nvs_runtime::nvs_helper! {
                     EXECUTE_MANY,
                     &batch.block,
                     other.driver(),
-                    BEYOND_READING,
+                    BEYOND_ONE_STATEMENT,
                 ));
             }
         }
@@ -7815,15 +7902,16 @@ mod tests {
     /// operator then reads is "this build cannot do that" about a driver that
     /// just did, which is the one thing that message exists to prevent.
     ///
-    /// **Asked of both rosters, because they parted.** [`READING`] gained SQL
-    /// Server with [`tds_rows`] and [`BEYOND_READING`] did not, so the driver
-    /// the refusal is *about* is SQLite here: it is the one driver outside both,
-    /// which is what makes "named exactly when it reaches" askable of every
-    /// other driver in one loop.
+    /// **Asked of both rosters, because they parted.** [`ONE_STATEMENT`] gained
+    /// SQL Server with [`tds_rows`] and [`tds_write`], and
+    /// [`BEYOND_ONE_STATEMENT`] did not, so the driver the refusal is *about* is
+    /// SQLite here: it is the one driver outside both, which is what makes
+    /// "named exactly when it reaches" askable of every other driver in one
+    /// loop.
     #[test]
     fn the_refusal_names_every_driver_that_sends() {
         let block = Value::str(NvsStr::new(b"main"));
-        for roster in [READING, BEYOND_READING] {
+        for roster in [ONE_STATEMENT, BEYOND_ONE_STATEMENT] {
             let refused = format!(
                 "{:?}",
                 driverless(QUERY, &block, nvs_db::Driver::Sqlite, roster)
@@ -7844,15 +7932,17 @@ mod tests {
                 );
             }
         }
-        for driver in READING {
+        for driver in ONE_STATEMENT {
             assert!(
                 rendering_for(*driver).is_some(),
                 "{driver:?} runs a statement, so § 5 has to render one for it"
             );
         }
         assert!(
-            BEYOND_READING.iter().all(|driver| READING.contains(driver)),
-            "a driver that reaches `execute` or § 7 reaches `query` first"
+            BEYOND_ONE_STATEMENT
+                .iter()
+                .all(|driver| ONE_STATEMENT.contains(driver)),
+            "a driver that reaches `executeMany` or § 7 reaches one statement first"
         );
     }
 

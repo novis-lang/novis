@@ -6,7 +6,7 @@ Core\Db::connect names the field that makes a `[db.<name>]` block unopenable, an
 // than about the grant. The six blocks are the ways one can fail before a
 // socket is ever opened, and each one names the field that is wrong -- an
 // operator reading these lines edits one line of `nvs.toml` and no more.
-array<string> $names = ["absent", "mariadb", "mssql", "mysql", "unusable", "zone"];
+array<string> $names = ["absent", "mariadb", "mssql", "mysql", "sqlite", "unusable", "zone"];
 foreach ($names as string $name) {
     try {
         var $db = Core\Db::connect($name);
@@ -20,7 +20,7 @@ foreach ($names as string $name) {
 # not written, which is a different mistake from an unwritten grant and gets a
 # different sentence.
 [capabilities.db]
-connect = ["absent", "mariadb", "mssql", "mysql", "unusable", "zone"]
+connect = ["absent", "mariadb", "mssql", "mysql", "sqlite", "unusable", "zone"]
 
 # A third driver this build *does* open, read by its own resolver and refused on
 # the same first field MySQL's is. MariaDB is not a MySQL flag -- ADR 0067 § 2 --
@@ -29,10 +29,10 @@ connect = ["absent", "mariadb", "mssql", "mysql", "unusable", "zone"]
 driver = "mariadb"
 host = "127.0.0.1"
 
-# A driver this build has no connect path for. The refusal names the driver it
-# *is*, so the block reads as configured-for-something-else rather than broken,
-# and the sentence comes from PostgreSQL's resolver because that is where every
-# unopenable `driver` still lands -- ADR 0067 § 2.
+# A fourth driver this build *does* open, refused on the same first field the
+# other three are. SQL Server reads the block through its own resolver -- ADR
+# 0067 § 2's `driver` again -- and a `password` is what LOGIN7 cannot be built
+# without, so the sentence is its own and not a stand-in for a missing driver.
 [db.mssql]
 driver = "mssql"
 host = "127.0.0.1"
@@ -43,6 +43,14 @@ host = "127.0.0.1"
 [db.mysql]
 driver = "mysql"
 host = "127.0.0.1"
+
+# The one driver this build has no connect path for. The refusal names the
+# driver it *is*, so the block reads as configured-for-something-else rather
+# than broken, and the sentence comes from PostgreSQL's resolver because that is
+# where every unopenable `driver` still lands -- ADR 0067 § 2.
+[db.sqlite]
+driver = "sqlite"
+path = "/var/lib/novis.db"
 
 # `path` is SQLite's field. A PostgreSQL connection reads nothing from it, and
 # a field silently ignored is how a block comes to mean something nobody wrote.
@@ -67,7 +75,8 @@ time_zone = "Europe/Vienna"
 --EXPECT--
 Core\Db::connect: nothing sets `[db.absent]` up, so the name resolves to a block an operator has not written yet
 Core\Db::connect: [db.mariadb]: the block names no `password`, which a MariaDB connection cannot be opened without
-Core\Db::connect: [db.mssql]: `driver` is `mssql`, which is the mssql driver and not PostgreSQL
+Core\Db::connect: [db.mssql]: the block names no `password`, which a SQL Server connection cannot be opened without
 Core\Db::connect: [db.mysql]: the block names no `password`, which a MySQL connection cannot be opened without
+Core\Db::connect: [db.sqlite]: `driver` is `sqlite`, which is the sqlite driver and not PostgreSQL
 Core\Db::connect: [db.unusable]: `path` belongs to another driver, and a PostgreSQL connection reads nothing from it
 Core\Db::connect: [db.zone]: `time_zone` is `Europe/Vienna`, which is not an offset: write `+02:00`, `-05:30` or `UTC`, or leave it unset for UTC
