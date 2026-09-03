@@ -58,12 +58,17 @@
 //! the handshake as far as encryption — [`prelogin`] asks for it and
 //! [`negotiate_tls`] tunnels ADR 0067 § 3's TLS handshake inside PRELOGIN
 //! packets, after which the socket is an ordinary [`NvsTls`] stream carrying
-//! ordinary TDS packets.
+//! ordinary TDS packets; [`login7_request`], the credential-carrying message
+//! that rides that session and is the reason § 3's TLS is not optional here;
+//! and [`Tokens`], which reads that message's answer as far as `LOGINACK`,
+//! `ENVCHANGE`, `ERROR`, `INFO` and `DONE`.
 //!
-//! LOGIN7 and the token stream are the slices after this one, and each of them
-//! is a payload handed to [`Wire::send`]. There is still no connection: nothing
-//! calls [`negotiate_tls`] yet, because the thing that would — `TdsConn` in
-//! [`mod@crate::conn`] — has no wire to hold until LOGIN7 can fill one.
+//! **Nothing sends any of it yet.** `TdsConn` in [`mod@crate::conn`] is a
+//! busy-state flag with no wire in it, so the sequencing that would call
+//! [`negotiate_tls`], write a LOGIN7 and read its tokens has nowhere to keep
+//! the connection it opened. That is the next slice, and after it the result
+//! set: [`Tokens`] reads a whole message and the row path cannot, for the
+//! reason the first section gives.
 
 use std::cell::Cell;
 use std::io::{self, Read, Write};
@@ -75,7 +80,7 @@ use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 
-use crate::conn::{BlockError, Driver, written_value};
+use crate::conn::{BlockError, DbErrorKind, Driver, written_value};
 use crate::sql::{statement_cache_for, time_zone_for};
 
 /// The header in front of every packet: type, status, length, SPID, packet id,
@@ -1169,6 +1174,784 @@ pub fn negotiate_tls<S: Read + Write>(
     })
 }
 
+/// LOGIN7's fixed header, and therefore where its first blob starts.
+///
+/// Twelve scalar fields (36 bytes), twelve offset/length pairs (48), the
+/// six-byte `ClientID` and `cbSSPILong`: 94, none of which varies with what
+/// this driver has to say. Every offset in the message is counted from the
+/// start of the *message*, so this is also the smallest value any of them may
+/// hold — a pair pointing below it points into the header that holds it.
+const LOGIN7_HEADER: u16 = 94;
+
+/// The longest any of LOGIN7's variable-length fields may be, in characters.
+///
+/// MS-TDS's own limit on `cchUserName`, `cchPassword`, `cchDatabase` and the
+/// rest, and it is checked here rather than left to the server: an over-long
+/// field comes back as a login failure that names nothing, where the thing an
+/// operator has to fix is the `[db.<name>]` block that wrote it. The length
+/// field is a `u16` and would hold far more, so this is the protocol's rule
+/// and not the field's width.
+const MAX_FIELD_CHARS: u16 = 128;
+
+/// What LOGIN7 XORs each nibble-swapped password byte with.
+///
+/// MS-TDS calls the result an encrypted password. It is not one — the
+/// transformation is fixed, public and its own inverse — which is why
+/// [`TdsTarget::password`] says ADR 0067 § 3's TLS is not optional on this
+/// backend in the way it merely defaults elsewhere.
+const PASSWORD_XOR: u8 = 0xA5;
+
+/// What this client calls itself, in both `AppName` and `CltIntName`.
+///
+/// One string in the two fields because on this driver they are the same fact:
+/// there is no application name a `[db.<name>]` block carries, and the
+/// interface is this crate either way. It is what
+/// `sys.dm_exec_sessions.program_name` shows, which is where a SQL Server
+/// operator looks to find out whose connection a session is.
+const CLIENT_NAME: &str = "Novis";
+
+/// `ClientLCID`: US English.
+///
+/// Not zero, which is not a locale at all. Nothing this driver parses depends
+/// on it — [ADR 0067 § 8](../../../docs/adr/0067-core-db.md) normalises on the
+/// error *number* and never on the message text — so all it decides is which
+/// language a server writes a message Novis will only ever log.
+const CLIENT_LCID: u32 = 0x0409;
+
+/// `fUseDB`: the server says so when the database changes under this
+/// connection.
+///
+/// A `USE` also changes the collation the server describes columns with, so a
+/// client that had not asked for the notification would be decoding against a
+/// collation it could not know had moved. The notification is an `ENVCHANGE`
+/// token, which is the slice after this one.
+const OPT1_USE_DB_NOTIFY: u8 = 0x20;
+
+/// `fDatabase`: failing to open [`TdsTarget::database`] fails the login.
+///
+/// The decision this message owes. MS-TDS's other reading is a *warning*,
+/// which leaves the connection open in whichever database the server made this
+/// login's default. [`TdsTarget::database`] is required precisely so that a
+/// connection cannot mean whatever that was, and a warning would give the
+/// field away at the last moment: § 13's pool would then hold connections
+/// whose database depends on server-side state no pool key covers, and a
+/// request would read the right rows or the wrong ones depending on how the
+/// login was provisioned.
+const OPT1_INIT_DB_FATAL: u8 = 0x40;
+
+/// `fLanguage`: the same reading for the language, which this driver never
+/// names.
+///
+/// It sends an empty `Language`, so there is no initial change to fail. The
+/// bit is set anyway because the alternative reading is "warn and carry on",
+/// and a login that half-succeeded is not a state anything above wants to
+/// discover later.
+const OPT2_INIT_LANG_FATAL: u8 = 0x01;
+
+/// `fODBC`, which is not about ODBC: it is how a client asks for the ANSI
+/// session defaults.
+///
+/// The server answers it by setting `ANSI_DEFAULTS` on, `IMPLICIT_TRANSACTIONS`
+/// off, `TEXTSIZE` to its maximum and `ROWCOUNT` to unlimited, and two of those
+/// are load-bearing. Implicit transactions off is what makes [ADR 0067
+/// § 7](../../../docs/adr/0067-core-db.md)'s closure the only thing that ever
+/// opens a transaction on this connection — with them on, a bare `SELECT`
+/// opens one nothing commits, and § 13's reset would be destroying a connection
+/// per request. `ROWCOUNT` unlimited is what stops a server-side default from
+/// silently truncating a result set.
+const OPT2_ODBC: u8 = 0x02;
+
+/// `fUnknownCollationHandling`: this client accepts a collation newer than the
+/// ones TDS 7.0 knew about.
+///
+/// Nothing here reads a collation — § 9's map decodes a column by its type —
+/// so what the bit buys is that the server is never pushed into describing one
+/// the older, lossier way on this client's account.
+const OPT3_UNKNOWN_COLLATION: u8 = 0x08;
+
+/// `OptionFlags1`.
+///
+/// Every other bit in it — byte order, character set, float format, dump/load
+/// — has exactly one reading this driver could mean, and zero is that reading:
+/// little-endian, the ASCII family, IEEE 754, and no BCP.
+const OPTION_FLAGS_1: u8 = OPT1_USE_DB_NOTIFY | OPT1_INIT_DB_FATAL;
+
+/// `OptionFlags2`.
+///
+/// `fUserType` stays zero — an ordinary login, not a replication or
+/// remote-user one — and `fIntegratedSecurity` stays off, which is what makes
+/// the `Password` field the credential rather than an SSPI blob this driver
+/// has no way to produce.
+const OPTION_FLAGS_2: u8 = OPT2_INIT_LANG_FATAL | OPT2_ODBC;
+
+/// `TypeFlags`: an ordinary SQL client, no OLE DB behaviour, and **not**
+/// `fReadOnlyIntent` — an availability-group routing hint no `[db.<name>]`
+/// field asks for and which this driver would therefore be inventing.
+const TYPE_FLAGS: u8 = 0x00;
+
+/// `OptionFlags3`.
+///
+/// `fChangePassword` and `fUserInstance` name features this driver does not
+/// offer, and `fExtension` is the only way to send a `FeatureExt` block, which
+/// nothing here has anything to put in.
+const OPTION_FLAGS_3: u8 = OPT3_UNKNOWN_COLLATION;
+
+/// One variable-length LOGIN7 field: its characters appended to `blobs`, and
+/// the offset/length pair the fixed header carries for it.
+///
+/// **The pair's two numbers are in different units**, which is the trap this
+/// function exists to have exactly once: the offset is *bytes* from the start
+/// of the message, the length is *characters*, so a field at `(at, n)` spans
+/// `2n` bytes. Both are little-endian, unlike PRELOGIN's table in the same
+/// conversation. A supplementary character is two UTF-16 code units and
+/// therefore costs two of [`MAX_FIELD_CHARS`], which is the protocol's
+/// accounting and not this driver's.
+///
+/// `obfuscate` is LOGIN7's nibble swap and XOR, which only the password takes.
+///
+/// # Errors
+///
+/// `InvalidInput` for a field past [`MAX_FIELD_CHARS`], naming the key whose
+/// `[db.<name>]` value is too long rather than the protocol field it fills.
+fn placed(
+    blobs: &mut Vec<u8>,
+    text: &str,
+    field: &'static str,
+    obfuscate: bool,
+) -> io::Result<[u8; 4]> {
+    let characters = text.encode_utf16().count();
+    let length = u16::try_from(characters)
+        .ok()
+        .filter(|&n| n <= MAX_FIELD_CHARS)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "this connection's {field} is {characters} characters, past the \
+                     {MAX_FIELD_CHARS} MS-TDS gives a LOGIN7 field"
+                ),
+            )
+        })?;
+
+    let at = LOGIN7_HEADER
+        + u16::try_from(blobs.len())
+            .expect("six non-empty fields of at most 128 characters fit a u16 offset");
+
+    blobs.extend(text.encode_utf16().flat_map(u16::to_le_bytes).map(|byte| {
+        if obfuscate {
+            // The nibble swap, which on one byte is a rotation by four.
+            byte.rotate_left(4) ^ PASSWORD_XOR
+        } else {
+            byte
+        }
+    }));
+
+    let mut pair = [0; 4];
+    pair[..2].copy_from_slice(&at.to_le_bytes());
+    pair[2..].copy_from_slice(&length.to_le_bytes());
+    Ok(pair)
+}
+
+/// The LOGIN7 message this driver sends, as a payload for [`Wire::send`].
+///
+/// The whole of what a SQL Server connection is: who is logging in, with what,
+/// into which database, and how the session behaves once it is open. It is
+/// built from [`TdsTarget`] alone — nothing here reads the environment, so two
+/// hosts running one `[db.<name>]` block send byte-identical logins.
+///
+/// **Everything an eavesdropper would want is in it**, and only the password
+/// is disguised at all: the nibble swap and [`PASSWORD_XOR`] are public and
+/// reversible, so this message is a credential in the clear unless
+/// [`negotiate_tls`] has already run. That is the whole reason § 3's TLS is
+/// mandatory rather than defaulted on this backend. The returned buffer holds
+/// that credential and nothing zeroes it — deliberately, since the plaintext
+/// it was built from lives in the configuration tree for the process's life,
+/// and zeroing the copy while the source stays would be a gesture rather than
+/// a defence.
+///
+/// `packet_size` is what the connection is currently framing at
+/// ([`Codec::packet_size`]); the server may answer with a different one in an
+/// `ENVCHANGE` token, which is what [`Codec::set_packet_size`] is for.
+///
+/// Five of the twelve fields go out empty and each is a decision. `HostName`
+/// is the *client's* machine name, which nothing approved this driver to read
+/// and which no server acts on; `Language` is empty so the server's own
+/// default governs, and § 8 reads error numbers rather than message text;
+/// `SSPI` belongs to integrated security, which [`OPTION_FLAGS_2`] turns off;
+/// `AtchDBFile` attaches a database file by path, which is a capability
+/// nothing in ADR 0067 grants; and `ChangePassword` changes the login's
+/// password as a side effect of connecting. `ClientID` is a six-byte MAC
+/// address and goes out as zeroes for `HostName`'s reason — it is a stable
+/// identifier for the machine, sent to buy nothing.
+///
+/// # Errors
+///
+/// [`placed`]'s: `InvalidInput` for a field past [`MAX_FIELD_CHARS`].
+pub fn login7_request(target: &TdsTarget<'_>, packet_size: u16) -> io::Result<Vec<u8>> {
+    // In the fixed header's own order, because each pair's offset is where the
+    // previous field's characters ended.
+    let mut blobs = Vec::new();
+    let host_name = placed(&mut blobs, "", "client host name", false)?;
+    let user = placed(&mut blobs, target.user, "user", false)?;
+    let password = placed(&mut blobs, target.password, "password", true)?;
+    let app_name = placed(&mut blobs, CLIENT_NAME, "application name", false)?;
+    let server_name = placed(&mut blobs, target.host, "host", false)?;
+    let extension = placed(&mut blobs, "", "extension", false)?;
+    let interface = placed(&mut blobs, CLIENT_NAME, "interface name", false)?;
+    let language = placed(&mut blobs, "", "language", false)?;
+    let database = placed(&mut blobs, target.database, "database", false)?;
+    let sspi = placed(&mut blobs, "", "SSPI blob", false)?;
+    let attached_file = placed(&mut blobs, "", "attached database file", false)?;
+    let new_password = placed(&mut blobs, "", "new password", false)?;
+
+    let total = usize::from(LOGIN7_HEADER) + blobs.len();
+    let length =
+        u32::try_from(total).expect("twelve fields of at most 128 characters fit a u32 length");
+
+    let mut out = Vec::with_capacity(total);
+    out.extend_from_slice(&length.to_le_bytes());
+    out.extend_from_slice(&TDS_VERSION.to_le_bytes());
+    out.extend_from_slice(&u32::from(packet_size).to_le_bytes());
+    // `ClientProgVer` and `ClientPID`. The version PRELOGIN already sent is the
+    // one fact worth telling a server about this client, and a process id is
+    // the host's business.
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    // `ConnectionID`, which only a connection being resumed carries.
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.push(OPTION_FLAGS_1);
+    out.push(OPTION_FLAGS_2);
+    out.push(TYPE_FLAGS);
+    out.push(OPTION_FLAGS_3);
+    // `ClientTimZone`. MS-TDS documents it as unused, and this is the one
+    // driver with nowhere to send [`TdsTarget::time_zone`] anyway: § 9's zone
+    // decodes rows here rather than configuring a session.
+    out.extend_from_slice(&0i32.to_le_bytes());
+    out.extend_from_slice(&CLIENT_LCID.to_le_bytes());
+
+    for pair in [
+        host_name,
+        user,
+        password,
+        app_name,
+        server_name,
+        extension,
+        interface,
+        language,
+        database,
+    ] {
+        out.extend_from_slice(&pair);
+    }
+    out.extend_from_slice(&[0; 6]);
+    for pair in [sspi, attached_file, new_password] {
+        out.extend_from_slice(&pair);
+    }
+    // `cbSSPILong`, the 32-bit length an SSPI blob past 65535 bytes would need.
+    out.extend_from_slice(&0u32.to_le_bytes());
+
+    debug_assert_eq!(
+        out.len(),
+        usize::from(LOGIN7_HEADER),
+        "every offset above was counted against this width"
+    );
+    out.extend_from_slice(&blobs);
+    Ok(out)
+}
+
+/// `ERROR`: the server refused something, and said which condition in a number
+/// [`kind_of`] normalises.
+const TOKEN_ERROR: u8 = 0xAA;
+/// `INFO`: the same layout with nothing refused. A login collects several of
+/// them for a change of database context alone, so a reader that did not know
+/// the token would fail on an ordinary success.
+const TOKEN_INFO: u8 = 0xAB;
+/// `LOGINACK`: the login succeeded, and this is what the server is.
+const TOKEN_LOGIN_ACK: u8 = 0xAD;
+/// `ENVCHANGE`: one session property moved, and both values are given.
+const TOKEN_ENV_CHANGE: u8 = 0xE3;
+/// `DONE`: the end of one statement's answer.
+const TOKEN_DONE: u8 = 0xFD;
+/// `DONEPROC`: `DONE` for a stored procedure, which § 13's `sp_reset_connection`
+/// and § 1's `sp_prepexec` both are.
+const TOKEN_DONE_PROC: u8 = 0xFE;
+/// `DONEINPROC`: `DONE` for one statement *inside* a procedure, and the one of
+/// the three that is never the last token of a message.
+const TOKEN_DONE_IN_PROC: u8 = 0xFF;
+
+/// `DONE`'s `Status`: another set of results follows this one.
+const DONE_MORE: u16 = 0x0001;
+/// `DONE`'s `Status`: the statement this ends did not complete.
+const DONE_ERROR: u16 = 0x0002;
+/// `DONE`'s `Status`: the row count means something. Without it the field is a
+/// number the server did not intend to report, which is not the same as zero.
+const DONE_COUNT: u16 = 0x0010;
+
+/// `ENVCHANGE` type 1: the database this session is in.
+const ENV_DATABASE: u8 = 1;
+/// `ENVCHANGE` type 2: the session's language.
+const ENV_LANGUAGE: u8 = 2;
+/// `ENVCHANGE` type 3: the session's character set, which TDS 7.4 does not use.
+const ENV_CHARSET: u8 = 3;
+/// `ENVCHANGE` type 4: the packet size, as decimal digits rather than a number.
+const ENV_PACKET_SIZE: u8 = 4;
+
+/// The severity at which SQL Server ends the connection rather than the
+/// statement.
+///
+/// Documented as such by the server and not a driver convention: at 20 and
+/// above the server closes the socket, so the read after one is an end of file
+/// whatever this driver decides. [`kind_of`] answers
+/// [`DbErrorKind::ConnectionLost`] for any unnamed number at this class for
+/// that reason — the connection really is gone, and § 13's pool must destroy it
+/// rather than reset it.
+const FATAL_CLASS: u8 = 20;
+
+/// The § 8 kind a SQL Server error number means.
+///
+/// **Keyed on the number alone**, where [`crate::pg`]'s table is keyed on the
+/// `SQLSTATE` and [`crate::mysql`]'s reads one as a fallback: TDS has no
+/// `SQLSTATE` field at all. The five characters PDO reports for this backend
+/// are ODBC's invention, mapped from the number by the driver, so a table keyed
+/// on them here would be keyed on a value this driver had to make up first.
+///
+/// Two rows of it are worth arguing:
+///
+/// - **`547` is both a foreign key and a `CHECK`**, and SQL Server merges them
+///   into one number on purpose — only the message text separates them, and
+///   matching on message text is the thing § 8 exists to stop. It normalises as
+///   [`DbErrorKind::ForeignKeyViolation`], the far commoner reading, and
+///   § 8's `driverCode` still carries the number for a caller that needs the
+///   difference. [`DbErrorKind::CheckViolation`] is therefore **unreachable on
+///   this backend**, which is exactly what § 8 means when it says some
+///   boundaries are driver-dependent.
+/// - **`4060` is a `Permission`**, not a `Syntax` the way MySQL's "unknown
+///   database" is. SQL Server deliberately answers a database that does not
+///   exist and one this login may not open with the same refusal, so the only
+///   half that is always true of it is that the login could not open it. It is
+///   also the refusal [`OPT1_INIT_DB_FATAL`] asks for: with the other reading
+///   of that bit this arrives as a warning and the connection opens somewhere
+///   else.
+///
+/// Everything unnamed is [`DbErrorKind::Other`] rather than a guess, as on the
+/// other three drivers, except that a class of [`FATAL_CLASS`] or more is
+/// [`DbErrorKind::ConnectionLost`] whatever the number: at that severity the
+/// server has already closed the socket.
+pub(crate) fn kind_of(number: u32, class: u8) -> DbErrorKind {
+    match number {
+        // A unique index and a primary key, which are two numbers for one
+        // condition.
+        2601 | 2627 => DbErrorKind::UniqueViolation,
+        547 => DbErrorKind::ForeignKeyViolation,
+        515 => DbErrorKind::NotNullViolation,
+        // The deadlock victim: SQL Server rolled this transaction back whole,
+        // so § 7's closure re-runs from nothing.
+        1205 => DbErrorKind::Deadlock,
+        // Snapshot isolation could not serialise this transaction against a
+        // concurrent one, and aborted it.
+        3960 | 3961 => DbErrorKind::SerializationFailure,
+        // A lock wait that ran out, which is `Timeout` and **not** `Deadlock`
+        // for `crate::mysql`'s reason: nothing was rolled back, so re-running
+        // the closure would run its earlier statements again inside a
+        // transaction that is still open.
+        1222 => DbErrorKind::Timeout,
+        // A malformed statement, and the "no such thing" numbers § 8 makes one
+        // kind with it: an undefined object and a syntax error are the same bug
+        // to a caller.
+        102 | 156 | 207 | 208 | 2812 | 4104 => DbErrorKind::Syntax,
+        // Denied: to the server, to a database, to an object, to a column, or
+        // at the login itself.
+        229 | 230 | 262 | 300 | 916 | 4060 | 18456 => DbErrorKind::Permission,
+        _ if class >= FATAL_CLASS => DbErrorKind::ConnectionLost,
+        _ => DbErrorKind::Other,
+    }
+}
+
+/// An `ERROR` or `INFO` token: one thing the server has to say.
+///
+/// The same seven fields carry both, which is the protocol's doing and not a
+/// convenience taken here — [`Token::Error`] and [`Token::Info`] are what say
+/// whether anything was refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerMessage {
+    /// The server's own error number, which is § 8's `driverCode` and the key
+    /// [`kind_of`] reads.
+    pub number: u32,
+    /// Which of the places that raise this number raised it. Not normalised by
+    /// anything: it is what a support article asks for.
+    pub state: u8,
+    /// The severity. Above 10 is a refusal, and [`FATAL_CLASS`] or more is one
+    /// that took the connection with it.
+    pub class: u8,
+    /// The server's own sentence, in the language its login default chose.
+    pub message: String,
+    /// Which server said it, as that server knows its own name.
+    pub server: String,
+    /// The procedure it was raised in, empty for a statement sent directly.
+    pub procedure: String,
+    /// The line within that procedure or batch.
+    pub line: u32,
+}
+
+impl ServerMessage {
+    /// Whether this ended the connection as well as the statement.
+    #[must_use]
+    pub const fn is_fatal(&self) -> bool {
+        self.class >= FATAL_CLASS
+    }
+
+    /// § 8's kind for this message, from [`kind_of`].
+    #[must_use]
+    pub fn kind(&self) -> DbErrorKind {
+        kind_of(self.number, self.class)
+    }
+}
+
+/// A `LOGINACK` token: the login succeeded, and this is what answered it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoginAck {
+    /// The TDS version the server will speak, which is the one thing here a
+    /// driver could act on. It should be the [`TDS_VERSION`] LOGIN7 asked for;
+    /// a server entitled to answer with a lower one is a server this driver
+    /// would have to have a second dialect for.
+    pub tds_version: u32,
+    /// What the server calls its own program — `Microsoft SQL Server`.
+    pub program: String,
+    /// Its major, minor and build numbers, which is the version an operator
+    /// reads.
+    pub version: (u8, u8, u16),
+}
+
+/// An `ENVCHANGE` token: one session property, before and after.
+///
+/// The variants are the four TDS 7.4 spells as text. Everything else —
+/// collation, the transaction descriptors, the routing answer an Azure failover
+/// sends — is [`EnvChange::Other`] carrying its type byte, because the value
+/// halves of those are bytes rather than characters and nothing here has a use
+/// for them yet. They are skipped by the token's own declared length, so an
+/// unread type never costs the reader its place in the stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EnvChange {
+    /// The database this session is in. Novis reads it because § 13's pool key
+    /// is a promise about which database a pooled connection is in, and a `USE`
+    /// is the one thing that could break it.
+    Database {
+        /// What it was.
+        from: String,
+        /// What it now is.
+        to: String,
+    },
+    /// The session's language.
+    Language {
+        /// What it was.
+        from: String,
+        /// What it now is.
+        to: String,
+    },
+    /// The session's character set, which a TDS 7.4 server does not send.
+    Charset {
+        /// What it was.
+        from: String,
+        /// What it now is.
+        to: String,
+    },
+    /// The packet size, which is the answer to what LOGIN7 asked for and is
+    /// what [`Codec::set_packet_size`] takes.
+    PacketSize {
+        /// The size in force from the *next* packet onwards.
+        to: u16,
+    },
+    /// A type this driver does not read, by its type byte.
+    Other(u8),
+}
+
+/// One token of a response stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Token {
+    /// The server refused something: [`ServerMessage::kind`] is § 8's kind.
+    Error(ServerMessage),
+    /// The server said something and refused nothing.
+    Info(ServerMessage),
+    /// The login succeeded.
+    LoginAck(LoginAck),
+    /// A session property moved.
+    Env(EnvChange),
+    /// A statement's answer ended.
+    Done(Done),
+}
+
+/// A `DONE`, `DONEPROC` or `DONEINPROC` token: one statement's answer ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Done {
+    /// The status bits, read through the three methods below rather than
+    /// matched on directly.
+    pub status: u16,
+    /// Which command this ends, which no caller here reads: the token stream is
+    /// already in order.
+    pub command: u16,
+    /// The row count, meaningful only where [`Done::counted`] says so.
+    pub rows: u64,
+}
+
+impl Done {
+    /// Whether another statement's answer follows this one in the same stream.
+    #[must_use]
+    pub const fn more(self) -> bool {
+        self.status & DONE_MORE != 0
+    }
+
+    /// Whether the statement this ends failed.
+    ///
+    /// The bit is the *only* place a failure is reported for a statement whose
+    /// `ERROR` token a caller chose not to keep — a reader that watched for
+    /// `ERROR` alone and then trusted the `DONE` would report a rolled-back
+    /// batch as a success.
+    #[must_use]
+    pub const fn failed(self) -> bool {
+        self.status & DONE_ERROR != 0
+    }
+
+    /// Whether [`Done::rows`] is a count the server meant to report.
+    ///
+    /// Without the bit the field is whatever the server left there, which is
+    /// not the same as zero: `execute` answering 0 for a statement that
+    /// affected rows and never counted them would be a wrong number rather than
+    /// a missing one.
+    #[must_use]
+    pub const fn counted(self) -> bool {
+        self.status & DONE_COUNT != 0
+    }
+}
+
+/// A reader over one message's tokens.
+///
+/// Sans-IO like the rest of this module: it borrows a payload and never touches
+/// a stream, so every shape below is tested without a socket. The payload it is
+/// given is one whole message — [`Wire::read_message`] — because a token is cut
+/// at whatever offset the packet size lands on and this reader holds no
+/// remainder of its own. The row path is the one that cannot afford that, and
+/// it is a later slice's reader over [`Wire::read_packet`].
+///
+/// Not an `Iterator`: every step can fail, and an `Iterator<Item = Result<_>>`
+/// would let a `for` loop walk past a malformed token by ignoring the item it
+/// was handed.
+#[derive(Debug)]
+pub struct Tokens<'a> {
+    payload: &'a [u8],
+    at: usize,
+}
+
+impl<'a> Tokens<'a> {
+    /// A reader over one message's payload.
+    #[must_use]
+    pub const fn over(payload: &'a [u8]) -> Tokens<'a> {
+        Tokens { payload, at: 0 }
+    }
+
+    /// The next token, or `None` where the message has ended.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` for a token this driver does not read yet — naming the
+    /// byte, since that is the whole of what a reader can say about it — and
+    /// for any token whose fields run past the end of the message.
+    pub fn next_token(&mut self) -> io::Result<Option<Token>> {
+        let Some(&kind) = self.payload.get(self.at) else {
+            return Ok(None);
+        };
+        self.at += 1;
+
+        let token = match kind {
+            TOKEN_ERROR => Token::Error(self.server_message("ERROR")?),
+            TOKEN_INFO => Token::Info(self.server_message("INFO")?),
+            TOKEN_LOGIN_ACK => Token::LoginAck(self.login_ack()?),
+            TOKEN_ENV_CHANGE => Token::Env(self.env_change()?),
+            TOKEN_DONE | TOKEN_DONE_PROC | TOKEN_DONE_IN_PROC => Token::Done(self.done()?),
+            other => {
+                return Err(malformed(format!(
+                    "a TDS response carried token 0x{other:02X}, which this driver does not read"
+                )));
+            }
+        };
+        Ok(Some(token))
+    }
+
+    /// `n` bytes, or the refusal that says which field ran off the end.
+    fn take(&mut self, n: usize, what: &'static str) -> io::Result<&'a [u8]> {
+        let Some(bytes) = self.payload.get(self.at..self.at + n) else {
+            return Err(malformed(format!(
+                "a TDS token's {what} wanted {n} byte(s) at offset {}, past the end of a {}-byte \
+                 message",
+                self.at,
+                self.payload.len()
+            )));
+        };
+        self.at += n;
+        Ok(bytes)
+    }
+
+    /// One byte.
+    fn byte(&mut self, what: &'static str) -> io::Result<u8> {
+        Ok(self.take(1, what)?[0])
+    }
+
+    /// A little-endian `u16`.
+    fn short(&mut self, what: &'static str) -> io::Result<u16> {
+        let bytes = self.take(2, what)?;
+        Ok(u16::from_le_bytes([bytes[0], bytes[1]]))
+    }
+
+    /// A little-endian `u32`.
+    fn long(&mut self, what: &'static str) -> io::Result<u32> {
+        let bytes = self.take(4, what)?;
+        Ok(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+    }
+
+    /// `characters` UCS-2LE characters, as a `String`.
+    ///
+    /// Lossy on an unpaired surrogate, which is the one thing a UCS-2 field can
+    /// hold that Novis's own strings cannot ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
+    /// makes a `string` valid UTF-8). Refusing a message because the server's
+    /// *prose* was ill-formed would turn a reportable error into an
+    /// unreportable one.
+    fn characters(&mut self, characters: usize, what: &'static str) -> io::Result<String> {
+        let bytes = self.take(characters * 2, what)?;
+        let units: Vec<u16> = bytes
+            .chunks_exact(2)
+            .map(|two| u16::from_le_bytes([two[0], two[1]]))
+            .collect();
+        Ok(String::from_utf16_lossy(&units))
+    }
+
+    /// A `B_VARCHAR`: a one-byte character count, then the characters.
+    fn b_varchar(&mut self, what: &'static str) -> io::Result<String> {
+        let characters = usize::from(self.byte(what)?);
+        self.characters(characters, what)
+    }
+
+    /// A `US_VARCHAR`: a two-byte character count, then the characters.
+    fn us_varchar(&mut self, what: &'static str) -> io::Result<String> {
+        let characters = usize::from(self.short(what)?);
+        self.characters(characters, what)
+    }
+
+    /// A length-prefixed token's end, from the `u16` length that opens it.
+    ///
+    /// Every variable-length token below is parsed field by field and then
+    /// *positioned* by this, rather than trusted to have consumed exactly the
+    /// right number of bytes. That is what makes a field MS-TDS adds to the end
+    /// of a token in a later version a thing this driver skips rather than
+    /// reads as the next token's type byte.
+    fn bounded(&mut self, what: &'static str) -> io::Result<usize> {
+        let length = usize::from(self.short(what)?);
+        let end = self.at + length;
+        if end > self.payload.len() {
+            return Err(malformed(format!(
+                "a TDS {what} token claims {length} byte(s) at offset {}, past the end of a \
+                 {}-byte message",
+                self.at,
+                self.payload.len()
+            )));
+        }
+        Ok(end)
+    }
+
+    /// An `ERROR` or `INFO` token, which have one layout.
+    fn server_message(&mut self, what: &'static str) -> io::Result<ServerMessage> {
+        let end = self.bounded(what)?;
+        let message = ServerMessage {
+            number: self.long(what)?,
+            state: self.byte(what)?,
+            class: self.byte(what)?,
+            message: self.us_varchar(what)?,
+            server: self.b_varchar(what)?,
+            procedure: self.b_varchar(what)?,
+            line: self.long(what)?,
+        };
+        self.finish(end, what)?;
+        Ok(message)
+    }
+
+    /// A `LOGINACK` token.
+    fn login_ack(&mut self) -> io::Result<LoginAck> {
+        let end = self.bounded("LOGINACK")?;
+        // `Interface`, which says which of the two SQL dialects the server will
+        // accept and is the same answer for every server this driver can talk
+        // to at all.
+        self.byte("LOGINACK")?;
+        let ack = LoginAck {
+            tds_version: self.long("LOGINACK")?,
+            program: self.b_varchar("LOGINACK")?,
+            version: (
+                self.byte("LOGINACK")?,
+                self.byte("LOGINACK")?,
+                // The build number is two bytes written high half first, which
+                // is the one number in this token that is not little-endian.
+                u16::from_be_bytes([self.byte("LOGINACK")?, self.byte("LOGINACK")?]),
+            ),
+        };
+        self.finish(end, "LOGINACK")?;
+        Ok(ack)
+    }
+
+    /// An `ENVCHANGE` token: the type, then a new value and an old one whose
+    /// shape depends on it.
+    fn env_change(&mut self) -> io::Result<EnvChange> {
+        let end = self.bounded("ENVCHANGE")?;
+        let kind = self.byte("ENVCHANGE")?;
+        let change = match kind {
+            ENV_DATABASE | ENV_LANGUAGE | ENV_CHARSET | ENV_PACKET_SIZE => {
+                let to = self.b_varchar("ENVCHANGE")?;
+                let from = self.b_varchar("ENVCHANGE")?;
+                match kind {
+                    ENV_DATABASE => EnvChange::Database { from, to },
+                    ENV_LANGUAGE => EnvChange::Language { from, to },
+                    ENV_CHARSET => EnvChange::Charset { from, to },
+                    _ => EnvChange::PacketSize {
+                        to: to.parse().map_err(|_| {
+                            malformed(format!(
+                                "a TDS ENVCHANGE answered the packet size with {to:?}, which is \
+                                 not a size"
+                            ))
+                        })?,
+                    },
+                }
+            }
+            other => EnvChange::Other(other),
+        };
+        // Deliberately unconditional: an unread type is skipped by the token's
+        // own length rather than by walking value halves this driver has no
+        // parser for.
+        self.at = end;
+        Ok(change)
+    }
+
+    /// A `DONE`, `DONEPROC` or `DONEINPROC` token: twelve fixed bytes with no
+    /// length in front of them.
+    fn done(&mut self) -> io::Result<Done> {
+        let status = self.short("DONE")?;
+        let command = self.short("DONE")?;
+        let rows = self.take(8, "DONE")?;
+        Ok(Done {
+            status,
+            command,
+            rows: u64::from_le_bytes(rows.try_into().expect("eight bytes")),
+        })
+    }
+
+    /// Positions the reader at a token's declared end, refusing one whose
+    /// fields already read past it.
+    fn finish(&mut self, end: usize, what: &'static str) -> io::Result<()> {
+        if self.at > end {
+            return Err(malformed(format!(
+                "a TDS {what} token's fields read {} byte(s) past the length it declared",
+                self.at - end
+            )));
+        }
+        self.at = end;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1820,5 +2603,445 @@ mod tests {
         // A server that closes between packets, however, really is end of file.
         let mut clean = Tunnel::wrapping(Script::silent());
         assert_eq!(clean.read(&mut [0; 16]).expect("a clean close"), 0);
+    }
+
+    /// Where in LOGIN7's fixed header each offset/length pair sits, by the name
+    /// MS-TDS gives it.
+    ///
+    /// `login7_request` writes the pairs in order and never names a position,
+    /// which is the cheap way to build one and the expensive way to read one
+    /// back: a pair written a slot out of place is a login the *server*
+    /// refuses, with a message about the field it landed in. Asserting through
+    /// this table is what makes that fail here instead.
+    const PAIRS: [(&str, usize); 12] = [
+        ("HostName", 36),
+        ("UserName", 40),
+        ("Password", 44),
+        ("AppName", 48),
+        ("ServerName", 52),
+        ("Unused", 56),
+        ("CltIntName", 60),
+        ("Language", 64),
+        ("Database", 68),
+        // `ClientID`'s six bytes sit between these two.
+        ("SSPI", 78),
+        ("AtchDBFile", 82),
+        ("ChangePassword", 86),
+    ];
+
+    /// The offset and the character count one pair holds.
+    fn pair(message: &[u8], at: usize) -> (usize, usize) {
+        (
+            usize::from(u16::from_le_bytes([message[at], message[at + 1]])),
+            usize::from(u16::from_le_bytes([message[at + 2], message[at + 3]])),
+        )
+    }
+
+    /// The characters one pair points at, read back as a `String`.
+    fn field_at(message: &[u8], at: usize) -> String {
+        let (offset, characters) = pair(message, at);
+        let units: Vec<u16> = message[offset..offset + characters * 2]
+            .chunks_exact(2)
+            .map(|two| u16::from_le_bytes([two[0], two[1]]))
+            .collect();
+        String::from_utf16(&units).expect("this driver writes back what it was handed")
+    }
+
+    /// The `[db.<name>]` block above, as the target LOGIN7 is built from.
+    fn login7(block: &Database) -> Vec<u8> {
+        let target = TdsTarget::resolve(block).expect("a complete block resolves");
+        login7_request(&target, DEFAULT_PACKET_SIZE).expect("every field of it fits")
+    }
+
+    #[test]
+    fn a_login7_carries_the_targets_four_fields_and_says_how_long_it_is() {
+        let message = login7(&block());
+
+        assert_eq!(
+            usize::try_from(u32::from_le_bytes(
+                message[0..4].try_into().expect("four bytes")
+            ))
+            .expect("a length this small"),
+            message.len(),
+            "the length field counts the whole message, itself included"
+        );
+        assert_eq!(message[4..8], TDS_VERSION.to_le_bytes());
+        assert_eq!(message[8..12], u32::from(DEFAULT_PACKET_SIZE).to_le_bytes());
+
+        assert_eq!(field_at(&message, 40), "sa");
+        assert_eq!(
+            field_at(&message, 52),
+            "mssql.test",
+            "ServerName is the host"
+        );
+        assert_eq!(field_at(&message, 68), "novis_test");
+        assert_eq!(field_at(&message, 48), CLIENT_NAME);
+        assert_eq!(field_at(&message, 60), CLIENT_NAME);
+
+        for name in [
+            "HostName",
+            "Language",
+            "SSPI",
+            "AtchDBFile",
+            "ChangePassword",
+        ] {
+            let at = PAIRS
+                .iter()
+                .find(|(field, _)| *field == name)
+                .expect("the table names it")
+                .1;
+            assert_eq!(pair(&message, at).1, 0, "{name} goes out empty");
+        }
+    }
+
+    /// Every pair points inside the message and past the header that holds it.
+    ///
+    /// Counted over the whole table rather than read off the fields that carry
+    /// text: a pair whose offset is short by the six bytes of `ClientID` still
+    /// points at plausible characters, and only the sweep says which one of the
+    /// twelve moved.
+    #[test]
+    fn a_login7s_offsets_all_point_past_its_header_and_inside_the_message() {
+        let message = login7(&block());
+
+        assert_eq!(
+            pair(&message, 36).0,
+            usize::from(LOGIN7_HEADER),
+            "the first blob starts where the fixed header ends"
+        );
+        for (name, at) in PAIRS {
+            let (offset, characters) = pair(&message, at);
+            assert!(
+                offset >= usize::from(LOGIN7_HEADER),
+                "{name} points into the header at {offset}"
+            );
+            assert!(
+                offset + characters * 2 <= message.len(),
+                "{name} spans past the end of a {}-byte message",
+                message.len()
+            );
+        }
+    }
+
+    /// § 3's reason the TLS is not optional, asserted from the wire side.
+    #[test]
+    fn a_password_is_nibble_swapped_and_xored_and_is_nowhere_in_the_message_in_the_clear() {
+        let message = login7(&block());
+        let (offset, characters) = pair(&message, 44);
+        let sent = &message[offset..offset + characters * 2];
+
+        let plain: Vec<u8> = "hunter2"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        assert_eq!(characters, 7, "a length in characters, not in bytes");
+        assert_ne!(sent, plain.as_slice());
+
+        // The transform is its own inverse, which is the whole of what MS-TDS
+        // calls encryption here.
+        let back: Vec<u8> = sent
+            .iter()
+            .map(|byte| (byte ^ PASSWORD_XOR).rotate_left(4))
+            .collect();
+        assert_eq!(back, plain);
+
+        for spelling in [plain.as_slice(), b"hunter2".as_slice()] {
+            assert!(
+                !message
+                    .windows(spelling.len())
+                    .any(|window| window == spelling),
+                "the password appears in the message unobscured"
+            );
+        }
+    }
+
+    /// The option flags, and the one this slice had to decide: a failed initial
+    /// database is fatal, so a login never lands in whichever database the
+    /// server made this login's default.
+    #[test]
+    fn a_failed_initial_database_is_fatal_rather_than_a_warning() {
+        let message = login7(&block());
+
+        assert_eq!(
+            message[24] & OPT1_INIT_DB_FATAL,
+            OPT1_INIT_DB_FATAL,
+            "a warning would make the connection's database server-side state"
+        );
+        assert_eq!(
+            message[25] & OPT2_ODBC,
+            OPT2_ODBC,
+            "implicit transactions off is what makes § 7's closure the only transaction"
+        );
+        assert_eq!(message[24], OPTION_FLAGS_1);
+        assert_eq!(message[25], OPTION_FLAGS_2);
+        assert_eq!(message[26], TYPE_FLAGS);
+        assert_eq!(message[27], OPTION_FLAGS_3);
+
+        assert_eq!(
+            message[28..32],
+            0i32.to_le_bytes(),
+            "the block declares +02:00 and § 9's zone still decodes rows rather than \
+             configuring a session there is no setting for"
+        );
+    }
+
+    /// Both sides of the field bound, and the units it counts in.
+    #[test]
+    fn a_field_one_character_past_the_protocols_limit_is_refused_by_its_key() {
+        let mut block = block();
+        let limit = usize::from(MAX_FIELD_CHARS);
+
+        block.database = Some("d".repeat(limit));
+        assert_eq!(pair(&login7(&block), 68).1, limit, "the last one that fits");
+
+        // Half as many supplementary characters spend the same allowance: the
+        // length is code units, and one of these is two of them.
+        block.database = Some("🦀".repeat(limit / 2));
+        assert_eq!(pair(&login7(&block), 68).1, limit);
+
+        block.database = Some("d".repeat(limit + 1));
+        let target = TdsTarget::resolve(&block).expect("an over-long name is still a name");
+        let refused =
+            login7_request(&target, DEFAULT_PACKET_SIZE).expect_err("one character past the limit");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            refused.to_string().contains("database"),
+            "the refusal names the key an operator has to fix, not the protocol field"
+        );
+    }
+
+    /// A `B_VARCHAR` as a server writes one.
+    fn b_varchar(text: &str) -> Vec<u8> {
+        let mut out = vec![u8::try_from(text.encode_utf16().count()).expect("a short field")];
+        out.extend(text.encode_utf16().flat_map(u16::to_le_bytes));
+        out
+    }
+
+    /// A token, given its type byte and the body its `u16` length covers.
+    fn token(kind: u8, body: &[u8]) -> Vec<u8> {
+        let mut out = vec![kind];
+        out.extend_from_slice(
+            &u16::try_from(body.len())
+                .expect("a short token")
+                .to_le_bytes(),
+        );
+        out.extend_from_slice(body);
+        out
+    }
+
+    /// An `ERROR` or `INFO` token as a server writes one.
+    fn message_token(kind: u8, number: u32, class: u8, text: &str) -> Vec<u8> {
+        let mut body = Vec::new();
+        body.extend_from_slice(&number.to_le_bytes());
+        body.push(1);
+        body.push(class);
+        body.extend_from_slice(
+            &u16::try_from(text.encode_utf16().count())
+                .expect("a short sentence")
+                .to_le_bytes(),
+        );
+        body.extend(text.encode_utf16().flat_map(u16::to_le_bytes));
+        body.extend_from_slice(&b_varchar("mssql.test"));
+        body.extend_from_slice(&b_varchar(""));
+        body.extend_from_slice(&7u32.to_le_bytes());
+        token(kind, &body)
+    }
+
+    /// An `ENVCHANGE` token over two `B_VARCHAR` halves.
+    fn env_token(kind: u8, to: &str, from: &str) -> Vec<u8> {
+        let mut body = vec![kind];
+        body.extend_from_slice(&b_varchar(to));
+        body.extend_from_slice(&b_varchar(from));
+        token(TOKEN_ENV_CHANGE, &body)
+    }
+
+    /// A `LOGINACK` as SQL Server 2022 writes one.
+    fn login_ack_token() -> Vec<u8> {
+        let mut body = vec![1];
+        body.extend_from_slice(&TDS_VERSION.to_le_bytes());
+        body.extend_from_slice(&b_varchar("Microsoft SQL Server"));
+        body.extend_from_slice(&[16, 0]);
+        body.extend_from_slice(&4035u16.to_be_bytes());
+        token(TOKEN_LOGIN_ACK, &body)
+    }
+
+    /// A `DONE`, which carries no length at all.
+    fn done_token(status: u16, rows: u64) -> Vec<u8> {
+        let mut out = vec![TOKEN_DONE];
+        out.extend_from_slice(&status.to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.extend_from_slice(&rows.to_le_bytes());
+        out
+    }
+
+    /// Every token of a message, or the refusal one of them was.
+    fn tokens(payload: &[u8]) -> io::Result<Vec<Token>> {
+        let mut reader = Tokens::over(payload);
+        let mut out = Vec::new();
+        while let Some(token) = reader.next_token()? {
+            out.push(token);
+        }
+        Ok(out)
+    }
+
+    #[test]
+    fn a_login_answer_reads_back_as_the_tokens_the_server_wrote() {
+        let mut payload = env_token(ENV_DATABASE, "novis_test", "master");
+        payload.extend_from_slice(&message_token(
+            TOKEN_INFO,
+            5701,
+            0,
+            "Changed database context to 'novis_test'.",
+        ));
+        payload.extend_from_slice(&env_token(ENV_PACKET_SIZE, "8192", "4096"));
+        payload.extend_from_slice(&login_ack_token());
+        payload.extend_from_slice(&done_token(DONE_COUNT, 0));
+
+        let read = tokens(&payload).expect("a login answer this driver can read");
+        assert_eq!(read.len(), 5);
+        assert_eq!(
+            read[0],
+            Token::Env(EnvChange::Database {
+                from: "master".to_owned(),
+                to: "novis_test".to_owned(),
+            }),
+            "OptionFlags1's fUseDB is what asks for this token"
+        );
+        let Token::Info(info) = &read[1] else {
+            panic!("the second token is an INFO");
+        };
+        assert_eq!(info.number, 5701);
+        assert_eq!(info.server, "mssql.test");
+        assert_eq!(info.line, 7);
+        assert!(!info.is_fatal());
+        assert_eq!(read[2], Token::Env(EnvChange::PacketSize { to: 8192 }));
+        assert_eq!(
+            read[3],
+            Token::LoginAck(LoginAck {
+                tds_version: TDS_VERSION,
+                program: "Microsoft SQL Server".to_owned(),
+                version: (16, 0, 4035),
+            }),
+            "the version LOGIN7 asked for is the one that comes back"
+        );
+        let Token::Done(done) = &read[4] else {
+            panic!("the last token is a DONE");
+        };
+        assert!(done.counted() && !done.more() && !done.failed());
+    }
+
+    /// § 8's kinds, over the numbers this backend raises them as.
+    ///
+    /// One question of every row rather than a case each, so a table that grew
+    /// a row meaning something else fails here: the numbers are the whole of
+    /// what a caller branches on, since TDS sends no `SQLSTATE` to fall back to.
+    #[test]
+    fn a_sql_server_error_normalises_by_its_number_and_a_fatal_class_is_a_lost_connection() {
+        for (number, kind) in [
+            (2601, DbErrorKind::UniqueViolation),
+            (2627, DbErrorKind::UniqueViolation),
+            (547, DbErrorKind::ForeignKeyViolation),
+            (515, DbErrorKind::NotNullViolation),
+            (1205, DbErrorKind::Deadlock),
+            (3960, DbErrorKind::SerializationFailure),
+            (1222, DbErrorKind::Timeout),
+            (208, DbErrorKind::Syntax),
+            (4060, DbErrorKind::Permission),
+            (18456, DbErrorKind::Permission),
+            (8152, DbErrorKind::Other),
+        ] {
+            assert_eq!(kind_of(number, 16), kind, "error {number}");
+        }
+
+        assert!(
+            kind_of(1205, 13).is_retryable() && kind_of(3960, 16).is_retryable(),
+            "§ 7 re-runs a closure over these two and nothing else"
+        );
+        assert!(
+            !kind_of(1222, 16).is_retryable(),
+            "a lock timeout rolled nothing back, so the closure's earlier statements are still \
+             in the transaction"
+        );
+        assert_eq!(
+            kind_of(4001, FATAL_CLASS),
+            DbErrorKind::ConnectionLost,
+            "at this severity the server has already closed the socket"
+        );
+        assert_eq!(kind_of(4001, FATAL_CLASS - 1), DbErrorKind::Other);
+    }
+
+    #[test]
+    fn an_error_token_carries_what_the_server_said_and_which_kind_it_is() {
+        let payload = message_token(
+            TOKEN_ERROR,
+            2627,
+            14,
+            "Violation of PRIMARY KEY constraint 'PK_orders'.",
+        );
+        let read = tokens(&payload).expect("an error token is a token like any other");
+        let [Token::Error(error)] = read.as_slice() else {
+            panic!("one ERROR token");
+        };
+        assert_eq!(error.number, 2627);
+        assert_eq!(error.state, 1);
+        assert_eq!(error.kind(), DbErrorKind::UniqueViolation);
+        assert!(error.message.contains("PK_orders"));
+        assert!(
+            !error.is_fatal(),
+            "a constraint refuses a statement, not the connection"
+        );
+    }
+
+    /// An unread `ENVCHANGE` type costs the reader nothing, because the token's
+    /// own length is what skips it.
+    #[test]
+    fn an_envchange_this_driver_does_not_read_is_skipped_by_its_length() {
+        // Type 8, `BEGIN TRANSACTION`, whose two halves are bytes rather than
+        // characters — so a reader that walked the value halves would be
+        // reading a transaction descriptor as a character count.
+        let mut payload = token(TOKEN_ENV_CHANGE, &[8, 8, 1, 2, 3, 4, 5, 6, 7, 8, 0]);
+        payload.extend_from_slice(&done_token(0, 0));
+
+        let read = tokens(&payload).expect("an unread type is not a malformed message");
+        assert_eq!(read[0], Token::Env(EnvChange::Other(8)));
+        assert_eq!(read.len(), 2, "the DONE after it is still found");
+    }
+
+    /// A field or a token that runs off the end says so, rather than reading
+    /// whatever followed it.
+    #[test]
+    fn a_token_that_runs_past_the_end_of_the_message_is_refused() {
+        let whole = message_token(TOKEN_ERROR, 2627, 14, "Violation");
+        for cut in 1..whole.len() {
+            let refused = tokens(&whole[..cut]).expect_err("half a token is not a token");
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidData, "cut at {cut}");
+        }
+
+        // A length that promises more than the message holds is the same
+        // refusal one step earlier, and it is the one a `take` per field would
+        // miss: every field of this token is present.
+        let mut lying = whole.clone();
+        lying[1] = 0xFF;
+        let refused = tokens(&lying).expect_err("a token cannot be longer than its message");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+
+        let refused = tokens(&[0x81, 0, 0]).expect_err("COLMETADATA is a later slice's");
+        assert!(
+            refused.to_string().contains("0x81"),
+            "an unread token names the byte, which is the whole of what it can say"
+        );
+    }
+
+    /// The packet size arrives as digits, and a server that wrote something
+    /// else is not answered with a plausible size.
+    #[test]
+    fn a_packet_size_envchange_is_the_number_the_server_wrote() {
+        let read = tokens(&env_token(ENV_PACKET_SIZE, "16384", "4096"))
+            .expect("digits are what this token carries");
+        assert_eq!(read[0], Token::Env(EnvChange::PacketSize { to: 16384 }));
+
+        let refused = tokens(&env_token(ENV_PACKET_SIZE, "large", "4096"))
+            .expect_err("a size that is not a number");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
     }
 }
