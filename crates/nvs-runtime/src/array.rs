@@ -98,6 +98,48 @@
 //! decision above exists to justify, which leaves that decision protecting the
 //! case it was actually written for: attacker-controlled *names*.
 //!
+//! # Decision: an empty array is a per-thread singleton, not an allocation
+//!
+//! [`nvs_array_new`] hands every caller on a thread the *same* header, and the
+//! thread-local holding it owns a reference it never gives up — so that count
+//! never reaches zero, and `retain`, `release` and the whole teardown path are
+//! unchanged. **No hot path needs a pointer comparison**, which is what makes
+//! this cheaper here than the equivalent for the other refcounted container
+//! ([`crate::string`]'s § *An immortal string*, where every release compares
+//! against a sentinel). `[]` becomes a `Cell<usize>` bump and a return, against
+//! a `Box` per evaluation before — and userland produces empty arrays
+//! constantly that are never written into: an early return, a `filter` that
+//! matched nothing, a lookup that missed, a collector on a branch not taken.
+//!
+//! Three properties of an array are what let the sharing be invisible. Every
+//! mutator goes through `make_unique`, which separates whenever the count is
+//! not 1, and the singleton's count is never 1 while a caller holds it — so a
+//! singleton cannot be written through, by the ordinary copy-on-write path
+//! rather than by a special case. `nvs_array_eq` compares by content, so
+//! sharing is unobservable to
+//! [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)'s
+//! identity row. And an array is neither `Send` nor `Sync`, so per-thread is
+//! per-owner and the count stays non-atomic.
+//!
+//! Deliberately *not* the immortal-header-in-the-data-section arrangement a
+//! string literal gets, and the reason is the [`RefCell`]: a read takes
+//! `borrow()`, which **writes** the borrow flag, so a header two threads could
+//! reach would race on every `count()`. Thread-local is what keeps that flag
+//! sound.
+//!
+//! **Only [`nvs_array_new`] moves.** [`NvsArray::new`] still allocates, because
+//! its Rust-side callers — `make_unique` first among them — take a handle they
+//! are about to write through.
+//!
+//! What it spends, as ADR 0004 requires: **nothing per request — it saves.**
+//! One header per thread, permanently, against one per empty array that stays
+//! empty. An empty array that *is* later written pays one `make_unique`
+//! separation, allocating exactly the header the old path allocated eagerly,
+//! plus a failed `== 1` branch — a wash plus a branch, not a regression. The
+//! one non-obvious cost is the leak check: a per-thread block that is never
+//! freed is *still reachable* rather than *definitely lost*, and
+//! `tools/leak-check.sh`'s threshold is what says whether that matters.
+//!
 //! # Decision: deletion tombstones, with amortized compaction
 //!
 //! The entry vector is insertion order with a `None` where a key was
@@ -1198,8 +1240,27 @@ pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::rele
 // one — see this module's copy-on-write decision, which is the whole reason
 // the signatures are shaped that way rather than returning nothing.
 
-/// A fresh empty array with a reference count of one —
-/// `nvs_ir::InstKind::ArrayNew`'s allocation half.
+thread_local! {
+    /// This thread's empty array — the module docs § *an empty array is a
+    /// per-thread singleton*. Null until the thread's first [`nvs_array_new`],
+    /// and the one reference this slot owns is never given up.
+    ///
+    /// `const`-initialized and holding no `Drop` type, per
+    /// [`crate::alloc`]'s § *The one trap*: a lazily-initialized thread local
+    /// allocates its own state and one with a destructor registers that
+    /// destructor, both from inside the allocator this crate installs.
+    static EMPTY: Cell<*mut ArrayHeader> = const { Cell::new(std::ptr::null_mut()) };
+}
+
+/// An empty array with one more reference than it had —
+/// `nvs_ir::InstKind::ArrayNew`'s allocation half, which allocates only the
+/// first time a thread asks.
+///
+/// The array is the thread's singleton, so this is a refcount bump rather than
+/// a `Box`; the module docs § *an empty array is a per-thread singleton* own
+/// why nothing can observe the sharing. It is also the **only** producer that
+/// hands the singleton out — [`NvsArray::new`] still allocates, for the callers
+/// that mean to write through the handle they get.
 ///
 /// The one primitive here that is safe to call: it reads no pointer the caller
 /// supplied, because it takes none.
@@ -1210,7 +1271,35 @@ pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::rele
 )]
 #[unsafe(no_mangle)]
 pub extern "C" fn nvs_array_new() -> *mut ArrayHeader {
-    NvsArray::new().into_raw()
+    EMPTY.with(|slot| {
+        let mut ptr = slot.get();
+        if ptr.is_null() {
+            // The slot's own reference, which outlives every caller's.
+            ptr = NvsArray::new().into_raw();
+            slot.set(ptr);
+        }
+        bump(ptr);
+        ptr
+    })
+}
+
+/// Allocates this thread's empty-array singleton if nothing has yet, so a test
+/// measuring an allocation balance can open its window after it.
+///
+/// One header per thread is neither a leak nor a frame's local, but a
+/// [`crate::budget::live_bytes`] balance taken across the thread's *first* `[]`
+/// cannot tell it from one — the module docs § *an empty array is a per-thread
+/// singleton* own why it is there. Every later `[]` on that thread allocates
+/// nothing at all, which is what makes one call at the top of a measured run
+/// enough.
+pub fn prime_empty_array() {
+    #[expect(
+        unsafe_code,
+        reason = "this line owns exactly the reference it gives back"
+    )]
+    unsafe {
+        nvs_array_release(nvs_array_new());
+    }
 }
 
 /// Adds a reference — `nvs_ir::InstKind::Retain` for a `Ty::Array` operand.
@@ -1926,6 +2015,90 @@ mod tests {
         assert!(list.get(b"08").is_none());
         assert!(list.get(b"x").is_none());
         assert!(!list.has_key(b"32"));
+    }
+
+    #[test]
+    fn an_empty_array_allocates_nothing() {
+        // The module docs § *an empty array is a per-thread singleton*. Bytes
+        // *ever* allocated is the only reading that shows it: a `live_bytes`
+        // balance reads zero for a header allocated and freed inside the loop
+        // just as happily as for one that was never built.
+        const RUN: usize = 16;
+
+        // Neither the thread's first `[]` nor the vector holding the handles
+        // belongs inside the window: the singleton is one allocation per
+        // thread and this is the thread that makes it.
+        let primed = nvs_array_new();
+        let mut held: Vec<*mut ArrayHeader> = Vec::with_capacity(RUN);
+
+        let before = allocated_bytes();
+        for _ in 0..RUN {
+            held.push(nvs_array_new());
+        }
+        assert_eq!(
+            allocated_bytes() - before,
+            0,
+            "{RUN} empty arrays allocated something, and a header is the only \
+             thing `nvs_array_new` could have built"
+        );
+
+        // Held all at once, so this is sharing rather than one cached header
+        // the next call happens to reuse.
+        assert!(
+            held.iter().all(|ptr| *ptr == primed),
+            "every empty array a thread produces is the same header"
+        );
+        for ptr in &held {
+            #[expect(unsafe_code, reason = "this test owns each reference it drops")]
+            unsafe {
+                assert_eq!(nvs_array_count(*ptr), 0, "the singleton stays empty");
+                nvs_array_release(*ptr);
+            }
+        }
+        #[expect(unsafe_code, reason = "this test owns the reference it drops")]
+        unsafe {
+            nvs_array_release(primed);
+        }
+
+        // The slot's own reference is the one nothing gives up, so releasing
+        // every handed-out one leaves the header alive rather than freed.
+        #[expect(unsafe_code, reason = "the slot keeps this allocation live")]
+        let remaining = unsafe { NvsArray::refcount_of(primed) };
+        assert_eq!(remaining, 1, "the thread-local slot still holds one");
+    }
+
+    #[test]
+    fn writing_into_an_empty_array_allocates() {
+        // The control for `an_empty_array_allocates_nothing`: a measurement
+        // that only ever reads zero passes just as well when it is broken. It
+        // is also what makes the singleton sound — a handle from
+        // `nvs_array_new` shares the thread's header, so its count is never 1
+        // and `make_unique` separates before the first write lands.
+        #[expect(unsafe_code, reason = "this test owns the reference it reclaims")]
+        let mut written = unsafe { NvsArray::from_raw(nvs_array_new()) };
+        #[expect(unsafe_code, reason = "this test owns the reference it reclaims")]
+        let untouched = unsafe { NvsArray::from_raw(nvs_array_new()) };
+
+        let before = allocated_bytes();
+        written.append(Value::int(7));
+        assert!(
+            allocated_bytes() > before,
+            "the first write into an empty array is what buys it a header of \
+             its own"
+        );
+
+        assert_eq!(written.count(), 1);
+        assert_eq!(
+            untouched.count(),
+            0,
+            "the shared empty array was separated from, never written through"
+        );
+
+        // And a later `[]` on the same thread is still the empty array, not
+        // the one the write left behind.
+        #[expect(unsafe_code, reason = "this test owns the reference it reclaims")]
+        let later = unsafe { NvsArray::from_raw(nvs_array_new()) };
+        assert_eq!(later.count(), 0);
     }
 
     #[test]

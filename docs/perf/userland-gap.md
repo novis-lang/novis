@@ -464,17 +464,19 @@ branch, not a regression. The one non-obvious cost is the leak check: a per-thre
 freed is *still reachable* rather than *definitely lost*, and `tools/leak-check.sh`'s threshold is
 what says whether that matters.
 
-**Unpriced, and pricing it is the first slice's job** — no measurement here yet, only the floor
-section's ceiling: one platform-heap round trip is 28.7 ns and the pooled path is a fraction of it, so
-this is a tens-of-nanoseconds item and no suite case is waiting on it. It is ranked last for that
-reason. It is on the list because it is small, self-contained and strictly negative on footprint, not
-because anything measured asked for it — and if the first slice's number comes in low enough that the
-guard would be measuring noise, deleting this row is the right outcome.
+**Priced by count rather than by clock**, which is what makes a guard worth having here at all: the
+saving is one pooled allocation and its matching free per empty array that stays empty, and zero
+against one is exact where a duration would sit in the noise. What one of them is worth is the floor
+section's ceiling — a platform-heap round trip is 28.7 ns and the pooled path a fraction of it — so
+this stays a tens-of-nanoseconds item and no suite case is waiting on it. It is ranked last for that
+reason, and it is on the list because it is small, self-contained and strictly negative on footprint,
+not because anything measured asked for it.
 
-*Owner:* `crates/nvs-runtime/src/array.rs`'s module doc, as a fourth decision beside the packed one.
-*Guard:* `an_empty_array_allocates_nothing` in `array.rs`, reading `counting_alloc::allocated_bytes`
-over an `nvs_array_new`/`nvs_array_release` pair — with the control the playbook asks for, since the
-same test must show that writing into one *does* allocate.
+*Owner:* `crates/nvs-runtime/src/array.rs`'s module doc § *an empty array is a per-thread singleton*,
+the fourth decision beside the packed one. *Guard:* `an_empty_array_allocates_nothing`, reading
+`counting_alloc::allocated_bytes` across a run of `nvs_array_new` calls, with
+`writing_into_an_empty_array_allocates` as the control the playbook asks for — a measurement that only
+ever reads zero passes just as well when it is broken.
 
 ## What is not on this list, and why
 

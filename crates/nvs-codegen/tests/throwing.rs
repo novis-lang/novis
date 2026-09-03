@@ -301,7 +301,10 @@ fn a_fatal_releases_the_frames_locals() {
 
     // The run is measured, not the compile: what is under test is what the
     // compiled code hands back, and the front end's own allocations would
-    // swamp two buffers.
+    // swamp two buffers. The thread's empty-array singleton is taken first —
+    // it is one header per thread rather than a frame's local, and the
+    // fixture's `[1.5, 2.5]` would otherwise be the call that allocates it.
+    nvs_runtime::prime_empty_array();
     let before = live_bytes();
     let spent = allocated_bytes();
     assert_eq!(call(entry, &mut ctx, &[]).err(), Some(FATAL));

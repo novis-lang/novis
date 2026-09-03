@@ -310,7 +310,7 @@ pub use array::{
     ARRAY_REFCOUNT_OFFSET, ArrayHeader, NvsArray, SlotKey, nvs_array_append, nvs_array_count,
     nvs_array_get, nvs_array_get_index, nvs_array_has_key, nvs_array_key_at, nvs_array_new,
     nvs_array_next_slot, nvs_array_release, nvs_array_retain, nvs_array_set, nvs_array_set_index,
-    nvs_array_unset, nvs_array_value_at,
+    nvs_array_unset, nvs_array_value_at, prime_empty_array,
 };
 pub use closure::{
     CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT,
