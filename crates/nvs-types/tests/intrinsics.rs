@@ -467,6 +467,51 @@ fn the_same_tainted_value_at_a_bound_parameter_compiles() {
     );
 }
 
+#[test]
+fn a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted() {
+    // ADR 0067 § 3's other sink, and the one whose refusal is not the end of
+    // the story: `Settings.host` refuses `tainted` and **has no launderer**,
+    // because a malicious server answers any query with a `LOCAL INFILE`
+    // request and no string check can establish that an address is safe to
+    // send a credential to. The refusal itself is the ordinary `E0401` — the
+    // key is declared a plain `string` and the value is not one.
+    let refused = check_call(
+        "    tainted string $h = \"db.example.test\" as tainted string;\n    \
+         var $c = Core\\Db::open({driver: Core\\Db\\Driver::Postgres, host: $h, \
+         database: \"shop\", user: \"app\", password: \"hunter2\"});\n",
+    );
+    assert!(
+        reported(&refused, code::E_TYPE_MISMATCH),
+        "a tainted host reached `open`'s settings: {refused:?}"
+    );
+
+    // And the half `check_shape_field` exists for. A sink with a launderer
+    // leaves a reader somewhere to go and this one does not, so the diagnostic
+    // names § 3's only way through, in the spelling that would compile.
+    assert!(
+        refused.iter().any(|diag| diag
+            .notes
+            .iter()
+            .any(|note| note.contains("Core\\Taint::assertTrusted"))),
+        "the refusal named no way through: {refused:?}"
+    );
+
+    // The pair that makes it a boundary rather than a ban, and § 3's own
+    // sentence: `database` and `user` are length-prefixed protocol fields
+    // rather than parsed text, so they accept `tainted` freely. Same value,
+    // one key over.
+    let accepted = check_call(
+        "    tainted string $t = \"shop\" as tainted string;\n    \
+         var $c = Core\\Db::open({driver: Core\\Db\\Driver::Postgres, \
+         host: \"db.example.test\", database: $t, user: $t, \
+         password: \"hunter2\"});\n",
+    );
+    assert!(
+        !accepted.has_errors(),
+        "a tainted value was refused at `database`: {accepted:?}"
+    );
+}
+
 /// A connection to write a literal query against. `connect` is § 18's entry
 /// point and its return type is what puts `Core\Db\Connection` on `$db`, which
 /// is the class § 1's rows are matched nominally against.
