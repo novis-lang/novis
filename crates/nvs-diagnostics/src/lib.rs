@@ -1485,6 +1485,20 @@ pub mod code {
     /// two directives disagree is the worse outage.
     pub const E_NO_ADMISSION: Code = Code::new("E0622");
 
+    /// A `[server] health_path` that is not an absolute path: `healthz`,
+    /// `/healthz?verbose=1`, or `/` on its own. ADR 0097 § 5's probe answers
+    /// one exact URL ahead of the mount table, so what is written here is
+    /// reserved from every application this server mounts — which is why the
+    /// key is off by default, and why a spelling no request could ever carry
+    /// is refused rather than reserved and then never reached. A relative path
+    /// cannot equal a request target, a query or a fragment is not part of the
+    /// path one is matched on, and `/` reserves every mount's own entry.
+    ///
+    /// Not `E0621`'s refusal reached from another direction: a mount path is a
+    /// prefix that has to resolve inside `[server] root` on disk, and this is a
+    /// whole request target that reaches no filesystem at all.
+    pub const E_BAD_HEALTH_PATH: Code = Code::new("E0623");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

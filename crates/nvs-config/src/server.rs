@@ -2,11 +2,11 @@
 //! durations — with the two magnitudes that would leave a connection unbounded — and `listen` as
 //! the sockets to bind.
 //!
-//! Those two and `max_in_flight` are the only parts of `[server]` that resolve to something other
-//! than what was written *here*, so this module is small on purpose: everything else in the block
-//! is a path or a word read directly off [`crate::tree::Server`]. The fourth thing that resolves is
-//! the mount table, and it is [`mod@crate::mount`]'s because it needs a disk to expand a glob
-//! against — [`validate`] runs the half of it that does not.
+//! Those two, `max_in_flight` and `health_path` are the only parts of `[server]` that resolve to
+//! something other than what was written *here*, so this module is small on purpose: everything
+//! else in the block is a path or a word read directly off [`crate::tree::Server`]. The fifth thing
+//! that resolves is the mount table, and it is [`mod@crate::mount`]'s because it needs a disk to
+//! expand a glob against — [`validate`] runs the half of it that does not.
 //!
 //! **`max_in_flight` resolves to three numbers rather than to one**, which is
 //! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
@@ -35,6 +35,14 @@
 //! server's start depend on a nameserver. Which of the classified entries a given process actually
 //! binds is the caller's — [`Listen`] says what each entry *is* and nothing about how many cores
 //! there are.
+//!
+//! **`health_path` is off by default, and an empty string is that same off** — § 5 writes the key
+//! out as `""`, so the state where no URL is reserved has to be reachable both by leaving the key
+//! out and by transcribing the ADR's own example. What is written there is taken from every mount
+//! this server answers, which is why a spelling no request could carry — a relative path, a query
+//! or a fragment, a literal space — is refused under `E0623` rather than reserved and then never
+//! reached: a probe that never matches leaves the server looking configured while nothing answers.
+//! `/` on its own is refused from the other side, because it reserves every mount's own entry.
 //!
 //! Cost: one pass over one optional block at boot and at reload, and four `Duration`s plus one
 //! address per written `listen` entry held per configuration generation. Nothing here runs on a
@@ -86,8 +94,8 @@ impl Default for Waits {
     }
 }
 
-/// The block resolves — the boot half of [`waits_for`], of [`listen_on`] and of
-/// [`crate::mount::check`].
+/// The block resolves — the boot half of [`waits_for`], of [`listen_on`], of [`health_path`] and
+/// of [`crate::mount::check`].
 ///
 /// # Errors
 ///
@@ -99,6 +107,7 @@ impl Default for Waits {
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     waits_for(config, origins)?;
     listen_on(config, origins)?;
+    health_path(config, origins)?;
     crate::mount::check(config, origins)
 }
 
@@ -296,6 +305,62 @@ fn classify(entry: &str, origins: &BTreeMap<String, Origin>) -> Result<Listen, D
              for a Unix-domain socket",
         )
     })
+}
+
+/// The one URL § 5's probe answers on, or `None` where this server reserves none.
+///
+/// A `String` and not a [`std::path::PathBuf`]: this is the path inside a request target and it
+/// never reaches a disk, which is the whole difference between it and every other path in the
+/// block. Matching it is `nvs_server::mount`'s — § 4's five steps run after the probe, not around
+/// it — and what this function decides is only that the written value is a target a request could
+/// carry.
+///
+/// # Errors
+///
+/// `E0623` for a written value that is not an absolute path: a relative one, one carrying a query
+/// or a fragment, one holding a space or a control character, and `/` on its own. The module doc
+/// owns why each is refused here rather than reserved and never matched.
+pub fn health_path(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Option<String>, Diagnostic> {
+    let Some(written) = config
+        .server
+        .as_ref()
+        .and_then(|server| server.health_path.as_ref())
+        .filter(|path| !path.is_empty())
+    else {
+        return Ok(None);
+    };
+    let wrong = if !written.starts_with('/') {
+        "a request target begins at the root, so this is a path no request can carry"
+    } else if written == "/" {
+        "the root is every mount's own entry, so reserving it answers the probe to whoever asked \
+         for the site itself"
+    } else if written.contains(['?', '#']) {
+        "a query and a fragment are not part of the path a request is matched on, so this is a URL \
+         rather than the path inside one"
+    } else if written
+        .chars()
+        .any(|char| char.is_whitespace() || char.is_control())
+    {
+        "a space or a control character reaches this server percent-encoded, so a path holding one \
+         literally is one no probe can ask for"
+    } else {
+        return Ok(Some(written.clone()));
+    };
+    Err(Diagnostic::error(
+        code::E_BAD_HEALTH_PATH,
+        format!("`server.health_path` is `{written}`, which is not a path this server can answer"),
+    )
+    .with_note(format!(
+        "{wrong}{}",
+        origin_note(origins.get("server.health_path"))
+    ))
+    .with_help(
+        "write the one absolute path the probe asks for, as `/healthz`, or leave \
+         `server.health_path` out to keep ADR 0097 § 5's own off",
+    ))
 }
 
 /// § 5's own number, transcribed rather than chosen — the ADR writes it out.
@@ -658,6 +723,71 @@ mod tests {
             let refused = listen_on(&tree(written), &BTreeMap::new())
                 .expect_err("an unbindable `listen` was accepted");
             assert_eq!(refused.code, Some(code::E_BAD_LISTEN), "for {written:?}");
+        }
+    }
+
+    /// § 5's "off by default, so no URL is silently reserved", asserted through all three spellings
+    /// of off — no block, a block without the key, and the ADR's own `""` — because a reading that
+    /// answered `Some("")` for the last one would reserve the empty path from every mount while
+    /// looking like the example it was copied from.
+    #[test]
+    fn a_health_path_is_off_until_one_is_written() {
+        for written in [
+            "",
+            "[server]\nroot = \"/www\"\n",
+            "[server]\nhealth_path = \"\"\n",
+        ] {
+            assert_eq!(
+                health_path(&tree(written), &BTreeMap::new()).expect("an off probe was refused"),
+                None,
+                "for {written:?}"
+            );
+        }
+        assert_eq!(
+            health_path(
+                &tree("[server]\nhealth_path = \"/healthz\"\n"),
+                &BTreeMap::new()
+            )
+            .expect("a written probe was refused"),
+            Some("/healthz".to_owned())
+        );
+    }
+
+    /// The bound on both sides: every spelling that could not be the path a request carries, named
+    /// beside the ones that can. A probe that is merely never matched is worse than one refused —
+    /// the server boots looking configured and nothing answers — so the accepted half is asserted
+    /// in the same case, or a resolution that refused everything would pass against the first.
+    #[test]
+    fn a_reserved_health_path_is_an_absolute_path_and_nothing_else() {
+        for written in [
+            "healthz",
+            "./healthz",
+            "/",
+            "/healthz?verbose=1",
+            "/healthz#live",
+            "/health z",
+        ] {
+            let refused = health_path(
+                &tree(&format!("[server]\nhealth_path = \"{written}\"\n")),
+                &BTreeMap::new(),
+            )
+            .expect_err("a path no request can carry was reserved");
+            assert_eq!(
+                refused.code,
+                Some(code::E_BAD_HEALTH_PATH),
+                "for {written:?}"
+            );
+        }
+        for written in ["/healthz", "/-/health", "/internal/health/", "/%20"] {
+            assert_eq!(
+                health_path(
+                    &tree(&format!("[server]\nhealth_path = \"{written}\"\n")),
+                    &BTreeMap::new()
+                )
+                .expect("an absolute path was refused"),
+                Some(written.to_owned()),
+                "for {written:?}"
+            );
         }
     }
 }
