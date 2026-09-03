@@ -2,55 +2,57 @@
 
 ## State
 
-**M8 goal 5, stage 7. SQL Server is encrypted: PRELOGIN and ADR 0067 § 3's tunnelled TLS.**
-`crates/nvs-db/src/tds.rs:947`'s `prelogin` sends the option table and refuses any server that will
-not encrypt the whole session; `crates/nvs-db/src/tds.rs:1154`'s `negotiate_tls` then runs the whole
-`rustls` handshake through `crates/nvs-db/src/tds.rs:989`'s `Tunnel`, which frames every record as a
-`PreLogin` payload until `TunnelEnd::handshake_done` and passes through afterwards. 33 unit tests,
-none of which needs a socket or a certificate.
+**M8 goal 5, stage 7. SQL Server's handshake is written end to end bar the socket.** Framing and
+PRELOGIN's tunnelled TLS (`crates/nvs-db/src/tds.rs:1156`), LOGIN7 built from the block
+(`crates/nvs-db/src/tds.rs:1390`), and the login's answer read as tokens
+(`crates/nvs-db/src/tds.rs:1738`) — `LOGINACK`, `ENVCHANGE`, `ERROR`, `INFO` and `DONE`. 39 unit
+tests, none of which needs a socket or a certificate.
 
-**Nothing opens a connection yet**: `crates/nvs-db/src/conn.rs:744`'s `TdsConn` is untouched and is
-still the stub carrying `state` and nothing else, so nothing calls `negotiate_tls`.
+**LOGIN7's decisions live on its flag constants, not in a comment block**: `fDatabase` fatal so a
+failed initial database fails the login, `fODBC` for the ANSI defaults — implicit transactions off
+is what § 7's closure rests on — `fUseDB` for the `ENVCHANGE` that reports a `USE`, and five fields
+that go out empty for a reason each. § 8's table is `crates/nvs-db/src/tds.rs:1539`, keyed on the
+error number alone because TDS carries no `SQLSTATE`; `547` merges foreign key and `CHECK`, so
+`DbErrorKind::CheckViolation` is unreachable on this backend and the doc says so.
 
-**The standing acceptance failure is unchanged and is not a regression.** Stage 7 reports
-`mssql_resets_through_sp_reset_connection_and_loses_its_cache` did not run; § 13's reset needs LOGIN7
-and the token stream in front of it, which is the group below in order.
+**Nothing sends any of it.** `crates/nvs-db/src/conn.rs:744`'s `TdsConn` is still `state` and
+nothing else, so there is no connection to sequence a handshake on.
 
-**The group below is three slices and it was left whole on purpose.** LOGIN7's title half — "the
-packet size the server answers with" — is an `ENVCHANGE` token, so it cannot land before the token
-stream reads one; splitting it across two sessions costs more than doing both with one file loaded.
+**The standing acceptance failure is unchanged and is not a regression.**
+`mssql_resets_through_sp_reset_connection_and_loses_its_cache` needs a live connection, a statement
+cache to lose and § 13's reset — the three slices below, in that order.
+
+The two slices landed as one commit because they are one file; `git log` cannot read them apart.
 
 ## Next group
 
-**One file set: `crates/nvs-db/src/tds.rs`**, plus `crates/nvs-db/src/conn.rs` for the third slice.
-`crates/nvs-db/src/tds.rs:853`'s `prelogin_request` is the shape every message below takes — an
-offset-and-length table in front of its blobs — and `crates/nvs-db/src/mysql.rs:1408`'s `connect` is
-the sequencing to copy. Nothing here needs an ADR: 0132 is the slot and it is spent.
+**One file set: `crates/nvs-db/src/conn.rs` and `crates/nvs-db/src/tds.rs`.**
+`crates/nvs-db/src/mysql.rs:1408`'s `connect` is the sequencing to copy, and the playbook's first
+`-p nvs-db` trap is binding here: write the sequencing as a free function generic in the stream, or
+no unit test can reach it.
 
-- [ ] **LOGIN7, built from the target** (0067 § 3). A 94-byte fixed header, then thirteen
-      little-endian offset/length pairs whose lengths are *characters*, then UCS-2LE blobs; the
-      password is nibble-swapped and XORed with `0xA5`, which is why § 3's TLS is not optional here.
-      `crates/nvs-db/src/tds.rs:134`'s `TdsTarget` is every field it carries, and
-      `crates/nvs-db/src/tds.rs:761`'s `TDS_VERSION` is the version field. Decide and write down what
-      `OptionFlags1` sets: a failed initial-database change must be fatal, since
-      `crates/nvs-db/src/tds.rs:134` makes `database` required precisely so a connection cannot mean
-      whatever the server's default was.
-- [ ] **The token stream, as far as `DONE`, `ERROR`, `LOGINACK` and `ENVCHANGE`** (0067 §§ 3 and 8).
-      A handshake answer is one `crates/nvs-db/src/tds.rs:726` `read_message`, parsed as tokens;
-      `ENVCHANGE` type 4 is the packet size the server chose, which goes to
-      `crates/nvs-db/src/tds.rs:465`'s `set_packet_size` and is the second half of the slice above.
-      `ERROR` is § 8's `DbError`, so its normalisation table is SQL Server's own, the way
-      `crates/nvs-db/src/maria.rs` has MariaDB's.
-- [ ] **`TdsConn` gains a wire, and `connect` opens one** (0067 § 3).
-      `crates/nvs-db/src/conn.rs:744` is the stub to widen, and its wire type is
-      `Wire<NvsTls<Tunnel<NvsTcp>>>` — the tunnel stays in the type for the connection's life, which
-      `crates/nvs-db/src/tds.rs:989`'s doc argues. Write the sequencing as free functions generic in
-      the stream, per the playbook's `PgConn` bullet, or none of it is reachable from a unit test.
+- [ ] **`TdsConn` gains a wire, and `connect` opens one** (0067 § 3). `crates/nvs-db/src/conn.rs:744`,
+      `crates/nvs-db/src/tds.rs:1156`, `crates/nvs-db/src/tds.rs:1390`,
+      `crates/nvs-db/src/tds.rs:1738`, `crates/nvs-db/src/mysql.rs:1408`. **Two decisions come due
+      the moment a token becomes a `ServerError`**: `crates/nvs-db/src/conn.rs:556`'s `driver_code`
+      is `Option<u16>` and a SQL Server number is a `LONG` a `THROW` may raise past 65535, and
+      `ServerError::sql_state` has no value at all on this backend — TDS sends none, and the five
+      characters PDO shows are ODBC's own mapping. Widening the field touches all four drivers and
+      `nvs-stdlib`'s reader; leaving it `None` is the cheap answer and loses § 8's `driverCode` for
+      every user-raised error.
+- [ ] **The result set: `COLMETADATA` and `ROW` over `Wire::read_packet`** (0067 §§ 5 and 9).
+      `crates/nvs-db/src/tds.rs:696`, `crates/nvs-db/src/tds.rs:1738`. `Tokens` reads a whole
+      message on purpose and a row reader cannot — the module doc's first section is the reason, and
+      the two readers share the token constants at `crates/nvs-db/src/tds.rs:1414`.
+- [ ] **§ 1's cache over `sp_prepexec`, then § 13's reset through `sp_reset_connection`** (0067 §§ 1
+      and 13). `crates/nvs-db/src/tds.rs:338`'s `Status` already carries the `RESET_CONNECTION` bit
+      that sends it as a packet flag rather than a statement. This is the slice the driver's
+      acceptance check is waiting for.
 
 ## Backlog
 
-- `mssql_resets_through_sp_reset_connection_and_loses_its_cache` — § 13's reset, after the group
-  above; `docs/agent/loop-goal.toml` stage 7 owns the check.
-- § 5's placeholder rewriting for this dialect (`@P1`), `crates/nvs-db/src/sql.rs`'s `Dialect`.
-- § 1's statement cache over `sp_prepexec`/`sp_execute`, which is `PacketType::Rpc`.
-- The five-driver container matrix needs a SQL Server service in `tests/db/compose.yaml`.
+- A real SQL Server has never answered a Novis LOGIN7; the matrix leg is `crates/nvs-db/src/matrix.rs`.
+- Nothing in `nvs-stdlib` builds a `Connection::SqlServer`, so `connect` on an `mssql` block still
+  throws (ADR 0067 § 18).
+- § 7's nesting on this backend is `SAVE TRANSACTION`, unwritten (ADR 0067 § 7).
+- § 9's map over TDS's own type tokens — `datetime2`, `uniqueidentifier`, `decimal` — unwritten.
