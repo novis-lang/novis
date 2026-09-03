@@ -1679,6 +1679,16 @@ is why" — is this file.
   missing, so the landed half earns nothing and the report cannot say which one is the work. The tell
   is the `_and_` in the name: grep each half's claim separately, and split the entry into one name per
   half rather than waiting for a single test to become writable.
+- **Proving a framed `crates/nvs-stdlib/tests/queue.rs` case actually *runs* costs one filtered
+  `cargo test`, not a `db-matrix.py` leg — but `NVS_DB_MATRIX_CA` has to be an absolute path.** The
+  six variables are the ones `tools/db-matrix.py` sets, their values are in `tests/db/compose.yaml`
+  (MySQL is `novis`/`Novis-Test-Pw1`/`novis_test` on `127.0.0.1:13306`), and the anchor comes out
+  with `docker compose -f tests/db/compose.yaml cp mysql:/certs/ca.crt <abs path>`. That turns
+  break-an-assertion-and-watch-it-fail into a sub-second loop instead of a two-minute one. A
+  *relative* `NVS_DB_MATRIX_CA` resolves against the crate directory the test binary runs in rather
+  than the repository root, and the failure blames the wrong thing twice over: the first case
+  panics inside `open` with a bare `NotFound`, and every case after it reports `Once instance has
+  previously been poisoned` from `schema`, which reads as a broken fixture rather than a bad path.
 
 ## Running things
 
