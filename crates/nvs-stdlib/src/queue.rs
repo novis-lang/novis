@@ -69,9 +69,16 @@
 //!    reports over whichever of the three its block names. `crates/nvs-stdlib/tests/queue.rs` is
 //!    what says those texts are ones a *server* accepts rather than ones this module agrees with
 //!    itself about: § 2's schema, § 4's claim, § 6's two write-backs and its move run against a
-//!    real MySQL and a real MariaDB there, beside the PostgreSQL cases they were written from.
-//!    What is left is the two drivers that send no statement at all, which is [`crate::db`]'s
-//!    gap 2 and not this module's to close.
+//!    real MySQL and a real MariaDB there, beside the PostgreSQL cases they were written from,
+//!    and the roster and `status` — [`QUEUES_MYSQL`] and [`STATUS_MYSQL`] — do now as well, with
+//!    § 4's `skip locked` asserted over the [`Split`] that carries it. That leaves two texts no
+//!    server has ever parsed, and they are worth unequal amounts: [`CANCEL_MYSQL`] is
+//!    [`SUCCEEDED_MYSQL`]'s own shape — a conditional `update` whose whole answer is the affected
+//!    count — so a real server has already had its opinion of that shape, while
+//!    [`COUNTS_MYSQL`] carries the one construct nothing else here does, `count(case when … then
+//!    1 end)` beside a `cast(… as signed)` over the `sum` MySQL answers as a `decimal`, and is
+//!    therefore the next text worth a server. What is left after that is the two drivers that
+//!    send no statement at all, which is [`crate::db`]'s gap 2 and not this module's to close.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -791,7 +798,12 @@ fn jitter(id: i64, attempts: i64) -> u64 {
 /// it to [`STATE`]. That arm also costs nothing under a design where a dead job stays in
 /// [`JOBS_TABLE`] with its state written instead of moving — the first arm is tried first and the
 /// `limit 1` takes it — so the statement is correct either way and the worker is free to choose.
-const STATUS_POSTGRES: &str = "select state from nvs_jobs \
+///
+/// **Public for the reason the statements a worker sends are**, and it is the same reason twice
+/// over: nothing outside this module *runs* a `status` — [`crate::queue`]'s member is the only
+/// caller — but `crates/nvs-stdlib/tests/queue.rs` sends both spellings to a real server, and a
+/// statement no server has ever parsed is exactly what that target exists to catch.
+pub const STATUS_POSTGRES: &str = "select state from nvs_jobs \
     where id = $1::bigint and queue = $2::text \
     union all \
     select 3 from nvs_dead_jobs \
@@ -810,7 +822,7 @@ const STATUS_POSTGRES: &str = "select state from nvs_jobs \
 /// and a `?` cannot, so the id and the queue each go out twice: the same two values bound twice,
 /// not two more arguments for a caller to get wrong. [`counted_row`] is where that pair is doubled,
 /// once, rather than in each of the two members that send it.
-const STATUS_MYSQL: &str = "select state from nvs_jobs \
+pub const STATUS_MYSQL: &str = "select state from nvs_jobs \
     where id = ? and queue = ? \
     union all \
     select 3 from nvs_dead_jobs \
