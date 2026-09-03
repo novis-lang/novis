@@ -418,21 +418,30 @@ fn clear(conn: &mut Conn, queue: &str) {
 /// The `Once` is [`schema`]'s and for [`schema`]'s reason, and the `delete` is
 /// [`clear`]'s half for the one table § 2 does not own.
 ///
-/// **The `create` is PostgreSQL's spelling and stays that way while its callers
-/// are**: § 3's two cases are the only ones, both are gated on [`postgres`],
-/// and `bigserial` is the one construct here with no framed spelling. A case
-/// that needs this table on another driver splits the statement the way
-/// [`queue::MIGRATION_MYSQL`] splits § 2's.
+/// **The `create` is two spellings, split the way [`queue::MIGRATION_MYSQL`]
+/// splits § 2's and for the same three reasons.** `bigserial` is a sequence and
+/// a default in one word and the framed servers have neither, `text` is a column
+/// InnoDB will not index at an unbounded width, and `engine=innodb` is what makes
+/// a rollback of this table a rollback at all. The `delete` below stays one text,
+/// because the only thing that differs there is the placeholder [`Conn::text`]
+/// already answers with.
 fn orders(leg: &Leg, conn: &mut Conn, queue: &str) {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
         let mut own = open(leg);
-        apply(
-            &mut own,
-            "create table if not exists nvs_stdlib_tests_orders \
-             (id bigserial primary key, queue text not null)",
-            &[],
-        );
+        let create = match leg.driver {
+            Driver::Postgres => {
+                "create table if not exists nvs_stdlib_tests_orders \
+                 (id bigserial primary key, queue text not null)"
+            }
+            _ => {
+                "create table if not exists nvs_stdlib_tests_orders \
+                 (id bigint not null auto_increment primary key, \
+                 queue varchar(255) not null\
+                 ) engine=innodb default charset=utf8mb4"
+            }
+        };
+        apply(&mut own, create, &[]);
     });
     let text = conn.text();
     apply(
@@ -440,6 +449,38 @@ fn orders(leg: &Leg, conn: &mut Conn, queue: &str) {
         &format!("delete from nvs_stdlib_tests_orders where queue = {text}"),
         &[Some(queue.as_bytes())],
     );
+}
+
+/// One order row on `queue`, answering the id the insert wrote — the framed
+/// half of § 3's application write.
+///
+/// **It reads the id off the OK packet rather than off a `returning`**, which is
+/// [`push`]'s answer to the same question and its doc owns the reason. MySQL has
+/// no `insert … returning` at all; MariaDB does, and reaching for it would make
+/// this the one statement in the file that only one of the two drivers a framed
+/// leg covers can run, for a value both of them already sent.
+fn order_row(conn: &mut Conn, queue: &str) -> String {
+    let Dialect::Framed(mut framed) = conn.dialect() else {
+        unreachable!("an OK packet is the framed drivers', and PostgreSQL has `returning`")
+    };
+    let mut answered = framed
+        .query(
+            "insert into nvs_stdlib_tests_orders (queue) values (?)",
+            &[Some(queue.as_bytes())],
+        )
+        .expect("the server ran the statement");
+    // An insert answers no result set, and draining is both what ends the
+    // statement on this driver and what lets `last_id` be read at all.
+    while answered
+        .next_row()
+        .expect("the end of the stream")
+        .is_some()
+    {}
+    answered
+        .last_id()
+        .filter(|id| *id != 0)
+        .expect("the insert answered the `AUTO_INCREMENT` id [`orders`] declares")
+        .to_string()
 }
 
 /// Every row `sql` answers with, each column as text and `None` for SQL `NULL`.
@@ -713,13 +754,28 @@ fn claim(conn: &mut Conn, queue: &str, now: i64, cutoff: i64) -> Vec<Vec<Option<
 /// **One read rather than two**, because § 3's property is about the pair: "one
 /// exists without the other" is a state two statements can each miss, since
 /// whatever happened between them is a moment neither one looked at.
+///
+/// **The framed spelling binds the name twice for one that is read twice**, and
+/// that is the whole of the difference: `$1` is a number a statement may repeat
+/// and `?` is a position that cannot, so one text with two occurrences is one
+/// parameter there and two here. [`Conn::text`]'s doc owns why these ad-hoc
+/// statements are written per driver rather than put through § 5's rewriter.
 fn landed(conn: &mut Conn, queue: &str) -> (String, String) {
-    let mut answered = rows(
-        conn,
+    let name = queue.as_bytes();
+    let postgres = conn.driver() == Driver::Postgres;
+    let sql = if postgres {
         "select (select count(*) from nvs_jobs where queue = $1::text), \
-                (select count(*) from nvs_stdlib_tests_orders where queue = $1::text)",
-        &[Some(queue.as_bytes())],
-    );
+                (select count(*) from nvs_stdlib_tests_orders where queue = $1::text)"
+    } else {
+        "select (select count(*) from nvs_jobs where queue = ?), \
+                (select count(*) from nvs_stdlib_tests_orders where queue = ?)"
+    };
+    let bound = if postgres {
+        vec![Some(name)]
+    } else {
+        vec![Some(name), Some(name)]
+    };
+    let mut answered = rows(conn, sql, &bound);
     assert_eq!(answered.len(), 1, "a count answers with one row");
     let mut answered = answered.remove(0);
     let orders = answered.remove(1).expect("a count is not null");
@@ -2163,5 +2219,154 @@ fn a_framed_claim_skips_the_row_another_transaction_holds() {
         ),
         "2",
         "two jobs, one attempt each, and no job claimed by both workers"
+    );
+}
+
+/// § 3 on the framed dialect: the twin of
+/// [`an_enqueue_commits_with_the_write_that_made_it`], and what running it a
+/// second time buys is that § 3's property is the *connection's* rather than
+/// PostgreSQL's.
+///
+/// § 3's design has no outbox in it because a `push` issued on a connection
+/// already inside a transaction is enlisted by that fact alone — "not a mode the
+/// statement is issued in". That is a claim about a protocol's transaction, so a
+/// case proving it on one driver proves it for one protocol, and nothing on this
+/// path is shared with the twin: `START TRANSACTION` is not `BEGIN`,
+/// [`queue::INSERT_MYSQL`]'s `then` is not [`queue::INSERT_POSTGRES`] and answers
+/// its id off an OK packet rather than a `returning`, and what holds the
+/// uncommitted rows is InnoDB rather than PostgreSQL's own MVCC.
+///
+/// The order row is what makes this a case about § 3 rather than about
+/// `INSERT_MYSQL`; the twin's doc argues that at length and this one does not
+/// repeat it.
+#[test]
+fn a_framed_enqueue_commits_with_the_write_that_made_it() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-commit";
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+    orders(&server, &mut conn, QUEUE);
+
+    let now = queue::now_millis();
+    assert_eq!(
+        landed(&mut conn, QUEUE),
+        ("0".to_owned(), "0".to_owned()),
+        "the case starts where an earlier run of it started"
+    );
+
+    conn.begin(None, false)
+        .expect("the server opened a transaction");
+    assert_eq!(conn.depth(), 1, "the connection is inside one transaction");
+
+    let order = order_row(&mut conn, QUEUE);
+    let id = push(&mut conn, QUEUE, now, "3");
+
+    conn.commit().expect("the server closed the transaction");
+    assert_eq!(conn.depth(), 0, "the transaction is over");
+
+    assert_eq!(
+        landed(&mut conn, QUEUE),
+        ("1".to_owned(), "1".to_owned()),
+        "the job and the write that caused it are both durable"
+    );
+    let job = rows(
+        &mut conn,
+        "select id, state, attempts from nvs_jobs where queue = ?",
+        &[Some(QUEUE.as_bytes())],
+    );
+    assert_eq!(
+        job[0][ID].as_deref(),
+        Some(id.as_str()),
+        "the durable job is the row `INSERT_MYSQL` answered the id of inside the transaction"
+    );
+    assert_eq!(
+        job[0][1].as_deref(),
+        Some(std::str::from_utf8(PENDING).expect("an ordinal is ASCII")),
+        "it is claimable, so a worker that starts now runs it"
+    );
+    assert_eq!(
+        job[0][2].as_deref(),
+        Some("0"),
+        "nothing has attempted it yet"
+    );
+    assert_eq!(
+        one(
+            &mut conn,
+            "select count(*) from nvs_stdlib_tests_orders where id = ?",
+            &[Some(order.as_bytes())],
+        ),
+        "1",
+        "the order the job was pushed for is the one that committed"
+    );
+}
+
+/// § 3's other side on the framed dialect, and the twin of
+/// [`a_rolled_back_write_leaves_no_job`]: the same push under a `ROLLBACK`
+/// leaves no job at all.
+///
+/// **The bound is asserted from both sides for the reason the PostgreSQL pair
+/// is** — a `push` that failed for any reason of its own satisfies a case that
+/// only ever rolled back, and one that enqueued outside the transaction
+/// satisfies a case that only ever committed — and that argument is the twin's
+/// doc's rather than repeated here.
+///
+/// What this half adds over the twin is the *mechanism* under the id: an
+/// `AUTO_INCREMENT` counter does not roll back any more than a sequence does, so
+/// the numbers [`order_row`] and [`push`] were answered with really were
+/// allocated and really were handed out. What is gone afterwards is the row,
+/// which is the only thing § 3 ever promised.
+#[test]
+fn a_framed_rolled_back_write_leaves_no_job() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-rollback";
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+    orders(&server, &mut conn, QUEUE);
+
+    let now = queue::now_millis();
+
+    conn.begin(None, false)
+        .expect("the server opened a transaction");
+    let order = order_row(&mut conn, QUEUE);
+    let id = push(&mut conn, QUEUE, now, "3");
+    assert_eq!(
+        landed(&mut conn, QUEUE),
+        ("1".to_owned(), "1".to_owned()),
+        "both rows are there for the transaction that wrote them"
+    );
+
+    conn.roll_back().expect("the server undid the transaction");
+    assert_eq!(conn.depth(), 0, "the transaction is over");
+
+    assert_eq!(
+        landed(&mut conn, QUEUE),
+        ("0".to_owned(), "0".to_owned()),
+        "neither the job nor the write that caused it survived"
+    );
+    assert_eq!(
+        one(
+            &mut conn,
+            "select count(*) from nvs_jobs where id = ?",
+            &[Some(id.as_bytes())],
+        ),
+        "0",
+        "the id the OK packet answered with names nothing, so no worker can ever claim it"
+    );
+    assert_eq!(
+        one(
+            &mut conn,
+            "select count(*) from nvs_stdlib_tests_orders where id = ?",
+            &[Some(order.as_bytes())],
+        ),
+        "0",
+        "and the write it was enqueued beside is gone with it"
     );
 }

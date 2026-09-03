@@ -1668,6 +1668,17 @@ is why" — is this file.
   re-scope can carry an item forward without re-checking it. `git log --oneline -S '<the symbol the
   item is about>'` settles it in one call, which is cheaper than the four greps that establish it a
   fact at a time; then say "already landed" in the next handoff, or the third session pays again.
+- **A `loop-goal.toml` check name can be a *conjunction*, and then it reports one open item where
+  there are two — one landed, one unwritable.** Stage 7's
+  `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` was the driver's reported failure for
+  twenty-five consecutive sessions. Its MySQL half had been on disk the whole time, as
+  `crates/nvs-db/src/mysql.rs`'s `a_reset_invalidates_the_statement_cache` — the check simply did not
+  name it — and its MSSQL half cannot be written at all, because `crates/nvs-db/src/conn.rs`'s
+  `TdsConn` is a stub carrying `state` and nothing else: no wire, no statement cache to lose and no
+  `sp_reset_connection` to lose it through. A conjunction reports `did not run` while *either* half is
+  missing, so the landed half earns nothing and the report cannot say which one is the work. The tell
+  is the `_and_` in the name: grep each half's claim separately, and split the entry into one name per
+  half rather than waiting for a single test to become writable.
 
 ## Running things
 
