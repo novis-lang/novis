@@ -387,7 +387,7 @@ enum QueueCommand {
     /// Create ADR 0084 § 2's jobs and dead-letter tables in the queue's
     /// database.
     ///
-    /// The statements are the runtime's own — `nvs_stdlib::queue::MIGRATION`,
+    /// The statements are the runtime's own — `nvs_stdlib::queue`'s own lists,
     /// beside the members that read the columns — and this command is what
     /// makes issuing them an operator's act rather than a request's. What it
     /// can and cannot do today is [`queue`]'s module doc.

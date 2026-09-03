@@ -70,7 +70,7 @@
 //! into `nvs_dead_jobs` where the job has used its last attempt — but § 2's jobs table has nowhere
 //! to keep what an earlier attempt threw, so the `errors` array § 6 asks for is one entry deep and
 //! every attempt before the last is visible only on this worker's standard error.
-//! [`nvs_stdlib::queue::MIGRATION`]'s own doc owns that decision and what a deeper array would cost.
+//! [`nvs_stdlib::queue::MIGRATION_POSTGRES`]'s own doc owns that decision and what a deeper array would cost.
 //!
 //! [ADR 0067]: ../../../docs/adr/0067-core-db.md
 //! [ADR 0084]: ../../../docs/adr/0084-durable-background-jobs.md
@@ -557,7 +557,8 @@ fn open(name: &str, block: &Database) -> Option<nvs_db::PgConn> {
             return None;
         }
     };
-    let Some(address) = crate::queue::address_of(target.host, block.port) else {
+    let Some(address) = crate::queue::address_of(target.host, block.port, nvs_db::pg::DEFAULT_PORT)
+    else {
         eprintln!(
             "warning: no queue worker started: `[db.{name}]` names the host `{}`, which resolves \
              to no address",
