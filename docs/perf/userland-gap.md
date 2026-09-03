@@ -425,6 +425,57 @@ and it is barely a losing case now — item D took it from 0.69× to **0.96×** 
 comparison at all — but it is still the only one on this list whose fix is a rewrite rather than a
 removal.
 
+### K — an empty array is a per-thread singleton, not an allocation
+
+`[]` lowers to `InstKind::ArrayNew { entries: [] }` and calls `nvs_array_new`, which boxes an
+`ArrayHeader` — **one** allocation and not three, since the packed shape means the entry vector and
+the index map are both absent, but one is not zero. Userland produces empty arrays constantly and
+most of them are never written into: an early return, a `filter` that matched nothing, a lookup that
+missed, a collector on a branch that was not taken. Each is a free-list pop, a header's worth of
+stores and the mirror on release, for a container nothing ever reads.
+
+The mechanism already exists in the tree for the other refcounted container —
+`crates/nvs-runtime/src/string.rs` § *An immortal string* — and three properties of the array make it
+cheaper here than it was there. Every mutator goes through `NvsArray::make_unique`, which separates
+whenever the refcount is not 1, so a singleton a thread-local holds one reference to can never be
+written through. `nvs_array_eq` compares by content, so the sharing is unobservable to ADR 0090's
+identity row. And an array is `!Send + !Sync`, so per-thread is per-owner and the count stays
+non-atomic. The consequence worth having: **no hot path needs a pointer comparison.** The singleton's
+count simply never reaches zero, so `retain`, `release` and the whole teardown path are unchanged and
+`nvs_array_new` is the only function that moves.
+
+Deliberately *not* the immortal-header-in-the-data-section arrangement a string literal gets, and the
+reason is the `RefCell`: a read takes `table.borrow()`, which **writes** the borrow flag, so a header
+shared between threads would be a race on every `count()`. Thread-local is what makes the borrow flag
+sound — a `Cell<*mut ArrayHeader>` behind `alloc.rs`'s own const-init thread-local pattern, not a
+`static`.
+
+The aggressive variant — null *is* the empty array, so codegen materializes a constant and there is no
+call either — is ruled out here rather than left open. `nvs_array_retain`/`release` already no-op on
+null, but every read primitive would gain a null arm and `Core\Arr`'s whole surface would inherit a
+"did you handle null" invariant. That is AGENTS.md's priority 4 spent across a large surface to save
+one branch.
+
+What it spends, per [ADR 0004](../adr/0004-memory-for-simplicity.md)'s *Say what you spend*: **nothing
+per request — it saves.** One block per thread, permanently, against one block per empty array that
+stays empty. An empty array that *is* later written pays one `make_unique` separation, which allocates
+exactly the header the current path allocates eagerly, plus a failed `== 1` branch — a wash plus a
+branch, not a regression. The one non-obvious cost is the leak check: a per-thread block that is never
+freed is *still reachable* rather than *definitely lost*, and `tools/leak-check.sh`'s threshold is
+what says whether that matters.
+
+**Unpriced, and pricing it is the first slice's job** — no measurement here yet, only the floor
+section's ceiling: one platform-heap round trip is 28.7 ns and the pooled path is a fraction of it, so
+this is a tens-of-nanoseconds item and no suite case is waiting on it. It is ranked last for that
+reason. It is on the list because it is small, self-contained and strictly negative on footprint, not
+because anything measured asked for it — and if the first slice's number comes in low enough that the
+guard would be measuring noise, deleting this row is the right outcome.
+
+*Owner:* `crates/nvs-runtime/src/array.rs`'s module doc, as a fourth decision beside the packed one.
+*Guard:* `an_empty_array_allocates_nothing` in `array.rs`, reading `counting_alloc::allocated_bytes`
+over an `nvs_array_new`/`nvs_array_release` pair — with the control the playbook asks for, since the
+same test must show that writing into one *does* allocate.
+
 ## What is not on this list, and why
 
 - **Statement probes and safepoints are ~80 % of the instructions in the tightest loop** — three
