@@ -31,11 +31,17 @@
 //!
 //! # What this module does not decide yet
 //!
-//! - **No mount table and no routing.** The handler is the caller's function,
-//!   and [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
-//!   § 4's five steps are the slice that puts a table in front of it. § 2's rule
-//!   is kept trivially in the meantime: nothing here reads a path from request
-//!   bytes at all.
+//! - **No routing inside this loop.** The handler is still the caller's
+//!   function; what [`crate::mount`] gives it is
+//!   [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+//!   § 4's five steps to answer with, and [`Reply`] is the two things this loop
+//!   can do with one. Nothing here reads a path from request bytes — that
+//!   module's docs own the one place a remainder meets a filesystem, and § 2's
+//!   rule with it.
+//! - **No static file body yet.** A [`crate::mount::What::Static`] selection is
+//!   a path this server may send; turning it into bytes with § 4's `ETag`,
+//!   `Range` and MIME policy is the next slice, and until it lands a caller that
+//!   receives one answers a status.
 //! - **No response policy beyond a status.** A request that ran answers `200`
 //!   carrying what it echoed, and one that did not answers `500` carrying
 //!   nothing; `answer`'s own docs are the home of that second call.
@@ -131,6 +137,50 @@ impl Body for Answer {
     }
 }
 
+/// What a handler answers one request with — [ADR 0097]'s § 4 outcomes, as the
+/// two things this loop can do with them.
+///
+/// A handler used to answer with an [`Isolate`] and nothing else, which was
+/// [ADR 0097] § 4 with only step 5 in it. Step 1's third arrow is a `404` and
+/// step 3 is a file's bytes, and neither is a program: they are responses this
+/// server already holds in full, so the type says so rather than a handler
+/// inventing an isolate whose only job is to `echo` a status.
+///
+/// [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
+#[derive(Debug)]
+pub enum Reply {
+    /// Run this isolate as a child of the connection, and answer with what it
+    /// echoed — § 4 steps 4 and 5, and [ADR 0088]'s table.
+    ///
+    /// [ADR 0088]: ../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md
+    Run(Isolate),
+    /// Answer with this, having run nothing: § 4 step 1's `404`, step 3's static
+    /// file, and every refusal a mount table can reach before a program exists.
+    Done(Response<Answer>),
+}
+
+impl Reply {
+    /// A bodiless response carrying `status` — the shape every refusal in this
+    /// crate takes until a mode says one may say more
+    /// ([`answer`]'s docs own that direction).
+    #[must_use]
+    pub fn status(status: StatusCode) -> Self {
+        let mut response = Response::new(Answer::empty());
+        *response.status_mut() = status;
+        Self::Done(response)
+    }
+
+    /// [ADR 0097] § 4 step 1's third arrow — no mount covers the request, so
+    /// there is no application to give it to and none to have written this.
+    ///
+    /// Spelled here rather than at each call site so that a caller does not have
+    /// to depend on `hyper` to say the one thing every mount table says.
+    #[must_use]
+    pub fn not_found() -> Self {
+        Self::status(StatusCode::NOT_FOUND)
+    }
+}
+
 /// Drives one accepted connection to completion on the calling coroutine.
 ///
 /// The whole of ADR 0138 § 1: one future, on this task's own stack, polled by
@@ -138,11 +188,13 @@ impl Body for Answer {
 /// nothing, so there is no executor to install and no second scheduler to
 /// reconcile with [`nvs_host::Scheduler`].
 ///
-/// `handler` is asked once per request for the [`Isolate`] that request *is*:
-/// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)'s isolate,
-/// the same type `spawn script` runs, and deliberately **not** a second
-/// isolation path — M7's state-bleed suite is a parameterisation of one
-/// mechanism and would prove nothing about two of them.
+/// `handler` is asked once per request for the [`Reply`] that request is. Where
+/// that is a program it is an
+/// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) [`Isolate`] —
+/// the same type `spawn script` runs, and deliberately **not** a second isolation
+/// path, since M7's state-bleed suite is a parameterisation of one mechanism and
+/// would prove nothing about two of them. Where it is already a response
+/// (ADR 0097 § 4's `404`, or a file), nothing is run for it at all.
 ///
 /// **That isolate runs inside the connection future's poll, and it may park.**
 /// That is what ADR 0138 § 1 bought: the future is driven on this coroutine's
@@ -187,7 +239,7 @@ pub fn serve_connection<H>(
     waits: Waits,
 ) -> hyper::Result<()>
 where
-    H: Fn(Request<Incoming>) -> Isolate,
+    H: Fn(Request<Incoming>) -> Reply,
 {
     let ctx = RefCell::new(ctx);
     let io = ConnectionIo::new(stream, waits);
@@ -199,14 +251,19 @@ where
         // waiting for from here is the body, and then nothing until the answer
         // exists.
         phase.set(Phase::Body);
-        let isolate = handler(request);
-        let answered = match isolate.run(&mut ctx.borrow_mut()) {
-            Ok(done) => answer(done),
-            // The *argument* had no meaning on the other side, so no request
-            // was ever started. Everywhere else that is the parent's to raise;
-            // here the parent is a connection with nobody to raise it in, so it
-            // is one more `500`.
-            Err(_refused) => failed(),
+        let answered = match handler(request) {
+            // Already an answer: a mount table's `404`, or a file this server is
+            // sending rather than running. Nothing is started for it, so the
+            // isolate accounting below does not apply to it either.
+            Reply::Done(response) => response,
+            Reply::Run(isolate) => match isolate.run(&mut ctx.borrow_mut()) {
+                Ok(done) => answer(done),
+                // The *argument* had no meaning on the other side, so no request
+                // was ever started. Everywhere else that is the parent's to
+                // raise; here the parent is a connection with nobody to raise it
+                // in, so it is one more `500`.
+                Err(_refused) => failed(),
+            },
         };
         // The request took as long as it took — a request's own runtime is
         // ADR 0106's ceiling and not a socket wait — and what remains on this
@@ -290,7 +347,7 @@ pub fn serve_on_this_core<H>(
     mut keep_serving: impl FnMut() -> ControlFlow<()>,
 ) -> io::Result<()>
 where
-    H: Fn(Request<Incoming>) -> Isolate + 'static,
+    H: Fn(Request<Incoming>) -> Reply + 'static,
 {
     // Taken once, and it is also the check that this is a task at all: a wake
     // exists exactly when `spawn_child` has a parent to hang a child off.
@@ -411,7 +468,7 @@ mod tests {
     /// compiler in this crate — and it writes through `Ctx::write_output`,
     /// which is the buffer a compiled `echo` reaches under ADR 0088 § 3's
     /// table.
-    fn echo_the_path() -> Rc<impl Fn(Request<Incoming>) -> Isolate> {
+    fn echo_the_path() -> Rc<impl Fn(Request<Incoming>) -> Reply> {
         Rc::new(|request: Request<Incoming>| {
             let path = request.uri().path().to_owned();
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
@@ -420,7 +477,7 @@ mod tests {
                     .expect("a buffer");
                 Value::null()
             });
-            Isolate::new(program, Value::null(), Output::Capture)
+            Reply::Run(Isolate::new(program, Value::null(), Output::Capture))
         })
     }
 
@@ -570,7 +627,7 @@ mod tests {
         let handler = Rc::new(|_request: Request<Incoming>| {
             let program: Program =
                 Box::new(|_: &mut Ctx, _args| panic!("the request gave up loudly"));
-            Isolate::new(program, Value::null(), Output::Capture)
+            Reply::Run(Isolate::new(program, Value::null(), Output::Capture))
         });
 
         let mut sched = nvs_host::Scheduler::new();

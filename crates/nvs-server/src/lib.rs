@@ -10,7 +10,7 @@
 //!
 //! # What is here so far
 //!
-//! [`io`] and [`serve`]. The first is the seam between a library that is
+//! [`io`], [`serve`] and [`mount`]. The first is the seam between a library that is
 //! `async` and a runtime that is not: `hyper`'s two IO traits over
 //! [`nvs_host::NvsTcp`], driven by [`nvs_host::block_on()`] on the coroutine that
 //! owns the connection. The second is the socket on either end of it — accept,
@@ -27,8 +27,14 @@
 //! they are enforced — idle waits refreshed by the bytes that move, never a
 //! total, and no state a connection can be in that is not one of the four.
 //!
-//! What is **not** here yet is the mount table that decides *which* isolate a
-//! request selects, and the rest of `[server]`. [`serve`]'s own docs
+//! [`mount`] is which isolate a request selects: § 4's five steps over the table
+//! `nvs_config::mount::expand` walked against the disk at boot, answering either
+//! the file to run or the file to send. It is the only module here that touches a
+//! filesystem at all, and its own docs § *What a remainder may be* are why doing
+//! so keeps § 2 rather than spending it.
+//!
+//! What is **not** here yet is a static file's *bytes* — § 4's `ETag`, `Range`
+//! and MIME policy — and the rest of `[server]`. [`serve`]'s own docs
 //! § *What this module does not decide yet* is the list.
 //!
 //! # Why `hyper` and not our own h1
@@ -54,7 +60,9 @@
 //! reading and of what pinning `hyper` backwards would have cost instead.
 
 pub mod io;
+pub mod mount;
 pub mod serve;
 
 pub use io::{ConnectionIo, Phase};
-pub use serve::{Answer, serve_connection, serve_on_this_core};
+pub use mount::{Dispatch, Existing, OnDisk, Selection, Table, What};
+pub use serve::{Answer, Reply, serve_connection, serve_on_this_core};
