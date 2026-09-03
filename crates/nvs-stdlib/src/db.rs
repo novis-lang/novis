@@ -5454,7 +5454,10 @@ nvs_runtime::nvs_helper! {
     /// statement inside the closure raised, which arrives as a pending
     /// `Core\Db\DbError` instead and is read through
     /// [`nvs_runtime::Ctx::pending_slot`]. The wait between attempts is what
-    /// this module's known gap 9 still holds.
+    /// this module's known gap 9 still holds. The loop itself is
+    /// [`transacted`], which is handed its connection rather than reading one
+    /// back out of the context — see [`Attempts`] for why that seam is where
+    /// it is.
     ///
     /// **Rolling back after a throw discards its own failure.** The exception
     /// the closure raised is what the request is about, and a connection whose
@@ -5474,151 +5477,322 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         // As `readOnly`: the option is declared `uint` and defaults to 0.
-        let mut left = args[RETRIES_ARG].as_uint().ok_or_else(|| {
+        let retries = args[RETRIES_ARG].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
                 "{TRANSACTION_MEMBER} expected a `uint` for `retries`, got tag {}",
                 args[RETRIES_ARG].tag_byte()
             ))
         })?;
 
-        // § 11's readers, once for the whole call: every command below runs on
-        // the one connection, and a retry does not change what is watching.
-        // Read here for [`QueryWatch`]'s reason — the connection holds the
-        // context for as long as each command does.
-        let watch = QueryWatch::of(ctx, &block);
+        transacted(
+            ctx,
+            &mut Filed { key, block },
+            &Attempted {
+                key,
+                block,
+                closure: args[1],
+                isolation,
+                read_only,
+                retries,
+            },
+        )
+    }
+}
 
-        loop {
-            // § 7 retries **outermost transactions only**, and the depth before
-            // the `BEGIN` is the only thing that says which this call is —
-            // re-running a nested closure would re-run it inside an outer
-            // transaction the conflict has already aborted.
-            let outermost = transacting(ctx, key, &block, TRANSACTION_MEMBER)?.depth() == 0;
-            // § 11's event covers § 7's own commands as well as the statements
-            // inside them: a trace that showed the closure's writes but not the
-            // `BEGIN` and the `COMMIT` around them would put the transaction's
-            // whole cost on its last statement. The driver answers with the
-            // span because only it knows whether the depth made this a
-            // `SAVEPOINT` — [`nvs_db::PgConn::begin`] and its MySQL twin own
-            // that, and the second of them spends two round trips where an
-            // isolation level was asked for.
-            let opened = transacting(ctx, key, &block, TRANSACTION_MEMBER)?
-                .begin(isolation, read_only)
-                .map_err(|refused| {
-                    statement_failure(TRANSACTION_MEMBER, &block, None, &refused)
-                })?;
-            file_span(ctx, watch, &block, opened);
+/// § 7's four questions to the connection an attempt runs on, as something
+/// [`transacted`] is *handed* rather than reads back out of the context.
+///
+/// **The retry loop is the half of § 7 no driver implements.** A `BEGIN`, a
+/// `SAVEPOINT` and a `ROLLBACK` are `nvs-db`'s and are asserted there; nothing
+/// in a driver is ever asked to *re-run* anything, so the loop is the one § 7
+/// behaviour no `-p nvs-db` case can reach. This trait is what makes it
+/// reachable from a `-p nvs-stdlib` one instead: [`Filed`] is the only
+/// implementation the runtime ever builds, and a test scripts the
+/// conflict-then-commit pair a real deadlock produces without a server in front
+/// of it — which it could not otherwise do, [`Transacting`]'s two arms both
+/// being connections no test can construct.
+///
+/// **Every method is handed the context rather than borrowing out of it.** The
+/// loop calls Novis code between the `BEGIN` and the `COMMIT`, and that needs
+/// the same `&mut Ctx` the connection is filed in, so a borrow held across the
+/// closure cannot exist. That is why this is four questions asked one at a
+/// time rather than one that answers a [`Transacting`], and it is the same
+/// reason the sites below re-read the connection at each of them.
+///
+/// **Two error channels, which is what the nested `Result` is.** The outer
+/// failure is *this request has no such connection* — already a [`Fault`],
+/// from [`transacting`] — and the inner one is the server's own refusal, which
+/// § 7's retry rule reads a [`nvs_db::DbErrorKind`] off through
+/// [`nvs_db::ServerError`] and which only [`std::io::Error`] still carries.
+/// Collapsing the two would leave the loop deciding a retry off a rendered
+/// message.
+trait Attempts {
+    /// How many of § 7's levels are open, before this attempt's `BEGIN`.
+    ///
+    /// # Errors
+    ///
+    /// As [`transacting`].
+    fn depth(&mut self, ctx: &mut nvs_runtime::Ctx) -> Result<u32, Fault>;
 
-            // The block name is handed on rather than looked up again: a
-            // transaction refuses under the same `[db.<name>]` its connection
-            // does, and the slot is the only place that name lives.
-            let scope = crate::instance::build(
-                &TRANSACTION,
-                [
-                    Value::uint(key),
-                    owned(block),
-                    Value::bool(true),
-                    Value::null(),
-                ],
-            );
-            let outcome = nvs_runtime::call_closure(ctx, args[1], &[scope]);
+    /// § 7's outermost `BEGIN`, or the `SAVEPOINT` a nested call opens.
+    ///
+    /// # Errors
+    ///
+    /// As [`transacting`]; the driver's own refusal is the inner `Err`.
+    fn begin(
+        &mut self,
+        ctx: &mut nvs_runtime::Ctx,
+        isolation: Option<nvs_db::Isolation>,
+        read_only: bool,
+    ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault>;
 
-            // Closed before the outcome is acted on, so that a `$tx` the closure
-            // stored somewhere is already refusing by the time this call returns
-            // — and closed on every path, which is why it is not inside a
-            // branch. An attempt that retries gets its own scope object below,
-            // for the same reason it gets its own `BEGIN`.
-            let receiver = crate::instance::receiver(scope, &TRANSACTION, "transaction")?;
-            crate::instance::set_slot(receiver, SCOPE_AT, Value::bool(false));
-            let held = crate::instance::slot(receiver, REASON_AT);
-            let abandoned = held.as_text().map(str::to_owned);
-            discard(scope);
+    /// § 7's `COMMIT`, or the release that closes a nested level.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::begin`].
+    fn commit(
+        &mut self,
+        ctx: &mut nvs_runtime::Ctx,
+    ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault>;
 
-            let answered = match outcome {
-                Ok(value) => value,
-                Err(fault) => {
-                    // The closure's own conflict, under the same four
-                    // conditions the commit's is. It is a `Fault::Pending`
-                    // here, so the kind is read off the still-pending object
-                    // rather than off an `io::Error` this path never has —
-                    // borrowing it, because a failure that turns out not to be
-                    // retryable is re-raised exactly as the closure left it.
-                    let conflicted = ctx
-                        .pending_slot(ThrownClass::DbError.name(), nvs_runtime::KIND_SLOT)
-                        .and_then(error_kind_of)
-                        .is_some_and(nvs_db::DbErrorKind::is_retryable);
-                    let retry = outermost && left > 0 && abandoned.is_none() && conflicted;
-                    // Best effort as before, and filed on the path where it
-                    // worked: an undo the server ran is a statement the trace
-                    // owes an entry, and one it refused leaves no span to file.
-                    let undone = match transacting(ctx, key, &block, TRANSACTION_MEMBER) {
-                        Ok(mut open) => open.roll_back().ok(),
-                        Err(_) => None,
-                    };
-                    if let Some(span) = undone {
-                        file_span(ctx, watch, &block, span);
-                    }
-                    if !retry {
-                        return Err(fault);
-                    }
-                    // Cleared before the next attempt: the retry is this
-                    // frame's decision that the throw did not happen as far as
-                    // the caller is concerned, and a pending failure left on
-                    // the context would surface against whatever ran next.
-                    drop(ctx.take_thrown());
-                    left -= 1;
-                    continue;
+    /// § 7's `ROLLBACK`, or the undo of a nested level.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::begin`].
+    fn roll_back(
+        &mut self,
+        ctx: &mut nvs_runtime::Ctx,
+    ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault>;
+}
+
+/// [`Attempts`] over the connection this request has filed under `key` — the
+/// only implementation outside this module's own tests.
+///
+/// Both fields are the caller's, borrowed for the length of one [`transacted`]
+/// call: the [`Value`] carries no reference of its own, exactly as
+/// [`Attempted`]'s two do.
+struct Filed {
+    /// § 2's key, as [`handle_of`] read it off the receiver.
+    key: u64,
+    /// The `[db.<name>]` block, for [`transacting`]'s refusal to name.
+    block: Value,
+}
+
+impl Attempts for Filed {
+    fn depth(&mut self, ctx: &mut nvs_runtime::Ctx) -> Result<u32, Fault> {
+        Ok(transacting(ctx, self.key, &self.block, TRANSACTION_MEMBER)?.depth())
+    }
+
+    fn begin(
+        &mut self,
+        ctx: &mut nvs_runtime::Ctx,
+        isolation: Option<nvs_db::Isolation>,
+        read_only: bool,
+    ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault> {
+        Ok(
+            transacting(ctx, self.key, &self.block, TRANSACTION_MEMBER)?
+                .begin(isolation, read_only),
+        )
+    }
+
+    fn commit(
+        &mut self,
+        ctx: &mut nvs_runtime::Ctx,
+    ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault> {
+        Ok(transacting(ctx, self.key, &self.block, TRANSACTION_MEMBER)?.commit())
+    }
+
+    fn roll_back(
+        &mut self,
+        ctx: &mut nvs_runtime::Ctx,
+    ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault> {
+        Ok(transacting(ctx, self.key, &self.block, TRANSACTION_MEMBER)?.roll_back())
+    }
+}
+
+/// § 7's call, as [`nvs_core_db_connection_transaction`] read it off its
+/// arguments.
+///
+/// One struct rather than five more parameters on [`transacted`], which takes
+/// the connection separately: splitting those two halves is what the hoist is
+/// for, and a seven-argument function would be the shape it was written to
+/// avoid. Neither [`Value`] carries a reference of its own — both are the
+/// helper's own arguments, live for the whole call.
+struct Attempted {
+    /// § 2's key, as the scope object carries it on to a delegated member.
+    key: u64,
+    /// The `[db.<name>]` block this transaction refuses under.
+    block: Value,
+    /// § 7's `$fn`, run once per attempt.
+    closure: Value,
+    /// § 7's `{isolation}`, decided by the driver and refused when nested.
+    isolation: Option<nvs_db::Isolation>,
+    /// § 7's `{readOnly}`, on the same terms.
+    read_only: bool,
+    /// § 7's `{retries: n}` — how many re-runs a conflict may still have.
+    retries: u64,
+}
+
+/// § 7's whole transaction, from the `BEGIN` to the answer, over a connection
+/// it is handed.
+///
+/// Hoisted out of [`nvs_core_db_connection_transaction`] so that the retry rule
+/// — four conditions over two conflict channels, and the one part of § 7 that
+/// belongs to no driver — has a caller other than a member that can only reach
+/// a real server. [`Attempts`] is where what that buys is written down.
+///
+/// # Errors
+///
+/// The closure's own failure, re-raised exactly as it left it where no attempt
+/// is left to spend; `Core\Db\RolledBack` where the closure abandoned the
+/// scope; and [`statement_failure`]'s rendering of a refusal by the `BEGIN` or
+/// by the command that closes the level.
+fn transacted(
+    ctx: &mut nvs_runtime::Ctx,
+    attempts: &mut impl Attempts,
+    call: &Attempted,
+) -> Result<Value, Fault> {
+    let block = call.block;
+    let mut left = call.retries;
+
+    // § 11's readers, once for the whole call: every command below runs on
+    // the one connection, and a retry does not change what is watching.
+    // Read here for [`QueryWatch`]'s reason — the connection holds the
+    // context for as long as each command does.
+    let watch = QueryWatch::of(ctx, &block);
+
+    loop {
+        // § 7 retries **outermost transactions only**, and the depth before
+        // the `BEGIN` is the only thing that says which this call is —
+        // re-running a nested closure would re-run it inside an outer
+        // transaction the conflict has already aborted.
+        let outermost = attempts.depth(ctx)? == 0;
+        // § 11's event covers § 7's own commands as well as the statements
+        // inside them: a trace that showed the closure's writes but not the
+        // `BEGIN` and the `COMMIT` around them would put the transaction's
+        // whole cost on its last statement. The driver answers with the
+        // span because only it knows whether the depth made this a
+        // `SAVEPOINT` — [`nvs_db::PgConn::begin`] and its MySQL twin own
+        // that, and the second of them spends two round trips where an
+        // isolation level was asked for.
+        let opened = attempts
+            .begin(ctx, call.isolation, call.read_only)?
+            .map_err(|refused| statement_failure(TRANSACTION_MEMBER, &block, None, &refused))?;
+        file_span(ctx, watch, &block, opened);
+
+        // The block name is handed on rather than looked up again: a
+        // transaction refuses under the same `[db.<name>]` its connection
+        // does, and the slot is the only place that name lives.
+        let scope = crate::instance::build(
+            &TRANSACTION,
+            [
+                Value::uint(call.key),
+                owned(block),
+                Value::bool(true),
+                Value::null(),
+            ],
+        );
+        let outcome = nvs_runtime::call_closure(ctx, call.closure, &[scope]);
+
+        // Closed before the outcome is acted on, so that a `$tx` the closure
+        // stored somewhere is already refusing by the time this call returns
+        // — and closed on every path, which is why it is not inside a
+        // branch. An attempt that retries gets its own scope object below,
+        // for the same reason it gets its own `BEGIN`.
+        let receiver = crate::instance::receiver(scope, &TRANSACTION, "transaction")?;
+        crate::instance::set_slot(receiver, SCOPE_AT, Value::bool(false));
+        let held = crate::instance::slot(receiver, REASON_AT);
+        let abandoned = held.as_text().map(str::to_owned);
+        discard(scope);
+
+        let answered = match outcome {
+            Ok(value) => value,
+            Err(fault) => {
+                // The closure's own conflict, under the same four
+                // conditions the commit's is. It is a `Fault::Pending`
+                // here, so the kind is read off the still-pending object
+                // rather than off an `io::Error` this path never has —
+                // borrowing it, because a failure that turns out not to be
+                // retryable is re-raised exactly as the closure left it.
+                let conflicted = ctx
+                    .pending_slot(ThrownClass::DbError.name(), nvs_runtime::KIND_SLOT)
+                    .and_then(error_kind_of)
+                    .is_some_and(nvs_db::DbErrorKind::is_retryable);
+                let retry = outermost && left > 0 && abandoned.is_none() && conflicted;
+                // Best effort as before, and filed on the path where it
+                // worked: an undo the server ran is a statement the trace
+                // owes an entry, and one it refused leaves no span to file.
+                let undone = attempts.roll_back(ctx).ok().and_then(Result::ok);
+                if let Some(span) = undone {
+                    file_span(ctx, watch, &block, span);
                 }
-            };
-
-            // The driver's own error rather than the `Fault` it renders to: the
-            // retry rule branches on § 8's kind, which only [`nvs_db`] can put
-            // there and only this shape still carries.
-            let closed = match transacting(ctx, key, &block, TRANSACTION_MEMBER) {
-                Ok(mut open) => {
-                    if abandoned.is_some() {
-                        open.roll_back()
-                    } else {
-                        open.commit()
-                    }
-                }
-                Err(fault) => {
-                    discard(answered);
+                if !retry {
                     return Err(fault);
                 }
-            };
-
-            // On two of the three paths the closure's answer is not this call's,
-            // and this frame owns the only reference to it.
-            let refused = match closed {
-                Ok(span) => {
-                    // The command that closed the level, whichever it was, and
-                    // filed before this call returns rather than after — the
-                    // answer below leaves by three different paths.
-                    file_span(ctx, watch, &block, span);
-                    return match abandoned {
-                        Some(reason) => {
-                            discard(answered);
-                            Err(Fault::thrown_as(ThrownClass::DbRolledBack, reason))
-                        }
-                        None => Ok(answered),
-                    };
-                }
-                Err(refused) => refused,
-            };
-            discard(answered);
-
-            // § 7's `{retries: n}`, and the four conditions are all of it: an
-            // outermost transaction, an attempt left, nothing that asked to be
-            // rolled back, and a conflict the driver says may be re-run. The
-            // wait § 7 also asks for is this module's known gap 9.
-            let conflicted = nvs_db::ServerError::of(&refused)
-                .is_some_and(|server| server.kind.is_retryable());
-            if outermost && left > 0 && abandoned.is_none() && conflicted {
+                // Cleared before the next attempt: the retry is this
+                // frame's decision that the throw did not happen as far as
+                // the caller is concerned, and a pending failure left on
+                // the context would surface against whatever ran next.
+                drop(ctx.take_thrown());
                 left -= 1;
                 continue;
             }
-            return Err(statement_failure(TRANSACTION_MEMBER, &block, None, &refused));
+        };
+
+        // The driver's own error rather than the `Fault` it renders to: the
+        // retry rule branches on § 8's kind, which only [`nvs_db`] can put
+        // there and only this shape still carries.
+        let closed = if abandoned.is_some() {
+            attempts.roll_back(ctx)
+        } else {
+            attempts.commit(ctx)
+        };
+        let closed = match closed {
+            Ok(closed) => closed,
+            Err(fault) => {
+                discard(answered);
+                return Err(fault);
+            }
+        };
+
+        // On two of the three paths the closure's answer is not this call's,
+        // and this frame owns the only reference to it.
+        let refused = match closed {
+            Ok(span) => {
+                // The command that closed the level, whichever it was, and
+                // filed before this call returns rather than after — the
+                // answer below leaves by three different paths.
+                file_span(ctx, watch, &block, span);
+                return match abandoned {
+                    Some(reason) => {
+                        discard(answered);
+                        Err(Fault::thrown_as(ThrownClass::DbRolledBack, reason))
+                    }
+                    None => Ok(answered),
+                };
+            }
+            Err(refused) => refused,
+        };
+        discard(answered);
+
+        // § 7's `{retries: n}`, and the four conditions are all of it: an
+        // outermost transaction, an attempt left, nothing that asked to be
+        // rolled back, and a conflict the driver says may be re-run. The
+        // wait § 7 also asks for is this module's known gap 9.
+        let conflicted =
+            nvs_db::ServerError::of(&refused).is_some_and(|server| server.kind.is_retryable());
+        if outermost && left > 0 && abandoned.is_none() && conflicted {
+            left -= 1;
+            continue;
         }
+        return Err(statement_failure(
+            TRANSACTION_MEMBER,
+            &block,
+            None,
+            &refused,
+        ));
     }
 }
 
@@ -7270,6 +7444,276 @@ mod tests {
 
         discard(reason);
         discard(scope);
+    }
+
+    /// [`Attempts`] with no server behind it: every command succeeds, and the
+    /// case reads back the order they were asked in.
+    ///
+    /// Nothing here is scripted to *fail*, because the conflict § 7 retries on
+    /// arrives from the closure rather than from the connection — the half no
+    /// driver could induce, and the whole reason [`transacted`] takes its
+    /// connection as an argument. The depth is 0 so every attempt is
+    /// outermost, which is one of the four conditions the retry rule reads.
+    struct Scripted {
+        /// Every command [`transacted`] asked for, in order.
+        asked: Vec<&'static str>,
+    }
+
+    impl Scripted {
+        /// One command, recorded and answered with a span a trace could file.
+        fn ran(
+            &mut self,
+            command: &'static str,
+        ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault> {
+            self.asked.push(command);
+            Ok(Ok(nvs_db::QuerySpan::opened(
+                nvs_db::Driver::Postgres,
+                command,
+            )))
+        }
+    }
+
+    impl Attempts for Scripted {
+        fn depth(&mut self, _ctx: &mut Ctx) -> Result<u32, Fault> {
+            Ok(0)
+        }
+
+        fn begin(
+            &mut self,
+            _ctx: &mut Ctx,
+            _isolation: Option<nvs_db::Isolation>,
+            _read_only: bool,
+        ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault> {
+            self.ran("BEGIN")
+        }
+
+        fn commit(&mut self, _ctx: &mut Ctx) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault> {
+            self.ran("COMMIT")
+        }
+
+        fn roll_back(
+            &mut self,
+            _ctx: &mut Ctx,
+        ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault> {
+            self.ran("ROLLBACK")
+        }
+    }
+
+    thread_local! {
+        /// How many times [`conflicts_once`] has been entered on this thread.
+        ///
+        /// A thread local rather than a field on [`Scripted`]: the callback is
+        /// reached through an `extern "C"` address and has no `self` to read.
+        static ATTEMPTS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    }
+
+    /// § 7's closure as a deadlock makes it behave: the first attempt throws a
+    /// retryable `Core\Db\DbError`, and every one after it returns.
+    ///
+    /// **The throw is built by [`statement_failure`] off a real
+    /// [`nvs_db::ServerError`]** rather than assembled here, so what the loop
+    /// reads back through [`nvs_runtime::Ctx::pending_slot`] is the object a
+    /// PostgreSQL `40P01` actually produces —
+    /// `a_kind_written_into_a_throw_reads_back_as_itself` holds the other half
+    /// of that round trip.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes exactly these two live values, each \
+                  retained for this callee to release, and `run_helper` \
+                  discharges the rest of the helper ABI's pointer contract"
+    )]
+    unsafe extern "C" fn conflicts_once(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        unsafe {
+            nvs_runtime::run_helper(ctx, args, 2, out, |_ctx, args| {
+                // The exit sweep a compiled callee owes: the receiver and the
+                // one declared parameter, both retained on the way in.
+                for slot in args {
+                    discard(*slot);
+                }
+                if ATTEMPTS.with(|entered| entered.replace(entered.get() + 1)) > 0 {
+                    return Ok(Value::int(2));
+                }
+                let block = Value::str(NvsStr::new(b"main"));
+                let deadlocked = statement_failure(
+                    TRANSACTION_MEMBER,
+                    &block,
+                    None,
+                    &std::io::Error::other(nvs_db::ServerError {
+                        kind: nvs_db::DbErrorKind::Deadlock,
+                        sql_state: String::from("40P01"),
+                        severity: String::from("ERROR"),
+                        message: String::from("deadlock detected"),
+                        constraint: None,
+                        driver_code: None,
+                        backend: "postgresql",
+                    }),
+                );
+                discard(block);
+                Err(deadlocked)
+            })
+        }
+    }
+
+    /// A `callable` whose `invoke` is `invoke` and which declares one
+    /// parameter — the `$tx` § 7 hands its closure.
+    ///
+    /// `nvs_runtime::call_closure` reads exactly two things off a closure
+    /// value, so this is a whole one: the arity in its own slot, and the
+    /// address in the class's `CLOSURE_INVOKE` row. The table is leaked
+    /// because a descriptor's *address* is its identity and it must outlive
+    /// every instance made from it, which is `crate::instance`'s own rule; the
+    /// test process exiting is what reclaims it.
+    fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
+        let mut table = nvs_runtime::ClassTable::new();
+        let id = table.define("{closure}", &["arity", "params"], &[]);
+        table.set_methods(
+            id,
+            vec![nvs_runtime::MethodRow {
+                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                code: invoke as *const u8,
+                // Read off the object's own slots below rather than off this
+                // row — see `nvs_runtime::MethodRow`.
+                arity: 0,
+                param_tags: 0,
+                public: true,
+                native: false,
+            }],
+        );
+        let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table above is leaked, so the descriptor outlives \
+                      every instance made from it — `NvsObj::new`'s whole \
+                      obligation"
+        )]
+        let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
+        object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(1));
+        object.set_field(
+            nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
+            Value::int(i64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY)),
+        );
+        Value::object(object)
+    }
+
+    /// ADR 0067 § 7's `{retries: n}`, at the seam that belongs to no driver: a
+    /// deadlock inside the closure re-runs it, and the second attempt's answer
+    /// is the call's.
+    ///
+    /// **The connection is handed in rather than filed**, which is what
+    /// [`Attempts`] exists for. [`transacting`] downcasts to a real
+    /// `nvs_db::PgConn` and no `-p nvs-stdlib` test can build one, so until
+    /// [`transacted`] took its connection as an argument the retry rule — the
+    /// one half of § 7 a driver is never asked to implement — had no caller a
+    /// test could reach.
+    ///
+    /// **The conflict is induced the way a server induces one**: the closure
+    /// throws what [`statement_failure`] renders a `40P01` into, so the loop's
+    /// decision goes through [`nvs_runtime::Ctx::pending_slot`] and § 8's
+    /// normalised kind exactly as it does in a request.
+    ///
+    /// **Counting the attempts is not enough, so the commands are read back in
+    /// order.** A loop that re-ran the closure but left the aborted attempt
+    /// open, or that opened no second `BEGIN`, would pass a count alone. The
+    /// pending failure is asserted *gone* for the same reason: a retry the
+    /// caller is never told about must leave nothing for the next member to
+    /// trip over.
+    ///
+    /// **Both sides of the bound**, since a loop that always retried would
+    /// pass the first half — § 7's default is 0, and at 0 the same conflict
+    /// reaches the caller with the closure run once.
+    #[test]
+    fn retries_recover_an_induced_deadlock() {
+        let block = Value::str(NvsStr::new(b"main"));
+        let closure = closure_of(conflicts_once);
+        let attempted = |retries| Attempted {
+            key: 1,
+            block,
+            closure,
+            isolation: None,
+            read_only: false,
+            retries,
+        };
+
+        // § 8's class has to be *resolvable* or the retry cannot happen at
+        // all: `pending_slot` answers `None` for a context with no exception
+        // class installed, so a loop reading the kind off the throw would see
+        // no conflict and re-raise. Spec § 10's root shape and the one
+        // subclass this case throws, arriving the one way a context takes a
+        // table — the playbook's `Ctx::class_desc` bullet.
+        const THROWABLE: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut classes = nvs_runtime::ClassTable::new();
+        let root = classes.define("RuntimeError", &THROWABLE, &[]);
+        classes.define(
+            ThrownClass::DbError.name(),
+            &[
+                "message",
+                "previous",
+                "backtrace",
+                "location",
+                "kind",
+                "sqlState",
+                "driverCode",
+                "constraint",
+                "sql",
+            ],
+            &[root],
+        );
+
+        ATTEMPTS.with(|entered| entered.set(0));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(nvs_runtime::ErrorClass::new(
+            std::rc::Rc::new(classes),
+            root,
+        ));
+        let mut recovered = Scripted { asked: Vec::new() };
+        let answered = transacted(&mut ctx, &mut recovered, &attempted(1))
+            .expect("§ 7 re-runs a deadlocked closure, and the second attempt commits");
+        assert_eq!(
+            answered.as_int(),
+            Some(2),
+            "the call answers the *retried* attempt's return, not the conflict"
+        );
+        assert_eq!(
+            ATTEMPTS.with(std::cell::Cell::get),
+            2,
+            "one attempt per `BEGIN`, and § 7 spends the one retry it was given"
+        );
+        assert_eq!(
+            recovered.asked,
+            ["BEGIN", "ROLLBACK", "BEGIN", "COMMIT"],
+            "each attempt gets its own `BEGIN`, and the aborted one is undone \
+             before the next opens"
+        );
+        assert!(
+            ctx.pending().is_none(),
+            "the retry is this frame's decision that the throw did not happen, \
+             so nothing may be left pending for the next member"
+        );
+
+        ATTEMPTS.with(|entered| entered.set(0));
+        let mut refused = Scripted { asked: Vec::new() };
+        let raised = transacted(&mut ctx, &mut refused, &attempted(0))
+            .expect_err("§ 7's default is 0, and a conflict with no attempt left is the caller's");
+        assert!(
+            matches!(raised, Fault::Pending(_)),
+            "the closure's own failure travels on unchanged: {raised:?}"
+        );
+        assert_eq!(
+            ctx.pending_class().as_deref(),
+            Some(r"Core\Db\DbError"),
+            "§ 8's class, still pending exactly as the closure left it"
+        );
+        assert_eq!(ATTEMPTS.with(std::cell::Cell::get), 1);
+        assert_eq!(
+            refused.asked,
+            ["BEGIN", "ROLLBACK"],
+            "the attempt is still rolled back — what 0 removes is the re-run, \
+             not the undo"
+        );
+
+        drop(ctx.take_thrown());
+        discard(closure);
+        discard(block);
     }
 
     /// ADR 0067 § 2's memoization, asserted where it is written: a second
