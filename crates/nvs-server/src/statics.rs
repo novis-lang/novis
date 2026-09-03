@@ -478,6 +478,7 @@ mod tests {
         let selected = |table: &Table, path: &str| {
             table
                 .resolve(None, path, &fs)
+                .and_then(crate::mount::Resolved::selection)
                 .expect("the root mount matches everything")
                 .what
         };

@@ -2,12 +2,24 @@
 //! table [`nvs_config::mount`] expanded at boot.
 //!
 //! ```text
+//! 0. [server] health_path && the request path is exactly it  -> the probe answers
 //! 1. longest match:  host mounts by prefix  ->  host-less mounts by prefix  ->  404
 //! 2. strip the prefix
 //! 3. [server] static  &&  the remainder is an existing non-.nvs file under the mount root  -> serve it
 //! 4. dispatch == "path"  &&  the remainder is an existing .nvs file under the mount root   -> run it
 //! 5. otherwise                                                                             -> run the mount's entry
 //! ```
+//!
+//! **Step 0 is § 5's probe and it is not one of § 4's steps** — it runs ahead of
+//! all of them, so no mount can shadow it and no application can answer it. That
+//! ordering is what the endpoint is *for*: it reports that the process is alive
+//! even when the application fails to compile, and a probe a mount could take
+//! over would fail exactly when the answer matters and produce a restart loop no
+//! restart fixes. It is off unless `[server] health_path` names a path
+//! ([`nvs_config::server::health_path`], which is also where a path no request
+//! could carry is refused), it checks nothing but its own liveness — a probe that
+//! pinged the database would turn one slow database into a simultaneous outage
+//! across every instance — and it reports no version and no build.
 //!
 //! **The table is the whole of what a request may reach, and it is already
 //! literal.** § 2's rule is kept by [`nvs_config::mount::expand`], which walked
@@ -62,6 +74,7 @@
 //!
 //! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use hyper::Request;
@@ -126,17 +139,34 @@ pub struct Table {
     dispatch: Dispatch,
     /// § 4 step 3's switch.
     serve_static: bool,
+    /// § 5's probe path, or `None` where this server reserves none. Step 0, and
+    /// the module docs own why it is not a step of § 4's.
+    health: Option<String>,
 }
 
 impl Table {
-    /// The table, with both switches already decided.
+    /// The table, with both switches already decided and no probe reserved —
+    /// [`with_health`](Table::with_health) is § 5's other half.
     #[must_use]
     pub fn new(mounts: Vec<Mounted>, dispatch: Dispatch, serve_static: bool) -> Self {
         Self {
             mounts,
             dispatch,
             serve_static,
+            health: None,
         }
+    }
+
+    /// The same table, reserving `health` from every mount in it.
+    ///
+    /// Taken after the fact rather than as a fourth constructor argument because
+    /// it is the one part of a table that is *not* about routing to an
+    /// application: a table with no probe is the default state and the one every
+    /// case that is about § 4 wants.
+    #[must_use]
+    pub fn with_health(mut self, health: Option<String>) -> Self {
+        self.health = health;
+        self
     }
 
     /// The two switches as `[server]` *wrote* them, over the production pair —
@@ -152,7 +182,15 @@ impl Table {
         let serve_static = server
             .and_then(|server| server.serve_static)
             .unwrap_or(false);
-        Self::new(mounts, dispatch, serve_static)
+        // A path this server could not answer on is refused at boot by
+        // `nvs_config::server::validate`, so the only tree that reaches here
+        // with one is one nothing validated — and reading that as *no probe* is
+        // this module's § *Decision* applied to a third switch: an unreadable
+        // one reserves nothing rather than reserving something nobody wrote.
+        let health = nvs_config::server::health_path(config, &BTreeMap::new())
+            .ok()
+            .flatten();
+        Self::new(mounts, dispatch, serve_static).with_health(health)
     }
 
     /// Every mount this table holds, which is § 2's executable set in full.
@@ -161,18 +199,14 @@ impl Table {
         &self.mounts
     }
 
-    /// § 4's five steps over one arrived request.
+    /// Step 0 and then § 4's five steps, over one arrived request.
     ///
     /// The host is the `Host` header's without its port, falling back to the
     /// request target's own authority for the absolute-form target h1 still
     /// allows. § 6's forwarded header walk is a later slice and would only ever
     /// *replace* this value: nothing downstream of here reads a header.
     #[must_use]
-    pub fn select(
-        &self,
-        request: &Request<Incoming>,
-        disk: &dyn Existing,
-    ) -> Option<Selection<'_>> {
+    pub fn select(&self, request: &Request<Incoming>, disk: &dyn Existing) -> Option<Resolved<'_>> {
         let host = request
             .headers()
             .get(HOST)
@@ -182,18 +216,27 @@ impl Table {
         self.resolve(host, request.uri().path(), disk)
     }
 
-    /// § 4's five steps over a host and a path, which is [`select`](Table::select)
-    /// with the request already taken apart.
+    /// Step 0 and § 4's five steps over a host and a path, which is
+    /// [`select`](Table::select) with the request already taken apart.
     ///
     /// `path` is the request target's path alone — a query string is not part of
-    /// what selects a mount, and no step below ever sees one.
+    /// what selects a mount, and no step below ever sees one. The probe is
+    /// therefore matched against the path exactly and on every host: § 5 reserves
+    /// **one** URL, and a probe that answered `/healthz?x=1` but not `/healthz`,
+    /// or answered only on the host of whichever mount happened to cover it,
+    /// would be a different endpoint on each deployment.
     #[must_use]
     pub fn resolve(
         &self,
         host: Option<&str>,
         path: &str,
         disk: &dyn Existing,
-    ) -> Option<Selection<'_>> {
+    ) -> Option<Resolved<'_>> {
+        // 0. Ahead of step 1, so that no mount can shadow it — including a mount
+        // at `/`, which covers every path there is.
+        if self.health.as_deref() == Some(path) {
+            return Some(Resolved::Health);
+        }
         // 1.
         let mount = self.matched(host, path)?;
         // 2.
@@ -218,7 +261,7 @@ impl Table {
             // 5.
             What::Run(mount.entry.clone())
         };
-        Some(Selection { mount, what })
+        Some(Resolved::Mounted(Selection { mount, what }))
     }
 
     /// Step 1: the longest prefix among the mounts answering on `host`, and then
@@ -242,6 +285,36 @@ impl Table {
                 .max_by_key(|mount| mount.prefix.len())
         };
         longest(true).or_else(|| longest(false))
+    }
+}
+
+/// What the table made of one request: § 5's probe, or the mount § 4 selected.
+///
+/// Two variants rather than a third [`What`], because a probe hit has no mount
+/// to carry — it is answered before step 1 has run, so there is nothing yet for
+/// a [`Selection`] to borrow. A caller that only asks about applications takes
+/// [`Resolved::selection`] and is back to § 4 alone; one that serves requests
+/// has to say what it does with the probe, which is the point of making it a
+/// variant instead of a flag beside the answer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Resolved<'a> {
+    /// Step 0: `[server] health_path` names exactly this path. The answer is
+    /// `200` while the server accepts and `503` while it drains, with an empty
+    /// body — a status and nothing else, since § 5's probe reports no version
+    /// and runs no dependency check.
+    Health,
+    /// Steps 1 to 5: this mount, and what it says the request is.
+    Mounted(Selection<'a>),
+}
+
+impl<'a> Resolved<'a> {
+    /// The mount § 4 chose, or `None` for a probe hit.
+    #[must_use]
+    pub fn selection(self) -> Option<Selection<'a>> {
+        match self {
+            Self::Health => None,
+            Self::Mounted(selection) => Some(selection),
+        }
     }
 }
 
@@ -484,6 +557,7 @@ mod tests {
         let what = |path: &str| {
             table
                 .resolve(None, path, &fs)
+                .and_then(Resolved::selection)
                 .expect("the root mount matches everything")
                 .what
         };
@@ -527,6 +601,7 @@ mod tests {
             assert_eq!(
                 closed
                     .resolve(None, path, &fs)
+                    .and_then(Resolved::selection)
                     .expect("the root mount matches everything")
                     .what,
                 What::Run(p("/www/public/index.nvs")),
@@ -556,7 +631,10 @@ mod tests {
             true,
         );
         let at = |host: Option<&str>, path: &str| {
-            let selected = table.resolve(host, path, &fs).expect("a mount matches");
+            let selected = table
+                .resolve(host, path, &fs)
+                .and_then(Resolved::selection)
+                .expect("a mount matches");
             (selected.mount.prefix.clone(), selected.what)
         };
 
@@ -610,5 +688,81 @@ mod tests {
         );
         assert!(sparse.resolve(None, "/shop", &fs).is_none());
         assert!(sparse.resolve(None, "/blog/style.css", &fs).is_some());
+    }
+
+    /// Step 0 against the table most able to swallow it: a mount at `/` with both
+    /// switches on, a host mount beside it, and the probe pointed at a path that
+    /// exists on disk as a static file.
+    ///
+    /// Every line is the same request answered twice — once with the probe
+    /// reserved and once without — because a case that only asserted the hit
+    /// would pass against a table that answered `Health` to everything, and one
+    /// that only asserted the misses would pass against a probe wired to nothing.
+    #[test]
+    fn the_health_path_answers_ahead_of_every_mount() {
+        let fs = Fake::with(&["/www/public/index.nvs", "/www/public/healthz"]);
+        let mounts = || {
+            vec![
+                mount("/", None, "/www/public/index.nvs"),
+                mount("/", Some("blog.example.com"), "/www/public/index.nvs"),
+            ]
+        };
+        let table = Table::new(mounts(), Dispatch::Path, true).with_health(Some("/healthz".into()));
+        let off = Table::new(mounts(), Dispatch::Path, true);
+
+        // The hit, on the host-less mount and on the host one alike: § 5 reserves
+        // one URL from the whole server and not one per tenant.
+        for host in [None, Some("blog.example.com"), Some("other.example.com")] {
+            assert_eq!(
+                table.resolve(host, "/healthz", &fs),
+                Some(Resolved::Health),
+                "for {host:?}"
+            );
+        }
+        // And step 3 does not get there first, though `/www/public/healthz` is a
+        // file the static policy would happily have sent: step 0 is ahead of the
+        // steps, not the first of them.
+        assert_eq!(
+            off.resolve(None, "/healthz", &fs)
+                .and_then(Resolved::selection)
+                .expect("the root mount matches everything")
+                .what,
+            What::Static(p("/www/public/healthz")),
+            "the fixture no longer distinguishes the two orders"
+        );
+
+        // Exactly one URL. A prefix of it, an extension of it and the directory
+        // spelling of it are the application's, or a probe would take paths from
+        // a mount that nobody reserved.
+        for path in ["/healthz/", "/healthz/live", "/healthzz", "/health"] {
+            assert_eq!(
+                table.resolve(None, path, &fs).and_then(Resolved::selection),
+                off.resolve(None, path, &fs).and_then(Resolved::selection),
+                "for {path:?}"
+            );
+        }
+
+        // Off is the default, and it is the whole difference: the same table with
+        // no probe reserved routes the probe's own path to the application.
+        assert_eq!(
+            off.resolve(None, "/healthz", &fs),
+            table
+                .clone()
+                .with_health(None)
+                .resolve(None, "/healthz", &fs)
+        );
+
+        // And the tree is where it comes from, read the way § 5 writes it.
+        let config = Config {
+            server: Some(nvs_config::tree::Server {
+                health_path: Some("/healthz".into()),
+                ..nvs_config::tree::Server::default()
+            }),
+            ..Config::default()
+        };
+        assert_eq!(
+            Table::from_config(mounts(), &config).resolve(None, "/healthz", &fs),
+            Some(Resolved::Health)
+        );
     }
 }
