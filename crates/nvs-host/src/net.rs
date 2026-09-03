@@ -1,5 +1,6 @@
 //! The parking stream: a plain `Read` and `Write` that hands the core back
-//! instead of blocking it, over TCP or over a Unix-domain socket.
+//! instead of blocking it, over TCP or over a Unix-domain socket — and
+//! [`NvsListener`], the accepting half that parks on the same four functions.
 //!
 //! [ADR 0115](../../../docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
 //! § 3 is this module's specification, and its one sentence is the whole shape:
@@ -97,6 +98,12 @@
 //! not already give. Per stream the footprint is identical; what is spent is
 //! code size, two instantiations of four small functions
 //! ([ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)).
+//!
+//! [`NvsListener`] is that decision reached from the other side. An accepting
+//! socket waits on `READABLE` for a connection exactly as a stream waits on it
+//! for a byte, so it *holds* an [`NvsStream`] over `mio`'s listener rather than
+//! carrying a fifth copy of the waiting; why it is a name at all, rather than
+//! one more alias, is its own doc.
 //!
 //! What stays per family is what is genuinely per family, and it is only the
 //! *address*: a `SocketAddr` on one side, a path on the other, so `connect` is
@@ -260,6 +267,153 @@ impl NvsStream<mio::net::TcpStream> {
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.inner.peer_addr()
     }
+}
+
+/// The accepting half: a listening socket whose accept parks the task instead
+/// of blocking the core it is running on.
+///
+/// This is a wrapper around [`NvsStream`] over `mio`'s listener and
+/// deliberately not a type of its own. Waiting for a connection *is* waiting
+/// for readiness — the same registration, the same task, the same deadline —
+/// so a second type would mean a fifth copy of the four functions this module's
+/// docs § *One type over the source* keeps in one place. What the wrapper buys
+/// is the name and the surface: `NvsStream<TcpListener>` carries a `Read` and a
+/// `Write` bound it can never satisfy, an `NvsListener` carries `accept` and
+/// nothing else, and a caller cannot reach for the wrong one by accident.
+///
+/// What comes out of [`Self::accept`] is an [`NvsTcp`]: `mio` hands back an
+/// already non-blocking socket, which is the state [`NvsStream::new`] documents
+/// as its input, so an accepted connection needs no mode change on its way in.
+///
+/// Both halves of the accept are here — [`Self::accept`] parks the coroutine
+/// and [`Self::poll_accept`] answers `Poll::Pending` — for the reason
+/// [`NvsStream::poll_read`] gives: a poll may not suspend, and an accept loop
+/// written as a coroutine has no reason to go through a future.
+#[derive(Debug)]
+pub struct NvsListener(NvsStream<mio::net::TcpListener>);
+
+impl NvsListener {
+    /// Binds a listening socket to `addr`.
+    ///
+    /// # Errors
+    ///
+    /// The platform refused the address — already in use, or not one of this
+    /// host's.
+    pub fn bind(addr: SocketAddr) -> io::Result<Self> {
+        Ok(Self(NvsStream::new(mio::net::TcpListener::bind(addr)?)))
+    }
+
+    /// Takes over a `std` listener, switching it to non-blocking first.
+    ///
+    /// [`NvsTcp::from_std`] for the accepting side, and the spelling a server
+    /// that binds once and accepts on several cores needs: the socket is bound
+    /// — and its options chosen — before any core exists, and each core takes
+    /// its own handle on the descriptor from there.
+    ///
+    /// # Errors
+    ///
+    /// The platform refused the mode change.
+    pub fn from_std(listener: std::net::TcpListener) -> io::Result<Self> {
+        listener.set_nonblocking(true)?;
+        Ok(Self(NvsStream::new(mio::net::TcpListener::from_std(
+            listener,
+        ))))
+    }
+
+    /// The address this socket is listening on.
+    ///
+    /// # Errors
+    ///
+    /// The platform's answer for a socket it no longer holds.
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.0.inner.local_addr()
+    }
+
+    /// Bounds every wait on this listener by `at`, or lifts the bound —
+    /// [`NvsStream::set_deadline`], which owns what a deadline is.
+    pub fn set_deadline(&mut self, at: Option<Instant>) {
+        self.0.set_deadline(at);
+    }
+
+    /// Whether this listener currently holds a registration with its core's
+    /// reactor — [`NvsStream::is_parked_on`], for the test that asserts the
+    /// optimistic order.
+    #[must_use]
+    pub fn is_parked_on(&self) -> bool {
+        self.0.is_parked_on()
+    }
+
+    /// Accepts the next connection, parking the task while there is none.
+    ///
+    /// ADR 0115 § 3 in the order everything here takes it: try the syscall, and
+    /// only on `WouldBlock` register and suspend. A listener with a full
+    /// backlog therefore accepts a burst without touching the reactor once.
+    ///
+    /// # Errors
+    ///
+    /// The platform's, or `TimedOut` once this listener's deadline has passed.
+    /// **A connection that died in the backlog is not one of them**: the peer
+    /// reset it before this side ever held it, there is no connection for a
+    /// caller to report the failure against, and an accept loop that stopped on
+    /// one would be a listener any peer could close by connecting and resetting.
+    /// It is retried here, exactly as `Interrupted` is.
+    pub fn accept(&mut self) -> io::Result<(NvsTcp, SocketAddr)> {
+        loop {
+            match self.0.inner.accept() {
+                Ok((stream, peer)) => return Ok((NvsStream::new(stream), peer)),
+                Err(err) if lost_in_the_backlog(&err) => {}
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    self.0.wait_until_ready(Interest::READABLE)?;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
+    /// [`Self::accept`]'s three steps, stopped one short: try the syscall, and
+    /// on `WouldBlock` arm the reactor and answer `Pending` rather than suspend.
+    ///
+    /// The half a `poll` may call, and [`NvsStream::poll_read`]'s doc is why the
+    /// difference matters. The arming happens *here* rather than in whatever
+    /// adapter is driving the poll — ADR 0115 rule 1 — so the wake has somewhere
+    /// to be recorded before there is anything to record.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::accept`]'s, on the same terms.
+    pub fn poll_accept(&mut self) -> Poll<io::Result<(NvsTcp, SocketAddr)>> {
+        loop {
+            match self.0.inner.accept() {
+                Ok((stream, peer)) => return self.0.answer(Ok((NvsStream::new(stream), peer))),
+                Err(err) if lost_in_the_backlog(&err) => {}
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    match self.0.arm_only(Interest::READABLE) {
+                        Ok(true) => return Poll::Pending,
+                        Ok(false) => {}
+                        Err(err) => return self.0.answer(Err(err)),
+                    }
+                }
+                Err(err) => return self.0.answer(Err(err)),
+            }
+        }
+    }
+}
+
+/// Whether an accept failed for a reason that belongs to no connection: the
+/// signal case, and the peer that reset while it was still in the backlog.
+///
+/// One function because both accept paths have to agree, and
+/// [`NvsListener::accept`]'s `# Errors` owns why these are retried rather than
+/// reported. The reset spelling differs by platform — `ECONNABORTED` where the
+/// Unixes report it, `WSAECONNRESET` where Windows does — so both kinds are
+/// named and neither is `#[cfg]`-ed.
+fn lost_in_the_backlog(err: &io::Error) -> bool {
+    matches!(
+        err.kind(),
+        io::ErrorKind::Interrupted
+            | io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::ConnectionReset
+    )
 }
 
 /// The parking stream over a Unix-domain socket — the same contract, the same
@@ -988,6 +1142,164 @@ mod tests {
             "a blocking wait left a reactor registration behind"
         );
         drop(listener);
+    }
+
+    /// The accepting half's § 3, and the same question the first read asks: a
+    /// connection already in the backlog is handed over having touched nothing.
+    #[test]
+    fn an_accept_that_finds_a_connection_waiting_never_touches_the_reactor() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        // The handshake finishes inside `connect` on loopback, so by the time
+        // this returns the connection is in the backlog and the accept below is
+        // in the position it is written for — no sleep, and nothing assumed.
+        let client = std::net::TcpStream::connect(addr).expect("the loopback refused a connection");
+        let client_addr = client
+            .local_addr()
+            .expect("a connected socket had no address");
+
+        let parked = Rc::new(Cell::new(true));
+        let reported = Rc::clone(&parked);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let (_stream, peer) = match listener.poll_accept() {
+                Poll::Ready(accepted) => accepted.expect("the accept failed"),
+                Poll::Pending => panic!("an accept with a connection waiting answered Pending"),
+            };
+            assert_eq!(peer, client_addr, "the accept named the wrong peer");
+            reported.set(listener.is_parked_on());
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        drop(client);
+        assert!(
+            !parked.get(),
+            "an accept that found its connection still registered with the reactor"
+        );
+        assert_eq!(
+            with_current(|reactor| reactor.registrations()),
+            Some(0),
+            "the reactor was touched by an accept that did not need it"
+        );
+    }
+
+    /// ADR 0115 rule 1, in the shape a poll can keep it: the registration is
+    /// filed *before* the `Pending`, so the wake has somewhere to be recorded.
+    #[test]
+    fn an_accept_with_nothing_to_accept_arms_before_it_answers_pending() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+
+        // Both halves of rule 1 read from inside the task, because the answer
+        // and the registration have to be asserted at the same instant: after
+        // the task ends there is nothing left to have got wrong.
+        let armed = Rc::new(Cell::new(None));
+        let reported = Rc::clone(&armed);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            assert!(
+                matches!(listener.poll_accept(), Poll::Pending),
+                "an accept with nothing to accept did not answer Pending"
+            );
+            reported.set(Some((
+                listener.is_parked_on(),
+                with_current(|reactor| reactor.registrations()),
+            )));
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(
+            armed.get(),
+            Some((true, Some(1))),
+            "the Pending was answered with no registration behind it"
+        );
+        assert_eq!(
+            with_current(|reactor| reactor.registrations()),
+            Some(0),
+            "the listener's registration outlived the task that made it"
+        );
+    }
+
+    /// The parking half: an accept with nothing to accept suspends, the reactor
+    /// wakes it, and what it hands back is a connection that carries bytes.
+    #[test]
+    fn an_accept_on_a_core_parks_until_a_connection_arrives() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let connecting = std::thread::spawn(move || {
+            // Late on purpose: the accept has to have parked before this
+            // connection exists, or the test asserts the previous one again.
+            std::thread::sleep(Duration::from_millis(20));
+            let mut client =
+                std::net::TcpStream::connect(addr).expect("the loopback refused a connection");
+            client.write_all(b"hi").expect("the write failed");
+            client
+        });
+
+        let got = Rc::new(RefCell::new(Vec::new()));
+        let recorded = Rc::clone(&got);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let (mut stream, _) = listener.accept().expect("the accept failed");
+            let mut buf = [0_u8; 8];
+            let read = stream.read(&mut buf).expect("the read failed");
+            *recorded.borrow_mut() = buf[..read].to_vec();
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        drop(connecting.join().expect("the connecting thread panicked"));
+        assert_eq!(
+            &*got.borrow(),
+            b"hi",
+            "the accepted connection did not carry bytes"
+        );
+        assert_eq!(
+            with_current(|reactor| reactor.registrations()),
+            Some(0),
+            "the accept's registration outlived its task"
+        );
+    }
+
+    /// Off a core there is no coroutine to suspend, so the accept waits on its
+    /// own poll — this module's § *Off a core, it blocks*, on the other half.
+    #[test]
+    fn an_accept_off_a_core_waits_rather_than_refusing() {
+        assert!(current_task().is_none(), "this test must run off a core");
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let connecting = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            std::net::TcpStream::connect(addr).expect("the loopback refused a connection")
+        });
+
+        let (stream, peer) = listener.accept().expect("the accept failed");
+        let client = connecting.join().expect("the connecting thread panicked");
+        assert_eq!(
+            peer,
+            client
+                .local_addr()
+                .expect("a connected socket had no address"),
+            "the accept named the wrong peer"
+        );
+        assert!(
+            !listener.is_parked_on(),
+            "a blocking wait left a reactor registration behind"
+        );
+        drop(stream);
     }
 
     /// A wait with a deadline behind it ends when the clock says so, and says

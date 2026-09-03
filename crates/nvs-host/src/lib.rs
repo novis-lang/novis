@@ -118,7 +118,7 @@ pub use group::SchedulerHost;
 pub use isolate::{Completion, Failure, Isolate, Output, Program};
 #[cfg(unix)]
 pub use net::NvsUnix;
-pub use net::{NvsStream, NvsTcp};
+pub use net::{NvsListener, NvsStream, NvsTcp};
 pub use reactor::{Installed, Interest, Reactor, RemoteWake, run_until_idle};
 pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, Wake, cancel_task, children_still_running,
