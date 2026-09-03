@@ -6888,6 +6888,17 @@ sibling in the same namespace unqualified.
   so has to be resumed to die. A test asserting "the wait answered its cancellation" therefore fails on an
   ordinary task and passes only with a `HelperFrame::enter()` guard held across the park — and a park site
   needs both answers written, because both happen.
+- **A task that spawns children and returns takes them down with it, and the symptom is on the
+  *client*.** An accept loop that handed a connection to `nvs_host::spawn_child` and then returned
+  produced a `ConnectionReset` at the peer with no error anywhere on the server side: ADR 0072 § 4's
+  "return with nothing still running" is enforced by tearing the children down, so the connection
+  coroutine either never ran or was cancelled mid-flight. A parent that means to outlive its work
+  parks until its own tally of outstanding children reaches zero — `crates/nvs-server/src/serve.rs`'s
+  `Served` guard is the worked shape, and it is a `Drop` because a cancelled coroutine never reaches
+  the end of its body. Two things that look like they would do instead and do not:
+  `children_still_running()` alone leaves the wake to tree bookkeeping whose ordering against the
+  child's last instruction is not stated, and a `Waiting::Yielded` spin never lets the core poll the
+  reactor the child is parked on.
 
 ## Divergences and refusals already pinned
 
