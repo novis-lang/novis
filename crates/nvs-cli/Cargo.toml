@@ -1,6 +1,6 @@
 [package]
 name = "nvs-cli"
-description = "The nvs command-line binary: ast/check (M1-M2), run (M3), test (M4), info"
+description = "The nvs command-line binary: ast/check (M1-M2), run (M3), test (M4), serve (M7), info"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -28,6 +28,11 @@ nvs-runtime.workspace = true
 # stack, because ADR 0072 § 1's children are children *of the calling task* and
 # there has to be one. `main.rs`'s § *What `run` executes* owns the rest.
 nvs-host.workspace = true
+# `nvs serve` is the accept loop with a socket and a handler bound to it, and
+# this binary is the only crate that can supply the second: turning a path into
+# an isolate's program is `script.rs`'s compiler, which lives here because the
+# front end does. `serve.rs`'s module doc owns the rest of that direction.
+nvs-server.workspace = true
 nvs-test.workspace = true
 # `nvs queue migrate` opens the `[db.<name>]` it proved and runs ADR 0084 § 2's
 # statements on it. This is the only path in this binary that talks to a server

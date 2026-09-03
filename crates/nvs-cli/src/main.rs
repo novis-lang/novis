@@ -97,6 +97,7 @@ mod openapi;
 mod queue;
 mod runner;
 mod script;
+mod serve;
 mod worker;
 
 #[derive(ClapParser)]
@@ -194,6 +195,28 @@ enum Command {
             value_name = "ARGS"
         )]
         arguments: Vec<String>,
+    },
+    /// Serve a `.nvs`/`.php` file over HTTP, on one core, until stopped.
+    ///
+    /// ADR 0097's development server and proxied origin. The file is compiled
+    /// before the socket is bound and every request runs it as ADR 0006's
+    /// isolate; § 4's mount table is the slice that replaces the argument with
+    /// a set of entry points, and `serve`'s module doc owns why one path on the
+    /// command line is already § 2's rule rather than an exception to it.
+    Serve {
+        /// The file every request runs.
+        file: PathBuf,
+        /// The address to listen on, as `host:port` — the last word over
+        /// `[server] listen` (ADR 0097 § 5).
+        #[arg(long, value_name = "ADDR")]
+        listen: Option<String>,
+        /// The port to listen on, keeping the host `[server] listen` chose.
+        ///
+        /// Conflicts with `--listen` rather than being merged into it: two
+        /// spellings of one address are two requests, and guessing which was
+        /// meant is worse than saying so.
+        #[arg(long, conflicts_with = "listen", value_name = "PORT")]
+        port: Option<u16>,
     },
     /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
     /// cases.
@@ -465,6 +488,9 @@ fn main() -> ExitCode {
             &cli.config,
             arguments,
         ),
+        Command::Serve { file, listen, port } => {
+            serve::run(&file, listen.as_deref(), port, &cli.config)
+        }
         Command::Test {
             paths,
             filter,
