@@ -779,6 +779,7 @@ mod tests {
             exit_targets: Vec::new(),
             write_target_levels: rustc_hash::FxHashMap::default(),
             coalesce_guarded: rustc_hash::FxHashSet::default(),
+            body_writers: crate::response::BodyWriters::default(),
         };
         let id = lower_type(&probe_ty, &ctx, &mut env);
         (id, interner, diags)

@@ -1276,6 +1276,11 @@ pub(crate) fn check_stmt(
             // stays as-is, unused.
         }
         StmtKind::Echo(xs) => {
+            // ADR 0088 § 4's sixth row: a response body written by `echo` and
+            // by a typed member both. The statement's own span rather than an
+            // operand's, because here the *writer* is what a reader has to
+            // find — see `crate::response`.
+            crate::response::note_echo(stmt.span, env);
             for x in xs {
                 let ty = check_expr(x, None, live, scope, ctx, env);
                 // ADR 0033 § 4's terminal-output sink, which this statement

@@ -721,6 +721,7 @@ pub fn build_signatures(
             exit_targets: Vec::new(),
             write_target_levels: FxHashMap::default(),
             coalesce_guarded: FxHashSet::default(),
+            body_writers: crate::response::BodyWriters::default(),
         };
         collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);
     }

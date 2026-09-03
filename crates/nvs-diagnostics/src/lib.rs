@@ -56,6 +56,7 @@ pub use span::{BytePos, SourceId, Span, Spanned};
 /// | `E05xx` | IR and codegen |
 /// | `E06xx` | configuration and capabilities |
 /// | `E07xx` | types, continued — the `E04xx` band filled at `E0499` |
+/// | `E08xx` | types, continued again — the `E07xx` band filled at `E0799` |
 /// | `E09xx` | internal compiler errors |
 /// | `W1xxx` | warnings |
 pub mod code {
@@ -2863,6 +2864,30 @@ pub mod code {
     /// band at all. That is a project-level decision and `docs/adr/README.md`
     /// § *Decisions taken at project level* is its home, as it was for `E0500`.
     pub const E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0799");
+
+    // --- E08xx types, continued again ---------------------------------------
+    //
+    // The third band for one stage. `E07xx` filled at `E0799`, whose own doc
+    // comment says the next types diagnostic opens a band rather than taking
+    // the number past the end of that one, and `docs/adr/README.md`
+    // § *Decisions taken at project start* had already set `E08xx` aside for
+    // whichever band filled next — it is the project-level home of both.
+    //
+    // `E0800` is not a hole to fill: ADR 0136 § *Diagnostics* claimed it for
+    // the first of the `callable`-signature refusals, which have not landed,
+    // and a number another decision has already named is not reissued here.
+    /// `echo` and a `Core\Response` body member writing one response body —
+    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// § 4's sixth row.
+    ///
+    /// The two disagree about the body's type and its `Content-Type`, and
+    /// letting the last one win is how a JSON endpoint acquires an HTML
+    /// prelude. Reported inside a `#[Route]` handler and nowhere else, because
+    /// § 3 binds `echo` by context and a handler is the one body a request is
+    /// statically certain to reach — `nvs_types::response`'s module doc owns
+    /// that scope, the reach inside a handler, and the entry-script gap it
+    /// leaves.
+    pub const E_ECHO_BESIDE_A_BODY_MEMBER: Code = Code::new("E0801");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

@@ -1,0 +1,74 @@
+--TEST--
+`echo` and a `Core\Response` body member writing one response body is a compile error, in either order, and one writer is a whole body however often it writes -- ADR 0088 § 4
+--FILE--
+<?nvs
+// ADR 0088 § 4's sixth row: the two writers disagree about the body's type and
+// its `Content-Type`, and silently letting the last one win is how a JSON
+// endpoint acquires an HTML prelude. § 3 binds `echo` by context, so what is
+// refused is a `#[Route]` handler -- the one body ADR 0102 § 1 makes a request
+// statically certain to reach.
+class Pages
+{
+    #[Core\Route(path: "/report", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function report(): void
+    {
+        echo "<h1>Report</h1>";
+        Core\Response::json(1);
+    }
+
+    // The other order is the same mistake and takes the same refusal: what is
+    // wrong is that the body has two writers, not that one of them came second.
+    #[Core\Route(path: "/receipt", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function receipt(): void
+    {
+        Core\Response::text("receipt");
+        echo " and a footer";
+    }
+
+    // A closure written in the handler writes the same response, so the two
+    // writers meet there too -- its body is checked inside the handler's.
+    #[Core\Route(path: "/deferred", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function deferred(): void
+    {
+        echo "<h1>Deferred</h1>";
+        var $write = fn (): void => { Core\Response::text("later"); };
+    }
+
+    // The accepted half, so a body that stops being accepted fails here rather
+    // than as a missing refusal. `echo` alone is § 4's last bullet -- the
+    // inline-HTML page, which means `text/html` -- and writing it twice is
+    // still one writer.
+    #[Core\Route(path: "/page", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(): void
+    {
+        echo "<h1>Page</h1>";
+        echo "<p>one writer, twice</p>";
+    }
+
+    // And a reader is not a writer: `Core\Server::isDraining` says nothing
+    // about the body, so it is an ordinary handler beside an `echo`.
+    #[Core\Route(path: "/health", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function health(): void
+    {
+        bool $draining = Core\Server::isDraining();
+        echo $draining;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0801]: a response has one body, and this handler writes it with both `echo` and `Core\Response::json`
+   --> case.nvs:13:9
+%A
+error[E0801]: a response has one body, and this handler writes it with both `Core\Response::text` and `echo`
+   --> case.nvs:23:9
+%A
+error[E0801]: a response has one body, and this handler writes it with both `echo` and `Core\Response::text`
+   --> case.nvs:33:9
+%A
+error: aborting due to 3 errors

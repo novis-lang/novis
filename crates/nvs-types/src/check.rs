@@ -170,6 +170,7 @@ pub fn check_program_granted(
             exit_targets: Vec::new(),
             write_target_levels: FxHashMap::default(),
             coalesce_guarded: FxHashSet::default(),
+            body_writers: crate::response::BodyWriters::default(),
         };
         let mut frame = ScriptFrame {
             scope: LocalScope::new(),
@@ -598,6 +599,12 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
     let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
 
+    // ADR 0088 § 4's sixth row is a fact about one body, so what answers it is
+    // installed here and put back at every exit below — `crate::response`'s
+    // module doc owns which bodies it arms and why a method's is the reach.
+    let entering = crate::response::entering_body(m, ctx, env);
+    let outer_writers = std::mem::replace(&mut env.body_writers, entering);
+
     // ADR 0053 § 4: a body containing `yield` is a generator, and everything
     // that follows from that is decided here rather than at each `yield` —
     // the declared return type must be `Iterator<T>`, and `T` is what every
@@ -606,6 +613,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         check_block(&body.stmts, &mut live, &mut scope, return_ty, ctx, env);
         check_every_path_returns(m, body, return_ty, env);
         reject_static_return_of_another_class(m, body, ctx, env);
+        env.body_writers = outer_writers;
         return;
     };
     check_generator_inout_params(m, env);
@@ -624,6 +632,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // the `Iterator<T>` the *declaration* names.
     let void = env.interner.void();
     check_block(&body.stmts, &mut live, &mut scope, void, &inner, env);
+    env.body_writers = outer_writers;
 }
 
 /// ADR 0007 § 1, at the one exit a body takes without writing anything: a

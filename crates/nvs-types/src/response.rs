@@ -1,0 +1,179 @@
+//! [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+//! § 4's sixth row: one response has one body writer.
+//!
+//! § 4 replaces `Core\Response::write` with five typed members, each owning one
+//! body shape and setting its own `Content-Type`, and then makes "`echo` and a
+//! typed writer on the same response" a compile error — "they disagree about
+//! the body's type and its `Content-Type`, and silently letting the last one
+//! win is how a JSON endpoint acquires an HTML prelude". This module is that
+//! error, and it is the reason nothing at run time adjudicates between two
+//! declarations: `nvs_stdlib::response`'s own doc says a body member declares
+//! and then writes, with no arbitration, because the disagreement cannot reach
+//! it.
+//!
+//! **Checked where a response is statically certain, which is a `#[Route]`
+//! handler and nothing else.** § 3 binds `echo` by *context*, not by syntax:
+//! the same method body writes a response body under an HTTP request and a
+//! terminal sink under `nvs run`, and which one a given body runs as is a
+//! run-time fact for every body but one. ADR 0102 § 1 matches a request to a
+//! `#[Route]` handler and to nothing else, so a handler is a response body by
+//! declaration and the rule has something to be about. Everywhere else is left
+//! alone rather than refused on suspicion: a `#[Command]` method, a `#[Test]`
+//! method or a `.nvst` case that writes both is a CLI program, where a body
+//! member's declaration is inert (`nvs_stdlib::response`'s gap 1) and there is
+//! no response for two writers to disagree over. Refusing those would refuse
+//! programs that have no response to be wrong about, and the corpus already
+//! pins the shared-output behaviour they rely on
+//! (`tests/conformance/core/a-response-body-member-and-echo-share-one-output.nvst`).
+//!
+//! **Known gap: a mount's entry script.** ADR 0097 § 4's steps 4 and 5 run a
+//! `.nvs` file's *top-level frame* as the request body, so an entry that echoes
+//! a page and also calls a body member is § 4's sixth row and is not refused
+//! here. The same file is one compiled unit whether the server ran it or
+//! `nvs run` did, so a static refusal there would refuse the CLI use of every
+//! such file — the missing fact is a declaration that a file is an entry, which
+//! the language does not have. Until it does, the entry-script half of § 4's
+//! row is answered by § 3's default alone: `echo` means `text/html`, and a body
+//! member written beside it wins the `Content-Type` it declared last.
+//!
+//! **The reach inside a handler is that handler's own body**, closures written
+//! in it included — an `fn` literal writes the same response, and
+//! [`crate::expr::calls::check_fn_literal`] checks its body inline, so the two
+//! writers meet here with nothing added. A helper *method* the handler calls is
+//! not seen: which bodies reach a handler is a whole-program question and this
+//! is a body-local rule, deliberately, for [`crate::links`]'s opposite reason —
+//! a rule that needs the call graph cannot be answered where it is written.
+//!
+//! **Two typed members in one handler are not refused here.** They disagree
+//! about the `Content-Type` exactly as `echo` and one of them do, but § 4's row
+//! names `echo` and a typed writer, and the ADR is the specification; a second
+//! rule belongs to whichever ADR states it.
+
+use nvs_diagnostics::{Diagnostic, Span, code};
+use nvs_hir::QName;
+use nvs_syntax::ast::MethodMember;
+
+use crate::{Ctx, Env};
+
+/// ADR 0088 § 4's five body members, by the name a call spells.
+///
+/// The table's rows, in its order. `html` and `sendFile` are not in
+/// `nvs_stdlib::registry` yet — the first waits on `Core\Html\Markup` being
+/// spellable as a registry parameter and the second on a mount root to resolve
+/// a path against — and they are listed anyway: a name that does not resolve is
+/// `E0405` before it reaches here, so an unregistered row costs nothing, and
+/// leaving it out would make landing the member a two-file change with the
+/// second file easy to miss.
+const BODY_MEMBERS: [&str; 5] = ["html", "json", "text", "bytes", "sendFile"];
+
+/// What has written the body of the body being checked, so far.
+///
+/// One of these is installed per method body by [`entering_body`] and put back
+/// afterwards by [`crate::check`]. `armed` is the module doc's scope decision
+/// held as a field rather than asked at each site: whether a body is a response
+/// is a question about the *declaration*, and asking it once at the top is what
+/// keeps the two note sites free of it.
+#[derive(Default)]
+pub(crate) struct BodyWriters {
+    /// Whether this body is a `#[Route]` handler's, and so has a response.
+    armed: bool,
+    /// The first `echo` statement in it.
+    echo: Option<Span>,
+    /// The first `Core\Response` body member call in it, and which member.
+    member: Option<(Span, String)>,
+    /// Whether the conflict has already been reported for this body. One report
+    /// per body: a handler that echoes in a loop and declares a body once has
+    /// made one mistake, and a diagnostic per `echo` describes it no better.
+    reported: bool,
+}
+
+/// The state to install for `m`'s body — armed for a `#[Route]` handler, inert
+/// for every other method.
+///
+/// Reads the attribute through [`crate::testing::attribute_named`], which is
+/// the nominal match [`crate::routes`] uses for the same question, so a
+/// userland `#[Route]` that does not resolve to `Core\Route` arms nothing here
+/// for the same reason it contributes no route there.
+pub(crate) fn entering_body(m: &MethodMember, ctx: &Ctx<'_>, env: &Env<'_>) -> BodyWriters {
+    BodyWriters {
+        armed: crate::testing::attribute_named(&m.attributes, crate::derive::ROUTE, ctx, env)
+            .is_some(),
+        ..BodyWriters::default()
+    }
+}
+
+/// An `echo` statement in the body being checked.
+///
+/// Called from [`crate::locals::check_stmt`]'s `Echo` arm with the statement's
+/// own span, which is what the label points at: the operand is where ADR 0033
+/// § 4's secret refusal points, because there the *value* is the mistake, and
+/// here the writer is.
+pub(crate) fn note_echo(span: Span, env: &mut Env<'_>) {
+    if !env.body_writers.armed || env.body_writers.reported {
+        return;
+    }
+    if let Some((member_span, member)) = env.body_writers.member.clone() {
+        report(span, "`echo`", member_span, &member_label(&member), env);
+        return;
+    }
+    env.body_writers.echo.get_or_insert(span);
+}
+
+/// A resolved `Core\Class::member(...)` call in the body being checked.
+///
+/// Called from [`crate::expr::calls::infer_static_call`] for every static call
+/// whose class side resolved, rather than only for `Core` ones: the class test
+/// is one comparison and keeping it here is what makes ADR 0088 § 4's roster
+/// readable in one place.
+pub(crate) fn note_body_member(qname: &QName, member: &str, span: Span, env: &mut Env<'_>) {
+    if !env.body_writers.armed || env.body_writers.reported || !is_body_member(qname, member) {
+        return;
+    }
+    if let Some(echo) = env.body_writers.echo {
+        report(span, &member_label(member), echo, "`echo`", env);
+        return;
+    }
+    env.body_writers
+        .member
+        .get_or_insert((span, member.to_owned()));
+}
+
+/// Whether `qname::member` is one of § 4's body members.
+fn is_body_member(qname: &QName, member: &str) -> bool {
+    qname.is_core()
+        && qname.segments().len() == 2
+        && qname.short_name() == "Response"
+        && BODY_MEMBERS.contains(&member)
+}
+
+/// `Core\Response::json`, quoted for a message.
+fn member_label(member: &str) -> String {
+    format!("`Core\\Response::{member}`")
+}
+
+/// The refusal, pointing at the writer that made the body ambiguous and at the
+/// one that was already there.
+///
+/// The *second* writer takes the primary span because it is the one whose
+/// removal leaves a body with a single type — the first is a complete program
+/// on its own — and both are named in the message so a reader who sees only the
+/// first line knows which two writers are meant.
+fn report(second: Span, second_label: &str, first: Span, first_label: &str, env: &mut Env<'_>) {
+    env.body_writers.reported = true;
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ECHO_BESIDE_A_BODY_MEMBER,
+            format!(
+                "a response has one body, and this handler writes it with both {first_label} \
+                 and {second_label}"
+            ),
+        )
+        .with_primary(second, format!("{second_label} writes the body here"))
+        .with_secondary(first, format!("{first_label} already wrote it here"))
+        .with_help(
+            "write the whole body one way: `echo` alone is the inline-HTML page and means \
+             `text/html`, and a body member sets its own `Content-Type` for everything the \
+             response carries",
+        ),
+    );
+}

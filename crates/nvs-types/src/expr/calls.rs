@@ -293,6 +293,11 @@ pub(crate) fn infer_static_call(
                     if found.is_none() && qname.is_core() {
                         report_unknown_member(expr.span, &qname, &name, "member", env);
                     }
+                    // ADR 0088 § 4's sixth row, noted here because this is the
+                    // one site where a `Core\Response::…` call has a resolved
+                    // class name to be recognized by — `crate::response` owns
+                    // the roster and the refusal.
+                    crate::response::note_body_member(&qname, &name, expr.span, env);
                     // ADR 0063 R20's one genuinely reachable two-spellings case — see
                     // `report_core_instance_member`. Its user-class sibling asks the
                     // narrower question `report_instance_method_called_statically`

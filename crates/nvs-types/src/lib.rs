@@ -222,6 +222,7 @@ pub(crate) mod links;
 pub mod locals;
 pub mod lower;
 pub(crate) mod program;
+pub(crate) mod response;
 pub(crate) mod retrieval;
 pub(crate) mod returns;
 pub mod routes;
@@ -509,6 +510,14 @@ pub(crate) struct Env<'a> {
     /// A span rather than a parameter threaded through `check_expr` for
     /// [`Self::write_target_levels`]'s reason.
     pub coalesce_guarded: FxHashSet<Span>,
+    /// ADR 0088 § 4's sixth row, as the body being checked has answered it so
+    /// far: what has already written this response's body.
+    ///
+    /// Installed and put back per method body by [`crate::check`], exactly as
+    /// [`Self::exit_targets`] is across a closure and for the same reason — the
+    /// rule is about one body, and a second body's writers are not this one's.
+    /// [`crate::response`] owns which bodies it is armed for.
+    pub body_writers: crate::response::BodyWriters,
 }
 
 pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {
