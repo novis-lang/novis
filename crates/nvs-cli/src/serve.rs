@@ -71,7 +71,7 @@ use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::{Program, Resolver as _};
 use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
-use nvs_server::{Admission, Ceiling, OnDisk, Reply, Table, What};
+use nvs_server::{Admission, Ceiling, OnDisk, Reply, Resolved, Table, What};
 
 use crate::script::Compiler;
 
@@ -221,14 +221,27 @@ pub(crate) fn run(
     // that is step 5 every time and the resolve is a cache hit on the unit
     // compiled above, so what it costs per request is one `Program` over shared
     // code.
+    // The one state the probe reports, and the accept loop below is what writes
+    // it: this command never asks the loop to stop yet, so it reads `false` for
+    // the whole of a run and § 5's `503` half arrives with the control socket
+    // that can ask (ADR 0078 § 6).
+    let draining = nvs_server::Draining::new();
     let handler = Rc::new({
         let compiler = Rc::clone(&compiler);
         let table = Rc::clone(&table);
+        let draining = draining.clone();
         move |request| {
-            let Some(selected) = table.select(&request, &OnDisk) else {
+            let selected = match table.select(&request, &OnDisk) {
+                // Step 0, ahead of every mount: § 5's probe says the process is
+                // alive, which is a fact this loop holds and no program is asked
+                // for. That is why it is answered here rather than by an entry —
+                // an application that will not compile is exactly when the
+                // question is being asked.
+                Some(Resolved::Health) => return Reply::health(&draining),
+                Some(Resolved::Mounted(selected)) => selected,
                 // § 4 step 1's third arrow. There is no mount for it and so
                 // nothing to run: not a program's `404` but the table's.
-                return Reply::not_found();
+                None => return Reply::not_found(),
             };
             let file = match selected.what {
                 What::Run(file) => file,
@@ -267,6 +280,7 @@ pub(crate) fn run(
     let stopped = Rc::new(Cell::new(false));
     sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
         let stopped = Rc::clone(&stopped);
+        let draining = draining.clone();
         move |_ctx| {
             // `ControlFlow::Continue` forever: a development server runs until
             // the process is stopped, and ADR 0097 § 5's drain is the slice that
@@ -276,6 +290,7 @@ pub(crate) fn run(
                 &handler,
                 waits,
                 &admission,
+                &draining,
                 // The same place the boot's own notes go: this command is the
                 // logger the server crate deliberately is not.
                 |note| eprintln!("note: {note}"),

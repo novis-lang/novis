@@ -82,6 +82,6 @@ pub mod statics;
 
 pub use admit::{Admission, Ceiling, InFlight};
 pub use io::{ConnectionIo, Phase};
-pub use mount::{Dispatch, Existing, OnDisk, Selection, Table, What};
-pub use serve::{Answer, Reply, serve_connection, serve_on_this_core};
+pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};
+pub use serve::{Answer, Draining, Reply, serve_connection, serve_on_this_core};
 pub use statics::{Source, Stat};

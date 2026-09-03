@@ -2,61 +2,59 @@
 
 ## State
 
-**Goal 6, Stage 3: § 10's mount is pinned to routing, and § 8's accept loop is bounded.**
-`[[server.mount]]` holds ADR 0097 § 3's five routing keys and nothing else —
-`crates/nvs-config/tests/tree.rs`'s `a_mount_carries_no_policy_of_its_own` asserts that on both
-sides, refusing `mode`, `limits`, `limits.hard`, `capabilities` and `log` under a mount *while the
-same directive parses under ADR 0104's `[[app]]`*, so a refusal that came from the directive being
-unspellable anywhere fails there too. Three sites still routed policy to a mount and now read as
-§ 10 decided: its own TOML example (`path`/`root`, keys § 3 does not give a mount), ADR 0097's
-`Amends:` clause for 0091, and 0091's own mixed-application row.
+**Goal 6, Stage 3: § 5's health probe answers end to end, and draining is the state it reports.**
+`[server] health_path` is read by `nvs_config::server::health_path` — off unless written, an empty
+string is that same off, and `E0623` refuses a value no request could carry (relative, a query or a
+fragment, a literal space) or `/` alone, which would reserve every mount's own entry. It is refused
+at boot beside the waits, in `nvs_config::server::validate`.
 
-**The accept loop backs off** — ADR 0106 § 8, and `crates/nvs-server/src/serve.rs`'s
-`AcceptBackoff` is the whole of it. `EMFILE`/`ENFILE`, and Windows' `WSAEMFILE`, is waited out
-rather than returned — 10ms doubling to 1s, reset by the first accept that succeeds — and reported
-**once per 60s window**, which is § 8's other half. Every other `accept` error still ends the loop,
-and that bound is asserted on both sides. The note is handed back as a `String` and
-`serve_on_this_core` gained a `report` sink for it, on `Ceiling::clamp_note`'s precedent: this crate
-is given a socket and not a logger, so `nvs serve` is what writes it to stderr.
+**The probe is step 0, ahead of § 4's five steps.** `nvs_server::mount`'s `Table` holds it and
+`resolve` answers `Resolved::Health` before step 1 runs, so no mount shadows it — including a mount
+at `/` and a static file sitting at the probe's own path, which is what the case asserts. `select`
+and `resolve` now answer `Option<Resolved>`; `Resolved::selection()` is § 4 alone for a caller that
+only asks about applications.
 
-**Unchanged limits.** There is no drain state anywhere in the tree — `health_path` has no reader in
-`nvs_config::server`, and there is no `Core\Server` class in `nvs-stdlib` at all — so the next group
-is all of it, and the goal's `is_draining_answers_during_a_graceful_shutdown` is open until then. No
+**`nvs_server::Draining` is the drain, and the accept loop is the only writer.** It is set the
+moment `keep_serving` breaks — before the tail that parks on outstanding connections, so the drain
+is announced while a proxy can still act on it — and `Reply::health` is the one place `200` and
+`503` are chosen between. `is_draining_answers_during_a_graceful_shutdown` pins both answers from
+one run.
+
+**Unchanged limits.** Nothing asks the loop to stop yet: `nvs serve` passes `ControlFlow::Continue`
+forever, so its probe reads `200` for the whole of a run and the `503` half arrives with ADR 0078
+§ 6's control socket. There is no `Core\Server` class. **The seam that slice needs**: `nvs-stdlib`
+does not depend on `nvs-server`, so `isDraining()` cannot read `nvs_server::Draining` where it
+lives — the bit has to sit in a crate both see, and `nvs-runtime` is the one they share. No
 wedged-core watchdog (ADR 0106 § 7); a served request's context still carries no configuration
-snapshot; a Unix-domain `listen` entry still classifies and is then refused in the CLI. The driver's
-`native examples/upload.nvs` failure is stage 5's frozen `want` ahead of the frontier — the playbook
-bullet that owns it is under *Divergences and refusals already pinned* — and is not a regression.
-`[context]` gaps this session paid for: `adrs` printed `0097 §2`, `§4` and `0106 §13` but the item
-needed `0097 §3` and `§10`, and the second slice needed `0106 §8`; `modules` names no `nvs-cli`
-pattern, though the accept loop's only caller is `crates/nvs-cli/src/serve.rs`.
+snapshot; a Unix-domain `listen` entry still classifies and is then refused in the CLI. The
+driver's `native examples/upload.nvs` failure is stage 5's frozen `want` ahead of the frontier and
+is not a regression. `[context]` gaps this session paid for: `adrs` still prints `0097 §2`, `§4` and
+`0106 §13`, and the item needed **`0097 §5`** — the previous session already reported `§3` and
+`§10` missing, so the field is not being maintained; `modules` still names no `nvs-cli` pattern
+though the accept loop's only caller is `crates/nvs-cli/src/serve.rs`.
 
 ## Next group
 
-**§ 5's `health_path`, and the drain it reports.** One file set:
-`crates/nvs-config/src/server.rs`, `crates/nvs-server/src/mount.rs`,
-`crates/nvs-server/src/serve.rs`, `crates/nvs-cli/src/serve.rs`.
+**§ 5's last sentence: an application reads the same drain.** One file set:
+`crates/nvs-server/src/serve.rs`, `crates/nvs-runtime/src/lib.rs`,
+`crates/nvs-stdlib/src/registry.rs`, a new `crates/nvs-stdlib/src/server.rs`.
 
-- [ ] **`health_path` is read into what a server starts on.** ADR 0097 § 5 — off by default, so no
-      URL is silently reserved; a written one is an absolute path and nothing else.
-      `crates/nvs-config/src/server.rs:118` is `waits_for`, the shape a `[server]` key is read
-      through, and `crates/nvs-config/src/server.rs:99` is the boot refusal beside it.
-- [ ] **The health path answers before the mount table.** ADR 0097 § 5 and § 4's five steps: it is
-      checked ahead of step 1, so no mount can shadow it, and it performs no dependency checks and
-      reports no version. `crates/nvs-server/src/mount.rs:171` is `Table::select`, and
-      `crates/nvs-server/src/mount.rs:262` is the `What` a selection answers with.
-- [ ] **Draining is a state the accept loop holds.** ADR 0097 § 5 — `200` while accepting, `503`
-      while draining, empty body. `crates/nvs-server/src/serve.rs:396` is `serve_on_this_core` and
-      its `keep_serving` seam, and `crates/nvs-cli/src/serve.rs:282` is the
-      `ControlFlow::Continue` forever that the drain replaces. This is the slice that pins the
-      goal's `is_draining_answers_during_a_graceful_shutdown`.
-- [ ] **`Core\Server::isDraining()` gives an application the same fact.** ADR 0097 § 5's last
-      sentence, as the five edits — there is no `crates/nvs-stdlib/src/server.rs` yet, so this is a
-      new class as well as a member. `crates/nvs-stdlib/src/registry.rs:1279` is the roster it joins.
+- [ ] **The drain bit moves to the crate both sides depend on.** `nvs-stdlib` cannot see
+      `nvs-server`, so the `AtomicBool` behind `Draining` belongs in `nvs-runtime` with
+      `nvs_server::Draining` as the handle over it. `crates/nvs-server/src/serve.rs:264` is the type
+      and `crates/nvs-server/src/serve.rs:489` is the accept loop's parameter; the one writer stays
+      the loop, which is that type's own doc.
+- [ ] **`Core\Server::isDraining(): bool` — the five edits.** ADR 0097 § 5's last sentence: an
+      application answers a probe of its own with the same fact. There is no
+      `crates/nvs-stdlib/src/server.rs` yet, so this is a new class as well as a member —
+      `crates/nvs-stdlib/src/registry.rs:1279` is the roster it joins and
+      `crates/nvs-stdlib/src/json.rs:1783` is the worked helper, its `address()` arm and its card.
 
 ## Backlog
 
-- The wedged-core watchdog — ADR 0106 § 7, named by ADR 0097 § 5.
-- A served request's context carries no configuration snapshot — `crates/nvs-server/src/serve.rs`.
-- ADR 0097 § 6's forwarded-header walk: `trusted_proxies` is parsed and read by nothing.
+- § 6's forwarded-header walk over `trusted_proxies`, fail-closed — ADR 0097 § 6.
+- A wedged core is reported and shed — ADR 0106 § 7.
+- The drain's trigger: `nvs ctl` is what asks the loop to stop — ADR 0078 § 6.
+- A served request's context carries no configuration snapshot — ADR 0078 § 1.
 - A Unix-domain `listen` entry classifies and is then refused in the CLI — ADR 0097 § 5.
-- `examples/upload.nvs` against stage 5's frozen `want` — ADR 0105, playbook bullet owns it.
+- The probe is skipped by the access log, once there is one — ADR 0097 § 5.

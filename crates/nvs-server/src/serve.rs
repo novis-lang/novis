@@ -75,6 +75,7 @@ use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
@@ -200,6 +201,87 @@ impl Reply {
     #[must_use]
     pub fn not_found() -> Self {
         Self::status(StatusCode::NOT_FOUND)
+    }
+
+    /// [ADR 0097] § 5's probe, answered by a server that is accepting: `200`
+    /// with an empty body, no dependency check and no version.
+    ///
+    /// Spelled here for [`not_found`](Reply::not_found)'s reason, and because
+    /// the whole of the endpoint is its status — a body would be the thing § 5
+    /// says it does not report.
+    #[must_use]
+    pub fn healthy() -> Self {
+        Self::status(StatusCode::OK)
+    }
+
+    /// The same probe, answered by a server that has stopped accepting: `503`,
+    /// still with an empty body.
+    ///
+    /// Deliberately not [`crate::admit`]'s `503`, which carries `Retry-After`
+    /// because the condition it reports clears on its own. This one does not:
+    /// the process is on its way out, and a proxy told to retry in a second
+    /// would be told to come back to a socket that will not be there.
+    #[must_use]
+    pub fn draining() -> Self {
+        Self::status(StatusCode::SERVICE_UNAVAILABLE)
+    }
+
+    /// § 5's probe as this server's own state — `200` while it accepts, `503`
+    /// while it drains — which is the one place that choice is made.
+    ///
+    /// A server answering it from anywhere else would be a second reading of the
+    /// same fact, and the fact is what a proxy takes an instance out of rotation
+    /// on: the two answers have to change over at the instant the accept loop
+    /// stops, which is [`Draining`]'s whole job.
+    #[must_use]
+    pub fn health(draining: &Draining) -> Self {
+        if draining.is_draining() {
+            Self::draining()
+        } else {
+            Self::healthy()
+        }
+    }
+}
+
+/// Whether this server has stopped accepting — ADR 0097 § 5's drain, as the one
+/// bit a probe and an application both read.
+///
+/// **The accept loop sets it and nothing else does.** A drain begins when
+/// [`serve_on_this_core`]'s `keep_serving` seam says to stop, and the loop's own
+/// tail is the drain itself: it stops accepting, marks this, and parks until the
+/// connections already handed over have finished. Marking it at the caller
+/// instead would be the fail-open direction — a caller that forgot leaves the
+/// probe answering `200` for a process whose socket is already closed, which is
+/// exactly the window a proxy uses this endpoint to avoid.
+///
+/// Process-wide and shared by every core, for [`crate::Admission`]'s reason: a
+/// shutdown drains the process, and a probe that answered from whichever core
+/// took the connection would answer differently on each. One relaxed atomic,
+/// read once per probe and written once per process — this is not on the value
+/// path the non-atomic-refcount decision protects, and there is no ordering to
+/// establish because the bit is the whole of the message.
+#[derive(Clone, Debug, Default)]
+pub struct Draining(Arc<AtomicBool>);
+
+impl Draining {
+    /// A server that is accepting.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Stop accepting: from here the probe answers `503`.
+    ///
+    /// Idempotent, because a drain that has begun cannot begin again and a
+    /// second core reaching this is the same shutdown, not a new one.
+    pub fn begin(&self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
+
+    /// Whether the drain has begun.
+    #[must_use]
+    pub fn is_draining(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
     }
 }
 
@@ -374,6 +456,12 @@ fn failed() -> Response<Answer> {
 /// `String`: this crate is given a socket and not a logger, and the boot that
 /// chose where a note goes is the one that owns writing it there.
 ///
+/// `draining` is this loop's own state and it writes it: the moment
+/// `keep_serving` says to stop, the drain has begun and § 5's probe answers
+/// `503` through [`Reply::health`] — the tail below is that drain. Handed in
+/// rather than returned because the handler is built before the loop is, and it
+/// is what the probe is answered from.
+///
 /// `waits` is handed to every connection unchanged and is never re-read: ADR
 /// 0097 § 5 makes `[server]` `Boot`-class precisely because `header_timeout`
 /// and `keepalive_timeout` apply before any Novis code exists on a connection,
@@ -398,6 +486,7 @@ pub fn serve_on_this_core<H>(
     handler: &Rc<H>,
     waits: Waits,
     admission: &Arc<Admission>,
+    draining: &Draining,
     mut report: impl FnMut(&str),
     mut keep_serving: impl FnMut() -> ControlFlow<()>,
 ) -> io::Result<()>
@@ -486,6 +575,16 @@ where
             break;
         }
     }
+
+    // ADR 0097 § 5's drain begins here, and the tail below *is* the drain: this
+    // loop has stopped accepting, so from this line the probe answers `503` and
+    // a proxy can take the instance out of rotation while the connections
+    // already accepted are still being answered. Marked before the park rather
+    // than after it, since a drain that announced itself once it was over would
+    // report the one state nobody can act on. The child spawned by the last
+    // iteration has not run yet — it cannot, until this task parks — so the
+    // request on it sees the drain, which is the answer a shutdown wants.
+    draining.begin();
 
     // ADR 0072 § 4, and it is the whole reason this function has a tail: the
     // connections are this task's children, so a loop that simply returned
@@ -724,6 +823,7 @@ mod tests {
                 &echo_the_path(),
                 Waits::default(),
                 &wide_open(),
+                &Draining::new(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -743,6 +843,102 @@ mod tests {
         assert!(
             answer.ends_with("hello /hello"),
             "the response did not carry the handler's body: {answer}"
+        );
+    }
+
+    /// ADR 0097 § 5's probe across a shutdown: `200` while the loop is
+    /// accepting, `503` from the moment it stops, both from one run and one
+    /// handler.
+    ///
+    /// The changeover is the whole endpoint. A probe pinned at `200` is
+    /// indistinguishable from this one for as long as the server is up, and the
+    /// answer that matters is the one given while the process is draining —
+    /// that is what a proxy takes an instance out of rotation on, and answering
+    /// it after the last connection has gone would report the one state nobody
+    /// can act on. Nothing here waits on a race: the client's two connections
+    /// are sequential, the loop parks in `accept` until the second arrives, and
+    /// the child spawned for it cannot run until the loop has broken and marked
+    /// the drain.
+    #[test]
+    fn is_draining_answers_during_a_graceful_shutdown() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let probe = || {
+                let mut socket = TcpStream::connect(addr).expect("the loopback refused a socket");
+                socket
+                    .write_all(
+                        b"GET /healthz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+                    )
+                    .expect("the write failed");
+                let mut answer = String::new();
+                socket
+                    .read_to_string(&mut answer)
+                    .expect("the response could not be read");
+                answer
+            };
+            // Sequential, and the second only after the first has been answered
+            // in full: the connection the shutdown lands on is one this loop has
+            // not accepted yet when the first is served.
+            (probe(), probe())
+        });
+
+        let draining = Draining::new();
+        let handler = Rc::new({
+            let draining = draining.clone();
+            move |request: Request<Incoming>| {
+                assert_eq!(request.uri().path(), "/healthz");
+                Reply::health(&draining)
+            }
+        });
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let draining = draining.clone();
+            move |_ctx| {
+                let accepted = Cell::new(0_usize);
+                serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    Waits::default(),
+                    &wide_open(),
+                    &draining,
+                    |_note| {},
+                    // One more connection, and then the shutdown — which is the
+                    // seam `nvs ctl` will pull rather than a second mechanism.
+                    || {
+                        accepted.set(accepted.get() + 1);
+                        if accepted.get() < 2 {
+                            ControlFlow::Continue(())
+                        } else {
+                            ControlFlow::Break(())
+                        }
+                    },
+                )
+                .expect("the accept loop failed");
+            }
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let (accepting, shutting_down) = client.join().expect("the client thread panicked");
+        assert!(
+            accepting.starts_with("HTTP/1.1 200 OK\r\n"),
+            "a server that was still accepting did not answer the probe `200`: {accepting}"
+        );
+        assert!(
+            shutting_down.starts_with("HTTP/1.1 503 Service Unavailable\r\n"),
+            "a draining server did not answer the probe `503`: {shutting_down}"
+        );
+        // The state outlives the loop that set it, so a second core's handler
+        // and an application both read the same shutdown.
+        assert!(
+            draining.is_draining(),
+            "the loop returned without marking the drain"
         );
     }
 
@@ -787,6 +983,7 @@ mod tests {
                 &echo_the_path(),
                 Waits::default(),
                 &wide_open(),
+                &Draining::new(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -850,6 +1047,7 @@ mod tests {
                 &handler,
                 Waits::default(),
                 &wide_open(),
+                &Draining::new(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -903,6 +1101,7 @@ mod tests {
                 &echo_the_path(),
                 waits,
                 &wide_open(),
+                &Draining::new(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -963,6 +1162,7 @@ mod tests {
                 &echo_the_path(),
                 waits,
                 &wide_open(),
+                &Draining::new(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -1042,6 +1242,7 @@ mod tests {
                 &handler,
                 Waits::default(),
                 &serving,
+                &Draining::new(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
