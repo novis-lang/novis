@@ -1721,13 +1721,20 @@ enum Queued<'a> {
 /// seam that reaches them, so every driver `nvs-db` can send a statement over is one all four
 /// members run on.
 ///
-/// So one sentence is left, and it is about a driver with no send path at all: [`crate::db`]'s
-/// known gap 2, which an operator can only wait on. The three arms that cannot be reached are
-/// spelled rather than left to a `_`, so that a sixth driver arrives as a build failure instead of
-/// as whichever sentence happens to be written last.
+/// So two sentences are left, and they name two different gaps — which is the whole of what SQL
+/// Server changed here. `Core\Db` reads over it now ([`crate::db::rendering_for`] binds and
+/// `tds_rows` sends), and § 2's schema has no dialect for it, so *this* module is the one with the
+/// open item and an operator told to wait on `Core\Db`'s gap 2 would be waiting on the wrong thing.
+/// SQLite is the other sentence and is still gap 2's: it sends nothing at all. The two arms that
+/// cannot be reached are spelled rather than left to a `_`, so that a sixth driver arrives as a
+/// build failure instead of as whichever sentence happens to be written last.
 fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
     let missing = match driver {
-        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => {
+        nvs_db::Driver::SqlServer => {
+            "and ADR 0084 § 2's schema and § 4's statements are written for PostgreSQL and MySQL \
+             only — `Core\\Db` reads over this driver and the queue has nothing to send it yet"
+        }
+        nvs_db::Driver::Sqlite => {
             "and that driver runs no statement at all yet — `Core\\Db`'s known gap 2 is the list"
         }
         // Unreachable: [`queue_connection`] matches all three of these out before it asks.
@@ -2574,11 +2581,13 @@ mod tests {
     /// five drivers here — so a driver gaining a statement path in that module moves this refusal
     /// with it, and a sixth arriving fails the build in [`no_dialect`] before it reaches this test.
     ///
-    /// **The two halves used to be two sentences and are now a sentence and a bug**, which is the
-    /// whole of what § 4's second dialect changed here: a driver this crate can send over is one
-    /// all four members have a statement for, so the only refusal left names `Core\Db`'s gap 2 —
-    /// and a sending driver reaching [`no_dialect`] at all means [`queue_connection`] grew a hole,
-    /// which is what the second assertion is for.
+    /// **Which gap the sentence names is the thing under test**, and there are two of them now.
+    /// The queue's own roster is [`migration`] — a driver § 2 has a schema for is one all four
+    /// members run on, so a driver reaching [`no_dialect`] with one at all means
+    /// [`queue_connection`] grew a hole. For a driver without one, which gap it is told to wait on
+    /// is [`crate::db::rendering_for`]'s answer: SQL Server binds and sends over `Core\Db` and is
+    /// this module's open item, while SQLite is `Core\Db`'s gap 2 and would still be if the queue
+    /// were finished.
     #[test]
     fn the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send() {
         for driver in nvs_db::Driver::ALL {
@@ -2587,18 +2596,27 @@ mod tests {
                 refused.contains(driver.display_name()),
                 "a refusal an operator can act on names the driver the block resolved to: {refused}"
             );
-            let sends = crate::db::rendering_for(driver).is_some();
+            let runs = migration(driver).is_some();
             assert_eq!(
-                !sends,
-                refused.contains("known gap 2"),
-                "{driver:?} sends nothing, so the queue owes it nothing and `Core\\Db` does: \
-                 {refused}"
+                runs,
+                refused.contains("this is a bug"),
+                "{driver:?} has § 2's schema and so runs all four members, so nothing should be \
+                 refusing it: {refused}"
+            );
+            if runs {
+                continue;
+            }
+            assert_eq!(
+                crate::db::rendering_for(driver).is_some(),
+                refused.contains("the queue has nothing to send it yet"),
+                "{driver:?} sends a statement over `Core\\Db`, so what it waits on is this \
+                 module's own gap: {refused}"
             );
             assert_eq!(
-                sends,
-                refused.contains("this is a bug"),
-                "{driver:?} sends a statement and the queue has one for it, so nothing should be \
-                 refusing it: {refused}"
+                crate::db::rendering_for(driver).is_none(),
+                refused.contains("known gap 2"),
+                "{driver:?} sends nothing at all, so what it waits on is `Core\\Db`'s gap 2: \
+                 {refused}"
             );
         }
     }
@@ -2685,25 +2703,28 @@ mod tests {
         );
     }
 
-    /// [`migration`] and [`crate::db::rendering_for`] answer about one roster, and this is the
-    /// assertion that they answer the same way: § 2's schema has a dialect for exactly the drivers
-    /// that can be handed one.
+    /// [`migration`] and [`crate::db::rendering_for`] answer about one roster each, and this is the
+    /// assertion that the queue's is inside `Core\Db`'s: § 2's schema is only ever sent over a
+    /// driver a statement can be bound for.
     ///
-    /// **Asked as agreement rather than as a list**, because a list here would be the third copy of
-    /// the same roster and would go stale silently — a driver gaining a `Dialect` in `nvs-db` while
-    /// this file kept its own answer is precisely the drift that would print PostgreSQL's DDL for a
-    /// server that cannot run it. Written as two directions so that either mistake fails: a schema
-    /// for a driver nothing sends, and a driver that sends with no schema to send.
+    /// **Asked as containment rather than as a list**, because a list here would be the third copy
+    /// of the same roster and would go stale silently — a driver gaining a `Dialect` in `nvs-db`
+    /// while this file kept its own answer is precisely the drift that would print PostgreSQL's DDL
+    /// for a server that cannot run it.
+    ///
+    /// **One direction and not two**, which is what SQL Server changed: `Core\Db` binds for four
+    /// drivers and § 2 has a schema for three, so a schema for a driver nothing sends is still a
+    /// bug and a sending driver with no schema is this module's open item —
+    /// [`no_dialect`] is where an operator is told which of the two they are waiting on.
     #[test]
     fn the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one() {
         for driver in nvs_db::Driver::ALL {
-            let sends = crate::db::rendering_for(driver).is_some();
-            assert_eq!(
-                sends,
-                migration(driver).is_some(),
-                "{driver:?} sends {}, so § 2's schema {} a dialect for it",
-                if sends { "a statement" } else { "nothing" },
-                if sends { "owes it" } else { "owes it no" }
+            if migration(driver).is_none() {
+                continue;
+            }
+            assert!(
+                crate::db::rendering_for(driver).is_some(),
+                "{driver:?} has § 2's schema, so `Core\\Db` owes it a statement to send it with"
             );
         }
         // MariaDB runs MySQL's list unchanged, which is `MIGRATION_MYSQL`'s own decision rather

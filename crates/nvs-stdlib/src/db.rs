@@ -106,11 +106,19 @@
 //!    but the five points this module asks them at do not. MySQL and MariaDB
 //!    reach all of it through one body rather than two: [`Framed`] is that
 //!    seam, and its doc is where "its own driver above the framing, not inside
-//!    it" is argued. What is still PostgreSQL-only is [`crate::queue`]'s four
-//!    members, and that is all of known gap 2 above the handshake. SQL Server
-//!    binds and then has nowhere to send, which is the arm [`driverless`]
-//!    refuses on.
-//! 3. **Only the three drivers that open are pooled.** ADR 0067 § 13's pool is
+//!    it" is argued. **SQL Server reads, once one is open**: [`rendering_for`]
+//!    binds a parameter through `nvs_db::tds::encode` and [`tds_rows`] drains
+//!    the token stream, so `query` and `queryAs` answer on it — but `connect`
+//!    and `open` have no arm that calls `nvs_db::TdsConn::connect`, so nothing
+//!    in a program can hold one yet and that arm is what stands between this
+//!    and § 4 running on the driver. `execute` has the same driver method
+//!    behind it as `query` and no arm here either; § 4's batch and § 7's
+//!    commands have no `nvs_db::TdsConn` primitive at all. What is still
+//!    PostgreSQL-only is [`crate::queue`]'s four members. Known gap 2 above the
+//!    handshake is therefore a roster per member rather than one list, which is
+//!    what [`driverless`] takes.
+//! 3. **A driver with a reset behind it is pooled, and SQLite is the one
+//!    without.** ADR 0067 § 13's pool is
 //!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
 //!    teardown under the ticket `Core\Db::connect` files, and
 //!    [`warm_connection`] takes one back out behind that section's reset. A
@@ -4144,26 +4152,37 @@ fn batch_of(
 /// against it is how § 13's ceiling counts a warm connection the same as a
 /// fresh one — `nvs_runtime::pool`'s *What `max` counts* owns that rule.
 ///
-/// **A failed reset destroys the connection.** Both `nvs_db::PgConn::reset` and
-/// `nvs_db::MySqlConn::reset` take `self` by value and hand it back only on the
-/// path where every one of § 13's commands succeeded, so a connection that
-/// could not be proven clean is closed before this returns and there is no
-/// shape in which one request reads another's session state. That is also why
-/// the caller cannot tell a failed reset from an empty pool: both are `None`,
-/// and both mean open a fresh connection, which is what a request did before
-/// there was a pool at all.
+/// **A failed reset destroys the connection.** Every driver's `reset` takes
+/// `self` by value — `nvs_db::PgConn::reset`, `nvs_db::MySqlConn::reset` and
+/// `nvs_db::TdsConn::reset` — and hands the connection back only on the path
+/// where every one of § 13's commands succeeded, so a connection that could not
+/// be proven clean is closed before this returns and there is no shape in which
+/// one request reads another's session state. That is also why the caller
+/// cannot tell a failed reset from an empty pool: both are `None`, and both
+/// mean open a fresh connection, which is what a request did before there was a
+/// pool at all.
 ///
-/// **The two resets are not the same reset**, and § 13 says so: PostgreSQL's
-/// keeps § 1's statement cache and MySQL's `COM_RESET_CONNECTION` drops it, so
-/// the connection each arm hands back is warm in a different amount. Neither is
-/// a choice this function makes — each driver's own `reset` is where its
-/// section's property is met.
+/// **The three resets are not one reset**, and § 13 says so: PostgreSQL's keeps
+/// § 1's statement cache, MySQL's `COM_RESET_CONNECTION` drops it, and SQL
+/// Server's `sp_reset_connection` is "the same shape as MySQL's" in that
+/// section's own words and drops it too — so the connection each arm hands back
+/// is warm in a different amount. None of that is a choice this function makes:
+/// each driver's own `reset` is where its section's property is met.
 ///
-/// A connection filed by any other driver is dropped here for the same reason —
-/// `nvs_db::Connection`'s other two variants have no reset behind them yet, so
-/// they are not poolable and this is the one place that is enforced. MariaDB's
-/// arm is MySQL's: `COM_RESET_CONNECTION` is one protocol's command and § 13
-/// says of both that it drops the prepared statements with the session state.
+/// The SQLite arm is dropped here rather than reset, because a reset nobody has
+/// written is not a reset that failed — § 13 makes it a security boundary, and
+/// the only safe reading of a missing one is that the connection is not
+/// poolable. It is spelled rather than left to a `_` so that a sixth driver
+/// arrives as a build failure instead of as a connection silently thrown away.
+/// MariaDB's arm is MySQL's: `COM_RESET_CONNECTION` is one protocol's command
+/// and § 13 says of both that it drops the prepared statements with the session
+/// state.
+///
+/// **Nothing reaches the SQL Server arm yet**, because `connect` and `open`
+/// have no handshake for that driver — the module doc's known gap 2 is the
+/// list. The arm is here rather than after it for the reason § 13 gives: a
+/// driver that becomes openable while this function still answers `None` for it
+/// is a pool that quietly stops pooling, which nothing observable would report.
 fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connection> {
     let held = nvs_runtime::pool::take(lease, std::time::Instant::now())?;
     let connection = held.into_any().downcast::<nvs_db::Connection>().ok()?;
@@ -4175,7 +4194,10 @@ fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connectio
         nvs_db::Connection::MariaDb(maria) => {
             Some(nvs_db::Connection::MariaDb(maria.reset().ok()?))
         }
-        _ => None,
+        nvs_db::Connection::SqlServer(tds) => {
+            Some(nvs_db::Connection::SqlServer(tds.reset().ok()?))
+        }
+        nvs_db::Connection::Sqlite(_) => None,
     }
 }
 
@@ -4298,13 +4320,16 @@ type Encoder = fn(Value) -> std::io::Result<Option<Vec<u8>>>;
 /// for the text.
 ///
 /// `pub(crate)` for its `None`, which is this crate's one roster of the drivers
-/// with no statement path at all: [`crate::queue`]'s own refusal splits on that
-/// rather than carrying a second copy of the same five drivers.
+/// nothing binds for at all. It is **not** [`crate::queue`]'s roster any more:
+/// ADR 0084 § 2's schema is written for three drivers and this binds for four,
+/// so that module's `no_dialect` splits on its own `migration` instead. The two
+/// agreed only while the lists were equal, and SQL Server is where they parted.
 pub(crate) fn rendering_for(driver: nvs_db::Driver) -> Option<(nvs_db::Dialect, Encoder)> {
     let encode: Encoder = match driver {
         nvs_db::Driver::Postgres => nvs_db::encode,
         nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => nvs_db::mysql::encode,
-        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => return None,
+        nvs_db::Driver::SqlServer => nvs_db::tds::encode,
+        nvs_db::Driver::Sqlite => return None,
     };
     Some((nvs_db::Dialect::of(driver), encode))
 }
@@ -4471,7 +4496,7 @@ fn transacting<'a>(
         nvs_db::Connection::Postgres(postgres) => Ok(Transacting::Postgres(postgres)),
         nvs_db::Connection::MySql(mysql) => Ok(Transacting::MySql(mysql)),
         nvs_db::Connection::MariaDb(maria) => Ok(Transacting::MariaDb(maria)),
-        other => Err(driverless(named, block, other.driver())),
+        other => Err(driverless(named, block, other.driver(), BEYOND_READING)),
     }
 }
 
@@ -4581,26 +4606,92 @@ fn queried_rows(
             watch,
             named,
         )?,
-        other => return Err(driverless(named, &statement.block, other.driver())),
+        nvs_db::Connection::SqlServer(tds) => {
+            tds_rows(tds, &statement, &sending, source, watch, named)?
+        }
+        other => return Err(driverless(named, &statement.block, other.driver(), READING)),
     };
     watch.file(ctx, taken);
     Ok(answered)
 }
 
-/// The refusal a connection whose driver has no send path draws — this module's
-/// known gap 2, worded once.
+/// Known gap 2's roster for the two members that only read a result set —
+/// § 4's `query` and `queryAs`, both of them [`queried_rows`].
+///
+/// **A roster per member and not one list**, which is the whole of what SQL
+/// Server changed here: it runs [`tds_rows`] and reaches no other send member,
+/// so a single sentence would either tell an operator calling `query` that the
+/// driver cannot or tell one calling `transaction` that it can. Each is a
+/// message an operator would act on wrongly.
+const READING: &[nvs_db::Driver] = &[
+    nvs_db::Driver::Postgres,
+    nvs_db::Driver::MySql,
+    nvs_db::Driver::MariaDb,
+    nvs_db::Driver::SqlServer,
+];
+
+/// Known gap 2's roster for the three members that are more than one read —
+/// `execute`'s two counts, § 4's `executeMany` and § 7's `transaction`.
+///
+/// It is [`READING`] less SQL Server, and the reason is `nvs_db::TdsConn`'s own
+/// surface rather than a decision taken here: it has `query` and a reset and
+/// nothing else, so there is no `execute_many` and no `begin` for an arm to
+/// reach. `execute` is the one of the three that could be written against the
+/// method already there — `nvs_db::tds::TdsConn::query`'s doc says `execute` is
+/// that same method — and it has no arm yet.
+const BEYOND_READING: &[nvs_db::Driver] = &[
+    nvs_db::Driver::Postgres,
+    nvs_db::Driver::MySql,
+    nvs_db::Driver::MariaDb,
+];
+
+/// The refusal a connection whose driver has no path to `named` draws — this
+/// module's known gap 2, worded once.
 ///
 /// Four members reach it ([`queried_rows`], `execute`, `executeMany` and
 /// § 7's `transaction`, through [`transacting`]) and a message per member would
-/// be four sentences to keep agreeing as the list shortens. It names the driver
+/// be four sentences to keep agreeing as the lists shorten. It names the driver
 /// the block actually resolved to, because "this one is not supported" without
 /// saying which is what an operator cannot act on.
-fn driverless(named: &str, block: &Value, driver: nvs_db::Driver) -> Fault {
+///
+/// **`reaching` is the caller's own roster**, [`READING`] or [`BEYOND_READING`],
+/// because the four members stopped agreeing when SQL Server gained one arm and
+/// not four. It is rendered by [`named_drivers`] rather than written into the
+/// sentence, so the list an operator reads is the list a `match` arm below
+/// actually has.
+fn driverless(
+    named: &str,
+    block: &Value,
+    driver: nvs_db::Driver,
+    reaching: &[nvs_db::Driver],
+) -> Fault {
     Fault::thrown(format!(
-        "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL, MySQL and MariaDB \
-         run a statement so far — this module's known gap 2 is the list",
-        block.as_text().unwrap_or("?")
+        "{named}: `[db.{}]` is a {} connection, and only {} run this member so far — this \
+         module's known gap 2 is the list",
+        block.as_text().unwrap_or("?"),
+        driver.display_name(),
+        named_drivers(reaching)
     ))
+}
+
+/// A roster as the sentence [`driverless`] builds reads it: `A`, `A and B`,
+/// `A, B and C`.
+///
+/// Spelled out rather than joined with commas throughout, because an operator
+/// reads this and a trailing `, ` list reads as a truncation.
+fn named_drivers(drivers: &[nvs_db::Driver]) -> String {
+    let mut sentence = String::new();
+    for (index, driver) in drivers.iter().enumerate() {
+        if index > 0 {
+            sentence.push_str(if index + 1 == drivers.len() {
+                " and "
+            } else {
+                ", "
+            });
+        }
+        sentence.push_str(driver.display_name());
+    }
+    sentence
 }
 
 /// ADR 0067 § 4's `Write`, as the driver answered it and before it becomes the
@@ -4872,6 +4963,80 @@ fn mysql_rows(
     ))
 }
 
+/// [`queried_rows`] over the SQL Server driver: ADR 0067 § 1's `sp_prepexec`,
+/// and § 9's decode of the token stream it answers with.
+///
+/// **[`mysql_rows`]' shape a third time**, and that function's doc argues at
+/// length why the three are not one walk. What differs here is smaller than
+/// what differs between the other two: a value is the row's own octets read
+/// against the column `COLMETADATA` described, which is `nvs_db::tds::scalar`'s
+/// reading rather than this module's, and a label is a `String` because TDS
+/// carries it as UCS-2 and the driver has already decoded it — so the key is
+/// that text's octets and no lossy decode stands between the two.
+///
+/// # Errors
+///
+/// [`statement_failure`] for anything the server refused, [`tds_column_value`]'s
+/// for a column whose value has no Novis representation, and a [`Fault::fatal`]
+/// for a row narrower than the columns it was decoded against, which is a
+/// `nvs-db` bug rather than a program's.
+fn tds_rows(
+    tds: &mut nvs_db::TdsConn,
+    statement: &Statement,
+    sending: &[Option<&[u8]>],
+    source: Option<&str>,
+    watch: QueryWatch,
+    named: &str,
+) -> Result<(Answered, Option<(String, std::time::Duration)>), Fault> {
+    // As the other two drivers, and § 9's zone is a property of the connection
+    // on all three. What is this driver's own is that no server was told:
+    // `nvs_db::tds::TdsTarget::time_zone` owns why SQL Server has nowhere to be.
+    let zone = tds.time_zone();
+    let mut answered = tds
+        .query(&statement.sql, sending)
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    name_span(&mut answered, statement.block.as_text());
+    // Cloned before the first row, for [`postgres_rows`]' reason: the columns
+    // are lent out of a shared borrow and the rows out of a mutable one.
+    let columns: Vec<nvs_db::tds::TdsColumn> = answered.columns().to_vec();
+    let described = tds_described_columns(&answered);
+
+    let mut rows = NvsArray::new();
+    while let Some(row) = answered
+        .next_row()
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?
+    {
+        // Built whole before it joins the result, for [`postgres_rows`]' reason.
+        let mut one = NvsArray::new();
+        for (index, column) in columns.iter().enumerate() {
+            // Unreachable and fatal for [`mysql_rows`]' reason: `nvs-db` reads
+            // one value per described column, so a row is exactly as wide as
+            // this loop.
+            let body = row.column(index).ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{named}: the row has no column {index}, where the result set described {}",
+                    columns.len()
+                ))
+            })?;
+            let scalar = nvs_db::tds::scalar(column, body)
+                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+            let value = tds_column_value(scalar, zone, named, &column.name)?;
+            one.set(NvsStr::new(column.name.as_bytes()), value);
+        }
+        rows.append(Value::array(one));
+    }
+    // After the drain, as the other two: the `DONE` token is what freezes the
+    // duration and the count the span carries.
+    let taken = watch.taken(answered.span());
+    Ok((
+        Answered {
+            rows,
+            columns: described,
+        },
+        taken,
+    ))
+}
+
 /// `execute` over the PostgreSQL driver: the same stream [`postgres_rows`]
 /// drains, read for its counts rather than its rows.
 ///
@@ -5130,6 +5295,12 @@ impl NamesConnection for nvs_db::MySqlRows<'_> {
     }
 }
 
+impl NamesConnection for nvs_db::tds::TdsRows<'_> {
+    fn name_connection(&mut self, connection: &str) {
+        nvs_db::tds::TdsRows::name_connection(self, connection);
+    }
+}
+
 /// The row description as spec § 18's `array<Column>`: one [`COLUMN`] per
 /// column, in the server's own order and never keyed by label — `select a, a`
 /// describes two columns under one name, and a keyed array would answer one.
@@ -5189,6 +5360,36 @@ fn mysql_described_columns(rows: &nvs_db::MySqlRows<'_>) -> NvsArray {
                 column_type_value(column_type),
                 // As [`described_columns`]: § 9's own answer, and
                 // [`COLUMN_NULLABLE_DOC`] is where it is written down.
+                Value::bool(true),
+            ],
+        ));
+    }
+    described
+}
+
+/// The same description for a SQL Server result set: [`described_columns`]'
+/// third twin, over `COLMETADATA`.
+///
+/// A twin for [`mysql_described_columns`]' reason, and one decision shorter
+/// than it: a `nvs_db::tds::TdsColumn` carries its label as a `String` the
+/// driver already decoded out of UCS-2, so there is no packet-octets-versus-
+/// text question to answer here at all.
+fn tds_described_columns(rows: &nvs_db::tds::TdsRows<'_>) -> NvsArray {
+    let mut described = NvsArray::new();
+    for (index, column) in rows.columns().iter().enumerate() {
+        let column_type = rows
+            .column_type(index)
+            .expect("a column this loop is walking is one the result set described");
+        described.append(crate::instance::build(
+            &COLUMN,
+            [
+                Value::str(NvsStr::new(column.name.as_bytes())),
+                column_type_value(column_type),
+                // As [`described_columns`]: § 9's own answer, and
+                // [`COLUMN_NULLABLE_DOC`] is where it is written down. The
+                // server's own `Flags` bit is beside it on this driver —
+                // `nvs_db::tds::TdsColumn::nullable` — and says something
+                // narrower, which that method's doc owns.
                 Value::bool(true),
             ],
         ));
@@ -5391,6 +5592,86 @@ fn mysql_civil_of(date: nvs_db::MySqlDate, time: nvs_db::MySqlTime) -> crate::ti
     }
 }
 
+/// One SQL Server column's Novis value: [`column_value`]'s twin over the third
+/// driver's scalar.
+///
+/// The division is the same one for the same reason, and **all five of § 9's
+/// structured rows are here** where MySQL reaches three: this driver has
+/// `date`, `time`, the zone-less `datetime`/`datetime2` pair, `datetimeoffset`
+/// and a `uniqueidentifier` type of its own. What it has no row for is the
+/// array, which is PostgreSQL's alone, so nothing here recurs.
+///
+/// **Nothing is computed here, and three of these would be wrong if it were.**
+/// `nvs_db::tds::scalar`'s doc names the rows whose octets do not mean what
+/// they look like — `money`'s leading high word, `uniqueidentifier`'s
+/// endianness, and `datetimeoffset`'s civil fields being stored in UTC — and
+/// all three arrive already in their answered form. An `Instant` off this
+/// driver therefore carries local fields beside its offset exactly as
+/// PostgreSQL's does, which is what lets [`crate::time`]'s two seams serve both
+/// without a driver argument.
+///
+/// `zone` is the connection's declared zone, § 9's answer for the row that
+/// carries no offset of its own — declared and never negotiated on this driver,
+/// unlike the other two, because there is no server-side session variable to
+/// send it to.
+///
+/// # Errors
+///
+/// [`unrepresentable_column`] for a value no `Core\Time` type has, and a
+/// [`Fault::fatal`] for a row `nvs-db` answers no value for and this function
+/// does not build, which is a variant added there with no arm here.
+fn tds_column_value(
+    scalar: nvs_db::tds::TdsScalar<'_>,
+    zone: i32,
+    named: &str,
+    column: &str,
+) -> Result<Value, Fault> {
+    let refused = |row| unrepresentable_column(named, column, row);
+    Ok(match scalar {
+        nvs_db::tds::TdsScalar::Date(date) => {
+            crate::time::date_at(date.year, date.month, date.day).ok_or_else(|| refused("date"))?
+        }
+        nvs_db::tds::TdsScalar::Time(time) => {
+            crate::time::time_of_day_at(time.hour, time.minute, time.second, time.nanosecond)
+                .ok_or_else(|| refused("time of day"))?
+        }
+        nvs_db::tds::TdsScalar::DateTime { date, time } => {
+            crate::time::datetime_at(&tds_civil_of(date, time), zone)
+                .ok_or_else(|| refused("date and time"))?
+        }
+        nvs_db::tds::TdsScalar::Instant { date, time, offset } => {
+            crate::time::instant_at(&tds_civil_of(date, time), offset)
+                .ok_or_else(|| refused("date and time"))?
+        }
+        nvs_db::tds::TdsScalar::Uuid(octets) => crate::uuid::of_octets(octets),
+        row => row.into_value().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{named}: `nvs-db` answered no value for the column `{column}`, and this decoder \
+                 builds no instance for it either"
+            ))
+        })?,
+    })
+}
+
+/// The civil fields a `datetime`, `datetime2` or `datetimeoffset` carried, in
+/// the shape [`crate::time`]'s seams read.
+///
+/// [`civil_of`]'s and [`mysql_civil_of`]'s third, separate from both for the
+/// reason those two are separate from each other: the fields are the same three
+/// plus four and the *facts* are three protocols', one parsed out of a text
+/// rendering and two read off the wire in different units.
+fn tds_civil_of(date: nvs_db::tds::TdsDate, time: nvs_db::tds::TdsTime) -> crate::time::Civil {
+    crate::time::Civil {
+        year: date.year,
+        month: date.month,
+        day: date.day,
+        hour: time.hour,
+        minute: time.minute,
+        second: time.second,
+        nanosecond: time.nanosecond,
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Db\Connection::queryAs<T>(string $sql, array<mixed> $params):
     /// Db\Rows<T>` — ADR 0067 § 4's statement over § 18's hydrating result.
@@ -5507,7 +5788,14 @@ nvs_runtime::nvs_helper! {
                 watch,
                 EXECUTE,
             )?,
-            other => return Err(driverless(EXECUTE, &statement.block, other.driver())),
+            other => {
+                return Err(driverless(
+                    EXECUTE,
+                    &statement.block,
+                    other.driver(),
+                    BEYOND_READING,
+                ));
+            }
         };
         watch.file(ctx, taken);
         Ok(crate::instance::build(
@@ -5590,7 +5878,14 @@ nvs_runtime::nvs_helper! {
             // executions on both drivers and `nvs_db::mysql::execute_many` is
             // the one that runs them.
             nvs_db::Connection::MariaDb(maria) => maria.execute_many(&batch.sql, &sets),
-            other => return Err(driverless(EXECUTE_MANY, &batch.block, other.driver())),
+            other => {
+                return Err(driverless(
+                    EXECUTE_MANY,
+                    &batch.block,
+                    other.driver(),
+                    BEYOND_READING,
+                ));
+            }
         }
         .map_err(|refused| {
             statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), &refused)
@@ -7502,45 +7797,62 @@ mod tests {
                 nvs_db::Driver::Postgres,
                 nvs_db::Driver::MySql,
                 nvs_db::Driver::MariaDb,
+                nvs_db::Driver::SqlServer,
             ],
             "this module's known gap 2 names the drivers a statement is written for, and a driver \
              that gains an encoder belongs in both places"
         );
     }
 
-    /// [`driverless`]'s refusal names every driver that does send, and names no
-    /// driver that does not.
+    /// [`driverless`]'s refusal names every driver that reaches the member it is
+    /// about, and names no driver that does not.
     ///
-    /// **An agreement test rather than a wording one.** Known gap 2's roster
-    /// lives in places that cannot see each other — the match arms of
+    /// **An agreement test rather than a wording one.** Known gap 2's rosters
+    /// live in places that cannot see each other — the match arms of
     /// [`queried_rows`], `execute` and `executeMany`, § 5's encoder roster that
-    /// the test above pins, and one sentence inside [`driverless`] — and the
-    /// way it breaks is the sentence going stale while the arms grow. What an
+    /// the test above pins, and the two `const`s [`driverless`] renders — and
+    /// the way it breaks is a roster going stale while the arms grow. What an
     /// operator then reads is "this build cannot do that" about a driver that
     /// just did, which is the one thing that message exists to prevent.
+    ///
+    /// **Asked of both rosters, because they parted.** [`READING`] gained SQL
+    /// Server with [`tds_rows`] and [`BEYOND_READING`] did not, so the driver
+    /// the refusal is *about* is SQLite here: it is the one driver outside both,
+    /// which is what makes "named exactly when it reaches" askable of every
+    /// other driver in one loop.
     #[test]
     fn the_refusal_names_every_driver_that_sends() {
-        let sending = [
-            nvs_db::Driver::Postgres,
-            nvs_db::Driver::MySql,
-            nvs_db::Driver::MariaDb,
-        ];
         let block = Value::str(NvsStr::new(b"main"));
-        let refused = format!("{:?}", driverless(QUERY, &block, nvs_db::Driver::SqlServer));
-        for driver in sending {
-            assert!(
-                rendering_for(driver).is_some(),
-                "{driver:?} sends a statement, so § 5 has to render one for it"
+        for roster in [READING, BEYOND_READING] {
+            let refused = format!(
+                "{:?}",
+                driverless(QUERY, &block, nvs_db::Driver::Sqlite, roster)
             );
             assert!(
-                refused.contains(driver.display_name()),
-                "{driver:?} sends a statement, and the refusal a driver that cannot earns has to \
-                 say so: {refused}"
+                refused.contains(nvs_db::Driver::Sqlite.display_name()),
+                "a refusal an operator can act on names the driver the block resolved to: {refused}"
+            );
+            for driver in nvs_db::Driver::ALL {
+                if driver == nvs_db::Driver::Sqlite {
+                    continue;
+                }
+                assert_eq!(
+                    roster.contains(&driver),
+                    refused.contains(driver.display_name()),
+                    "{driver:?} is named by this refusal exactly when it reaches the member: \
+                     {refused}"
+                );
+            }
+        }
+        for driver in READING {
+            assert!(
+                rendering_for(*driver).is_some(),
+                "{driver:?} runs a statement, so § 5 has to render one for it"
             );
         }
         assert!(
-            !refused.contains(nvs_db::Driver::Sqlite.display_name()),
-            "and it must not name one no arm reaches: {refused}"
+            BEYOND_READING.iter().all(|driver| READING.contains(driver)),
+            "a driver that reaches `execute` or § 7 reaches `query` first"
         );
     }
 
