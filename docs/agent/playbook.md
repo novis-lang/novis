@@ -1749,6 +1749,15 @@ is why" — is this file.
   `optional` or feature-gated. Do both *before* writing the manifest comment that claims the graph, because
   the comment is what the next reader trusts instead of re-measuring — and check the goal's own prose
   against the answer, since a claim there is what the acceptance data was named after.
+- **The item `orient.py` hands you can already be on disk, uncommitted, from a session that died
+  before its wrap.** Session 0006 wrote `crates/nvs-config/src/mount.rs` and its 385-line test file,
+  declared `E0621` in `nvs-diagnostics`, and moved the acceptance check's name onto `-p nvs-config` —
+  then committed none of it and wrote no status, so the next pack opened on the same item as if
+  nothing existed. `git status --short` plus one `git diff` was the whole discovery and the work was
+  green on the first `cargo test`. Read the untracked and modified files your item names *before*
+  writing a line of it: finishing and committing a dead session's slice is the cheapest session there
+  is, and re-deriving it would have thrown that work away and left two designs for one rule. The tell
+  is a `0 commit(s) | (no status written)` line for the previous session in `.loop/log.md`.
 
 ## Running things
 
