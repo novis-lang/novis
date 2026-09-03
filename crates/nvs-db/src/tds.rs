@@ -83,7 +83,9 @@ use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 
-use crate::conn::{BlockError, DbErrorKind, Driver, ServerError, State, TdsConn, written_value};
+use crate::conn::{
+    BlockError, ColumnType, DbErrorKind, Driver, ServerError, State, TdsConn, written_value,
+};
 use crate::sql::{statement_cache_for, time_zone_for};
 
 /// The header in front of every packet: type, status, length, SPID, packet id,
@@ -1489,6 +1491,8 @@ const TOKEN_INFO: u8 = 0xAB;
 const TOKEN_LOGIN_ACK: u8 = 0xAD;
 /// `ENVCHANGE`: one session property moved, and both values are given.
 const TOKEN_ENV_CHANGE: u8 = 0xE3;
+/// `COLMETADATA`: the shape of the rows that follow, one [`TdsColumn`] each.
+const TOKEN_COL_METADATA: u8 = 0x81;
 /// `DONE`: the end of one statement's answer.
 const TOKEN_DONE: u8 = 0xFD;
 /// `DONEPROC`: `DONE` for a stored procedure, which § 13's `sp_reset_connection`
@@ -1695,6 +1699,14 @@ pub enum Token {
     LoginAck(LoginAck),
     /// A session property moved.
     Env(EnvChange),
+    /// The shape of the rows that follow, in the order the server sends their
+    /// values.
+    ///
+    /// Empty where the server answered `0xFFFF` — *no metadata*, which is what
+    /// a statement with no result set at all sends. A reader has nothing to
+    /// distinguish that from a result set of no columns, which no server sends,
+    /// so the two are one case here rather than a variant that is never taken.
+    Columns(Vec<TdsColumn>),
     /// A statement's answer ended.
     Done(Done),
 }
@@ -1742,6 +1754,242 @@ impl Done {
     }
 }
 
+/// `COLMETADATA`'s count, and `TYPE_INFO`'s two-byte length, when what is meant
+/// is *there is none*: no result set at all in the first, `MAX` — a value that
+/// arrives in [`Length::Partial`]'s chunks — in the second.
+const NO_LENGTH: u16 = 0xFFFF;
+
+/// `COLMETADATA`'s `Flags`: the column may be null. The other fifteen bits are
+/// what the server would say about updatability, identity and sparseness, and
+/// nothing in this driver asks.
+const COLUMN_NULLABLE: u16 = 0x0001;
+
+/// `NULLTYPE`: a column with no type, which is what `SELECT NULL` has.
+const TY_NULL: u8 = 0x1F;
+/// `INT1TYPE`: `tinyint`, and the one integer SQL Server does not sign.
+const TY_INT1: u8 = 0x30;
+/// `BITTYPE`: `bit`.
+const TY_BIT: u8 = 0x32;
+/// `INT2TYPE`: `smallint`.
+const TY_INT2: u8 = 0x34;
+/// `INT4TYPE`: `int`.
+const TY_INT4: u8 = 0x38;
+/// `DATETIM4TYPE`: `smalldatetime`.
+const TY_DATETIME4: u8 = 0x3A;
+/// `FLT4TYPE`: `real`.
+const TY_FLT4: u8 = 0x3B;
+/// `MONEYTYPE`: `money`, four decimal places in a scaled 64-bit integer.
+const TY_MONEY: u8 = 0x3C;
+/// `DATETIMETYPE`: `datetime`.
+const TY_DATETIME: u8 = 0x3D;
+/// `FLT8TYPE`: `float`.
+const TY_FLT8: u8 = 0x3E;
+/// `MONEY4TYPE`: `smallmoney`.
+const TY_MONEY4: u8 = 0x7A;
+/// `INT8TYPE`: `bigint`.
+const TY_INT8: u8 = 0x7F;
+/// `GUIDTYPE`: `uniqueidentifier`.
+const TY_GUID: u8 = 0x24;
+/// `INTNTYPE`: any of the four integers where the column is nullable, its width
+/// in the declared length rather than in the type byte.
+const TY_INTN: u8 = 0x26;
+/// `BITNTYPE`: a nullable `bit`.
+const TY_BITN: u8 = 0x68;
+/// `DECIMALNTYPE`: `decimal`, carrying its own precision and scale.
+const TY_DECIMALN: u8 = 0x6A;
+/// `NUMERICNTYPE`: `numeric`, which SQL Server stores identically.
+const TY_NUMERICN: u8 = 0x6C;
+/// `FLTNTYPE`: a nullable `real` or `float`.
+const TY_FLTN: u8 = 0x6D;
+/// `MONEYNTYPE`: a nullable `money` or `smallmoney`.
+const TY_MONEYN: u8 = 0x6E;
+/// `DATETIMNTYPE`: a nullable `datetime` or `smalldatetime`.
+const TY_DATETIMEN: u8 = 0x6F;
+/// `DATENTYPE`: `date`, whose `TYPE_INFO` carries nothing at all — three bytes
+/// is the only width it has.
+const TY_DATEN: u8 = 0x28;
+/// `TIMENTYPE`: `time`, whose `TYPE_INFO` carries a scale and no length.
+const TY_TIMEN: u8 = 0x29;
+/// `DATETIME2NTYPE`: `datetime2`, a `TY_TIMEN` with three bytes of date after
+/// it.
+const TY_DATETIME2N: u8 = 0x2A;
+/// `DATETIMEOFFSETNTYPE`: `datetimeoffset`, a `TY_DATETIME2N` with two bytes of
+/// offset after it — the one SQL Server type that carries its own zone.
+const TY_DATETIMEOFFSETN: u8 = 0x2B;
+/// `BIGVARBINTYPE`: `varbinary(n)`, or `varbinary(max)` at [`NO_LENGTH`].
+const TY_BIGVARBINARY: u8 = 0xA5;
+/// `BIGVARCHRTYPE`: `varchar(n)`, or `varchar(max)` at [`NO_LENGTH`].
+const TY_BIGVARCHAR: u8 = 0xA7;
+/// `BIGBINARYTYPE`: `binary(n)`.
+const TY_BIGBINARY: u8 = 0xAD;
+/// `BIGCHARTYPE`: `char(n)`.
+const TY_BIGCHAR: u8 = 0xAF;
+/// `NVARCHARTYPE`: `nvarchar(n)`, or `nvarchar(max)` at [`NO_LENGTH`].
+const TY_NVARCHAR: u8 = 0xE7;
+/// `NCHARTYPE`: `nchar(n)`.
+const TY_NCHAR: u8 = 0xEF;
+/// `IMAGETYPE`: `image`, deprecated since 2005 and still on disk everywhere.
+const TY_IMAGE: u8 = 0x22;
+/// `TEXTTYPE`: `text`, likewise.
+const TY_TEXT: u8 = 0x23;
+/// `NTEXTTYPE`: `ntext`, likewise.
+const TY_NTEXT: u8 = 0x63;
+/// `SSVARIANTTYPE`: `sql_variant`, a value carrying its own type description in
+/// front of itself.
+const TY_VARIANT: u8 = 0x62;
+/// `UDTTYPE`: a CLR type, which is what `geometry`, `geography` and
+/// `hierarchyid` arrive as.
+const TY_UDT: u8 = 0xF0;
+/// `XMLTYPE`: `xml`, optionally naming the schema collection it is bound to.
+const TY_XML: u8 = 0xF1;
+
+/// The three bytes a `date` occupies, and the date half of a `datetime2`.
+const DATE_BYTES: u8 = 3;
+/// The two bytes of minute offset a `datetimeoffset` carries after its
+/// `datetime2` half.
+const OFFSET_BYTES: u8 = 2;
+
+/// How one column's values carry their own length, which is the whole of what
+/// a row reader needs from a type it does not otherwise understand.
+///
+/// MS-TDS states this as four families — `FIXEDLENTYPE`, `BYTELEN`, `USHORTLEN`
+/// and `LONGLEN` — plus `PARTLEN` for the `MAX` types, and the families are not
+/// derivable from the type byte in any shorter way than the table
+/// [`Tokens::type_info`] writes out. Every variant but [`Length::Fixed`] has a
+/// null form, which is why a fixed-width nullable column arrives as its `…N`
+/// type instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Length {
+    /// Exactly this many bytes, with no length in front of them and no null
+    /// form: the type byte is the width.
+    Fixed(usize),
+    /// One byte of length, at most this many, and `0` is `NULL`.
+    Byte(u8),
+    /// Two bytes of length, at most this many, and [`NO_LENGTH`] is `NULL`.
+    Short(u16),
+    /// Four bytes of length, at most this many, and `0xFFFF_FFFF` is `NULL`.
+    ///
+    /// `text`, `ntext` and `image` put a text pointer and a timestamp in front
+    /// of that length and are `NULL` where the pointer is empty; `sql_variant`
+    /// does not. The row reader tells them apart by [`TypeInfo::id`], because
+    /// nothing else about the two is different.
+    Long(u32),
+    /// `PLP`: an eight-byte total length or an unknown-length sentinel, then
+    /// chunks until an empty one. Every `MAX` type, `xml` and every CLR type.
+    Partial,
+}
+
+/// One column's `TYPE_INFO`: what the server said its type is, in the server's
+/// own vocabulary.
+///
+/// Deliberately not a Novis type — [`TdsColumn::column_type`] is the only thing
+/// here that has an opinion about that, and [ADR 0067
+/// § 9](../../../docs/adr/0067-core-db.md)'s decode into a value belongs to
+/// `nvs-stdlib`, which is the crate that can allocate a `Core\Time\DateTime`.
+/// The fields are all four things a `TYPE_INFO` can carry, and a type that
+/// carries none of them leaves them at their zero.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypeInfo {
+    /// The type byte, which is the identity of the type and the only thing
+    /// [`TdsColumn::column_type`] reads.
+    pub id: u8,
+    /// How a value of this type is measured on the wire.
+    pub length: Length,
+    /// A `decimal` or `numeric` column's declared precision, and `0` for every
+    /// other type.
+    pub precision: u8,
+    /// A `decimal`/`numeric` column's declared scale, or the fractional-second
+    /// digits of a `time`, `datetime2` or `datetimeoffset` — the same field
+    /// because the wire spells them with one byte in the same place.
+    pub scale: u8,
+    /// The five raw bytes of the column's `COLLATION`, for the six character
+    /// types that carry one: an LCID and flags in four little-endian bytes,
+    /// then a sort id.
+    ///
+    /// Kept raw and unparsed because the one thing a reader will ever want from
+    /// it is the code page of a non-Unicode column, and that question belongs
+    /// to the row path rather than here.
+    pub collation: Option<[u8; 5]>,
+}
+
+/// One column of a result set, as `COLMETADATA` described it.
+///
+/// The shape [`crate::PgColumn`] has, for the reason its doc gives: a driver's
+/// column carries the *server's* type description and never a Novis type. What
+/// differs is that TDS describes a type structurally rather than by a catalog
+/// id, so the description is [`TypeInfo`] and not an integer this driver would
+/// have to hold a table for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TdsColumn {
+    /// The column's label, as the server wrote it.
+    pub name: String,
+    /// The user-defined type id, `0` for every built-in type. This driver reads
+    /// it only to skip it: a UDT's own name is in [`TypeInfo`].
+    pub user_type: u32,
+    /// The `Flags` field, read through [`TdsColumn::nullable`] rather than
+    /// matched on.
+    pub flags: u16,
+    /// What the server said the column's type is.
+    pub type_info: TypeInfo,
+}
+
+impl TdsColumn {
+    /// Whether the server said this column may be null.
+    ///
+    /// Not what makes a value optional to a program: every column reads back as
+    /// `?T` because a value can be `NULL` whatever the schema says, and a
+    /// server computes this bit for an expression rather than reading it off a
+    /// table.
+    #[must_use]
+    pub const fn nullable(&self) -> bool {
+        self.flags & COLUMN_NULLABLE != 0
+    }
+
+    /// The column's declared type, as spec § 18's `ColumnType` names it — what
+    /// `Core\Db\Rows::columns` answers for this column.
+    ///
+    /// It reads the type byte and nothing else, which is the whole difference
+    /// from [`crate::PgColumn::column_type`]: PostgreSQL has one OID for `bit`
+    /// and `bit varying` and needs the modifier to find [ADR 0067
+    /// § 9](../../../docs/adr/0067-core-db.md)'s `BIT(1)` row, while SQL
+    /// Server's `bit` *is* one bit — `BIT(n>1)` is not a type it has — so the
+    /// byte is the answer and the width is never consulted.
+    ///
+    /// Two more of § 9's rows fall out of the same table. `uniqueidentifier` is
+    /// [`ColumnType::Uuid`] rather than [`ColumnType::Bytes`], unlike MySQL's
+    /// `BINARY(16)`, because it is a type of its own here. And nothing answers
+    /// [`ColumnType::Json`]: SQL Server through 2022 stores JSON in an
+    /// `nvarchar` with a `CHECK` constraint, so a JSON column *is* a text
+    /// column and § 9's rule that JSON is never auto-decoded is what makes that
+    /// the honest answer rather than a lost one.
+    ///
+    /// [`ColumnType::Uint`] is likewise unreachable: `tinyint` is the only
+    /// unsigned integer SQL Server has and it fits an `int` with room to spare,
+    /// so § 9's `uint` row is MySQL's and PostgreSQL's alone.
+    #[must_use]
+    pub const fn column_type(&self) -> ColumnType {
+        match self.type_info.id {
+            TY_INT1 | TY_INT2 | TY_INT4 | TY_INT8 | TY_INTN => ColumnType::Int,
+            TY_BIT | TY_BITN => ColumnType::Bool,
+            TY_FLT4 | TY_FLT8 | TY_FLTN => ColumnType::Float,
+            TY_MONEY | TY_MONEY4 | TY_MONEYN | TY_DECIMALN | TY_NUMERICN => ColumnType::Decimal,
+            TY_BIGCHAR | TY_BIGVARCHAR | TY_NCHAR | TY_NVARCHAR | TY_TEXT | TY_NTEXT => {
+                ColumnType::Text
+            }
+            TY_BIGBINARY | TY_BIGVARBINARY | TY_IMAGE => ColumnType::Bytes,
+            TY_GUID => ColumnType::Uuid,
+            TY_DATEN => ColumnType::Date,
+            TY_TIMEN => ColumnType::Time,
+            TY_DATETIME | TY_DATETIME4 | TY_DATETIMEN | TY_DATETIME2N => ColumnType::DateTime,
+            TY_DATETIMEOFFSETN => ColumnType::Instant,
+            // `sql_variant`, `xml`, every CLR type — `geometry` among them —
+            // and the column that has no type at all: § 9's last row, which
+            // reads as a `tainted string`.
+            _ => ColumnType::Other,
+        }
+    }
+}
+
 /// A reader over one message's tokens.
 ///
 /// Sans-IO like the rest of this module: it borrows a payload and never touches
@@ -1785,6 +2033,7 @@ impl<'a> Tokens<'a> {
             TOKEN_INFO => Token::Info(self.server_message("INFO")?),
             TOKEN_LOGIN_ACK => Token::LoginAck(self.login_ack()?),
             TOKEN_ENV_CHANGE => Token::Env(self.env_change()?),
+            TOKEN_COL_METADATA => Token::Columns(self.columns()?),
             TOKEN_DONE | TOKEN_DONE_PROC | TOKEN_DONE_IN_PROC => Token::Done(self.done()?),
             other => {
                 return Err(malformed(format!(
@@ -1958,6 +2207,180 @@ impl<'a> Tokens<'a> {
         })
     }
 
+    /// A `COLMETADATA` token: a column count, then that many descriptions in
+    /// the order the values will arrive.
+    ///
+    /// The one token here that carries neither a length nor a fixed size, so a
+    /// field that runs off the end is caught by [`Tokens::take`] rather than by
+    /// [`Tokens::finish`]. That costs nothing here and is what lets the row
+    /// path reuse this reader unchanged over a buffer it filled from packets:
+    /// this parses bytes, and where they came from is not its question.
+    ///
+    /// The `CekTable` a column-encryption login would put between the count and
+    /// the first column is deliberately not read. LOGIN7 does not ask for that
+    /// feature ([`login7_request`]), so the field is never sent, and a parser for a
+    /// shape this driver cannot receive is untestable by construction.
+    fn columns(&mut self) -> io::Result<Vec<TdsColumn>> {
+        let count = self.short("COLMETADATA")?;
+        if count == NO_LENGTH {
+            return Ok(Vec::new());
+        }
+        // Capped, because the count is the server's word and the columns are
+        // not on the wire yet: SQL Server's own ceiling on a `SELECT` is 4,096,
+        // and a claim past it grows the vector instead of preallocating for it.
+        let mut columns = Vec::with_capacity(usize::from(count).min(4096));
+        for _ in 0..count {
+            let user_type = self.long("COLMETADATA")?;
+            let flags = self.short("COLMETADATA")?;
+            let type_info = self.type_info()?;
+            if matches!(type_info.id, TY_TEXT | TY_NTEXT | TY_IMAGE) {
+                // The `TableName` only those three carry: a part count, then
+                // that many `US_VARCHAR`s naming the table the value is stored
+                // in. Read to skip it — a text pointer is what fetches the
+                // value — and field by field, since it is variable.
+                let parts = self.byte("COLMETADATA")?;
+                for _ in 0..parts {
+                    self.us_varchar("COLMETADATA")?;
+                }
+            }
+            columns.push(TdsColumn {
+                name: self.b_varchar("COLMETADATA")?,
+                user_type,
+                flags,
+                type_info,
+            });
+        }
+        Ok(columns)
+    }
+
+    /// A `TYPE_INFO`: the type byte, then whatever that type declares about
+    /// itself.
+    ///
+    /// MS-TDS § 2.2.5.4.1's tables written as a `match`, and there is no
+    /// shorter form of them: which [`Length`] family a type belongs to is a
+    /// property of the byte and not of any range it falls in — `0x28` is
+    /// measured by a byte while `0x27` two below it is a type from another
+    /// decade.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` for a type byte this driver does not read, naming it. TDS
+    /// 4.2's `CHAR` (0x2F), `VARCHAR` (0x27), `BINARY` (0x2D), `VARBINARY`
+    /// (0x25), `DECIMAL` (0x37) and `NUMERIC` (0x3F) are among them on purpose:
+    /// a 7.4 server sends the `BIG…`/`…N` spelling in every case, so an arm for
+    /// one would be a guess at a layout this driver can never observe. Also for
+    /// a fractional-second scale past the seven digits SQL Server's three time
+    /// types hold, which is a width this reader would otherwise have to invent.
+    fn type_info(&mut self) -> io::Result<TypeInfo> {
+        const WHAT: &str = "TYPE_INFO";
+
+        let id = self.byte(WHAT)?;
+        let mut info = TypeInfo {
+            id,
+            length: Length::Fixed(0),
+            precision: 0,
+            scale: 0,
+            collation: None,
+        };
+        match id {
+            // A column with no type carries no value either, and the zero above
+            // is already that.
+            TY_NULL => {}
+            TY_INT1 | TY_BIT => info.length = Length::Fixed(1),
+            TY_INT2 => info.length = Length::Fixed(2),
+            TY_INT4 | TY_DATETIME4 | TY_FLT4 | TY_MONEY4 => info.length = Length::Fixed(4),
+            TY_MONEY | TY_DATETIME | TY_FLT8 | TY_INT8 => info.length = Length::Fixed(8),
+            TY_GUID | TY_INTN | TY_BITN | TY_FLTN | TY_MONEYN | TY_DATETIMEN => {
+                info.length = Length::Byte(self.byte(WHAT)?);
+            }
+            TY_DECIMALN | TY_NUMERICN => {
+                info.length = Length::Byte(self.byte(WHAT)?);
+                info.precision = self.byte(WHAT)?;
+                info.scale = self.byte(WHAT)?;
+            }
+            // `date` declares nothing at all: three bytes is the only width it
+            // has, and it is still measured by a byte because a null one is
+            // measured as none.
+            TY_DATEN => info.length = Length::Byte(DATE_BYTES),
+            TY_TIMEN | TY_DATETIME2N | TY_DATETIMEOFFSETN => {
+                let scale = self.byte(WHAT)?;
+                info.scale = scale;
+                let seconds = match scale {
+                    0..=2 => 3,
+                    3..=4 => 4,
+                    5..=7 => 5,
+                    past => {
+                        return Err(malformed(format!(
+                            "a TDS TYPE_INFO gave type 0x{id:02X} a scale of {past}, past the \
+                             seven fractional-second digits SQL Server holds"
+                        )));
+                    }
+                };
+                info.length = Length::Byte(match id {
+                    TY_TIMEN => seconds,
+                    TY_DATETIME2N => seconds + DATE_BYTES,
+                    _ => seconds + DATE_BYTES + OFFSET_BYTES,
+                });
+            }
+            TY_BIGBINARY | TY_BIGVARBINARY => info.length = self.declared_length(WHAT)?,
+            TY_BIGCHAR | TY_BIGVARCHAR | TY_NCHAR | TY_NVARCHAR => {
+                info.length = self.declared_length(WHAT)?;
+                info.collation = Some(self.collation(WHAT)?);
+            }
+            TY_IMAGE | TY_VARIANT => info.length = Length::Long(self.long(WHAT)?),
+            TY_TEXT | TY_NTEXT => {
+                info.length = Length::Long(self.long(WHAT)?);
+                info.collation = Some(self.collation(WHAT)?);
+            }
+            TY_XML => {
+                // `SchemaPresent`, then the three names a bound column carries.
+                // Read to skip: an `xml` value arrives the same way either way.
+                if self.byte(WHAT)? != 0 {
+                    self.b_varchar(WHAT)?;
+                    self.b_varchar(WHAT)?;
+                    self.us_varchar(WHAT)?;
+                }
+                info.length = Length::Partial;
+            }
+            TY_UDT => {
+                // The declared maximum, then the four names a CLR type is
+                // identified by — none of which changes how its bytes are read.
+                self.short(WHAT)?;
+                self.b_varchar(WHAT)?;
+                self.b_varchar(WHAT)?;
+                self.b_varchar(WHAT)?;
+                self.us_varchar(WHAT)?;
+                info.length = Length::Partial;
+            }
+            other => {
+                return Err(malformed(format!(
+                    "a TDS COLMETADATA described a column as type 0x{other:02X}, which this driver \
+                     does not read"
+                )));
+            }
+        }
+        Ok(info)
+    }
+
+    /// A `USHORTLEN` type's declared width, which is [`Length::Partial`] where
+    /// the type is a `MAX` one.
+    fn declared_length(&mut self, what: &'static str) -> io::Result<Length> {
+        let declared = self.short(what)?;
+        Ok(if declared == NO_LENGTH {
+            Length::Partial
+        } else {
+            Length::Short(declared)
+        })
+    }
+
+    /// A `COLLATION`, kept as the five bytes the server wrote.
+    fn collation(&mut self, what: &'static str) -> io::Result<[u8; 5]> {
+        Ok(self
+            .take(5, what)?
+            .try_into()
+            .expect("five bytes, as asked for"))
+    }
+
     /// Positions the reader at a token's declared end, refusing one whose
     /// fields already read past it.
     fn finish(&mut self, end: usize, what: &'static str) -> io::Result<()> {
@@ -2062,7 +2485,14 @@ pub fn login<S: Read + Write>(wire: &mut Wire<S>, target: &TdsTarget<'_>) -> io:
             Token::Error(message) if refusal.is_none() => refusal = Some(message),
             Token::LoginAck(answered) => ack = Some(answered),
             Token::Env(EnvChange::PacketSize { to }) => packet_size = Some(to),
-            Token::Error(_) | Token::Info(_) | Token::Env(_) | Token::Done(_) => {}
+            // Exhaustive rather than a wildcard, so a token this driver learns
+            // to read is a decision here and not a silent omission. A login
+            // answers with no result set, so `Columns` is one of them.
+            Token::Error(_)
+            | Token::Info(_)
+            | Token::Env(_)
+            | Token::Columns(_)
+            | Token::Done(_) => {}
         }
     }
 
@@ -3234,9 +3664,9 @@ mod tests {
         let refused = tokens(&lying).expect_err("a token cannot be longer than its message");
         assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
 
-        let refused = tokens(&[0x81, 0, 0]).expect_err("COLMETADATA is a later slice's");
+        let refused = tokens(&[0xA9, 0, 0]).expect_err("ORDER is a token nothing here reads");
         assert!(
-            refused.to_string().contains("0x81"),
+            refused.to_string().contains("0xA9"),
             "an unread token names the byte, which is the whole of what it can say"
         );
     }
@@ -3391,5 +3821,369 @@ mod tests {
         ));
         let refused = login(&mut wire, &target).expect_err("0x12 answers nothing here");
         assert!(refused.to_string().contains("type 0x12"), "{refused}");
+    }
+
+    /// A `US_VARCHAR` as a server writes one.
+    fn us_varchar(text: &str) -> Vec<u8> {
+        let mut out = u16::try_from(text.encode_utf16().count())
+            .expect("a short field")
+            .to_le_bytes()
+            .to_vec();
+        out.extend(text.encode_utf16().flat_map(u16::to_le_bytes));
+        out
+    }
+
+    /// A `COLLATION` as a server writes one — `Latin1_General_CI_AS` — which
+    /// this driver keeps and does not read apart.
+    const COLLATION: [u8; 5] = [0x09, 0x04, 0xD0, 0x00, 0x34];
+
+    /// The declared maximum of every large-object type.
+    const MAX_LOB: u32 = 0x7FFF_FFFF;
+
+    /// One column of a `COLMETADATA`, from its `TYPE_INFO` outwards. A `text`,
+    /// `ntext` or `image` column's `TableName` belongs on the end of
+    /// `type_info`, which is where the wire puts it.
+    fn column(type_info: &[u8], name: &str, flags: u16) -> Vec<u8> {
+        let mut out = 0u32.to_le_bytes().to_vec();
+        out.extend_from_slice(&flags.to_le_bytes());
+        out.extend_from_slice(type_info);
+        out.extend_from_slice(&b_varchar(name));
+        out
+    }
+
+    /// A `COLMETADATA` token over the columns `column` built.
+    fn col_metadata(columns: &[Vec<u8>]) -> Vec<u8> {
+        let mut out = vec![TOKEN_COL_METADATA];
+        out.extend_from_slice(
+            &u16::try_from(columns.len())
+                .expect("a few columns")
+                .to_le_bytes(),
+        );
+        for one in columns {
+            out.extend_from_slice(one);
+        }
+        out
+    }
+
+    /// A `USHORTLEN` character type's `TYPE_INFO`, which carries a collation.
+    fn char_type(id: u8, declared: u16) -> Vec<u8> {
+        let mut out = vec![id];
+        out.extend_from_slice(&declared.to_le_bytes());
+        out.extend_from_slice(&COLLATION);
+        out
+    }
+
+    /// A `USHORTLEN` binary type's, which does not.
+    fn binary_type(id: u8, declared: u16) -> Vec<u8> {
+        let mut out = vec![id];
+        out.extend_from_slice(&declared.to_le_bytes());
+        out
+    }
+
+    /// A `LONGLEN` type's, with the collation and the `TableName` for the three
+    /// types that carry them.
+    fn long_type(id: u8, declared: u32) -> Vec<u8> {
+        let mut out = vec![id];
+        out.extend_from_slice(&declared.to_le_bytes());
+        if matches!(id, TY_TEXT | TY_NTEXT) {
+            out.extend_from_slice(&COLLATION);
+        }
+        if matches!(id, TY_TEXT | TY_NTEXT | TY_IMAGE) {
+            out.push(1);
+            out.extend_from_slice(&us_varchar("notes"));
+        }
+        out
+    }
+
+    /// A CLR type's `TYPE_INFO`: `geometry`, as SQL Server describes one.
+    fn udt_type() -> Vec<u8> {
+        let mut out = vec![TY_UDT];
+        out.extend_from_slice(&NO_LENGTH.to_le_bytes());
+        out.extend_from_slice(&b_varchar("novis_test"));
+        out.extend_from_slice(&b_varchar("sys"));
+        out.extend_from_slice(&b_varchar("geometry"));
+        out.extend_from_slice(&us_varchar(
+            "Microsoft.SqlServer.Types.SqlGeometry, Microsoft.SqlServer.Types",
+        ));
+        out
+    }
+
+    /// The one column a `TYPE_INFO` describes, or the refusal reading it was.
+    fn one_column(type_info: &[u8]) -> io::Result<TdsColumn> {
+        let payload = col_metadata(&[column(type_info, "c", COLUMN_NULLABLE)]);
+        let mut read = tokens(&payload)?;
+        let Some(Token::Columns(mut columns)) = read.pop() else {
+            panic!("a COLMETADATA reads back as one");
+        };
+        Ok(columns.pop().expect("the one column that was described"))
+    }
+
+    /// A `TYPE_INFO` for every type byte this driver reads, with the length
+    /// family MS-TDS gives it and the § 9 row it classifies as. The two sweeps
+    /// below share it, which is what makes them ask about one table.
+    fn every_type_info() -> Vec<(Vec<u8>, Length, ColumnType)> {
+        vec![
+            (vec![TY_NULL], Length::Fixed(0), ColumnType::Other),
+            (vec![TY_INT1], Length::Fixed(1), ColumnType::Int),
+            (vec![TY_INT2], Length::Fixed(2), ColumnType::Int),
+            (vec![TY_INT4], Length::Fixed(4), ColumnType::Int),
+            (vec![TY_INT8], Length::Fixed(8), ColumnType::Int),
+            (vec![TY_INTN, 4], Length::Byte(4), ColumnType::Int),
+            (vec![TY_BIT], Length::Fixed(1), ColumnType::Bool),
+            (vec![TY_BITN, 1], Length::Byte(1), ColumnType::Bool),
+            (vec![TY_FLT4], Length::Fixed(4), ColumnType::Float),
+            (vec![TY_FLT8], Length::Fixed(8), ColumnType::Float),
+            (vec![TY_FLTN, 8], Length::Byte(8), ColumnType::Float),
+            (vec![TY_MONEY], Length::Fixed(8), ColumnType::Decimal),
+            (vec![TY_MONEY4], Length::Fixed(4), ColumnType::Decimal),
+            (vec![TY_MONEYN, 8], Length::Byte(8), ColumnType::Decimal),
+            (
+                vec![TY_DECIMALN, 17, 38, 4],
+                Length::Byte(17),
+                ColumnType::Decimal,
+            ),
+            (
+                vec![TY_NUMERICN, 9, 18, 2],
+                Length::Byte(9),
+                ColumnType::Decimal,
+            ),
+            (
+                char_type(TY_BIGCHAR, 10),
+                Length::Short(10),
+                ColumnType::Text,
+            ),
+            (
+                char_type(TY_BIGVARCHAR, 8000),
+                Length::Short(8000),
+                ColumnType::Text,
+            ),
+            (
+                char_type(TY_BIGVARCHAR, NO_LENGTH),
+                Length::Partial,
+                ColumnType::Text,
+            ),
+            (char_type(TY_NCHAR, 20), Length::Short(20), ColumnType::Text),
+            (
+                char_type(TY_NVARCHAR, 100),
+                Length::Short(100),
+                ColumnType::Text,
+            ),
+            (
+                char_type(TY_NVARCHAR, NO_LENGTH),
+                Length::Partial,
+                ColumnType::Text,
+            ),
+            (
+                binary_type(TY_BIGBINARY, 16),
+                Length::Short(16),
+                ColumnType::Bytes,
+            ),
+            (
+                binary_type(TY_BIGVARBINARY, 900),
+                Length::Short(900),
+                ColumnType::Bytes,
+            ),
+            (
+                binary_type(TY_BIGVARBINARY, NO_LENGTH),
+                Length::Partial,
+                ColumnType::Bytes,
+            ),
+            (
+                long_type(TY_TEXT, MAX_LOB),
+                Length::Long(MAX_LOB),
+                ColumnType::Text,
+            ),
+            (
+                long_type(TY_NTEXT, MAX_LOB),
+                Length::Long(MAX_LOB),
+                ColumnType::Text,
+            ),
+            (
+                long_type(TY_IMAGE, MAX_LOB),
+                Length::Long(MAX_LOB),
+                ColumnType::Bytes,
+            ),
+            (
+                long_type(TY_VARIANT, 8009),
+                Length::Long(8009),
+                ColumnType::Other,
+            ),
+            (vec![TY_GUID, 16], Length::Byte(16), ColumnType::Uuid),
+            (vec![TY_DATEN], Length::Byte(3), ColumnType::Date),
+            (vec![TY_TIMEN, 7], Length::Byte(5), ColumnType::Time),
+            (vec![TY_DATETIME4], Length::Fixed(4), ColumnType::DateTime),
+            (vec![TY_DATETIME], Length::Fixed(8), ColumnType::DateTime),
+            (vec![TY_DATETIMEN, 8], Length::Byte(8), ColumnType::DateTime),
+            (
+                vec![TY_DATETIME2N, 7],
+                Length::Byte(8),
+                ColumnType::DateTime,
+            ),
+            (
+                vec![TY_DATETIMEOFFSETN, 7],
+                Length::Byte(10),
+                ColumnType::Instant,
+            ),
+            (vec![TY_XML, 0], Length::Partial, ColumnType::Other),
+            (udt_type(), Length::Partial, ColumnType::Other),
+        ]
+    }
+
+    /// Every type this driver reads is measured the way MS-TDS § 2.2.5.4.1
+    /// says, and the count is asserted rather than the rows: a type byte that
+    /// gained an arm without gaining a row here fails the last line.
+    #[test]
+    fn every_type_info_is_measured_the_way_ms_tds_measures_it() {
+        let table = every_type_info();
+        for (bytes, length, _) in &table {
+            let column = one_column(bytes)
+                .unwrap_or_else(|refused| panic!("type 0x{:02X}: {refused}", bytes[0]));
+            assert_eq!(column.type_info.length, *length, "type 0x{:02X}", bytes[0]);
+            assert_eq!(column.type_info.id, bytes[0]);
+            assert_eq!(
+                column.name, "c",
+                "the name is after the TYPE_INFO, so a type read short takes the name with it"
+            );
+        }
+
+        for family in [
+            Length::Fixed(0),
+            Length::Byte(0),
+            Length::Short(0),
+            Length::Long(0),
+            Length::Partial,
+        ] {
+            let sort = std::mem::discriminant(&family);
+            assert!(
+                table
+                    .iter()
+                    .any(|(_, length, _)| std::mem::discriminant(length) == sort),
+                "no type in the table is measured as {family:?}, so that family is untested"
+            );
+        }
+
+        let ids: std::collections::HashSet<u8> =
+            table.iter().map(|(bytes, _, _)| bytes[0]).collect();
+        assert_eq!(
+            ids.len(),
+            36,
+            "every type byte `Tokens::type_info` has an arm for is one row here"
+        );
+    }
+
+    /// § 9's rows this backend can reach, asserted as a set — so a type that
+    /// classified as a plausible neighbour fails here even where its own row
+    /// still passes.
+    #[test]
+    fn every_column_type_this_backend_reaches_is_a_row_of_section_nine() {
+        let mut seen: std::collections::HashSet<ColumnType> = std::collections::HashSet::new();
+        for (bytes, _, expected) in &every_type_info() {
+            let column = one_column(bytes)
+                .unwrap_or_else(|refused| panic!("type 0x{:02X}: {refused}", bytes[0]));
+            assert_eq!(column.column_type(), *expected, "type 0x{:02X}", bytes[0]);
+            seen.insert(*expected);
+        }
+
+        assert_eq!(seen.len(), 12, "twelve of § 9's fourteen rows, and these:");
+        assert!(
+            !seen.contains(&ColumnType::Uint),
+            "`tinyint` is the only unsigned integer here and it fits an `int`"
+        );
+        assert!(
+            !seen.contains(&ColumnType::Json),
+            "SQL Server stores JSON in an `nvarchar`, so a JSON column is a text column"
+        );
+    }
+
+    /// A result set's shape is its columns in the order their values will
+    /// arrive, and the fields around the `TYPE_INFO` come back with them.
+    #[test]
+    fn a_colmetadata_describes_its_columns_in_the_order_the_values_arrive() {
+        let mut payload = col_metadata(&[
+            column(&[TY_INT4], "id", 0),
+            column(&char_type(TY_NVARCHAR, 100), "name", COLUMN_NULLABLE),
+            column(&long_type(TY_TEXT, MAX_LOB), "note", COLUMN_NULLABLE),
+        ]);
+        payload.extend_from_slice(&done_token(DONE_COUNT, 3));
+
+        let read = tokens(&payload).expect("a result set this driver can describe");
+        assert_eq!(read.len(), 2, "the DONE after the columns is still found");
+        let Token::Columns(columns) = &read[0] else {
+            panic!("the first token describes the columns");
+        };
+        assert_eq!(
+            columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            ["id", "name", "note"],
+            "`note` is the one that proves the TableName is skipped: a reader that \
+             did not would name the column after the table"
+        );
+        assert!(!columns[0].nullable(), "the server said this one cannot be");
+        assert!(columns[1].nullable());
+        assert_eq!(columns[1].type_info.collation, Some(COLLATION));
+        assert_eq!(
+            columns[0].type_info.collation, None,
+            "an `int` has no collation to carry"
+        );
+        assert_eq!(columns[2].column_type(), ColumnType::Text);
+    }
+
+    /// TDS 4.2's spellings are refused by their byte rather than parsed on a
+    /// guess at a layout a 7.4 server never sends.
+    #[test]
+    fn a_column_type_this_driver_does_not_read_is_named_by_its_byte() {
+        for legacy in [0x2Fu8, 0x27, 0x2D, 0x25, 0x37, 0x3F] {
+            let refused = one_column(&[legacy, 8]).expect_err("a 4.2 type is not read here");
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+            assert!(
+                refused.to_string().contains(&format!("0x{legacy:02X}")),
+                "{refused}"
+            );
+        }
+    }
+
+    /// Both sides of the bound: seven fractional-second digits is the widest
+    /// `time` SQL Server has, and eight is not a narrower one.
+    #[test]
+    fn a_time_scale_is_read_up_to_seven_digits_and_refused_past_them() {
+        for (scale, width) in [(0u8, 3u8), (2, 3), (3, 4), (4, 4), (5, 5), (7, 5)] {
+            let column = one_column(&[TY_TIMEN, scale]).expect("a scale SQL Server has");
+            assert_eq!(
+                column.type_info.length,
+                Length::Byte(width),
+                "scale {scale}"
+            );
+            assert_eq!(column.type_info.scale, scale);
+        }
+
+        let refused = one_column(&[TY_DATETIME2N, 8]).expect_err("eight digits is not a time");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+        assert!(refused.to_string().contains("scale of 8"), "{refused}");
+    }
+
+    /// `0xFFFF` columns is the server saying the statement had no result set at
+    /// all, and it is not a count that reads the tokens after it as columns.
+    #[test]
+    fn a_statement_with_no_result_set_answers_no_columns() {
+        let mut payload = vec![TOKEN_COL_METADATA];
+        payload.extend_from_slice(&NO_LENGTH.to_le_bytes());
+        payload.extend_from_slice(&done_token(DONE_COUNT, 1));
+
+        let read = tokens(&payload).expect("no metadata is not malformed metadata");
+        assert_eq!(read[0], Token::Columns(Vec::new()));
+        assert_eq!(read.len(), 2, "the DONE is the next token, not a column");
+    }
+
+    /// `COLMETADATA` carries no length of its own, so the fields running out is
+    /// the only thing between a lying count and a reader walking into the
+    /// tokens after it.
+    #[test]
+    fn a_colmetadata_that_promises_more_columns_than_it_holds_is_refused() {
+        let mut payload = vec![TOKEN_COL_METADATA];
+        payload.extend_from_slice(&3u16.to_le_bytes());
+        payload.extend_from_slice(&column(&[TY_INT4], "id", 0));
+        payload.extend_from_slice(&done_token(0, 0));
+
+        let refused = tokens(&payload).expect_err("three columns were promised and one sent");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
     }
 }
