@@ -63,20 +63,20 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`open` opens outside ADR 0067 § 13's pool.** [`SETTINGS`] is the shape
-//!    parameter § 18 writes —
-//!    [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
-//!    § 1's two arms, § 3's twelve merged slots, and `nvs_core_db_open` reading
-//!    them — so the member is here and reachable. One half of it is not.
-//!
-//!    **The connection is held by the request and never pooled.** § 13 keys an
-//!    `open` pool on a hash of every settings field, and
-//!    [`nvs_runtime::pool::Ticket::for_block`] takes a config block's *name*;
-//!    until there is a ticket for a hash, this member files its connection with
-//!    no lease, which closes it at teardown rather than returning it to a pool
-//!    under a key that would be wrong. Within the request § 2's memo does hold
-//!    — [`settings_key`] is that hash, and it is what `{shared: false}` opts
-//!    out of.
+//! 1. **An `open` pool's bounds are the defaults, and nothing an operator
+//!    writes can change them.** ADR 0067 § 13's key for `open` is live —
+//!    [`settings_key`] is the hash, [`nvs_runtime::pool::Ticket::for_settings`]
+//!    is the ticket, and a released connection rejoins this core's pool under it
+//!    exactly as a `connect`ed one does. What has no spelling is the operator's
+//!    half: `max`, `idle`, `lifetime` and `acquire` are `PoolBounds::DEFAULT`
+//!    because a settings literal has no `[db.<name>.pool]` table to read them
+//!    from, and § 13's `pool = false` is written *per block* and so cannot reach
+//!    an `open` at all. The deployment that notices is the audited one that
+//!    needs every connection to map to one request: it can switch off every
+//!    block an operator wrote and not the connections a program opens for
+//!    itself. Where those bounds would be written, for a key only the program
+//!    knows, is an ADR 0067 § 13 question and not a shape this module may pick
+//!    on its own.
 //!
 //!    ADR 0135 § 2's *exactly one arm accepts it* **is** the checker's rule —
 //!    `nvs_types::expr::args`' `select_arm` — so a `host` written beside
@@ -1847,8 +1847,10 @@ const CONNECT_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The host does not resolve, or the connection, the TLS handshake or the login \
-                   itself failed. A refusal the server worded carries its own message.",
+            desc: "The host does not resolve, the connection, the TLS handshake or the login \
+                   itself failed, or this core already holds `[db.<name>.pool] max` connections \
+                   under that name and none came free within `acquire`. A refusal the server \
+                   worded carries its own message.",
         },
     ],
 };
@@ -1957,8 +1959,9 @@ const OPEN_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The host does not resolve, or the connection, the TLS handshake or the login \
-                   itself failed.",
+            desc: "The host does not resolve, the connection, the TLS handshake or the login \
+                   itself failed, or this core already holds its `max` of connections to those \
+                   settings and none came free while waiting.",
         },
     ],
 };
@@ -2926,9 +2929,20 @@ pub(crate) fn open_named(
     // there on all but the busiest request, and paying one short `String`
     // for the case that has to wait beats a queue registration — a boxed
     // wake and a `Vec` push — on every `connect` that never waits at all.
+    let max = ticket.bounds.max;
+    let full = |waited: &str| {
+        Fault::thrown_as(
+            ThrownClass::Io,
+            format!(
+                "{CONNECT}: `[db.{name}]` already holds its `max` of {max} connections on this \
+                 core, and {waited} — raise `[db.{name}.pool] max`, or hold fewer connections \
+                 open at once"
+            ),
+        )
+    };
     let lease = match nvs_runtime::pool::admit(ticket.clone()) {
         Some(lease) => lease,
-        None => wait_for_slot(ctx, ticket, name, deadline)?,
+        None => wait_for_slot(ctx, ticket, &full, deadline)?,
     };
 
     // § 13's acquire: this core's pool first, and what comes out of it is
@@ -3129,7 +3143,25 @@ fn settings_text<'a>(args: &'a [Value], at: usize, key: &str) -> Result<&'a str,
 /// with a NUL byte. Two calls whose fields all agree share a connection, which
 /// is what § 2 promises, and two that differ anywhere — including in the
 /// password — do not.
-fn settings_key(fields: &[&str], port: Option<u64>) -> String {
+///
+/// **It is § 13's pool key as well as the memo**, which decides what it hashes:
+/// every field that says what the connection *is* once it is open. The endpoint
+/// and the credentials are the obvious ones; the declared zone and the
+/// statement cache's size are the two that are only obvious from the pool's
+/// side, because a drawn connection carries both from the request that opened
+/// it — § 13's reset restores the zone rather than re-reading it, as a startup
+/// parameter on PostgreSQL and as `set_session_time_zone` on MySQL — and a
+/// second request that declared a different one would silently be answered in
+/// the first one's. `timeout` and `tls` are deliberately not among them: the
+/// first bounds the act of opening rather than the connection it produces, and
+/// the second has one accepted value, so hashing either would only split a pool
+/// two requests could have shared.
+fn settings_key(
+    fields: &[&str],
+    port: Option<u64>,
+    zone: i32,
+    statement_cache: Option<u64>,
+) -> String {
     use std::hash::{Hash as _, Hasher as _};
 
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -3137,6 +3169,8 @@ fn settings_key(fields: &[&str], port: Option<u64>) -> String {
         field.hash(&mut hasher);
     }
     port.hash(&mut hasher);
+    zone.hash(&mut hasher);
+    statement_cache.hash(&mut hasher);
     format!("\u{0}open:{:016x}", hasher.finish())
 }
 
@@ -3163,10 +3197,18 @@ nvs_runtime::nvs_helper! {
     /// and the `tls` key, which no block has.
     ///
     /// **What it spends:** one connection per distinct set of settings a
-    /// request opens, held by the request and closed with it. It is *not*
-    /// pooled across requests — § 13's key is a hash of every settings field
-    /// and `nvs_runtime::pool` has no such ticket yet, which is this module's
-    /// known gap 1.
+    /// request opens, and § 13's pool keeps up to `idle` of them per key on this
+    /// core between the requests that use them. A settings literal has no
+    /// `[db.<name>.pool]` table to size that with, so it takes
+    /// `PoolBounds::DEFAULT` — the same bounds a block that writes no `pool` key
+    /// takes, which is what ADR 0074's *finite with nothing configured* already
+    /// means one layer down, and the only other candidate (`OFF`) is § 13
+    /// declining to pool `open` at all, which that section spends a bullet
+    /// requiring. Two consequences an operator has to be told rather than
+    /// discover: the ceiling on the database is `cores × max` *per distinct
+    /// settings hash* and that key space is the program's rather than the
+    /// config's, and `pool = false` cannot reach an `open` because that switch
+    /// is written per block and this has none.
     fn nvs_core_db_open(ctx, args: [12]) {
         let driver = settings_driver(&args[DRIVER_ARG])?;
         // The SQLite arm, whole: its `path` is the field that says the caller
@@ -3210,7 +3252,26 @@ nvs_runtime::nvs_helper! {
         // exactly the address that was checked.
         let pinned = nvs_runtime::capability::pinned_address(ctx, host, OPEN)?;
 
-        let memo = settings_key(&[host, user, database, password, driver.matrix_name()], port);
+        // § 9's declared zone, resolved here rather than beside the target that
+        // carries it because it is one of the fields the key below hashes: a
+        // pooled connection is in the zone the request that opened it declared,
+        // and § 13's reset restores that zone rather than re-reading it. It is
+        // set on the resolved target rather than written into the block, because
+        // the block's field is an offset *spelling* and this arrives as a
+        // `Core\Time\Zone`: rendering it to text for the resolver to parse back
+        // would be two conversions and one more place for the two to disagree.
+        let zone = if matches!(args[TIME_ZONE_ARG].tag(), Some(Tag::Null)) {
+            0
+        } else {
+            crate::time::zone_offset_now(args, TIME_ZONE_ARG, "open")?
+        };
+        let deadline = open_deadline(args)?;
+        let memo = settings_key(
+            &[host, user, database, password, driver.matrix_name()],
+            port,
+            zone,
+            statement_cache,
+        );
         if shared && let Some(key) = ctx.memoized_connection(&memo) {
             return Ok(crate::instance::build(
                 &CONNECTION,
@@ -3218,70 +3279,101 @@ nvs_runtime::nvs_helper! {
             ));
         }
 
-        // The block the two resolvers read. Every field is one the settings
-        // literal wrote, so what comes back out is the same target a
-        // `[db.<name>]` block of the same content would resolve to — including
-        // its refusals, which is the point of going through them.
-        let block = nvs_config::tree::Database {
-            driver: Some(driver.matrix_name().to_owned()),
-            host: Some(host.to_owned()),
-            port: port.and_then(|written| u16::try_from(written).ok()),
-            user: Some(user.to_owned()),
-            password: Some(password.to_owned()),
-            database: Some(database.to_owned()),
-            statement_cache: statement_cache.and_then(|held| u32::try_from(held).ok()),
-            ..nvs_config::tree::Database::default()
-        };
-        // § 9's declared zone. It is set on the resolved target rather than
-        // written into the block above, because the block's field is an offset
-        // *spelling* and this arrives as a `Core\Time\Zone`: rendering it to
-        // text for the resolver to parse back would be two conversions and one
-        // more place for the two to disagree.
-        let zone = if matches!(args[TIME_ZONE_ARG].tag(), Some(Tag::Null)) {
-            0
-        } else {
-            crate::time::zone_offset_now(args, TIME_ZONE_ARG, "open")?
-        };
-        let deadline = open_deadline(args)?;
-        let refused = |refusal: nvs_db::BlockError<'_>| {
-            Fault::thrown(format!("{OPEN}: {}", refusal.refusal("<settings>")))
-        };
-        let opening = |address: SocketAddr, err: &std::io::Error| {
+        // § 13's ticket, under the key § 2 hashes rather than the block name
+        // `connect` keys on — `Ticket::for_settings` owns why only one of the
+        // two is scoped to a configuration generation, and this member's own
+        // doc owns why the bounds are the defaults.
+        let ticket = nvs_runtime::pool::Ticket::for_settings(
+            memo.clone(),
+            nvs_config::db::PoolBounds::DEFAULT,
+        );
+        let max = ticket.bounds.max;
+        let full = |waited: &str| {
             Fault::thrown_as(
                 ThrownClass::Io,
-                format!("{OPEN}: {address} did not open: {err}"),
+                format!(
+                    "{OPEN}: these settings already hold their `max` of {max} connections to \
+                     {host} on this core, and {waited} — a settings literal is keyed on its own \
+                     fields and takes bounds no `[db.<name>.pool]` table can raise, so open \
+                     fewer of them at once"
+                ),
             )
         };
-        let opened = match driver {
-            nvs_db::Driver::MySql => {
-                let mut target = nvs_db::MySqlTarget::resolve(&block).map_err(refused)?;
-                target.time_zone = zone;
-                let address =
-                    SocketAddr::new(pinned, port_of(port, nvs_db::mysql::DEFAULT_PORT));
-                let conn = nvs_db::MySqlConn::connect(address, &target, deadline)
-                    .map_err(|err| opening(address, &err))?;
-                nvs_db::Connection::MySql(conn)
-            }
-            nvs_db::Driver::Postgres => {
-                let mut target = nvs_db::PgTarget::resolve(&block).map_err(refused)?;
-                target.time_zone = zone;
-                let address = SocketAddr::new(pinned, port_of(port, nvs_db::pg::DEFAULT_PORT));
-                let conn = nvs_db::PgConn::connect(address, &target, deadline)
-                    .map_err(|err| opening(address, &err))?;
-                nvs_db::Connection::Postgres(conn)
-            }
-            // MariaDB and SQL Server, which bind and decode but have no
-            // handshake here — known gap 2's list, and the same refusal a block
-            // naming one earns.
-            other => {
-                return Err(Fault::thrown(format!(
-                    "{OPEN}: `{}` is a driver this build has no connection path for yet, so the \
-                     settings naming it cannot be opened",
-                    other.display_name()
-                )));
+        let lease = match nvs_runtime::pool::admit(ticket.clone()) {
+            Some(lease) => lease,
+            None => wait_for_slot(ctx, ticket, &full, deadline)?,
+        };
+        // § 13's acquire, and `{shared: false}` reaches it too: that option
+        // bypasses the memo above and never the pool, which § 13 says in as
+        // many words. `warm_connection` is where a failed reset destroys the
+        // connection, so a `None` here is indistinguishable from an empty pool
+        // and falls through to the handshake either way.
+        let pooled = lease
+            .bounds()
+            .enabled
+            .then(|| warm_connection(&lease))
+            .flatten();
+        let opened = match pooled {
+            Some(warm) => warm,
+            // The block the two resolvers read, built only on the path that
+            // needs it. Every field is one the settings literal wrote, so what
+            // comes back out is the same target a `[db.<name>]` block of the
+            // same content would resolve to — including its refusals, which is
+            // the point of going through them.
+            None => {
+                let block = nvs_config::tree::Database {
+                    driver: Some(driver.matrix_name().to_owned()),
+                    host: Some(host.to_owned()),
+                    port: port.and_then(|written| u16::try_from(written).ok()),
+                    user: Some(user.to_owned()),
+                    password: Some(password.to_owned()),
+                    database: Some(database.to_owned()),
+                    statement_cache: statement_cache.and_then(|held| u32::try_from(held).ok()),
+                    ..nvs_config::tree::Database::default()
+                };
+                let refused = |refusal: nvs_db::BlockError<'_>| {
+                    Fault::thrown(format!("{OPEN}: {}", refusal.refusal("<settings>")))
+                };
+                let opening = |address: SocketAddr, err: &std::io::Error| {
+                    Fault::thrown_as(
+                        ThrownClass::Io,
+                        format!("{OPEN}: {address} did not open: {err}"),
+                    )
+                };
+                match driver {
+                    nvs_db::Driver::MySql => {
+                        let mut target = nvs_db::MySqlTarget::resolve(&block).map_err(refused)?;
+                        target.time_zone = zone;
+                        let address =
+                            SocketAddr::new(pinned, port_of(port, nvs_db::mysql::DEFAULT_PORT));
+                        let conn = nvs_db::MySqlConn::connect(address, &target, deadline)
+                            .map_err(|err| opening(address, &err))?;
+                        nvs_db::Connection::MySql(conn)
+                    }
+                    nvs_db::Driver::Postgres => {
+                        let mut target = nvs_db::PgTarget::resolve(&block).map_err(refused)?;
+                        target.time_zone = zone;
+                        let address =
+                            SocketAddr::new(pinned, port_of(port, nvs_db::pg::DEFAULT_PORT));
+                        let conn = nvs_db::PgConn::connect(address, &target, deadline)
+                            .map_err(|err| opening(address, &err))?;
+                        nvs_db::Connection::Postgres(conn)
+                    }
+                    // MariaDB and SQL Server, which bind and decode but have no
+                    // handshake here — known gap 2's list, and the same refusal
+                    // a block naming one earns.
+                    other => {
+                        return Err(Fault::thrown(format!(
+                            "{OPEN}: `{}` is a driver this build has no connection path for yet, \
+                             so the settings naming it cannot be opened",
+                            other.display_name()
+                        )));
+                    }
+                }
             }
         };
-        let key = ctx.hold_open_connection(shared.then_some(memo), None, Box::new(opened));
+        let key =
+            ctx.hold_open_connection(shared.then_some(memo), Some(lease), Box::new(opened));
         Ok(crate::instance::build(
             &CONNECTION,
             [Value::uint(key), Value::str(NvsStr::new(host.as_bytes()))],
@@ -4112,6 +4204,14 @@ fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connectio
 /// [ADR 0106](../../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 6's tier-B failure.
 ///
+/// **The wording of that refusal is the caller's**, handed in as `full` and
+/// completed with the clause saying which ending it was. The two members have
+/// nothing to say in common there: `connect` names a block and the
+/// `[db.<name>.pool] max` an operator can raise, and `open` has neither — a
+/// settings literal is keyed on its own hash and takes bounds nothing can
+/// configure. What this function owns is the waiting, which *is* the same for
+/// both.
+///
 /// # Errors
 ///
 /// A thrown `IOError` for the ceiling reached, which is where every ending but
@@ -4123,20 +4223,9 @@ fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connectio
 fn wait_for_slot(
     ctx: &mut nvs_runtime::Ctx,
     ticket: nvs_runtime::pool::Ticket,
-    name: &str,
+    full: &dyn Fn(&str) -> Fault,
     timeout: Option<std::time::Instant>,
 ) -> Result<nvs_runtime::pool::Lease, Fault> {
-    let max = ticket.bounds.max;
-    let full = |waited: &str| {
-        Fault::thrown_as(
-            ThrownClass::Io,
-            format!(
-                "{CONNECT}: `[db.{name}]` already holds its `max` of {max} connections on this \
-                 core, and {waited} — raise `[db.{name}.pool] max`, or hold fewer connections \
-                 open at once"
-            ),
-        )
-    };
     let acquire = std::time::Instant::now().checked_add(ticket.bounds.acquire);
     let Some(acquire) = acquire.filter(|_| !ticket.bounds.acquire.is_zero()) else {
         return Err(full(
@@ -7054,6 +7143,70 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 mod tests {
     use super::*;
     use nvs_runtime::{Ctx, Decimal, OutputSink, call};
+
+    /// ADR 0067 § 13's key for `open` is § 2's memo key, so what that hash
+    /// separates is what two requests are refused a shared connection over.
+    ///
+    /// **Asserted as a sweep that every field moves the key**, rather than as
+    /// one pair per field: a key that dropped a field would still answer
+    /// plausibly on every other pair, and the two the pool added — the declared
+    /// zone and the statement cache's size — are exactly the ones a reader
+    /// checking "did it hash the credentials?" would not miss. The count is the
+    /// assertion, so a field added to the hash without a case here fails it.
+    #[test]
+    fn every_settings_field_the_pool_keys_on_moves_the_key() {
+        let base = settings_key(&["h", "u", "d", "p", "postgres"], Some(5432), 0, Some(64));
+        let variants = [
+            settings_key(
+                &["other", "u", "d", "p", "postgres"],
+                Some(5432),
+                0,
+                Some(64),
+            ),
+            settings_key(
+                &["h", "other", "d", "p", "postgres"],
+                Some(5432),
+                0,
+                Some(64),
+            ),
+            settings_key(
+                &["h", "u", "other", "p", "postgres"],
+                Some(5432),
+                0,
+                Some(64),
+            ),
+            settings_key(
+                &["h", "u", "d", "other", "postgres"],
+                Some(5432),
+                0,
+                Some(64),
+            ),
+            settings_key(&["h", "u", "d", "p", "mysql"], Some(5432), 0, Some(64)),
+            settings_key(&["h", "u", "d", "p", "postgres"], Some(3306), 0, Some(64)),
+            settings_key(&["h", "u", "d", "p", "postgres"], None, 0, Some(64)),
+            settings_key(
+                &["h", "u", "d", "p", "postgres"],
+                Some(5432),
+                2 * 3600,
+                Some(64),
+            ),
+            settings_key(&["h", "u", "d", "p", "postgres"], Some(5432), 0, Some(32)),
+            settings_key(&["h", "u", "d", "p", "postgres"], Some(5432), 0, None),
+        ];
+        let mut keys: Vec<&str> = variants.iter().map(String::as_str).collect();
+        keys.push(&base);
+        keys.sort_unstable();
+        keys.dedup();
+        assert_eq!(keys.len(), variants.len() + 1, "{keys:?}");
+        assert_eq!(
+            base,
+            settings_key(&["h", "u", "d", "p", "postgres"], Some(5432), 0, Some(64))
+        );
+        // The one property § 2 needs of the spelling: a `connect` key is a
+        // block's name and a name is a configuration key, so no settings hash
+        // can be one.
+        assert!(base.starts_with('\u{0}'));
+    }
 
     /// ADR 0067 § 5's rewrite and § 9's encoding are **one** choice per driver,
     /// and the pairing is what a statement bound half one way fails on — at the

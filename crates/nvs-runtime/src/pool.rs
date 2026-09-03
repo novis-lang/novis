@@ -94,6 +94,15 @@
 //! rather than O(requests served): a release past `idle` closes the connection
 //! instead of queueing it, so nothing accumulates with traffic.
 //!
+//! **`keys` is the operator's count for `connect` and the program's for
+//! `open`**, which is the one place that bound needs reading carefully: a
+//! [`Ticket::for_block`] key can only be one of the config's `[db.<name>]`
+//! blocks, while a [`Ticket::for_settings`] key is a hash of fields a program
+//! chooses, and `database`, `user` and `password` all accept `tainted`. What
+//! keeps the second finite is that every [`take`] retires *every* expired entry
+//! it walks past and not only the ones under its own key, so the store holds
+//! `idle` per key opened within one `lifetime` and not one per key ever seen.
+//!
 //! The count above adds one entry per key a core has a live connection under —
 //! a string and a number, dropped when the last of them goes home, so it is
 //! O(keys in use) and not O(connections) or O(generations seen).
@@ -125,25 +134,29 @@ use crate::ctx::HeldConnection;
 /// key — per connection a request opens.
 #[derive(Clone, Debug)]
 pub struct Ticket {
-    /// § 2's key, generation-scoped: see [`Ticket::key_for`]. Two requests share
-    /// a pooled connection exactly when this string matches, so it must carry
-    /// every credential.
+    /// § 2's key: a block's name scoped to its generation for
+    /// [`Ticket::for_block`], and the settings hash itself for
+    /// [`Ticket::for_settings`]. Two requests share a pooled connection exactly
+    /// when this string matches, so it must carry every credential.
     pub key: String,
     /// The bounds `nvs_config::db::pool_for` resolved for that key at boot.
     pub bounds: PoolBounds,
     /// The configuration generation [`key`](Ticket::key) names, held for as
-    /// long as a connection opened under it may still be pooled.
+    /// long as a connection opened under it may still be pooled — and `None`
+    /// for a key that names no generation at all.
     ///
     /// Nothing reads it. It is here so that the generation's address, which is
-    /// what makes the key unique, cannot be reused by a later generation while
-    /// a connection is still keyed on it — the alias
-    /// [`Ticket::key_for`] would otherwise have.
+    /// what makes a [`Ticket::for_block`] key unique, cannot be reused by a
+    /// later generation while a connection is still keyed on it — the alias
+    /// [`Ticket::key_for`] would otherwise have. A settings hash carries no
+    /// address, so there is nothing for a [`Ticket::for_settings`] key to hold
+    /// alive; that constructor's own doc owns why that is not the same hole.
     #[expect(
         dead_code,
         reason = "held for its address, which the key already carries — a read \
                   would be the bug, not the silence"
     )]
-    generation: Arc<Snapshot>,
+    generation: Option<Arc<Snapshot>>,
 }
 
 impl Ticket {
@@ -153,7 +166,34 @@ impl Ticket {
         Ticket {
             key: Ticket::key_for(generation, name),
             bounds,
-            generation: Arc::clone(generation),
+            generation: Some(Arc::clone(generation)),
+        }
+    }
+
+    /// The ticket for one `Core\Db::open` settings literal, under the key § 2
+    /// already hashes out of every field of it — `nvs_stdlib::db`'s
+    /// `settings_key`, which owns which fields those are and why the hash
+    /// cannot collide with a block's name.
+    ///
+    /// **This key is deliberately not generation-scoped**, where
+    /// [`Ticket::for_block`]'s is. The two answer the same question — may these
+    /// two requests share one connection? — from opposite sides. A block's name
+    /// is an *indirection* an operator can repoint, so § 1's reload can publish
+    /// different credentials under an unchanged name and only the generation
+    /// tells the two apart; a settings literal *is* the credentials, written by
+    /// the program, so two literals that hash alike name the same endpoint as
+    /// the same user whichever generation was live when each was written.
+    /// Scoping it anyway would retire warm connections on every reload that are
+    /// still exactly what the next request asked for. What a reload genuinely
+    /// changes about an `open` — whether `db.open` still grants that host — is
+    /// asked again on every call, ahead of the draw, so it is not a question
+    /// the key was ever answering.
+    #[must_use]
+    pub fn for_settings(key: String, bounds: PoolBounds) -> Ticket {
+        Ticket {
+            key,
+            bounds,
+            generation: None,
         }
     }
 
@@ -687,6 +727,33 @@ mod tests {
     // Every case below runs on its own test thread and so gets its own pool,
     // which is the same isolation a core gets and the reason none of them has
     // to clean up after itself.
+
+    /// § 13's other key: the hash `Core\Db::open` computes over its settings,
+    /// carried verbatim.
+    ///
+    /// Two claims in one case because they are one property — the settings key
+    /// space and the block key space do not meet, in either direction. The
+    /// block half is a name spelled *as* the settings key, which is the closest
+    /// a `[db.<name>]` block can get to one and still be a name; the settings
+    /// half is the same hash asked for twice, which is what a request in a
+    /// reloaded generation does, since [`Ticket::for_settings`] has no
+    /// generation to differ in and the literal it hashed named the same
+    /// credentials either way.
+    #[test]
+    fn a_settings_key_is_its_own_pool_and_survives_a_reload() {
+        let now = std::time::Instant::now();
+        let generation = generation();
+        let key = String::from("\u{0}open:00000000deadbeef");
+        let opened = admit(Ticket::for_settings(key.clone(), PoolBounds::DEFAULT)).unwrap();
+        release(opened, now, fake(1));
+
+        let block = admit(ticket(&generation, &key, 2)).unwrap();
+        assert_eq!(id_of(take(&block, now)), None);
+        drop(block);
+
+        let reloaded = admit(Ticket::for_settings(key, PoolBounds::DEFAULT)).unwrap();
+        assert_eq!(id_of(take(&reloaded, now)), Some(1));
+    }
 
     #[test]
     fn a_released_connection_comes_back_under_its_key() {
