@@ -2,55 +2,69 @@
 
 ## State
 
-**M8 goal 5, stage 7. SQL Server caches a plan and loses it to the reset.**
-`crates/nvs-db/src/tds.rs:3987`'s `start_statement` now takes ADR 0067 § 1's cache and picks the
-request from it: a hit sends `sp_execute` (proc 12) with the handle and the values and no SQL, a
-miss sends `sp_prepexec`, and an eviction sends `sp_unprepare` (proc 15) *before* the prepare that
-needed the room. `crates/nvs-db/src/tds.rs:4086`'s `reset_session` is § 13's reset — MS-TDS spells
-`sp_reset_connection` as `Status::RESET_CONNECTION` on a message of its own, whose answer is what
-proves it landed — and it empties the cache, MySQL's asymmetry for the same protocol reason.
-`crates/nvs-db/src/conn.rs:772`'s `TdsConn` carries the cache and `TdsConn::reset` consumes itself
-like `MySqlConn::reset`. The standing acceptance failure is closed.
+**M8 goal 5, stage 7. SQL Server's values now cross the wire in both
+directions, and nothing above `nvs-db` can see them yet.**
+`crates/nvs-db/src/tds.rs:4616`'s `encode` renders a bound parameter as T-SQL reads it — MySQL's
+`1`/`0` for a `bit`, MySQL's refusal for a non-finite `float`, and a **refusal for a `bytes`**,
+which is § 9's one open row on this driver: every parameter goes out as one `nvarchar` and
+`varbinary` has no text form a cast recovers, so the gap closes with a marker of its own or not at
+all. `crates/nvs-db/src/tds.rs:3692`'s `scalar` is the other direction — `TdsScalar` and its
+`TdsDate`/`TdsTime`, `crate::PgScalar`'s shape with no `UInt` and no `Array` row — and
+`decode_column` beside it is `crate::mysql::decode`'s twin under a longer name, because this module
+writes its own framing and `decode` is already the packet reader.
+`crates/nvs-db/src/tds.rs:5014`'s `TdsConn::query` is the two-line delegation; `execute` is that
+same method, since `sp_prepexec` carries both and `TdsRows::affected` is what parts them.
 
-**The handle is filed by the stream, not the caller.** It arrives in a `RETURNVALUE` after the rows
-and a statement with no result set has already ended when `read_rows` returns, so `TdsRows` borrows
-the cache through a `Filing` and commits in `end()`; that type's doc owns it.
+**Three of § 9's rows are computed and not copied**, and each is silent when got wrong: `money`
+puts its high four bytes first, `uniqueidentifier`'s first three groups are little-endian on the
+wire and big-endian in every text form, and `datetimeoffset` stores UTC with the offset beside it
+where `timestamptz` arrives already shifted. `money_a_guid_and_an_offset_are_not_read_the_way_their_bytes_are_laid_out`
+asserts each against the reading a straight copy would have given.
 
-**§ 1's key is one component short on this protocol, and `crates/nvs-db/src/tds.rs:3939`'s
-`TdsPlan` is the answer.** A plan compiled against `nvarchar(4000)` *truncates* a longer value
-rather than refusing it, so the plan carries the `@params` it was compiled against, a hit whose
-declaration no longer fits is unprepared and prepared again, and `StatementCache::forget` in
-`crates/nvs-db/src/sql.rs` drops the entry rather than shadowing it.
+**A non-UTF-8 `varchar` is refused rather than transcoded.** SQL Server has no session charset to
+force — ADR 0067 § 3's guarantee is `utf8mb4` on one protocol and nothing on this one — so a
+collation that is not UTF-8 has no `string`, and `scalar`'s doc owns why that beats a character
+table. `sql_variant` and a CLR type are refused for the same reason.
 
-**One gap is open on purpose**, unchanged: a parameter that is not UTF-8 is still refused by its
-marker, so § 9's `bytes` has no SQL Server encoding and `nvs_stdlib::db::rendering_for` still
-answers `None` for `Driver::SqlServer` — nothing above can reach the driver yet.
+**Nothing above the driver is wired.** `crates/nvs-stdlib/src/db.rs:4303`'s `rendering_for` still
+answers `None` for `Driver::SqlServer`, so `queried_rows` still falls to `driverless` — that is the
+next group, and it is the whole of what stands between this and § 4 running.
+
+**The driver's standing acceptance failure is stage 9's, and it is not this goal's to close yet.**
+`an_open_host_matching_no_grant_is_a_diagnostic` is `nvs_types::intrinsics`' known gap 6: checking
+has no capability configuration in front of it at all — `Env` carries no capability set and no
+capability is checked at check time, `net.connect` included. The list's other missing name,
+`a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted`, is gated on the *first two* of
+that gap's three and one of those has since closed (see Backlog).
 
 ## Next group
 
-**One file set: `crates/nvs-db/src/conn.rs` and `crates/nvs-db/src/tds.rs`, with
-`crates/nvs-stdlib/src/db.rs` for the layer above.** `crate::mysql`'s arms in `conn.rs` are the
-shapes to copy, and the playbook's `PgConn` trap is why each sequencing function stays free and
-generic in the stream.
+**One file set: `crates/nvs-stdlib/src/db.rs`, with `crates/nvs-db/src/tds.rs` for what it calls.**
+`nvs_db::Connection::MySql`'s arms are the shapes to copy throughout, and the whole group is one
+question — what a `Driver::SqlServer` connection does when § 4 asks it for rows.
 
-- [ ] **`Driver::SqlServer` runs a statement end to end from `conn.rs`** (0067 §§ 4 and 5).
-      `crates/nvs-db/src/conn.rs:772`, `crates/nvs-db/src/conn.rs:863`,
-      `crates/nvs-db/src/tds.rs:3987`, `crates/nvs-db/src/tds.rs:4178`,
-      `crates/nvs-stdlib/src/db.rs:4303`. The enum's `query`/`execute` arms reach
-      `tds::start_statement` with `&mut conn.cache`, and `rendering_for` gains
-      `Driver::SqlServer` with `Dialect::SqlServer` so § 5's rewrite reaches the driver at all.
+- [ ] **`rendering_for` gains `Driver::SqlServer`, and `queried_rows` gains its arm**
+      (0067 §§ 4 and 5). `crates/nvs-stdlib/src/db.rs:4303`, `crates/nvs-stdlib/src/db.rs:4564`,
+      `crates/nvs-stdlib/src/db.rs:4598`, `crates/nvs-db/src/tds.rs:5014`. The encoder is
+      `nvs_db::tds::encode` and the dialect is `Dialect::SqlServer`; `driverless`'s message names
+      the shrinking list and has to shrink with it.
+- [ ] **A `tds_column_value` turns § 9's five structured rows into their `Core` instances**
+      (0067 § 9). `crates/nvs-stdlib/src/db.rs:5267`, `crates/nvs-db/src/tds.rs:3642`,
+      `crates/nvs-db/src/tds.rs:3692`. `column_value`'s `PgScalar` match is the shape;
+      `TdsScalar`'s date and time carriers hold the same fields `crate::time::date_at` takes.
 - [ ] **The pool's reset and destroy arms reach `TdsConn::reset`** (0067 § 13).
-      `crates/nvs-db/src/conn.rs:863`, `crates/nvs-db/src/tds.rs:4178`. The free function and the
-      consuming method are on disk; what is missing is the `Connection` arm, so
-      `a_failed_reset_destroys_the_connection_rather_than_returning_it` covers this backend too.
-- [ ] **§ 9's `bytes` gets a SQL Server encoding, or the refusal is pinned as the answer**
-      (0067 § 9). `crates/nvs-db/src/tds.rs:3670`, `crates/nvs-db/src/tds.rs:3739`,
-      `crates/nvs-stdlib/src/db.rs:4303`. `varbinary` needs its own `TYPE_INFO` and its own
-      `@params` spelling; `text_param` is the one place both forms are decided.
+      `crates/nvs-stdlib/src/db.rs:4174`, `crates/nvs-db/src/tds.rs:5014`. `MySqlConn::reset`'s arm
+      one line above is the shape, and `TdsConn::reset` already consumes itself the same way.
 
 ## Backlog
 
-- § 7's transactions on TDS: `BEGIN`/`COMMIT` as `PacketType::TransactionManager` — docs/adr/0067 § 7.
-- A real SQL Server leg in `tools/db-matrix.py` — docs/plan/m8.md's five-driver matrix.
-- `TdsTarget::time_zone` governs decoding only, so § 9's zone-less rows need their own case.
-- MariaDB and MySQL share `reset_session`; SQL Server's is its own — no third spelling wanted.
+- `nvs_types::intrinsics`' known gap 6 is stale in its first clause: `Core\Db::open` **does** have
+  a registry row now (`crates/nvs-stdlib/src/db.rs:619`), so only the last two of its three are
+  still missing. One edit to that module doc, at `crates/nvs-types/src/intrinsics.rs:70`.
+- § 9's `bytes` on SQL Server: a `varbinary` parameter marker beside `text_param`, or the refusal
+  pinned as the answer in a `.nvst` case — `crates/nvs-db/src/tds.rs:4616` owns the argument.
+- `executeMany` and § 7's `transaction` have no SQL Server arm; `crates/nvs-stdlib/src/db.rs:5587`
+  and `crates/nvs-stdlib/src/db.rs:4472` are where they would go.
+- Stage 9's `nvs-types` check is a seven-name conjunction with two names unwritable for different
+  reasons; splitting it names the work honestly — `docs/agent/loop-goal.toml:3111`.
+- `docs/agent/loop-goal.toml`'s `[context]` printed everything this session needed.
