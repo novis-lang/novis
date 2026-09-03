@@ -1,0 +1,52 @@
+--TEST--
+`rollBack` records its reason as well as throwing, so a `catch (Throwable)` between it and the closure's own return cannot leave the transaction committed — ADR 0067 § 7
+--FILE--
+<?nvs
+// SQLite runs this for real, so the `BEGIN` and the `ROLLBACK` below are really
+// sent — db-a-sqlite-transaction-nests-as-a-savepoint.nvst is where that is
+// argued, and this case asks the one question it does not.
+use Core\Db;
+use Core\Db\Transaction;
+
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, name text not null)", []);
+
+// The hazard § 7 closes. An intervening `catch (Throwable)` swallows the signal
+// `rollBack` threw, and the closure then returns as though nothing had gone
+// wrong — the shape a framework's own error boundary takes when it is a few
+// frames further out. Doctrine's `setRollbackOnly()` relies on every layer
+// checking; this does not, because what the owning frame acts on is the reason
+// the member recorded and not the throw it can no longer see.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->execute("insert into t (name) values (?)", ["ada"]);
+        try {
+            $tx->rollBack("the work was not good enough");
+        } catch (Throwable $swallowed) {
+            echo "swallowed ", $swallowed->message, "\n";
+        }
+    });
+    echo "returned normally\n";
+} catch (Core\Db\RolledBack $abandoned) {
+    // Out of `transaction()` and not out of `rollBack()`: this is the frame
+    // that owns the level, and the one `catch` that could not have been the
+    // one above.
+    echo "propagated ", $abandoned->reason, "\n";
+}
+
+// And the write is gone, which is the half a swallowed signal would otherwise
+// have hidden — the flag decided the level's fate, not the `catch`.
+echo "rows ", $db->query("select id from t", [])->count(), "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+swallowed the work was not good enough
+propagated the work was not good enough
+rows 0
