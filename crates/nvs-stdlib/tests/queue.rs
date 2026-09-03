@@ -199,7 +199,7 @@ fn apply(conn: &mut PgConn, sql: &str, bound: &[Option<&[u8]>]) -> u64 {
         .expect("the server ran the statement")
 }
 
-/// One pending job on `queue`, due at `at`, answering the id `INSERT` returned.
+/// One pending job on `queue`, due at `at`, answering the id `INSERT_POSTGRES` returned.
 ///
 /// `max_attempts` is the case's whole lever over § 6: a job pushed with `1` is
 /// exhausted by its first claim, and one pushed with more is owed another.
@@ -207,9 +207,9 @@ fn push(conn: &mut PgConn, queue: &str, at: i64, max_attempts: &str) -> String {
     let at = millis(at);
     one(
         conn,
-        queue::INSERT,
+        queue::INSERT_POSTGRES,
         &[
-            // No dedupe key: `INSERT`'s `existing` arm is empty for a null
+            // No dedupe key: `INSERT_POSTGRES`'s `existing` arm is empty for a null
             // `$1`, which is the ordinary push.
             None,
             Some(queue.as_bytes()),
@@ -230,7 +230,7 @@ fn claim(conn: &mut PgConn, queue: &str, now: i64, cutoff: i64) -> Vec<Vec<Optio
     let (now, cutoff) = (millis(now), millis(cutoff));
     rows(
         conn,
-        queue::CLAIM,
+        queue::CLAIM_POSTGRES,
         &[
             Some(queue.as_bytes()),
             Some(now.as_slice()),
@@ -264,7 +264,7 @@ fn millis(at: i64) -> Vec<u8> {
     at.to_string().into_bytes()
 }
 
-/// `id`, `attempts` and `max_attempts`'s places in `CLAIM`'s `returning` list,
+/// `id`, `attempts` and `max_attempts`'s places in `CLAIM_POSTGRES`'s `returning` list,
 /// which that constant's doc owns.
 const ID: usize = 0;
 const ATTEMPTS: usize = 3;
@@ -275,8 +275,8 @@ const MAX_ATTEMPTS: usize = 4;
 ///
 /// The three statements are the ones a worker runs and in the order it runs
 /// them, so what is asserted is the roster agreeing with itself against a real
-/// server: `INSERT`'s `returning` names the row `CLAIM` then takes, and the
-/// lease `CLAIM` writes is what `DEAD_LETTER` is keyed on. `max_attempts = 1`
+/// server: `INSERT_POSTGRES`'s `returning` names the row `CLAIM_POSTGRES` then takes, and the
+/// lease `CLAIM_POSTGRES` writes is what `DEAD_LETTER_POSTGRES` is keyed on. `max_attempts = 1`
 /// is what makes one claim an exhausted job — the returned `attempts` and
 /// `max_attempts` say so, which is the condition `nvs-cli`'s `report` branches
 /// on, asserted here so the case states why the move is the legal one rather
@@ -323,10 +323,10 @@ fn an_exhausted_job_reaches_the_dead_letter_table_and_is_not_discarded() {
     let errors = queue::dead_errors(now, "IOError", "the receipt service refused the order");
     let moved = apply(
         &mut conn,
-        queue::DEAD_LETTER,
+        queue::DEAD_LETTER_POSTGRES,
         &[
             Some(id.as_bytes()),
-            // The lease, which is what `CLAIM` wrote to `claimed_at`.
+            // The lease, which is what `CLAIM_POSTGRES` wrote to `claimed_at`.
             Some(millis(now).as_slice()),
             Some(millis(failed).as_slice()),
             Some(errors.as_bytes()),
@@ -480,7 +480,7 @@ fn claiming_is_skip_locked_shaped_on_every_backend_that_has_it() {
     clear(&mut first, QUEUE);
 
     let now = queue::now_millis();
-    // Two jobs, due in the order `CLAIM`'s `order by run_at, id` takes them.
+    // Two jobs, due in the order `CLAIM_POSTGRES`'s `order by run_at, id` takes them.
     let older = push(&mut first, QUEUE, now, "3");
     let newer = push(&mut first, QUEUE, now + 1, "3");
 
@@ -531,14 +531,14 @@ fn claiming_is_skip_locked_shaped_on_every_backend_that_has_it() {
 /// § 3: a job pushed inside a transaction becomes durable with the write that
 /// caused it, in the one moment that transaction commits.
 ///
-/// **The order row is what makes this a test of § 3 rather than of `INSERT`.**
+/// **The order row is what makes this a test of § 3 rather than of `INSERT_POSTGRES`.**
 /// The property is that there is no window in which the job exists without the
 /// write or the write without the job, so a case holding only the job would
 /// pass just as well against a design that enqueued over a connection of its
 /// own — which is the design § 3 rejects. Both rows go in over the one
 /// connection the transaction is open on, and both are counted after it closes.
 ///
-/// The `push` is [`queue::INSERT`] and nothing about it changes inside a
+/// The `push` is [`queue::INSERT_POSTGRES`] and nothing about it changes inside a
 /// transaction: § 3's enlistment is not a mode the statement is issued in but
 /// the plain consequence of running it on a connection that is already in one,
 /// which is why the design has no outbox in it.
@@ -588,7 +588,7 @@ fn an_enqueue_commits_with_the_write_that_made_it() {
     assert_eq!(
         job[0][0].as_deref(),
         Some(id.as_str()),
-        "the durable job is the row `INSERT` answered with inside the transaction"
+        "the durable job is the row `INSERT_POSTGRES` answered with inside the transaction"
     );
     assert_eq!(
         job[0][1].as_deref(),
@@ -620,7 +620,7 @@ fn an_enqueue_commits_with_the_write_that_made_it() {
 /// would satisfy a case that only ever committed. Neither half alone says
 /// anything about the window between them.
 ///
-/// The id is the tell that this is a rollback and not a failure. `INSERT`
+/// The id is the tell that this is a rollback and not a failure. `INSERT_POSTGRES`
 /// answered with one inside the transaction — a sequence does not roll back, so
 /// the number was really allocated and really handed out — and what is gone
 /// afterwards is the row, which is the only thing § 3 ever promised.
@@ -667,7 +667,7 @@ fn a_rolled_back_write_leaves_no_job() {
             &[Some(id.as_bytes())],
         ),
         "0",
-        "the id `INSERT` answered with names nothing, so no worker can ever claim it"
+        "the id `INSERT_POSTGRES` answered with names nothing, so no worker can ever claim it"
     );
 }
 
@@ -731,7 +731,9 @@ fn retries_are_bounded_and_backoff_is_jittered() {
             "one attempt of two, so this job is owed another"
         );
 
-        let id: i64 = expected.parse().expect("`INSERT` answered with an id");
+        let id: i64 = expected
+            .parse()
+            .expect("`INSERT_POSTGRES` answered with an id");
         let at = queue::retry_at(now, 1, BACKOFF, id);
         assert_eq!(
             apply(
@@ -825,7 +827,7 @@ fn retries_are_bounded_and_backoff_is_jittered() {
         assert_eq!(
             apply(
                 &mut conn,
-                queue::DEAD_LETTER,
+                queue::DEAD_LETTER_POSTGRES,
                 &[
                     Some(id.as_bytes()),
                     Some(millis(latest).as_slice()),

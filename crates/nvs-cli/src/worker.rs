@@ -13,7 +13,7 @@
 //!
 //! That is also why this lives in `nvs-cli` rather than beside `Core\Queue` in `nvs-stdlib`:
 //! [`nvs_host::Scheduler`] is created here, and a task is a thing only its owner can spawn. What is
-//! *shared* is the schema — [`nvs_stdlib::queue::QUEUES`] and [`nvs_stdlib::queue::CLAIM`] are read
+//! *shared* is the schema — [`nvs_stdlib::queue::QUEUES`] and [`nvs_stdlib::queue::CLAIM_POSTGRES`] are read
 //! from the module that owns § 2's tables, so a worker decides nothing about them.
 //!
 //! [`nvs_runtime::TaskRoot::Worker`] and not `Request`, per
@@ -243,7 +243,7 @@ fn roster(conn: &mut nvs_db::PgConn, now: i64, cutoff: i64) -> io::Result<Vec<St
     Ok(names)
 }
 
-/// What a worker reads off [`nvs_stdlib::queue::CLAIM`]'s `returning` list, and what running one
+/// What a worker reads off [`nvs_stdlib::queue::CLAIM_POSTGRES`]'s `returning` list, and what running one
 /// and reporting it needs.
 ///
 /// All six columns: two say what to run, and the four below them are what § 6's ladder is judged
@@ -257,7 +257,7 @@ struct Job {
     /// job pushed without one. Decoded at the last moment, in [`run`], so a job whose script is
     /// refused never pays for it.
     args: Option<String>,
-    /// Attempts made *including this one* — [`nvs_stdlib::queue::CLAIM`] increments the column in
+    /// Attempts made *including this one* — [`nvs_stdlib::queue::CLAIM_POSTGRES`] increments the column in
     /// the same statement it returns it from, so a job being run for the first time reads `1`.
     attempts: i64,
     /// § 6's bound on the above, as `Core\Queue::push` recorded it from `{maxAttempts: …}` or from
@@ -285,7 +285,7 @@ fn claim(conn: &mut nvs_db::PgConn, queue: &str, now: i64, cutoff: i64) -> io::R
         Some(millis(cutoff)),
     ];
     let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
-    let mut answered = conn.query(nvs_stdlib::queue::CLAIM, &bound)?;
+    let mut answered = conn.query(nvs_stdlib::queue::CLAIM_POSTGRES, &bound)?;
     // Taken before the first row for [`roster`]'s reason: a `PgRows` lends its columns and its rows
     // out of one borrow.
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
@@ -338,7 +338,7 @@ fn claim(conn: &mut nvs_db::PgConn, queue: &str, now: i64, cutoff: i64) -> io::R
     Ok(took)
 }
 
-/// `id`'s position in [`nvs_stdlib::queue::CLAIM`]'s `returning` list, which that constant's doc
+/// `id`'s position in [`nvs_stdlib::queue::CLAIM_POSTGRES`]'s `returning` list, which that constant's doc
 /// calls what running a job needs.
 const ID: usize = 0;
 
@@ -487,7 +487,7 @@ fn report(
         let failed = millis(nvs_stdlib::queue::now_millis());
         return apply(
             conn,
-            nvs_stdlib::queue::DEAD_LETTER,
+            nvs_stdlib::queue::DEAD_LETTER_POSTGRES,
             &[
                 Some(id.as_slice()),
                 Some(held.as_slice()),

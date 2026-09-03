@@ -4694,7 +4694,7 @@ is why" — is this file.
   harness will not run it where it can.** The stage 8 item named
   `crates/nvs-db/tests/queue.rs`, and both halves of that are wrong. ADR 0132 § 1 makes
   `nvs-stdlib` depend on `nvs-db` and never the reverse, and a test target is part of its crate,
-  so such a case cannot `use nvs_stdlib::queue::CLAIM` at all — while a copy of the statement text
+  so such a case cannot `use nvs_stdlib::queue::CLAIM_POSTGRES` at all — while a copy of the text
   kept beside it would assert over the copy rather than over what a `push` issues.
   `crates/nvs-stdlib/tests/queue.rs` sees both crates and is where it goes. The second half is the
   one that costs a silent green: `tools/db-matrix.py` ran `cargo test -q -p nvs-db` and nothing
