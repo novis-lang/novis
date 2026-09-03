@@ -76,6 +76,27 @@ The cache records the scope and the step list it was produced by, so a `--fast` 
 satisfies a full run and a `-p nvs-ir` verdict never satisfies an unscoped one; the reverse
 directions do, because a superset already proved the subset. Anything unexpected -- an
 unreadable file, a corrupt cache -- makes it fall through and run the steps for real.
+
+## Why the documentation gates are not steps here
+
+`adr.py --check`, `check-links.py`, `plan.py --check` and `playbook.py --check` all exit non-zero
+on a structural finding, and all four are Python-only and finish in about a second together, so
+they look like four cheap steps to add in front of `build`. They are CI's `docs` job instead, and
+the reason is the paragraph above: the green cache hashes `crates/`, `benches/`, `tests/`,
+`examples/`, `editors/` and `docs/reference/` -- and nothing else under `docs/`, on purpose,
+because "prose cannot break a build" is exactly what makes a re-run after step 4 free.
+
+Adding a docs gate here would break that either way it went. Left as it is, the gate would be
+skipped by a cache hit in precisely the case it exists for -- a session edits the plan, re-runs
+this, and gets a green verdict computed before the edit. Fixed by hashing `docs/`, every step-4
+doc edit would invalidate the cache and buy back the forty seconds the cache was measured saving
+in 33 of 41 sessions. A gate whose inputs the cache deliberately ignores does not belong behind
+the cache.
+
+The one docs check that *is* a step here is `reference.py`, and it is not an exception: it reads
+the binary `build` produced, so its input is hashed already, and `docs/novis.md` is written
+rather than read. The session-side gate for the rest is `session.py --wrap`, which refuses at the
+moment a wrap would write the breakage -- see its `playbook_collisions`.
 """
 
 from __future__ import annotations
