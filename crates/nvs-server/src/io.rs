@@ -304,3 +304,72 @@ impl Write for ConnectionIo {
         self.poll_flush(cx)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every state a connection can be in, so the sweep below is over the whole
+    /// type rather than over the three someone remembered. A variant added
+    /// without a line here is a variant with no assertion about its wait, and
+    /// the `match` in [`Phase::wait_in`] is what makes the omission a compile
+    /// error rather than a silent hole.
+    const EVERY_PHASE: [Phase; 4] = [Phase::Head, Phase::Body, Phase::Write, Phase::KeepAlive];
+
+    /// ADR 0097 § 5's four waits, from both sides: with nothing configured every
+    /// phase is bounded by a finite, non-zero wait, and each phase is bounded by
+    /// its **own** one.
+    ///
+    /// The second half is what a per-phase assertion cannot reach. Four defaults
+    /// that happen to be finite say nothing about a phase wired to the wrong
+    /// field, and two of § 5's four numbers are equal — `body_idle` and
+    /// `write_idle` are both `30s` — so a connection reading a body under the
+    /// write wait would read as correct against the defaults alone. The sweep
+    /// below gives all four distinct values for exactly that reason.
+    ///
+    /// The boot refusal of a written `0` or `false` is `nvs_config::server`'s
+    /// `E0619` and is asserted there, beside the block it reads. What is here is
+    /// the other half of the same claim: that having read four finite numbers,
+    /// this module bounds every state with one of them.
+    #[test]
+    fn the_four_idle_timeouts_are_finite() {
+        let defaults = Waits::default();
+        for phase in EVERY_PHASE {
+            let wait = phase.wait_in(&defaults);
+            assert!(
+                wait > Duration::ZERO,
+                "{phase:?} is unbounded with nothing configured"
+            );
+            // Not a tautology about `Duration`: § 5's defaults are seconds, and
+            // a phase that reached for an unset field would read as zero rather
+            // than as anything near this.
+            assert!(
+                wait <= Duration::from_secs(300),
+                "{phase:?} waits {wait:?}, which is not one of § 5's numbers"
+            );
+        }
+
+        // Four distinct waits, so each phase's answer names the field it is
+        // supposed to name and not merely a plausible number.
+        let distinct = Waits {
+            header: Duration::from_secs(1),
+            body_idle: Duration::from_secs(2),
+            write_idle: Duration::from_secs(3),
+            keepalive: Duration::from_secs(4),
+        };
+        let bounds: Vec<Duration> = EVERY_PHASE
+            .iter()
+            .map(|phase| phase.wait_in(&distinct))
+            .collect();
+        assert_eq!(
+            bounds,
+            vec![
+                distinct.header,
+                distinct.body_idle,
+                distinct.write_idle,
+                distinct.keepalive
+            ],
+            "a phase is bounded by a wait that is not its own"
+        );
+    }
+}
