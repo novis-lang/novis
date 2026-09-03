@@ -17,7 +17,7 @@ cheap way to decide *which* bullets a given file set implies. That is this scrip
     python tools/playbook.py --match <term>...     # bullets ranked against paths / crates / words
     python tools/playbook.py --manifest <term>...  # the same, as a paste-ready `playbook = [...]`
     python tools/playbook.py --goal                # --manifest driven by loop-goal.toml's modules
-    python tools/playbook.py --check               # stale paths, colliding selectors, sizes
+    python tools/playbook.py --check               # stale paths, colliding selectors, sizes (CI)
     python tools/playbook.py --dupes               # bullets that already say what another says
 
 A term is a path (`crates/nvs-ir/src/lower/expr.rs`), a crate (`nvs-ir`), a tool (`peek.py`) or a
@@ -37,8 +37,15 @@ charged to every session afterwards -- `--check` could see two of them, because 
 happened to collide as selectors, and was blind to the other three.
 
 Both report; neither deletes, and neither exits non-zero over a size (docs/agent/doc-style.md
-§ *Length targets*). Two bullets about one file are often two different traps, and only a reader
-can tell.
+§ *Length targets*) or over a stale-looking path. Two bullets about one file are often two
+different traps, and a path a bullet quotes may be gone precisely because the trap was closed --
+only a reader can tell either way.
+
+**One finding does gate, and `--check` exits 1 on it: a selector that does not resolve to exactly
+one bullet.** That is not a judgement call. `orient.py` fetches a trap by selector and a goal's
+`[context] playbook` names bullets that way, so a lead-in two bullets share, or one no selector
+reaches at all, is a trap the loop silently cannot deliver -- the session never learns it existed.
+CI's `docs` job runs this for that finding alone.
 """
 
 from __future__ import annotations
@@ -472,6 +479,16 @@ def run_check(text: str, every: list[dict]) -> int:
     report_manifest(text, indent="  ")
     print("\n  Nothing here refuses over a size. This is a number to weigh when a goal is")
     print("  written, which is the only moment it can be acted on cheaply.")
+
+    # A stale path and a size are judgement calls and stay reports. An unreachable selector is
+    # not: `orient.py` fetches a bullet by exactly this string, so a goal naming one that
+    # resolves to none or to two gets a trap it cannot be handed, and finds out never.
+    if bad:
+        print(f"\n  !! {bad} selector(s) above do not resolve to exactly one bullet. That is what")
+        print("  this exits non-zero on: `orient.py` fetches a trap by its selector, so a goal's")
+        print("  `[context] playbook` naming one of these is a trap the loop cannot deliver.")
+        print("  Reword the colliding lead-in -- the bullet's text, not this tool, is the fix.")
+        return 1
     return 0
 
 
