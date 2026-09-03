@@ -93,7 +93,12 @@ impl Dialect {
     }
 
     /// The `n`th marker, one-based, as the protocol wants to read it.
-    fn marker(self, n: usize) -> String {
+    ///
+    /// `pub(crate)` for SQL Server's sake alone: `sp_prepexec` is handed a
+    /// *declaration* of the parameters beside the SQL — `@p1 nvarchar(4000),…` —
+    /// and the names in it have to be the names this rewriter wrote. Asking
+    /// here is what keeps the two spellings one spelling.
+    pub(crate) fn marker(self, n: usize) -> String {
         match self {
             Dialect::PostgreSql => format!("${n}"),
             Dialect::MySql | Dialect::Sqlite => "?".to_string(),

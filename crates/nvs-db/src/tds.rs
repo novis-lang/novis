@@ -93,7 +93,7 @@ use crate::conn::{
     BlockError, ColumnType, DbErrorKind, Driver, ServerError, State, TdsConn, written_value,
 };
 use crate::span::QuerySpan;
-use crate::sql::{statement_cache_for, time_zone_for};
+use crate::sql::{Dialect, statement_cache_for, time_zone_for};
 
 /// The header in front of every packet: type, status, length, SPID, packet id,
 /// window.
@@ -1510,6 +1510,20 @@ const TOKEN_ROW: u8 = 0xD1;
 /// `NBCROW`: a [`TOKEN_ROW`] whose null columns are a bitmap in front of the
 /// values instead of a length each.
 const TOKEN_NBC_ROW: u8 = 0xD2;
+/// `RETURNSTATUS`: the integer a stored procedure returned, which only an RPC
+/// can produce.
+///
+/// `sp_prepexec` answers `0` for a statement it prepared and executed, and a
+/// non-zero value for one it refused — which the `ERROR` beside it has already
+/// said, in a sentence [`kind_of`] can normalise. So this is read to step over
+/// it rather than acted on.
+const TOKEN_RETURN_STATUS: u8 = 0x79;
+/// `RETURNVALUE`: one of a procedure's output parameters, coming back.
+///
+/// § 1's whole reason for calling `sp_prepexec` rather than `sp_executesql`:
+/// the handle the server allocated for the statement arrives in one of these,
+/// and the statement cache's key maps to it.
+const TOKEN_RETURN_VALUE: u8 = 0xAC;
 /// `DONE`: the end of one statement's answer.
 const TOKEN_DONE: u8 = 0xFD;
 /// `DONEPROC`: `DONE` for a stored procedure, which § 13's `sp_reset_connection`
@@ -1724,8 +1738,52 @@ pub enum Token {
     /// distinguish that from a result set of no columns, which no server sends,
     /// so the two are one case here rather than a variant that is never taken.
     Columns(Vec<TdsColumn>),
+    /// A procedure returned, and this is what it returned —
+    /// [`TOKEN_RETURN_STATUS`] owns why nothing acts on the number.
+    ReturnStatus(i32),
+    /// One of a procedure's output parameters came back.
+    ReturnValue(ReturnValue),
     /// A statement's answer ended.
     Done(Done),
+}
+
+/// A `RETURNVALUE` token: one output parameter of the procedure that was
+/// called, named as the procedure declares it.
+///
+/// The value is owned rather than borrowed, unlike every other token's bytes,
+/// because [`TdsRows`] parses its tokens out of a buffer it then refills over —
+/// and this is the one token whose *payload* a caller keeps past the parse. It
+/// is at most a handle: § 1 calls one procedure and asks for one integer back.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReturnValue {
+    /// Which parameter of the call this is, one-based, as the server counted
+    /// it. Read for a caller that asked for more than one output parameter;
+    /// § 1 asks for a single one and reads [`ReturnValue::as_i32`] instead.
+    pub ordinal: u16,
+    /// The parameter's name as the procedure declares it — `@handle` for
+    /// `sp_prepexec`'s. A caller that sent the parameter unnamed still gets
+    /// this, since it is the *procedure's* spelling and not the request's.
+    pub name: String,
+    /// What the server said the value's type is.
+    pub type_info: TypeInfo,
+    /// The value's bytes, or `None` for SQL `NULL` — which is what an output
+    /// parameter a procedure never assigned comes back as.
+    pub value: Option<Vec<u8>>,
+}
+
+impl ReturnValue {
+    /// The value as a four-byte little-endian integer, or `None` where it is
+    /// null or is not four bytes wide.
+    ///
+    /// The one shape § 1 reads: `sp_prepexec` hands its handle back as an
+    /// `INTN` of four bytes. Narrower is not silently widened — a server that
+    /// answered a two-byte handle is one this driver has no account of, and
+    /// reading it as a number would be inventing the two bytes it did not send.
+    #[must_use]
+    pub fn as_i32(&self) -> Option<i32> {
+        let bytes: [u8; 4] = self.value.as_deref()?.try_into().ok()?;
+        Some(i32::from_le_bytes(bytes))
+    }
 }
 
 /// A `DONE`, `DONEPROC` or `DONEINPROC` token: one statement's answer ended.
@@ -1737,6 +1795,15 @@ pub struct Done {
     /// Which command this ends, which no caller here reads: the token stream is
     /// already in order.
     pub command: u16,
+    /// Whether this was a `DONEINPROC` — one statement *inside* a procedure
+    /// ending, rather than the answer.
+    ///
+    /// Not a status bit, which is why it is a field beside them rather than a
+    /// method over `status`: the three ends are three token *bytes*, and only
+    /// this one is guaranteed to have something behind it. A reader that
+    /// stopped on it would end an `sp_prepexec` answer before the
+    /// `RETURNVALUE` carrying § 1's handle, which is sent after the rows.
+    pub in_proc: bool,
     /// The row count, meaningful only where [`Done::counted`] says so.
     pub rows: u64,
 }
@@ -2078,7 +2145,11 @@ impl<'a> Tokens<'a> {
             TOKEN_LOGIN_ACK => Token::LoginAck(self.login_ack()?),
             TOKEN_ENV_CHANGE => Token::Env(self.env_change()?),
             TOKEN_COL_METADATA => Token::Columns(self.columns()?),
-            TOKEN_DONE | TOKEN_DONE_PROC | TOKEN_DONE_IN_PROC => Token::Done(self.done()?),
+            TOKEN_RETURN_STATUS => Token::ReturnStatus(self.signed("RETURNSTATUS")?),
+            TOKEN_RETURN_VALUE => Token::ReturnValue(self.return_value()?),
+            TOKEN_DONE | TOKEN_DONE_PROC | TOKEN_DONE_IN_PROC => {
+                Token::Done(self.done(kind == TOKEN_DONE_IN_PROC)?)
+            }
             other => {
                 return Err(malformed(format!(
                     "a TDS response carried token 0x{other:02X}, which this driver does not read"
@@ -2129,6 +2200,16 @@ impl<'a> Tokens<'a> {
     fn long(&mut self, what: &'static str) -> io::Result<u32> {
         let bytes = self.take(4, what)?;
         Ok(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+    }
+
+    /// A little-endian `i32`.
+    ///
+    /// `RETURNSTATUS` is the one signed field this driver reads: a procedure
+    /// returns whatever integer it likes, and the convention is that a negative
+    /// one is a failure.
+    fn signed(&mut self, what: &'static str) -> io::Result<i32> {
+        let bytes = self.take(4, what)?;
+        Ok(i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
     }
 
     /// `characters` UCS-2LE characters, as a `String`.
@@ -2252,13 +2333,14 @@ impl<'a> Tokens<'a> {
 
     /// A `DONE`, `DONEPROC` or `DONEINPROC` token: twelve fixed bytes with no
     /// length in front of them.
-    fn done(&mut self) -> io::Result<Done> {
+    fn done(&mut self, in_proc: bool) -> io::Result<Done> {
         let status = self.short("DONE")?;
         let command = self.short("DONE")?;
         let rows = self.take(8, "DONE")?;
         Ok(Done {
             status,
             command,
+            in_proc,
             rows: u64::from_le_bytes(rows.try_into().expect("eight bytes")),
         })
     }
@@ -2307,6 +2389,111 @@ impl<'a> Tokens<'a> {
             });
         }
         Ok(columns)
+    }
+
+    /// A `RETURNVALUE`: which output parameter it is, what type the server gave
+    /// it, and its bytes.
+    ///
+    /// The `Flags` field is read and dropped. It describes the *column* an
+    /// output parameter would have if it were one — nullable, updateable — and
+    /// a value that came back has already answered the only question here,
+    /// which is whether it is null.
+    fn return_value(&mut self) -> io::Result<ReturnValue> {
+        const WHAT: &str = "RETURNVALUE";
+
+        let ordinal = self.short(WHAT)?;
+        let name = self.b_varchar(WHAT)?;
+        // `Status`: 0x01 for an RPC's output parameter and 0x02 for a
+        // user-defined function's return value. Nothing here calls a UDF, and a
+        // caller that did would read the same bytes either way.
+        self.byte(WHAT)?;
+        self.long(WHAT)?;
+        self.short(WHAT)?;
+        let type_info = self.type_info()?;
+        let value = self.value(type_info)?;
+        Ok(ReturnValue {
+            ordinal,
+            name,
+            type_info,
+            value,
+        })
+    }
+
+    /// One value, measured by its own `TYPE_INFO`, or `None` for SQL `NULL`.
+    ///
+    /// [`TdsRows::value`]'s table over a payload that is all there, rather than
+    /// over a buffer that refills — which is the whole of the difference, and
+    /// the reason the two are not one function. That one copies into a row's
+    /// bytes as chunks arrive so a `PLP` value never sits in the buffer twice;
+    /// this one is reading a message [`Wire::read_message`] has already
+    /// assembled, so there is no second copy to avoid. It is also the narrower
+    /// job: a `RETURNVALUE` is the only token that reaches here, and § 1 asks
+    /// for a four-byte handle.
+    fn value(&mut self, info: TypeInfo) -> io::Result<Option<Vec<u8>>> {
+        const WHAT: &str = "value";
+
+        if info.id == TY_NULL {
+            return Ok(None);
+        }
+        let length = match info.length {
+            Length::Fixed(width) => width,
+            Length::Byte(_) => match self.byte(WHAT)? {
+                0 => return Ok(None),
+                length => usize::from(length),
+            },
+            Length::Short(_) => match self.short(WHAT)? {
+                NO_LENGTH => return Ok(None),
+                length => usize::from(length),
+            },
+            Length::Long(_) => {
+                if matches!(info.id, TY_TEXT | TY_NTEXT | TY_IMAGE) {
+                    let pointer = self.byte(WHAT)?;
+                    if pointer == 0 {
+                        return Ok(None);
+                    }
+                    self.take(usize::from(pointer) + TEXT_TIMESTAMP, WHAT)?;
+                }
+                let declared = self.long(WHAT)?;
+                if declared == NO_LENGTH_LONG || (declared == 0 && info.id == TY_VARIANT) {
+                    return Ok(None);
+                }
+                as_usize(declared)?
+            }
+            Length::Partial => return self.partial(),
+        };
+        Ok(Some(self.take(length, WHAT)?.to_vec()))
+    }
+
+    /// A `PLP` value: a declared total or a sentinel, then chunks until an empty
+    /// one, joined.
+    ///
+    /// The total is checked against what the chunks carried for
+    /// [`TdsRows::partial_value`]'s reason — it is the server's word about bytes
+    /// it had not sent yet, and a value that disagrees with it is a message this
+    /// reader cannot prove its position in.
+    fn partial(&mut self) -> io::Result<Option<Vec<u8>>> {
+        const WHAT: &str = "PLP value";
+
+        let bytes = self.take(8, WHAT)?;
+        let total = u64::from_le_bytes(bytes.try_into().expect("eight bytes, as asked for"));
+        if total == PLP_NULL {
+            return Ok(None);
+        }
+        let mut out = Vec::new();
+        loop {
+            let chunk = self.long(WHAT)?;
+            if chunk == 0 {
+                break;
+            }
+            out.extend_from_slice(self.take(as_usize(chunk)?, WHAT)?);
+        }
+        let read = out.len() as u64;
+        if total != PLP_UNKNOWN && read != total {
+            return Err(malformed(format!(
+                "a TDS PLP value declared {total} byte(s) and its chunks carried {read}"
+            )));
+        }
+        Ok(Some(out))
     }
 
     /// A `TYPE_INFO`: the type byte, then whatever that type declares about
@@ -2410,7 +2597,7 @@ impl<'a> Tokens<'a> {
             }
             other => {
                 return Err(malformed(format!(
-                    "a TDS COLMETADATA described a column as type 0x{other:02X}, which this driver \
+                    "a TDS TYPE_INFO described a value as type 0x{other:02X}, which this driver \
                      does not read"
                 )));
             }
@@ -2548,6 +2735,8 @@ pub fn login<S: Read + Write>(wire: &mut Wire<S>, target: &TdsTarget<'_>) -> io:
             | Token::Info(_)
             | Token::Env(_)
             | Token::Columns(_)
+            | Token::ReturnStatus(_)
+            | Token::ReturnValue(_)
             | Token::Done(_) => {}
         }
     }
@@ -2623,6 +2812,15 @@ pub struct TdsRows<'a, S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     /// Whether the stream has ended, by any of its three ends: a `DONE`, the
     /// server's refusal, or a decode this driver will not continue past.
     ended: bool,
+    /// The last `RETURNVALUE` the answer carried, which for § 1's `sp_prepexec`
+    /// is the handle the server allocated.
+    ///
+    /// The *last* rather than all of them because a procedure this driver calls
+    /// declares one output parameter, and a `Vec` for a list that is one long
+    /// would be an allocation on every statement. It arrives near the end of
+    /// the stream, after the rows, so a caller reads it once
+    /// [`TdsRows::next_row`] has answered `None` — see [`TdsRows::returned`].
+    returned: Option<ReturnValue>,
     /// [ADR 0067 § 11](../../../docs/adr/0067-core-db.md)'s trace event for this
     /// statement, opened when the request went out and ended by whatever ends
     /// the stream — [`crate::MySqlRows`]' field, for [`crate::span`]'s reasons.
@@ -2696,6 +2894,19 @@ impl<S: Read + Write> TdsRows<'_, S> {
         }
     }
 
+    /// The output parameter the procedure came back with, once the stream has
+    /// reached it.
+    ///
+    /// For § 1's `sp_prepexec` that is the statement handle, and it arrives
+    /// **after** the rows: the server sends `RETURNVALUE` next to the
+    /// `RETURNSTATUS` that ends the procedure, so a caller filing the handle in
+    /// the statement cache does it when the stream has ended and not when it
+    /// opened. A statement that was never a procedure call answers `None`.
+    #[must_use]
+    pub fn returned(&self) -> Option<&ReturnValue> {
+        self.returned.as_ref()
+    }
+
     /// The next row, or `None` once the stream has ended.
     ///
     /// Deliberately not `Iterator::next`, for [`crate::PgRows::next_row`]'s
@@ -2745,7 +2956,8 @@ impl<S: Read + Write> TdsRows<'_, S> {
                     return Ok(Some(row));
                 }
                 Some(_) => match self.token()? {
-                    Some(Token::Info(_) | Token::Env(_)) => {}
+                    Some(Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_)) => {}
+                    Some(Token::ReturnValue(returned)) => self.returned = Some(returned),
                     Some(Token::Error(message)) => {
                         if refusal.is_none() {
                             refusal = Some(message);
@@ -2755,13 +2967,14 @@ impl<S: Read + Write> TdsRows<'_, S> {
                         if done.counted() {
                             self.counted = Some(done.rows);
                         }
-                        // `DONEINPROC` is never the last token of an answer, and
-                        // a `DONE` that says more results follow is a batch this
-                        // surface has nowhere to put — the second `COLMETADATA`
-                        // below is where that is refused, once the tokens
-                        // between here and it have been read rather than
-                        // abandoned mid-packet.
-                        if done.more() {
+                        // `DONEINPROC` is never the last token of an answer —
+                        // § 1's `sp_prepexec` sends the `RETURNVALUE` carrying
+                        // its handle after one — and a `DONE` that says more
+                        // results follow is a batch this surface has nowhere to
+                        // put: the second `COLMETADATA` below is where that is
+                        // refused, once the tokens between here and it have been
+                        // read rather than abandoned mid-packet.
+                        if done.more() || done.in_proc {
                             continue;
                         }
                         self.end(refusal.is_some())?;
@@ -3239,6 +3452,7 @@ pub fn read_rows<'a, S: Read + Write>(
         rows: 0,
         counted: None,
         ended: false,
+        returned: None,
         span,
     };
     match rows.shape() {
@@ -3258,7 +3472,8 @@ impl<S: Read + Write> TdsRows<'_, S> {
                     self.columns = columns;
                     return Ok(());
                 }
-                Some(Token::Info(_) | Token::Env(_)) => {}
+                Some(Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_)) => {}
+                Some(Token::ReturnValue(returned)) => self.returned = Some(returned),
                 Some(Token::Error(message)) => {
                     if refusal.is_none() {
                         refusal = Some(message);
@@ -3268,7 +3483,8 @@ impl<S: Read + Write> TdsRows<'_, S> {
                     if done.counted() {
                         self.counted = Some(done.rows);
                     }
-                    if done.more() {
+                    // [`TdsRows::step`]'s test, for its reasons.
+                    if done.more() || done.in_proc {
                         continue;
                     }
                     self.end(refusal.is_some())?;
@@ -3287,6 +3503,303 @@ impl<S: Read + Write> TdsRows<'_, S> {
             }
         }
     }
+}
+
+/// `sp_prepexec`'s procedure id — MS-TDS § 2.2.6.6's `Sp_PrepExec`.
+///
+/// Called by number rather than by name. The id is the shorter form of
+/// `NameLenProcID` and it saves the server the lookup as well as the bytes,
+/// which is the whole difference between the two spellings.
+const PROC_SP_PREPEXEC: u16 = 13;
+
+/// `NameLenProcID`'s first field when what follows is a procedure *id* rather
+/// than a name.
+const PROC_ID_SWITCH: u16 = 0xFFFF;
+
+/// `ALL_HEADERS`'s `TotalLength`, which counts itself: its own four bytes plus
+/// the eighteen of the one header every request here carries.
+const ALL_HEADERS_BYTES: u32 = 22;
+
+/// The transaction-descriptor header's own length, likewise counting itself.
+const TRANSACTION_HEADER_BYTES: u32 = 18;
+
+/// `HeaderType` for that header, which is the only one of the three a request
+/// may carry that TDS 7.2 and later require.
+const HEADER_TRANSACTION: u16 = 0x0002;
+
+/// `StatusFlags` for a parameter the server may write back —
+/// `sp_prepexec`'s `@handle`, and nothing else this driver sends.
+const PARAM_BY_REF: u8 = 0x01;
+
+/// `INTN`'s declared width for the one integer parameter this driver sends.
+const INTN_BYTES: u8 = 4;
+
+/// The widest `nvarchar` that is not a `MAX` one, in characters. A value past
+/// it is declared and sent as `nvarchar(max)`, which arrives in `PLP` chunks.
+const NVARCHAR_CHARS: u16 = 4000;
+
+/// A parameter's `COLLATION`, all zeroes, which is TDS's spelling of *the
+/// server's own default*.
+///
+/// The field decides how a value **compares**, never how it is carried:
+/// `nvarchar` is UCS-2 whatever the collation says. Sending anything else would
+/// be this driver deciding a sort order for someone else's database.
+const NO_COLLATION: [u8; 5] = [0; 5];
+
+/// [ADR 0067 § 1](../../../docs/adr/0067-core-db.md)'s prepare and execute in
+/// one message: `sp_prepexec`, carrying § 5's rewritten SQL and its parameters
+/// as the procedure's own arguments.
+///
+/// **`sp_prepexec` rather than `sp_executesql` because § 1 keeps a statement
+/// cache.** Both send the SQL and the parameters in one round trip; only this
+/// one hands back a handle, and the handle is what a later `sp_execute` costs
+/// nothing to run. The first execution of a statement is therefore one round
+/// trip here — where § 1 records two for MySQL — and a cached one is one as
+/// well, with no SQL on the wire at all.
+///
+/// **Every parameter goes out as `nvarchar` and the server casts it**, which is
+/// [`crate::mysql::execute`]'s `MYSQL_TYPE_VAR_STRING` account reached through a
+/// different protocol: the values arrive here already encoded as text by the
+/// layer that knows what they are, and no byte of one is ever parsed as SQL —
+/// § 1's no-emulated-prepares rule holds as a property of this function, since
+/// `sql` is a separate argument to the procedure and never a string a value is
+/// spliced into. The `@params` declaration beside it is what makes the cast the
+/// *server's* decision rather than a guess: it names each marker's type, and
+/// [`Dialect::marker`] is asked for the names so that the declaration and the
+/// rewritten SQL cannot drift apart.
+///
+/// **A parameter that is not UTF-8 is refused rather than reinterpreted.** § 9's
+/// `bytes` maps to `varbinary`, and `nvarchar` → `varbinary` on SQL Server is a
+/// reinterpretation of UCS-2 code units rather than a parse — so a binary
+/// parameter needs an encoding of its own, which is the encoder's slice and not
+/// this one's. Refusing is what keeps that gap visible instead of silently
+/// storing the wrong bytes.
+///
+/// # Errors
+///
+/// `InvalidInput` for a parameter that is not UTF-8, and for one whose UCS-2
+/// form is past [`MAX_MESSAGE`].
+pub fn sp_prepexec_request(sql: &str, params: &[Option<&[u8]>]) -> io::Result<Vec<u8>> {
+    let mut bound: Vec<Option<Vec<u8>>> = Vec::with_capacity(params.len());
+    for (index, value) in params.iter().enumerate() {
+        bound.push(match value {
+            None => None,
+            Some(bytes) => Some(ucs2_of(text_of(bytes, index + 1)?)),
+        });
+    }
+
+    let mut out = Vec::new();
+    all_headers(&mut out);
+    out.extend_from_slice(&PROC_ID_SWITCH.to_le_bytes());
+    out.extend_from_slice(&PROC_SP_PREPEXEC.to_le_bytes());
+    // `OptionFlags`: neither `fWithRecomp` nor the two metadata ones. A
+    // recompile on every execution is the opposite of what § 1's cache is for.
+    out.extend_from_slice(&0u16.to_le_bytes());
+
+    // `@handle`, sent null and by reference: the server allocates the plan and
+    // writes the number back in the `RETURNVALUE` [`TdsRows::returned`] keeps.
+    int_param(&mut out, true, None);
+    let declared = declarations(&bound);
+    text_param(&mut out, declared.as_deref().map(ucs2_of), "@params")?;
+    text_param(&mut out, Some(ucs2_of(sql)), "@stmt")?;
+    for (index, value) in bound.into_iter().enumerate() {
+        text_param(&mut out, value, &Dialect::SqlServer.marker(index + 1))?;
+    }
+    Ok(out)
+}
+
+/// One bound value as text, or the refusal that names the marker it was bound
+/// at.
+fn text_of(value: &[u8], marker: usize) -> io::Result<&str> {
+    std::str::from_utf8(value).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "the value bound at {} is not UTF-8, and this driver sends every parameter as \
+                 `nvarchar` — ADR 0067 § 9's `bytes` needs an encoding of its own here rather \
+                 than a reinterpretation of these bytes as UCS-2",
+                Dialect::SqlServer.marker(marker)
+            ),
+        )
+    })
+}
+
+/// Text as UCS-2LE, which is the one form TDS carries a character value in.
+fn ucs2_of(text: &str) -> Vec<u8> {
+    text.encode_utf16().flat_map(u16::to_le_bytes).collect()
+}
+
+/// Whether a value needs the `MAX` form — the one decision `@params` and the
+/// parameter itself have to agree on, so it is asked once and here.
+fn is_wide(ucs2: &[u8]) -> bool {
+    ucs2.len() > usize::from(NVARCHAR_CHARS) * 2
+}
+
+/// A request's `ALL_HEADERS`: the transaction descriptor TDS 7.2 and later
+/// require, and nothing else.
+fn all_headers(out: &mut Vec<u8>) {
+    out.extend_from_slice(&ALL_HEADERS_BYTES.to_le_bytes());
+    out.extend_from_slice(&TRANSACTION_HEADER_BYTES.to_le_bytes());
+    out.extend_from_slice(&HEADER_TRANSACTION.to_le_bytes());
+    // The transaction this request enlists in, and zero is *none*. § 7's
+    // transactions are statements on this connection rather than the descriptor
+    // MARS needs, so there is never a number to name here.
+    out.extend_from_slice(&0u64.to_le_bytes());
+    // `OutstandingRequestCount`: one, which is all § 4 ever allows in flight.
+    out.extend_from_slice(&1u32.to_le_bytes());
+}
+
+/// `sp_prepexec`'s `@params`: § 5's markers with the type each is sent as, or
+/// `None` for a statement that binds nothing — which the procedure reads as a
+/// plan with no parameters, and an empty string would not.
+fn declarations(bound: &[Option<Vec<u8>>]) -> Option<String> {
+    if bound.is_empty() {
+        return None;
+    }
+    let mut out = String::new();
+    for (index, value) in bound.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(&Dialect::SqlServer.marker(index + 1));
+        // A null is declared narrow: it carries no characters, so nothing about
+        // it wants the `MAX` form, and the plan a later execution of the same
+        // statement reuses is the one compiled against the narrow declaration.
+        match value {
+            Some(ucs2) if is_wide(ucs2) => out.push_str(" nvarchar(max)"),
+            _ => out.push_str(&format!(" nvarchar({NVARCHAR_CHARS})")),
+        }
+    }
+    Some(out)
+}
+
+/// A parameter's `ParamMetaData` up to its `TYPE_INFO`.
+///
+/// The name is always empty. A procedure's arguments are read positionally when
+/// they are unnamed, and naming them would put SQL Server's own spelling of
+/// `sp_prepexec`'s parameters in this driver — a thing a release is free to
+/// change and this driver would have no way to notice.
+fn param_header(out: &mut Vec<u8>, by_ref: bool) {
+    out.push(0);
+    out.push(if by_ref { PARAM_BY_REF } else { 0 });
+}
+
+/// An `INTN` argument: four bytes, or `NULL` at a length of zero.
+fn int_param(out: &mut Vec<u8>, by_ref: bool, value: Option<i32>) {
+    param_header(out, by_ref);
+    out.push(TY_INTN);
+    out.push(INTN_BYTES);
+    match value {
+        None => out.push(0),
+        Some(number) => {
+            out.push(INTN_BYTES);
+            out.extend_from_slice(&number.to_le_bytes());
+        }
+    }
+}
+
+/// An `NVARCHAR` argument, in whichever of its two forms the value fits:
+/// `USHORTLEN` up to [`NVARCHAR_CHARS`], and `PLP` past it.
+///
+/// `what` is the marker or procedure parameter the value was bound at, for the
+/// refusal alone — the request itself sends no names.
+///
+/// # Errors
+///
+/// `InvalidInput` for a value past [`MAX_MESSAGE`], which is the ceiling this
+/// driver reads a message to and therefore the widest one it is willing to
+/// write.
+fn text_param(out: &mut Vec<u8>, value: Option<Vec<u8>>, what: &str) -> io::Result<()> {
+    param_header(out, false);
+    out.push(TY_NVARCHAR);
+
+    let wide = value.as_deref().is_some_and(is_wide);
+    if wide {
+        out.extend_from_slice(&NO_LENGTH.to_le_bytes());
+    } else {
+        out.extend_from_slice(&(NVARCHAR_CHARS * 2).to_le_bytes());
+    }
+    out.extend_from_slice(&NO_COLLATION);
+
+    let Some(ucs2) = value else {
+        // The null of whichever form the type declared, which are two different
+        // sentinels rather than one.
+        if wide {
+            out.extend_from_slice(&PLP_NULL.to_le_bytes());
+        } else {
+            out.extend_from_slice(&NO_LENGTH.to_le_bytes());
+        }
+        return Ok(());
+    };
+    if ucs2.len() > MAX_MESSAGE {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "the value bound at {what} is {} byte(s) of UCS-2, past the {MAX_MESSAGE} a TDS \
+                 message holds",
+                ucs2.len()
+            ),
+        ));
+    }
+    let length = u32::try_from(ucs2.len()).expect("checked against MAX_MESSAGE above");
+    if wide {
+        // One chunk and its terminator. The value is in hand, so the declared
+        // total is the truth rather than `PLP_UNKNOWN`, and a server reading it
+        // can size its buffer once.
+        out.extend_from_slice(&u64::from(length).to_le_bytes());
+        out.extend_from_slice(&length.to_le_bytes());
+        out.extend_from_slice(&ucs2);
+        out.extend_from_slice(&0u32.to_le_bytes());
+    } else {
+        let short = u16::try_from(length).expect("narrower than NVARCHAR_CHARS characters");
+        out.extend_from_slice(&short.to_le_bytes());
+        out.extend_from_slice(&ucs2);
+    }
+    Ok(())
+}
+
+/// [ADR 0067 §§ 1 and 4](../../../docs/adr/0067-core-db.md)'s one statement,
+/// end to end: the RPC out, and the token stream that answers it.
+///
+/// [`crate::mysql::start_statement`]'s shape and its reasons — free and generic
+/// in the stream so a unit test can script a server for it, and taking the busy
+/// state by reference so § 4's one-statement-at-a-time rule is enforced here
+/// rather than by each caller remembering to.
+///
+/// It does **not** file the handle `sp_prepexec` returns yet: § 1's statement
+/// cache is the next slice, and until it lands every execution prepares a fresh
+/// plan that lives until the connection closes. [`TdsRows::returned`] is where
+/// that handle arrives, and it arrives after the rows.
+///
+/// # Errors
+///
+/// `InvalidInput` for a statement written to a connection that is not idle and
+/// for [`sp_prepexec_request`]'s refusals — neither of which touches the wire,
+/// so neither poisons the connection; otherwise as [`read_rows`]. A write that
+/// failed part-way leaves the connection [`State::Poisoned`], because a
+/// half-written packet is not a boundary anything can be found from.
+pub fn start_statement<'a, S: Read + Write>(
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    sql: &str,
+    params: &[Option<&[u8]>],
+) -> io::Result<TdsRows<'a, S>> {
+    if !state.get().may_start_statement() {
+        return Err(crate::pg::second_statement(state));
+    }
+
+    // ADR 0067 § 11's span, opened before the request goes out and handed `sql`
+    // and never `params` — `crate::span`'s module doc owns why that is a
+    // signature rather than a rule.
+    let span = QuerySpan::opened(Driver::SqlServer, sql);
+    let request = sp_prepexec_request(sql, params)?;
+
+    state.set(State::Executing);
+    if let Err(e) = wire.send(PacketType::Rpc, Status::NORMAL, &request) {
+        state.set(State::Poisoned);
+        return Err(e);
+    }
+    read_rows(wire, state, span)
 }
 
 /// The refusal for an answer the server stopped sending without ending it.
@@ -4320,6 +4833,14 @@ mod tests {
         out.extend_from_slice(&status.to_le_bytes());
         out.extend_from_slice(&0u16.to_le_bytes());
         out.extend_from_slice(&rows.to_le_bytes());
+        out
+    }
+
+    /// A `DONEINPROC` or a `DONEPROC`, which are the same twelve bytes under
+    /// another type byte.
+    fn done_kind(kind: u8, status: u16, rows: u64) -> Vec<u8> {
+        let mut out = done_token(status, rows);
+        out[0] = kind;
         out
     }
 
@@ -5457,5 +5978,403 @@ mod tests {
         assert_eq!(error.driver_code, Some(208));
         assert!(error.sql_state.is_empty(), "TDS sends no SQLSTATE");
         assert_eq!(state.get(), State::Idle);
+    }
+
+    // ---- The RPC out, and the two tokens a procedure answers with: §§ 1 and 5 -
+
+    /// One argument of an RPC, read back off the request that carried it.
+    #[derive(Debug, PartialEq, Eq)]
+    struct SentParam {
+        by_ref: bool,
+        type_id: u8,
+        /// The width the `TYPE_INFO` declared: `NO_LENGTH` is the `MAX` form.
+        declared: u16,
+        /// The value as text, and `None` for the null of whichever form.
+        text: Option<String>,
+    }
+
+    /// Walks a request the way a server does: past its headers, then one
+    /// argument at a time until the message ends.
+    ///
+    /// Deliberately a walk rather than a table of offsets — a parameter's extent
+    /// depends on the one before it, so an offset asserted by hand would pass on
+    /// a request whose *earlier* fields were the wrong width.
+    fn sent_rpc(request: &[u8]) -> (u16, Vec<SentParam>) {
+        assert_eq!(
+            u32::from_le_bytes(request[0..4].try_into().unwrap()),
+            ALL_HEADERS_BYTES
+        );
+        assert_eq!(
+            u32::from_le_bytes(request[4..8].try_into().unwrap()),
+            TRANSACTION_HEADER_BYTES
+        );
+        assert_eq!(
+            u16::from_le_bytes([request[8], request[9]]),
+            HEADER_TRANSACTION
+        );
+        assert_eq!(request[10..18], [0; 8], "no transaction descriptor");
+        assert_eq!(u32::from_le_bytes(request[18..22].try_into().unwrap()), 1);
+        assert_eq!(
+            u16::from_le_bytes([request[22], request[23]]),
+            PROC_ID_SWITCH
+        );
+        let proc_id = u16::from_le_bytes([request[24], request[25]]);
+        assert_eq!(u16::from_le_bytes([request[26], request[27]]), 0);
+
+        let mut at = usize::try_from(ALL_HEADERS_BYTES).expect("twenty-two") + 6;
+        let mut params = Vec::new();
+        while at < request.len() {
+            assert_eq!(request[at], 0, "every argument goes out unnamed");
+            let by_ref = request[at + 1] == PARAM_BY_REF;
+            let type_id = request[at + 2];
+            at += 3;
+            let (declared, text) = match type_id {
+                TY_INTN => {
+                    let declared = u16::from(request[at]);
+                    let length = usize::from(request[at + 1]);
+                    at += 2 + length;
+                    let text = (length > 0).then(|| {
+                        let bytes = &request[at - length..at];
+                        i32::from_le_bytes(bytes.try_into().unwrap()).to_string()
+                    });
+                    (declared, text)
+                }
+                TY_NVARCHAR => {
+                    let declared = u16::from_le_bytes([request[at], request[at + 1]]);
+                    assert_eq!(request[at + 2..at + 7], NO_COLLATION);
+                    at += 7;
+                    let mut bytes = Vec::new();
+                    let null;
+                    if declared == NO_LENGTH {
+                        let total = u64::from_le_bytes(request[at..at + 8].try_into().unwrap());
+                        at += 8;
+                        null = total == PLP_NULL;
+                        if !null {
+                            loop {
+                                let chunk = usize::try_from(u32::from_le_bytes(
+                                    request[at..at + 4].try_into().unwrap(),
+                                ))
+                                .unwrap();
+                                at += 4;
+                                if chunk == 0 {
+                                    break;
+                                }
+                                bytes.extend_from_slice(&request[at..at + chunk]);
+                                at += chunk;
+                            }
+                            assert_eq!(
+                                u64::try_from(bytes.len()).unwrap(),
+                                total,
+                                "the declared total is the truth, not a sentinel"
+                            );
+                        }
+                    } else {
+                        let length =
+                            usize::from(u16::from_le_bytes([request[at], request[at + 1]]));
+                        at += 2;
+                        null = length == usize::from(NO_LENGTH);
+                        if !null {
+                            bytes.extend_from_slice(&request[at..at + length]);
+                            at += length;
+                        }
+                    }
+                    let units: Vec<u16> = bytes
+                        .chunks_exact(2)
+                        .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+                        .collect();
+                    (
+                        declared,
+                        (!null).then(|| String::from_utf16(&units).expect("what we wrote")),
+                    )
+                }
+                other => panic!("this driver sends no argument of type 0x{other:02X}"),
+            };
+            params.push(SentParam {
+                by_ref,
+                type_id,
+                declared,
+                text,
+            });
+        }
+        (proc_id, params)
+    }
+
+    #[test]
+    fn an_rpc_names_sp_prepexec_and_carries_a_handle_a_declaration_the_sql_and_every_value() {
+        let request = sp_prepexec_request(
+            "select * from t where a = @p1 and b = @p2",
+            &[Some(b"7"), None],
+        )
+        .expect("two bound values");
+        let (proc_id, params) = sent_rpc(&request);
+
+        assert_eq!(proc_id, PROC_SP_PREPEXEC);
+        assert_eq!(
+            params.len(),
+            5,
+            "the handle, @params, @stmt, and two values"
+        );
+        assert_eq!(
+            params[0],
+            SentParam {
+                by_ref: true,
+                type_id: TY_INTN,
+                declared: u16::from(INTN_BYTES),
+                text: None,
+            },
+            "the handle goes out null and by reference, for the server to fill in"
+        );
+        assert!(params[1..].iter().all(|param| !param.by_ref));
+        assert_eq!(
+            params[1].text.as_deref(),
+            Some("@p1 nvarchar(4000),@p2 nvarchar(4000)")
+        );
+        assert_eq!(
+            params[2].text.as_deref(),
+            Some("select * from t where a = @p1 and b = @p2"),
+            "the SQL is an argument to the procedure and never a string a value \
+             was spliced into"
+        );
+        assert_eq!(params[3].text.as_deref(), Some("7"));
+        assert_eq!(params[4].text, None, "a bound null is the type's own null");
+    }
+
+    /// A statement that binds nothing declares nothing, and `@params` is null
+    /// rather than empty: an empty declaration is a plan with a parameter list
+    /// the server then finds no parameters for.
+    #[test]
+    fn a_statement_that_binds_nothing_sends_a_null_declaration_and_no_values() {
+        let request = sp_prepexec_request("select 1", &[]).expect("no bound values");
+        let (_, params) = sent_rpc(&request);
+
+        assert_eq!(params.len(), 3);
+        assert_eq!(params[1].text, None, "@params");
+        assert_eq!(params[2].text.as_deref(), Some("select 1"));
+    }
+
+    /// Agreement, over § 5's own rewriter: the names `@params` declares are the
+    /// names the rewritten SQL uses, because both ask [`Dialect::marker`].
+    #[test]
+    fn a_declarations_markers_are_the_ones_section_fives_rewriter_wrote() {
+        let statement = crate::sql::rewrite(
+            "insert into t values (?, ?, ?)",
+            crate::sql::Params::Positional(&[
+                crate::sql::Binding::One,
+                crate::sql::Binding::One,
+                crate::sql::Binding::One,
+            ]),
+            Dialect::SqlServer,
+        )
+        .expect("three positional markers");
+
+        let request = sp_prepexec_request(&statement.sql, &[Some(b"a"), Some(b"b"), Some(b"c")])
+            .expect("three bound values");
+        let (_, params) = sent_rpc(&request);
+        let declared = params[1].text.clone().expect("a declaration");
+
+        assert_eq!(statement.arity(), 3);
+        for marker in declared.split(',') {
+            let name = marker.split(' ').next().expect("a name and a type");
+            assert!(
+                statement.sql.contains(name),
+                "{name} is declared and never written: {}",
+                statement.sql
+            );
+        }
+    }
+
+    /// Both sides of the bound `sp_prepexec` is told about: 4,000 characters is
+    /// the widest `nvarchar` that is not a `MAX` one, and 4,001 is not a
+    /// narrower one.
+    #[test]
+    fn a_value_past_four_thousand_characters_is_declared_and_sent_as_max() {
+        for (chars, declared, spelling) in [
+            (
+                usize::from(NVARCHAR_CHARS),
+                NVARCHAR_CHARS * 2,
+                "nvarchar(4000)",
+            ),
+            (usize::from(NVARCHAR_CHARS) + 1, NO_LENGTH, "nvarchar(max)"),
+        ] {
+            let value = "x".repeat(chars);
+            let request =
+                sp_prepexec_request("select @p1", &[Some(value.as_bytes())]).expect("one value");
+            let (_, params) = sent_rpc(&request);
+
+            assert_eq!(params[1].text.as_deref(), Some(&*format!("@p1 {spelling}")));
+            assert_eq!(params[3].declared, declared, "{chars} character(s)");
+            assert_eq!(params[3].text.as_deref(), Some(&*value));
+        }
+    }
+
+    /// A null takes the null of whichever form its declaration named, and the
+    /// two are different sentinels rather than one.
+    #[test]
+    fn a_null_value_is_the_narrow_forms_sentinel_and_a_max_one_is_plps() {
+        let request = sp_prepexec_request("select @p1", &[None]).expect("one null");
+        let (_, params) = sent_rpc(&request);
+        assert_eq!(params[3].declared, NVARCHAR_CHARS * 2);
+        assert_eq!(params[3].text, None);
+
+        // The `MAX` half of the same rule, asserted where a value forces it:
+        // `@params` and `@stmt` take the same path as a bound value.
+        let long = "y".repeat(usize::from(NVARCHAR_CHARS) + 1);
+        let request = sp_prepexec_request(&long, &[]).expect("a long statement");
+        let (_, params) = sent_rpc(&request);
+        assert_eq!(params[2].declared, NO_LENGTH);
+        assert_eq!(params[2].text.as_deref(), Some(&*long));
+    }
+
+    #[test]
+    fn a_parameter_that_is_not_utf8_is_refused_by_the_marker_it_was_bound_at() {
+        let refused = sp_prepexec_request("select @p1, @p2", &[Some(b"fine"), Some(&[0xFF, 0xFE])])
+            .expect_err("this driver has no binary parameter yet");
+
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert!(refused.to_string().contains("@p2"), "{refused}");
+    }
+
+    /// A `RETURNVALUE` as a server writes one: no length in front of it, so its
+    /// extent is the `TYPE_INFO` and nothing else.
+    fn return_value_token(name: &str, handle: Option<i32>) -> Vec<u8> {
+        let mut out = vec![TOKEN_RETURN_VALUE, 1, 0];
+        out.extend_from_slice(&b_varchar(name));
+        // `Status` — an RPC's output parameter — then `UserType` and `Flags`.
+        out.push(0x01);
+        out.extend_from_slice(&0u32.to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.push(TY_INTN);
+        out.push(INTN_BYTES);
+        match handle {
+            None => out.push(0),
+            Some(number) => {
+                out.push(INTN_BYTES);
+                out.extend_from_slice(&number.to_le_bytes());
+            }
+        }
+        out
+    }
+
+    /// A `RETURNSTATUS`: four bytes and no length either.
+    fn return_status_token(status: i32) -> Vec<u8> {
+        let mut out = vec![TOKEN_RETURN_STATUS];
+        out.extend_from_slice(&status.to_le_bytes());
+        out
+    }
+
+    #[test]
+    fn a_procedures_answer_is_read_past_its_two_tokens_and_the_handle_is_kept() {
+        let mut payload = four_columns();
+        payload.extend_from_slice(&four_values());
+        // Where `sp_prepexec` really puts them: the inner statement's own
+        // `DONEINPROC`, then the handle and the status, then the `DONEPROC`
+        // that ends the procedure. The `DONEINPROC` is deliberately written
+        // without `DONE_MORE` — its *type byte* is what says something follows.
+        payload.extend_from_slice(&done_kind(TOKEN_DONE_IN_PROC, DONE_COUNT, 1));
+        payload.extend_from_slice(&return_value_token("@handle", Some(9)));
+        payload.extend_from_slice(&return_status_token(0));
+        payload.extend_from_slice(&done_kind(TOKEN_DONE_PROC, 0, 0));
+
+        let mut wire = answering(&[payload]);
+        let state = Cell::new(State::Executing);
+        let mut rows = read_rows(&mut wire, &state, span()).expect("a described result set");
+        assert_eq!(rows.returned(), None, "the handle arrives after the rows");
+
+        let read = drain(&mut rows).expect("one row, then the procedure's own end");
+        assert_eq!(read.len(), 1);
+        let returned = rows.returned().expect("sp_prepexec's handle");
+        assert_eq!(returned.name, "@handle");
+        assert_eq!(returned.ordinal, 1);
+        assert_eq!(returned.as_i32(), Some(9));
+        assert_eq!(state.get(), State::Idle);
+    }
+
+    /// The same two tokens on the other side of the `COLMETADATA`, which is
+    /// [`TdsRows::shape`] rather than [`TdsRows::step`]: a procedure that
+    /// assigned its output parameter before selecting anything sends them
+    /// there, and a reader that only knew one of the two paths would refuse it.
+    #[test]
+    fn the_two_procedure_tokens_are_read_before_the_columns_as_well() {
+        let mut payload = return_status_token(0);
+        payload.extend_from_slice(&return_value_token("@handle", Some(4)));
+        payload.extend_from_slice(&four_columns());
+        payload.extend_from_slice(&four_values());
+        payload.extend_from_slice(&done_token(DONE_COUNT, 1));
+
+        let mut wire = answering(&[payload]);
+        let state = Cell::new(State::Executing);
+        let mut rows = read_rows(&mut wire, &state, span()).expect("a described result set");
+        assert_eq!(
+            rows.returned().and_then(ReturnValue::as_i32),
+            Some(4),
+            "the handle was there before the columns were"
+        );
+        assert_eq!(drain(&mut rows).expect("one row").len(), 1);
+    }
+
+    /// A null output parameter is `None` and not a zero handle: a procedure
+    /// that never assigned one has not allocated a plan number 0.
+    #[test]
+    fn an_unassigned_output_parameter_is_null_rather_than_a_handle() {
+        let mut payload = return_value_token("@handle", None);
+        payload.extend_from_slice(&done_token(0, 0));
+
+        let mut wire = answering(&[payload]);
+        let state = Cell::new(State::Executing);
+        let rows = read_rows(&mut wire, &state, span()).expect("a statement with no result set");
+        let returned = rows.returned().expect("the token was there");
+        assert_eq!(returned.value, None);
+        assert_eq!(returned.as_i32(), None);
+    }
+
+    #[test]
+    fn a_statement_goes_out_as_one_rpc_message_and_its_rows_come_back() {
+        let mut payload = four_columns();
+        payload.extend_from_slice(&four_values());
+        payload.extend_from_slice(&done_kind(TOKEN_DONE_IN_PROC, DONE_COUNT, 1));
+        payload.extend_from_slice(&return_value_token("@handle", Some(3)));
+        payload.extend_from_slice(&done_kind(TOKEN_DONE_PROC, 0, 0));
+
+        let mut wire = answering(&[payload]);
+        let state = Cell::new(State::Idle);
+        let mut rows = start_statement(
+            &mut wire,
+            &state,
+            "select * from t where a = @p1",
+            &[Some(b"7")],
+        )
+        .expect("a described result set");
+        assert_eq!(drain(&mut rows).expect("one row").len(), 1);
+        assert_eq!(rows.returned().and_then(ReturnValue::as_i32), Some(3));
+
+        let sent = wire.peer().sent.clone();
+        assert_eq!(sent[0], PacketType::Rpc.byte());
+        assert_eq!(sent[1], Status::EOM.bits(), "one packet, and it ends there");
+        assert_eq!(
+            usize::from(u16::from_be_bytes([sent[2], sent[3]])),
+            sent.len()
+        );
+        let (proc_id, params) = sent_rpc(&sent[HEADER..]);
+        assert_eq!(proc_id, PROC_SP_PREPEXEC);
+        assert_eq!(params[3].text.as_deref(), Some("7"));
+    }
+
+    /// § 4's one statement at a time, held here rather than by every caller —
+    /// and a request this driver would not build never reaches the wire, so the
+    /// connection it was refused on is still usable.
+    #[test]
+    fn a_statement_on_a_busy_connection_is_refused_and_a_bad_parameter_leaves_it_idle() {
+        let mut wire = Wire::new(Script::silent());
+        let busy = Cell::new(State::Streaming);
+        let refused = start_statement(&mut wire, &busy, "select 1", &[])
+            .expect_err("a second statement on one connection");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+
+        let idle = Cell::new(State::Idle);
+        let refused = start_statement(&mut wire, &idle, "select @p1", &[Some(&[0xFF])])
+            .expect_err("a parameter that is not UTF-8");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(idle.get(), State::Idle, "nothing was written");
+        assert!(wire.peer().sent.is_empty());
     }
 }
