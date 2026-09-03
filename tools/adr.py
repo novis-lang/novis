@@ -282,16 +282,48 @@ def index_rows(adrs):
         yield f"| [{num}]({a.file}) | {decision} | {a.fields.get('Status', '?')} |"
 
 
+#: Both the check and the write find the table through this one anchor, so there is no way for
+#: them to disagree about which block is the index.
+INDEX_TABLE_RE = re.compile(r"^\| # \| Decision \| Status \|\n(?:\|.*\n)+", re.M)
+
+
 def check_index_table(adrs):
     readme = open(os.path.join(ADR_DIR, "README.md"), encoding="utf-8").read()
     want = "\n".join(index_rows(adrs))
-    m = re.search(r"^\| # \| Decision \| Status \|\n(?:\|.*\n)+", readme, re.M)
+    m = INDEX_TABLE_RE.search(readme)
     if not m:
         return [("README.md", 1, "no index table -- `python tools/adr.py --index` prints one")]
     if m.group(0).strip() != want.strip():
         return [("README.md", readme[: m.start()].count("\n") + 1,
-                 "index table is stale -- regenerate with `python tools/adr.py --index`")]
+                 "index table is stale -- write it with `python tools/adr.py --sync`")]
     return []
+
+
+def sync_index_table(adrs):
+    """Write the derived table into README.md, in place of whatever block is there.
+
+    Every cell of it comes off the ADR files -- the number, the title as its decision, the
+    `Status:` field -- so this replaces the block whole rather than merging into it. `--check`
+    is what reports the drift and this is what closes it; before, `--index` printed the table
+    and a reader pasted it, which is a hand copy of derived data at the one moment the reader
+    has least reason to look at it closely."""
+    path = os.path.join(ADR_DIR, "README.md")
+    readme = open(path, encoding="utf-8").read()
+    m = INDEX_TABLE_RE.search(readme)
+    if not m:
+        print("adr.py: no `| # | Decision | Status |` table in README.md to replace. "
+              "`--index` prints one to paste in where it belongs.")
+        return 1
+    want = "\n".join(index_rows(adrs)) + "\n"
+    if m.group(0) == want:
+        print(f"adr.py: the index table already states all {len(adrs)} ADRs -- nothing to write")
+        return 0
+    was = max(m.group(0).count("\n") - 2, 0)
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(readme[: m.start()] + want + readme[m.end():])
+    print(f"adr.py: README.md's index table rewritten from the ADR files, "
+          f"{was} -> {len(adrs)} rows")
+    return 0
 
 
 def check_indexes(adrs):
@@ -437,6 +469,8 @@ def main() -> int:
     p.add_argument("--graph", metavar="NNNN", help="one ADR's amend/cite graph")
     p.add_argument("--orphans", action="store_true", help="unlinked and unindexed ADRs")
     p.add_argument("--index", action="store_true", help="print README.md's index table, derived")
+    p.add_argument("--sync", action="store_true",
+                   help="write that derived table into README.md, replacing the block that is there")
     p.add_argument("--residue", action="store_true", help="changelog prose only")
     p.add_argument("--check", action="store_true", help="quiet on success; exit non-zero on a finding")
     p.add_argument("--only", metavar="CHECK", action="append", help="run one named check")
@@ -451,6 +485,8 @@ def main() -> int:
     if args.orphans:
         orphans(adrs)
         return 0
+    if args.sync:
+        return sync_index_table(adrs)
     if args.index:
         print("\n".join(index_rows(adrs)))
         return 0
