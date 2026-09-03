@@ -3,8 +3,10 @@
 //! the sockets to bind.
 //!
 //! Those two are the only parts of `[server]` that resolve to something other than what was
-//! written, so this module is small on purpose: everything else in the block is a path or a word
-//! the mount table reads directly off [`crate::tree::Server`].
+//! written *here*, so this module is small on purpose: everything else in the block is a path or a
+//! word read directly off [`crate::tree::Server`]. The third thing that resolves is the mount
+//! table, and it is [`mod@crate::mount`]'s because it needs a disk to expand a glob against —
+//! [`validate`] runs the half of it that does not.
 //!
 //! **All four are *idle* waits and none of them is a total.** A slow 2 GB upload completes while a
 //! stalled socket does not, which is § 5's own sentence and the reason the server refreshes a
@@ -77,16 +79,20 @@ impl Default for Waits {
     }
 }
 
-/// The block resolves — the boot half of [`waits_for`] and of [`listen_on`].
+/// The block resolves — the boot half of [`waits_for`], of [`listen_on`] and of
+/// [`crate::mount::check`].
 ///
 /// # Errors
 ///
-/// Whatever either of them refuses, the waits first. A tree is refused for the first thing wrong
+/// Whatever any of them refuses, the waits first. A tree is refused for the first thing wrong
 /// with it everywhere else in this crate, so the order decides nothing but which sentence an
-/// operator who wrote two mistakes reads first.
+/// operator who wrote two mistakes reads first. The mount half is only the part that needs no
+/// disk — [`crate::mount::expand`] is where the globs are walked, and its module doc says why that
+/// is the server's boot step rather than the resolver's.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     waits_for(config, origins)?;
-    listen_on(config, origins).map(|_| ())
+    listen_on(config, origins)?;
+    crate::mount::check(config, origins)
 }
 
 /// The waits the tree's `[server]` asks for, over [`Waits::default`].

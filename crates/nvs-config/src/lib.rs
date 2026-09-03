@@ -37,6 +37,12 @@
 //! the global tree, a block at a time, rather than through [`app::layer`], whose own module doc
 //! says why.
 //!
+//! [`mod@mount`] is ADR 0097 §§ 2-3, the one place a `*` meets a directory listing: the
+//! `[[server.mount]]` blocks read into the literal set of entry files a server may execute. It is
+//! split in two on purpose — the half that needs no disk runs inside [`server::validate`] with
+//! every other block check, and the half that walks the tree is the server's own boot step, because
+//! a `nvs run` of a CLI program should not fail over a document root this host does not have.
+//!
 //! [`mod@value`] is the other half of what a directive means: [`mod@tree`] answers which keys
 //! exist, and this one answers what a value *is* — the size, duration or count it spells, and
 //! whether one of them is within another. It is one parser because ADR 0064 § 5 says the boot path
@@ -64,6 +70,7 @@ pub mod file;
 pub mod http;
 pub mod log;
 pub mod mode;
+pub mod mount;
 pub mod queue;
 pub mod request;
 pub mod resolve;

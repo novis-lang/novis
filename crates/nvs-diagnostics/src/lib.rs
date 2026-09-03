@@ -1454,6 +1454,20 @@ pub mod code {
     /// own default is kept.
     pub const E_BAD_LISTEN: Code = Code::new("E0620");
 
+    /// A `[[server.mount]]` block that does not resolve to a mount. ADR 0097
+    /// § 2 makes the set of paths the server can execute something enumerated
+    /// before it accepts anything, so every way a block can fail to name one is
+    /// a boot refusal rather than a mount quietly missing from the table.
+    ///
+    /// It covers the shape — naming both `scan` and `entry` or neither,
+    /// matching on neither `prefix` nor `host`, a `{2}` whose glob has one `*`
+    /// — and what only the disk answers: an entry that is not there, one that
+    /// resolves outside `[server] root`, a captured segment ADR 0095 § 5
+    /// refuses, and two mounts answering at one key. The first set is checked
+    /// wherever the tree is, so `nvs config check` reports it on a machine that
+    /// holds none of the files; the second needs the tree it mounts.
+    pub const E_BAD_MOUNT: Code = Code::new("E0621");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

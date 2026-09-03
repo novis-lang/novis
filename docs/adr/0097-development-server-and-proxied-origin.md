@@ -132,7 +132,6 @@ root = "/www"                             # every mount path must resolve inside
 scan   = "*/public/index.nvs"             # a glob under [server] root; * captures one path segment
 prefix = "/{1}"                           # or host = "{1}.example.com"
 origin = "https://{1}.example.com"        # optional — what `Core\Router::urlAbsolute` prepends
-mode   = "production"                     # optional, § 10
 
 [[server.mount]]                          # an irregular module, overriding the scan at its key
 prefix = "/admin"

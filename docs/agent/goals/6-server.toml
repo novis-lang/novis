@@ -97,6 +97,9 @@ adrs = [
   "0097 §2",
   "0097 §4",
   "0088 §3",
+  # Added when the request slice landed: every remaining stage-2 slice puts a bound on a connection or
+  # on an outbound call, and § 5 is the one list of what those waits are called and what they default to.
+  "0074 §5",
 ]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
@@ -3261,13 +3264,24 @@ tests = ["tokio_appears_in_neither_the_manifest_nor_the_lockfile"]
 # Stage 3 -- the mount table. ADR 0097 § 3's globs expanded at boot, and § 4's five-step resolution.
 # ---------------------------------------------------------------------------------------------------
 
+# § 3's expansion is a configuration act and not a server one: it turns written blocks into resolved
+# configuration, it is refused in the `E06xx` band beside every other `[server]` refusal, and it needs
+# `nvs_config::resolve::Files` to be asked about a disk at all. `nvs_config::mount` is its home and
+# `nvs_config::server::validate` runs the half of it that needs no disk, so the name lives under this
+# check rather than under the one below.
+[[check]]
+kind = "cargo-named"
+stage = "3 mounts"
+name = "nvs-config (the mount table)"
+args = ["test", "-p", "nvs-config"]
+tests = ["a_mount_globs_is_expanded_against_disk_at_boot"]
+
 [[check]]
 kind = "cargo-named"
 stage = "3 mounts"
 name = "nvs-server (the table and the block)"
 args = ["test", "-p", "nvs-server"]
 tests = [
-  "a_mount_globs_is_expanded_against_disk_at_boot",
   "a_request_resolves_through_the_five_steps_in_order",
   "a_prefix_is_stripped_and_the_module_is_relocatable",
   "static_files_are_one_policy_in_both_deployments",
