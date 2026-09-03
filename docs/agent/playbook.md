@@ -5122,16 +5122,10 @@ sibling in the same namespace unqualified.
   argument that can be written, and the honest row asserts the reach — `-9223372036854775807` and
   `18446744073709551615` both landing in the field — instead of inventing a refusal that cannot
   exist. Narrower widths (`C`, `n`, `v`, `N`, `V`) have both sides spellable and should assert them.
-- **The first-class callable spelling `Class::method(...)` panics `nvs-ir` outright** — *"a static call
-  has no resolved target recorded in the typed-expression table"*, which reads like a checker/lowering
-  mismatch rather than a missing feature. It is the same hole as `nvs-ir` gap 1: a case cannot name one
-  callback and hand it to several members, so every callback in a sweep is written inline at its call
-  site. A `public static function` in the case file is still callable *directly*; it is only the
-  reference-to-it that does not exist.
 - **`bool as string` renders `false` as the empty string**, so a line built out of `as string` over
-  predicates silently loses its false columns and still looks like a shorter tally. `bool as int` does not
-  lower at all, so the way to *show* a predicate's answer is a two-line helper that branches and returns a
-  character.
+  predicates silently loses its false columns and still looks like a shorter tally. **`bool as int` is not
+  a conversion at all** — it is `E0708`, whose help line says so and names the spelling to use — so the way
+  to *show* a predicate's answer is `$b ? 1 : 0`, or a two-line helper returning a character.
 - **A `Core` member answering a union cannot be handed straight back to a parameter declared `T`.**
   `Core\Arr::append($a, Core\Arr::sum($empty))` is `E0401: expected int, found int|float|decimal`,
   because `sum`/`product`/`average` answer spec § 2's whole union whatever their subject's element type
