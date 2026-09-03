@@ -66,32 +66,22 @@
 //!    Refusing it here would be the one thing this pass refuses that the
 //!    rewriter does not, which is § 4 read backwards. It waits on which of the
 //!    two docs is right, not on a scan.
-//! 6. **ADR 0067 § 10's second sentence — a literal `Db::open` host against the
-//!    `db.open` grants — is two missing things and not one**, which is worth
-//!    stating because the shape of this table makes it look like one row. A
-//!    third one is gone: `Core\Db::open` has a registry row now, ADR 0135's
-//!    shape parameter being what it was waiting on, so there is a call site and
-//!    a host is written at it.
-//!    First, [`Intrinsic`] addresses a **written argument position** — `at` is
-//!    an index into the call's arguments — while § 18 puts the host inside a
-//!    `Db\Settings` *shape*, so this table would have to name a field of an
-//!    argument rather than an argument. ADR 0135 § 3's merged ABI does not
-//!    close that: it is the *lowering*'s flattening, and this pass reads the
-//!    written syntax, where the host is still one key of one literal.
-//!    Second, and the deeper: checking has no configuration in front of it at
-//!    all. [`crate::Env`] carries no capability set, and **no capability is
-//!    checked at check time today** — `net.connect` included, where
-//!    `nvs_runtime::capability::require` is the only asker — so § 10's
-//!    "`nvs.toml` is read at boot on the machine that compiles" names a channel
-//!    that does not exist yet rather than one this pass declines to use.
-//!    `an_open_host_matching_no_grant_is_a_diagnostic` is gated on both and is
-//!    the goal's standing acceptance failure for that reason. ADR 0058's
-//!    tainted-host half
-//!    (`a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted`) is
-//!    gated on the first alone, since taint is a fact about the program rather
-//!    than about the machine.
+//! 6. **ADR 0067 § 10's host check reaches only a caller that hands over a
+//!    configuration**, and `nvs check` is not yet one. [`crate::Env::grants`]
+//!    is the channel and [`crate::check::check_program_granted`] is how a
+//!    caller fills it, but `nvs-cli`'s check path reads no `nvs.toml` today, so
+//!    the refusal is real and exercised and still fires for nobody. Wiring it
+//!    is a decision about `nvs check` rather than about this pass — a command
+//!    that reads configuration is a command a broken `nvs.toml` can fail — and
+//!    it belongs where that command's own errors are decided.
+//! 7. **A `db.open` grant is matched host-for-host, so ADR 0067 § 3's
+//!    `"*.tenants.internal"` matches nothing.** That is
+//!    `nvs_config::capability`'s rule and not this pass's: the wildcard the ADR
+//!    writes has no reader on either side, so a run and a check agree — they
+//!    are both wrong together, which is the one property § 4 asks of this pass.
 
-use nvs_diagnostics::{Diagnostic, code};
+use nvs_config::capability::Cap;
+use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{Arg, CallArgs, Expr, ExprKind};
 
@@ -125,6 +115,20 @@ enum Grammar {
     /// what puts it on § 1's list; the vendors' SQL itself is not read here and
     /// that section says why.
     Sql,
+    /// A hostname, read against the compiling machine's `db.open` grant —
+    /// [ADR 0067 § 10](../../../docs/adr/0067-core-db.md)'s second sentence.
+    ///
+    /// The odd one out, twice over, and both are deliberate. It is the only
+    /// variant whose second half is the *machine's configuration* rather than
+    /// the call's other arguments, and the only one that reads nothing about
+    /// the text's own shape: a hostname's grammar is not what § 10 asks about,
+    /// and a host this rejects is one that parses perfectly. It stays a
+    /// [`Grammar`] anyway because everything else about the row is the same
+    /// question — a written literal at a known address on a closed list of
+    /// members, refused only where the runtime would refuse it too — and a
+    /// second table beside this one, holding one row, would be the open
+    /// extension point § 1 refuses.
+    Host,
 }
 
 /// One row of § 1's table: a member, and which of its arguments is the small
@@ -137,6 +141,23 @@ struct Intrinsic {
     /// that is itself the pattern, 1 for `Core\Time::parse`, whose subject is
     /// the text being parsed (ADR 0063 R1).
     at: usize,
+    /// Which field *inside* the argument at [`Self::at`] carries the literal,
+    /// or `None` where the argument is itself it.
+    ///
+    /// [ADR 0135](../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+    /// § 3's merged ABI does not answer this and is not what this addresses:
+    /// that flattening is `nvs_ir::lower`'s, and it happens to an argument
+    /// already checked. Here the shape is still one written literal, so the
+    /// address is a field *name* — [ADR 0036](../../../docs/adr/0036-object-literals-and-shape-types.md)
+    /// § 2 makes [`ExprKind::ObjectLiteral`] the only spelling a shape argument
+    /// has, and it carries no shorthand, no spread and no computed key for the
+    /// match to fall through.
+    ///
+    /// A row still names exactly one literal: this addresses a *deeper* one,
+    /// never a second. [`addressed`] is where the two cases meet, and every
+    /// check below reads the expression it answers with rather than the
+    /// argument.
+    field: Option<&'static str>,
     grammar: Grammar,
 }
 
@@ -148,36 +169,42 @@ const INTRINSICS: &[Intrinsic] = &[
         owner: r"Core\Regex",
         member: "compile",
         at: 0,
+        field: None,
         grammar: Grammar::Regex,
     },
     Intrinsic {
         owner: r"Core\Uri",
         member: "parse",
         at: 0,
+        field: None,
         grammar: Grammar::Uri,
     },
     Intrinsic {
         owner: r"Core\Time\DateTime",
         member: "format",
         at: 0,
+        field: None,
         grammar: Grammar::DateFormat,
     },
     Intrinsic {
         owner: r"Core\Time",
         member: "parse",
         at: 1,
+        field: None,
         grammar: Grammar::DateFormat,
     },
     Intrinsic {
         owner: r"Core\Time\Duration",
         member: "parse",
         at: 0,
+        field: None,
         grammar: Grammar::Duration,
     },
     Intrinsic {
         owner: r"Core\Str",
         member: "format",
         at: 0,
+        field: None,
         grammar: Grammar::Template,
     },
     // ADR 0067 § 10's three members, on both classes that declare them: § 7's
@@ -193,37 +220,55 @@ const INTRINSICS: &[Intrinsic] = &[
         owner: r"Core\Db\Connection",
         member: "query",
         at: 0,
+        field: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
         owner: r"Core\Db\Connection",
         member: "queryAs",
         at: 0,
+        field: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
         owner: r"Core\Db\Connection",
         member: "execute",
         at: 0,
+        field: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
         owner: r"Core\Db\Transaction",
         member: "query",
         at: 0,
+        field: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
         owner: r"Core\Db\Transaction",
         member: "queryAs",
         at: 0,
+        field: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
         owner: r"Core\Db\Transaction",
         member: "execute",
         at: 0,
+        field: None,
         grammar: Grammar::Sql,
+    },
+    // § 10's second sentence, and the only row that addresses a field: § 18
+    // writes the host inside the `Db\Settings` shape, so `at` names the shape
+    // and `field` names the key. `connect` has no row beside it on purpose —
+    // its endpoint is the one an operator wrote into root-owned configuration,
+    // which § 3 pre-approves, and there is no program-supplied host to read.
+    Intrinsic {
+        owner: r"Core\Db",
+        member: "open",
+        at: 0,
+        field: Some("host"),
+        grammar: Grammar::Host,
     },
 ];
 
@@ -264,22 +309,26 @@ pub(crate) fn check_call(
     if list.iter().any(|arg| arg.name.is_some() || arg.spread) {
         return;
     }
-    let Some(pattern) = list.get(row.at) else {
+    let Some(arg) = list.get(row.at) else {
         // A missing argument is the arity check's refusal, already made.
         return;
     };
-    let Some(ConstArg::Str(text)) = folded_str(&pattern.value, env) else {
+    let Some(pattern) = addressed(row, &arg.value, env.src) else {
+        return;
+    };
+    let span = pattern.span;
+    let Some(ConstArg::Str(text)) = folded_str(pattern, env) else {
         return;
     };
     match row.grammar {
-        Grammar::Template => check_template(&text, pattern.value.span, row, arg_types, env),
-        Grammar::Sql => check_sql(&text, pattern.value.span, row, list, env),
+        Grammar::Template => check_template(&text, span, row, arg_types, env),
+        Grammar::Sql => check_sql(&text, span, row, list, env),
         // Both CLDR rows read the same pattern language through the same
         // `compile`, which is why they share one variant: the two members
         // differ only in what they do with the pieces afterwards.
         Grammar::DateFormat => {
             if let Err(message) = nvs_stdlib::cldr::validate(&text) {
-                report_malformed(pattern.value.span, &message, env);
+                report_malformed(span, &message, env);
             }
         }
         // ADR 0056 § 3's compile-time fact, both halves of it: the pattern is
@@ -290,8 +339,8 @@ pub(crate) fn check_call(
         // text, decided by which engine's parser refused a construct, so a
         // checking run and a request cannot disagree about it.
         Grammar::Regex => match nvs_stdlib::regex::validate(&text) {
-            Ok(tier) => env.exprs.record_regex_tier(pattern.value.span, tier),
-            Err(message) => report_malformed(pattern.value.span, &message, env),
+            Ok(tier) => env.exprs.record_regex_tier(span, tier),
+            Err(message) => report_malformed(span, &message, env),
         },
         // Both of `Core\Uri::parse`'s throwing steps, which is the rule its
         // own `tryParse` is written around: a validator that agrees with the
@@ -299,7 +348,7 @@ pub(crate) fn check_call(
         // to prevent.
         Grammar::Uri => {
             if let Err(message) = nvs_stdlib::uri::validate(&text) {
-                report_malformed(pattern.value.span, &message, env);
+                report_malformed(span, &message, env);
             }
         }
         // ADR 0070 § 5's three places that must agree already share one parser,
@@ -310,7 +359,17 @@ pub(crate) fn check_call(
         // `Core\Time\Duration::parse("1h30m")` cannot disagree with either.
         Grammar::Duration => {
             if let Err(err) = nvs_syntax::duration::parse(&text) {
-                report_malformed(pattern.value.span, &err.message(), env);
+                report_malformed(span, &err.message(), env);
+            }
+        }
+        // Both halves have to be facts here, and `grants` being `None` is the
+        // second one missing: see `crate::check::check_program_granted` for
+        // why an absent configuration says nothing instead of denying.
+        Grammar::Host => {
+            if let Some(grants) = env.grants
+                && !grants.allows_host(Cap::DbOpen, &text)
+            {
+                report_ungranted(span, &text, env);
             }
         }
     }
@@ -543,6 +602,54 @@ fn report_query(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_>) {
              `:name` are ADR 0067 § 5's two spellings and one statement uses one of them",
         ),
     );
+}
+
+/// [ADR 0067 § 10](../../../docs/adr/0067-core-db.md)'s host refusal, which is
+/// not [`report_query`]'s kind at all: nothing is wrong with the literal, and
+/// what the message has to carry is the *deployment* it was checked against.
+///
+/// The help names `db.open` and not a launderer, because the answer is an
+/// operator's and not the program's — § 3 makes an address a sink with no way
+/// through from inside the program, and this is the other half of that: a host
+/// nobody granted is a host this deployment does not reach, however it was
+/// written.
+fn report_ungranted(span: nvs_diagnostics::Span, host: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNGRANTED_HOST,
+            format!("`{host}` is not a host this deployment's `db.open` grants"),
+        )
+        .with_primary(span, "read while compiling, because it is a constant")
+        .with_help(
+            "ADR 0067 § 3's `db.open` lists the hosts a program-supplied `Db\\Settings` may \
+             reach, and it denies by default — add this host to `[capabilities] db.open` in \
+             `nvs.toml`, or name a `[db.<name>]` block and open it with `Core\\Db::connect`",
+        ),
+    );
+}
+
+/// The expression a row addresses: the written argument itself, or the one
+/// field named inside the shape literal written there.
+///
+/// The two cases meet here rather than at each grammar's arm, so that
+/// everything below reads *one* expression and neither knows nor cares how
+/// deep it was written. [`Intrinsic::field`] owns why the address is a name.
+///
+/// `None` — nothing to read, and never a refusal of its own. An argument that
+/// is not a literal shape at all is § 2's rule, and a field the literal did
+/// not write is either the arm check's error, already reported, or a default
+/// this pass never saw the text of.
+fn addressed<'a>(row: &Intrinsic, arg: &'a Expr, src: &SourceFile) -> Option<&'a Expr> {
+    let Some(name) = row.field else {
+        return Some(arg);
+    };
+    let ExprKind::ObjectLiteral(fields) = &arg.unparenthesized().kind else {
+        return None;
+    };
+    fields
+        .iter()
+        .find(|field| crate::span_text(src, field.name) == name)
+        .map(|field| &field.value)
 }
 
 /// One expression folded as a `string`, through the one literal decoder — see

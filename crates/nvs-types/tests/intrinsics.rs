@@ -11,7 +11,8 @@
 
 mod common;
 
-use common::{check_src, check_src_table};
+use common::{check_src, check_src_granted, check_src_table};
+use nvs_config::tree::{CapDb, Capabilities, Setting};
 use nvs_diagnostics::{Code, Diagnostics, code};
 use nvs_stdlib::regex::Tier;
 use nvs_types::expr_table::ExprTypeTable;
@@ -605,5 +606,88 @@ fn mixed_placeholder_styles_on_a_literal_are_a_diagnostic() {
     assert!(
         !cast.has_errors(),
         "a `::` cast was read as a `:name`: {cast:?}"
+    );
+}
+
+/// A deployment granting exactly `db.granted.test` under `db.open`, and
+/// nothing else at all — ADR 0067 § 3's block as the compiling machine reads
+/// it.
+fn granting(host: &str) -> Capabilities {
+    Capabilities {
+        db: Some(CapDb {
+            connect: None,
+            open: Some(Setting::List(vec![host.to_owned()])),
+        }),
+        ..Capabilities::default()
+    }
+}
+
+/// `Core\Db::open` with `host` written into its settings literal, checked
+/// against `grants` — § 18's call, and the only one whose literal this pass
+/// reads out of a *field* rather than out of an argument.
+fn open(host: &str, grants: Option<&Capabilities>) -> Diagnostics {
+    check_src_granted(
+        &format!(
+            "<?nvs\nclass Main {{\n  public static function main(): void {{\n    \
+             var $c = Core\\Db::open({{driver: Core\\Db\\Driver::Postgres, host: {host}, \
+             database: \"shop\", user: \"app\", password: \"hunter2\"}});\n  }}\n}}\n"
+        ),
+        grants,
+    )
+}
+
+#[test]
+fn an_open_host_matching_no_grant_is_a_diagnostic() {
+    // ADR 0067 § 10's second sentence. The host is a literal and the grant is
+    // this machine's, so both halves of `db.open`'s question are facts before
+    // the program runs — and the answer is the one
+    // `nvs_runtime::capability::require` would have given, moved earlier per
+    // ADR 0057 § 4 rather than made stricter.
+    let caps = granting("db.granted.test");
+    let ungranted = open("\"db.example.test\"", Some(&caps));
+    assert!(
+        reported(&ungranted, code::E_UNGRANTED_HOST),
+        "an ungranted literal host compiled: {ungranted:?}"
+    );
+
+    // The pair that makes it a boundary rather than a ban, and the reason the
+    // grant list is walked instead of merely being present: the same call,
+    // one host over, is fine.
+    let granted = open("\"db.granted.test\"", Some(&caps));
+    assert!(
+        !granted.has_errors(),
+        "a granted literal host was refused: {granted:?}"
+    );
+}
+
+#[test]
+fn an_open_host_says_nothing_where_a_half_of_the_question_is_missing() {
+    // Two ways for § 10's question to be unanswerable at check time, and both
+    // have to leave the call alone rather than deny it — a refusal here is one
+    // the runtime would not have made, which is what ADR 0057 § 4 forbids.
+    //
+    // First: no configuration was read at all, which is every other fixture in
+    // this file and every `nvs check` outside a project root. Absent is not
+    // empty; see `nvs_types::check_program_granted`.
+    let unconfigured = open("\"db.example.test\"", None);
+    assert!(
+        !unconfigured.has_errors(),
+        "an unconfigured check denied a host: {unconfigured:?}"
+    );
+
+    // Second: the host is not a literal. § 2's rule, unchanged by the field
+    // address — nothing is refused for being dynamic, and this one is decided
+    // at the door with the value in hand.
+    let caps = granting("db.granted.test");
+    let computed = check_src_granted(
+        "<?nvs\nclass Main {\n  public static function main(): void {\n    \
+         string $h = Core\\Str::lower(\"DB.EXAMPLE.TEST\");\n    \
+         var $c = Core\\Db::open({driver: Core\\Db\\Driver::Postgres, host: $h, \
+         database: \"shop\", user: \"app\", password: \"hunter2\"});\n  }\n}\n",
+        Some(&caps),
+    );
+    assert!(
+        !computed.has_errors(),
+        "a computed host was refused while checking: {computed:?}"
     );
 }

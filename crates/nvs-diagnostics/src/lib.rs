@@ -1410,6 +1410,21 @@ pub mod code {
     /// the tree rather than about the value.
     pub const E_BAD_QUEUE: Code = Code::new("E0617");
 
+    /// A **written** `Core\Db::open` host that the compiling machine's
+    /// `db.open` grant does not cover — ADR 0067 § 10's second sentence, and
+    /// the only capability question asked before a program runs.
+    ///
+    /// It refuses nothing `nvs_runtime::capability::require` would have
+    /// allowed: the same grant list, walked by the same
+    /// `nvs_config::capability::Capabilities::allows_host`, so this is ADR 0057
+    /// § 4's earlier answer and never a different one. It is therefore asked
+    /// only where both halves are facts at check time — a literal host, and a
+    /// configuration this machine actually read. A computed host, or a check
+    /// run with no configuration in front of it, says nothing and leaves the
+    /// refusal to the door. In this band rather than the types one for
+    /// `E0616`'s reason: what it reads is a grant, not a type.
+    pub const E_UNGRANTED_HOST: Code = Code::new("E0618");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

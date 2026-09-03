@@ -203,6 +203,20 @@ pub(crate) fn check_src_allowing_parse_errors(src: &str) -> Diagnostics {
 }
 
 pub(crate) fn check_src(src: &str) -> Diagnostics {
+    check_src_granted(src, None)
+}
+
+/// [`check_src`] with a deployment's `[capabilities]` block in front of the
+/// checker — ADR 0067 § 10's "read at boot on the machine that compiles",
+/// which is the only input to a check that is not the program.
+///
+/// `None` is what every other fixture passes and is *not* an empty grant set;
+/// `nvs_types::check_program_granted` owns that distinction, and a fixture
+/// asserting a capability refusal has to hand over a real one.
+pub(crate) fn check_src_granted(
+    src: &str,
+    grants: Option<&nvs_config::tree::Capabilities>,
+) -> Diagnostics {
     let mut map = SourceMap::new();
     let file = map.add("t.nvs", src);
     let mut diags = Diagnostics::new();
@@ -212,12 +226,13 @@ pub(crate) fn check_src(src: &str) -> Diagnostics {
     assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
     let mut interner = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
-    check_program(
+    nvs_types::check_program_granted(
         &[nvs_types::ProgramFile {
             src: map.file(file),
             stmts: &stmts,
         }],
         &module,
+        grants,
         &mut interner,
         &mut exprs,
         &mut diags,
