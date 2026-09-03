@@ -2906,10 +2906,17 @@ impl Emitter<'_, '_> {
     /// releases it when it is freed, and that release happens to be the no-op
     /// [`nvs_runtime::IMMORTAL_REFCOUNT`] describes. Each write yields the
     /// array the next one writes into, per that instruction's
-    /// consume-one-reference-yield-one protocol; the pointer never actually
-    /// changes here, because a literal under construction is solely owned, but
-    /// threading it is what keeps this on the one protocol rather than beside
-    /// it.
+    /// consume-one-reference-yield-one protocol, and threading it is
+    /// load-bearing rather than tidy: `nvs_runtime::nvs_array_new` hands back
+    /// the thread's empty singleton, whose count is never 1, so the **first**
+    /// write here always separates and hands back a different pointer. Only
+    /// the writes after it are solely owned.
+    ///
+    /// One reading follows from that and is worth having when a leak report is
+    /// in front of you: every non-empty array literal's header is allocated
+    /// inside `NvsArray::make_unique`, under this chain's first
+    /// `nvs_array_set`. A valgrind stack naming that frame names an ordinary
+    /// literal, and says nothing about the write path it was allocated on.
     fn emit_array_new(&mut self, entries: &[(String, ValueId)]) -> Result<Value, CodegenError> {
         let callee = self.runtime_ref("nvs_array_new", RuntimeSig::ArrayNew)?;
         let call = self.b.ins().call(callee, &[]);
@@ -3009,7 +3016,16 @@ impl Emitter<'_, '_> {
     ///
     /// [`Self::emit_array_append`] with an array pointer where that one builds
     /// a 16-byte value slot — the subject is borrowed, so nothing about it is
-    /// stored or read back. Which entry of it is renumbered and which keeps
+    /// stored or read back. The error edge is **not** that one's, though, and
+    /// the difference is worth stating: a spread can have written before it
+    /// refuses, so a destination that separated would come back re-pointed and
+    /// this edge would drop the copy. Not loading `out_p` there is sound only
+    /// because a literal under construction is solely owned unless it is still
+    /// the empty singleton, which has no next integer key to be occupied —
+    /// `nvs_runtime`'s `a_refused_spread_hands_back_the_separation_it_had_already_made`
+    /// builds the state by hand and holds the runtime's half of the bargain.
+    /// A literal that could arrive here shared would make this a leak and a
+    /// double release together. Which entry of it is renumbered and which keeps
     /// its key is `nvs_runtime::nvs_array_spread`'s, not this crate's: the
     /// whole point of one instruction here is that no key crosses this
     /// boundary at all.

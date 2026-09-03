@@ -186,10 +186,12 @@ crate::nvs_helper! {
     /// retained, so the [`crate::array::nvs_array_set`] the lowering emits on
     /// the way back up has a reference to consume — and so the row's count is
     /// at least two, which is exactly what makes that write separate it (ADR
-    /// 0007 § 5). A key that is *absent* comes back as a fresh empty array
-    /// with a count of one, which is PHP's auto-vivification: `$g[9][0] = 1`
-    /// over an empty `$g` builds the missing row rather than faulting. The
-    /// fresh row is not inserted here; the same `nvs_array_set` stores it,
+    /// 0007 § 5). A key that is *absent* comes back as the thread's empty
+    /// array, which is PHP's auto-vivification: `$g[9][0] = 1` over an empty
+    /// `$g` builds the missing row rather than faulting. That row separates on
+    /// the write for the same reason the present one does — the singleton's
+    /// count is never 1 either — so the two cases reach `make_unique` alike.
+    /// The fresh row is not inserted here; the same `nvs_array_set` stores it,
     /// since replacing a row and inserting one are one instruction.
     ///
     /// The declared element type is what rules out the third case PHP has —
