@@ -97,6 +97,9 @@ adrs = [
   "0097 §2",
   "0097 §4",
   "0088 §3",
+  # Added when the request slice landed: every remaining stage-2 slice puts a bound on a connection or
+  # on an outbound call, and § 5 is the one list of what those waits are called and what they default to.
+  "0074 §5",
 ]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
