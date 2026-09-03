@@ -22,7 +22,8 @@ how often they change, and this tool is what keeps a caller from having to know 
     python tools/plan.py --show M8:verify           # only its acceptance paragraph
     python tools/plan.py --show M8:lead             # only its opening paragraph
     python tools/plan.py --amend M8 --from F        # replace one milestone's body
-    python tools/plan.py --check                    # sizes against the aim, index against disk
+    python tools/plan.py --check                    # sizes against the aim, index against disk (CI)
+    python tools/plan.py --sync                     # rewrite the index's title cells from the H1s
 
 `--set` and `--amend` take the replacement from a *file* rather than the command line, for the
 reason docs/agent/commands.md gives: a shell parses its argument before anything runs, and this
@@ -41,8 +42,20 @@ to fill in -- write the file and add its index row by hand, and `--check` will t
 one of the two wrong.
 
 **Nothing here refuses over a length.** `--check` prices every field against the aim the plan's own
-comment states and says what it costs a session; it exits 0 either way, for the reason
-docs/agent/doc-style.md gives about length tripwires. A number is a report to weigh, not a gate.
+comment states and says what it costs a session; a size never changes its exit status, for the
+reason docs/agent/doc-style.md gives about length tripwires. A number is a report to weigh, not a
+gate.
+
+**It does refuse over a structure**, and that is the whole of what it gates on: a row that does not
+parse, a row naming a file that is not there, a title that has drifted from the H1 it was copied
+from, a milestone file no row names, a milestone with no `**Verify:**`. Those are the findings a
+machine can be certain about, so `--check` exits 1 on any of them and CI's `docs` job runs it. The
+two kinds print in the same report and only one of them decides the exit status.
+
+`--sync` is the other half of that: the title cell is *derived* from the milestone file's own H1,
+so drift between them is fixed by regenerating rather than by hand-editing whichever copy the
+reader noticed first. The Order and Loop-days cells are the index's own data -- a schedule is a
+property of the plan, not of a milestone -- and `--sync` carries them through untouched.
 """
 
 from __future__ import annotations
@@ -74,6 +87,14 @@ ROW_RE = re.compile(
     r"^\|(?:\s*([^|\[]*?)\s*\|)?\s*\[(M\d+[A-Z]?)\]\((plan/[^)]+)\)"
     r"\s*\|\s*([^|]*?)\s*\|(?:\s*([^|]*?)\s*\|)?\s*$"
 )
+
+#: The milestone table's header, and its `|---|` rule. Rows are read strictly between the header and
+#: the first line that is not a table row: a `|` line inside that span which ROW_RE does not match is
+#: *reported* rather than skipped. A row that silently fails to parse drops a milestone out of the
+#: roster with nothing to show for it -- `787dd992` was exactly that, an added Order column that made
+#: every row unparseable at once, and what found it was a human noticing the table had gone empty.
+TABLE_HEAD_RE = re.compile(r"^\|\s*Order\s*\|\s*Milestone\s*\|")
+TABLE_RULE_RE = re.compile(r"^\|[\s:|-]+\|$")
 
 #: A milestone file's H1: `# M4S — The `Core` API contract and its pure half (~5 weeks)`
 H1_RE = re.compile(r"^#\s+(M\d+[A-Z]?)\s*—\s*(.*)$")
@@ -175,6 +196,55 @@ def milestones(lines=None):
     return found
 
 
+def unparsed_rows(lines=None):
+    """(line number, text) for every line in the milestone table that ROW_RE did not match.
+
+    `milestones()` collects what parsed; this collects what did not, which is the only way a caller
+    can tell a table of sixteen rows and one typo from a table of sixteen rows."""
+    if lines is None:
+        _text, lines = load()
+    bad = []
+    inside = False
+    for i, raw in enumerate(lines):
+        if TABLE_HEAD_RE.match(raw):
+            inside = True
+            continue
+        if not inside:
+            continue
+        if not raw.lstrip().startswith("|"):
+            break
+        if TABLE_RULE_RE.match(raw.strip()) or ROW_RE.match(raw):
+            continue
+        bad.append((i + 1, raw.strip()))
+    return bad
+
+
+def sync_titles(lines):
+    """The index's title cells, rewritten from each milestone file's own H1.
+
+    Returns the new lines and one (id, rel, was, now) per row that moved. Only the title cell is
+    touched, and only where the file opens with an H1 claiming that milestone's own id -- a file
+    that does not is a finding for `--check` to report, not something to write a guess over."""
+    out = list(lines)
+    changed = []
+    for m in milestones(lines):
+        if not m["path"].exists():
+            continue
+        first = m["path"].read_text(encoding="utf-8").split("\n")[0]
+        h1 = H1_RE.match(first)
+        if not h1 or h1.group(1) != m["id"]:
+            continue
+        want = h1.group(2).strip()
+        if want == m["title"]:
+            continue
+        raw = out[m["line"] - 1]
+        row = ROW_RE.match(raw)
+        start, end = row.span(4)
+        out[m["line"] - 1] = raw[:start] + want.replace("|", r"\|") + raw[end:]
+        changed.append((m["id"], m["rel"], m["title"], want))
+    return out, changed
+
+
 def resolve(mid, index=None):
     """`m8` / `M8` / `m4s` -> that milestone's entry, or None."""
     want = mid.strip().upper()
@@ -270,7 +340,7 @@ def report_index(fields, index, aim):
 
 
 def run_check(fields, index, aim):
-    """Report only. Nothing here exits non-zero over a size."""
+    """Sizes report; structure gates. Nothing here exits non-zero over a size."""
     problems = []
 
     total = sum(nbytes(b) for _n, _a, _b2, b in fields)
@@ -291,6 +361,11 @@ def run_check(fields, index, aim):
     print("  is always taken, so there is never prose to shave -- a sentence is replaced instead.")
 
     print("\nindex vs disk:")
+    for lineno, raw in unparsed_rows():
+        problems.append(
+            f"implementation-plan.md:{lineno}: a line in the milestone table that does not parse "
+            f"as a row, so no milestone was read from it\n      {raw[:96]}"
+        )
     seen = set()
     for m in index:
         seen.add(m["path"].resolve())
@@ -320,9 +395,11 @@ def run_check(fields, index, aim):
     if problems:
         for p in problems:
             print(f"  !! {p}")
-    else:
-        print(f"  {len(index)} rows, {len(index)} files, titles matching, every one with a "
-              "`**Verify:**`")
+        print(f"\n  {len(problems)} structural finding(s) -- these are what this exits non-zero "
+              "on. A drifted title is `python tools/plan.py --sync`; the rest are edits.")
+        return 1
+    print(f"  {len(index)} rows, {len(index)} files, titles matching, every one with a "
+          "`**Verify:**`")
     return 0
 
 
@@ -335,6 +412,8 @@ def main():
     ap.add_argument("--show", metavar="M[:lead|:verify]")
     ap.add_argument("--amend", metavar="M")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--sync", action="store_true",
+                    help="rewrite the index's title cells from each milestone file's H1")
     ap.add_argument("--from", metavar="FILE", dest="source")
     opts = ap.parse_args()
 
@@ -412,6 +491,26 @@ def main():
         if not verify_paragraph(entry):
             print("plan.py: !! the new body has no `**Verify:**` paragraph -- a milestone with "
                   "no acceptance test is one nothing can call done")
+        return 0
+
+    if opts.sync:
+        bad = unparsed_rows(lines)
+        if bad:
+            for lineno, raw in bad:
+                print(f"plan.py: !! implementation-plan.md:{lineno} does not parse as a row\n"
+                      f"      {raw[:96]}")
+            print("plan.py: refusing to write over a table this tool cannot read whole")
+            return 1
+        out, changed = sync_titles(lines)
+        if not changed:
+            print(f"plan.py: {len(index)} title cells, every one already matching its file's H1 "
+                  "-- nothing to write")
+            return 0
+        PLAN.write_text("\n".join(out), encoding="utf-8", newline="")
+        for mid, rel, was, now in changed:
+            print(f"plan.py: {mid} title synced from {rel}\n      was: {was}\n      now: {now}")
+        print(f"plan.py: {len(changed)} row(s) rewritten in "
+              f"{PLAN.relative_to(ROOT).as_posix()}")
         return 0
 
     if opts.check:
