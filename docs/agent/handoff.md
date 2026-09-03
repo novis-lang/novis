@@ -2,60 +2,56 @@
 
 ## State
 
-**M8 goal 5, stage 7. SQL Server now runs every § 4 member that is a statement** — `query`,
-`queryAs`, `execute` and, as of this session, `executeMany`. `crates/nvs-db/src/tds.rs:4880`'s
-`execute_many` is `crate::mysql::execute_many`'s loop and its rules line for line: the busy check
-ahead of the empty-list no-op, the arity agreement refused before anything is written, every set
-attempted past a refusal with the **first** error reported, and a poisoned wire the one thing that
-ends it early. It needs no request shape of its own — § 1's cache makes the first set an
-`sp_prepexec` and every set after it an `sp_execute` — which is why the batch is `start_statement`
-per set rather than a second sender. `TdsConn::execute_many` is the two-line delegation.
+**M8 goal 5, stage 7. SQL Server reaches every member ADR 0067 declares.** § 7's `begin`, `commit`
+and `roll_back` are on disk at `crates/nvs-db/src/tds.rs:5025` over a new `batch_command` — the
+driver's only text path, and no caller's SQL ever reaches it — and `Transacting`
+(`crates/nvs-stdlib/src/db.rs:4452`) has its fourth arm, so `transaction` runs on four drivers.
 
-**Known gap 2's rosters now divide on § 7 rather than on one-versus-many statements.**
-`RUNS_STATEMENTS` (`crates/nvs-stdlib/src/db.rs:4669`) is the four drivers behind every statement
-member, `executeMany` included; `TRANSACTS` (`crates/nvs-stdlib/src/db.rs:4684`) is the three that
-reach § 7. They collapse to one const the session § 7's commands land.
+**Two T-SQL rules are this driver's alone and their doc comments are their home.** There is no
+`RELEASE SAVEPOINT`, so a nested commit sends nothing and moves only the depth (a `COMMIT
+TRANSACTION` there would commit the whole transaction). And `SET TRANSACTION ISOLATION LEVEL` is
+*session*-scoped, so `TdsConn::isolation_moved` (`crates/nvs-db/src/conn.rs:814`) records a restore
+that the outermost commit or rollback pays — and that the next outermost `begin` pays instead when a
+refused commit ended the transaction before it could. `{readOnly: true}` is an `InvalidInput` naming
+the fix: SQL Server has no read-only transaction at all.
 
-**The group's first item was already on disk and green** —
-`mssql_resets_through_sp_reset_connection_and_loses_its_cache` — so what it owed was the stale
-comment beside its check in both goal files, and that is written. The playbook bullet added this
-session owns the check.
+**Known gap 2 is one roster again** — `HAS_A_DRIVER` (`crates/nvs-stdlib/src/db.rs:4669`), SQLite the
+whole of it — and `driverless` no longer takes a roster argument. That argument is how `executeMany`
+came to render the *transaction* roster and leave SQL Server out of a sentence about a member it runs.
 
-The standing acceptance failure is still stage 9's `an_open_host_matching_no_grant_is_a_diagnostic`,
-`nvs_types::intrinsics`' known gap 6, and is not this goal's to close.
+**No TDS path is exercised against a real server yet**: `crates/nvs-db/tests/handshake.rs` has no SQL
+Server leg at all, which is the next group. The standing acceptance failure is still stage 9's
+`an_open_host_matching_no_grant_is_a_diagnostic`, `nvs_types::intrinsics`' known gap 6, and is not
+this goal's to close.
+
+`orient.py`'s map printed `nvs-stdlib`'s `json`, `registry` and `time` but not `db` — the goal's
+central stdlib file. Its `[context] modules` needs `nvs-stdlib/src/db.rs`.
 
 ## Next group
 
-**One file set: `crates/nvs-db/src/tds.rs` with `crates/nvs-db/src/conn.rs`, then
-`crates/nvs-stdlib/src/db.rs`.** It is § 7 end to end — the driver's only remaining refusal.
+**One file set: `crates/nvs-db/tests/handshake.rs` with `crates/nvs-db/src/matrix.rs`.** Every other
+driver has a real-server leg and TDS has none, so what the unit tests cannot reach — that a real SQL
+Server accepts these bytes at all — is unasserted from the handshake up.
 
-- [ ] **§ 7's commands on TDS** (0067 § 7). `crates/nvs-db/src/tds.rs:4982`,
-      `crates/nvs-db/src/conn.rs:772`, `crates/nvs-db/src/mysql.rs:2106`. `begin`, `commit`,
-      `roll_back` and a `simple_command` that sends one T-SQL text as a `PacketType::SqlBatch` and
-      drains it; `TdsConn` gains `depth: Cell<u32>` beside `state`, and the four two-line
-      delegations follow `TdsConn::query`. MySQL's trio at that anchor is the shape, savepoint
-      naming and depth accounting included (`crate::pg::savepoint_name`, `open_transaction`), with
-      `SAVE TRANSACTION`/`ROLLBACK TRANSACTION <name>` for T-SQL's spelling and **no `RELEASE`,
-      which SQL Server does not have** — a nested commit is therefore a no-op on the wire that only
-      moves the depth. Two facts to decide before writing, both of them T-SQL's and neither MySQL's:
-      **`SET TRANSACTION ISOLATION LEVEL` is session-scoped here**, not next-transaction, so an
-      outermost level has to be put back when the outermost transaction ends — § 13's
-      `sp_reset_connection` covers the *pool*, but not a second `transaction()` in the same request;
-      and **SQL Server has no read-only transaction at all**, so `{readOnly: true}` is an
-      `InvalidInput` naming the fix rather than a silently writable transaction.
-- [ ] **`Transacting` gains its SQL Server arm, and the two rosters collapse to one** (0067 § 7).
-      `crates/nvs-stdlib/src/db.rs:4439`, `crates/nvs-stdlib/src/db.rs:4514`,
-      `crates/nvs-stdlib/src/db.rs:4669`, `crates/nvs-stdlib/src/db.rs:4684`. Four delegations and
-      one `transacting` arm; then `RUNS_STATEMENTS` and `TRANSACTS` become one const and
-      `the_refusal_names_every_driver_that_sends` asks one roster instead of two.
-- [ ] **Known gap 2 and the two module docs say the driver is whole** (0067 § 4).
-      `crates/nvs-stdlib/src/db.rs:88`, `crates/nvs-db/src/tds.rs:74`. Both currently name § 7 as
-      the one remaining refusal; only after the two above.
+- [ ] **SQL Server's handshake and one statement over a real server** (0067 §§ 3, 1).
+      `crates/nvs-db/tests/handshake.rs:198`, `crates/nvs-db/tests/handshake.rs:230`,
+      `crates/nvs-db/src/matrix.rs:107`. `mysql()`/`mysql_open` are the shape: an
+      `NVS_DB_MATRIX_*` endpoint or an early `return`, which is the skip rule the whole crate
+      shares. `tools/db-matrix.py` already points the mssql leg at a server with a `certs` leaf, so
+      § 3's tunnelled TLS and `tls_ca_file` are what this first asserts.
+- [ ] **§ 7's nesting on that server** (0067 § 7). `crates/nvs-db/tests/handshake.rs:568`,
+      `crates/nvs-db/src/tds.rs:5025`. `a_mysql_transaction_nests_to_a_savepoint_and_rolls_back_to_it`
+      is the twin to copy; what is new here is that the server accepts `SAVE TRANSACTION` and
+      `ROLLBACK TRANSACTION <name>` as spelled, and that a nested commit really does leave the outer
+      transaction open with nothing sent.
+- [ ] **§ 13's reset from inside a transaction, and the level it puts back** (0067 § 13).
+      `crates/nvs-db/tests/handshake.rs:780`, `crates/nvs-db/src/tds.rs:5193`. The reset clears both
+      of § 7's counters; a real server is where "`sp_reset_connection` also puts the isolation level
+      back" stops being this driver's claim about MS-TDS and becomes a measurement.
 
 ## Backlog
 
-- § 9's `bytes` bind stays refused, and closing it is a § 1 cache-key question — `crates/nvs-db/src/tds.rs`'s module doc.
-- An `open` pool's bounds have no operator spelling — known gap 1, `crates/nvs-stdlib/src/db.rs`.
-- Stage 9's `an_open_host_matching_no_grant_is_a_diagnostic` — `nvs_types::intrinsics`' known gap 6.
-- `crate::queue`'s four members are still PostgreSQL-only — known gap 2.
-- No `loop-goal.toml` check names § 4's batch on SQL Server; the two new cases are unnamed acceptance.
+- A `bytes` parameter is still refused on TDS; closing it is a § 1 cache-key question — `crates/nvs-db/src/tds.rs`'s module doc owns why.
+- SQLite is known gap 2's whole remainder: no connection path at all — `crates/nvs-stdlib/src/db.rs:3220`.
+- `examples/transaction.nvs` runs against PostgreSQL only — `docs/agent/loop-goal.toml` stage 5.
+- Stage 9's `an_open_host_matching_no_grant_is_a_diagnostic` — `nvs-types`, known gap 6, another goal's.
