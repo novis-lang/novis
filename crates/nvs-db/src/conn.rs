@@ -835,6 +835,15 @@ pub struct SqliteConn {
     /// the same reason the others do even with no wire to be mid-message on:
     /// ADR 0067 § 4's `LogicError` is a property of the API, not of a socket.
     pub(crate) state: Cell<State>,
+    /// How many of ADR 0067 § 7's transaction levels are open, exactly as
+    /// [`PgConn::depth`] counts them.
+    ///
+    /// SQLite has `BEGIN` and `SAVEPOINT` like every other backend § 7 reaches,
+    /// so the nesting is the same rule; [`mod@crate::sqlite`]'s `begin` owns
+    /// which command a level gets and the one place this backend's accounting
+    /// differs from PostgreSQL's, which is what a refused outermost `COMMIT`
+    /// leaves behind.
+    pub(crate) depth: Cell<u32>,
     /// ADR 0067 § 9's declared zone, in seconds east of UTC.
     ///
     /// Read from the block by the same `time_zone_for` every other driver goes
@@ -1000,6 +1009,7 @@ mod tests {
                 rusqlite::Connection::open_in_memory().expect("an in-memory database opens"),
             )),
             state: Cell::new(State::Idle),
+            depth: Cell::new(0),
             time_zone: 0,
         }))
     }

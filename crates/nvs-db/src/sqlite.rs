@@ -6,9 +6,10 @@
 //! § 2's borrowed codec over § 3's parking stream. There is no wire: no
 //! framing to borrow, no handshake to write, no readiness a reactor could
 //! report. `rusqlite` *is* the protocol, and what this module adds around it is
-//! the three things the other four get from their own machinery — § 3's
+//! the four things the other four get from their own machinery — § 3's
 //! handoff off the core, [ADR 0067](../../../docs/adr/0067-core-db.md) § 4's
-//! one-statement-at-a-time rule, and § 8's normalised error kinds.
+//! one-statement-at-a-time rule, § 8's normalised error kinds, and § 7's
+//! nesting with the § 13 reset that closes it.
 //!
 //! # Why every call is a handoff, and what it costs
 //!
@@ -56,7 +57,12 @@ use std::sync::{Arc, Mutex};
 use nvs_config::tree::Database;
 use rusqlite::types::{ToSqlOutput, ValueRef};
 
-use crate::conn::{BlockError, DbErrorKind, Driver, ServerError, SqliteConn, State, written_value};
+use crate::conn::{
+    BlockError, ColumnType, DbErrorKind, Driver, Isolation, ServerError, SqliteConn, State,
+    written_value,
+};
+use crate::pg::{open_transaction, savepoint_name};
+use crate::span::QuerySpan;
 use crate::sql::{statement_cache_for, time_zone_for};
 
 /// What this backend calls itself on a [`ServerError`] and in a refusal.
@@ -266,6 +272,82 @@ pub struct SqliteColumn {
     pub declared: Option<String>,
 }
 
+impl SqliteColumn {
+    /// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s type for this
+    /// column, off the *declared* name — the one backend where that is the only
+    /// thing to key on.
+    ///
+    /// The other four drivers read a type code the server sent and the value's
+    /// encoding follows from it. SQLite has five storage classes and a value
+    /// carries its own, so `20260903` in a column declared `date` arrives as an
+    /// `INTEGER` and `'2026-09-03'` in the same column arrives as `TEXT`.
+    /// Nothing about the *value* says which was meant, which is why § 9 keys
+    /// this backend off the schema's word and why turning a cell into a
+    /// `Core\Time\Date` throws when it does not parse: the column says what it
+    /// is and the value is either that or a mistake. The throw is
+    /// `nvs-stdlib`'s, where every driver's is — this half is the description.
+    ///
+    /// **§ 9's own names are matched first, then SQLite's affinity rules in
+    /// their own order.** Affinity has only five answers and none of them is
+    /// `DATETIME`, `BOOLEAN`, `UUID` or `DECIMAL`, so it is the fallback rather
+    /// than the rule — and where it *does* answer, its answer is kept, quirks
+    /// included: a column declared `POINT` contains `INT` and describes as
+    /// [`ColumnType::Int`], which is the integer affinity SQLite will really
+    /// give it. Order matters inside the first group too: `DATETIME` and
+    /// `TIMESTAMP` are checked before `TIME`, and `DATETIME` before `DATE`.
+    ///
+    /// Three answers this map deliberately does not give:
+    ///
+    /// - **Never [`ColumnType::Uint`].** SQLite has no unsigned storage class,
+    ///   and a column declared `UNSIGNED BIG INT` — a real spelling from
+    ///   SQLite's own affinity examples — is [`ColumnType::Int`], which is what
+    ///   its values are.
+    /// - **Never [`ColumnType::Json`].** A column declared `JSON` is
+    ///   [`ColumnType::Text`], because SQLite has no JSON type to describe:
+    ///   this is MariaDB's case, where the type is a name over a text column,
+    ///   and [`ColumnType::Json`]'s own doc settles it for both. § 9's rule that
+    ///   JSON is never auto-decoded is untouched either way.
+    /// - **An expression is [`ColumnType::Other`]**, the total case, and not the
+    ///   `BLOB` affinity SQLite's rule 3 gives a column with no declared type.
+    ///   `select 1 + 1` produces an integer, and describing it as bytes would be
+    ///   a wrong answer where `Other` is a true one.
+    #[must_use]
+    pub fn column_type(&self) -> ColumnType {
+        let Some(declared) = self.declared.as_deref() else {
+            return ColumnType::Other;
+        };
+        // Folded here rather than at the point it arrives, for the reason
+        // `declared`'s own doc gives: SQLite's affinity rules fold case, so one
+        // fold in one place is one place for this and the engine to agree.
+        let declared = declared.to_ascii_uppercase();
+        let has = |needle: &str| declared.contains(needle);
+
+        if has("DATETIME") || has("TIMESTAMP") {
+            ColumnType::DateTime
+        } else if has("DATE") {
+            ColumnType::Date
+        } else if has("TIME") {
+            ColumnType::Time
+        } else if has("BOOL") {
+            ColumnType::Bool
+        } else if has("UUID") {
+            ColumnType::Uuid
+        } else if has("DECIMAL") || has("NUMERIC") || has("MONEY") {
+            ColumnType::Decimal
+        } else if has("INT") {
+            ColumnType::Int
+        } else if has("CHAR") || has("CLOB") || has("TEXT") || has("JSON") {
+            ColumnType::Text
+        } else if has("BLOB") {
+            ColumnType::Bytes
+        } else if has("REAL") || has("FLOA") || has("DOUB") {
+            ColumnType::Float
+        } else {
+            ColumnType::Other
+        }
+    }
+}
+
 /// The rows of one statement, already read, and the connection they hold.
 ///
 /// The result set is in memory — this module's doc says why it cannot be
@@ -371,6 +453,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     Ok(SqliteConn {
         handle: Arc::new(Mutex::new(handle)),
         state: Cell::new(State::Idle),
+        depth: Cell::new(0),
         time_zone: target.time_zone,
     })
 }
@@ -470,6 +553,230 @@ impl SqliteConn {
         self.state.set(State::Idle);
         applied.map_err(server_error)
     }
+
+    /// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s `BEGIN`, or the
+    /// `SAVEPOINT` a nested `transaction()` is.
+    ///
+    /// The nesting, the names and the depth accounting are
+    /// [`crate::PgConn::begin`]'s — one rule for every backend that has
+    /// savepoints, which is all five — and what is this driver's own is the two
+    /// options.
+    ///
+    /// **Every one of § 7's five isolation levels is accepted, and none of them
+    /// renders to anything.** SQLite is always serializable, so a level asked
+    /// for here is delivered *at least* as strongly as it was asked for, which
+    /// [`Isolation`]'s own doc makes explicitly not the case § 7 says to throw
+    /// over: nothing a program can observe is weakened by a stronger guarantee.
+    /// The refusal § 7 requires is for a driver that would quietly run the
+    /// closure at a *weaker* level, and this backend has no weaker level to run
+    /// it at. A `WAL` database's readers not blocking on a writer is the same
+    /// serializable history reached without the lock, not a second level.
+    ///
+    /// **`read_only` is refused at any depth**, as it is on SQL Server and for
+    /// the sharper reason. SQLite has no read-only transaction: read-only-ness
+    /// is a property of how the *database* was opened, and the only per-session
+    /// spelling is `PRAGMA query_only`, which would be session state this
+    /// connection carried between transactions — precisely what § 13 says this
+    /// backend has none of, and the claim its whole reset rests on. Accepting
+    /// the option and opening an ordinary writable transaction is the one
+    /// failure mode a `readOnly` exists to prevent.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` for a `read_only` at any depth and for a nested call
+    /// asking for an isolation level, otherwise as [`simple_command`]. The depth
+    /// moves only after a command SQLite accepted, so a refused `BEGIN` leaves a
+    /// connection that is still in no transaction.
+    pub fn begin(&self, isolation: Option<Isolation>, read_only: bool) -> io::Result<QuerySpan> {
+        if read_only {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "a transaction asked to be read-only and SQLite has no read-only transaction: \
+                 drop the option, or take the guarantee where this backend really offers one — a \
+                 `[db.<name>]` block of its own naming the same file, opened read-only",
+            ));
+        }
+
+        let open = self.depth.get();
+        let command = if open == 0 {
+            String::from("BEGIN")
+        } else if isolation.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "a transaction nested {open} deep asked for its own isolation level, and \
+                     SQLite settles one for the whole transaction: ask for it on the outermost \
+                     `transaction()`, or give this one a `{{shared: false}}` connection of its own"
+                ),
+            ));
+        } else {
+            format!("SAVEPOINT {}", savepoint_name(open))
+        };
+
+        let span = simple_command(self, &command)?;
+        self.depth.set(open + 1);
+        Ok(span)
+    }
+
+    /// How many transaction levels are open on this connection — 0 outside one,
+    /// 1 inside an outermost `transaction()`, deeper inside a nested one.
+    ///
+    /// [`crate::PgConn::depth`] owns why this is public at all: § 7 retries an
+    /// outermost transaction only, and the caller cannot tell the two apart.
+    #[must_use]
+    pub fn depth(&self) -> u32 {
+        self.depth.get()
+    }
+
+    /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one.
+    ///
+    /// **A refused outermost commit leaves the depth where it was**, which is
+    /// the one place this driver's accounting is not
+    /// [`crate::PgConn::commit`]'s. PostgreSQL has already rolled the
+    /// transaction back by the time it refuses a `COMMIT`, so the level really
+    /// is gone there; SQLite refuses one with `SQLITE_BUSY` and leaves the
+    /// transaction open and retryable. Zeroing the count here would send the
+    /// next command as a `BEGIN` inside a transaction SQLite still holds, and
+    /// § 7's `{retries: n}` is the caller that would do it.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` for a connection in no transaction, otherwise as
+    /// [`simple_command`].
+    pub fn commit(&self) -> io::Result<QuerySpan> {
+        let open = open_transaction(&self.depth, "commit")?;
+        let command = if open == 1 {
+            String::from("COMMIT")
+        } else {
+            format!("RELEASE SAVEPOINT {}", savepoint_name(open - 1))
+        };
+
+        let span = simple_command(self, &command)?;
+        self.depth.set(open - 1);
+        Ok(span)
+    }
+
+    /// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one.
+    ///
+    /// The nested form releases the savepoint it returned to in the same batch,
+    /// for [`crate::PgConn::roll_back`]'s reason: `ROLLBACK TO` leaves the
+    /// savepoint established, and a loop that opens and abandons a nested
+    /// transaction per iteration would otherwise leave one name per iteration
+    /// alive for as long as the outer transaction runs.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` for a connection in no transaction, otherwise as
+    /// [`simple_command`]. A refused rollback leaves the depth where it was: the
+    /// level above will roll back over this one anyway.
+    pub fn roll_back(&self) -> io::Result<QuerySpan> {
+        let open = open_transaction(&self.depth, "roll back")?;
+        let command = if open == 1 {
+            String::from("ROLLBACK")
+        } else {
+            let name = savepoint_name(open - 1);
+            format!("ROLLBACK TO SAVEPOINT {name}; RELEASE SAVEPOINT {name};")
+        };
+
+        let span = simple_command(self, &command)?;
+        self.depth.set(open - 1);
+        Ok(span)
+    }
+
+    /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, and the
+    /// connection back only if it worked.
+    ///
+    /// **Rolling back an open transaction is the whole reset**, which is § 13's
+    /// own sentence for this backend and not a shortcut taken here: a
+    /// `rusqlite::Connection` is a file handle, and every other item on § 13's
+    /// property list — a session variable, a `SET ROLE`, an advisory lock, a
+    /// listener, a temporary table outside the transaction — is something SQLite
+    /// has no session to hold. § 1's statement cache is `rusqlite`'s own and
+    /// survives, which is what pooling exists to preserve. Nothing this driver
+    /// sets per transaction is session-scoped, and
+    /// [`SqliteConn::begin`]'s refusal of `read_only` is what keeps that true.
+    ///
+    /// **Whether a transaction is open is asked of the engine, not of the
+    /// count.** `sqlite3_get_autocommit` is the connection's own answer, so a
+    /// reset is provable rather than inferred from a depth this driver
+    /// maintains — and it also covers the transaction a caller's own `BEGIN` in
+    /// § 4 statement text opened, which the depth never saw.
+    ///
+    /// **`self` by value is the enforcement**, exactly as on
+    /// [`crate::PgConn::reset`]: a connection that cannot be proven clean must
+    /// not be returnable to the pool, and a `&mut self` signature would leave
+    /// the caller holding one it has to remember not to reuse.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` for a connection that is not at rest — § 4's rows are
+    /// still lent out, and a reset is only meaningful between statements — or
+    /// [`server_error`] for a rollback SQLite refused. The connection is
+    /// dropped either way.
+    pub fn reset(self) -> io::Result<SqliteConn> {
+        if !self.state.get().is_poolable() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "a connection that is {:?} was asked to reset, and § 13's reset is only \
+                     meaningful between statements",
+                    self.state.get()
+                ),
+            ));
+        }
+
+        let handle = Arc::clone(&self.handle);
+        nvs_host::blocking::run(move || {
+            let guard = lock(&handle);
+            if guard.is_autocommit() {
+                return Ok(());
+            }
+            guard.execute_batch("ROLLBACK;")
+        })
+        .map_err(server_error)?;
+
+        self.depth.set(0);
+        Ok(self)
+    }
+}
+
+/// § 7's three commands and § 13's rollback, run off the core as one batch.
+///
+/// None of them takes a parameter or answers a row, so `execute_batch` is the
+/// whole call: it is also the only `rusqlite` entry point that will run the two
+/// statements [`SqliteConn::roll_back`]'s nested form sends, and it deliberately
+/// does not go through § 1's cache — a `COMMIT` is worth no entry in an LRU of
+/// prepared statements.
+///
+/// **It answers the span of the command it sent**, which is ADR 0067 § 11's
+/// event for a statement that lends no [`SqliteRows`] out, for
+/// [`crate::PgConn::begin`]'s reason: which command a level gets is the depth's
+/// answer, so the text only exists down here.
+///
+/// A refused batch returns the connection to [`State::Idle`] rather than
+/// poisoning it, as [`SqliteConn::query`] does and for the same reason — there
+/// is no half-written message for this driver to be lost in.
+///
+/// # Errors
+///
+/// [`busy`] when the connection is not at rest, [`server_error`] for anything
+/// SQLite refused.
+fn simple_command(conn: &SqliteConn, sql: &str) -> io::Result<QuerySpan> {
+    if !conn.state.get().may_start_statement() {
+        return Err(busy(conn.state.get()));
+    }
+
+    let mut span = QuerySpan::opened(Driver::Sqlite, sql);
+    conn.state.set(State::Executing);
+
+    let handle = Arc::clone(&conn.handle);
+    let owned = sql.to_owned();
+    let ran = nvs_host::blocking::run(move || lock(&handle).execute_batch(&owned));
+
+    conn.state.set(State::Idle);
+    ran.map_err(server_error)?;
+    span.finished(None);
+    Ok(span)
 }
 
 /// What one stepped statement produced, owned and off the pool thread.
@@ -659,9 +966,19 @@ fn constraint_of(message: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{SqliteTarget, SqliteValue, open};
-    use crate::conn::{BlockError, DbErrorKind, Driver, ServerError, State};
+    use crate::conn::{
+        BlockError, ColumnType, DbErrorKind, Driver, Isolation, ServerError, SqliteConn, State,
+    };
     use nvs_config::tree::Database;
     use std::path::Path;
+
+    /// SQLite's own answer to "is a transaction open on this connection", which
+    /// is what every depth assertion below is checked against — the count is
+    /// this driver's and the autocommit flag is the engine's, so a test that
+    /// read only the count would pass on a driver that never sent anything.
+    fn autocommit(conn: &SqliteConn) -> bool {
+        super::lock(&conn.handle).is_autocommit()
+    }
 
     /// A `[db.<name>]` block naming this driver and a file, and nothing else.
     fn block() -> Database {
@@ -977,5 +1294,323 @@ mod tests {
             .query("select v from t", Vec::new())
             .expect_err("the read is refused");
         assert_eq!(refused.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    /// § 7's nesting: `BEGIN` at the bottom, a `SAVEPOINT` above it to any
+    /// depth, and the count following each command the engine took. This is the
+    /// one driver where the assertion is the engine's own answer rather than a
+    /// scripted peer's — `is_autocommit` is SQLite saying whether a transaction
+    /// is open, so the depth is checked against the file and not against itself.
+    #[test]
+    fn nesting_is_begin_then_savepoints_and_the_depth_follows_the_engine() {
+        let conn = connect();
+        assert_eq!(conn.depth(), 0);
+        assert!(autocommit(&conn));
+
+        for level in 1..=3 {
+            conn.begin(None, false).expect("a level SQLite took");
+            assert_eq!(conn.depth(), level);
+            assert!(!autocommit(&conn));
+        }
+
+        conn.roll_back().expect("the innermost level, undone");
+        assert_eq!(conn.depth(), 2);
+        assert!(!autocommit(&conn));
+
+        conn.commit().expect("a nested commit");
+        assert_eq!(conn.depth(), 1);
+        assert!(!autocommit(&conn));
+
+        let span = conn.commit().expect("the outermost commit");
+        assert_eq!(span.driver(), Driver::Sqlite);
+        assert_eq!(span.sql(), "COMMIT");
+        assert_eq!(conn.depth(), 0);
+        assert!(autocommit(&conn));
+    }
+
+    /// § 7's nested rollback undoes its own level and leaves the outer one's
+    /// writes alone — the composition the closure form exists for, asserted on
+    /// the rows rather than on the commands sent.
+    #[test]
+    fn a_nested_rollback_undoes_its_level_and_not_the_one_around_it() {
+        let conn = connect();
+        conn.query("create table t (v integer)", Vec::new())
+            .expect("the schema applies");
+
+        conn.begin(None, false).expect("the outermost level");
+        conn.query("insert into t (v) values (1)", Vec::new())
+            .expect("the outer write");
+        conn.begin(None, false).expect("a nested level");
+        conn.query("insert into t (v) values (2)", Vec::new())
+            .expect("the inner write");
+        conn.roll_back().expect("the nested level, undone");
+        conn.commit().expect("the outermost commit");
+
+        let mut rows = conn
+            .query("select v from t order by v", Vec::new())
+            .expect("the select runs");
+        assert_eq!(rows.next_row(), Some(vec![SqliteValue::Int(1)]));
+        assert_eq!(rows.next_row(), None);
+    }
+
+    /// A second `ROLLBACK TO` against the same name would fail if the nested
+    /// form had not released the savepoint it returned to, which is the leak
+    /// `roll_back`'s two-statement batch exists to prevent.
+    #[test]
+    fn a_nested_rollback_releases_the_savepoint_it_returned_to() {
+        let conn = connect();
+        conn.begin(None, false).expect("the outermost level");
+
+        for _ in 0..3 {
+            conn.begin(None, false).expect("a nested level");
+            assert_eq!(conn.depth(), 2);
+            conn.roll_back().expect("that level, undone");
+            assert_eq!(conn.depth(), 1);
+        }
+
+        conn.roll_back().expect("the outermost rollback");
+        assert_eq!(conn.depth(), 0);
+    }
+
+    /// § 7's `Isolation` on the one backend that has a single level: every one
+    /// of the five is accepted at the outermost level because serializable is
+    /// stronger than any of them, none of them renders to a command, and a
+    /// nested call naming one is still refused — the level belongs to the whole
+    /// transaction.
+    #[test]
+    fn every_isolation_level_is_accepted_because_sqlite_is_always_serializable() {
+        let levels = [
+            Isolation::ReadUncommitted,
+            Isolation::ReadCommitted,
+            Isolation::RepeatableRead,
+            Isolation::Snapshot,
+            Isolation::Serializable,
+        ];
+
+        for level in levels {
+            let conn = connect();
+            let span = conn.begin(Some(level), false).expect("SQLite took it");
+            assert_eq!(span.sql(), "BEGIN");
+            assert_eq!(conn.depth(), 1);
+
+            let nested = conn
+                .begin(Some(level), false)
+                .expect_err("a nested level naming its own is refused");
+            assert_eq!(nested.kind(), std::io::ErrorKind::InvalidInput);
+            assert_eq!(conn.depth(), 1);
+
+            conn.begin(None, false).expect("the same level, unnamed");
+            assert_eq!(conn.depth(), 2);
+        }
+    }
+
+    /// § 7's `readOnly` is refused rather than dropped: SQLite has no read-only
+    /// transaction, and opening a writable one under the word is the failure the
+    /// option exists to prevent. Refused at every depth, and before the depth
+    /// moves.
+    #[test]
+    fn a_read_only_transaction_is_refused_because_sqlite_has_none() {
+        let conn = connect();
+        let refused = conn
+            .begin(None, true)
+            .expect_err("read-only is not a thing SQLite offers");
+        assert_eq!(refused.kind(), std::io::ErrorKind::InvalidInput);
+        assert_eq!(conn.depth(), 0);
+
+        conn.begin(None, false).expect("an ordinary transaction");
+        let nested = conn.begin(None, true).expect_err("refused when nested too");
+        assert_eq!(nested.kind(), std::io::ErrorKind::InvalidInput);
+        assert_eq!(conn.depth(), 1);
+    }
+
+    /// § 7 has no `commit()` on the connection, so a call with nothing open is
+    /// this driver's own bug and says so rather than sending a bare `ROLLBACK`.
+    #[test]
+    fn closing_a_transaction_that_was_never_opened_is_refused() {
+        let conn = connect();
+        for refused in [
+            conn.commit().expect_err("nothing to commit"),
+            conn.roll_back().expect_err("nothing to roll back"),
+        ] {
+            assert_eq!(refused.kind(), std::io::ErrorKind::InvalidInput);
+        }
+    }
+
+    /// § 13's reset is the rollback and nothing else, and it undoes a
+    /// transaction the *depth never saw* — one a caller opened in its own § 4
+    /// statement text — because what it asks is the engine's `is_autocommit`
+    /// rather than this driver's count.
+    #[test]
+    fn a_reset_rolls_back_whatever_is_open_and_zeroes_the_depth() {
+        let conn = connect();
+        conn.query("create table t (v integer)", Vec::new())
+            .expect("the schema applies");
+        conn.begin(None, false).expect("the outermost level");
+        conn.begin(None, false).expect("a nested level");
+        conn.query("insert into t (v) values (1)", Vec::new())
+            .expect("the write nobody committed");
+        assert_eq!(conn.depth(), 2);
+
+        let conn = conn.reset().expect("the reset works");
+        assert_eq!(conn.depth(), 0);
+        assert!(autocommit(&conn));
+
+        let mut rows = conn
+            .query("select v from t", Vec::new())
+            .expect("the select runs");
+        assert_eq!(rows.next_row(), None);
+        drop(rows);
+
+        // The depth never sees this one: it is a caller's own text, and the
+        // reset still proves the connection clean.
+        conn.query("begin", Vec::new()).expect("a raw BEGIN");
+        assert_eq!(conn.depth(), 0);
+        assert!(!autocommit(&conn));
+        let conn = conn.reset().expect("the reset works anyway");
+        assert!(autocommit(&conn));
+    }
+
+    /// § 13's reset is only meaningful between statements, and a connection
+    /// that is not at rest is refused rather than drained.
+    ///
+    /// § 4's *streaming* half of that is held by the borrow checker instead and
+    /// cannot be written as a case at all: [`SqliteRows`] borrows the
+    /// connection, so `reset`'s by-value receiver will not compile while one is
+    /// alive. What is left to assert is the state a caller can reach with no
+    /// rows in hand — `nvs-stdlib` poisons a connection whose request was torn
+    /// down mid-call — and that is the security-relevant one: a connection that
+    /// cannot be proven clean is closed, never reset.
+    #[test]
+    fn a_connection_that_is_not_at_rest_is_not_resettable() {
+        let conn = connect();
+        conn.state.set(State::Poisoned);
+
+        let refused = conn
+            .reset()
+            .expect_err("a poisoned connection is not clean");
+        assert_eq!(refused.kind(), std::io::ErrorKind::InvalidInput);
+    }
+
+    /// § 9's map on the one backend that has no types to map: every case the
+    /// table names, keyed off what the schema declared, and asserted through a
+    /// real statement rather than by calling the map on a string — the whole
+    /// question is whether SQLite hands back the word the schema wrote.
+    ///
+    /// A sweep rather than a line each, and it is the counting shape on
+    /// purpose: a map that answered plausibly for `date` and wrongly for
+    /// `datetime` reads fine one row at a time.
+    #[test]
+    fn a_column_describes_off_the_type_its_schema_declared() {
+        let declared = [
+            ("smallint", ColumnType::Int),
+            ("integer", ColumnType::Int),
+            ("bigint", ColumnType::Int),
+            ("unsigned big int", ColumnType::Int),
+            ("real", ColumnType::Float),
+            ("double precision", ColumnType::Float),
+            ("float", ColumnType::Float),
+            ("decimal(10, 2)", ColumnType::Decimal),
+            ("numeric", ColumnType::Decimal),
+            ("money", ColumnType::Decimal),
+            ("text", ColumnType::Text),
+            ("varchar(255)", ColumnType::Text),
+            ("clob", ColumnType::Text),
+            ("json", ColumnType::Text),
+            ("blob", ColumnType::Bytes),
+            ("boolean", ColumnType::Bool),
+            ("date", ColumnType::Date),
+            ("time", ColumnType::Time),
+            ("datetime", ColumnType::DateTime),
+            ("timestamp", ColumnType::DateTime),
+            ("uuid", ColumnType::Uuid),
+            ("point", ColumnType::Int),
+            ("geometry", ColumnType::Other),
+        ];
+
+        let conn = connect();
+        let columns = declared
+            .iter()
+            .enumerate()
+            .map(|(i, (written, _))| format!("c{i} {written}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        conn.query(&format!("create table t ({columns})"), Vec::new())
+            .expect("the schema applies");
+
+        let rows = conn
+            .query("select * from t", Vec::new())
+            .expect("the select runs");
+        assert_eq!(rows.columns().len(), declared.len());
+
+        let wrong = rows
+            .columns()
+            .iter()
+            .zip(declared)
+            .filter(|(column, (_, want))| column.column_type() != *want)
+            .map(|(column, (written, want))| {
+                format!("{written} declared {:?}, wanted {want:?}", column.declared)
+            })
+            .collect::<Vec<_>>();
+        assert!(wrong.is_empty(), "§ 9 disagrees on: {wrong:?}");
+    }
+
+    /// § 9's total case: an expression has no declared type, and describing it
+    /// as the `BLOB` affinity SQLite's own rule 3 would give it is a wrong
+    /// answer where `Other` is a true one.
+    #[test]
+    fn an_expression_describes_as_the_total_case_and_not_as_bytes() {
+        let conn = connect();
+        let rows = conn
+            .query("select 1 + 1 as sum", Vec::new())
+            .expect("the select runs");
+        assert_eq!(rows.columns()[0].declared, None);
+        assert_eq!(rows.columns()[0].column_type(), ColumnType::Other);
+    }
+
+    /// The storage class of a value says nothing about what the column is,
+    /// which is § 9's whole reason for keying this backend off the schema: one
+    /// `date` column holding an integer and a string describes the same either
+    /// way, and it is `nvs-stdlib` that throws on the cell that does not parse.
+    #[test]
+    fn the_declared_type_and_not_the_stored_class_is_what_describes_a_column() {
+        let conn = connect();
+        conn.query("create table t (when_ date)", Vec::new())
+            .expect("the schema applies");
+        conn.query(
+            "insert into t (when_) values (?), (?)",
+            vec![
+                SqliteValue::Int(20_260_903),
+                SqliteValue::Text(String::from("2026-09-03")),
+            ],
+        )
+        .expect("both rows insert");
+
+        let mut rows = conn
+            .query("select when_ from t", Vec::new())
+            .expect("the select runs");
+        assert_eq!(rows.columns()[0].column_type(), ColumnType::Date);
+        assert_eq!(rows.next_row(), Some(vec![SqliteValue::Int(20_260_903)]));
+        assert_eq!(
+            rows.next_row(),
+            Some(vec![SqliteValue::Text(String::from("2026-09-03"))])
+        );
+    }
+
+    /// § 4's rule holds over § 7's commands too: a `BEGIN` written while a
+    /// result set is unread is the same busy refusal a second `query` is.
+    #[test]
+    fn a_transaction_command_while_rows_are_held_is_the_busy_refusal() {
+        let conn = connect();
+        conn.query("create table t (v integer)", Vec::new())
+            .expect("the schema applies");
+        let rows = conn.query("select v from t", Vec::new()).expect("it runs");
+
+        let refused = conn.begin(None, false).expect_err("the connection is busy");
+        assert!(
+            refused.to_string().contains("Streaming"),
+            "the refusal names § 4's rule and both its fixes: {refused}"
+        );
+        assert_eq!(conn.depth(), 0);
+        drop(rows);
     }
 }
