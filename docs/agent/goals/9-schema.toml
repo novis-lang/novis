@@ -1,0 +1,241 @@
+# Goal 9 -- Core\Db\Schema: tables, columns and indexes, converged. The acceptance test, as data.
+#
+# `9-schema.md` is the prose. One home each.
+#
+# THIS GOAL HAS AN EXTERNAL PRECONDITION. `chain.toml` marks it `preflight = "docker"`. Unlike goals 7
+# and 8, which bring up only what their own checks touch, this goal's own stage 5 property -- apply,
+# introspect, and the plan comes back empty -- is asserted against every backend, so all four servers
+# come up here as they do for goal 5. SQLite is a file and needs nothing.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/schema.nvs",
+]
+
+[context]
+
+modules = [
+  # The vocabulary, the four emitters, the five introspectors and the diff. `schema.rs` is created by
+  # stage 2, so orient.py warns that this line matches it only once it exists.
+  "crates/nvs-db/src/schema.rs",
+  # `Dialect` is already four values for five drivers, and the emitters follow it rather than `Driver`.
+  "crates/nvs-db/src/sql.rs",
+  # What a connection is, and the `Driver` the grade table is keyed on beside its server version.
+  "crates/nvs-db/src/conn.rs",
+  # The four hand-written MIGRATION_* lists stage 7 retires, and the guard test over them.
+  "crates/nvs-stdlib/src/queue.rs",
+  # `quoteIdentifier`'s judgement, which the identifier rule reuses rather than restating.
+  "crates/nvs-stdlib/src/db.rs",
+  # `Core\Db\Schema` and its plan types are registered here.
+  "crates/nvs-stdlib/src/registry.rs",
+  # `nvs queue migrate`, which stage 7 rewrites, and where `nvs schema` is wired in beside it.
+  "crates/nvs-cli/src/queue.rs",
+  "crates/nvs-cli/src/main.rs",
+]
+
+rules = ["0067", "0084", "0024", "0051", "0082", "0132", "0063", "0117", "0005"]
+
+# 0067 whole -- its Revisiting item is what this goal closes, and its § 9 type map is the vocabulary
+# read in the other direction. 0084 § 2 for the schema this goal takes over. 0082 § 7 for the design
+# that stays blocked.
+adrs = ["0067", "0084", "0082"]
+
+shapes = ["A `Core` member — the five edits", "An ADR", "A `.nvst` test case", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Every backend, because stage 5's round-trip property is asserted against every backend. Same compose
+# file and the same memoization as goal 5, whose driver checks the floor also carries.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["mysql", "mariadb", "postgres", "mssql", "redis"]
+memoize_on = ["crates/nvs-db", "crates/nvs-stdlib/src/queue.rs", "tests/db"]
+
+# The `certs` service's CA, where `nvs.toml`'s `[db.main] tls_ca_file` names it. Gitignored and
+# regenerated with its volume, so it is copied rather than committed -- goal 5's block, verbatim.
+[docker.copy]
+"tests/db/ca.crt" = "postgres:/certs/ca.crt"
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the vocabulary, and the round-trip that makes a file, a builder and an introspection one
+# value. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the vocabulary"
+name = "nvs-db (the schema value)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_schema_value_round_trips_through_its_array_form",
+  "every_column_type_in_the_vocabulary_round_trips",
+  "the_column_type_vocabulary_is_adr_0067_section_9s_map_in_the_write_direction",
+  "a_default_is_a_vocabulary_scalar_or_now_and_nothing_else",
+  "an_identifier_is_validated_by_the_judgement_quote_identifier_states",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- four emitters, and a step that carries SQL an operator could paste. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the emitters"
+name = "nvs-db (four dialects)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "every_construct_in_the_vocabulary_emits_in_all_four_dialects",
+  "the_emitters_follow_dialect_rather_than_driver",
+  "mysql_declares_an_index_inside_its_create_table_having_no_if_not_exists",
+  "mysql_gives_an_indexed_text_column_a_prefix_length",
+  "sqlite_rebuilds_the_table_for_an_alter_it_cannot_express",
+  "every_step_carries_terminated_executable_sql_including_the_ones_apply_refuses",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- five introspectors answering the same value the builder produces. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 introspection"
+name = "nvs-db (the catalog readers)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "every_driver_introspects_into_the_same_schema_value_shape",
+  "postgres_reads_pg_catalog_and_the_others_read_information_schema",
+  "sqlite_reads_sqlite_master_and_its_pragmas",
+]
+
+[[check]]
+kind = "command"
+stage = "4 introspection"
+name = "nvs schema dump answers a schema value"
+argv = ["{nvs}", "schema", "dump", "--connection", "main"]
+want = ["nvs_jobs", "nvs_dead_jobs"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the property the whole goal reduces to, and the three grades. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the diff"
+name = "nvs-db (apply, introspect, empty)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "an_applied_schema_introspects_back_to_an_empty_plan_on_postgres",
+  "an_applied_schema_introspects_back_to_an_empty_plan_on_mysql",
+  "an_applied_schema_introspects_back_to_an_empty_plan_on_mariadb",
+  "an_applied_schema_introspects_back_to_an_empty_plan_on_sqlserver",
+  "an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite",
+  "the_diff_compares_normalized_values_and_never_sql_text",
+  "an_implicit_index_a_unique_constraint_created_is_not_a_difference",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the diff"
+name = "nvs-db (the grades)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "adding_a_nullable_column_is_safe",
+  "a_unique_index_over_existing_rows_is_locking",
+  "not_null_on_a_populated_column_is_locking",
+  "dropping_a_column_and_narrowing_a_type_are_destructive",
+  "an_added_default_grades_on_the_servers_version_and_not_the_driver_alone",
+  "a_grade_the_emitter_cannot_determine_grades_up",
+  "a_table_the_schema_does_not_declare_is_reported_and_never_dropped",
+  "a_column_the_schema_does_not_declare_is_reported_and_never_dropped",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the member, the capability, and the command. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the member"
+name = "nvs-stdlib (Core\\Db\\Schema)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "plan_against_needs_only_the_db_connect_a_program_already_holds",
+  "applying_without_the_db_schema_capability_throws_naming_it",
+  "apply_safe_refuses_a_plan_holding_a_step_that_is_not_safe",
+]
+
+[[check]]
+kind = "command"
+stage = "6 the member"
+name = "nvs schema plan grades every step and prints its SQL"
+argv = ["{nvs}", "schema", "plan", "--connection", "main", "--schema", "examples/schema.json"]
+want = ["Safe", "create table", "Destructive"]
+
+[[check]]
+kind = "exact"
+stage = "6 the member"
+file = "examples/schema.nvs"
+want = [
+  "planned 3 steps",
+  "safe 2, locking 0, destructive 1",
+  "applied the safe half",
+  "second plan is empty",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the retirement. It owes no check of its own: goal 5's two `nvs queue migrate` checks are
+# in stage 1's floor with their output frozen, so the schema value either emits what the four
+# hand-written lists emitted or the floor goes red. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 the retirement"
+name = "nvs-stdlib (one home for the queue's schema)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "the_queues_schema_is_one_value_and_no_dialect_list",
+  "the_ddl_creates_every_column_the_statements_name",
+  "every_driver_has_a_queue_schema_and_none_answers_none",
+]
+
+[[check]]
+kind = "command"
+stage = "7 the retirement"
+name = "nvs queue migrate runs on a backend it had no dialect for"
+argv = ["{nvs}", "queue", "migrate", "--connection", "mssql", "--dry-run"]
+want = ["jobs", "dead_letter"]

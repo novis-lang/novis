@@ -82,3 +82,18 @@ toml = "docs/agent/goals/8-program-id.toml"
 handoff = "docs/agent/goals/8-program-id.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+
+# Post-parity: `Core\Db\Schema`, closing ADR 0067's own *Revisiting* item. It is last for a reason that
+# is not tidiness. Its acceptance property — apply a schema, introspect it back, get an empty plan —
+# needs every driver finished, and SQLite has no connection path before goal 5 ends. And its stage 7
+# retires `nvs queue migrate`'s four hand-written dialect lists, which goal 5 writes and freezes the
+# output of: those checks ride in as this goal's floor and are what proves the replacement, so the
+# throwaway DDL is the oracle rather than duplicated work. Docker preflight, and unlike goals 7 and 8
+# it brings up every server — the round-trip property is asserted on all five backends.
+[[goal]]
+name = "9 schema"
+md = "docs/agent/goals/9-schema.md"
+toml = "docs/agent/goals/9-schema.toml"
+handoff = "docs/agent/goals/9-schema.handoff.md"
+milestone = "post-parity"
+preflight = "docker"

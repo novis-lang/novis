@@ -6,7 +6,9 @@ cut into six goals, and [chain.toml](chain.toml) is the order the driver walks t
 post-parity goal — [ADR 0131](../../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)'s
 temporary-directory sweep — rides the same chain after the program's gate, because its server half needs
 the `nvs-server` goal 6 creates. An eighth, [`Core\Program::id()`](8-program-id.md), follows it: one
-member exposing the program fingerprint over hashes the artifact cache already computes.
+member exposing the program fingerprint over hashes the artifact cache already computes. A ninth,
+[`Core\Db\Schema`](9-schema.md), closes [ADR 0067](../../adr/0067-core-db.md)'s own *Revisiting* item and
+is last because its acceptance property needs every driver goal 5 builds to be finished.
 
 [loop-authoring.md](../loop-authoring.md) owns how a goal is *written* and [coordinator.md](../coordinator.md)
 owns how one is *driven*. This file owns only what is specific to running six of them back to back, and it
@@ -33,6 +35,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [6 server](6-server.md) | M7 | **`nvs-server`** (new), `nvs-stdlib`, `nvs-host` |
 | [7 temp-sweep](7-temp-sweep.md) | post-parity, ADR 0131 | `nvs-runtime`, `nvs-host`, `nvs-stdlib`, `nvs-config`, `nvs-server`, `nvs-cli` |
 | [8 program-id](8-program-id.md) | post-parity, ADR 0061 amendment | `nvs-config`, `nvs-hir`, `nvs-runtime`, `nvs-stdlib` |
+| [9 schema](9-schema.md) | post-parity, one ADR slot | `nvs-db`, `nvs-stdlib`, `nvs-cli` |
 
 ## The chain contract
 
@@ -92,7 +95,7 @@ TOML for a doubled floor before restarting.
   functions and 253 types** accounted for, every `member` row registered, every one of them cased. The
   inventory grew from 925 on 2026-08-29, when the oracle build gained `mysqli`, `pgsql` and `sqlite3`:
   the three APIs [ADR 0067](../../adr/0067-core-db.md) replaces are now inside the audit rather than a
-  named hole beside it. Goals 7 and 8 going green, in chain order, is then what ends the run.
+  named hole beside it. Goals 7, 8 and 9 going green, in chain order, is then what ends the run.
 - **A goal reports `BLOCKED`.** Reserved for a decision that is expensive to reverse *and* has no safe
   default. Every goal's standing decisions exist to make this rare.
 - **`--max-stalls` consecutive sessions move `HEAD` nowhere.**
@@ -102,6 +105,10 @@ TOML for a doubled floor before restarting.
   minute.
 
 ## What this program does not touch
+
+`Web\Migration` and everything versioned about a schema change — ordering, history tables, fleet
+locking, reversibility — which [ADR 0082](../../adr/0082-the-first-party-framework.md) § 7 records as
+deliberately blocked. Goal 9 builds convergence, which needs none of them, and does not close that gap.
 
 Doc trimming and dependency sweeps, both of which the user fires and never a session
 ([doc-cleanup.md](../doc-cleanup.md), [dependency-update.md](../dependency-update.md)). M4B's staged goal
