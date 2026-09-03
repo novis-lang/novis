@@ -34,6 +34,16 @@
 //! the account named, and the credential it refuses is refused by *MariaDB's*
 //! table rather than by MySQL's.
 //!
+//! **SQL Server is the fourth, and the only one whose TLS is not a socket
+//! upgrade.** § 3's session is negotiated *inside* TDS: the handshake records
+//! ride PRELOGIN messages one packet at a time and the stream goes raw again
+//! once the login is sent, so `tds.rs`'s own cases hold each step of that tunnel
+//! against a peer that agrees with whatever was written. What is left over is
+//! the same question the other three leave over — that the tunnel completes
+//! against a real SQL Server and that a statement then runs over it — and
+//! `sys.dm_exec_connections` is where that server keeps its own view of the
+//! socket, so it stands exactly where `pg_stat_ssl` and `Ssl_version` do.
+//!
 //! # Why the server is asked rather than the driver
 //!
 //! Every assertion below is the server's own answer, not this crate's.
@@ -70,9 +80,10 @@ use std::time::{Duration, Instant};
 
 use nvs_db::matrix::{self, Location, Server};
 use nvs_db::mysql::scalar;
+use nvs_db::tds::{TdsScalar, scalar as tds_scalar};
 use nvs_db::{
     DbErrorKind, Driver, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar, MySqlTarget,
-    PgConn, PgTarget, ServerError,
+    PgConn, PgTarget, ServerError, TdsConn, TdsTarget,
 };
 use nvs_host::{Reactor, Scheduler, run_until_idle};
 use nvs_runtime::{Ctx, OutputSink, TaskRoot};
@@ -365,6 +376,78 @@ fn mariadb_run(conn: &mut MariaConn, sql: &str) {
         .expect("a row, or the end of the stream")
         .is_some()
     {}
+}
+
+/// This process's SQL Server, or `None` because nothing pointed it at one.
+///
+/// [`mysql`]'s twin once more, and the twinning is the whole of the skip rule:
+/// the matrix runs one driver per process, so this case runs on the MariaDB leg
+/// as well and returns there without asserting.
+fn mssql() -> Option<Server> {
+    let endpoint = matrix::endpoint()?;
+    if endpoint.driver != Driver::SqlServer {
+        return None;
+    }
+    let Location::Server(server) = endpoint.location else {
+        unreachable!("SQLite is the only driver reached by path, and this is not it")
+    };
+    Some(server)
+}
+
+/// One SQL Server handshake against `server`, offering `password`.
+///
+/// [`mysql_connect_as`]'s twin. The declared zone stays a constant where
+/// [`mariadb_connect_as`] lifted it into a parameter, because on this backend
+/// there is nothing to send it to: [`TdsTarget::time_zone`] governs decoding
+/// alone, so a case that varied it would be asking this process a question
+/// rather than the server.
+fn mssql_connect_as(server: &Server, password: &str) -> io::Result<TdsConn> {
+    let target = TdsTarget {
+        host: &server.host,
+        user: &server.user,
+        password,
+        database: &server.database,
+        tls_ca_file: Some(server.ca.as_path()),
+        time_zone: 0,
+        statement_cache: 8,
+    };
+
+    TdsConn::connect(address(server), &target, Some(Instant::now() + DEADLINE))
+}
+
+/// A SQL Server connection to `server`, as a request that found the pool empty
+/// opens one.
+fn mssql_open(server: &Server) -> TdsConn {
+    mssql_connect_as(server, &server.password)
+        .expect("the matrix server accepts a handshake verified against its own anchor")
+}
+
+/// The first column of the first row `sql` returns, as text.
+///
+/// [`mysql_one_value`]'s twin, and the one place the twinning stops at the
+/// shape: MariaDB could share [`first_text`] because it speaks MySQL's result
+/// set, and TDS is a different one with its own decoder, so this walk is
+/// written out rather than borrowed.
+fn mssql_one_value(conn: &mut TdsConn, sql: &str) -> Option<String> {
+    let mut rows = conn.query(sql, &[]).expect("the server ran the statement");
+    // Cloned out before the walk begins, for [`first_text`]'s reason: the
+    // definitions describe every row, and `next_row` needs the borrow they came
+    // from.
+    let columns = rows.columns().to_vec();
+    let mut answer = None;
+    let mut first = true;
+    while let Some(row) = rows.next_row().expect("a row, or the end of the stream") {
+        if first {
+            first = false;
+            let value = row.column(0).expect("the row has a first column");
+            answer = match tds_scalar(&columns[0], value).expect("the column decodes under § 9") {
+                TdsScalar::Null => None,
+                TdsScalar::Text(text) => Some(text.into_owned()),
+                other => panic!("the statement answered {other:?}, which is not text"),
+            };
+        }
+    }
+    answer
 }
 
 /// § 3: the connection this driver opens is TLS-wrapped and authenticated, and
@@ -965,5 +1048,64 @@ fn mariadb_returning_is_available_and_mysqls_is_not() {
         ),
         (DbErrorKind::Syntax, "42000", Some(1064)),
         "the refusal is not MySQL's own parse error, normalised by MySQL's table: {refusal}",
+    );
+}
+
+/// § 3 against a real SQL Server: the session is the TLS one this driver
+/// tunnelled, it is authenticated as the login the block names, and the
+/// statement that reports both ran over it.
+///
+/// [`a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream`]'s
+/// three questions, asked of the one driver whose TLS is not a socket upgrade.
+/// `encrypt_option` is the server's own view of the connection this process
+/// opened, and it reads `TRUE` only for a session that server is itself
+/// encrypting — a driver that had left the tunnel and carried on in the clear,
+/// which § 3 has no spelling for, cannot produce it. `SUSER_SNAME()` is the
+/// login LOGIN7 named, arriving back through that session. And the same
+/// handshake offering a password the server cannot verify is refused `18456`,
+/// which is what makes the first two an authentication rather than an
+/// admission: against a server that accepted anything, the two lines above
+/// would read identically.
+///
+/// **The first assertion is also § 1's one statement.** `sp_prepexec` is how
+/// [`TdsConn::query`] asks it, so a green leg here has carried a prepare, an
+/// execution and a result set back through the tunnel rather than only a login
+/// — which is the half `tds.rs`'s scripted peer answers about itself.
+#[test]
+fn a_mssql_connection_is_opened_tls_tunnelled_and_authenticated_over_the_parking_stream() {
+    let Some(server) = mssql() else {
+        return;
+    };
+    let mut conn = mssql_open(&server);
+
+    assert_eq!(
+        mssql_one_value(
+            &mut conn,
+            "SELECT encrypt_option FROM sys.dm_exec_connections WHERE session_id = @@SPID",
+        )
+        .as_deref(),
+        Some("TRUE"),
+        "the server reports this session's own socket as encrypted",
+    );
+
+    assert_eq!(
+        mssql_one_value(&mut conn, "SELECT SUSER_SNAME()").as_deref(),
+        Some(server.user.as_str()),
+        "the session is authenticated as the login the connection's block names",
+    );
+
+    let refused = mssql_connect_as(&server, "not-the-password")
+        .expect_err("a password the server cannot verify opened a connection");
+    let refusal = ServerError::of(&refused).unwrap_or_else(|| {
+        panic!("a wrong password was refused, but not by the server's own check: {refused}")
+    });
+    assert_eq!(
+        (
+            refusal.kind,
+            refusal.sql_state.as_str(),
+            refusal.driver_code
+        ),
+        (DbErrorKind::Permission, "", Some(18456)),
+        "the refusal is the server's own login failure, and TDS has no SQLSTATE to carry: {refusal}",
     );
 }
