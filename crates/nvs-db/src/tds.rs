@@ -71,11 +71,30 @@
 //! `NBCROW` and `PLP` over [`Wire::read_packet`] with the remainder held across
 //! the packet boundary — the reader the first section says [`Tokens`] cannot be.
 //!
-//! What is not here is what puts a request on the wire in the first place: ADR
-//! 0067 § 1's cache over `sp_prepexec`, § 5's parameters as an RPC's arguments,
-//! and § 13's reset. Two tokens wait on those rather than on a reader —
-//! `RETURNSTATUS` and `RETURNVALUE`, which only a procedure call can produce —
-//! and [`TdsRows::step`] names their byte in its refusal until it does.
+//! **And a statement goes out**: [`sp_prepexec_request`] builds the RPC, ADR
+//! 0067 § 1's cache holds the handle the `RETURNVALUE` came back with,
+//! [`start_statement`] is the sequencing both `query` and `execute` are, and
+//! [`reset_session`] is § 13's `sp_reset_connection`.
+//!
+//! # The one gap, and it is a bind rather than a read
+//!
+//! **A `bytes` parameter is refused**, which is this driver's only departure
+//! from [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s table — the *read*
+//! side of that row is whole, since [`decode_column`] answers `varbinary`,
+//! `binary` and `image` as `bytes` like every other driver. Both halves of the
+//! refusal say so where they are, [`encode`] and [`text_param`], and
+//! `a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_is_refused` pins it.
+//!
+//! It is recorded here rather than fixed because closing it is not a rendering
+//! change. Every parameter goes out as one `nvarchar` and the server casts it
+//! ([`start_statement`]), and `varbinary` is the one type no text form casts
+//! back to — so a `bytes` needs its own entry in `sp_prepexec`'s `@params`
+//! declaration, which makes that declaration a function of the *values* a call
+//! binds rather than of the statement alone. § 1 keys the plan cache on SQL text
+//! plus expansion arity, so two calls binding the same statement with a `bytes`
+//! in different positions would share a plan declared for the wrong types. The
+//! fix is therefore the cache key's shape as much as the encoder's, and that is
+//! a § 1 question rather than a § 9 one.
 
 use std::borrow::Cow;
 use std::cell::Cell;
@@ -132,6 +151,21 @@ pub const MAX_MESSAGE: usize = 16 * 1024 * 1024;
 
 /// How much is asked of the stream when the inbox does not hold a whole packet.
 const READ_CHUNK: usize = 16 * 1024;
+
+/// SQL Server's own port, which an absent `port` in a `[db.<name>]` block
+/// means.
+///
+/// Not a field of [`TdsTarget`], for the reason it is not one on
+/// [`crate::pg::PgTarget`]: a port is half of an address, and the address is
+/// resolved by whoever checked the `db.connect` capability. What this crate
+/// owes that caller is the number to fall back to.
+///
+/// It is the *default instance's* port. A named instance listens wherever the
+/// server assigned it and is found by asking the SQL Browser over UDP 1434 —
+/// a second protocol, unauthenticated, and one this driver does not speak, so
+/// a block naming such an instance writes the `port` an operator read off the
+/// server rather than having it discovered.
+pub const DEFAULT_PORT: u16 = 1433;
 
 /// One `[db.<name>]` block, read as the facts a LOGIN7 message carries.
 ///
@@ -2295,13 +2329,25 @@ impl<'a> Tokens<'a> {
         // to at all.
         self.byte("LOGINACK")?;
         let ack = LoginAck {
-            tds_version: self.long("LOGINACK")?,
+            // **The reverse of the same field in LOGIN7**, which is the whole of
+            // why this is four `byte` reads and not a `long`. A request writes
+            // `TDS_VERSION` little-endian ([`login7_request`]) and a server
+            // answers it high half first, so reading it the way it was written
+            // yields `0x04000074` — a number no server speaks and, since
+            // [`login`] compares it, a connection refused at the last step of a
+            // handshake that otherwise worked.
+            tds_version: u32::from_be_bytes([
+                self.byte("LOGINACK")?,
+                self.byte("LOGINACK")?,
+                self.byte("LOGINACK")?,
+                self.byte("LOGINACK")?,
+            ]),
             program: self.b_varchar("LOGINACK")?,
             version: (
                 self.byte("LOGINACK")?,
                 self.byte("LOGINACK")?,
-                // The build number is two bytes written high half first, which
-                // is the one number in this token that is not little-endian.
+                // The build number is two bytes written high half first, the
+                // other number here that is not little-endian.
                 u16::from_be_bytes([self.byte("LOGINACK")?, self.byte("LOGINACK")?]),
             ),
         };
@@ -5944,10 +5990,12 @@ mod tests {
         token(TOKEN_ENV_CHANGE, &body)
     }
 
-    /// A `LOGINACK` as SQL Server 2022 writes one.
+    /// A `LOGINACK` as SQL Server 2022 writes one — **including the byte order
+    /// of its version**, which is the opposite of the one LOGIN7 asked in and
+    /// was this fixture's own bug until a real 2022 server was asked.
     fn login_ack_token() -> Vec<u8> {
         let mut body = vec![1];
-        body.extend_from_slice(&TDS_VERSION.to_le_bytes());
+        body.extend_from_slice(&TDS_VERSION.to_be_bytes());
         body.extend_from_slice(&b_varchar("Microsoft SQL Server"));
         body.extend_from_slice(&[16, 0]);
         body.extend_from_slice(&4035u16.to_be_bytes());
@@ -6263,9 +6311,10 @@ mod tests {
         // token stream is close enough to read wrongly and not close enough to
         // read right.
         // The version is the four bytes after the token byte, its length and
-        // the interface byte — `login_ack_token` is what says so.
+        // the interface byte — `login_ack_token` is what says so, including the
+        // high-half-first order this field alone arrives in.
         let mut older = login_ack_token();
-        older[4..8].copy_from_slice(&0x730B_0003u32.to_le_bytes());
+        older[4..8].copy_from_slice(&0x730B_0003u32.to_be_bytes());
         older.extend_from_slice(&done_token(0, 0));
         let mut wire = logging_in(&older);
         let refused = login(&mut wire, &target).expect_err("this driver speaks 7.4 alone");
