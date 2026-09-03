@@ -1758,6 +1758,15 @@ is why" — is this file.
   writing a line of it: finishing and committing a dead session's slice is the cheapest session there
   is, and re-deriving it would have thrown that work away and left two designs for one rule. The tell
   is a `0 commit(s) | (no status written)` line for the previous session in `.loop/log.md`.
+- **A "next free diagnostic" carried in a handoff is per *band*, and a band is by compiler phase —
+  the next number in the list is not the next number for your rule.** This session's item named
+  `E0503` for a `nvs-types` refusal; `E05xx` is IR and codegen, and both types bands were full
+  (`E0499`, `E0799`). The answer was already written down twice — `E0799`'s own doc comment says the
+  next types diagnostic opens a band, and `docs/adr/README.md` § *Decisions taken at project start*
+  had set `E08xx` aside and recorded that ADR 0136 claimed `E0800` for work that has not landed. So
+  when `brief.py`/`orient.py` reports every band FULL for your phase, read that README section rather
+  than taking a neighbouring band's number: the decision exists, and one `grep -n E0500
+  docs/adr/README.md` finds it.
 
 ## Running things
 
@@ -6964,6 +6973,16 @@ sibling in the same namespace unqualified.
   are over different things: § 4's column is about the **body**, `Qual` is about the **answer**.
   A writer that answers nothing and takes what it is given is `Qual::Neutral`, which is what
   `Core\Cli::write`'s `string` arm has been all along (`crates/nvs-stdlib/src/cli.rs:435`).
+- **An ADR's compile error can be stated over a thing the compiler cannot see, and the corpus tells
+  you before the build does.** ADR 0088 § 4's sixth row — "`echo` and a typed writer on the same
+  response is a compile error" — reads as a rule about a *body*, and implementing it that way refuses
+  nine landed `.nvst` cases at once: every case that observes `Core\Response::text` is a CLI script
+  that also echoes, and two of them exist precisely to pin that the two writers share one output. The
+  word doing the work is **response**: § 3 binds `echo` by *context*, so which sink a body writes to
+  is a run-time fact for every body except a `#[Route]` handler, which ADR 0102 § 1 makes a request
+  body by declaration. Before implementing a rule an ADR states over a run-time noun, grep the corpus
+  for the members it names — a green case exercising the very combination is the cheapest possible
+  statement of the scope you actually have.
 
 ## Divergences and refusals already pinned
 
