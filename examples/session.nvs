@@ -1,0 +1,72 @@
+<?nvs
+// The carrier a session rides on, as a program.
+//
+// [ADR 0059](../docs/adr/0059-cross-request-state-is-explicit.md) § 4 refuses
+// `Core\Session` the local cache tier, and the reason is that tier's own
+// contract: `local()` is per-core and in-process and may forget any entry at
+// any time, so a session kept there would answer differently depending on which
+// core accepted the request. The store half is Stage 6's. What already exists is
+// the other half, and the half a forger attacks — the **identifier the client
+// carries back**, and the fact that it is sealed rather than merely signed.
+//
+// [ADR 0060](../docs/adr/0060-application-security-protocols.md) § 1's
+// `Core\SignedCookie` is that carrier, and its ring is ordered: `seal` uses
+// `$keys[0]` and nothing else, `open` tries the whole ring in order, so
+// rotating a key is prepending one and retiring a key is dropping the tail.
+// The four lines below are that sentence asserted on both sides — a cookie
+// still opens across a rotation, and the same cookie is a forgery once its key
+// is off the end.
+//
+// `open` is also the one verification in the language that hands back a value
+// with [ADR 0024](../docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+// `tainted` removed, because the payload is one this application sealed itself.
+// A signature verified against someone else's key does not launder anything.
+
+// A ring of one, which is the ordinary case spelled `[$key]`. The key is
+// generated rather than configured because what this fixture is about is the
+// ring's *order*, and `[secrets]` would only make the same two keys harder to
+// see.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+string $sid = "s-0f3a9c";
+string $cookie = Core\SignedCookie::seal($sid, $ring);
+
+// The round trip. The cookie itself is different on every call — each seals
+// under its own nonce — so what is printed is the value that came back, never
+// the carrier that brought it.
+if (Core\SignedCookie::open($cookie, $ring) == $sid) {
+    echo "opened", "\n";
+} else {
+    echo "opened a different value", "\n";
+}
+
+// The forgery, and the refusal that is what makes a session id worth trusting.
+// Altered, not base64 at all, or sealed under a retired key are deliberately
+// one message: telling them apart tells a forger which half landed.
+try {
+    string $forged = Core\SignedCookie::open($cookie . "x", $ring);
+    echo "opened a forged cookie", "\n";
+} catch (RuntimeError $refused) {
+    echo "forgery refused", "\n";
+}
+
+// Rotation: a new key on the front, the old one still behind it. A cookie
+// sealed before the rotation still opens, which is what makes a slow deploy
+// possible without a hand-written fallback.
+secret bytes $next = Core\Crypto::generateKey();
+array<secret bytes> $rotated = [$next, $key];
+if (Core\SignedCookie::open($cookie, $rotated) == $sid) {
+    echo "opens across a rotation", "\n";
+} else {
+    echo "lost a session across a rotation", "\n";
+}
+
+// Retirement: drop the tail and the same cookie is a forgery, on the same
+// message as any other.
+try {
+    string $stale = Core\SignedCookie::open($cookie, [$next]);
+    echo "opened under a retired key", "\n";
+} catch (RuntimeError $refused) {
+    echo "retired key refused", "\n";
+}

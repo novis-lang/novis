@@ -1,0 +1,34 @@
+<?nvs
+// The file a mount runs, as a program.
+//
+// [ADR 0097](../docs/adr/0097-development-server-and-proxied-origin.md) § 4's
+// five steps all end in the same place: step 5 runs **the mount's entry**, and
+// this is one. Nothing here derives that path. § 2 is the server's governing
+// rule — a request *selects* an entry point from a set enumerated before it
+// arrived and may never construct one — so the table this file is in was
+// expanded against disk at boot and no line below could route to another file
+// even if it wanted to.
+//
+// What makes it runnable before the listener exists is
+// [ADR 0088](../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+// § 3: `echo` always has a sink and the *context* attaches it. Under `nvs run`
+// that is the terminal and these lines are stdout; under `nvs serve` it is the
+// response body, carried by `Core\Html\Markup` and auto-escaping. The program
+// does not branch on which, and there is no member here that would have to —
+// which is the whole reason the same file can be a CLI fixture today and a
+// served entry the moment Stage 2 lands.
+//
+// The request-facing half — `Core\Request`, `Core\Server`, the mount prefix
+// that `path()` has already removed — is read *into* this file rather than
+// wrapped around it, so every line below stays true when it arrives.
+
+// A body is text this program built. [ADR 0012](../docs/adr/0012-no-superglobals.md)
+// leaves no variable populated by the host, so there is nothing here that
+// arrived without being asked for and nothing to interpolate from outside.
+string $body = "novis" . " " . "serves this file";
+echo $body, "\n";
+
+// One entry answers whatever its mount was given, which is why Stage 3's mount
+// table is a table of prefixes and not a table of files: the second line is the
+// same line for every path this mount matched.
+echo "entry=examples/serve.nvs", "\n";

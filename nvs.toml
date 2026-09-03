@@ -66,6 +66,18 @@ entry = "examples/files.nvs"
 read = true
 write = true
 
+# `examples/upload.nvs` is the same shape for the same reason — it receives a
+# part into a directory `Core\IO::temporaryDir()` chose on the host — so its
+# block is the one above rather than a narrower spelling of it. ADR 0105's rule
+# is that the *destination* is the application's own call, and a grant naming a
+# path this repository invented would be the host picking one after all.
+[[app]]
+entry = "examples/upload.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
 # `examples/process.nvs` runs this repository's own `nvs` binary and then asks
 # to run a `.bat`, so its `process.exec` grant has to cover **both** targets:
 # ADR 0044 § 4's refusal is by target kind and the door asks the capability

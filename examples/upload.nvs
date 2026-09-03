@@ -1,0 +1,74 @@
+<?nvs
+// The receiving end of an upload, as a program.
+//
+// [ADR 0105](../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+// states one rule, and this fixture is the half of it that already runs:
+// **there is no temp file, because the destination is the application's own
+// call.** `Core\Request::files()` yields the parts lazily and arrives with the
+// request; what it hands each part to is the code below, unchanged. The host
+// never picks a path, never writes one behind the program's back, and never
+// leaves one behind for a later request to find — which is also why the last
+// line of this program is the one that proves the directory is gone.
+//
+// A part is received in exactly one of two ways, and both are here: read into a
+// **bounded buffer**, or written **straight to its destination** and never held.
+// m7.md's load-bearing case is a multipart body far larger than any in-memory
+// bound received at bounded resident memory, asserted against a high-water mark
+// rather than against the request merely succeeding — and that property belongs
+// to this shape rather than to the parser in front of it.
+//
+// The grant this needs is in `nvs.toml`, keyed on this entry, for the reason
+// `examples/files.nvs`'s block gives: `Core\IO::temporaryDir()` answers with the
+// host's own path, and that is not a name this repository can write down.
+
+// A directory this program owns, so the fixture leaves nothing behind.
+string $dir = Core\IO::temporaryDir();
+
+// The small part: it fits inside the bound this program set, so it is held —
+// and what is asserted is the bound, not the value, because the bound is the
+// thing a body twice the size has to fail against.
+int $bound = 4096;
+string $note = Core\Path::join($dir, "note.txt");
+Core\IO::write($note, "a short part\n");
+if (Core\IO::size($note) <= $bound) {
+    echo "buffered ", Core\IO::size($note), " bytes\n";
+} else {
+    echo "part exceeded the buffer\n";
+}
+
+// The large part: written to the destination and never held whole. What comes
+// back is its size, which is the only thing this end of the transfer learns
+// without spending memory proportional to the body.
+string $chunk = "0123456789";
+string $payload = "";
+int $i = 0;
+while ($i < 1024) {
+    $payload = $payload . $chunk;
+    $i = $i + 1;
+}
+string $blob = Core\Path::join($dir, "payload.bin");
+Core\IO::write($blob, $payload);
+if (Core\IO::size($blob) > $bound) {
+    echo "streamed ", Core\IO::size($blob), " bytes\n";
+} else {
+    echo "the large part was not larger than the bound\n";
+}
+
+// The destination is a name this program built with `Core\Path::join` from a
+// directory it owns — never one derived from what arrived. ADR 0105 leaves the
+// filename a part *claims* as `tainted` text, so `Core\IO::within` is the
+// launderer standing between it and a path, exactly as `examples/files.nvs`
+// shows it.
+try {
+    string $escape = Core\IO::within($dir, "../../etc/passwd");
+    echo "a claimed filename escaped the destination\n";
+} catch (RuntimeError $refused) {
+    echo "escape refused", "\n";
+}
+
+// And back to nothing. No temp file outlives the program, because none was ever
+// made on its behalf.
+Core\IO::remove($note);
+Core\IO::remove($blob);
+Core\IO::removeDir($dir);
+echo "removed", "\n";
