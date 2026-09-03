@@ -4867,6 +4867,15 @@ is why" — is this file.
   states the reset as a *property*, so where `sp_reset_connection` falls short of it the driver pays the
   difference — `crates/nvs-db/src/tds.rs`'s `reset_session` now sends the restore itself. A pooled
   connection is the failure mode: the next request silently runs at `SERIALIZABLE`.
+- **A by-value `reset(self)` on a connection whose rows *borrow* the connection cannot be tested
+  against a streaming one at all — the borrow checker gets there first, and the case will not
+  compile.** `crates/nvs-db/src/sqlite.rs`'s `SqliteRows` holds a `&Cell<State>` into its
+  `SqliteConn`, so `conn.reset()` while a result set is alive is E0505 rather than the runtime
+  refusal the case meant to assert. The other four drivers' rows own their bytes, so the same test
+  compiles there and this one looks like it should. What is left to assert is the state a caller
+  reaches with no rows in hand — set `State::Poisoned` on the connection directly — and that is the
+  security-relevant half anyway: § 13 closes a connection that cannot be proven clean, and the
+  streaming half is held by a stronger mechanism than a test.
 
 ## Splitting a file that got too big
 

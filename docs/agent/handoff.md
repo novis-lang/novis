@@ -2,60 +2,70 @@
 
 ## State
 
-**M8 goal 5, stage 8. SQLite is the fifth driver and it opens** — `crates/nvs-db/src/sqlite.rs`
-resolves a `[db.<name>]` block, opens the file off the core, and runs § 4's statements with § 8's
-kinds on every refusal. It is the one driver whose unit tests are the real engine: `:memory:` is a
-path like any other, so `crates/nvs-db/src/sqlite.rs:660` onward exercises the schema, the bind, the
-step and every error kind without a server anywhere.
+**M8 goal 5, stage 8. SQLite is the fifth driver and it is whole below `nvs-stdlib`** —
+`crates/nvs-db/src/sqlite.rs` opens a `[db.<name>]` block off the blocking pool and holds § 4's
+statements, § 7's nesting, § 8's kinds, § 9's column map and § 13's reset. Its unit tests are the
+real engine: `:memory:` is a path like any other, so every case runs the statements it claims to.
 
-**Its shape is the opposite of the other four's, and the module doc is that fact's one home.** There
-is no wire and no codec, so `nvs_host::blocking::run`'s `Send + 'static` bound is what decides the
-surface: the handle is an `Arc<Mutex<rusqlite::Connection>>`, parameters arrive owned as
-`Vec<SqliteValue>`, and rows come back materialized. § 4's `LogicError` survives that anyway —
-`SqliteRows` borrows the connection and holds `State::Streaming` until it drops.
+**§ 7's nesting is `crates/nvs-db/src/pg.rs`'s rule reused** — `savepoint_name` and
+`open_transaction` are shared, `BEGIN` at depth 0 and `SAVEPOINT nvs_<n>` above it. One accounting
+difference is this backend's and is argued at `crates/nvs-db/src/sqlite.rs:660`: a refused outermost
+`COMMIT` leaves the depth where it was, because `SQLITE_BUSY` leaves the transaction open and
+retryable where PostgreSQL has already rolled it back.
 
-**Two defaults were decided here and are argued at `crates/nvs-db/src/sqlite.rs:359`.**
-`PRAGMA foreign_keys = ON`, because § 8 declares `ForeignKeyViolation` a kind every driver
-normalises onto and with the pragma off that condition cannot arise at all; and *no* busy timeout,
-because `SQLITE_BUSY` is § 8's `Deadlock` and § 7's `retries` is the mechanism written for it.
-`rusqlite` is taken with `bundled` — the engine an audit was written against has to be the one the
-lockfile pins — and its `libsqlite3-sys` row is in `tools/gen-attribution.py`'s ledger.
+**Two § 7 option calls were decided here and depart from the previous handoff's sketch, which said
+to refuse every level but `Serializable`.** Every one of the five isolation levels is *accepted* and
+none renders to a command: SQLite is always serializable, so a level asked for is delivered at least
+as strongly as asked, which `crate::conn::Isolation`'s own doc makes explicitly not the case § 7 says
+to throw over. `read_only` **is** refused at any depth, because SQLite has no read-only transaction
+and the only per-session spelling — `PRAGMA query_only` — would be exactly the session state § 13's
+"a file handle has no session state to leak" rests on. Both are argued at
+`crates/nvs-db/src/sqlite.rs:566`.
 
-**Nothing above `nvs-db` reaches it yet.** `nvs-stdlib`'s dispatch still has no `Sqlite` arm, so a
-`[db.x] driver = "sqlite"` block is not openable from Novis code.
+**§ 13's reset asks the engine, not the count**: `is_autocommit` decides whether a `ROLLBACK` is
+owed, so it also covers a transaction a caller opened in its own § 4 statement text. § 4's
+"streaming connections are not resettable" half is held by the borrow checker rather than by a case —
+see the new playbook bullet.
+
+**§ 9's map keys off the declared column type** (`SqliteColumn::column_type`,
+`crates/nvs-db/src/sqlite.rs:315`): § 9's own names first, SQLite's affinity rules as the fallback.
+Never `Uint` (no unsigned storage class) and never `Json` (SQLite has no JSON type, so a declared
+`JSON` is `Text`, as on MariaDB). The throw on a value that does not parse is `nvs-stdlib`'s half and
+is not written yet.
+
+**Nothing above `nvs-db` reaches any of it.** `nvs-stdlib`'s dispatch still has no `Sqlite` arm, so a
+`[db.x] driver = "sqlite"` block is not openable from Novis code. That is the whole of the next
+group.
 
 The standing acceptance failure is still stage 9's `an_open_host_matching_no_grant_is_a_diagnostic`,
 `nvs_types::intrinsics`' known gap 6, and is not this goal's to close.
 
 `orient.py`'s map still prints `nvs-stdlib`'s `json`, `registry` and `time` but not `db`; the goal's
-`[context] modules` needs `nvs-stdlib/src/db.rs`, and it will be needed by item 3 below.
+`[context] modules` needs `crates/nvs-stdlib/src/db.rs`, and every item below is inside it.
 
 ## Next group
 
-**One file set: `crates/nvs-db/src/sqlite.rs` with `crates/nvs-db/src/conn.rs`**, and item 3 adds
-`crates/nvs-stdlib/src/db.rs`. Items 1 and 2 are the rest of goal 5's SQLite item; item 3 is what
-makes any of it reachable from Novis.
+**One file set: `crates/nvs-stdlib/src/db.rs`**, with `crates/nvs-db/src/sqlite.rs` read-only as the
+surface being called. Item 1 is what makes the other two reachable, so it goes first.
 
-- [ ] **§ 7's nesting and § 13's reset**, which here is `BEGIN`/`SAVEPOINT` by depth and a rollback
-      as the whole reset — a file handle has no session state to leak (0067 §§ 7, 13).
-      `crates/nvs-db/src/sqlite.rs:378` (`impl SqliteConn`, where `begin`/`reset` join),
-      `crates/nvs-db/src/conn.rs:824` (`SqliteConn`, which gains `depth`),
-      `crates/nvs-db/src/tds.rs:5611` (`TdsConn::reset`, the by-value shape a reset takes).
-      SQLite is always serializable, so § 7's `Isolation` refuses every level but `Serializable`
-      rather than rendering it.
-- [ ] **§ 9's map off the *declared* column type**, throwing on a value that does not parse (0067
-      § 9). `crates/nvs-db/src/sqlite.rs:255` (`SqliteColumn::declared`, already carried and already
-      known to arrive upper-cased), `crates/nvs-db/src/sqlite.rs:187` (`SqliteValue`, the five
-      storage classes the map reads from), `crates/nvs-db/src/conn.rs:427` (`ColumnType`, the
-      fourteen cases `columns()` answers with).
-- [ ] **`nvs-stdlib` admits the `Sqlite` arm**, so `connect` and `open` reach the driver (0067 §§ 2,
-      4). `crates/nvs-stdlib/src/db.rs:4225`, `crates/nvs-stdlib/src/db.rs:4357` (the two places
-      `Driver::Sqlite` is currently answered with `None`), `crates/nvs-db/src/sqlite.rs:405`
-      (`query`, whose owned `Vec<SqliteValue>` is what the binder builds).
+- [ ] **`nvs-stdlib` admits the `Sqlite` arm**, so § 2's `connect` and `open` reach the driver and
+      § 4's `query`/`execute`/`executeMany` run over it (0067 §§ 2, 4).
+      `crates/nvs-stdlib/src/db.rs:3223` and `crates/nvs-stdlib/src/db.rs:4357` (the two places
+      `Driver::Sqlite` is currently refused or answered with `None`),
+      `crates/nvs-db/src/sqlite.rs:488` (`query`, whose owned `Vec<SqliteValue>` is what the binder
+      must build — the other four hand over borrowed wire bytes).
+- [ ] **§ 9's typed readers over `SqliteValue`**, throwing on a cell the declared column type says
+      should parse and does not — a `date` column holding `'not a date'` (0067 §§ 6, 9).
+      `crates/nvs-db/src/sqlite.rs:315` (`column_type`, the description this reads),
+      `crates/nvs-stdlib/src/db.rs:4357` (where a driver's column becomes `Core\Db\Column::type`).
+- [ ] **§ 7's `transaction` over the SQLite arm**, including `{retries: n}` on `SQLITE_BUSY` — § 8
+      already normalises it to `Deadlock`, so the retry should work with no new mechanism (0067
+      §§ 7, 8). `crates/nvs-stdlib/src/db.rs:4472` (`begin`, where the driver match lives),
+      `crates/nvs-db/src/sqlite.rs:590` (`SqliteConn::begin`, and the two options it refuses).
 
 ## Backlog
 
-- The five-driver matrix's `sqlite: ok` leg asserts nothing driver-specific yet — `tools/db-matrix.py`.
-- § 4's `stream` has no SQLite answer; materialized rows make it a chunk size — `docs/adr/0067-core-db.md` § 4.
-- `[context] modules` is missing `nvs-stdlib/src/db.rs` — `docs/agent/loop-goal.toml`.
-- Stage 9's `an_open_host_matching_no_grant_is_a_diagnostic` — `crates/nvs-types/src/intrinsics.rs`.
+- § 4's `stream` needs a chunk size on SQLite; `crates/nvs-db/src/sqlite.rs`'s module doc owns why.
+- § 13's pool has no SQLite entry yet — `crates/nvs-db/src/conn.rs`'s `Connection::reset` dispatch.
+- Stage 9's `an_open_host_matching_no_grant_is_a_diagnostic`, `nvs_types::intrinsics` known gap 6.
+- `[context] modules` in `docs/agent/loop-goal.toml` is missing `nvs-stdlib/src/db.rs`.
