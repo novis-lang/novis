@@ -141,6 +141,7 @@ so you never have to open this file to route a topic.
 | Free functions, global constants, the `Core` namespace, where a built-in lives | [0011](0011-functions-and-constants-are-class-members.md) |
 | `callable`, first-class callable syntax (`Foo::bar(...)`), `__invoke`, calling an object with `()` | [0027](0027-callable-is-closures-only.md) |
 | A typed callback — `callable(int): string`, a callable type's arity and variance, why a `fn` literal needs no parameter annotations, what retired `CoreTy::CallableTo` | [0136](0136-a-callable-carries-its-signature.md) |
+| A doc comment, `///`, a docblock, `@param`/`@return`/`@throws`, why there is no PHPDoc, `@see`, `@example`, `nvs doc`, `--strict-docs` | [0137](0137-a-doc-comment-is-three-slashes-and-two-tags.md); [0117](0117-an-implemented-core-member-documents-itself-in-the-registry.md) for a `Core` member, which carries none |
 | The pipeline operator, `\|>`, the hole `$_`, method chaining, a fluent interface on a `string`/`array<T>`, why PHP 8.5's `\|>` spelling does not work here, `#[Fluentable]` | [0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md) for the operator; [0063](0063-core-api-conventions.md) R17-R19 for why there are no methods on scalars |
 | Anonymous functions, `fn`, arrow functions, closure capture, `use (...)`, recursive closures | [0031](0031-callable-is-the-only-closure-type.md) |
 | By-reference parameters, `inout`, `foreach (… as inout $v)`, the retired `&$x` spelling, whether a call site marks an argument it writes | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) |
@@ -372,6 +373,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0134](0134-every-shipped-feature-owes-four-proofs.md) | Every shipped feature owes four proofs, and the roster of features is derived rather than kept | Accepted |
 | [0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) | A fixed-key shape parameter is one `CoreTy` carrying its arms, and it flattens at the ABI exactly as an options bag does | Accepted |
 | [0136](0136-a-callable-carries-its-signature.md) | A `callable` carries its signature | Accepted |
+| [0137](0137-a-doc-comment-is-three-slashes-and-two-tags.md) | A doc comment is `///`, and its only tags are `@see` and `@example` | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

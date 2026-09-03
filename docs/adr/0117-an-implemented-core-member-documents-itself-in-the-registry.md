@@ -9,7 +9,10 @@
   [website/README.md](../../website/README.md) owns, nor the spec's role as the member list, which
   [0011](0011-functions-and-constants-are-class-members.md) § 2 deferred and
   [0051](0051-standard-library-tiers.md) § 3 placed, nor the API shape rules, which are
-  [0063](0063-core-api-conventions.md).
+  [0063](0063-core-api-conventions.md), nor where a *Novis* declaration's own documentation lives, which
+  is its `///` doc comment and is
+  [0137](0137-a-doc-comment-is-three-slashes-and-two-tags.md) — a `Core` member is Rust and therefore
+  never carries one, which is why the two decisions do not overlap.
 - **Depends on:** [0011](0011-functions-and-constants-are-class-members.md), [0051](0051-standard-library-tiers.md)
 
 > **In short:** an implemented `Core` member's reference documentation — short description, parameter

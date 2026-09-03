@@ -25,6 +25,14 @@ losslessness `nvs fmt` needs at M10; recovery becomes explicit (`MemberName::Mis
 it at the cursor". There is **no second parser and no second tree**: `nvs check`/`nvs run` are that same
 parse followed by "refuse if anything was reported", which is what they already do.
 
+**The `trivia` half of that paragraph lands before this milestone, in
+[goal 11](../agent/goals/11-doc-comments.md).**
+[ADR 0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md) needs a doc comment to survive
+lexing, which is the same one edit to `skip_trivia`, so that goal builds the `Trivia` vector, all four
+`TriviaKind` variants and the losslessness property to ADR 0099 § 1's specification. What is still
+this milestone's, and has no consumer before it: the **`SyntaxIndex`**, and the explicit-recovery half —
+`MemberName::Missing` and `ExprKind::Error`'s span — which completion needs and a doc comment does not.
+
 **The server.** `crates/nvs-lsp` — `lsp-server` and `lsp-types`, **synchronous, no tokio** — speaking LSP
 over stdio behind a `nvs lsp` subcommand. Nine requests and no more: `publishDiagnostics` (the existing
 `nvs check` pipeline), `hover` (declared type, a `Core` member's registry signature, a declaration's own

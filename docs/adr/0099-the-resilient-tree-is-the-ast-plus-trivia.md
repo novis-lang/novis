@@ -18,7 +18,7 @@
   each fold is applied in that ADR's own body, which states the current rule;
   [ADR 0016](0016-ide-integration.md) § 2's `nvs lsp` spelling is unchanged, only what is behind it.
   [docs/plan/m4b.md](../plan/m4b.md) and [docs/plan/m10.md](../plan/m10.md) are rewritten to match.
-- **Amended by:** 0101, 0108, 0111
+- **Amended by:** 0101, 0108, 0111, 0137
 
 > **In short:** Novis's parser already does most of what "resilient parsing" names — every production returns
 > a node rather than a `Result`, a missing member name is already an `E_EXPECTED_TOKEN` plus a node, and
@@ -52,7 +52,7 @@ was written, and each turns out to change the work.
   whose name is `MemberName::Ident(<empty span at the cursor>)` — which is precisely the node member
   completion needs. ADR 0040 § 2 described building that property; it already holds.
 - **What is missing is trivia and an index, and trivia has exactly one site.** `Lexer::skip_trivia`
-  ([lexer.rs:326](../../crates/nvs-syntax/src/lexer.rs)) is the single function that consumes whitespace,
+  ([lexer.rs:357](../../crates/nvs-syntax/src/lexer.rs)) is the single function that consumes whitespace,
   `//`, `#` and `/* */`, and it consumes them without emitting a token. That one function is the whole
   difference between the current token stream and a lossless one. There is no second place a byte of the
   source disappears.
@@ -98,8 +98,10 @@ pub struct Parsed {
 ```
 
 - **`Trivia` comes from one edit.** `Lexer` gains a flag; `skip_trivia` pushes a `Trivia { kind, span }`
-  instead of only advancing. `TriviaKind` is `Whitespace`, `LineComment` (`//` and `#`) or
-  `BlockComment`. Nothing else in the lexer changes, because nothing else discards a byte.
+  instead of only advancing. `TriviaKind` is `Whitespace`, `LineComment` (`//`, `#`, and a `////` run of
+  four or more slashes), `BlockComment`, or `DocComment` — exactly three `/`, which
+  [0137](0137-a-doc-comment-is-three-slashes-and-two-tags.md) § 1 defines and which is the only variant
+  anything but a formatter reads. Nothing else in the lexer changes, because nothing else discards a byte.
 - **Losslessness is a property, and it is tested rather than asserted.** Concatenating every token's and
   every trivium's source text, in offset order, must equal the file byte-for-byte. That is one test over
   the whole corpus (`examples/`, `tests/`, and the vendored `php-src` checkout `corpus_parse.rs` already
@@ -192,7 +194,7 @@ it — and that test is what keeps the list from drifting back toward M10's cata
 | Request | What M4B answers |
 |---|---|
 | `textDocument/publishDiagnostics` | every diagnostic the existing `nvs check` pipeline produces, at negotiated encoding, with `code` set from `Code`, **phase-gated** per below |
-| `textDocument/hover` | the declared type of the symbol under the cursor; for a `Core` member, its `nvs_stdlib::registry` signature row rendered as [ADR 0088 § 5](0088-a-sink-is-an-instruction-and-the-default-refuses.md) writes it; for a declaration, its own doc comment out of the trivia layer |
+| `textDocument/hover` | the declared type of the symbol under the cursor; for a `Core` member, its `nvs_stdlib::registry` signature row rendered as [ADR 0088 § 5](0088-a-sink-is-an-instruction-and-the-default-refuses.md) writes it; for a declaration, the `TriviaKind::DocComment` run attached to it, which [0137](0137-a-doc-comment-is-three-slashes-and-two-tags.md) §§ 1-2 defines — prose as Markdown, with its `@see` targets rendered as links |
 | `textDocument/definition` | the declaring span, within the document or anywhere in its resolved `require`/`autoload` graph |
 | `textDocument/completion` | keywords filtered by position; members off a resolved receiver, instance and static, user classes and `Core` registry classes alike; enum cases after `Type::`; in-scope variables. **No workspace symbol search** — that needs M10's indexing |
 | `textDocument/semanticTokens/full` | *Decision § 4* |
