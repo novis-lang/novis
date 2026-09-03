@@ -2,60 +2,61 @@
 
 ## State
 
-**Goal 6, Stage 3: § 5's `[server]` block now bounds the request path as well as routing it.**
-`max_in_flight` is ADR 0106 § 13's arithmetic rather than the number the file wrote —
-`crates/nvs-server/src/admit.rs` is the whole of it — and the refusal is taken *before* the
-handler is asked for a `Reply`, so a request over the ceiling selected no mount, allocated no
-isolate and ran no Novis code. That module's own docs own the order, the relaxed process-wide
-counter and why `ENGINE_RESERVE` is a stated reserve rather than a measurement (M7's *Verify* is
-what replaces it with a number).
+**Goal 6, Stage 3: § 10's mount is pinned to routing, and § 8's accept loop is bounded.**
+`[[server.mount]]` holds ADR 0097 § 3's five routing keys and nothing else —
+`crates/nvs-config/tests/tree.rs`'s `a_mount_carries_no_policy_of_its_own` asserts that on both
+sides, refusing `mode`, `limits`, `limits.hard`, `capabilities` and `log` under a mount *while the
+same directive parses under ADR 0104's `[[app]]`*, so a refusal that came from the directive being
+unspellable anywhere fails there too. Three sites still routed policy to a mount and now read as
+§ 10 decided: its own TOML example (`path`/`root`, keys § 3 does not give a mount), ADR 0097's
+`Amends:` clause for 0091, and 0091's own mixed-application row.
 
-**The three inputs are configuration's.** `nvs_config::server::capacity_for` reads
-`[server] max_in_flight`, the per-request cap — `[limits.hard] memory` where a ceiling is written,
-otherwise `[limits] memory` — and `memory_budget()`, which **prefers a container's cgroup limit to
-the host's memory**; that function's doc comment owns why. Either half absent leaves the written
-ceiling standing, which is § 13's inert case and not a zero. `E0622` refuses a written `0`, the one
-magnitude that is a refusal rather than a clamp.
+**The accept loop backs off** — ADR 0106 § 8, and `crates/nvs-server/src/serve.rs`'s
+`AcceptBackoff` is the whole of it. `EMFILE`/`ENFILE`, and Windows' `WSAEMFILE`, is waited out
+rather than returned — 10ms doubling to 1s, reset by the first accept that succeeds — and reported
+**once per 60s window**, which is § 8's other half. Every other `accept` error still ends the loop,
+and that bound is asserted on both sides. The note is handed back as a `String` and
+`serve_on_this_core` gained a `report` sink for it, on `Ceiling::clamp_note`'s precedent: this crate
+is given a socket and not a logger, so `nvs serve` is what writes it to stderr.
 
-**The four waits are asserted where the check looks.** `crates/nvs-server/src/io.rs`'s
-`the_four_idle_timeouts_are_finite` sweeps every `Phase` under four *distinct* waits, because two of
-§ 5's defaults are equal and a phase wired to the wrong field reads as correct against them alone.
-The boot refusal of `false`/`0` stays `nvs_config::server`'s `E0619`.
-
-**Unchanged limits.** No accept backoff on descriptor exhaustion (ADR 0106 § 8) and no wedged-core
-watchdog (§ 7); a served request's context still carries no configuration snapshot
-(`crates/nvs-server/src/serve.rs:417`); a Unix-domain `listen` entry still classifies and is then
-refused in the CLI. The driver's `native examples/upload.nvs` failure is stage 5's frozen `want`
-ahead of the frontier — the playbook's bullet on that owns it. `[context] adrs` gained `0106 §13`
-this session: the item named it as its specification and the pack did not print it.
+**Unchanged limits.** There is no drain state anywhere in the tree — `health_path` has no reader in
+`nvs_config::server`, and there is no `Core\Server` class in `nvs-stdlib` at all — so the next group
+is all of it, and the goal's `is_draining_answers_during_a_graceful_shutdown` is open until then. No
+wedged-core watchdog (ADR 0106 § 7); a served request's context still carries no configuration
+snapshot; a Unix-domain `listen` entry still classifies and is then refused in the CLI. The driver's
+`native examples/upload.nvs` failure is stage 5's frozen `want` ahead of the frontier — the playbook
+bullet that owns it is under *Divergences and refusals already pinned* — and is not a regression.
+`[context]` gaps this session paid for: `adrs` printed `0097 §2`, `§4` and `0106 §13` but the item
+needed `0097 §3` and `§10`, and the second slice needed `0106 §8`; `modules` names no `nvs-cli`
+pattern, though the accept loop's only caller is `crates/nvs-cli/src/serve.rs`.
 
 ## Next group
 
-**What is left of the `[server]` block, plus § 10's mount policy.** One file set:
-`crates/nvs-config/src/tree.rs`, `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/admit.rs`.
+**§ 5's `health_path`, and the drain it reports.** One file set:
+`crates/nvs-config/src/server.rs`, `crates/nvs-server/src/mount.rs`,
+`crates/nvs-server/src/serve.rs`, `crates/nvs-cli/src/serve.rs`.
 
-- [ ] **A mount carries no policy of its own.** ADR 0097 § 10 — a mount routes and nothing else, so
-      a `[[server.mount]]` block that grows a limit has re-implemented the per-app block goal 3
-      built. The block is `crates/nvs-config/src/tree.rs:797`, and the assertion belongs beside the
-      table it is about. Pins `a_mount_carries_no_policy_of_its_own`.
-- [ ] **`isDraining` answers during a graceful shutdown.** ADR 0097 § 5's `health_path` — `200`
-      while accepting, `503` while draining, empty body, skipped by the access log, and **no
-      dependency checks**. The directive is `crates/nvs-config/src/tree.rs:773` and the state is the
-      accept loop's `keep_serving` at `crates/nvs-server/src/serve.rs:381`, whose tail already parks
-      on the outstanding tally that a drain has to wait out. Pins
-      `is_draining_answers_during_a_graceful_shutdown`.
-- [ ] **The accept loop backs off on descriptor exhaustion.** ADR 0106 § 8 as § 5 names it: an
-      `accept` failing `EMFILE`/`ENFILE` returns immediately and fails again immediately, which is a
-      fully utilised core and a log written at the speed of the loop. One log per window, not per
-      attempt. `crates/nvs-server/src/serve.rs:381` is the loop and
-      `crates/nvs-server/src/admit.rs` is where a process-wide bound already lives.
+- [ ] **`health_path` is read into what a server starts on.** ADR 0097 § 5 — off by default, so no
+      URL is silently reserved; a written one is an absolute path and nothing else.
+      `crates/nvs-config/src/server.rs:118` is `waits_for`, the shape a `[server]` key is read
+      through, and `crates/nvs-config/src/server.rs:99` is the boot refusal beside it.
+- [ ] **The health path answers before the mount table.** ADR 0097 § 5 and § 4's five steps: it is
+      checked ahead of step 1, so no mount can shadow it, and it performs no dependency checks and
+      reports no version. `crates/nvs-server/src/mount.rs:171` is `Table::select`, and
+      `crates/nvs-server/src/mount.rs:262` is the `What` a selection answers with.
+- [ ] **Draining is a state the accept loop holds.** ADR 0097 § 5 — `200` while accepting, `503`
+      while draining, empty body. `crates/nvs-server/src/serve.rs:396` is `serve_on_this_core` and
+      its `keep_serving` seam, and `crates/nvs-cli/src/serve.rs:282` is the
+      `ControlFlow::Continue` forever that the drain replaces. This is the slice that pins the
+      goal's `is_draining_answers_during_a_graceful_shutdown`.
+- [ ] **`Core\Server::isDraining()` gives an application the same fact.** ADR 0097 § 5's last
+      sentence, as the five edits — there is no `crates/nvs-stdlib/src/server.rs` yet, so this is a
+      new class as well as a member. `crates/nvs-stdlib/src/registry.rs:1279` is the roster it joins.
 
 ## Backlog
 
-- `ENGINE_RESERVE` is 128 MiB by assertion; M7's *Verify* benchmark is what measures it —
-  `crates/nvs-server/src/admit.rs`.
+- The wedged-core watchdog — ADR 0106 § 7, named by ADR 0097 § 5.
 - A served request's context carries no configuration snapshot — `crates/nvs-server/src/serve.rs`.
-- A Unix-domain `listen` entry classifies and is then refused — `crates/nvs-cli/src/serve.rs`.
-- `orient.py` prints no map line for `crates/nvs-cli/src/*` — `[context] modules` in
-  `docs/agent/loop-goal.toml` wants an `nvs-cli` pattern.
-- `[server] trusted_proxies` and § 6's forwarded-header walk — ADR 0097 § 6.
+- ADR 0097 § 6's forwarded-header walk: `trusted_proxies` is parsed and read by nothing.
+- A Unix-domain `listen` entry classifies and is then refused in the CLI — ADR 0097 § 5.
+- `examples/upload.nvs` against stage 5's frozen `want` — ADR 0105, playbook bullet owns it.

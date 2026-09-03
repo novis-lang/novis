@@ -5050,6 +5050,16 @@ is why" — is this file.
   case, so §§ 1, 4, 5, 7 and 13 are all assertable with no server, no container and no oracle
   skip — and `:memory:` being per *connection* is the sharpest instrument there is for asking
   whether two calls answered with one connection or two.
+- **An ADR section's own example can contradict the section that owns the spelling, and a test written
+  from the example pins the wrong thing.** ADR 0097 § 10 — *a mount routes and carries nothing else* —
+  illustrated itself with `[[server.mount]]` / `path = "/shop"` / `root = "/srv/www/shop"`, and neither
+  key exists: § 3 gives a mount `scan`, `prefix`, `host`, `entry` and `origin`, so `nvs_config::tree`
+  refuses both and a test asserting "the routing keys parse" off that example would have failed for the
+  right reason on the wrong input. The tell is that the disagreeing text is *illustrative* while the
+  other section is the one every other file cites; the ADR's own § 3 was right and § 10's example was a
+  leftover from before it. Before pinning a rule from a section, read the section that owns the key set
+  — one `peek.py` of the ADR's `### N` — and fix the example rather than reconciling it in your head,
+  because the same paragraph is what the next session will write its case from.
 
 ## Splitting a file that got too big
 
