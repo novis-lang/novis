@@ -6519,6 +6519,16 @@ sibling in the same namespace unqualified.
   written", the two are separate facts and the fix is to say which of them is missing. A third copy
   of the same sentence was in `crates/nvs-cli/src/queue.rs`'s `DIALECT` doc, and its own refusal one
   screen below had already been written the right way round — so grep the sentence, not the roster.
+- **A `MySqlRows`' column description cannot be *named* outside `nvs-db`, so no caller there can
+  write a helper that takes one.** `nvs_db::MySqlRows::columns` answers `&[Column]` where `Column`
+  is `mysql_common::packets::Column` — a foreign type the crate re-exports nowhere, unlike
+  `PgColumn` beside it — so a caller in `nvs-cli` or `nvs-stdlib` can hold the `.to_vec()` and hand
+  an element to `nvs_db::mysql::scalar`, and cannot spell `fn read(column: &Column, …)` at all. The
+  decode therefore goes inline in the row loop, or behind a helper taking the already-decoded
+  `nvs_db::MySqlScalar`, which *is* exported. Two smaller edges of the same seam: `MySqlScalar`
+  derives nothing, so `read[i]` moving out of a `Vec` does not compile — match it by reference —
+  and its `Text`/`Bytes` borrow the row rather than owning octets the way `PgScalar` does, so a
+  value that outlives the loop iteration is a `to_string()` and not an `into_owned()`.
 
 ## Divergences and refusals already pinned
 
