@@ -3462,6 +3462,16 @@ nvs_runtime::nvs_helper! {
 /// database lives at — is answered here by `fs.read`/`fs.write`, which is the
 /// grant an operator writes about a path.
 ///
+/// **A relative path stays relative to the process**, and that is the deliberate
+/// asymmetry with a `[db.<name>] path`, which `nvs_config::db`'s `canonicalize`
+/// resolves against the configuration file that wrote it (ADR 0103 § 5). There
+/// is no file to resolve against here: the program computed this string, and
+/// resolving it against a configuration file it never named would make the
+/// meaning of a program's own path depend on where the operator keeps `nvs.toml`.
+/// So the base is the working directory, which is the base every other path a
+/// program hands `Core\Fs` already has, and the grant list is where an operator
+/// bounds it.
+///
 /// # Errors
 ///
 /// The three capability refusals, `nvs_db::BlockError`'s for a `path` that is

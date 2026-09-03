@@ -358,6 +358,44 @@ fn a_relative_path_resolves_against_the_file_it_is_written_in() {
     assert_eq!(resolved.files.len(), 3);
 }
 
+/// § 5 again, on the key ADR 0067 § 3 makes a whole database out of: a `[db.<name>] path` written in
+/// an included file names a file beside *that* file, not beside whatever directory a request happens
+/// to be running in. It is asserted here rather than in `tests/db.rs` because the rule under test is
+/// § 5's and not § 3's — `crates/nvs-config/src/db.rs`'s module doc owns why the bundle beside it is
+/// additionally trust-checked and this one is not.
+#[test]
+fn a_db_blocks_path_resolves_against_the_file_it_is_written_in() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\npath = \"conf.d/db.toml\"\n"),
+        (
+            "etc/conf.d/db.toml",
+            "[db.main]\ndriver = \"sqlite\"\npath = \"main.db\"\n\
+             [db.memory]\ndriver = \"sqlite\"\npath = \":memory:\"\n",
+        ),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    let want = p("etc/conf.d/main.db");
+
+    assert_eq!(
+        resolved.config.db["main"].path.as_deref(),
+        Some(want.to_string_lossy().as_ref())
+    );
+    // The table as well as the typed tree, and this half is the one a driver actually reads:
+    // `Snapshot` deserializes itself out of the table, so a pass that rewrote only the tree above
+    // would resolve nothing that any connection ever saw.
+    assert_eq!(
+        resolved.table["db"]["main"]["path"].as_str(),
+        Some(want.to_string_lossy().as_ref())
+    );
+    // The other side of the bound, because a pass that resolved everything spelled into `path`
+    // would look right on the line above and open nothing: `:memory:` is not a file name, and a
+    // directory in front of it is a file name nothing can open.
+    assert_eq!(
+        resolved.table["db"]["memory"]["path"].as_str(),
+        Some(":memory:")
+    );
+}
+
 /// § 2: a cycle is refused with the chain named. The chain and not merely the repeated file, because
 /// an operator shown only the file that repeated has to rediscover how it was reached.
 #[test]

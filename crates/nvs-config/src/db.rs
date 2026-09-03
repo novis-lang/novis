@@ -1,13 +1,15 @@
-//! What a `[db.<name>]` block still owes once it has deserialized: the path that names a file,
-//! resolved and trust-checked, and the two durations ADR 0067 states in prose — § 13's pool bounds
-//! and § 11's `slow_query` threshold — read into numbers. All of it at boot.
+//! What a `[db.<name>]` block still owes once it has deserialized: the two paths that name a file,
+//! resolved — one of them trust-checked as well — and the two durations ADR 0067 states in prose —
+//! § 13's pool bounds and § 11's `slow_query` threshold — read into numbers. All of it at boot.
 //!
-//! The path is one field — [`Database::tls_ca_file`](crate::tree::Database::tls_ca_file), the PEM bundle
-//! ADR 0067 § 3's TLS leg verifies a server's certificate against. It is here rather than in
-//! [`mod@crate::secret`] because it is not a secret: nothing about a CA bundle is confidential, and
-//! § 7's whole shape — one value, materialized into a sibling directive, kept out of the merged
-//! table — is the wrong one for a file a connection re-reads by path. What it *shares* with § 7 is
-//! the trust boundary, which is why both run at resolve time and neither at use time.
+//! The paths are [`Database::tls_ca_file`](crate::tree::Database::tls_ca_file), the PEM bundle
+//! ADR 0067 § 3's TLS leg verifies a server's certificate against, and
+//! [`Database::path`](crate::tree::Database::path), the file a SQLite block opens. Both are here
+//! rather than in [`mod@crate::secret`] because neither is a secret: nothing about a CA bundle, or
+//! about a database file's *name*, is confidential, and § 7's whole shape — one value, materialized
+//! into a sibling directive, kept out of the merged table — is the wrong one for a file a connection
+//! re-reads by path. What the bundle *shares* with § 7 is the trust boundary, which is why both run
+//! at resolve time and neither at use time.
 //!
 //! **A CA bundle is a trust-boundary file.** Whoever can rewrite it decides which server this
 //! deployment's queries and credentials go to, which is the same authority ADR 0103 § 6 refuses to
@@ -18,12 +20,28 @@
 //! session in this process shares, and a second parse in this crate would be a second answer to
 //! "whose certificates do you believe".
 //!
-//! **The path is rewritten in place**, absolute, exactly as [`mod@crate::app`] canonicalizes a
+//! **A SQLite `path` is resolved and nothing more**, and the difference is worth stating because
+//! the two fields sit one line apart in the block. [`Files::trust`] asks who *else* may write a
+//! file, which is the right question about a set of trust anchors and the wrong one about a
+//! database: that file is the deployment's own data, written by exactly the account the check would
+//! be objecting to, and it usually does not exist at boot at all — SQLite creates it on first open,
+//! so a boot-time `trust` would refuse every first run. What a `path` still owes is § 5's
+//! resolution, for the reason below — and only when it is a relative file at all, which
+//! [`is_relative_file`] is and owns, three of SQLite's spellings not being paths.
+//!
+//! **A path a *program* supplies is not resolved here and is deliberately not resolved like this
+//! one.** `Db\Settings.path` reaches `Core\Db::open` as ADR 0067 § 3's path sink, needing
+//! `fs.read`/`fs.write`, and it stays relative to the process rather than to a configuration file
+//! the program never named — `nvs_stdlib::db`'s `sqlite_settings` is that half. The asymmetry is the
+//! same one § 3 draws about an address: what an operator wrote in root-owned configuration is
+//! resolved against that configuration, and what a program computed is not.
+//!
+//! **The paths are rewritten in place**, absolute, exactly as [`mod@crate::app`] canonicalizes a
 //! block's key and for its second reason: § 9's `nvs config dump` then prints the file the
 //! handshake will actually open rather than a fragment whose meaning depends on which file in the
 //! tree wrote it. A connection opened from a working directory that is not the configuration's —
 //! every request, since ADR 0103 § 5 resolves against the *file* — would otherwise read a different
-//! bundle or none.
+//! bundle, a different database, or none.
 //!
 //! **The pool's bounds are read here and not where the pool is built**, for the reason every other
 //! `validate` in this crate runs at boot: an operator who wrote `lifetime = "30 minutes"` learns it
@@ -43,7 +61,8 @@ use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::{Config, Database, Pool, Setting};
 use crate::value::{Quantity, Unit};
 
-/// Makes every `[db.<name>] tls_ca_file` absolute and proves it is inside the trust boundary.
+/// Makes every `[db.<name>]` path absolute — ADR 0103 § 5 — and proves the `tls_ca_file` among them
+/// is inside the trust boundary.
 ///
 /// Runs over the merged tree for [`mod@crate::secret`]'s reason: which bundle is in force is a
 /// question only the merge has answered, and trust-checking a path a later file replaced would
@@ -53,22 +72,32 @@ use crate::value::{Quantity, Unit};
 ///
 /// `E0607` for a bundle outside ADR 0103 § 6's trust boundary and `E0605` for one that cannot be
 /// read at all — [`crate::resolve::untrusted`]'s split, so an operator told "cannot read" goes
-/// looking for a typo and one told the other goes looking at a mode.
+/// looking for a typo and one told the other goes looking at a mode. A `path` resolves and cannot
+/// fail: it is arithmetic on a string, and this module's doc says why the file behind it is not
+/// asked about here.
 pub fn canonicalize(
     config: &mut Config,
+    table: &mut toml::value::Table,
     origins: &BTreeMap<String, Origin>,
     files: &dyn Files,
 ) -> Result<(), Diagnostic> {
     for (name, db) in &mut config.db {
+        if let Some(written) = db
+            .path
+            .as_deref()
+            .filter(|written| is_relative_file(written))
+        {
+            let base = written_in(origins, &format!("db.{name}.path"));
+            let path = crate::resolve::absolute(base, Path::new(written))
+                .to_string_lossy()
+                .into_owned();
+            rewrite(table, name, "path", &path);
+            db.path = Some(path);
+        }
         let Some(written) = db.tls_ca_file.as_deref() else {
             continue;
         };
-        // § 5: relative to the file it was written in. A key with no origin cannot have been
-        // written anywhere, so there is nothing but the path itself to resolve against.
-        let base = origins
-            .get(&format!("db.{name}.tls_ca_file"))
-            .and_then(|origin| origin.path.parent())
-            .unwrap_or(Path::new("."));
+        let base = written_in(origins, &format!("db.{name}.tls_ca_file"));
         let path = crate::resolve::absolute(base, Path::new(written));
         let trusted = files.trust(&path).map_err(|why| {
             crate::resolve::untrusted(
@@ -78,9 +107,69 @@ pub fn canonicalize(
                  server the connection may be talking to",
             )
         })?;
-        db.tls_ca_file = Some(trusted.to_string_lossy().into_owned());
+        let trusted = trusted.to_string_lossy().into_owned();
+        rewrite(table, name, "tls_ca_file", &trusted);
+        db.tls_ca_file = Some(trusted);
     }
     Ok(())
+}
+
+/// The directory ADR 0103 § 5 resolves a relative key against: the one the key was written in.
+///
+/// A key with no origin cannot have been written in a file anywhere, so there is nothing but the
+/// path itself to resolve against and `.` is the honest base — the same answer the process's own
+/// working directory would give.
+fn written_in<'a>(origins: &'a BTreeMap<String, Origin>, key: &str) -> &'a Path {
+    origins
+        .get(key)
+        .and_then(|origin| origin.path.parent())
+        .unwrap_or(Path::new("."))
+}
+
+/// Whether a written `path` is a relative file, and so something ADR 0103 § 5 has anything to say
+/// about.
+///
+/// **Three of SQLite's spellings are not paths at all, and resolving one destroys it.** `:memory:`
+/// is the private in-memory database, the empty string is a private temporary file the engine names
+/// itself, and a `file:` scheme is a URI whose query carries `mode=memory` and `cache=shared` — the
+/// spelling two handles onto one in-memory database need, which `crates/nvs-db/src/sqlite.rs`'s
+/// deadlock case is written on. Prefixing any of the three with a directory produces a file name
+/// nothing can open, which is exactly the failure this predicate exists to have already prevented.
+///
+/// **A rooted path is skipped for the other half of the same reason**: § 5 resolves what is
+/// *relative*, and rootedness is the honest test where [`Path::is_absolute`] is not — on Windows a
+/// path written `/etc/novis.db` is not absolute (it names no drive) and is plainly not relative to
+/// anything either, so joining it onto a base directory would move it to the base's drive rather
+/// than resolve it.
+fn is_relative_file(written: &str) -> bool {
+    let path = Path::new(written);
+    !written.is_empty()
+        && written != ":memory:"
+        && !written.starts_with("file:")
+        && !path.has_root()
+        && !path.is_absolute()
+}
+
+/// Puts a resolved path back at `db.<name>.<key>` of the merged table as well as onto the typed tree.
+///
+/// **The table is the half that reaches a driver**, and rewriting only the typed tree is a resolution
+/// that silently does not happen: [`Snapshot`](crate::Snapshot) deserializes itself out of the table
+/// (`Snapshot::retype`, which every path producing a `Config` goes through), so a `Config` this pass
+/// rewrote is discarded and the written fragment is what a connection opens. The typed tree is
+/// rewritten too because the passes between here and the snapshot — [`validate`],
+/// [`crate::queue::validate`], [`crate::app::canonicalize`] — read that one.
+///
+/// A block the table does not hold is not an error to find: the typed tree is what says a `[db]`
+/// block exists, and a key written nowhere has nothing to resolve.
+fn rewrite(table: &mut toml::value::Table, name: &str, key: &str, value: &str) {
+    if let Some(block) = table
+        .get_mut("db")
+        .and_then(toml::Value::as_table_mut)
+        .and_then(|blocks| blocks.get_mut(name))
+        .and_then(toml::Value::as_table_mut)
+    {
+        block.insert(key.to_string(), toml::Value::String(value.to_string()));
+    }
 }
 
 /// ADR 0067 § 13's pool, resolved: every bound a number, and nothing left to decide at acquire time.

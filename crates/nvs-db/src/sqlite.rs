@@ -90,9 +90,10 @@ pub struct SqliteTarget<'a> {
     /// nothing here knows which of the two it was handed.
     ///
     /// Resolution against the config file's own directory (ADR 0103 § 5) has
-    /// already happened by the time a block reaches here, for the reason the
-    /// other drivers' addresses are resolved before they arrive: a driver that
-    /// re-resolved a name would be reaching somewhere nobody approved.
+    /// already happened by the time a block reaches here — `nvs_config::db`'s
+    /// `canonicalize` does it at boot, beside the `tls_ca_file` — for the reason
+    /// the other drivers' addresses are resolved before they arrive: a driver
+    /// that re-resolved a name would be reaching somewhere nobody approved.
     pub path: &'a Path,
     /// The zone a zone-less datetime off this connection is read in, as a whole
     /// number of seconds east of UTC.
