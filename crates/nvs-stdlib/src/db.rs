@@ -106,14 +106,17 @@
 //!    but the five points this module asks them at do not. MySQL and MariaDB
 //!    reach all of it through one body rather than two: [`Framed`] is that
 //!    seam, and its doc is where "its own driver above the framing, not inside
-//!    it" is argued. **SQL Server opens and runs one statement**:
+//!    it" is argued. **SQL Server opens and runs every statement § 4 has**:
 //!    `nvs_db::TdsConn::connect` is reached from both openers,
 //!    [`rendering_for`] binds a parameter through `nvs_db::tds::encode`, and the
-//!    one `sp_prepexec` behind `nvs_db::TdsConn::query` answers all three
-//!    members built on it — [`tds_rows`] drains the token stream for `query` and
-//!    `queryAs`, [`tds_write`] drains it for `execute`'s count. § 4's batch and
-//!    § 7's commands have no `nvs_db::TdsConn` primitive at all and are the
-//!    driver's remaining refusals. What is still
+//!    one `sp_prepexec` behind `nvs_db::TdsConn::query` answers every
+//!    member built on it — [`tds_rows`] drains the token stream for `query` and
+//!    `queryAs`, [`tds_write`] drains it for `execute`'s count, and
+//!    `nvs_db::tds::execute_many` runs § 4's batch as that same send once per
+//!    parameter set — one `sp_prepexec`, an `sp_execute` after it. § 7's
+//!    commands are the one remaining refusal, being the only member that needs
+//!    a `nvs_db::TdsConn` primitive a statement did not already build. What is
+//!    still
 //!    PostgreSQL-only is [`crate::queue`]'s four members. Known gap 2 above the
 //!    handshake is therefore a roster per member rather than one list, which is
 //!    what [`driverless`] takes.
@@ -4518,12 +4521,7 @@ fn transacting<'a>(
         nvs_db::Connection::Postgres(postgres) => Ok(Transacting::Postgres(postgres)),
         nvs_db::Connection::MySql(mysql) => Ok(Transacting::MySql(mysql)),
         nvs_db::Connection::MariaDb(maria) => Ok(Transacting::MariaDb(maria)),
-        other => Err(driverless(
-            named,
-            block,
-            other.driver(),
-            BEYOND_ONE_STATEMENT,
-        )),
+        other => Err(driverless(named, block, other.driver(), TRANSACTS)),
     }
 }
 
@@ -4641,7 +4639,7 @@ fn queried_rows(
                 named,
                 &statement.block,
                 other.driver(),
-                ONE_STATEMENT,
+                RUNS_STATEMENTS,
             ));
         }
     };
@@ -4649,38 +4647,41 @@ fn queried_rows(
     Ok(answered)
 }
 
-/// Known gap 2's roster for the three members that are one statement over the
-/// driver's own `query` — § 4's `query` and `queryAs`, both of them
-/// [`queried_rows`], and `execute`, which is [`tds_write`]'s and
-/// [`mysql_write`]'s same send read for its count.
+/// Known gap 2's roster for the four members that are statements and nothing
+/// else — § 4's `query` and `queryAs`, both of them [`queried_rows`];
+/// `execute`, which is [`tds_write`]'s and [`mysql_write`]'s same send read for
+/// its count; and `executeMany`, which is a driver's own `execute_many` over
+/// the same one statement.
 ///
-/// **A roster per member and not one list**, which is the whole of what SQL
-/// Server changed here: it reaches every member built on one `query` and no
-/// member built on more, so a single sentence would either tell an operator
-/// calling `execute` that the driver cannot or tell one calling `transaction`
-/// that it can. Each is a message an operator would act on wrongly.
+/// **A roster per member and not one list**, and what the two now fall either
+/// side of is § 7. A batch needs no primitive a statement did not already need
+/// — `nvs_db::tds::execute_many` is § 1's cache driving `start_statement` per
+/// set — where a transaction needs commands of its own, so a single sentence
+/// would either tell an operator calling `executeMany` that the driver cannot
+/// or tell one calling `transaction` that it can. Each is a message an operator
+/// would act on wrongly.
 ///
-/// The name is the *shape of the send* and not the direction of the data,
-/// because that is the line the two rosters actually fall either side of: what
-/// SQL Server has is `nvs_db::TdsConn::query`, and whether a member reads the
-/// rows back or counts them is `nvs-stdlib`'s business rather than the
-/// driver's — `nvs_db::tds::TdsConn::query`'s own doc says `execute` is that
-/// same method.
-const ONE_STATEMENT: &[nvs_db::Driver] = &[
+/// The name is what a member *sends* and not the direction of the data, that
+/// being the line the drivers actually part on: whether a member reads the rows
+/// back, counts them, or runs the send once per parameter set is
+/// `nvs-stdlib`'s business rather than the driver's —
+/// `nvs_db::tds::TdsConn::query`'s own doc says `execute` is that same method.
+const RUNS_STATEMENTS: &[nvs_db::Driver] = &[
     nvs_db::Driver::Postgres,
     nvs_db::Driver::MySql,
     nvs_db::Driver::MariaDb,
     nvs_db::Driver::SqlServer,
 ];
 
-/// Known gap 2's roster for the two members that are more than one statement —
-/// § 4's `executeMany` and § 7's `transaction`.
+/// Known gap 2's roster for the one member that is commands rather than
+/// statements — § 7's `transaction`, through [`Transacting`].
 ///
-/// It is [`ONE_STATEMENT`] less SQL Server, and the reason is
+/// It is [`RUNS_STATEMENTS`] less SQL Server, and the reason is
 /// `nvs_db::TdsConn`'s own surface rather than a decision taken here: it has a
-/// `query`, a reset and nothing else, so there is no `execute_many` for
-/// `executeMany`'s arm to call and no `begin` for [`Transacting`] to hold.
-const BEYOND_ONE_STATEMENT: &[nvs_db::Driver] = &[
+/// `query`, an `execute_many` built on that, a reset and nothing else, so there
+/// is no `begin` for [`Transacting`]'s five points to be asked at. The two
+/// rosters become one the session that gives it one.
+const TRANSACTS: &[nvs_db::Driver] = &[
     nvs_db::Driver::Postgres,
     nvs_db::Driver::MySql,
     nvs_db::Driver::MariaDb,
@@ -4695,8 +4696,8 @@ const BEYOND_ONE_STATEMENT: &[nvs_db::Driver] = &[
 /// the block actually resolved to, because "this one is not supported" without
 /// saying which is what an operator cannot act on.
 ///
-/// **`reaching` is the caller's own roster**, [`ONE_STATEMENT`] or
-/// [`BEYOND_ONE_STATEMENT`], because the four members stopped agreeing when SQL
+/// **`reaching` is the caller's own roster**, [`RUNS_STATEMENTS`] or
+/// [`TRANSACTS`], because the four members stopped agreeing when SQL
 /// Server gained the two built on one `query` and neither of the others. It is
 /// rendered by [`named_drivers`] rather than written into the sentence, so the
 /// list an operator reads is the list a `match` arm below actually has.
@@ -5880,7 +5881,7 @@ nvs_runtime::nvs_helper! {
                     EXECUTE,
                     &statement.block,
                     other.driver(),
-                    ONE_STATEMENT,
+                    RUNS_STATEMENTS,
                 ));
             }
         };
@@ -5913,7 +5914,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **The batch opens and files ADR 0067 § 11's span itself**, which is the
     /// one thing it does that `execute` leaves to the driver.
-    /// Either driver's `execute_many` answers with a count and lends no row
+    /// Every driver's `execute_many` answers with a count and lends no row
     /// handle out, so there is no handle a driver-built span could ride on and
     /// be read off afterwards — the span is opened here, around the same round
     /// trips, and finished with the batch's sum as its affected count and no
@@ -5927,10 +5928,11 @@ nvs_runtime::nvs_helper! {
     /// hand would have accumulated anyway. The batch is also **not** a
     /// transaction: a failure part way through leaves the writes before it
     /// standing and the sets after it still attempted, and `transaction` is the
-    /// member that asks for all or nothing. The two drivers reach that one
+    /// member that asks for all or nothing. The drivers reach that one
     /// observable from opposite ends of their protocols — a `Sync` per execution
-    /// on PostgreSQL, a command per execution on MySQL — and each
-    /// `execute_many`'s own doc argues its half.
+    /// on PostgreSQL, a command per execution on MySQL, an `sp_execute` per set
+    /// against one `sp_prepexec` on SQL Server — and each `execute_many`'s own
+    /// doc argues its half.
     fn nvs_core_db_connection_execute_many(ctx, args: [3]) {
         let batch = batch_of(ctx, args, "executeMany", EXECUTE_MANY)?;
         // Two hops rather than one: the driver borrows each set as a slice, so
@@ -5965,12 +5967,17 @@ nvs_runtime::nvs_helper! {
             // executions on both drivers and `nvs_db::mysql::execute_many` is
             // the one that runs them.
             nvs_db::Connection::MariaDb(maria) => maria.execute_many(&batch.sql, &sets),
+            // The one driver whose batch costs no request shape of its own:
+            // § 1's cache makes the first set an `sp_prepexec` and every set
+            // after it an `sp_execute`, so `nvs_db::tds::execute_many` is the
+            // loop and nothing below it changed for this member.
+            nvs_db::Connection::SqlServer(tds) => tds.execute_many(&batch.sql, &sets),
             other => {
                 return Err(driverless(
                     EXECUTE_MANY,
                     &batch.block,
                     other.driver(),
-                    BEYOND_ONE_STATEMENT,
+                    TRANSACTS,
                 ));
             }
         }
@@ -7902,16 +7909,16 @@ mod tests {
     /// operator then reads is "this build cannot do that" about a driver that
     /// just did, which is the one thing that message exists to prevent.
     ///
-    /// **Asked of both rosters, because they parted.** [`ONE_STATEMENT`] gained
-    /// SQL Server with [`tds_rows`] and [`tds_write`], and
-    /// [`BEYOND_ONE_STATEMENT`] did not, so the driver the refusal is *about* is
+    /// **Asked of both rosters, because they parted.** [`RUNS_STATEMENTS`] gained
+    /// SQL Server with [`tds_rows`], [`tds_write`] and `executeMany`'s own arm,
+    /// and [`TRANSACTS`] did not, so the driver the refusal is *about* is
     /// SQLite here: it is the one driver outside both, which is what makes
     /// "named exactly when it reaches" askable of every other driver in one
     /// loop.
     #[test]
     fn the_refusal_names_every_driver_that_sends() {
         let block = Value::str(NvsStr::new(b"main"));
-        for roster in [ONE_STATEMENT, BEYOND_ONE_STATEMENT] {
+        for roster in [RUNS_STATEMENTS, TRANSACTS] {
             let refused = format!(
                 "{:?}",
                 driverless(QUERY, &block, nvs_db::Driver::Sqlite, roster)
@@ -7932,16 +7939,16 @@ mod tests {
                 );
             }
         }
-        for driver in ONE_STATEMENT {
+        for driver in RUNS_STATEMENTS {
             assert!(
                 rendering_for(*driver).is_some(),
                 "{driver:?} runs a statement, so § 5 has to render one for it"
             );
         }
         assert!(
-            BEYOND_ONE_STATEMENT
+            TRANSACTS
                 .iter()
-                .all(|driver| ONE_STATEMENT.contains(driver)),
+                .all(|driver| RUNS_STATEMENTS.contains(driver)),
             "a driver that reaches `executeMany` or § 7 reaches one statement first"
         );
     }

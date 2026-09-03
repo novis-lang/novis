@@ -73,8 +73,11 @@
 //!
 //! **And a statement goes out**: [`sp_prepexec_request`] builds the RPC, ADR
 //! 0067 § 1's cache holds the handle the `RETURNVALUE` came back with,
-//! [`start_statement`] is the sequencing both `query` and `execute` are, and
-//! [`reset_session`] is § 13's `sp_reset_connection`.
+//! [`start_statement`] is the sequencing both `query` and `execute` are,
+//! [`execute_many`] is § 4's batch over that same sequencing once per parameter
+//! set, and [`reset_session`] is § 13's `sp_reset_connection`. What has no
+//! primitive here yet is § 7: a transaction is the one member that needs
+//! commands of its own rather than another statement.
 //!
 //! # The one gap, and it is a bind rather than a read
 //!
@@ -4846,6 +4849,108 @@ fn cache_declaration(declared: &Rc<str>) -> Option<&str> {
     (!declared.is_empty()).then(|| &**declared)
 }
 
+/// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s `executeMany` on this
+/// protocol: one plan, one execution per set, and the affected counts summed.
+///
+/// [`crate::mysql::execute_many`]'s loop, and every rule that function argues
+/// holds here for the same reason — an execution is its own transaction, so a
+/// refusal leaves the writes before it standing and the sets after it are still
+/// attempted; the **first** error is what the batch reports; and a wire failure
+/// is the one thing that ends it early, a poisoned connection having no packet
+/// boundary left for the next set to be written at.
+///
+/// **The bulk command § 4 refuses has no spelling here at all.** What makes the
+/// batch cheaper than N `execute` calls on this driver is § 1's cache and
+/// nothing else: the first set is an `sp_prepexec` and every set after it an
+/// `sp_execute` naming the plan that prepare filed, which is the one prepare
+/// and N executions § 4 asks for, arrived at through [`start_statement`] rather
+/// than through a second request shape.
+///
+/// An empty `sets` is § 4's no-op answering `0`, with the busy check still
+/// ahead of it for [`crate::pg`]'s reason: § 4's refusal is a property of the
+/// connection and not of the payload.
+///
+/// # Errors
+///
+/// `InvalidInput` for a batch written to a connection that is not idle, and for
+/// a `sets` whose members do not all bind the same number of parameters — one
+/// prepare has one parameter count, and it is what § 1's cache is keyed on
+/// beside the SQL text. Otherwise the first error any execution drew, or the
+/// wire failure that stopped the batch.
+pub fn execute_many<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    cache: &mut StatementCache<TdsPlan>,
+    sql: &str,
+    sets: &[&[Option<&[u8]>]],
+) -> io::Result<u64> {
+    if !state.get().may_start_statement() {
+        return Err(crate::pg::second_statement(state));
+    }
+
+    let Some(first) = sets.first() else {
+        return Ok(0);
+    };
+    let arity = first.len();
+    if let Some(odd) = sets.iter().find(|set| set.len() != arity) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "one executeMany bound {arity} parameters in its first set and {} in another, and \
+                 ADR 0067 § 4's one prepare has one parameter count",
+                odd.len()
+            ),
+        ));
+    }
+
+    let mut affected = 0_u64;
+    let mut refused: Option<io::Error> = None;
+    for set in sets {
+        match execute_one(wire, state, cache, sql, set) {
+            Ok(count) => affected += count,
+            Err(e) => {
+                if state.get() == State::Poisoned {
+                    return Err(e);
+                }
+                refused.get_or_insert(e);
+            }
+        }
+    }
+
+    match refused {
+        Some(e) => Err(e),
+        None => Ok(affected),
+    }
+}
+
+/// One of [`execute_many`]'s sets, drained, and what it changed.
+///
+/// [`crate::mysql`]'s helper of the same name, split out for its reason: a
+/// [`TdsRows`] borrows the wire, so the count has to be read before the stream
+/// is dropped and the batch's accounting is a `match` on one result rather than
+/// a stream held across the next iteration.
+///
+/// A set that answered with rows contributes the rows it produced, which is the
+/// number [`TdsRows::affected`] already reports for one — § 4 gives the batch
+/// one sum and that method is where the two numbers became one. A `DONE` that
+/// counted nothing reads as `0` here, the distinction it draws being one a sum
+/// has nothing to do with.
+///
+/// # Errors
+///
+/// As [`start_statement`] and [`TdsRows::next_row`].
+fn execute_one<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    cache: &mut StatementCache<TdsPlan>,
+    sql: &str,
+    set: &[Option<&[u8]>],
+) -> io::Result<u64> {
+    let mut rows = start_statement(wire, state, cache, sql, set)?;
+    while rows.next_row()?.is_some() {}
+    Ok(rows.affected().unwrap_or(0))
+}
+
 /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, and the cache it
 /// takes with it.
 ///
@@ -5062,6 +5167,18 @@ impl TdsConn {
     /// As [`start_statement`].
     pub fn query(&mut self, sql: &str, params: &[Option<&[u8]>]) -> io::Result<TdsRows<'_>> {
         start_statement(&mut self.wire, &self.state, &mut self.cache, sql, params)
+    }
+
+    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s `executeMany`: one
+    /// prepare, N executions, and the affected counts summed.
+    ///
+    /// The two-line delegation [`TdsConn::query`] gives its reason for.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_many`].
+    pub fn execute_many(&mut self, sql: &str, sets: &[&[Option<&[u8]>]]) -> io::Result<u64> {
+        execute_many(&mut self.wire, &self.state, &mut self.cache, sql, sets)
     }
 
     /// The zone a `datetime` or `datetime2` off this connection is read in, as
@@ -8071,5 +8188,111 @@ mod tests {
             "the new plan is compiled against the declaration the value needs"
         );
         assert_eq!(cache.len(), 1, "the stale entry is dropped, not shadowed");
+    }
+
+    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s batch on this
+    /// protocol: one prepare, one execution per set, and the sum of what each
+    /// one counted.
+    ///
+    /// **The prepare is asserted to happen once**, because that is the whole of
+    /// what this member buys over the loop of `execute` calls a caller could
+    /// write by hand — the sum would be the same either way, and so would every
+    /// row it wrote. § 1's cache is what makes the second set an `sp_execute`,
+    /// which is why the batch needs no request shape of its own here.
+    ///
+    /// The empty list and the sets that disagree are asserted beside it: both
+    /// are answers § 4 gives before anything reaches the wire, so a batch that
+    /// wrote first would still look right from the count alone.
+    #[test]
+    fn a_batch_is_one_prepare_an_execution_per_set_and_the_counts_summed() {
+        const SQL: &str = "insert into t (a) values (@p1)";
+
+        let mut wire = answering_each(&[
+            prepexec_answer(9),
+            done_token(DONE_COUNT, 2),
+            done_token(DONE_COUNT, 3),
+        ]);
+        let state = Cell::new(State::Idle);
+        let mut cache = plans(2);
+
+        assert_eq!(
+            execute_many(&mut wire, &state, &mut cache, SQL, &[]).expect("§ 4's no-op"),
+            0,
+            "an empty set list is answered without a round trip"
+        );
+        assert!(wire.peer().sent.is_empty());
+
+        let bound: [[Option<&[u8]>; 1]; 3] = [[Some(b"x")], [Some(b"y")], [Some(b"z")]];
+        let sets: [&[Option<&[u8]>]; 3] = [&bound[0], &bound[1], &bound[2]];
+        assert_eq!(
+            execute_many(&mut wire, &state, &mut cache, SQL, &sets)
+                .expect("a batch the server took"),
+            6,
+            "§ 4's answer is the sum of what the executions counted"
+        );
+
+        let sent = flushed(&wire.peer().sent);
+        assert_eq!(sent.len(), 3, "one message per set, and no second prepare");
+        assert_eq!(sent_rpc(&sent[0].2).0, PROC_SP_PREPEXEC);
+        assert_eq!(sent_rpc(&sent[1].2).0, PROC_SP_EXECUTE);
+        assert_eq!(sent_rpc(&sent[2].2).0, PROC_SP_EXECUTE);
+        assert_eq!(cache.len(), 1, "one plan, executed three times");
+
+        let odd: [&[Option<&[u8]>]; 2] = [&bound[0], &[]];
+        let refused = execute_many(&mut wire, &state, &mut cache, SQL, &odd)
+            .expect_err("one prepare has one parameter count");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(
+            flushed(&wire.peer().sent).len(),
+            3,
+            "the sets that disagree are refused before the first of them is written"
+        );
+    }
+
+    /// The half of § 4's semantics that costs the round trips: a refused set
+    /// does not end the batch, the sets behind it are still attempted, and the
+    /// **first** refusal is what the batch answers with.
+    ///
+    /// [`crate::mysql`]'s
+    /// `a_refused_set_does_not_end_the_batch_and_the_first_refusal_is_reported`
+    /// asks this of the driver that has a bulk command to refuse. Here there is
+    /// none to refuse, so what this pins is that the loop was not quietly
+    /// shortened into "stop at the first error" — which no count and no sum
+    /// would show, both of them being discarded with the throw.
+    #[test]
+    fn a_refused_set_does_not_end_a_batch_and_the_first_refusal_is_reported() {
+        const SQL: &str = "insert into t (a) values (@p1)";
+
+        let mut first = message_token(TOKEN_ERROR, 2627, 14, "Violation of PRIMARY KEY constraint");
+        first.extend_from_slice(&done_token(DONE_ERROR, 0));
+        let mut second = message_token(TOKEN_ERROR, 515, 16, "Cannot insert the value NULL");
+        second.extend_from_slice(&done_token(DONE_ERROR, 0));
+
+        let mut wire = answering_each(&[prepexec_answer(9), first, second]);
+        let state = Cell::new(State::Idle);
+        let mut cache = plans(2);
+
+        let bound: [[Option<&[u8]>; 1]; 3] = [[Some(b"x")], [Some(b"y")], [Some(b"z")]];
+        let sets: [&[Option<&[u8]>]; 3] = [&bound[0], &bound[1], &bound[2]];
+        let refused = execute_many(&mut wire, &state, &mut cache, SQL, &sets)
+            .expect_err("two sets were refused");
+
+        let error = ServerError::of(&refused).expect("the server's own refusal");
+        assert_eq!(
+            error.driver_code,
+            Some(2627),
+            "the batch reports the first refusal and not the last: {refused}"
+        );
+        assert_eq!(
+            flushed(&wire.peer().sent).len(),
+            3,
+            "the third set was written after the second was refused"
+        );
+        assert_eq!(
+            state.get(),
+            State::Idle,
+            "a set the server refused leaves the connection at a boundary, so the batch \
+             could carry on and § 13 can still pool it"
+        );
     }
 }
