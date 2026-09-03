@@ -213,9 +213,16 @@ jobs:
   # ---------------------------------------------------------------------------
   # The docs have linters of their own and, until this job existed, nothing ran
   # them — six findings had accumulated across four ADRs, including two links
-  # citing files by names they were renamed out of. Both scripts are Python
+  # citing files by names they were renamed out of. All four scripts are Python
   # only, need no toolchain and finish in about a second together, which is why
-  # they are one job rather than a step bolted onto a build.
+  # they are one job rather than steps bolted onto a build.
+  #
+  # Each of these gates on *structure* and never on a length: a stale index row,
+  # a table row that does not parse, a playbook selector that resolves to two
+  # bullets or none. Sizes stay reports in all four, for the reason
+  # docs/agent/doc-style.md gives — a number is weighed, not enforced — so a
+  # green run here never means the docs are short, only that the tools can still
+  # read them and that what they derive still agrees with what is committed.
   # ---------------------------------------------------------------------------
   docs:
     name: docs
@@ -225,10 +232,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: ADR field set, heading order and cross-links
+      - name: ADR field set, heading order, cross-links and the derived index table
         run: python tools/adr.py --check
       - name: Every markdown link resolves, with matching case
         run: python tools/check-links.py
+      - name: Every milestone row parses and agrees with the file it names
+        run: python tools/plan.py --check
+      - name: Every playbook bullet is reachable by exactly one selector
+        run: python tools/playbook.py --check
 
   unsafe-audit:
     name: unsafe audit

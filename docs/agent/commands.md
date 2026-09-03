@@ -62,11 +62,30 @@ and `--dupes` reports a bullet that already says what another bullet says — on
 six times, by six sessions, in six wordings, before anything could see it. Neither writes to the playbook:
 appending a bullet is `session.py`'s `## playbook:` section and stays there.
 
+`--check` **exits non-zero on exactly one of the things it prints**: a selector that does not resolve to
+exactly one bullet. `orient.py` fetches a trap by that string, so a shared lead-in is a bullet the loop
+cannot deliver to the session whose goal named it, and neither end reports anything. The stale paths and
+the sizes beside it stay reports — a quoted path is often gone *because* the trap was closed. CI's `docs`
+job runs it for the one finding.
+
 **The plan is an index and one file per milestone**, and `plan.py` is the only thing that needs to know
 which is which: `--show M8` prints one milestone, `--show M8:verify` its acceptance paragraph alone, and
 `--amend M8 --from <file>` rewrites one. `--check` prices the status block against the aim the plan's own
 comment states and reports an index row that has drifted from the file it names. It refuses to *add* a
 field or a milestone — both are decisions, not forms — and it never refuses over a length.
+
+**It does refuse over a structure**, which is what makes it a CI gate: a table row that does not parse, a
+row naming a file that is not there, a title drifted from its H1, a milestone file no row names, a
+milestone with no `**Verify:**`. An unparseable row used to be *skipped*, so a milestone simply left the
+roster and every reader downstream saw the shorter table as the truth. The title cell is derived — the
+milestone file's H1 is its one home — so **`python tools/plan.py --sync` writes that column** rather than
+a reader picking whichever of the two copies looked right; it touches nothing else, since Order and
+Loop-days are the index's own data, and it refuses on a table it cannot read whole.
+
+The ADR index table is the same arrangement one file over: `python tools/adr.py --sync` writes
+`docs/adr/README.md`'s `| # | Decision | Status |` block from the ADR files, which own all three cells.
+This is the pattern `docs/novis.md` already established below — derive the machine-derivable half, and let
+a `--check` fail when the committed copy stops agreeing with it.
 
 ## One shell call runs one command, and its exit status is the last one's
 
