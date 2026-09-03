@@ -2032,6 +2032,7 @@ name = "nvs-server"
 version = "0.0.1"
 dependencies = [
  "hyper",
+ "nvs-config",
  "nvs-host",
  "nvs-runtime",
 ]
