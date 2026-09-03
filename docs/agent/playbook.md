@@ -4913,6 +4913,18 @@ is why" — is this file.
   Call `nvs_runtime::prime_empty_array()` before `let before = live_bytes()`. `nvs-runtime`'s own
   tests never see it, because Rust-side code builds arrays through `NvsArray::new`, which still
   allocates one each; and an `allocated_bytes` delta is unaffected once the singleton exists.
+- **A `loop-goal.toml` `cases` name can already be pinned by an *earlier stage of the same file*, at a
+  granularity a `.nvst` case cannot reach.** Stage 10's conformance list named
+  `an-enqueue-commits-with-the-write-that-made-it` and
+  `an-exhausted-job-is-dead-lettered-and-not-discarded`; both are stage 8 `cargo-named` tests in that
+  same file (`an_enqueue_commits_with_the_write_that_made_it`,
+  `an_exhausted_job_reaches_the_dead_letter_table_and_is_not_discarded`), and stage 8's `examples/queue.nvs`
+  fixture pins `dead-lettered` a third time. Neither is a claim a case *could* ask — one needs two
+  connections to one server and the other a worker loop — so no corpus name would ever have been found by
+  grepping `tests/`. The same held for `a-two-statement-literal-query-is-refused`, which is stage 9's
+  `a_two_statement_literal_query_is_a_diagnostic`. So the search for "is this already pinned" runs over
+  the goal file's *other checks* before it runs over the corpus: `grep -n` the drafted name's distinctive
+  words with the underscores swapped in. A claim listed twice reads as open work forever and buys nothing.
 
 ## Splitting a file that got too big
 
