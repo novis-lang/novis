@@ -6486,6 +6486,17 @@ sibling in the same namespace unqualified.
   there rather than a hole a `_` walks past. The error therefore arrives under `#[cfg(test)]`, names
   `ast.rs`, and leaves `registry.rs` clean, so a `cargo check` after adding the variant looks green. Add
   the arm in the same edit as the variant.
+- **Adding a driver to `Core\Db` is one match per *member*, not one match, and `open`'s is the arm
+  that looks like all of it.** `nvs_db::Connection` is destructured at seven sites in
+  `crates/nvs-stdlib/src/db.rs` — `connect`'s arm, `open`'s arm, `warm_connection`'s reset,
+  `transacting`, `queried_rows`, `execute`'s write and `executeMany` — and six end in an
+  `other => driverless(...)`. An arm added to `open` alone hands a program a connection that then
+  refuses every statement run on it, which is strictly worse than the honest refusal `open` gives
+  today, and none of the six is a compile error because the fallthrough arm is a binding. Two of
+  them cost more than an arm: `mysql_rows` and `mysql_write` take `&mut nvs_db::MySqlConn` **by
+  name**, and `MariaConn` is a distinct type with the same surface over the same framing, so a
+  second driver speaking MySQL's protocol needs a sharing seam before it needs an arm. Count the
+  `Connection::` matches before pricing the slice.
 
 ## Divergences and refusals already pinned
 

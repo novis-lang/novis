@@ -47,7 +47,7 @@
 > opened in `nvs-stdlib`**: § 18's `connect` over a memoized connection, `inList`, `quoteIdentifier`
 > and § 4's `query`, `execute` and `executeMany` ,  **`open` is live** and pools on § 13's settings
 > hash. **§ 7's `transaction` is on both classes with all three options, retrying either conflict,
-> no backoff** and a refusal throws `Db\DbError` carrying four of § 8's five; **`queryAs<T>`
+> jittered backoff** and a refusal throws `Db\DbError` carrying four of § 8's five; **`queryAs<T>`
 > hydrates** over `ClassDesc::db_codec` into the `Core\Time`/`Core\Uuid` instances `Row`'s typed
 > readers answer with, and § 6's *request* converts — a `TINYINT(1)` reads as `bool` and a stored
 > `7` throws; `examples/db.nvs` runs end to end.  **§ 13's pool is complete, every bound and the
