@@ -6861,6 +6861,14 @@ sibling in the same namespace unqualified.
   — and the binary is already built at the commit a session opens on. Probe the claim before
   budgeting the work it implies, and prefer the compiler itself to a grep when the claim is about
   what a program does.
+- **A cancelled task that is parked is usually torn down *where it parked*, and never sees
+  `Resumed::Cancelled`.** `Scheduler::run`'s sweep (`crates/nvs-host/src/scheduler.rs:845`) drops an
+  unwindable parked task's coroutine outright, so the line after a `suspend_current(Waiting::Parked)` does
+  not run and the stack unwinds through Rust `Drop` alone. The `Resumed::Cancelled` branch every park site
+  carries is reached only by a stack standing on a `nvs_runtime::HelperFrame`, which cannot be unwound and
+  so has to be resumed to die. A test asserting "the wait answered its cancellation" therefore fails on an
+  ordinary task and passes only with a `HelperFrame::enter()` guard held across the park — and a park site
+  needs both answers written, because both happen.
 
 ## Divergences and refusals already pinned
 

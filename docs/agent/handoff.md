@@ -2,52 +2,55 @@
 
 ## State
 
-**Goal 6 — the last goal of the parity program — has just started; nothing of it has landed yet.** M4 and
-goals 1–5 reached their whole acceptance lists and all six are now this goal's Stage 1 floor. That floor
-matters more here than anywhere else in the chain: a listener is where an old assumption about isolation,
-capabilities or the graph copy gets its first adversarial traffic.
+**Goal 6, Stage 2: the `block_on` seam has landed and the rest of the stage has not.**
+[ADR 0138](../adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md) is the goal's one
+pre-authorized ADR slot and it is now spent; `crates/nvs-host/src/block_on.rs` is its implementation, green
+under `verify.py -p nvs-host` with five tests — the ordering that makes a lost wakeup impossible, a
+cross-thread wake into a parked core, one permission per drive, and both halves of a cancellation.
 
-**`crates/nvs-server` does not exist yet.** Two things every session holds:
+**`crates/nvs-server` still does not exist and `hyper` is not in the manifest.** The seam deliberately
+needs neither: it is `std::task` and this crate's own reactor, so item 2 adds the dependency and the
+adapters over it rather than around it.
 
-- **`hyper` runs with no async runtime.** `default-features = false, features = ["http1", "server"]` brings
-  no `tokio`; h1 needs no `Executor` and `serve_connection` spawns nothing, so the connection future is
-  driven by a `block_on` on the coroutine that owns the connection, over `hyper::rt` adapters wrapping
-  goal 2's parking stream. One polled future per connection is not a second scheduler.
-- **A filesystem path is never derived from a URL at request time.** ADR 0097 § 2 is the governing rule and
-  § 4's five-step resolution is how it is kept. The test that says it holds is Stage 9's set equality, not
-  a traversal suite.
+A filesystem path is never derived from a URL at request time — ADR 0097 § 2 governs, § 4's five steps are
+how it is kept, and Stage 9's set equality is the test that says so. Goal 5's containers are still up (the
+session store and the fleet lease need Redis, `#[Test(db:)]` needs a database).
 
-Goal 5's containers are still up — the session store and the fleet lease both need Redis, and
-`#[Test(db:)]` needs a database.
+**`orient.py`'s pack was missing `crates/nvs-host/src/net.rs`**: `[context] modules` in
+`docs/agent/loop-goal.toml` names `crates/nvs-host/src/stream.rs`, which has never existed — the parking
+stream is `net.rs`, and the tool printed the mismatch as a warning twice. That entry wants replacing, and
+`crates/nvs-host/src/{scheduler,reactor,blocking}.rs` adding beside it: the seam and everything Stage 2
+builds on it sit on those three.
 
 ## Next group
 
-**Stage 2: a socket to a root isolate and back, and nothing else.** No mount table, no routing, no response
-policy — those are Stages 3 and 4, and building them into the first connection is how the seam ends up
-untestable.
+**Stage 2 finished: a socket to a root isolate and back.** Still no mount table, no routing and no response
+policy — Stages 3 and 4.
 
-One file set: `crates/nvs-server/src/`, `crates/nvs-host/src/stream.rs`,
-`crates/nvs-host/src/isolate.rs`.
+One file set: `crates/nvs-server/src/` (new), `Cargo.toml`, `crates/nvs-cli/src/main.rs`,
+`crates/nvs-host/src/net.rs`.
 
-- [ ] **The `block_on` seam**, which carries this goal's one pre-authorized ADR slot and is its first
-      slice. How a `hyper` connection future is driven from a coroutine, what the waker does, what happens
-      when the future wakes on a core other than the one that parked it, and why this is not an executor.
-      Write the ADR, then the code; the number comes from `python tools/brief.py`, re-checked immediately
-      before the file is created.
-- [ ] **`nvs serve` answers one request**, per-core accept and dispatch, a connection on a coroutine.
-- [ ] **The request is the root isolate of a request tree** — goal 2's `Isolate`, not a second isolation
-      path. This is stated as its own item rather than assumed because Stage 9's state-bleed suite is a
-      *parameterisation* over one mechanism; if it ends up two suites, this item was not done.
-- [ ] **`tokio_appears_in_neither_the_manifest_nor_the_lockfile` still passes** with `hyper` in the tree.
-      The claim has always been about a runtime rather than about the `Future` trait, and ADR 0099's own
-      bullet now says so — this is the check that keeps the distinction honest rather than assumed.
+- [ ] **`hyper` into the workspace manifest and the `hyper::rt` adapters over the parking stream.**
+      `default-features = false, features = ["http1", "server"]`, with ADR 0051 § 4's three questions
+      answered in a workspace-`Cargo.toml` comment beside `mio`'s, which is that file's line 84. The
+      `Read`/`Write` adapters wrap `crates/nvs-host/src/net.rs:130`'s `NvsStream` and return `Pending`
+      rather than suspending inside a poll, which is ADR 0138's rejected alternative and the deadlock it
+      names; the drive is `crates/nvs-host/src/block_on.rs:101`.
+- [ ] **`nvs serve` answers one request.** Per-core accept, one connection per coroutine,
+      `serve_connection` under `block_on`, no executor installed — the `Command` arm goes at
+      `crates/nvs-cli/src/main.rs:452`.
+- [ ] **The request is the root isolate of a request tree** — goal 2's `Isolate`
+      (`crates/nvs-host/src/isolate.rs:1045`), never a second isolation path, because Stage 9's state-bleed
+      suite is meaningless otherwise.
+- [ ] **`tokio_appears_in_neither_the_manifest_nor_the_lockfile`** still passes with `hyper` in the tree.
+      The test does not exist yet and needs a crate that can host it; how a test reaches the workspace
+      manifest and lockfile from inside one is `crates/nvs-cli/build.rs:123`.
 
 ## Backlog
 
-- Raw/unparsed body access for an arbitrary content-type is an open gap ADR 0024's *Revisiting* flags,
-  narrowed by m7.md to what `body()` and `bodyStream()` do not already answer. Decided-and-recorded in
-  `Core\Request`'s module doc if it comes up — not a new ADR and not a `BLOCKED`.
-- No TLS listener and no h2c: ADR 0097 § 1 dropped both and a proxy terminates TLS.
-- When Stage 9's last check goes green — `check-migration.py` at 100% — **the parity program is finished**
-  and the driver switches to goal 7, the post-parity temp sweep (ADR 0131), the chain's last entry. The
-  milestone table's order 6 is M4B, whose staged goal is `docs/agent/next-goal-m4b.md`.
+- Fix `[context] modules` in `docs/agent/loop-goal.toml`: `stream.rs` for `net.rs`, plus `scheduler.rs`,
+  `reactor.rs`, `blocking.rs` — `docs/agent/loop-goal.toml`.
+- Raw/unparsed body access for an arbitrary content-type — ADR 0024 *Revisiting*, narrowed by
+  `docs/plan/m7.md`.
+- Stage 9's state-bleed suite across an isolate boundary — `docs/plan/m7.md`'s *Verify*.
+- `wrk`/`oha` throughput against PHP 8.5 + FPM, recorded in `benches/` — `docs/plan/m7.md`'s *Verify*.

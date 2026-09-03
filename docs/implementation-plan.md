@@ -41,13 +41,11 @@
 > the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Goal 5 of the parity program — `Core\Db`, M8 — is running.**  **`crates/nvs-db`'s
-> PostgreSQL is whole**, § 3's upgrade through § 13's reset.  § 9's type map decodes over it and § 7
-> nests as a `SAVEPOINT` to any depth. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect`
-> over a memoized connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and
-> `executeMany` ,  **`open` is live** and pools on § 13's settings hash. **§ 7's `transaction` is on
-> both classes with all three options, retrying either conflict, jittered backoff** and a refusal
-> throws `Db\DbError` carrying four of § 8's five; **`queryAs<T>` hydrates** over
+> **Open now:** **Goal 6 — the built-in server, M7 — is running.**  **`crates/nvs-db`'s PostgreSQL
+> is whole**, § 3's upgrade through § 13's reset.  § 9's type map decodes over it and § 7 nests as a
+> `SAVEPOINT` to any depth. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect` over a
+> memoized connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and `executeMany` ,
+> **`open` is live** and pools on § 13's settings hash.  **`queryAs<T>` hydrates** over
 > `ClassDesc::db_codec` into the `Core\Time`/`Core\Uuid` instances `Row`'s typed readers answer
 > with, and § 6's *request* converts — a `TINYINT(1)` reads as `bool` and a stored `7` throws.  **§
 > 13's pool is complete**, **ADR 0084 § 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue
@@ -60,8 +58,10 @@
 > **`E0618` refuses an ungranted literal `Db::open` host**, and a `tainted` one names
 > `assertTrusted`, now a row. **ADR 0133's carrier landed**: `Core\Html::escape` answers
 > `Core\Html\Markup`, `toSource` is the one way out, and `.`, `.=`, interpolation and `as string`
-> refuse one. **Goals 1-4 and M4 are closed**. **Stage 10's corpus opened**: § 5's bindings, § 6's
-> naming, § 7's flag. Conformance 1447, differential 256, migration 100%; valgrind green.
+> refuse one. **Goals 1-5 and M4 are closed**. **ADR 0138's `block_on` seam is on disk**: one
+> `Future` driven by the coroutine that owns it, a waker that only permits one more poll, one wake
+> permission per connection. **Stage 10's corpus opened**: § 5's bindings, § 6's naming, § 7's flag.
+> Conformance 1447, differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
