@@ -13,9 +13,10 @@
 //!
 //! That is also why this lives in `nvs-cli` rather than beside `Core\Queue` in `nvs-stdlib`:
 //! [`nvs_host::Scheduler`] is created here, and a task is a thing only its owner can spawn. What is
-//! *shared* is the schema — [`nvs_stdlib::queue::QUEUES_POSTGRES`] and
-//! [`nvs_stdlib::queue::CLAIM_POSTGRES`] are read from the module that owns § 2's tables, so a
-//! worker decides nothing about them.
+//! *shared* is the schema — [`nvs_stdlib::queue::QUEUES_POSTGRES`],
+//! [`nvs_stdlib::queue::CLAIM_POSTGRES`] and the MySQL dialect written beside each of them are read
+//! from the module that owns § 2's tables, so a worker decides nothing about them and nothing about
+//! which dialect a driver gets.
 //!
 //! [`nvs_runtime::TaskRoot::Worker`] and not `Request`, per
 //! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 2:
@@ -44,8 +45,12 @@
 //!
 //! ## What it spends
 //!
-//! One PostgreSQL connection per worker, opened once and held for the run, plus two statements per
-//! idle turn — the roster and nothing, since a roster with no due work claims nothing. It is
+//! One connection per worker in whichever driver `[db.<name>]` names, opened once and held for the
+//! run, plus two statements per idle turn — the roster and nothing, since a roster with no due work
+//! claims nothing. A turn that *does* claim costs four round trips on MySQL and MariaDB where it
+//! costs one on PostgreSQL, which is [`nvs_stdlib::queue::Split`]'s trade and not this module's: the
+//! claim's `select` and its `update` are one moment or they are nothing, and a backend without the
+//! construct that makes them one statement pays a transaction for the same property. It is
 //! `workers` connections against the deployment's `max_connections` and the operator wrote the
 //! number; [ADR 0067] § 13's pool is deliberately not involved, because a pool exists to be handed
 //! between requests and this connection belongs to one task for its whole life. A turn that claims
@@ -160,10 +165,10 @@ pub(crate) fn start(
 
 /// One worker's whole life: open the connection, then take turns until the run ends.
 ///
-/// A statement that fails ends the worker rather than being retried. A PostgreSQL connection is
-/// only usable at a message boundary and a failed statement is not one, so the honest recovery is a
-/// new connection — which is the next run's, since this one is by then within a few milliseconds of
-/// its own end.
+/// A statement that fails ends the worker rather than being retried. A connection is only usable at
+/// a message boundary — on either driver — and a failed statement is not one, so the honest recovery
+/// is a new connection, which is the next run's, since this one is by then within a few milliseconds
+/// of its own end.
 fn claim_until_stopped(
     ctx: &mut nvs_runtime::Ctx,
     stop: &Cell<bool>,
@@ -205,7 +210,7 @@ fn claim_until_stopped(
 /// The roster is asked first for the reason [`nvs_stdlib::queue::QUEUES_POSTGRES`] owns — § 2 names
 /// no queues, so the table is the only place they are written down — and the two instants are
 /// computed once here so that every claim in this turn judges due-ness against the same moment.
-fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut nvs_db::PgConn, window: i64) -> io::Result<bool> {
+fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut Wire, window: i64) -> io::Result<bool> {
     let now = nvs_stdlib::queue::now_millis();
     let cutoff = now.saturating_sub(window);
     let mut claimed = false;
@@ -224,12 +229,28 @@ fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut nvs_db::PgConn, window: i64) -> i
     Ok(claimed)
 }
 
-/// The queues holding work this worker could take, as [`nvs_stdlib::queue::QUEUES_POSTGRES`]
-/// answers it.
-fn roster(conn: &mut nvs_db::PgConn, now: i64, cutoff: i64) -> io::Result<Vec<String>> {
+/// The queues holding work this worker could take, as [`nvs_stdlib::queue::QUEUES_POSTGRES`] and
+/// [`nvs_stdlib::queue::QUEUES_MYSQL`] answer it.
+///
+/// **One binding for both dialects**, because the two texts name the same two values in the same
+/// order and neither is a [`nvs_stdlib::queue::Split`] — so what the branch below is about is the
+/// walk over the answer and never the parameters. Where a dialect *does* reorder its values, the
+/// caller reconciles it at the one site that already had to branch: [`report`]'s retry.
+fn roster(conn: &mut Wire, now: i64, cutoff: i64) -> io::Result<Vec<String>> {
     let sending = [Some(millis(now)), Some(millis(cutoff))];
     let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
-    let mut answered = conn.query(nvs_stdlib::queue::QUEUES_POSTGRES, &bound)?;
+    match conn.dialect() {
+        Dialect::Postgres(postgres) => postgres_roster(postgres, &bound),
+        Dialect::Framed(mut framed) => framed_roster(&mut framed, &bound),
+    }
+}
+
+/// [`roster`] over the extended-query protocol: one statement, and its one column.
+fn postgres_roster(
+    postgres: &mut nvs_db::PgConn,
+    bound: &[Option<&[u8]>],
+) -> io::Result<Vec<String>> {
+    let mut answered = postgres.query(nvs_stdlib::queue::QUEUES_POSTGRES, bound)?;
     // Taken before the first row because a `PgRows` lends its columns and its rows out of one
     // borrow, which is how `Core\Queue::status` reads its own single column.
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
@@ -240,6 +261,29 @@ fn roster(conn: &mut nvs_db::PgConn, now: i64, cutoff: i64) -> io::Result<Vec<St
         };
         if let nvs_db::PgScalar::Text(name) = column.scalar(row.column(0)?)? {
             names.push(name.into_owned());
+        }
+    }
+    Ok(names)
+}
+
+/// [`roster`] over MySQL's framing, which MariaDB runs unchanged.
+///
+/// **The same walk as [`postgres_roster`] and deliberately not shared with it**, for the reason
+/// `Core\Db`'s own two readers give: a value is read here against the column definition it arrived
+/// under, where there it is a body the column decodes, and the two `Scalar` enums are two sets of
+/// rows. A trait over that would be four abstract methods standing for eight concrete lines.
+fn framed_roster(framed: &mut Framed<'_>, bound: &[Option<&[u8]>]) -> io::Result<Vec<String>> {
+    let mut answered = framed.query(nvs_stdlib::queue::QUEUES_MYSQL, bound)?;
+    // Described before the first row for [`postgres_roster`]'s reason, and needed whatever that
+    // reason: `nvs_db::mysql::scalar` reads a value against the definition it arrived under.
+    let columns = answered.columns().to_vec();
+    let mut names = Vec::new();
+    while let Some(row) = answered.next_row()? {
+        let (Some(column), Some(body)) = (columns.first(), row.value(0)) else {
+            continue;
+        };
+        if let nvs_db::MySqlScalar::Text(name) = nvs_db::mysql::scalar(column, body)? {
+            names.push(name.to_string());
         }
     }
     Ok(names)
@@ -275,19 +319,33 @@ struct Job {
 
 /// One claim against one queue, answering with the row it took.
 ///
-/// Every row is drained before the answer is judged, exactly as `Core\Queue::push` drains its
-/// `returning`: the connection has to be back at a message boundary before the next statement on it
-/// starts — and before the isolate [`turn`] then runs, which is a whole program's worth of time for
-/// a half-read result to sit through. `limit 1` inside the statement is what makes that at most one
-/// row, so the last row read is the only one.
-fn claim(conn: &mut nvs_db::PgConn, queue: &str, now: i64, cutoff: i64) -> io::Result<Option<Job>> {
+/// **Three values in one order for both dialects**, as [`roster`]'s two are:
+/// [`nvs_stdlib::queue::CLAIM_MYSQL`]'s `select` names the queue and the two instants exactly where
+/// [`nvs_stdlib::queue::CLAIM_POSTGRES`] names them, so the branch is over how the answer is read
+/// and how many statements it took, never over what was sent.
+fn claim(conn: &mut Wire, queue: &str, now: i64, cutoff: i64) -> io::Result<Option<Job>> {
     let sending = [
         Some(queue.as_bytes().to_vec()),
         Some(millis(now)),
         Some(millis(cutoff)),
     ];
     let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
-    let mut answered = conn.query(nvs_stdlib::queue::CLAIM_POSTGRES, &bound)?;
+    match conn.dialect() {
+        Dialect::Postgres(postgres) => postgres_claim(postgres, &bound),
+        Dialect::Framed(mut framed) => framed_claim(&mut framed, &bound, now),
+    }
+}
+
+/// [`claim`] as one statement: [`nvs_stdlib::queue::CLAIM_POSTGRES`]'s data-modifying CTE, which
+/// takes the row and answers with it in one round trip.
+///
+/// Every row is drained before the answer is judged, exactly as `Core\Queue::push` drains its
+/// `returning`: the connection has to be back at a message boundary before the next statement on it
+/// starts — and before the isolate [`turn`] then runs, which is a whole program's worth of time for
+/// a half-read result to sit through. `limit 1` inside the statement is what makes that at most one
+/// row, so the last row read is the only one.
+fn postgres_claim(conn: &mut nvs_db::PgConn, bound: &[Option<&[u8]>]) -> io::Result<Option<Job>> {
+    let mut answered = conn.query(nvs_stdlib::queue::CLAIM_POSTGRES, bound)?;
     // Taken before the first row for [`roster`]'s reason: a `PgRows` lends its columns and its rows
     // out of one borrow.
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
@@ -358,6 +416,129 @@ const MAX_ATTEMPTS: usize = 4;
 
 /// `backoff_ms`'s position in the same list, and the last of the six.
 const BACKOFF: usize = 5;
+
+/// [`claim`] as the pair MySQL and MariaDB spell it, inside one transaction.
+///
+/// **The transaction is what the claim *means* here** and not a convenience —
+/// [`nvs_stdlib::queue::Split`]'s own doc owns that, and the short version is that the
+/// `select … for update skip locked` holds the row's lock only until something commits, so a pair
+/// that committed in between would have offered the row to a second worker before the `update`
+/// marked it taken.
+///
+/// **A refusal rolls back before it propagates**, best effort and never reported over the refusal
+/// the caller is about to hear: a failed statement ends this worker either way, but an open
+/// transaction on the way out would hold the row's lock for as long as the connection lived, and
+/// the connection is held for the whole run.
+fn framed_claim(
+    framed: &mut Framed<'_>,
+    bound: &[Option<&[u8]>],
+    now: i64,
+) -> io::Result<Option<Job>> {
+    framed.begin(None, false)?;
+    match claimed_in_two(framed, bound, now) {
+        Ok(took) => {
+            framed.commit()?;
+            Ok(took)
+        }
+        Err(refused) => {
+            let _undone = framed.roll_back();
+            Err(refused)
+        }
+    }
+}
+
+/// [`nvs_stdlib::queue::Split::first`]'s row, then `then` against the id it named — inside the
+/// transaction [`framed_claim`] opened.
+///
+/// The six columns are at the ordinals the constants above name, on this dialect as on the other:
+/// `both_dialects_answer_a_claim_with_the_same_columns` in `nvs-stdlib` is what holds the two
+/// `select` lists to one set of positions, so nothing here is a second reading of § 4's list.
+fn claimed_in_two(
+    framed: &mut Framed<'_>,
+    bound: &[Option<&[u8]>],
+    now: i64,
+) -> io::Result<Option<Job>> {
+    let split = nvs_stdlib::queue::CLAIM_MYSQL;
+    let mut answered = framed.query(split.first, bound)?;
+    // Described before the first row, for [`framed_roster`]'s reason.
+    let columns = answered.columns().to_vec();
+    let mut took = None;
+    while let Some(row) = answered.next_row()? {
+        // `limit 1`, so this guard is about the shape of the loop and not about a second row —
+        // every row is still read, because draining is what ends a statement on this driver.
+        if took.is_some() {
+            continue;
+        }
+        let mut read = Vec::with_capacity(columns.len());
+        for (at, column) in columns.iter().enumerate() {
+            let Some(body) = row.value(at) else {
+                break;
+            };
+            read.push(nvs_db::mysql::scalar(column, body)?);
+        }
+        // A row narrower than § 4's list is one no `Core\Queue::push` wrote, and [`postgres_claim`]
+        // drops such a row for the reason its own guards give: it stays claimed until § 4's
+        // visibility timeout, which is where a row this worker cannot make sense of belongs.
+        if read.len() <= BACKOFF {
+            continue;
+        }
+        let nvs_db::MySqlScalar::Text(script) = &read[SCRIPT] else {
+            continue;
+        };
+        // A `text` column that is null is § 3's job with no payload — the ordinary shape of a job
+        // that needs none, so it is `None` rather than a skip.
+        let args = match &read[ARGS] {
+            nvs_db::MySqlScalar::Text(args) => Some(args.to_string()),
+            _ => None,
+        };
+        let [
+            Some(id),
+            Some(attempts),
+            Some(max_attempts),
+            Some(backoff_ms),
+        ] = [ID, ATTEMPTS, MAX_ATTEMPTS, BACKOFF].map(|at| integer(&read[at]))
+        else {
+            continue;
+        };
+        took = Some(Job {
+            id,
+            script: script.to_string(),
+            args,
+            attempts,
+            max_attempts,
+            backoff_ms,
+        });
+    }
+    // The rows have to have let the connection go before the `update` on it starts, which is the
+    // same message-boundary rule [`postgres_claim`] drains for.
+    drop(answered);
+    let Some(job) = took else {
+        return Ok(None);
+    };
+    // § 4's mark, keyed by the id the `select` named and still holding its lock. The two values are
+    // the `set` clause's and the `where` clause's in that order, because a `?` is bound where it
+    // stands — the same reason [`nvs_stdlib::queue::RETRY_MYSQL`] takes its three in an order of
+    // its own.
+    let claimed = millis(now);
+    let id = job.id.to_string().into_bytes();
+    let marking: [Option<&[u8]>; 2] = [Some(claimed.as_slice()), Some(id.as_slice())];
+    framed.execute_many(split.then, &[&marking])?;
+    Ok(Some(job))
+}
+
+/// One integer column of a claim, whichever width and sign the server described it as.
+///
+/// § 2's schema declares all four `bigint`, so [`nvs_db::MySqlScalar::Int`] is what a table
+/// `nvs queue migrate` created answers with. `UInt` is accepted beside it because a column an
+/// operator widened to `bigint unsigned` is still a count, and a claim refused over the sign of a
+/// column nothing else is wrong with would strand the job rather than report anything.
+fn integer(read: &nvs_db::MySqlScalar<'_>) -> Option<i64> {
+    match read {
+        nvs_db::MySqlScalar::Int(at) => Some(*at),
+        nvs_db::MySqlScalar::UInt(at) => i64::try_from(*at).ok(),
+        _ => None,
+    }
+}
 
 /// Runs one claimed job as ADR 0084 § 5's root isolate: its own arena, its own budget, sharing only
 /// compiled code, answering with what the attempt threw — or `None`, which is the attempt
@@ -449,8 +630,9 @@ fn refusal(message: String) -> nvs_host::Failure {
 ///
 /// **Three branches and one lease.** An attempt that returned is `Succeeded`; one that failed with
 /// attempts still to come is armed for the next on § 6's ladder; one that failed on the job's last
-/// attempt is moved into `nvs_dead_jobs` carrying what it threw. Each is a single statement out of
-/// [`nvs_stdlib::queue`], which owns all three and every column they name.
+/// attempt is moved into `nvs_dead_jobs` carrying what it threw. Each is one statement out of
+/// [`nvs_stdlib::queue`] — the move a pair inside one transaction where the dialect has no
+/// data-modifying CTE to say it in one — and that module owns all three and every column they name.
 ///
 /// **Keyed on the lease `held_at`**, which is the `claimed_at` this worker's own claim wrote —
 /// [`nvs_stdlib::queue::SUCCEEDED_POSTGRES`]'s doc owns why, and it is why this takes the turn's
@@ -463,7 +645,7 @@ fn refusal(message: String) -> nvs_host::Failure {
 /// and for a job that ran longer than its own base delay it would be wholly elapsed, which is
 /// § 6's ladder collapsed to a busy loop.
 fn report(
-    conn: &mut nvs_db::PgConn,
+    conn: &mut Wire,
     job: &Job,
     held_at: i64,
     failure: Option<&nvs_host::Failure>,
@@ -471,11 +653,17 @@ fn report(
     let id = job.id.to_string().into_bytes();
     let held = millis(held_at);
     let Some(failure) = failure else {
-        return apply(
-            conn,
-            nvs_stdlib::queue::SUCCEEDED_POSTGRES,
-            &[Some(id.as_slice()), Some(held.as_slice())],
-        );
+        let lease: [Option<&[u8]>; 2] = [Some(id.as_slice()), Some(held.as_slice())];
+        return match conn.dialect() {
+            Dialect::Postgres(postgres) => {
+                apply(postgres, nvs_stdlib::queue::SUCCEEDED_POSTGRES, &lease)
+            }
+            // The same two values in the same order, which that constant's doc calls the lease
+            // keying surviving the transcription intact.
+            Dialect::Framed(mut framed) => {
+                apply_framed(&mut framed, nvs_stdlib::queue::SUCCEEDED_MYSQL, &lease)
+            }
+        };
     };
     if job.attempts >= job.max_attempts {
         // § 6's floor: the attempt was the job's last, so the row moves rather than being armed
@@ -487,16 +675,25 @@ fn report(
         // The instant the attempt *ended*, read here rather than taken from the claim, for the
         // reason the retry's own `run_at` is: the attempt has just spent however long it spent.
         let failed = millis(nvs_stdlib::queue::now_millis());
-        return apply(
-            conn,
-            nvs_stdlib::queue::DEAD_LETTER_POSTGRES,
-            &[
-                Some(id.as_slice()),
-                Some(held.as_slice()),
-                Some(failed.as_slice()),
-                Some(errors.as_bytes()),
-            ],
-        );
+        return match conn.dialect() {
+            Dialect::Postgres(postgres) => apply(
+                postgres,
+                nvs_stdlib::queue::DEAD_LETTER_POSTGRES,
+                &[
+                    Some(id.as_slice()),
+                    Some(held.as_slice()),
+                    Some(failed.as_slice()),
+                    Some(errors.as_bytes()),
+                ],
+            ),
+            Dialect::Framed(mut framed) => dead_letter_in_two(
+                &mut framed,
+                &id,
+                &held,
+                failed.as_slice(),
+                errors.as_bytes(),
+            ),
+        };
     }
     let due = millis(nvs_stdlib::queue::retry_at(
         nvs_stdlib::queue::now_millis(),
@@ -504,15 +701,67 @@ fn report(
         job.backoff_ms,
         job.id,
     ));
-    apply(
-        conn,
-        nvs_stdlib::queue::RETRY_POSTGRES,
-        &[
-            Some(id.as_slice()),
-            Some(held.as_slice()),
-            Some(due.as_slice()),
-        ],
-    )
+    match conn.dialect() {
+        Dialect::Postgres(postgres) => apply(
+            postgres,
+            nvs_stdlib::queue::RETRY_POSTGRES,
+            &[
+                Some(id.as_slice()),
+                Some(held.as_slice()),
+                Some(due.as_slice()),
+            ],
+        ),
+        // **The one place the two dialects part on what is sent**, and this is the site
+        // [`nvs_stdlib::queue::RETRY_MYSQL`]'s doc means when it says the caller is where the two
+        // orders are reconciled: the `run_at` it writes is in the `set` clause, which is left of
+        // the `where`, and a `?` is bound by the position it occupies. A worker sending
+        // PostgreSQL's order into that text would push every job's next attempt out to its own id.
+        Dialect::Framed(mut framed) => apply_framed(
+            &mut framed,
+            nvs_stdlib::queue::RETRY_MYSQL,
+            &[
+                Some(due.as_slice()),
+                Some(id.as_slice()),
+                Some(held.as_slice()),
+            ],
+        ),
+    }
+}
+
+/// § 6's move as MySQL and MariaDB spell it: the copy, then the delete, inside one transaction.
+///
+/// **The copy runs first and that is not this function's choice** —
+/// [`nvs_stdlib::queue::DEAD_LETTER_MYSQL`]'s doc owns it: the columns have to be read while they
+/// still exist, since a `delete` here cannot answer with what it removed. § 6's property is
+/// unchanged, the row being in both tables or in neither, and here it is the transaction that
+/// holds what PostgreSQL's single statement held by construction.
+///
+/// The rollback is [`framed_claim`]'s, for its reason.
+fn dead_letter_in_two(
+    framed: &mut Framed<'_>,
+    id: &[u8],
+    held: &[u8],
+    failed: &[u8],
+    errors: &[u8],
+) -> io::Result<()> {
+    let split = nvs_stdlib::queue::DEAD_LETTER_MYSQL;
+    // The `insert … select` names the two values it adds to the copied row before the two the
+    // lease is keyed on, because that is where they stand in the text.
+    let copying: [Option<&[u8]>; 4] = [Some(failed), Some(errors), Some(id), Some(held)];
+    let removing: [Option<&[u8]>; 2] = [Some(id), Some(held)];
+    framed.begin(None, false)?;
+    let moved = apply_framed(framed, split.first, &copying)
+        .and_then(|()| apply_framed(framed, split.then, &removing));
+    match moved {
+        Ok(()) => {
+            framed.commit()?;
+            Ok(())
+        }
+        Err(refused) => {
+            let _undone = framed.roll_back();
+            Err(refused)
+        }
+    }
 }
 
 /// One statement that answers with no rows, run for its effect.
@@ -525,7 +774,18 @@ fn apply(conn: &mut nvs_db::PgConn, sql: &str, bound: &[Option<&[u8]>]) -> io::R
     Ok(())
 }
 
-/// An epoch-millisecond instant as the text a `$n::bigint` placeholder is sent as.
+/// [`apply`] over MySQL's framing, which MariaDB runs unchanged.
+///
+/// The affected count is discarded on both drivers and for one reason, which [`report`]'s own doc
+/// owns: a write-back that matches no row is the ordinary shape of a worker that overran § 4's
+/// visibility window, not an error.
+fn apply_framed(framed: &mut Framed<'_>, sql: &str, bound: &[Option<&[u8]>]) -> io::Result<()> {
+    framed.execute_many(sql, &[bound])?;
+    Ok(())
+}
+
+/// An epoch-millisecond instant as the text a placeholder is sent as — a `$n::bigint` on one
+/// driver, a `?` bound as text on the other, and the same octets either way.
 fn millis(at: i64) -> Vec<u8> {
     at.to_string().into_bytes()
 }
@@ -541,6 +801,47 @@ fn nap() -> Woken {
     })
 }
 
+/// One driver's half of [`open`]: resolve the block as that driver's target, open it, and hand back
+/// the arm of [`Wire`] it belongs to.
+///
+/// **A macro for [`crate::queue`]'s `open_and_apply` reason** — the three arms differ in names and
+/// not in shape, and [ADR 0132](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+/// § 5 makes the drivers an enum rather than a trait, so there is no type parameter to write this as
+/// a generic function over. It is not that macro because every refusal here is a `warning:` that
+/// returns no worker where that one is an `error:` that returns an exit code.
+macro_rules! open_as {
+    ($target:ty, $conn:ty, $port:path, $wire:path, $name:expr, $block:expr) => {{
+        let target = match <$target>::resolve($block) {
+            Ok(target) => target,
+            Err(refused) => {
+                eprintln!(
+                    "warning: no queue worker started: {}",
+                    refused.refusal($name)
+                );
+                return None;
+            }
+        };
+        let Some(address) = crate::queue::address_of(target.host, $block.port, $port) else {
+            eprintln!(
+                "warning: no queue worker started: `[db.{}]` names the host `{}`, which resolves \
+                 to no address",
+                $name, target.host
+            );
+            return None;
+        };
+        match <$conn>::connect(address, &target, Some(Instant::now() + CONNECT_DEADLINE)) {
+            Ok(conn) => Some($wire(conn)),
+            Err(err) => {
+                eprintln!(
+                    "warning: no queue worker started: `[db.{}]` at {address} did not open: {err}",
+                    $name
+                );
+                None
+            }
+        }
+    }};
+}
+
 /// The worker's connection, or a note on standard error and no worker at all.
 ///
 /// **Reported rather than swallowed**, because a queue that never claims is the failure mode
@@ -548,33 +849,171 @@ fn nap() -> Woken {
 /// that did not happen, days later. One line per run and never per turn — a worker that cannot open
 /// its connection returns instead of retrying, since the run it is a passenger on is measured in
 /// milliseconds and a second attempt would land inside the same outage.
-fn open(name: &str, block: &Database) -> Option<nvs_db::PgConn> {
-    let target = match nvs_db::PgTarget::resolve(block) {
-        Ok(target) => target,
-        Err(refused) => {
-            eprintln!(
-                "warning: no queue worker started: {}",
-                refused.refusal(name)
-            );
-            return None;
-        }
-    };
-    let Some(address) = crate::queue::address_of(target.host, block.port, nvs_db::pg::DEFAULT_PORT)
-    else {
+///
+/// **The driver is read before anything is resolved**, where `nvs queue migrate` reads it to pick a
+/// migration list: a `[db.<name>]` block belongs to exactly one backend, and a target resolver
+/// asked about a block written for another one refuses over the `driver` field rather than over
+/// anything a worker could act on.
+fn open(name: &str, block: &Database) -> Option<Wire> {
+    let Some(written) = block.driver.as_deref() else {
         eprintln!(
-            "warning: no queue worker started: `[db.{name}]` names the host `{}`, which resolves \
-             to no address",
-            target.host
+            "warning: no queue worker started: `[db.{name}]` names no `driver`, so it is not \
+             openable at all"
         );
         return None;
     };
-    match nvs_db::PgConn::connect(address, &target, Some(Instant::now() + CONNECT_DEADLINE)) {
-        Ok(conn) => Some(conn),
-        Err(err) => {
+    let Some(driver) = nvs_db::Driver::from_config_name(written) else {
+        eprintln!(
+            "warning: no queue worker started: `[db.{name}]` names the `{written}` driver, which \
+             Novis has no backend for"
+        );
+        return None;
+    };
+    match driver {
+        nvs_db::Driver::Postgres => open_as!(
+            nvs_db::PgTarget<'_>,
+            nvs_db::PgConn,
+            nvs_db::pg::DEFAULT_PORT,
+            Wire::Postgres,
+            name,
+            block
+        ),
+        nvs_db::Driver::MySql => open_as!(
+            nvs_db::MySqlTarget<'_>,
+            nvs_db::MySqlConn,
+            nvs_db::mysql::DEFAULT_PORT,
+            Wire::MySql,
+            name,
+            block
+        ),
+        nvs_db::Driver::MariaDb => open_as!(
+            nvs_db::MariaTarget<'_>,
+            nvs_db::MariaConn,
+            nvs_db::maria::DEFAULT_PORT,
+            Wire::MariaDb,
+            name,
+            block
+        ),
+        // Spelled rather than left to a `_`, exactly as [`crate::queue`]'s applying half spells the
+        // same two: a driver *gaining* a send path arrives here as a build failure instead of as a
+        // refusal that has stopped being true.
+        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => {
             eprintln!(
-                "warning: no queue worker started: `[db.{name}]` at {address} did not open: {err}"
+                "warning: no queue worker started: `[db.{name}]` names the {} driver, which runs no \
+                 statement at all yet — `Core\\Db`'s own known gaps are the list",
+                driver.display_name()
             );
             None
+        }
+    }
+}
+
+/// The worker's connection, in the driver `[db.<name>]` named.
+///
+/// **Owned and three arms, where [`Dialect`] is borrowed and two.** A worker holds its connection
+/// for the whole run — the module doc's *What it spends* section owns why it is not out of
+/// ADR 0067 § 13's pool — so there has to be a value that *is* the connection, and it has one arm
+/// per driver this can open. What every statement below then branches on is the dialect, which is
+/// two, and [`Wire::dialect`] is the one place the three become it.
+///
+/// The two drivers with no send path are not arms: [`open`] refuses them before anything is
+/// connected, so a `Wire` that exists is one § 4's statements can run on.
+enum Wire {
+    /// § 4's and § 6's statements as PostgreSQL's single texts.
+    Postgres(nvs_db::PgConn),
+    /// The same statements as MySQL's dialect, three of them
+    /// [`nvs_stdlib::queue::Split`]s.
+    MySql(nvs_db::MySqlConn),
+    /// MariaDB, which runs every one of MySQL's texts unchanged over its own framing and its own
+    /// authentication roster.
+    MariaDb(nvs_db::MariaConn),
+}
+
+impl Wire {
+    /// This connection borrowed as the dialect its statements are written in.
+    fn dialect(&mut self) -> Dialect<'_> {
+        match self {
+            Wire::Postgres(postgres) => Dialect::Postgres(postgres),
+            Wire::MySql(mysql) => Dialect::Framed(Framed::MySql(mysql)),
+            Wire::MariaDb(maria) => Dialect::Framed(Framed::MariaDb(maria)),
+        }
+    }
+}
+
+/// A borrowed [`Wire`], narrowed to the two dialects `nvs_stdlib::queue` writes.
+///
+/// The same two arms `Core\Queue`'s own members branch on, and for the same reason: § 2's schema
+/// has two migration lists and §§ 4 and 6's statements two spellings, so a third arm here would be
+/// a driver with nothing to send.
+enum Dialect<'a> {
+    /// [`nvs_stdlib::queue::CLAIM_POSTGRES`] and its siblings, each answering in one statement.
+    Postgres(&'a mut nvs_db::PgConn),
+    /// [`nvs_stdlib::queue::CLAIM_MYSQL`] and its siblings, three of them pairs inside one
+    /// transaction — and MariaDB runs every one of them unchanged.
+    Framed(Framed<'a>),
+}
+
+/// The two drivers that share one dialect and one send path, borrowed as one.
+///
+/// **MariaDB is its own driver above the framing, not inside it** — its own target, its own
+/// authentication roster, its own § 8 code table — and what it does not duplicate is the wire:
+/// `nvs_db::MariaConn::query` delegates into the same `nvs_db::mysql::start_statement` and hands
+/// back the same [`nvs_db::MySqlRows`]. So the only difference this module can observe between the
+/// two is the *type of the borrow*, and without this every framed reader below would grow a second
+/// arm copying the first line for line.
+///
+/// `nvs-stdlib` has the same enum for the same reason and it is `pub(crate)` there, so this is not
+/// a duplicate that could have been shared: ADR 0132 § 1's crate graph puts the two on opposite
+/// sides of a boundary, and what is shared is the statements they send.
+enum Framed<'a> {
+    /// ADR 0067 § 1's two round trips as MySQL frames them.
+    MySql(&'a mut nvs_db::MySqlConn),
+    /// The same two, framed as MariaDB.
+    MariaDb(&'a mut nvs_db::MariaConn),
+}
+
+impl Framed<'_> {
+    /// One statement and the rows it answers with, as the driver's own `query`.
+    fn query(&mut self, sql: &str, bound: &[Option<&[u8]>]) -> io::Result<nvs_db::MySqlRows<'_>> {
+        match self {
+            Framed::MySql(mysql) => mysql.query(sql, bound),
+            Framed::MariaDb(maria) => maria.query(sql, bound),
+        }
+    }
+
+    /// One statement run for its effect, as the driver's own `execute_many`.
+    fn execute_many(&mut self, sql: &str, sets: &[&[Option<&[u8]>]]) -> io::Result<u64> {
+        match self {
+            Framed::MySql(mysql) => mysql.execute_many(sql, sets),
+            Framed::MariaDb(maria) => maria.execute_many(sql, sets),
+        }
+    }
+
+    /// ADR 0067 § 7's `START TRANSACTION`, which is what a [`nvs_stdlib::queue::Split`] means.
+    fn begin(
+        &mut self,
+        isolation: Option<nvs_db::Isolation>,
+        read_only: bool,
+    ) -> io::Result<nvs_db::QuerySpan> {
+        match self {
+            Framed::MySql(mysql) => mysql.begin(isolation, read_only),
+            Framed::MariaDb(maria) => maria.begin(isolation, read_only),
+        }
+    }
+
+    /// § 7's `COMMIT`, which is where a split pair becomes one moment.
+    fn commit(&mut self) -> io::Result<nvs_db::QuerySpan> {
+        match self {
+            Framed::MySql(mysql) => mysql.commit(),
+            Framed::MariaDb(maria) => maria.commit(),
+        }
+    }
+
+    /// § 7's `ROLLBACK`, run best-effort on the way out of a refused pair.
+    fn roll_back(&mut self) -> io::Result<nvs_db::QuerySpan> {
+        match self {
+            Framed::MySql(mysql) => mysql.roll_back(),
+            Framed::MariaDb(maria) => maria.roll_back(),
         }
     }
 }
