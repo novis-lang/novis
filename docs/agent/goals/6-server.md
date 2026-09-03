@@ -12,8 +12,11 @@ program's stop condition.
 ## Two things every session must hold
 
 **`hyper`, and how it runs with no async runtime.** `hyper` with `default-features = false, features =
-["http1", "server"]` depends on `http`, `http-body`, `bytes`, `futures-core` and `pin-project-lite`, and on
-no `tokio`. h1 requires no `Executor` and `serve_connection` spawns nothing, so the connection future is
+["http1", "server"]` depends on `http`, `http-body`, `bytes`, `futures-core` and `pin-project-lite` — and,
+measured rather than assumed, on `tokio` as well: 1.11 takes it unconditionally at `features = ["sync"]` for
+one `oneshot` in its upgrade path, which is a channel library and not a runtime. **No `rt`, no `net`, no
+`time`, no executor, no `spawn`**, so ADR 0072's rule holds and the workspace `Cargo.toml`'s comment above
+the dependency owns that reading. h1 requires no `Executor` and `serve_connection` spawns nothing, so the connection future is
 driven by a **`block_on` on the coroutine that owns the connection** — a waker that marks the coroutine
 ready, poll, park on `Pending` — over `hyper::rt::Read`/`Write` adapters wrapping goal 2's parking stream.
 That is one polled future per connection and not a second scheduler, so ADR 0072's rejection of tokio's

@@ -1738,6 +1738,17 @@ is why" — is this file.
   right and the *process* was old. The tell is a failure whose text the current source could not
   emit; when that happens the check is unclosable from inside the run, so say so in the handoff
   instead of spending the session re-fixing what is already fixed.
+- **A goal document can state a dependency's graph as fact, and only `cargo tree -i` knows.** Goal 6's
+  § *Two things every session must hold* said `hyper` at `default-features = false, features = ["http1",
+  "server"]` depends "on no `tokio`". It does: 1.11 takes `tokio` unconditionally at `features = ["sync"]`
+  for one `oneshot` in `src/upgrade.rs`, which is on the h1 *server* path and not behind the `client`
+  feature. The only place this showed was the resolution list the first `cargo check` of the new crate
+  printed — `Adding tokio v1.53.1`, three lines above `Finished`, in a run that otherwise succeeded. Two
+  calls settle it: `cargo tree -i <dep> -e normal` names the parent, and
+  `~/.cargo/registry/src/*/<crate>-<version>/Cargo.toml` says whether that parent's dependency is
+  `optional` or feature-gated. Do both *before* writing the manifest comment that claims the graph, because
+  the comment is what the next reader trusts instead of re-measuring — and check the goal's own prose
+  against the answer, since a claim there is what the acceptance data was named after.
 
 ## Running things
 
