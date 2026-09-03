@@ -914,12 +914,6 @@ is why" — is this file.
   **rename** the existing test rather than adding a second copy of it — the check is the contract
   for the name, and two tests asserting one thing is how the next session loses an hour deciding
   which is authoritative.
-- `python tools/adr.py --index` **prints** the regenerated index table; it does not write it. The
-  `index table is stale` finding stays until you paste the new row into `README.md` yourself, and the
-  two *other* index findings (`no bullet in ground-rules.md`, `no row in § Where to look`) are three
-  separate edits in two files, not one. Budget four edits per new ADR, then `--check` for `exit=0`.
-  Every other check the tool runs is a report, and so is this one — the name is the only thing that
-  suggests a fix.
 - **A `[dev-dependencies]` addition owes `deny.toml` an answer but owes `THIRD-PARTY-LICENSES.txt`
   nothing, and the two are checked in opposite directions.** `tools/gen-attribution.py` walks normal
   and build dependencies only — its own docstring is the home of that — so `--check` stays green
@@ -1634,7 +1628,8 @@ is why" — is this file.
   the rows are now in your context for nothing. The table in `docs/adr/README.md` is edited by hand: append
   the one row for the ADR you just added, directly after the highest-numbered row. The other two findings a
   new ADR raises (`no bullet in ground-rules.md`, `no row in README.md § *Where to look*`) are hand edits
-  too and say so plainly; only this one names a tool that looks like it will do the work.
+  too and say so plainly; only this one names a tool that looks like it will do the work. Budget four
+  edits per new ADR, then `--check` for `exit=0`.
 - **A `## plan-edit:` `--- old` fragment cannot span a run of two spaces in the field, and
   the refusal reads as if the words were wrong.** `session.py` runs its fragments through
   `normalize` — `" ".join(text.split())` — but `plan.py`'s `find_fields` joins the field's
