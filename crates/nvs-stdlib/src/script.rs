@@ -708,6 +708,11 @@ fn result_of(completion: Completion) -> Value {
         ok,
         value,
         output,
+        // ADR 0088 § 4's declaration is a *response's*, and `ScriptResult` is
+        // not one: a `spawn script` answers with what the child wrote, and
+        // what that output was declared to be is read by the connection that
+        // is answering a peer or by nobody at all.
+        content_type: _,
         error,
     } = completion;
     let error = error.map_or_else(Value::null, |failure| {

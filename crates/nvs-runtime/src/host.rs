@@ -261,6 +261,17 @@ pub struct Completion {
     /// What the child wrote. Emptied by [`Output::Inherit`], which has already
     /// handed the bytes to the parent's own stream.
     pub output: Vec<u8>,
+    /// What the child declared [`Self::output`] to *be* —
+    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// § 4's `Content-Type`, or `None` where nothing declared one.
+    ///
+    /// Beside the output rather than inside it, and on a `Completion` rather
+    /// than on an HTTP type, because this is the one channel out of a finished
+    /// isolate: `nvs-server` runs a request as one and never holds its `Ctx`.
+    /// A child that is not answering a request still carries the field and
+    /// nobody reads it, which is the same shape `Core\Server::isDraining`
+    /// takes off a server.
+    pub content_type: Option<Box<str>>,
     /// Present exactly when `ok` is false.
     pub error: Option<Failure>,
 }
@@ -577,6 +588,7 @@ mod tests {
                 ok: true,
                 value: self.0.take().unwrap_or_else(crate::value::Value::null),
                 output: Vec::new(),
+                content_type: None,
                 error: None,
             }
         }

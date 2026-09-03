@@ -79,6 +79,7 @@ use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use hyper::body::{Body, Bytes, Frame, Incoming, SizeHint};
+use hyper::header::{self, HeaderValue};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
@@ -424,6 +425,23 @@ where
 /// § 3's HTML rendering of a `Throwable`, in development), which is the
 /// configuration slice's. Until there is a mode to ask, the fail-closed answer
 /// is the status and nothing else.
+/// What a response carries when nothing declared otherwise —
+/// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// § 4's last bullet, which is what makes ADR 0049's inline-HTML page shape
+/// work with no ceremony.
+const ECHOED: &str = "text/html; charset=utf-8";
+
+/// What a declaration that is not a header value becomes.
+///
+/// [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+/// § 4 already names this for a static file's unknown extension, and it is the
+/// fail-closed answer for the same reason: `nosniff` renders it inert, so a
+/// program that declared something a header cannot carry gets a body no
+/// browser will execute rather than one it guesses at. Falling back to
+/// [`ECHOED`] would be the opposite — the one type this server should never
+/// arrive at by accident.
+const UNSPELLABLE: &str = "application/octet-stream";
+
 fn answer(mut done: Completion) -> Response<Answer> {
     // There is nowhere to move the child's returned value to — a request
     // answers with what it wrote, not with what it returned — and that field
@@ -431,11 +449,19 @@ fn answer(mut done: Completion) -> Response<Answer> {
     // is the safe discharge, which is the whole reason it exists: this crate
     // forbids `unsafe_code`.
     done.discard_value();
-    if done.ok {
-        Response::new(Answer::new(done.output))
-    } else {
-        failed()
+    if !done.ok {
+        return failed();
     }
+    // ADR 0088 § 4: the request's own body member said what these bytes are,
+    // and an `echo` said nothing, which § 4 reads as HTML.
+    let declared = done.content_type.as_deref().unwrap_or(ECHOED);
+    let content_type =
+        HeaderValue::from_str(declared).unwrap_or(HeaderValue::from_static(UNSPELLABLE));
+    let mut response = Response::new(Answer::new(done.output));
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, content_type);
+    response
 }
 
 /// `500`, carrying nothing — `answer`'s docs own why the body is empty.
@@ -759,6 +785,64 @@ mod tests {
     /// fails the assertion instead of hanging the suite: the client's own close
     /// is what lets the accept loop finish and the test report.
     const CLIENT_PATIENCE: Duration = Duration::from_secs(10);
+
+    /// One finished request, as [`answer`] takes it.
+    fn completed(output: &str, content_type: Option<&str>) -> Completion {
+        Completion {
+            ok: true,
+            value: Value::null(),
+            output: output.as_bytes().to_vec(),
+            content_type: content_type.map(Into::into),
+            error: None,
+        }
+    }
+
+    /// ADR 0088 § 4: the body member a request used is what decides the
+    /// `Content-Type`, and an `echo` that used none means HTML.
+    ///
+    /// This is the only place in the tree where a declaration is observable —
+    /// a `.nvst` case runs a program and can assert the body bytes, never the
+    /// header — so `Core\Response`'s conformance cases pin the body and this
+    /// pins the half they cannot reach.
+    #[test]
+    fn a_declared_media_type_is_the_responses_content_type() {
+        let declared = answer(completed("{}", Some("application/json")));
+        assert_eq!(
+            declared.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json",
+            "a body member's declaration did not reach the response"
+        );
+        let echoed = answer(completed("<p>hi</p>", None));
+        assert_eq!(
+            echoed.headers().get(header::CONTENT_TYPE).unwrap(),
+            ECHOED,
+            "a request that only echoed did not get § 4's HTML default"
+        );
+    }
+
+    /// A declaration a header cannot carry becomes the inert type rather than
+    /// the HTML one — [`UNSPELLABLE`]'s own reasoning, asserted because the
+    /// fail-open direction is the one that would look identical in every other
+    /// test in this file.
+    ///
+    /// `Core\Response::bytes` refuses such a string at the member, so nothing
+    /// a program can write reaches here today; this is the layer below that,
+    /// and it is asserted so that it stays a layer rather than becoming a
+    /// comment about one.
+    #[test]
+    fn a_media_type_no_header_can_carry_is_inert_and_not_html() {
+        let smuggled = answer(completed("body", Some("text/html\r\nX-Injected: yes")));
+        assert_eq!(
+            smuggled.headers().get(header::CONTENT_TYPE).unwrap(),
+            UNSPELLABLE,
+            "an unspellable declaration did not fail closed"
+        );
+        assert_eq!(
+            smuggled.headers().get("x-injected"),
+            None,
+            "a header value carried a second header into the response"
+        );
+    }
 
     /// The isolate the first two tests answer with: a program that echoes the
     /// path back, so that a response asserted below is the answer to the

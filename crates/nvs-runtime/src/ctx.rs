@@ -867,6 +867,26 @@ pub struct Ctx {
     /// giving [`OutputSink`] a fourth variant that every other writer would
     /// have to match on.
     captures: Vec<Vec<u8>>,
+    /// The media type this request's output has been *declared* to be —
+    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// § 4's five body members, each of which owns one body shape and sets its
+    /// own `Content-Type`. `None` for a request that only echoed, which § 4's
+    /// last bullet reads as `text/html`.
+    ///
+    /// **A declaration and not the bytes.** The bytes are
+    /// [`Self::write_output`]'s, because § 3's table already binds a request's
+    /// `echo` to the response body and a second buffer beside it would be two
+    /// answers to the question of what the body is. What a body member adds
+    /// over an `echo` is this one string, so this one string is what it
+    /// records.
+    ///
+    /// Nothing here adjudicates a disagreement between two declarations: § 4's
+    /// sixth row makes mixing writers a **compile** error, so the last one
+    /// wins by construction rather than by a rule this field enforces.
+    ///
+    /// **What it spends:** one word per request, and one short allocation per
+    /// request that declares — never per write.
+    content_type: Option<Box<str>>,
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
     ///
@@ -1451,6 +1471,7 @@ impl Ctx {
             random_state: None,
             scripted_answers: std::collections::VecDeque::new(),
             captures: Vec::new(),
+            content_type: None,
             stmt_hits: Vec::new(),
             trace: Vec::new(),
             yielder: std::ptr::null(),
@@ -4097,6 +4118,23 @@ impl Ctx {
     #[must_use]
     pub fn output_reaches_the_terminal(&self) -> bool {
         self.captures.is_empty() && matches!(self.output, OutputSink::Stdout | OutputSink::Stderr)
+    }
+
+    /// Declares what this request's output *is* — ADR 0088 § 4's
+    /// `Content-Type`, set by the body member that wrote it.
+    ///
+    /// Whoever declares last is what the response carries; [`Self::content_type`]
+    /// owns why that is not a rule this method has to enforce.
+    pub fn declare_content_type(&mut self, media_type: &str) {
+        self.content_type = Some(media_type.into());
+    }
+
+    /// Takes the declaration away, leaving the context with none — what the
+    /// isolate's finish path calls once, on its way to building a
+    /// [`crate::host::Completion`].
+    #[must_use]
+    pub fn take_content_type(&mut self) -> Option<Box<str>> {
+        self.content_type.take()
     }
 
     /// Takes everything written so far, if this context buffers its output.
