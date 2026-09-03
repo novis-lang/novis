@@ -426,3 +426,10 @@ For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example
 `.nvs` files you name. Run it for **any** new refcount edge, against a fixture that actually exercises it —
 this repository's one real leak went unnoticed until a fixture happened to declare a refcounted local
 inside a loop.
+
+That script and `loop.py`'s own sweep both pass `--suppressions=`[tools/valgrind.supp](../../tools/valgrind.supp),
+whose header is the one home for what it hides: two contexts inside `ring`'s AEAD assembly, which memcheck
+reports on every TLS connection a fixture opens and which are not leaks of any kind. A fixture goes red on
+that assembly rather than on anything Novis wrote as soon as it runs long enough for its queue worker to
+reach the database, so the sweep is unreadable without the file — and, because the two entries are anchored
+on a `ring` or `rustls` frame, still red on an uninitialised value Novis's own unsafe code produced.

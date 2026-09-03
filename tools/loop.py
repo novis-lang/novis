@@ -1858,10 +1858,24 @@ class Goal:
         if not targets:
             return ""
 
+        # Relative on the wsl leg because the line already `cd`s into the repo there; absolute
+        # natively, where the only guarantee is this process's own cwd. The file itself says what
+        # it hides and why -- two contexts inside `ring`'s AEAD assembly, which memcheck reports
+        # on every TLS connection a fixture's queue worker opens.
+        supp = ("tools/valgrind.supp" if leg.name == "wsl"
+                else str(ROOT / "tools" / "valgrind.supp"))
+
+        # 97 rather than 1, and `tools/leak-check.sh` owns why: a fixture's own exit status passes
+        # straight through valgrind, so under `--error-exitcode=1` a fixture that ends in a FATAL
+        # by design is indistinguishable from one that leaked. `examples/limits.nvs` is that
+        # fixture -- it exists to cross the memory ceiling -- and it read as a leak for as long as
+        # this said 1.
+        vg_error = 97
+
         def cmd_for(f):
             return (f"cd {leg.repo} && " if leg.name == "wsl" else "") + (
-                "valgrind --error-exitcode=1 --leak-check=full "
-                f"--errors-for-leak-kinds=definite -q {leg.binary} run {f}"
+                f"valgrind --error-exitcode={vg_error} --leak-check=full "
+                f"--errors-for-leak-kinds=definite --suppressions={supp} -q {leg.binary} run {f}"
             )
 
         def shell(line):
@@ -1900,7 +1914,7 @@ class Goal:
         fails, began = [], time.monotonic()
         with ThreadPoolExecutor(max_workers=jobs) as pool:
             for f, r in pool.map(sweep, targets):
-                if r.code != 0:
+                if r.code == vg_error:
                     fails.append(f"valgrind {f}: exit {r.code} -- {r.first_err_line}")
         # What the width bought, against the serial cost measured on this same box. Recorded rather
         # than printed: it is how a later run says whether the policy is still right here, and it

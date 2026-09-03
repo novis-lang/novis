@@ -1,0 +1,36 @@
+# Memcheck suppressions for the sweep in `tools/loop.py` and for `tools/leak-check.sh`.
+#
+# Two contexts, one cause. `ring`'s AEAD is hand-written AES-NI/PCLMULQDQ assembly that
+# operates a whole 16-byte block at a time and masks off the part it must not use.
+# Memcheck tracks definedness bit by bit through ordinary instructions and cannot follow
+# that masking through the vector ones, so it reports the block's tail as undefined and
+# then reports every branch and every syscall that value reaches. Novis never touches
+# those bytes: it hands rustls a plaintext and rustls hands the kernel a sealed record.
+#
+# WHAT THIS FILE DELIBERATELY DOES NOT HIDE. Both entries are anchored on a frame inside
+# `ring` or inside the one rustls function that writes a sealed record to a socket, so an
+# uninitialised value that Novis's own unsafe code produced is still an error, including
+# one written into a buffer that later reaches `sendto` by any other path. Nothing here
+# suppresses a leak of any kind — the sweep's whole subject is the refcount protocol, and
+# `--errors-for-leak-kinds=definite` is what scopes that.
+#
+# If a `ring` upgrade inlines `open_within` into its caller, the first entry stops
+# matching and the sweep goes red again. That is the safe direction to fail in: a
+# suppression that silently stops covering its case is visible, where one broad enough to
+# survive any inlining would be hiding whatever else grew under it.
+
+{
+   ring's AEAD open branches on a block tail memcheck cannot see masked off
+   Memcheck:Cond
+   fun:*4ring4aead*
+   ...
+}
+
+{
+   the sealed record's tag reads as undefined all the way out to sendto
+   Memcheck:Param
+   socketcall.sendto(msg)
+   ...
+   fun:*6rustls6vecbuf*ChunkVecBuffer8write_to
+   ...
+}

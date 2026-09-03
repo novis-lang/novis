@@ -45,6 +45,7 @@ fails=0
 for f in "$@"; do
     echo "== $f"
     valgrind --error-exitcode=$VG_ERROR --errors-for-leak-kinds=definite \
+        --suppressions=tools/valgrind.supp \
         --leak-check=full "$BIN" "$SUB" "$f" >/tmp/leak-out 2>/tmp/leak-err
     code=$?
     echo "   exit $code"
