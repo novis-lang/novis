@@ -69,13 +69,17 @@ files = [
 
 [context]
 
-# `nvs-server` is new and is created by Stage 2, so orient.py warns that its pattern matches nothing
-# until it exists. `src/*.rs` and not `src/**/*.rs` -- fnmatch's `*` crosses a `/` already.
+# `src/*.rs` and not `src/**/*.rs` -- fnmatch's `*` crosses a `/` already. `nvs-server` is created by
+# Stage 2, so orient.py warned that its pattern matched nothing until session 0005 wrote the crate.
 modules = [
   "crates/nvs-server/src/*.rs",
-  # The isolate the request IS -- not a second isolation path -- and the stream hyper reads through.
+  # The isolate the request IS -- not a second isolation path -- the stream hyper reads through, and
+  # the drive that polls the connection future on the coroutine owning it (ADR 0138). `net.rs` is the
+  # stream's file: there is no `stream.rs`, which this list named until the pack's own warning was
+  # read, exactly as goal 5's list did before it.
   "crates/nvs-host/src/isolate.rs",
-  "crates/nvs-host/src/stream.rs",
+  "crates/nvs-host/src/net.rs",
+  "crates/nvs-host/src/block_on.rs",
   # The mount table is resolved out of the config tree goal 3 built.
   "crates/nvs-config/src/*.rs",
   # Request, Response, Server, Session, Router, Metrics are registered here.
