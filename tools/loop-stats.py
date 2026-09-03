@@ -247,6 +247,18 @@ def read_session(path):
     # oddity into `work` rather than reporting a negative phase.
     tail_start = max(tail_start, head)
 
+    # The head is meant to be near-zero in the loop: the driver runs `orient.py` and pipes the
+    # pack in ahead of the prompt, so a session opens already oriented and its first call could
+    # be an edit. It is not -- the head runs to a third of a session. WHICH bucket those calls
+    # fall in is the whole question, because the two explanations need opposite fixes: a pack
+    # missing something the goal needs is a `[context]` manifest to widen, while a session
+    # re-reading what the pack already said is a pack to make more legible. A single number
+    # cannot tell those apart, so keep the breakdown rather than the count.
+    head_buckets = {}
+    for i in range(head):
+        label = bucket_of(calls[i][0], texts[i])
+        head_buckets[label] = head_buckets.get(label, 0) + 1
+
     drops = [
         (i, contexts[i - 1], contexts[i])
         for i in range(1, len(contexts))
@@ -259,6 +271,7 @@ def read_session(path):
         "per_message": round(sum(per_message) / len(per_message), 2) if per_message else 0.0,
         "per_shell_call": round(shell_cmds / shell_calls, 2) if shell_calls else 0.0,
         "head": head,
+        "head_buckets": head_buckets,
         "work": tail_start - head,
         "tail": n - tail_start,
         "verify_runs": len(verifies),
@@ -540,6 +553,60 @@ def calibrate(sessions, write):
 #: already being printed and none of them was that one. So this is a slope, not a size.
 DRIFT_BYTES_PER_SESSION = 400
 
+#: A near-zero slope is not the same as a pack that did not grow, and reporting only the slope
+#: printed "flat enough -- the per-session cost is not growing" directly underneath
+#: `69,962 -> 80,079 B`, a 14% rise over one run. A least-squares line through the points cannot
+#: see a step: a section added once lifts every later point equally and bends the line barely at
+#: all. Both shapes are worth naming and they are not the same defect -- a slope means something
+#: a session WRITES is read by every session after it and grows without bound, while a step means
+#: somebody added a section and it will sit there at exactly that size. 5 KB is roughly 1,250
+#: tokens, re-billed on every call of every session, which is about one tool call's worth of
+#: context given away for free on each of the ~66 a session makes.
+STEP_BYTES = 5_000
+
+
+def report_head(sessions):
+    """What the calls before the first edit were reading, bucketed.
+
+    `head` is the one part of a session's fixed cost that is supposed to already be paid. The
+    driver orients the session and hands it the pack with the prompt, so the floor here is not
+    "a few calls", it is zero. Whatever the gap turns out to be, this prints what it was spent
+    on rather than how big it was: `orientation` in this table is a session re-reading a source
+    the pack was built from, which is a different defect from a session reading source code it
+    genuinely had to look up, and the two are fixed in different files.
+
+    Sessions that never edited anything are left out -- `head` falls back to the whole session
+    for those, which would price an aborted session as the most expensive orientation in the
+    run."""
+    heads = [s for s in sessions if s.get("head_buckets") and s["head"] < s["calls"]]
+    if not heads:
+        return
+    totals = {}
+    for s in heads:
+        for label, n in s["head_buckets"].items():
+            totals[label] = totals.get(label, 0) + n
+    calls = sum(totals.values())
+    if not calls:
+        return
+    n_sessions = len(heads)
+    print(
+        f"\n== WHERE THE HEAD CALLS GO  ({calls / n_sessions:.1f} a session before the first edit, "
+        f"{n_sessions} session(s))"
+    )
+    for label, n in sorted(totals.items(), key=lambda kv: (-kv[1], kv[0])):
+        print(f"   {label:<16}{n / n_sessions:>5.1f} a session{n / calls * 100:>5.0f}%")
+    reread = totals.get("orientation", 0)
+    if reread:
+        with_reread = sum(1 for s in heads if s["head_buckets"].get("orientation"))
+        print(
+            f"\n   {reread} of those, across {with_reread} of {n_sessions} session(s), RE-READ AN "
+            f"ORIENTATION SOURCE\n"
+            f"   -- the pack, the handoff, the playbook, conventions.md, AGENTS.md -- which the\n"
+            f"   driver had already piped in ahead of the prompt. Either the `[context]` manifest\n"
+            f"   is missing a field the goal needs, or the pack carried it and it was not found.\n"
+            f"   Those are opposite fixes, so read the calls in `.loop/logs/` before making one."
+        )
+
 
 def report_drift(sessions):
     """Is the pack growing with the number of sessions? A slope, printed only when there is one."""
@@ -557,7 +624,36 @@ def report_drift(sessions):
     print(f"\n== FIXED COST  (the orientation pack, first session to last)")
     print(f"   {first:,} -> {last:,} B, {slope:+,.0f} B a session")
     if slope < DRIFT_BYTES_PER_SESSION:
-        print("   flat enough -- the per-session cost is not growing with the number of sessions.")
+        step = last - first
+        if step > STEP_BYTES:
+            print(
+                f"   NOT A LEAK, BUT NOT FLAT EITHER: the pack STEPPED {step:+,} B "
+                f"({step / first * 100:+.0f}%) across this\n"
+                f"   run while regressing at {slope:+,.0f} B a session, so a section was added "
+                f"rather than\n"
+                f"   accumulated. `python tools/orient.py --audit` says which one. Unlike a slope "
+                f"this will\n"
+                f"   not grow on its own, so it is a cut to make deliberately or to keep "
+                f"deliberately."
+            )
+        else:
+            print(
+                "   flat enough -- the per-session cost is not growing with the number of sessions."
+            )
+        # The slope runs through the transcripts, and a transcript records the pack a session
+        # already carried. A pass that adds a section therefore lands on disk a whole run before
+        # it can bend this line, and "flat enough" read on its own is advice about a pack that no
+        # longer exists. The projection further down already opens at the disk figure; say it here
+        # too, where the reader is deciding whether there is anything to cut.
+        live = live_ctx_start(sessions)
+        if live and live["pack"] - last > DRIFT_BYTES_PER_SESSION:
+            print(
+                f"   BUT THE PACK ON DISK IS {live['pack']:,} B, {live['pack'] - last:+,} B past "
+                f"the last one a\n"
+                f"   session actually carried. That jump is not in the slope yet, so read this "
+                f"again\n"
+                f"   after the next run before concluding the pack is flat."
+            )
         return
     print(
         f"   THIS IS A LEAK, NOT A BIG PACK. At {slope:,.0f} B a session the next {n} sessions pay\n"
@@ -674,6 +770,7 @@ def main():
     )
     print(f"   cost per session          ${t['cost_per_session']:.2f}")
 
+    report_head(sessions)
     report_drift(sessions)
 
     # Two kinds of batching, and only one of them has ever happened. Across messages: 0 of 3,647
