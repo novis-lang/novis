@@ -85,16 +85,18 @@
 //!    [`settings_driver`] is therefore a literal one arm has already accepted,
 //!    which is why it reads the discriminant before it reads anything else and
 //!    why every slot it then reads is filled.
-//! 2. **Four drivers open, and everything past the handshake follows.**
+//! 2. **Five drivers open, and everything past the handshake follows for all
+//!    but § 7.**
 //!    `connect`
 //!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block,
 //!    a `mysql` block, a `mariadb` block and an `mssql` one each reach their own
 //!    target, their own default port and their own `nvs_db::Connection`
-//!    variant, and `open` branches the same four ways on the settings hash's own
-//!    `driver`. A block naming `sqlite` is still refused by
-//!    `nvs_db::PgTarget::resolve` with the
-//!    message that names the driver it is, which is the honest answer while that
-//!    variant has no connect path behind it. Past the handshake the
+//!    variant, and `open` branches the same ways on the settings hash's own
+//!    `driver`. A block naming `sqlite` reaches
+//!    `nvs_db::sqlite::open` off its own arm of § 2's discriminated union,
+//!    which has a file where the other four have an address: `connect` resolves
+//!    no host for it and `open` asks `fs.read` and `fs.write` of the path
+//!    instead of ADR 0058's address table. Past the handshake the
 //!    list is shorter than that. Binding is whole: [`rendering_of`] pairs § 5's
 //!    dialect with § 9's encoder off the connection's own [`nvs_db::Driver`],
 //!    so a MySQL statement is rewritten to `?` and bound as MySQL reads a
@@ -117,18 +119,27 @@
 //!    [`Transacting`]'s fourth arm over `nvs_db::tds`'s own commands, T-SQL
 //!    spelling a savepoint `SAVE TRANSACTION`, having no `RELEASE` for a nested
 //!    commit to send and no read-only transaction to offer at all. What is still
-//!    PostgreSQL-only is [`crate::queue`]'s four members. Known gap 2 above the
-//!    handshake is therefore one list again — [`HAS_A_DRIVER`], which
-//!    [`driverless`] renders — and SQLite is the whole of it.
-//! 3. **A driver with a reset behind it is pooled, and SQLite is the one
-//!    without.** ADR 0067 § 13's pool is
+//!    PostgreSQL-only is [`crate::queue`]'s four members. **SQLite reaches
+//!    every member but § 7's**: [`rendering_for`] binds a parameter through
+//!    `nvs_db::sqlite::encode` as a storage class rather than as octets
+//!    ([`Binds`] is that split), and [`sqlite_rows`], [`sqlite_write`] and
+//!    `nvs_db::SqliteConn::execute_many` answer `query`, `queryAs`, `execute`
+//!    and `executeMany` over it. Known gap 2 is therefore § 7 alone —
+//!    [`HAS_A_DRIVER`], which [`driverless`] renders — and SQLite is still the
+//!    whole of it, on the one member whose commands `nvs_db::sqlite` has
+//!    written and [`Transacting`] has no arm for yet. What a SQLite `query`
+//!    does *not* do is § 9's declared-type map: a cell arrives as the storage
+//!    class it was stored in, and turning the `TEXT` in a `date` column into a
+//!    `Core\Time\Date` is `Core\Db\Row`'s typed reader under § 6, which is
+//!    known gap 9.
+//! 3. **Every driver has a reset behind it, and all five are pooled.** ADR 0067
+//!    § 13's pool is
 //!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
 //!    teardown under the ticket `Core\Db::connect` files, and
-//!    [`warm_connection`] takes one back out behind that section's reset. A
-//!    connection filed by any other driver is dropped there rather than reset,
-//!    because a reset nobody has written is not a reset that failed: § 13
-//!    makes the reset a security boundary, and the only safe reading of a
-//!    missing one is that the connection is not poolable.
+//!    [`warm_connection`] takes one back out behind that section's reset. The
+//!    five resets are not one reset and § 13 says so per backend; SQLite's is
+//!    the shortest of them, a file handle having no session state to leak, and
+//!    a rollback of whatever transaction is open is the whole of it.
 //! 4. **`Db\DbError` declares all five of § 18's values.**
 //!    A refusal the server itself made is thrown as
 //!    `nvs_runtime::ThrownClass::DbError` ([`statement_failure`]), so a `catch`
@@ -2959,9 +2970,28 @@ pub(crate) fn open_named(
         // writes no `driver` at all and the one whose `driver` no backend
         // answers to: `PgTarget::resolve` is where each of those refusals is
         // worded, and it names what was written rather than what it wanted.
-        // `sqlite` is one of those spellings and earns that refusal, since a
-        // file has no address for this path to resolve.
         None => match driver {
+            // The one arm with nothing to resolve. § 3 puts a block's `path`
+            // under `db.connect` for the same reason it pre-approves a block's
+            // host — the operator who granted the name wrote the path — so
+            // this reaches the opener with the other four's two resolution
+            // steps absent rather than skipped, and `opening` above goes unused
+            // here because there is no address to name in a refusal.
+            Some(nvs_db::Driver::Sqlite) => {
+                let target = nvs_db::SqliteTarget::resolve(block).map_err(|refused| {
+                    Fault::thrown(format!("{named}: {}", refused.refusal(name)))
+                })?;
+                let conn = nvs_db::sqlite::open(&target).map_err(|err| {
+                    Fault::thrown_as(
+                        ThrownClass::Io,
+                        format!(
+                            "{named}: `[db.{name}]` at `{}` did not open: {err}",
+                            target.path.display()
+                        ),
+                    )
+                })?;
+                nvs_db::Connection::Sqlite(conn)
+            }
             Some(nvs_db::Driver::MySql) => {
                 let target = nvs_db::MySqlTarget::resolve(block).map_err(|refused| {
                     Fault::thrown(format!("{named}: {}", refused.refusal(name)))
@@ -3216,17 +3246,16 @@ nvs_runtime::nvs_helper! {
     /// is written per block and this has none.
     fn nvs_core_db_open(ctx, args: [12]) {
         let driver = settings_driver(&args[DRIVER_ARG])?;
-        // The SQLite arm, whole: its `path` is the field that says the caller
-        // wrote it, and there is no SQLite driver to hand it to — known gap 2's
-        // roster, worded here rather than through `driverless` because that one
-        // names the block a program did not write.
+        // The SQLite arm, whole and taken here: its `path` is the field that
+        // says the caller wrote it, and everything below this block is about an
+        // address § 2's other arm has and this one does not. § 13's pool is the
+        // same four calls on both paths and is written twice rather than
+        // extracted, because what feeds them — the key's fields, the
+        // capabilities asked, whether a name is resolved at all — is disjoint
+        // between the arms and a shared helper would take every one of them as
+        // a parameter.
         if driver == nvs_db::Driver::Sqlite {
-            let path = settings_text(args, PATH_ARG, "path")?;
-            return Err(Fault::thrown(format!(
-                "{OPEN}: `{}` is a driver this build has no connection path for yet, so the \
-                 settings naming `{path}` cannot be opened",
-                driver.display_name()
-            )));
+            return sqlite_settings(ctx, args, driver);
         }
 
         let host = settings_text(args, HOST_ARG, "host")?;
@@ -3404,6 +3433,141 @@ nvs_runtime::nvs_helper! {
             [Value::uint(key), Value::str(NvsStr::new(host.as_bytes()))],
         ))
     }
+}
+
+/// § 2's `open` over the SQLite arm of ADR 0135 § 1's union: a file, § 13's
+/// pool around it, and none of the address machinery the server arm is.
+///
+/// **§ 3's grants are three and not one.** That section puts a *config-written*
+/// path under `db.connect` and says a program-supplied one "additionally needs
+/// `fs.read`/`fs.write` and is a path sink", so this asks `db.open` for the
+/// path, then both filesystem grants, before it has looked at whether the file
+/// exists. `db.open`'s scope is the path rather than a host — the capability is
+/// "which dynamic settings may be reached" and a grant list holds host patterns
+/// for the four drivers that have a host and path prefixes for the one that has
+/// a file, each matched by `nvs_config::capability::Scope`'s own rule for what
+/// it is. `fs.write` is asked of a read-only workload too, because SQLite
+/// writes its journal beside the database and a connection that cannot is one
+/// that fails at the first statement rather than at `open`.
+///
+/// **ADR 0058's address table is not consulted**, and that is not an omission:
+/// there is no address. The reason § 3 subjects `open`'s host to it — a
+/// program-supplied address can be attacker-influenced into the ranges a
+/// database lives at — is answered here by `fs.read`/`fs.write`, which is the
+/// grant an operator writes about a path.
+///
+/// # Errors
+///
+/// The three capability refusals, `nvs_db::BlockError`'s for a `path` that is
+/// not one, and a thrown `Io` for a file that did not open.
+fn sqlite_settings(
+    ctx: &mut nvs_runtime::Ctx,
+    args: &[Value],
+    driver: nvs_db::Driver,
+) -> Result<Value, Fault> {
+    let path = settings_text(args, PATH_ARG, "path")?;
+    let statement_cache = settings_uint(&args[STATEMENT_CACHE_ARG], "statementCache")?;
+    let shared = args[OPEN_SHARED_ARG].as_bool().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{OPEN} expected a `bool` for `shared`, got tag {}",
+            args[OPEN_SHARED_ARG].tag_byte()
+        ))
+    })?;
+
+    let file = std::path::Path::new(path);
+    for cap in [
+        nvs_config::Cap::DbOpen,
+        nvs_config::Cap::FsRead,
+        nvs_config::Cap::FsWrite,
+    ] {
+        nvs_runtime::capability::require(
+            ctx,
+            cap,
+            nvs_config::capability::Scope::Path(file),
+            OPEN,
+        )?;
+    }
+
+    // § 9's declared zone, and § 13's key hashes it for [`nvs_core_db_open`]'s
+    // reason: a pooled connection is in the zone the request that opened it
+    // declared.
+    let zone = if matches!(args[TIME_ZONE_ARG].tag(), Some(Tag::Null)) {
+        0
+    } else {
+        crate::time::zone_offset_now(args, TIME_ZONE_ARG, "open")?
+    };
+    let deadline = open_deadline(args)?;
+    // The path stands where a host stands, and the three credential fields are
+    // empty because this arm declares none — two settings literals naming
+    // different files are two keys, which is all § 13 asks of it.
+    let memo = settings_key(
+        &[path, "", "", "", driver.matrix_name()],
+        None,
+        zone,
+        statement_cache,
+    );
+    if shared && let Some(key) = ctx.memoized_connection(&memo) {
+        return Ok(crate::instance::build(
+            &CONNECTION,
+            [Value::uint(key), Value::str(NvsStr::new(path.as_bytes()))],
+        ));
+    }
+
+    let ticket =
+        nvs_runtime::pool::Ticket::for_settings(memo.clone(), nvs_config::db::PoolBounds::DEFAULT);
+    let max = ticket.bounds.max;
+    let full = |waited: &str| {
+        Fault::thrown_as(
+            ThrownClass::Io,
+            format!(
+                "{OPEN}: these settings already hold their `max` of {max} connections to \
+                 `{path}` on this core, and {waited} — a settings literal is keyed on its own \
+                 fields and takes bounds no `[db.<name>.pool]` table can raise, so open fewer of \
+                 them at once"
+            ),
+        )
+    };
+    let lease = match nvs_runtime::pool::admit(ticket.clone()) {
+        Some(lease) => lease,
+        None => wait_for_slot(ctx, ticket, &full, deadline)?,
+    };
+    let pooled = lease
+        .bounds()
+        .enabled
+        .then(|| warm_connection(&lease))
+        .flatten();
+    let opened = match pooled {
+        Some(warm) => warm,
+        // The block the resolver reads, carrying the two keys this arm shares
+        // with the server one and nothing else: `SqliteTarget::resolve` refuses
+        // a `host`, a `user` or a `password` beside a `path`, and a block built
+        // with those fields empty is the same target § 2's own arm selection
+        // has already guaranteed the literal wrote.
+        None => {
+            let block = nvs_config::tree::Database {
+                driver: Some(driver.matrix_name().to_owned()),
+                path: Some(path.to_owned()),
+                statement_cache: statement_cache.and_then(|held| u32::try_from(held).ok()),
+                ..nvs_config::tree::Database::default()
+            };
+            let mut target = nvs_db::SqliteTarget::resolve(&block).map_err(|refusal| {
+                Fault::thrown(format!("{OPEN}: {}", refusal.refusal("<settings>")))
+            })?;
+            target.time_zone = zone;
+            let conn = nvs_db::sqlite::open(&target).map_err(|err| {
+                Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!("{OPEN}: `{path}` did not open: {err}"),
+                )
+            })?;
+            nvs_db::Connection::Sqlite(conn)
+        }
+    };
+    let key = ctx.hold_open_connection(shared.then_some(memo), Some(lease), Box::new(opened));
+    Ok(crate::instance::build(
+        &CONNECTION,
+        [Value::uint(key), Value::str(NvsStr::new(path.as_bytes()))],
+    ))
 }
 
 /// Which port a settings literal reaches: the one it wrote, or the driver's.
@@ -3905,8 +4069,55 @@ struct Statement {
     /// `sql` parameter — because this one is a property of the driver.
     sql: String,
     /// One entry per marker that text holds, in the **statement's** order and
-    /// never the array's — `None` where the bound value is `null`.
-    binds: Vec<Option<Vec<u8>>>,
+    /// never the array's.
+    binds: Binds,
+}
+
+/// One statement's bound values, in whichever form its driver takes them.
+///
+/// [`Encoder`]'s split, one step later: the four drivers with a wire read a
+/// parameter as octets, and SQLite takes a [`nvs_db::SqliteValue`] by value —
+/// `nvs_db::sqlite`'s module doc owns why that one is owned rather than
+/// borrowed.
+///
+/// **One tag for the whole vector and not one per element**, because what it
+/// says is a property of the *statement*: every bind of one statement is its own
+/// connection's driver's, [`rendering_of`] having read that driver off the
+/// connection the send then matches on. A per-element tag would cost a
+/// discriminant per parameter and would be able to describe a mixture nothing
+/// can send.
+enum Binds {
+    /// PostgreSQL, MySQL, MariaDB and SQL Server: `None` where the bound value
+    /// is `null`, which is how all four spell it on the wire.
+    Wire(Vec<Option<Vec<u8>>>),
+    /// SQLite: one storage class per marker, `SqliteValue::Null` among them.
+    Sqlite(Vec<nvs_db::SqliteValue>),
+}
+
+impl Binds {
+    /// The wire drivers' view: one borrowed slice per marker.
+    ///
+    /// Empty for a SQLite statement, which no caller reads rather than a wrong
+    /// answer any caller could act on: the four arms that take this are reached
+    /// by matching the same connection [`rendering_of`] chose the encoder off,
+    /// so a statement bound one way and sent the other is a bug in this file and
+    /// not a state a program can reach.
+    fn wire(&self) -> Vec<Option<&[u8]>> {
+        match self {
+            Binds::Wire(rendered) => rendered.iter().map(|one| one.as_deref()).collect(),
+            Binds::Sqlite(_) => Vec::new(),
+        }
+    }
+
+    /// SQLite's view, cloned because `nvs_db::SqliteConn::query` takes its
+    /// parameters owned — one `Vec` per send, which for a batch is one per set
+    /// and is what its own `execute_many` is handed.
+    fn sqlite(&self) -> Vec<nvs_db::SqliteValue> {
+        match self {
+            Binds::Sqlite(values) => values.clone(),
+            Binds::Wire(_) => Vec::new(),
+        }
+    }
 }
 
 /// Everything ADR 0067 §§ 4 and 5 do to a call before it reaches the socket:
@@ -4034,19 +4245,37 @@ fn statement_in(
     } else {
         keys.iter().map(|(_, bound)| bound).collect()
     };
-    let mut rendered: Vec<Option<Vec<u8>>> = Vec::with_capacity(rewritten.binds.len());
-    for source in &rewritten.binds {
-        rendered.push(
-            encode(bounds[source.arg].values[source.element])
-                .map_err(|refused| statement_failure(named, &block, Some(sql), &refused))?,
-        );
-    }
+    // A loop per shape rather than one loop with a `match` inside it: the rule
+    // is identical and only the vector's type is not, and the refusal a value
+    // draws is [`statement_failure`]'s on either side.
+    let binds = match encode {
+        Encoder::Wire(encode) => {
+            let mut rendered: Vec<Option<Vec<u8>>> = Vec::with_capacity(rewritten.binds.len());
+            for source in &rewritten.binds {
+                rendered
+                    .push(encode(bounds[source.arg].values[source.element]).map_err(
+                        |refused| statement_failure(named, &block, Some(sql), &refused),
+                    )?);
+            }
+            Binds::Wire(rendered)
+        }
+        Encoder::Sqlite(encode) => {
+            let mut rendered: Vec<nvs_db::SqliteValue> = Vec::with_capacity(rewritten.binds.len());
+            for source in &rewritten.binds {
+                rendered
+                    .push(encode(bounds[source.arg].values[source.element]).map_err(
+                        |refused| statement_failure(named, &block, Some(sql), &refused),
+                    )?);
+            }
+            Binds::Sqlite(rendered)
+        }
+    };
 
     Ok(Statement {
         key,
         block,
         sql: rewritten.sql,
-        binds: rendered,
+        binds,
     })
 }
 
@@ -4069,8 +4298,9 @@ struct Batch {
     /// anything.
     sql: String,
     /// One encoded set per execution, each in the **statement's** order, as
-    /// [`Statement::binds`] is.
-    binds: Vec<Vec<Option<Vec<u8>>>>,
+    /// [`Statement::binds`] is — and each in its driver's own shape, since every
+    /// set of one batch went through the one [`Encoder`] its connection chose.
+    binds: Vec<Binds>,
 }
 
 /// § 18's `$sets`, read as one [`statement_of`] per set with the expansions
@@ -4124,7 +4354,7 @@ fn batch_of(
 
     let held = crate::arr::borrowed(given);
     let mut text: Option<String> = None;
-    let mut binds: Vec<Vec<Option<Vec<u8>>>> = Vec::with_capacity(held.count());
+    let mut binds: Vec<Binds> = Vec::with_capacity(held.count());
     let mut from = 0usize;
     while let Some(slot) = held.next_slot(from) {
         from = slot + 1;
@@ -4194,14 +4424,16 @@ fn batch_of(
 /// is warm in a different amount. None of that is a choice this function makes:
 /// each driver's own `reset` is where its section's property is met.
 ///
-/// The SQLite arm is dropped here rather than reset, because a reset nobody has
-/// written is not a reset that failed — § 13 makes it a security boundary, and
-/// the only safe reading of a missing one is that the connection is not
-/// poolable. It is spelled rather than left to a `_` so that a sixth driver
-/// arrives as a build failure instead of as a connection silently thrown away.
-/// MariaDB's arm is MySQL's: `COM_RESET_CONNECTION` is one protocol's command
-/// and § 13 says of both that it drops the prepared statements with the session
-/// state.
+/// **The SQLite arm is reset like the rest of them now**, and § 13's per-backend
+/// list is where its shortness is argued: a file handle has no session state to
+/// leak, so rolling back whatever transaction is open is the whole of it, and
+/// `nvs_db::SqliteConn::reset` asks the engine rather than this driver's own
+/// depth count so that a transaction a caller opened in its own § 4 statement
+/// text is closed too. Every arm is spelled rather than left to a `_` so that a
+/// sixth driver arrives as a build failure instead of as a connection silently
+/// thrown away. MariaDB's arm is MySQL's: `COM_RESET_CONNECTION` is one
+/// protocol's command and § 13 says of both that it drops the prepared
+/// statements with the session state.
 ///
 /// **The SQL Server arm is reached now**: both openers call
 /// `nvs_db::TdsConn::connect`, so a released connection is one this function is
@@ -4222,7 +4454,9 @@ fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connectio
         nvs_db::Connection::SqlServer(tds) => {
             Some(nvs_db::Connection::SqlServer(tds.reset().ok()?))
         }
-        nvs_db::Connection::Sqlite(_) => None,
+        nvs_db::Connection::Sqlite(sqlite) => {
+            Some(nvs_db::Connection::Sqlite(sqlite.reset().ok()?))
+        }
     }
 }
 
@@ -4320,7 +4554,14 @@ fn wait_for_slot(
 
 /// How one driver's bound values are rendered — [`nvs_db::encode`] for
 /// PostgreSQL, [`nvs_db::mysql::encode`] for the two that speak MySQL's
-/// protocol.
+/// protocol, `nvs_db::sqlite::encode` for the one with no protocol at all.
+///
+/// **An enum and not one `fn` pointer, because the fifth driver does not answer
+/// the same shape.** Four protocols carry a parameter as octets and SQLite
+/// carries a *value*, so there is no return type the five share that is not
+/// either a second encoding of SQLite's or a loss of the four's borrowing.
+/// [`Binds`] is the same split on the result, and both are made in
+/// [`rendering_for`].
 ///
 /// A pointer rather than a `match` at the two call sites because § 5's dialect
 /// and § 9's encoding are **one** choice: a statement rewritten for one
@@ -4328,10 +4569,16 @@ fn wait_for_slot(
 /// both valid text, `t` and `1` are both valid bytes — and fails at the server
 /// or, worse, binds the wrong value. [`rendering_for`] is the single place the
 /// pair is made.
-type Encoder = fn(Value) -> std::io::Result<Option<Vec<u8>>>;
+#[derive(Clone, Copy)]
+pub(crate) enum Encoder {
+    /// The four drivers with a wire: § 9's value as the octets that protocol
+    /// reads a parameter in, `None` for `null`.
+    Wire(fn(Value) -> std::io::Result<Option<Vec<u8>>>),
+    /// SQLite: § 9's value as one of five storage classes, `NULL` among them.
+    Sqlite(fn(Value) -> std::io::Result<nvs_db::SqliteValue>),
+}
 
-/// ADR 0067 § 5's dialect and § 9's encoder for one driver, or `None` for a
-/// driver with no statement path yet — this module's known gap 2.
+/// ADR 0067 § 5's dialect and § 9's encoder for one driver.
 ///
 /// Pure and separate from [`rendering_of`] so the pairing is testable with no
 /// connection in hand: `a_driver_is_bound_in_its_own_dialect` is what holds it
@@ -4344,19 +4591,20 @@ type Encoder = fn(Value) -> std::io::Result<Option<Vec<u8>>>;
 /// 0067 keeps them apart for. `nvs_db::Dialect` has already made the same call
 /// for the text.
 ///
-/// `pub(crate)` for its `None`, which is this crate's one roster of the drivers
-/// nothing binds for at all. It is **not** [`crate::queue`]'s roster any more:
-/// ADR 0084 § 2's schema is written for three drivers and this binds for four,
-/// so that module's `no_dialect` splits on its own `migration` instead. The two
-/// agreed only while the lists were equal, and SQL Server is where they parted.
-pub(crate) fn rendering_for(driver: nvs_db::Driver) -> Option<(nvs_db::Dialect, Encoder)> {
-    let encode: Encoder = match driver {
-        nvs_db::Driver::Postgres => nvs_db::encode,
-        nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => nvs_db::mysql::encode,
-        nvs_db::Driver::SqlServer => nvs_db::tds::encode,
-        nvs_db::Driver::Sqlite => return None,
+/// **Total, which is known gap 2's binding half closed.** It answered `Option`
+/// while SQLite had no encoder and was this crate's roster of the drivers
+/// nothing binds for at all; every driver `nvs-db` has written now binds, so
+/// there is no absent case left to carry. It was never [`crate::queue`]'s
+/// roster: ADR 0084 § 2's schema is written for three drivers and this binds for
+/// five, so that module's `no_dialect` splits on its own `migration` instead.
+pub(crate) fn rendering_for(driver: nvs_db::Driver) -> (nvs_db::Dialect, Encoder) {
+    let encode = match driver {
+        nvs_db::Driver::Postgres => Encoder::Wire(nvs_db::encode),
+        nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => Encoder::Wire(nvs_db::mysql::encode),
+        nvs_db::Driver::SqlServer => Encoder::Wire(nvs_db::tds::encode),
+        nvs_db::Driver::Sqlite => Encoder::Sqlite(nvs_db::sqlite::encode),
     };
-    Some((nvs_db::Dialect::of(driver), encode))
+    (nvs_db::Dialect::of(driver), encode)
 }
 
 /// [`rendering_for`] the connection filed under `key`, which is how a statement
@@ -4364,29 +4612,25 @@ pub(crate) fn rendering_for(driver: nvs_db::Driver) -> Option<(nvs_db::Dialect, 
 /// picked.
 ///
 /// It is asked **before** anything is rewritten, where [`driverless`] is asked
-/// after everything is bound — the two refusals therefore name different
-/// halves of gap 2, and a driver that can bind but not send says so at the
-/// send.
+/// after everything is bound. It no longer refuses anything: every driver binds,
+/// so what is left of gap 2 is the *send* — § 7's, which [`transacting`] is
+/// where a driver without it says so.
+///
+/// The `block` is still taken because the lookup can fail for a reason that is
+/// this crate's own, and a message naming the connection is what says which one.
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` for a driver nothing binds for yet, and
 /// [`filed_connection`]'s [`Fault::fatal`]s for a table this crate filled
 /// wrongly.
 fn rendering_of(
     ctx: &mut nvs_runtime::Ctx,
     key: u64,
-    block: &Value,
+    _block: &Value,
     named: &str,
 ) -> Result<(nvs_db::Dialect, Encoder), Fault> {
     let driver = filed_connection(ctx, key, named)?.driver();
-    rendering_for(driver).ok_or_else(|| {
-        Fault::thrown(format!(
-            "{named}: `[db.{}]` is a {driver:?} connection, and no statement is written in its \
-             dialect yet — this module's known gap 2 is the list",
-            block.as_text().unwrap_or("?")
-        ))
-    })
+    Ok(rendering_for(driver))
 }
 
 /// The `nvs-db` connection filed under `key`, whichever driver it is.
@@ -4612,7 +4856,7 @@ fn queried_rows(
     // refused anything else above — so the `None` arm here is unreachable and
     // costs no message of its own.
     let source = args[1].as_text();
-    let sending: Vec<Option<&[u8]>> = statement.binds.iter().map(|one| one.as_deref()).collect();
+    let sending: Vec<Option<&[u8]>> = statement.binds.wire();
     // Read before the statement takes the context, because it holds it for as
     // long as the rows do — see [`QueryWatch`] for the rest.
     let watch = QueryWatch::of(ctx, &statement.block);
@@ -4644,18 +4888,21 @@ fn queried_rows(
         nvs_db::Connection::SqlServer(tds) => {
             tds_rows(tds, &statement, &sending, source, watch, named)?
         }
-        other => {
-            return Err(driverless(named, &statement.block, other.driver()));
+        // The one arm that does not read `sending`: its parameters went out as
+        // storage classes, which [`Binds`] holds separately and this driver
+        // takes owned.
+        nvs_db::Connection::Sqlite(sqlite) => {
+            sqlite_rows(sqlite, &statement, source, watch, named)?
         }
     };
     watch.file(ctx, taken);
     Ok(answered)
 }
 
-/// Known gap 2's roster: the drivers every `Core\Db` member reaches, which is
-/// every driver `nvs-db` has written.
+/// Known gap 2's roster: the drivers ADR 0067 § 7's `transaction` reaches.
 ///
-/// **One list again.** It was two while SQL Server had statements and no
+/// **It is one member's list now and no longer every member's.** It was two
+/// while SQL Server had statements and no
 /// commands — a batch needs no primitive a statement did not already need,
 /// where § 7's transaction needs commands of its own — and `nvs_db::tds`'s
 /// `begin`, `commit` and `roll_back` are what closed the gap between them. A
@@ -4663,9 +4910,10 @@ fn queried_rows(
 /// arms it describes, and the way it fails is silent: it tells an operator
 /// "this build cannot do that" about a driver that just did.
 ///
-/// SQLite is the whole of what is left outside it, and this module's
-/// `the_refusal_names_every_driver_that_sends` is what holds the list against
-/// the arms.
+/// SQLite is the whole of what is left outside it: `nvs_db::sqlite` has § 7's
+/// `begin`, `commit` and `roll_back` written, and [`Transacting`] has no arm
+/// over them yet. This module's `the_refusal_names_every_driver_that_sends` is
+/// what holds the list against the arms.
 const HAS_A_DRIVER: &[nvs_db::Driver] = &[
     nvs_db::Driver::Postgres,
     nvs_db::Driver::MySql,
@@ -4676,11 +4924,10 @@ const HAS_A_DRIVER: &[nvs_db::Driver] = &[
 /// The refusal a connection whose driver has no path to `named` draws — this
 /// module's known gap 2, worded once.
 ///
-/// Four members reach it ([`queried_rows`], `execute`, `executeMany` and
-/// § 7's `transaction`, through [`transacting`]) and a message per member would
-/// be four sentences to keep agreeing as the lists shorten. It names the driver
-/// the block actually resolved to, because "this one is not supported" without
-/// saying which is what an operator cannot act on.
+/// One member reaches it now — § 7's `transaction`, through [`transacting`] —
+/// where four did while binding was a gap too. It names the driver the block
+/// actually resolved to, because "this one is not supported" without saying
+/// which is what an operator cannot act on.
 ///
 /// **The roster is [`HAS_A_DRIVER`] and is not a parameter**, the five members
 /// having agreed again since `nvs_db::tds` gained § 7's commands. It was one
@@ -5160,6 +5407,180 @@ fn mysql_write(
 /// # Errors
 ///
 /// [`statement_failure`] for anything the server refused.
+/// [`queried_rows`] over the SQLite driver: the statement off the blocking pool,
+/// the rows already in hand, and § 11's span opened here rather than by the
+/// driver.
+///
+/// **The span is this module's on this backend alone**, for `executeMany`'s
+/// reason: `nvs_db::SqliteRows` lends none out, there being no round trip for a
+/// driver-side one to time. What it does time is the handoff to
+/// `nvs_host::blocking` and back, which is this driver's whole cost and the only
+/// thing § 11 could usefully report about it.
+///
+/// **A cell arrives as the class it was stored in** and not as § 9's declared
+/// type — [`sqlite_column_value`] owns that split, and the column's own
+/// [`COLUMN`] carries the declared answer beside the value so a typed reader can
+/// make it.
+///
+/// # Errors
+///
+/// [`statement_failure`] for anything SQLite refused, and a [`Fault::fatal`] for
+/// a row narrower than the columns the statement described.
+fn sqlite_rows(
+    sqlite: &mut nvs_db::SqliteConn,
+    statement: &Statement,
+    source: Option<&str>,
+    watch: QueryWatch,
+    named: &str,
+) -> Result<(Answered, Option<(String, std::time::Duration)>), Fault> {
+    let mut span = nvs_db::QuerySpan::opened(nvs_db::Driver::Sqlite, &statement.sql);
+    if let Some(name) = statement.block.as_text() {
+        span.name(name);
+    }
+    let mut answered = sqlite
+        .query(&statement.sql, statement.binds.sqlite())
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    // Cloned before the first row, for [`postgres_rows`]' reason: the columns
+    // are lent out of a shared borrow and the rows out of a mutable one.
+    let columns: Vec<nvs_db::SqliteColumn> = answered.columns().to_vec();
+    let described = sqlite_described_columns(&columns);
+
+    let mut rows = NvsArray::new();
+    while let Some(row) = answered.next_row() {
+        // Unreachable and fatal for [`tds_rows`]' reason: `nvs-db` steps one
+        // value per described column, so a row is exactly as wide as the
+        // description. Asked of the whole row rather than per cell because the
+        // cells are *moved* into the result below — the owned buffer a `TEXT`
+        // or `BLOB` came back in becomes the Novis value's, which is the one
+        // copy this driver's materialized rows do not have to pay twice.
+        if row.len() != columns.len() {
+            return Err(Fault::fatal(format!(
+                "{named}: the row holds {} column(s), where the result set described {}",
+                row.len(),
+                columns.len()
+            )));
+        }
+        // Built whole before it joins the result, for [`postgres_rows`]' reason.
+        let mut one = NvsArray::new();
+        for (column, cell) in columns.iter().zip(row) {
+            one.set(
+                NvsStr::new(column.name.as_bytes()),
+                sqlite_column_value(cell),
+            );
+        }
+        span.row();
+        rows.append(Value::array(one));
+    }
+    // No affected count on a read: `nvs_db::SqliteRows::affected` answers what
+    // the last data-changing statement on this *connection* reported, which is
+    // SQLite's own rule and belongs to [`sqlite_write`] alone.
+    span.finished(None);
+    let taken = watch.taken(&span);
+    Ok((
+        Answered {
+            rows,
+            columns: described,
+        },
+        taken,
+    ))
+}
+
+/// `execute` over the SQLite driver: the same statement [`sqlite_rows`] runs,
+/// read for its counts rather than its cells.
+///
+/// **Both counts are the connection's and not the statement's**, and that is
+/// SQLite's rule rather than a shortcut here: `sqlite3_changes` and
+/// `sqlite3_last_insert_rowid` describe the last data-changing statement on the
+/// connection, so a `create table` reports whatever the insert before it did.
+/// `nvs_db::SqliteRows::affected`'s own doc is where that is stated. `changed`
+/// is therefore always present on this driver — unlike PostgreSQL, where a
+/// command tag carrying no count is § 4's absent case — and `lastId` keeps the
+/// absence, `0` being how SQLite spells "no row has ever been inserted here".
+///
+/// # Errors
+///
+/// [`statement_failure`] for anything SQLite refused.
+fn sqlite_write(
+    sqlite: &mut nvs_db::SqliteConn,
+    statement: &Statement,
+    source: Option<&str>,
+    watch: QueryWatch,
+    named: &str,
+) -> Result<(Written, Option<(String, std::time::Duration)>), Fault> {
+    let mut span = nvs_db::QuerySpan::opened(nvs_db::Driver::Sqlite, &statement.sql);
+    if let Some(name) = statement.block.as_text() {
+        span.name(name);
+    }
+    let mut answered = sqlite
+        .query(&statement.sql, statement.binds.sqlite())
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+    // Drained rather than skipped, for [`postgres_write`]'s reason: § 4 gives
+    // `execute` no way to hand a `RETURNING` clause's rows back, and the result
+    // set is what holds the connection until it is done with.
+    while answered.next_row().is_some() {}
+
+    let written = Written {
+        changed: Some(answered.affected()),
+        last_id: u64::try_from(answered.last_insert_id())
+            .ok()
+            .filter(|id| *id != 0),
+    };
+    span.finished(written.changed);
+    let taken = watch.taken(&span);
+    Ok((written, taken))
+}
+
+/// One [`COLUMN`] per column a SQLite statement described.
+///
+/// [`described_columns`]' third sibling, and the one whose type is not a code a
+/// server sent: `nvs_db::SqliteColumn::column_type` keys § 9 off the schema's
+/// *declared* name, and that method's own doc is where the map and its three
+/// refusals are argued.
+fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsArray {
+    let mut described = NvsArray::new();
+    for column in columns {
+        described.append(crate::instance::build(
+            &COLUMN,
+            [
+                Value::str(NvsStr::new(column.name.as_bytes())),
+                column_type_value(column.column_type()),
+                // As [`described_columns`]: § 9's own answer, and
+                // [`COLUMN_NULLABLE_DOC`] is where it is written down. SQLite
+                // describes no nullability at all on a stepped statement, so
+                // there is not even a narrower server flag to sit beside it.
+                Value::bool(true),
+            ],
+        ));
+    }
+    described
+}
+
+/// One stepped cell as the Novis value of the class it was **stored** in.
+///
+/// **Deliberately not § 9's declared-type map**, and this is the one driver
+/// where those are two different questions. The other four read a type code the
+/// server sent and the encoding follows from it, so a `date` column can only
+/// arrive as a date; SQLite stores five classes whatever the column was declared
+/// as, so `20260903` in a column declared `date` is an integer and
+/// `'2026-09-03'` in the same column is text. Building a `Core\Time\Date` here
+/// would mean guessing which, and § 6 has already said the *requested* type
+/// drives a conversion — so the class is what a cell reads as, the declared type
+/// rides beside it on the column's own [`COLUMN`], and `Core\Db\Row`'s typed
+/// reader is where the two meet. That reader is known gap 9.
+///
+/// Total, and it allocates nothing a value does not already own: the two owned
+/// arms move their buffer into the Novis string or bytes rather than copying it
+/// a second time.
+fn sqlite_column_value(cell: nvs_db::SqliteValue) -> Value {
+    match cell {
+        nvs_db::SqliteValue::Null => Value::null(),
+        nvs_db::SqliteValue::Int(int) => Value::int(int),
+        nvs_db::SqliteValue::Real(real) => Value::float(real),
+        nvs_db::SqliteValue::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
+        nvs_db::SqliteValue::Blob(bytes) => Value::bytes(NvsStr::new(&bytes)),
+    }
+}
+
 fn tds_write(
     tds: &mut nvs_db::TdsConn,
     statement: &Statement,
@@ -5834,8 +6255,7 @@ nvs_runtime::nvs_helper! {
         // As `query`, and for the reason given there: a refusal names the
         // caller's own text rather than the rewrite of it that reached the wire.
         let source = args[1].as_text();
-        let sending: Vec<Option<&[u8]>> =
-            statement.binds.iter().map(|one| one.as_deref()).collect();
+        let sending: Vec<Option<&[u8]>> = statement.binds.wire();
         // As `query`, and for the reason [`QueryWatch`] gives.
         let watch = QueryWatch::of(ctx, &statement.block);
         // Branched as [`queried_rows`] is, and the arms hand the event back for
@@ -5859,8 +6279,10 @@ nvs_runtime::nvs_helper! {
             nvs_db::Connection::SqlServer(tds) => {
                 tds_write(tds, &statement, &sending, source, watch, EXECUTE)?
             }
-            other => {
-                return Err(driverless(EXECUTE, &statement.block, other.driver()));
+            // As `query`'s: this arm's parameters are [`Binds::sqlite`]'s and
+            // `sending` is not what it reads.
+            nvs_db::Connection::Sqlite(sqlite) => {
+                sqlite_write(sqlite, &statement, source, watch, EXECUTE)?
             }
         };
         watch.file(ctx, taken);
@@ -5915,11 +6337,7 @@ nvs_runtime::nvs_helper! {
         let batch = batch_of(ctx, args, "executeMany", EXECUTE_MANY)?;
         // Two hops rather than one: the driver borrows each set as a slice, so
         // the per-set `Vec` has to outlive the slice taken of it.
-        let sending: Vec<Vec<Option<&[u8]>>> = batch
-            .binds
-            .iter()
-            .map(|set| set.iter().map(|one| one.as_deref()).collect())
-            .collect();
+        let sending: Vec<Vec<Option<&[u8]>>> = batch.binds.iter().map(Binds::wire).collect();
         let sets: Vec<&[Option<&[u8]>]> = sending.iter().map(Vec::as_slice).collect();
 
         // As `execute`, and for the reason [`QueryWatch`] gives.
@@ -5950,9 +6368,15 @@ nvs_runtime::nvs_helper! {
             // after it an `sp_execute`, so `nvs_db::tds::execute_many` is the
             // loop and nothing below it changed for this member.
             nvs_db::Connection::SqlServer(tds) => tds.execute_many(&batch.sql, &sets),
-            other => {
-                return Err(driverless(EXECUTE_MANY, &batch.block, other.driver()));
-            }
+            // The one driver whose whole loop is a single handoff off the core
+            // rather than N round trips, so its sets are handed over owned and
+            // all at once — `nvs_db::SqliteConn::execute_many` is where that is
+            // argued, and § 4's "a batch is not a transaction" holds there as
+            // it does on the other four.
+            nvs_db::Connection::Sqlite(sqlite) => sqlite.execute_many(
+                &batch.sql,
+                batch.binds.iter().map(Binds::sqlite).collect(),
+            ),
         }
         .map_err(|refused| {
             statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), &refused)
@@ -7827,66 +8251,79 @@ mod tests {
     #[test]
     fn a_driver_is_bound_in_its_own_dialect() {
         for driver in nvs_db::Driver::ALL {
-            let Some((dialect, encode)) = rendering_for(driver) else {
-                continue;
-            };
+            let (dialect, encode) = rendering_for(driver);
             assert_eq!(
                 dialect,
                 nvs_db::Dialect::of(driver),
-                "{driver:?} rewrites in the dialect `Dialect::of` gives it, or in none at all"
+                "{driver:?} rewrites in the dialect `Dialect::of` gives it"
             );
-            let rendered = encode(Value::bool(true)).expect("`true` renders on every driver");
-            let expected: &[u8] = if dialect == nvs_db::Dialect::PostgreSql {
-                b"t"
-            } else {
-                b"1"
-            };
-            assert_eq!(
-                rendered.as_deref(),
-                Some(expected),
-                "{driver:?} is paired with another protocol's encoder"
-            );
+            match encode {
+                Encoder::Wire(encode) => {
+                    let rendered =
+                        encode(Value::bool(true)).expect("`true` renders on every driver");
+                    let expected: &[u8] = if dialect == nvs_db::Dialect::PostgreSql {
+                        b"t"
+                    } else {
+                        b"1"
+                    };
+                    assert_eq!(
+                        rendered.as_deref(),
+                        Some(expected),
+                        "{driver:?} is paired with another protocol's encoder"
+                    );
+                }
+                Encoder::Sqlite(encode) => {
+                    assert_eq!(
+                        dialect,
+                        nvs_db::Dialect::Sqlite,
+                        "{driver:?} takes storage classes, so it is the one with no wire"
+                    );
+                    assert_eq!(
+                        encode(Value::bool(true)).expect("`true` binds off the wire too"),
+                        nvs_db::SqliteValue::Int(1),
+                        "{driver:?} is paired with another backend's encoder"
+                    );
+                }
+            }
         }
     }
 
-    /// The roster [`rendering_for`] answers for at all, pinned whole — the test
-    /// above says nothing about a driver it answers `None` for, and that half is
-    /// this module's known gap 2.
+    /// Every driver binds, and the *shape* of a bind follows the protocol rather
+    /// than a roster kept here.
+    ///
+    /// [`rendering_for`] used to answer `None` for a driver nothing bound for,
+    /// and this test pinned that list; the list is empty now, so what is left to
+    /// hold is the other half — that exactly the driver with no wire takes a
+    /// value where the four with one take octets. A fifth wire driver added
+    /// with SQLite's encoder would pass the test above and fail this one.
     #[test]
-    fn only_a_driver_with_a_statement_path_is_bound() {
-        let bound: Vec<nvs_db::Driver> = nvs_db::Driver::ALL
+    fn a_parameter_is_octets_on_every_driver_but_the_one_with_no_wire() {
+        let owned: Vec<nvs_db::Driver> = nvs_db::Driver::ALL
             .into_iter()
-            .filter(|driver| rendering_for(*driver).is_some())
+            .filter(|driver| matches!(rendering_for(*driver).1, Encoder::Sqlite(_)))
             .collect();
         assert_eq!(
-            bound,
-            vec![
-                nvs_db::Driver::Postgres,
-                nvs_db::Driver::MySql,
-                nvs_db::Driver::MariaDb,
-                nvs_db::Driver::SqlServer,
-            ],
-            "this module's known gap 2 names the drivers a statement is written for, and a driver \
-             that gains an encoder belongs in both places"
+            owned,
+            vec![nvs_db::Driver::Sqlite],
+            "a bound value is a storage class exactly where there is no protocol to render it for"
         );
     }
 
     /// [`driverless`]'s refusal names every driver that reaches the member it is
     /// about, and names no driver that does not.
     ///
-    /// **An agreement test rather than a wording one.** Known gap 2's rosters
-    /// live in places that cannot see each other — the match arms of
-    /// [`queried_rows`], `execute` and `executeMany`, § 5's encoder roster that
-    /// the test above pins, and the two `const`s [`driverless`] renders — and
-    /// the way it breaks is a roster going stale while the arms grow. What an
+    /// **An agreement test rather than a wording one.** Known gap 2's roster and
+    /// the match arms it describes live in places that cannot see each other —
+    /// [`transacting`]'s arms and the `const` [`driverless`] renders — and the
+    /// way it breaks is the roster going stale while the arms grow. What an
     /// operator then reads is "this build cannot do that" about a driver that
     /// just did, which is the one thing that message exists to prevent.
     ///
-    /// **One roster again, and SQLite is what it is asked about.** The two
-    /// parted while SQL Server had statements and no commands and became
-    /// [`HAS_A_DRIVER`] again when `nvs_db::tds` gained § 7's; SQLite is now the
-    /// one driver outside it, which is what makes "named exactly when it
-    /// reaches" askable of every other driver in one loop.
+    /// **It is § 7's roster alone now.** [`queried_rows`], `execute` and
+    /// `executeMany` reach every driver, so their arms are total and no longer
+    /// name it at all; SQLite is the one driver outside § 7's, which is what
+    /// makes "named exactly when it reaches" askable of every other driver in
+    /// one loop.
     #[test]
     fn the_refusal_names_every_driver_that_sends() {
         let block = Value::str(NvsStr::new(b"main"));
@@ -7903,12 +8340,6 @@ mod tests {
                 HAS_A_DRIVER.contains(&driver),
                 refused.contains(driver.display_name()),
                 "{driver:?} is named by this refusal exactly when it reaches the member: {refused}"
-            );
-        }
-        for driver in HAS_A_DRIVER {
-            assert!(
-                rendering_for(*driver).is_some(),
-                "{driver:?} runs a statement, so § 5 has to render one for it"
             );
         }
         assert!(

@@ -1,0 +1,55 @@
+--TEST--
+A `[db.<name>]` block naming `sqlite` opens off its own arm of § 2's discriminated union — a file where the other four have an address — and § 4's `execute`, `executeMany` and `query` run over it — ADR 0067 §§ 2, 4, 5, 9
+--FILE--
+<?nvs
+// The only `Core\Db` case in this tree that reaches a *running* database.
+// SQLite needs no server and no container, so `:memory:` is a path like any
+// other and the statements below are really prepared, bound and stepped —
+// which is what makes this the case that would catch a driver wired up in the
+// registry and not behind it.
+var $db = Core\Db::connect("main");
+
+// § 4: `execute` answers a `Write` and not a count. On this backend both of its
+// numbers come off the connection rather than off the statement, which is
+// SQLite's own rule — `sqlite3_changes` and `sqlite3_last_insert_rowid` — so a
+// `create table` reports the change count it inherited rather than an absence.
+var $made = $db->execute("create table t (id integer primary key, name text)", []);
+echo "created ", $made->affected(), "\n";
+
+// § 5's markers, bound as SQLite storage classes rather than rendered into
+// text: `nvs_db::sqlite::encode` is where a `string` becomes `TEXT` instead of
+// octets on a wire.
+var $wrote = $db->execute("insert into t (name) values (?)", ["ada"]);
+echo "inserted ", $wrote->affected(), " at ", $wrote->lastId() ?? 0, "\n";
+
+// § 4's batch: one prepare, one execution per set, the counts summed — and not
+// a transaction, which is the same rule it is on the other four drivers.
+var $many = $db->executeMany("insert into t (name) values (?)", [["grace"], ["alan"]]);
+echo "batched ", $many, "\n";
+
+// § 4's read. The bound value is compared by the engine and not by a rewrite of
+// the statement, so the row `alan` wrote is the one missing below.
+var $rows = $db->query("select name from t where name <> ? order by id", ["alan"]);
+echo "read ", $rows->count(), "\n";
+
+// § 9 keys this backend's column map off what the *schema* declared, since a
+// value's storage class says nothing about what it was meant as. `name` was
+// declared `text`.
+var $columns = $rows->columns();
+echo "column ", $columns[0]->name(), " is ", $columns[0]->type() == Core\Db\ColumnType::Text ? "text" : "something else", "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it and there is no address for ADR 0058's table to have
+# an opinion about.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+created 0
+inserted 1 at 1
+batched 2
+read 2
+column name is text

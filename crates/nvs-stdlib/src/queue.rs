@@ -1730,12 +1730,13 @@ enum Queued<'a> {
 /// build failure instead of as whichever sentence happens to be written last.
 fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
     let missing = match driver {
-        nvs_db::Driver::SqlServer => {
+        // One sentence for both now: `Core\Db` binds and sends over either, so
+        // what an operator is waiting on is this module's schema and not that
+        // one's driver. SQLite joined this arm when `nvs_db::sqlite` gained
+        // § 4's statements.
+        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => {
             "and ADR 0084 § 2's schema and § 4's statements are written for PostgreSQL and MySQL \
              only — `Core\\Db` reads over this driver and the queue has nothing to send it yet"
-        }
-        nvs_db::Driver::Sqlite => {
-            "and that driver runs no statement at all yet — `Core\\Db`'s known gap 2 is the list"
         }
         // Unreachable: [`queue_connection`] matches all three of these out before it asks.
         nvs_db::Driver::Postgres | nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => {
@@ -2606,17 +2607,14 @@ mod tests {
             if runs {
                 continue;
             }
-            assert_eq!(
-                crate::db::rendering_for(driver).is_some(),
+            // `Core\Db` binds and sends for every driver now, so there is only
+            // one thing left to be waiting on and the refusal has to name it.
+            // The second assertion this replaced asked which of two gaps a
+            // driver was in; the other one is closed.
+            assert!(
                 refused.contains("the queue has nothing to send it yet"),
                 "{driver:?} sends a statement over `Core\\Db`, so what it waits on is this \
                  module's own gap: {refused}"
-            );
-            assert_eq!(
-                crate::db::rendering_for(driver).is_none(),
-                refused.contains("known gap 2"),
-                "{driver:?} sends nothing at all, so what it waits on is `Core\\Db`'s gap 2: \
-                 {refused}"
             );
         }
     }
@@ -2712,9 +2710,9 @@ mod tests {
     /// while this file kept its own answer is precisely the drift that would print PostgreSQL's DDL
     /// for a server that cannot run it.
     ///
-    /// **One direction and not two**, which is what SQL Server changed: `Core\Db` binds for four
-    /// drivers and § 2 has a schema for three, so a schema for a driver nothing sends is still a
-    /// bug and a sending driver with no schema is this module's open item —
+    /// **One direction and not two**, which is what SQL Server changed: `Core\Db` binds for all
+    /// five drivers and § 2 has a schema for three, so a schema for a driver nothing sends is
+    /// still a bug and a sending driver with no schema is this module's open item —
     /// [`no_dialect`] is where an operator is told which of the two they are waiting on.
     #[test]
     fn the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one() {
@@ -2722,9 +2720,15 @@ mod tests {
             if migration(driver).is_none() {
                 continue;
             }
-            assert!(
-                crate::db::rendering_for(driver).is_some(),
-                "{driver:?} has § 2's schema, so `Core\\Db` owes it a statement to send it with"
+            // "Is there an encoder at all" became unconditional when SQLite
+            // gained one, so what is left to hold is the pairing: a schema
+            // written in one dialect and sent through another's rewriter is
+            // the failure this direction was ever about.
+            assert_eq!(
+                crate::db::rendering_for(driver).0,
+                nvs_db::Dialect::of(driver),
+                "{driver:?} has § 2's schema, so `Core\\Db` owes it a statement in the dialect \
+                 that schema is written in"
             );
         }
         // MariaDB runs MySQL's list unchanged, which is `MIGRATION_MYSQL`'s own decision rather

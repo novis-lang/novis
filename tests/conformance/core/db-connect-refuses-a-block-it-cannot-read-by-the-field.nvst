@@ -44,13 +44,15 @@ host = "127.0.0.1"
 driver = "mysql"
 host = "127.0.0.1"
 
-# The one driver this build has no connect path for. The refusal names the
-# driver it *is*, so the block reads as configured-for-something-else rather
-# than broken, and the sentence comes from PostgreSQL's resolver because that is
-# where every unopenable `driver` still lands -- ADR 0067 § 2.
+# A block that resolves as its own driver's and then fails at the file, which is
+# where every other block on this list fails too: the refusal is the engine's
+# and names the path, so a `sqlite` block reads as configured-and-unreachable
+# rather than as a driver nothing here supports -- ADR 0067 §§ 2-3. The
+# directory cannot exist on any host this suite runs on, which is what makes the
+# sentence the same one everywhere.
 [db.sqlite]
 driver = "sqlite"
-path = "/var/lib/novis.db"
+path = "/no-such-directory-for-this-case/novis.db"
 
 # `path` is SQLite's field. A PostgreSQL connection reads nothing from it, and
 # a field silently ignored is how a block comes to mean something nobody wrote.
@@ -77,6 +79,6 @@ Core\Db::connect: nothing sets `[db.absent]` up, so the name resolves to a block
 Core\Db::connect: [db.mariadb]: the block names no `password`, which a MariaDB connection cannot be opened without
 Core\Db::connect: [db.mssql]: the block names no `password`, which a SQL Server connection cannot be opened without
 Core\Db::connect: [db.mysql]: the block names no `password`, which a MySQL connection cannot be opened without
-Core\Db::connect: [db.sqlite]: `driver` is `sqlite`, which is the sqlite driver and not PostgreSQL
+Core\Db::connect: `[db.sqlite]` at `/no-such-directory-for-this-case/novis.db` did not open: sqlite ERROR: unable to open database file: /no-such-directory-for-this-case/novis.db
 Core\Db::connect: [db.unusable]: `path` belongs to another driver, and a PostgreSQL connection reads nothing from it
 Core\Db::connect: [db.zone]: `time_zone` is `Europe/Vienna`, which is not an offset: write `+02:00`, `-05:30` or `UTC`, or leave it unset for UTC

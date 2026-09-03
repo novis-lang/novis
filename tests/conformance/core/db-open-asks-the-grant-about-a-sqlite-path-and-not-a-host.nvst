@@ -1,0 +1,32 @@
+--TEST--
+`Core\Db::open` over § 2's SQLite arm asks `db.open` about the *path*, because that arm has no host for a host-shaped grant to be about — ADR 0067 § 3, ADR 0135 §§ 1-3
+--FILE--
+<?nvs
+// ADR 0067 § 3 gives `open` two halves for the four drivers with an address:
+// the `db.open` grant, then ADR 0058's table against the resolved host. The
+// SQLite arm has neither a host nor an address, so what stands in their place
+// is the path — asked of `db.open` under `nvs_config`'s canonicalise-then-
+// prefix rule, and then of `fs.read` and `fs.write`, which is § 3's own
+// "additionally needs" in as many words.
+//
+// The grant below covers a host and this call names a file, so the two cannot
+// match and the refusal says which capability and which argument. That is the
+// whole point: a host-shaped grant is not a licence to open a local file, and
+// an operator who wants one writes a path root instead.
+try {
+    var $db = Core\Db::open({driver: Core\Db\Driver::Sqlite, path: "secrets.db"});
+    echo "opened", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// ADR 0118 § 5: a denial is the world refusing a call, not the program dying.
+echo "still running", "\n";
+--FILE nvs.toml--
+# A grant written for the four drivers that have a host. Nothing here is a path
+# root, so the SQLite arm reaches none of it.
+[capabilities.db]
+open = ["*.tenants.internal"]
+--EXPECT--
+Core\Db::open needs the capability `db.open` for secrets.db, which is not granted
+still running
