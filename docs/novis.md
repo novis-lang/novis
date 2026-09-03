@@ -20455,3 +20455,100 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `mysqli_autocommit` | dropped | switches the connection between implicit and explicit transactions, for statements written before the switch and after it alike. A statement outside `transaction()` is its own transaction and one inside is not, so there is no mode to hold |
 | `mysqli_savepoint` | dropped | a nested `transaction()` on the same connection issues `SAVEPOINT` itself, which is what lets a library wrap its own writes and stay callable from inside a caller's transaction ([ADR 0067](adr/0067-core-db.md) § 7) |
 | `mysqli_release_savepoint` | dropped | releases one by name; the nesting owns both ends of it |
+| `pg_connect` | member | `Core\Db::connect`, which names a root-owned `[db.<name>]` block rather than parsing a connection string built in program source ([ADR 0067](adr/0067-core-db.md) § 2). A connection assembled at request time — one database per tenant — is `Core\Db::open`, whose host is a sink with no launderer (§ 3) |
+| `pg_pconnect` | dropped | the same connect, reusing a connection the process kept from an earlier request. Pooling is the runtime's: a released connection rejoins a per-core pool only after a reset that is a security boundary, and a failed reset destroys the connection rather than handing the next request the last one's state ([ADR 0067](adr/0067-core-db.md) § 13) |
+| `pg_connect_poll` | dropped | drives an asynchronous handshake to completion by polling it. The handshake suspends the coroutine and resumes when the socket is ready, so there is no half-open connection for a program to hold |
+| `pg_ping` | dropped | asks whether the connection is still alive so the caller can reconnect around it. A connection is retired at `lifetime` regardless of health and one whose reset fails is destroyed ([ADR 0067](adr/0067-core-db.md) § 13), so a connection a request is handed is one the pool has already vouched for |
+| `pg_connection_status` | dropped | `CONNECTION_OK` or `CONNECTION_BAD`, for the caller to branch on after a call that returned `false`. A connection that cannot be established throws `Db\DbError` with a normalised `kind` ([ADR 0067](adr/0067-core-db.md) § 8) |
+| `pg_connection_busy` | dropped | whether an asynchronous query is still running on this connection. A statement is issued and awaited in one call ([ADR 0067](adr/0067-core-db.md) § 4), so a connection the program is holding is never mid-statement |
+| `pg_connection_reset` | dropped | closes and reopens the connection behind the same handle. The reset belongs to the pool and is stated as a property — afterwards no transaction, no temporary table, no session variable, no `SET ROLE`, no advisory lock and no listener ([ADR 0067](adr/0067-core-db.md) § 13) — rather than as something a program remembers to call |
+| `pg_host` | dropped | reads back the host the connection string named. The host is a key in the connection's config block, written by whoever has production access ([ADR 0067](adr/0067-core-db.md) § 2), and a program that could read it could log it |
+| `pg_port` | dropped | the same for the port |
+| `pg_dbname` | dropped | the same for the database name |
+| `pg_options` | dropped | the same for the connection string's `options` field |
+| `pg_tty` | dropped | the same for a field PostgreSQL stopped using in 7.4; it answers with the empty string |
+| `pg_parameter_status` | dropped | one of the server's settings as reported during the handshake — `server_encoding`, `TimeZone`, `integer_datetimes`. Every one that changes how a value arrives is fixed by the driver instead of reported to the program: the charset is forced to UTF-8 and a zone-less timestamp reads in the zone the connection declares ([ADR 0067](adr/0067-core-db.md) §§ 3, 9) |
+| `pg_change_password` | dropped | hashes a password and issues `ALTER USER` with it. Credentials belong to the operator ([ADR 0067](adr/0067-core-db.md) § 2), and an application that genuinely administers a database writes that statement as a statement |
+| `pg_client_encoding` | dropped | reads the connection's client encoding back. A `string` is UTF-8 ([ADR 0009](adr/0009-string-and-bytes.md)) and the driver forces the connection to match, so text columns arrive as valid UTF-8 by construction |
+| `pg_clientencoding` | dropped | the deprecated spelling, and the same answer |
+| `pg_set_client_encoding` | dropped | changes it mid-session, with no option to reach the unsafe value ([ADR 0067](adr/0067-core-db.md) § 3). A charset a program can change at runtime is what made `SET NAMES` a documented way around an escaper |
+| `pg_setclientencoding` | dropped | the deprecated spelling, and the same answer |
+| `pg_socket` | dropped | the connection's underlying socket, for the program to wait on itself. The socket is a parking stream the runtime owns: waiting on it hands the core to another request rather than blocking this one |
+| `pg_get_pid` | dropped | the backend process id, whose two uses are cancelling that backend's query and matching a `NOTIFY`. Both are below, and neither is a call site here |
+| `pg_jit` | dropped | an array of JIT-related information read off the connection. Tuning the server is the operator's, and what one statement cost is a `query` trace event ([ADR 0067](adr/0067-core-db.md) § 11) |
+| `pg_prepare` | dropped | names a server-side prepared statement for later execution. There is no prepare step: the connection's own LRU cache is keyed by SQL text plus expansion arity, so every statement is prepared and none is prepared by the program ([ADR 0067](adr/0067-core-db.md) § 1) |
+| `pg_execute` | dropped | runs one of those by the name it was given. The SQL text is that name, and the cache is the connection's |
+| `pg_escape_string` | dropped | binding is the mechanism ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 4), and an escaper is refused permanently as a second, weaker answer ([ADR 0067](adr/0067-core-db.md) § 12) |
+| `pg_escape_literal` | dropped | the same, adding the quotes. Both spellings exist so that a value can be pasted into SQL text, which is the thing the query parameter's refusal of `tainted` prevents |
+| `pg_escape_identifier` | member | `Core\Db::quoteIdentifier` — the one case binding cannot carry, a table or column name chosen at runtime |
+| `pg_escape_bytea` | dropped | encodes bytes for pasting into SQL. A `bytes` value binds like any other parameter, and a `BYTEA` column arrives as `tainted bytes` ([ADR 0067](adr/0067-core-db.md) § 9) |
+| `pg_unescape_bytea` | dropped | decodes that text form back again. Nothing hands a program the text form: the driver decodes the column |
+| `pg_send_query` | dropped | issues a query without waiting for it, so the process can do something else meanwhile. A statement suspends its coroutine and the core runs another request's work, so every statement is already this one and `Core\Db\Queryable::query` is its whole spelling |
+| `pg_send_query_params` | dropped | the same with parameters, which is not an option to choose here either |
+| `pg_send_prepare` | dropped | the asynchronous half of a step that does not exist ([ADR 0067](adr/0067-core-db.md) § 1) |
+| `pg_send_execute` | dropped | the same for running one of those by name |
+| `pg_get_result` | dropped | collects the result of whichever of those is in flight. The result is the return value of the call that issued the statement |
+| `pg_consume_input` | dropped | reads whatever the socket has so a polling loop can make progress. The loop is the scheduler's, and a Novis program never writes one |
+| `pg_flush` | dropped | pushes buffered output when a send did not fit, for that same loop |
+| `pg_socket_poll` | dropped | waits for the connection's socket to become readable or writable, with a timeout. Readiness is what the parking stream waits on, and `acquire` bounds the one wait a program can observe ([ADR 0067](adr/0067-core-db.md) § 13) |
+| `pg_cancel_query` | dropped | asks the server to abandon the query in flight. It exists because a program can hold a connection that is mid-statement; there is no point between issuing a statement and holding its result at which this could be called |
+| `pg_last_oid` | dropped | the OID of the row an `INSERT` created — a number PostgreSQL stopped putting on ordinary tables in 12. The id of a row a write created is `Db\Write`'s readonly `lastId`, and any other generated column comes back through a `RETURNING` clause like an ordinary select list |
+| `pg_getlastoid` | dropped | the deprecated spelling, and the same answer |
+| `pg_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `PGSQL_*` constant. A member's return shape does not vary with an argument ([ADR 0063](adr/0063-core-api-conventions.md) R17), and rows are read by name |
+| `pg_fetch_row` | dropped | the positional half of it: a list per row, whose indices go wrong the moment the `SELECT` list is edited |
+| `pg_result_seek` | dropped | seeks within a buffered result set. Scrollable cursors are deferred ([ADR 0067](adr/0067-core-db.md) § 12), and `->all()` is an ordinary array to index |
+| `pg_result_status` | dropped | whether the result carries rows, a command tag or an error, as an integer to switch on. `query` and `execute` answer with different types and a failure throws ([ADR 0067](adr/0067-core-db.md) §§ 4, 8), so that branch is made by the compiler instead |
+| `pg_free_result` | dropped | frees the result set. A `Db\Rows` is released with the rest of the request's memory |
+| `pg_freeresult` | dropped | the deprecated spelling, and the same answer |
+| `pg_field_type_oid` | dropped | that type as PostgreSQL's own OID, a number meaningful only against `pg_type`. The portable answer is the type map, which is also what `queryAs` checks a row against ([ADR 0067](adr/0067-core-db.md) §§ 6, 9) |
+| `pg_field_size` | dropped | the internal storage width of the column's type, `-1` where it is variable. A value arrives at its natural Novis type ([ADR 0067](adr/0067-core-db.md) § 9), and its size is an ordinary question about that value |
+| `pg_fieldsize` | dropped | the deprecated spelling, and the same answer |
+| `pg_field_prtlen` | dropped | the printed length of one value in one row, a question the text protocol made necessary. The value is in hand at its own type, and its length is asked of it |
+| `pg_fieldprtlen` | dropped | the deprecated spelling, and the same answer |
+| `pg_field_is_null` | dropped | whether one cell of one row is null, as `0`, `1` or `false`. A null column is `null` in a `?T` ([ADR 0067](adr/0067-core-db.md) § 9), so the check is the language's and the compiler makes it |
+| `pg_fieldisnull` | dropped | the deprecated spelling, and the same answer |
+| `pg_field_table` | dropped | which table a column came from, by name or OID — a schema question asked of a result set. A portable schema-introspection API is deferred ([ADR 0067](adr/0067-core-db.md) § 12) |
+| `pg_meta_data` | dropped | every column of a named table with its type, size and null-ability, read out of the catalog. The same deferral; until it lands, `Core\Db\Queryable::query` against `information_schema` is what it is for |
+| `pg_last_error` | dropped | the connection's last error message, read after a call that returned `false`. A failure throws `Db\DbError`, whose `kind` is normalised across the drivers and whose `sqlState`, `driverCode` and `constraint` ride the throw ([ADR 0067](adr/0067-core-db.md) § 8) |
+| `pg_errormessage` | dropped | the deprecated spelling, and the same answer |
+| `pg_result_error` | dropped | the same message taken off the result rather than off the connection |
+| `pg_result_error_field` | dropped | one field of it, selected by a `PGSQL_DIAG_*` constant — the SQLSTATE, the constraint name, the statement position. Those are `DbError`'s own readonly fields, named rather than selected ([ADR 0067](adr/0067-core-db.md) § 8) |
+| `pg_set_error_verbosity` | dropped | how much of that message the server composes. What an application branches on is normalised into `kind`, and the message text is not the interface |
+| `pg_set_error_context_visibility` | dropped | whether the `CONTEXT` line appears in it, and the same answer |
+| `pg_last_notice` | dropped | the server's last `NOTICE`, kept per connection. A condition worth acting on throws ([ADR 0067](adr/0067-core-db.md) § 8); one that is not is the server's to log |
+| `pg_get_notify` | dropped | a pending `NOTIFY` payload, for a connection that has issued `LISTEN`. That pair is deferred and the pool's reset drops a connection's listeners ([ADR 0067](adr/0067-core-db.md) §§ 12, 13). The durable answer to the same problem is a job row, which commits with the write that enqueued it ([ADR 0084](adr/0084-durable-background-jobs.md)) |
+| `pg_trace` | dropped | writes the client-server conversation to a file the program names. What a statement did is a `query` trace event instead, carrying the statement's own facts and never a bound parameter ([ADR 0067](adr/0067-core-db.md) § 11) |
+| `pg_untrace` | dropped | stops that, and has nothing to stop |
+| `pg_transaction_status` | dropped | whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently ([ADR 0067](adr/0067-core-db.md) § 12): a transaction is a closure, so the answer is which function you are inside, and a `Db\Transaction` parameter states it in the type ([ADR 0067](adr/0067-core-db.md) § 7) |
+| `pg_convert` | dropped | turns an associative array into SQL-ready values by checking it against the table's metadata. Values are bound, never made SQL-ready ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 4), and building a statement out of a table name and an array is query-builder work, which is not `Core` at all ([ADR 0051](adr/0051-standard-library-tiers.md) test 6) |
+| `pg_insert` | dropped | builds and runs an `INSERT` from that array, under the same test. `Core\Db\Queryable::execute` runs the statement the program wrote |
+| `pg_update` | dropped | the same for `UPDATE`, with a second array standing in for the `WHERE` clause |
+| `pg_delete` | dropped | the same for `DELETE` |
+| `pg_select` | dropped | the same for `SELECT`, handing back the rows |
+| `pg_copy_to` | dropped | streams a table out in PostgreSQL's `COPY` text format, as an array of delimiter-separated lines. `COPY` is deferred ([ADR 0067](adr/0067-core-db.md) § 12); a select against the same table is portable and arrives as typed values rather than as text to split |
+| `pg_copy_from` | dropped | the same inbound, from an array of those lines. Bulk insert today is `Core\Db\Queryable::executeMany`, one prepared statement and many parameter sets ([ADR 0067](adr/0067-core-db.md) § 1) |
+| `pg_put_copy_data` | dropped | one chunk of a `COPY IN` the program drives itself, under the same deferral |
+| `pg_put_copy_end` | dropped | ends that copy, optionally with an error string that aborts it |
+| `pg_put_line` | dropped | the pre-7.3 spelling of `pg_put_copy_data`, whose own documentation warns against mixing it with anything else on the connection |
+| `pg_end_copy` | dropped | resynchronises the connection afterwards — the state a program driving the protocol by hand is left holding |
+| `pg_lo_create` | dropped | creates a server-side large object and returns its OID. A large object is a second storage system inside the database, with its own OIDs and its own transaction-scoped descriptors, and it is never a column of a row. A binary column is `BYTEA` and arrives as `tainted bytes` ([ADR 0067](adr/0067-core-db.md) § 9); anything big enough to want streaming is a file, reached with `Core\IO`. LOB streaming is deferred ([ADR 0067](adr/0067-core-db.md) § 12) |
+| `pg_locreate` | dropped | the deprecated spelling, and the same answer |
+| `pg_lo_open` | dropped | opens one of those objects for reading or writing, valid only inside a transaction |
+| `pg_loopen` | dropped | the deprecated spelling, and the same answer |
+| `pg_lo_close` | dropped | closes that descriptor, which nothing here hands out |
+| `pg_loclose` | dropped | the deprecated spelling, and the same answer |
+| `pg_lo_read` | dropped | reads bytes from it at the descriptor's current offset |
+| `pg_loread` | dropped | the deprecated spelling, and the same answer |
+| `pg_lo_write` | dropped | writes bytes to it at that offset |
+| `pg_lowrite` | dropped | the deprecated spelling, and the same answer |
+| `pg_lo_read_all` | dropped | reads the whole object straight to the output buffer, which also lets a data-access call decide the response's body |
+| `pg_loreadall` | dropped | the deprecated spelling, and the same answer |
+| `pg_lo_seek` | dropped | moves that offset |
+| `pg_lo_tell` | dropped | reads the offset back |
+| `pg_lo_truncate` | dropped | shortens the object |
+| `pg_lo_unlink` | dropped | deletes it by OID |
+| `pg_lounlink` | dropped | the deprecated spelling, and the same answer |
+| `pg_lo_import` | dropped | creates one from a file on the application host, a path the program supplies and the server never sees |
+| `pg_loimport` | dropped | the deprecated spelling, and the same answer |
+| `pg_lo_export` | dropped | writes one back out to such a path |
+| `pg_loexport` | dropped | the deprecated spelling, and the same answer |
