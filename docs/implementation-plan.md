@@ -59,9 +59,9 @@
 > `Core\Html::escape` answers `Core\Html\Markup`, `toSource` is the one way out, and `.`, `.=`,
 > interpolation and `as string` refuse one. **Goals 1-5 and M4 are closed**. **`crates/nvs-server`
 > runs an h1 request as goal 2's `Isolate`**: a coroutine per connection, `hyper` under `block_on`
-> (ADR 0138), `echo` is the body, and ADR 0097 § 5's four waits bound it; no CLI and no mount table
-> yet. **Stage 10's corpus opened**: § 5's bindings, § 6's naming, § 7's flag. Conformance 1447,
-> differential 256, migration 100%; valgrind green.
+> (ADR 0138), `echo` is the body, and ADR 0097 § 5's four waits bound it; `nvs serve` runs one core;
+> no mount table yet. **Stage 10's corpus opened**: § 5's bindings, § 6's naming, § 7's flag.
+> Conformance 1447, differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

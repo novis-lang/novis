@@ -6910,6 +6910,16 @@ sibling in the same namespace unqualified.
   poll order plus `deadline().map(saturating_duration_since)` in the adapter. `NvsStream::timed`
   now records which interest filed the entry; anything else that parks two interests of one stream
   under one task inherits the same question.
+- **`nvs_host::run_until_idle` returns while your task is still parked, and a server is the first
+  caller for which that is wrong.** It breaks out of its own loop as soon as one blocking poll wakes
+  nothing — which is exactly what a connection's socket reports on Windows once the task that owned
+  it has finished and been retired — so an accept loop written as `spawn` + one `run_until_idle`
+  serves precisely one request and then exits `0`, silently, with no error anywhere. Nothing looks
+  wrong: no panic, no `Err`, and `curl` on the second request just gets nothing. The function's own
+  doc says the case is reported rather than handled ("the report says the state instead and the
+  caller decides"), so the fix is the caller's: loop while `RunReport::parked > 0`. Measured with
+  `(Get-Process nvs).CPU` across six idle seconds, that does not spin — the stale readiness is
+  delivered once, not level-triggered forever. `crates/nvs-cli/src/serve.rs`'s loop is the shape.
 
 ## Divergences and refusals already pinned
 
