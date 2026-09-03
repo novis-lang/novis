@@ -82,8 +82,8 @@ use nvs_db::matrix::{self, Location, Server};
 use nvs_db::mysql::scalar;
 use nvs_db::tds::{TdsScalar, scalar as tds_scalar};
 use nvs_db::{
-    DbErrorKind, Driver, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar, MySqlTarget,
-    PgConn, PgTarget, ServerError, TdsConn, TdsTarget,
+    DbErrorKind, Driver, Isolation, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar,
+    MySqlTarget, PgConn, PgTarget, ServerError, TdsConn, TdsTarget,
 };
 use nvs_host::{Reactor, Scheduler, run_until_idle};
 use nvs_runtime::{Ctx, OutputSink, TaskRoot};
@@ -448,6 +448,16 @@ fn mssql_one_value(conn: &mut TdsConn, sql: &str) -> Option<String> {
         }
     }
     answer
+}
+
+/// One statement run for its effect, over a real SQL Server.
+///
+/// [`mysql_run`]'s twin, spelled as § 4's `executeMany` with a single empty set
+/// — which is how this crate's surface says *run this once and bind nothing*,
+/// there being no `execute` on [`TdsConn`] to say it more directly.
+fn mssql_run(conn: &mut TdsConn, sql: &str) {
+    conn.execute_many(sql, &[&[]])
+        .unwrap_or_else(|refused| panic!("the server refused `{sql}`: {refused}"));
 }
 
 /// § 3: the connection this driver opens is TLS-wrapped and authenticated, and
@@ -1107,5 +1117,134 @@ fn a_mssql_connection_is_opened_tls_tunnelled_and_authenticated_over_the_parking
         ),
         (DbErrorKind::Permission, "", Some(18456)),
         "the refusal is the server's own login failure, and TDS has no SQLSTATE to carry: {refusal}",
+    );
+}
+
+/// § 7 against a real SQL Server: a nested `transaction()` is a
+/// `SAVE TRANSACTION`, rolling back to it undoes its own work and none of the
+/// work around it — and every request inside the transaction names it.
+///
+/// [`a_mysql_transaction_nests_to_a_savepoint_and_rolls_back_to_it`]'s rows,
+/// asked of the backend where an open transaction is more than the commands
+/// that opened it. TDS answers a `BEGIN TRANSACTION` with a **transaction
+/// descriptor** in an `ENVCHANGE`, and refuses every later request whose
+/// `ALL_HEADERS` does not carry it — driver code 3989, *new request is not
+/// allowed to start because it should come with valid transaction descriptor*.
+/// So the first `INSERT` below is the assertion `tds.rs`'s scripted peer cannot
+/// make: that peer answers whatever was written to it, and a driver writing a
+/// zero descriptor is green there while being unable to run one statement
+/// inside a transaction here.
+///
+/// The table is permanent, and dropped on the way **in** rather than out: a
+/// failing assertion skips its own cleanup, and this database is the matrix's
+/// own.
+#[test]
+fn a_mssql_transaction_nests_to_a_savepoint_and_rolls_back_to_it() {
+    let Some(server) = mssql() else {
+        return;
+    };
+    let mut conn = mssql_open(&server);
+    mssql_run(&mut conn, "DROP TABLE IF EXISTS novis_nesting");
+    mssql_run(&mut conn, "CREATE TABLE novis_nesting (id INT PRIMARY KEY)");
+
+    assert_eq!(
+        conn.depth(),
+        0,
+        "a fresh connection is inside no transaction"
+    );
+
+    conn.begin(None, false).expect("the server began one");
+    assert_eq!(conn.depth(), 1, "the outermost level is a transaction");
+    mssql_run(&mut conn, "INSERT INTO novis_nesting (id) VALUES (1)");
+
+    conn.begin(None, false)
+        .expect("the server took a savepoint");
+    assert_eq!(conn.depth(), 2, "a nested level is a savepoint inside it");
+    mssql_run(&mut conn, "INSERT INTO novis_nesting (id) VALUES (2)");
+
+    conn.roll_back().expect("the server rolled back to it");
+    assert_eq!(conn.depth(), 1, "the outer transaction is still open");
+    mssql_run(&mut conn, "INSERT INTO novis_nesting (id) VALUES (3)");
+
+    conn.commit().expect("the server committed");
+    assert_eq!(
+        conn.depth(),
+        0,
+        "the connection is outside a transaction again"
+    );
+
+    assert_eq!(
+        mssql_one_value(
+            &mut conn,
+            "SELECT STRING_AGG(CAST(id AS VARCHAR(10)), ',') WITHIN GROUP (ORDER BY id) \
+             FROM novis_nesting",
+        )
+        .as_deref(),
+        Some("1,3"),
+        "the committed rows are the ones outside the savepoint that was rolled back",
+    );
+}
+
+/// § 13 against a real SQL Server: a connection released from *inside* a
+/// transaction comes back with no transaction, at the login's own isolation
+/// level, and able to run a statement at all.
+///
+/// [`a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement`]'s
+/// property, asked where two of this backend's own facts make it a different
+/// question. `SET TRANSACTION ISOLATION LEVEL` is **session**-scoped here, so a
+/// level asked for by one request outlives the transaction that asked for it and
+/// would silently become the next request's — `sp_reset_connection` putting it
+/// back is what § 13's property means on this driver, and `sys.dm_exec_sessions`
+/// is the server's own view of it rather than the driver's own flag. And the
+/// reset is the one request that names **no** transaction however deep the
+/// session was: the header bit is honoured before the message it rides is
+/// processed, so a driver still naming the rolled-back descriptor would be
+/// refused here — which is why the probes after the reset are the assertion and
+/// not housekeeping.
+#[test]
+fn a_mssql_reset_from_inside_a_transaction_leaves_none_and_the_logins_level() {
+    let Some(server) = mssql() else {
+        return;
+    };
+    // The server's own name for the level this session is sitting at, which is
+    // what `TdsConn::isolation_moved` is a claim about.
+    const LEVEL: &str = "SELECT CASE transaction_isolation_level \
+                         WHEN 1 THEN 'ReadUncommitted' WHEN 2 THEN 'ReadCommitted' \
+                         WHEN 3 THEN 'RepeatableRead' WHEN 4 THEN 'Serializable' \
+                         WHEN 5 THEN 'Snapshot' ELSE 'Unspecified' END \
+                         FROM sys.dm_exec_sessions WHERE session_id = @@SPID";
+    const OPEN: &str = "SELECT CAST(@@TRANCOUNT AS VARCHAR(10))";
+
+    let mut conn = mssql_open(&server);
+    conn.begin(Some(Isolation::Serializable), false)
+        .expect("the server began one at the level it was asked for");
+    assert_eq!(conn.depth(), 1, "the reset below runs inside a transaction");
+    assert_eq!(
+        mssql_one_value(&mut conn, LEVEL).as_deref(),
+        Some("Serializable"),
+        "the session is not at the level § 7's option asked for, so the restore proves nothing",
+    );
+    assert_eq!(
+        mssql_one_value(&mut conn, OPEN).as_deref(),
+        Some("1"),
+        "the server does not agree that a transaction is open",
+    );
+
+    let mut conn = conn.reset().expect("the server accepted the reset");
+
+    assert_eq!(
+        conn.depth(),
+        0,
+        "the reset left the connection believing it was still inside a transaction",
+    );
+    assert_eq!(
+        mssql_one_value(&mut conn, OPEN).as_deref(),
+        Some("0"),
+        "a transaction open before the reset was still open after it",
+    );
+    assert_eq!(
+        mssql_one_value(&mut conn, LEVEL).as_deref(),
+        Some("ReadCommitted"),
+        "the session kept the level one request asked for, and the next request would inherit it",
     );
 }

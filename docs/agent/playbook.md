@@ -4847,6 +4847,16 @@ is why" — is this file.
   endpoint, run with `target/debug/nvs.exe run`, costs three calls. Do it for any slice whose claim
   is that a handshake now reaches a server, and prefer it to a fourth fixture asserting what the
   third one already assumed.
+- **A real-SQL-Server case cannot keep its rows in a temporary table, and `sp_reset_connection` does not
+  put the isolation level back.** Two traps in one leg, both invisible to `tds.rs`'s scripted peer. A
+  `CREATE TABLE #t` goes out inside `sp_prepexec`, so the table is scoped to *that procedure* and is gone
+  before the next statement — use a permanent table dropped on the way **in** (`DROP TABLE IF EXISTS`),
+  since a failing assertion skips cleanup, and the matrix database is the driver's own. And the reset
+  leaves `transaction_isolation_level` exactly where the last `transaction({isolation})` put it, which
+  `SELECT … FROM sys.dm_exec_sessions WHERE session_id = @@SPID` is what proves either way: ADR 0067 § 13
+  states the reset as a *property*, so where `sp_reset_connection` falls short of it the driver pays the
+  difference — `crates/nvs-db/src/tds.rs`'s `reset_session` now sends the restore itself. A pooled
+  connection is the failure mode: the next request silently runs at `SERIALIZABLE`.
 
 ## Splitting a file that got too big
 
