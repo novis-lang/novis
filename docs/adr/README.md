@@ -164,6 +164,7 @@ so you never have to open this file to route a topic.
 | Uncaught exceptions, memory/CPU-limit fatals, internal panics, `Core\Fatal`, `Core\Log` | [0020](0020-error-escalation-ladder.md) |
 | Whether one request can take the server down; a worker that panics outside a helper, aborts, or is alive but stuck; `abort()`, `SIGSEGV` from the engine's own recursion, `SIGBUS`, W^X; a decoder's depth limit; a helper that never yields a core; blocking syscalls and the blocking pool; what `max_in_flight` really admits; why there are no worker processes; a request the client abandoned — the closed tab, a hung request holding a worker, `ignore_user_abort`, `connection_aborted` | [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) |
 | epoll/kqueue/IOCP, the reactor, what wakes a parked task, why a socket read looks blocking and is not, `WouldBlock`, how big a coroutine's stack is and who pays for it | [0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md) |
+| A `Future` in a runtime that is not `async`, `block_on`, what a `Waker` may do, `hyper`'s connection future, waking from another thread, why none of this is an executor | [0138](0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md) |
 | What an isolate's "arena" actually is, whether entering one maps memory, what a wholesale release runs, what one isolate costs, why a crossing may move rather than copy, where a byte cap attaches | [0116](0116-an-isolates-arena-is-an-ownership-root.md) |
 | XSS, SQL injection, command/header/path injection, taint tracking, `tainted string`, `Core\Html\Markup` | [0024](0024-taint-tracking-for-injection-sinks.md) |
 | Double escaping, `&amp;amp;`, what an escaper *returns*, why `Core\Html::escape` answers `Markup` and `Core\Db::quoteIdentifier` a `string`, whether `Markup` converts back, `Core\Html::toSource`, `Core\Html::sanitize`'s return type | [0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md) |
@@ -374,6 +375,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) | A fixed-key shape parameter is one `CoreTy` carrying its arms, and it flattens at the ABI exactly as an options bag does | Accepted |
 | [0136](0136-a-callable-carries-its-signature.md) | A `callable` carries its signature | Accepted |
 | [0137](0137-a-doc-comment-is-three-slashes-and-two-tags.md) | A doc comment is `///`, and its only tags are `@see` and `@example` | Accepted |
+| [0138](0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md) | A connection future is driven by the coroutine that owns it, and a waker is one wake | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

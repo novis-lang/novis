@@ -220,6 +220,10 @@ spellings rejected, and the reasoning.
   one contract over epoll, kqueue and Windows' AFD, a wake is a hint the task re-tries rather than a
   promise, and a task's 1 MiB stack is reserved wide, resident narrow and pooled per worker
   ([0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)).
+- **A `Future` is driven by the coroutine that owns it, and a `Waker` is one permission to poll again** —
+  a connection is one future on one task's stack, a wake decides nothing and never re-polls, and a wake
+  fired from another thread queues an id on the parked task's own core rather than moving the task
+  ([0138](0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)).
 
 ## Runtime, tooling and the standard library
 

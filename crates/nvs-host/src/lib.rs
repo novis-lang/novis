@@ -78,6 +78,16 @@
 //! takes — [`Wake`], through the task tree, because a running task cannot reach
 //! the scheduler that is resuming it.
 //!
+//! [`mod@block_on`] is the one place in this tree that speaks `Future`, and
+//! [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! is why it is a loop rather than a runtime: an HTTP/1 connection is one
+//! future, driven to completion on the coroutine that accepted it, whose waker
+//! is a permission to poll again and nothing else. Nothing is spawned, nothing
+//! is queued, and a wake fired from another thread queues an id on the parked
+//! task's own core rather than moving the task. That module's doc owns the
+//! ordering that makes a lost wakeup impossible and the one permission a whole
+//! connection costs.
+//!
 //! [`watchdog`] is ADR 0106 § 7: one thread for the process, reading the
 //! earliest deadline each core publishes through [`timer::DeadlineView`] and
 //! reporting a core that has been behind its own clock by a margin. It reads
@@ -86,6 +96,7 @@
 //! does.
 
 pub mod affinity;
+pub mod block_on;
 pub mod blocking;
 pub mod channel;
 pub mod group;
@@ -100,6 +111,7 @@ pub mod tls;
 pub mod watchdog;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};
+pub use block_on::block_on;
 pub use blocking::BlockingPool;
 pub use channel::{Receiver, RecvError, SendError, Sender, TryRecvError, TrySendError, channel};
 pub use group::SchedulerHost;
