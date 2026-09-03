@@ -639,11 +639,16 @@ pub(crate) fn check_options_arg(
     let mut written: Vec<WrittenKey<'_>> = Vec::with_capacity(fields.len());
     for field in fields {
         let name = span_text(env.src, field.name);
-        let declared = options
-            .iter()
-            .find(|option| option.name == name)
-            .map(|option| option.ty);
-        let ty = check_arg(&field.value, declared, live, scope, ctx, env);
+        let slot = options.iter().find(|option| option.name == name);
+        let declared = slot.map(|option| option.ty);
+        let ty = match slot {
+            // ADR 0135 § 3's classification, which is on the field: a sink key
+            // is checked here so that its refusal can say what to do about it.
+            Some(option) if option.qual == Some(Qual::Sink) => {
+                check_shape_field(&field.value, option, live, scope, ctx, env)
+            }
+            _ => check_arg(&field.value, declared, live, scope, ctx, env),
+        };
         if declared.is_none() {
             let names = option_names(options);
             env.diags.report(
@@ -677,6 +682,59 @@ pub(crate) fn check_options_arg(
     let arm = select_arm(shape, &written, env);
     report_against_arm(value, shape, arm, &written, env);
     options_ty
+}
+
+/// [`check_arg`] for a shape key ADR 0135 § 3 classifies [`Qual::Sink`] —
+/// `Db\Settings`'s `host` and its `path`, which are the two the registry
+/// declares.
+///
+/// **The check is the ordinary one and stays so.** The declared type is the
+/// plain atom, so [`is_assignable`] refuses a `tainted` value with no help
+/// from the mark; what the mark buys is the *diagnostic*. ADR 0067 § 3 gives a
+/// host no launderer — no string check can establish that an address is safe
+/// to send a credential to — so a reader told only "expected `string`, found
+/// `tainted string`" has nowhere to go, and `Core\Taint::assertTrusted` is the
+/// one way through that exists.
+///
+/// **The help is attached here and not at an ordinary sink parameter**, where
+/// the same refusal has a different answer: a `tainted` value at
+/// `Core\Db::query`'s statement text is a bound parameter's job (ADR 0024
+/// § 4) and at the HTML sink it is `Core\Html::escape`'s, so naming the escape
+/// hatch there would push the wrong fix at every one of them. A shape key that
+/// *does* gain a launderer is where this grows its second case.
+fn check_shape_field(
+    value: &Expr,
+    field: &crate::ty::CoreShapeField,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    // `infer` rather than `check_expr`, for [`check_arg_admitting_quals`]'
+    // reason: the expectation still shapes an array or a closure literal, and
+    // the comparison is made here so that exactly one of the two branches
+    // below reports the refusal.
+    let actual = infer(value, Some(field.ty), live, scope, ctx, env);
+    if is_assignable(actual, field.ty, env.interner, env.graph, env.signatures) {
+        return actual;
+    }
+    // Only where the qualifier is the whole objection. A `tainted int` at a
+    // `string` key is two mistakes, and `Core\Taint::assertTrusted` fixes
+    // neither of them — that one reads as the plain mismatch it is.
+    let laundered = untainted(actual, env.interner);
+    let qualifier_alone = carries_tainted(actual, env.interner)
+        && is_assignable(laundered, field.ty, env.interner, env.graph, env.signatures);
+    let mut diag = mismatch(value.span, field.ty, actual, env);
+    if qualifier_alone {
+        diag = diag.with_help(format!(
+            "`{}` is a sink and no `Core` member launders one for it: the only way through is \
+             `Core\\Taint::assertTrusted($value, $reason)`, which is forbidden by default, \
+             greppable, and carries in the source the reason the value can be trusted",
+            field.name
+        ));
+    }
+    env.diags.report(diag);
+    actual
 }
 
 /// Whether the merged slot for this key accepts the value written there — i.e.
@@ -1530,6 +1588,7 @@ mod tests {
             name: name.to_owned(),
             ty,
             required,
+            qual: None,
         };
         let shape = [key("driver", true), key("host", true), key("port", false)];
 

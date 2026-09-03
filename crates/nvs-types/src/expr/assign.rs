@@ -292,15 +292,32 @@ pub(crate) fn shape_satisfied(
 }
 
 pub(crate) fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'_>) {
+    let diag = mismatch(span, expected, actual, env);
+    env.diags.report(diag);
+}
+
+/// [`report_mismatch`]'s diagnostic, built and not yet reported — for the one
+/// caller that has something to add to it.
+///
+/// The wording is the same either way on purpose: a mismatch that reads
+/// differently depending on which pass noticed it is two diagnostics for one
+/// mistake. What a caller adds is a `help:`, which is the part of a diagnostic
+/// that is allowed to know more than the types do —
+/// `crate::expr::args::check_shape_field` knows the refused key is a sink and
+/// can therefore name the way through.
+pub(crate) fn mismatch(
+    span: Span,
+    expected: TypeId,
+    actual: TypeId,
+    env: &mut Env<'_>,
+) -> Diagnostic {
     let expected_desc = env.interner.describe(expected);
     let actual_desc = env.interner.describe(actual);
-    env.diags.report(
-        Diagnostic::error(
-            code::E_TYPE_MISMATCH,
-            format!("expected `{expected_desc}`, found `{actual_desc}`"),
-        )
-        .with_primary(span, format!("this is `{actual_desc}`")),
-    );
+    Diagnostic::error(
+        code::E_TYPE_MISMATCH,
+        format!("expected `{expected_desc}`, found `{actual_desc}`"),
+    )
+    .with_primary(span, format!("this is `{actual_desc}`"))
 }
 
 /// Checks a `return expr;`'s value against the method's declared return

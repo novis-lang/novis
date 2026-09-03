@@ -146,7 +146,9 @@
 ///   `secret` value into a pattern exposes it exactly as much as not quoting
 ///   it did, so a `Launder` row that also admitted `secret` would leak at
 ///   every one of the sites that mark exists to make safe.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// `Hash` because `nvs_types::ty::CoreShapeField` carries one — ADR 0135 § 3's
+// classification lands on the field, and a `Ty` is interned by hash.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Qual {
     /// A qualified argument yields a qualified result — the overwhelming
     /// majority, and the blank cell in the spec's Q column.

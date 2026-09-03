@@ -367,8 +367,9 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
         }
         // Substituted in place, never through `shape`: a bag and a shape
         // parameter both keep their declared order because that order is their
-        // ABI (`Ty::CoreShape`), and the required flag rides along untouched —
-        // substitution rewrites a key's type, never whether it must be written.
+        // ABI (`Ty::CoreShape`), and the required flag and the classification
+        // ride along untouched — substitution rewrites a key's type, never
+        // whether it must be written and never what it is a sink for.
         Ty::CoreShape(shape) => {
             let substitute_fields =
                 |fields: &[crate::ty::CoreShapeField], interner: &mut TypeInterner| {
@@ -378,6 +379,7 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
                             name: field.name.clone(),
                             ty: substitute(field.ty, bindings, interner),
                             required: field.required,
+                            qual: field.qual,
                         })
                         .collect::<Vec<_>>()
                 };

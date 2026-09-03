@@ -247,7 +247,7 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
     let throwable = interner.class(QName::parse(ROOT));
     let null = interner.null();
     let previous = interner.make_union([throwable, null]);
-    let options = interner.options(vec![("previous".to_owned(), previous)]);
+    let options = interner.options(vec![("previous".to_owned(), previous, None)]);
     [(
         "constructor".to_owned(),
         MethodSig {
@@ -346,7 +346,7 @@ mod tests {
         // orders its members by type id, so the rendering is not stable.
         assert_eq!(
             sig.params[1],
-            interner.options(vec![("previous".to_owned(), previous)])
+            interner.options(vec![("previous".to_owned(), previous, None)])
         );
         assert_eq!(sig.required(), 1);
         assert_eq!(

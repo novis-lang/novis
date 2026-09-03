@@ -534,7 +534,13 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         CoreTy::Options(options) => {
             let options = options
                 .iter()
-                .map(|option| (option.name.to_owned(), lower(&option.ty, interner)))
+                .map(|option| {
+                    (
+                        option.name.to_owned(),
+                        lower(&option.ty, interner),
+                        qual_of(&option.ty),
+                    )
+                })
                 .collect();
             interner.options(options)
         }
@@ -587,6 +593,13 @@ fn merge_shape_arms(
             name: name.to_owned(),
             ty,
             required,
+            // The first arm that declares the name, which is the slot's own
+            // declaration order: § 3 merges the *type* of a name two arms
+            // share and nothing merges a classification, because a name
+            // classified two ways would be one ABI slot with two rules. No
+            // registry row writes one, and `SETTINGS`' shared `driver`,
+            // `timeZone` and `timeout` classify nothing at all.
+            qual: qual_of(&declared[0].ty),
         });
     }
     merged
@@ -608,6 +621,7 @@ fn lower_arm(
             name: field.name.to_owned(),
             ty: lower(&field.ty, interner),
             required: field.default.is_none(),
+            qual: qual_of(&field.ty),
         })
         .collect()
 }
@@ -1655,7 +1669,7 @@ mod tests {
         let four = interner.int_literal(4);
         let six = interner.int_literal(6);
         let version = interner.make_union([four, six]);
-        let expected = interner.options(vec![("version".to_owned(), version)]);
+        let expected = interner.options(vec![("version".to_owned(), version, None)]);
         assert_eq!(sig.params[1], expected);
         // A literal is its own type, not the `int` it erases to — the whole
         // point of ADR 0047 § 1 at this position.

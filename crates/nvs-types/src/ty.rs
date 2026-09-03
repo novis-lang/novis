@@ -15,6 +15,7 @@
 //! same `TypeId` regardless of how each was written.
 
 use nvs_hir::QName;
+use nvs_stdlib::registry::Qual;
 use rustc_hash::FxHashMap;
 
 /// A type, interned. Cheap to copy and compare — two `TypeId`s are equal
@@ -380,6 +381,22 @@ pub struct CoreShapeField {
     /// ADR 0135 § 1's `CoreField::default` read the other way round: a field
     /// with no default is required.
     pub required: bool,
+    /// ADR 0135 § 3's qualifier classification, which lands on the **field**
+    /// and never on the parameter: `Db\Settings`'s `host` is a [`Qual::Sink`]
+    /// because ADR 0067 § 3 makes an address one, while the parameter holding
+    /// it classifies nothing at all.
+    ///
+    /// `None` where the registry's own type carries no classification — every
+    /// field whose type is not one of the qualifiable atoms, and every option
+    /// of a bag [`crate::error_lib`] seeds rather than a registry row.
+    ///
+    /// It is here for the *diagnostic* and not for the check: the declared
+    /// [`ty`](Self::ty) already refuses a qualified value at a
+    /// [`Qual::Sink`], and what the mark adds is that
+    /// `crate::expr::args::check_shape_field` can say what the way through is
+    /// rather than leaving a reader with a bare `expected string, found
+    /// tainted string`.
+    pub qual: Option<Qual>,
 }
 
 /// Interns [`Ty`] values, giving structurally identical types the same
@@ -832,15 +849,20 @@ impl TypeInterner {
     ///
     /// Two callers, and both seed a signature the program did not write:
     /// [`crate::core_lib`] for a `Core` member's bag, and [`crate::error_lib`]
-    /// for the exception constructor's `{previous}`.
+    /// for the exception constructor's `{previous}`. Each option carries its
+    /// own [`CoreShapeField::qual`] — a bag option is classified exactly as a
+    /// shape field is, `Core\Cli\Progress::advance`'s `label` being a
+    /// [`Qual::Launder`] — and `None` where the caller has no registry row
+    /// behind it.
     #[must_use]
-    pub fn options(&mut self, options: Vec<(String, TypeId)>) -> TypeId {
+    pub fn options(&mut self, options: Vec<(String, TypeId, Option<Qual>)>) -> TypeId {
         let fields: Vec<CoreShapeField> = options
             .into_iter()
-            .map(|(name, ty)| CoreShapeField {
+            .map(|(name, ty, qual)| CoreShapeField {
                 name,
                 ty,
                 required: false,
+                qual,
             })
             .collect();
         // A bag is ADR 0135 § 2's one-arm case, and carries that arm rather
