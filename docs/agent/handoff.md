@@ -2,56 +2,61 @@
 
 ## State
 
-**M8 goal 5, stage 7. SQL Server reaches every member ADR 0067 declares.** § 7's `begin`, `commit`
-and `roll_back` are on disk at `crates/nvs-db/src/tds.rs:5025` over a new `batch_command` — the
-driver's only text path, and no caller's SQL ever reaches it — and `Transacting`
-(`crates/nvs-stdlib/src/db.rs:4452`) has its fourth arm, so `transaction` runs on four drivers.
+**M8 goal 5, stage 8. SQL Server has a real-server leg.** `crates/nvs-db/tests/handshake.rs:1057`
+asks that server the three facts the other three legs ask — `encrypt_option` from
+`sys.dm_exec_connections` for § 3's tunnelled TLS, `SUSER_SNAME()` for the login LOGIN7 named, and
+`18456` with an empty SQLSTATE for a password it cannot verify — and the first of them rides § 1's
+`sp_prepexec`, so a green leg has carried a prepare, an execution and a result set through the
+tunnel. `python tools/db-matrix.py --driver mssql` is green.
 
-**Two T-SQL rules are this driver's alone and their doc comments are their home.** There is no
-`RELEASE SAVEPOINT`, so a nested commit sends nothing and moves only the depth (a `COMMIT
-TRANSACTION` there would commit the whole transaction). And `SET TRANSACTION ISOLATION LEVEL` is
-*session*-scoped, so `TdsConn::isolation_moved` (`crates/nvs-db/src/conn.rs:814`) records a restore
-that the outermost commit or rollback pays — and that the next outermost `begin` pays instead when a
-refused commit ended the transaction before it could. `{readOnly: true}` is an `InvalidInput` naming
-the fix: SQL Server has no read-only transaction at all.
+**§ 7 does not work against a real SQL Server, and the driver is why.** Writing the nesting twin
+found it: the first statement after `TdsConn::begin` is refused with driver code **3989**, *"New
+request is not allowed to start because it should come with valid transaction descriptor."* Once a
+transaction is open the server hands back a descriptor in an `ENVCHANGE` of type 8, and every later
+request must carry it in `ALL_HEADERS`; this driver drops types 8/9/10 into `EnvChange::Other`
+(`crates/nvs-db/src/tds.rs:2389`) and writes a zero descriptor on every request. `tds.rs`'s scripted
+peer cannot see this — it answers whatever the client wrote — which is exactly the gap a real server
+was added to close. **The nesting test is not on disk**: it fails for a driver reason, and a red leg
+would read as a fixture regression against stage 6's `mssql: ok`. It is the second item below and
+the `##`-table note it needs is in that item.
 
-**Known gap 2 is one roster again** — `HAS_A_DRIVER` (`crates/nvs-stdlib/src/db.rs:4669`), SQLite the
-whole of it — and `driverless` no longer takes a roster argument. That argument is how `executeMany`
-came to render the *transaction* roster and leave SQL Server out of a sentence about a member it runs.
+The standing acceptance failure is still stage 9's `an_open_host_matching_no_grant_is_a_diagnostic`,
+`nvs_types::intrinsics`' known gap 6, and is not this goal's to close.
 
-**No TDS path is exercised against a real server yet**: `crates/nvs-db/tests/handshake.rs` has no SQL
-Server leg at all, which is the next group. The standing acceptance failure is still stage 9's
-`an_open_host_matching_no_grant_is_a_diagnostic`, `nvs_types::intrinsics`' known gap 6, and is not
-this goal's to close.
-
-`orient.py`'s map printed `nvs-stdlib`'s `json`, `registry` and `time` but not `db` — the goal's
-central stdlib file. Its `[context] modules` needs `nvs-stdlib/src/db.rs`.
+`orient.py`'s map still prints `nvs-stdlib`'s `json`, `registry` and `time` but not `db`; the goal's
+`[context] modules` needs `nvs-stdlib/src/db.rs`.
 
 ## Next group
 
-**One file set: `crates/nvs-db/tests/handshake.rs` with `crates/nvs-db/src/matrix.rs`.** Every other
-driver has a real-server leg and TDS has none, so what the unit tests cannot reach — that a real SQL
-Server accepts these bytes at all — is unasserted from the handshake up.
+**One file set: `crates/nvs-db/src/tds.rs` with `crates/nvs-db/tests/handshake.rs`.** The first item
+is the driver fix the second and third items are unwritable without.
 
-- [ ] **SQL Server's handshake and one statement over a real server** (0067 §§ 3, 1).
-      `crates/nvs-db/tests/handshake.rs:198`, `crates/nvs-db/tests/handshake.rs:230`,
-      `crates/nvs-db/src/matrix.rs:107`. `mysql()`/`mysql_open` are the shape: an
-      `NVS_DB_MATRIX_*` endpoint or an early `return`, which is the skip rule the whole crate
-      shares. `tools/db-matrix.py` already points the mssql leg at a server with a `certs` leaf, so
-      § 3's tunnelled TLS and `tls_ca_file` are what this first asserts.
-- [ ] **§ 7's nesting on that server** (0067 § 7). `crates/nvs-db/tests/handshake.rs:568`,
-      `crates/nvs-db/src/tds.rs:5025`. `a_mysql_transaction_nests_to_a_savepoint_and_rolls_back_to_it`
-      is the twin to copy; what is new here is that the server accepts `SAVE TRANSACTION` and
-      `ROLLBACK TRANSACTION <name>` as spelled, and that a nested commit really does leave the outer
-      transaction open with nothing sent.
+- [ ] **Every request after a `BEGIN` carries the transaction descriptor** (0067 § 7).
+      `crates/nvs-db/src/tds.rs:1740` (`EnvChange`, which needs a `Transaction` arm),
+      `crates/nvs-db/src/tds.rs:2368` (`env_change`, where types 8/9/10 fall into `Other` — the new
+      value is a `B_VARBYTE`, eight octets for a begin and empty for a commit or a rollback),
+      `crates/nvs-db/src/tds.rs:4341` (`ALL_HEADERS_BYTES` and the `all_headers` that writes the
+      zero), `crates/nvs-db/src/tds.rs:4429` (`rpc_header`, which every request body goes through),
+      `crates/nvs-db/src/conn.rs:772` (`TdsConn`, where the descriptor sits beside `depth` as a
+      `Cell<u64>` the token reader can write to, the way `state` already is). A reset must clear it
+      with `depth`, at `crates/nvs-db/src/tds.rs:5465`.
+- [ ] **§ 7's nesting on that server** (0067 § 7). `crates/nvs-db/tests/handshake.rs:1126` — the
+      twin of `a_mysql_transaction_nests_to_a_savepoint_and_rolls_back_to_it`
+      (`crates/nvs-db/tests/handshake.rs:651`), three inserts arranged so a bare `ROLLBACK
+      TRANSACTION` answers `3` rather than `1,3`. The table must be a `##` global one: § 1 sends
+      every statement through `sp_prepexec`, and a `#temp` created inside dynamic SQL dies with that
+      batch. `STRING_AGG(CAST(id AS varchar(11)), ',') WITHIN GROUP (ORDER BY id)` is
+      `GROUP_CONCAT`'s spelling here. An `mssql_run` helper goes beside
+      `crates/nvs-db/tests/handshake.rs:452`.
 - [ ] **§ 13's reset from inside a transaction, and the level it puts back** (0067 § 13).
-      `crates/nvs-db/tests/handshake.rs:780`, `crates/nvs-db/src/tds.rs:5193`. The reset clears both
-      of § 7's counters; a real server is where "`sp_reset_connection` also puts the isolation level
-      back" stops being this driver's claim about MS-TDS and becomes a measurement.
+      `crates/nvs-db/tests/handshake.rs:1126`, over `crates/nvs-db/src/tds.rs:5465`. What only a
+      server can say is that `sp_reset_connection` rolled the open transaction back and that
+      `DBCC USEROPTIONS` reports the login's isolation level again.
 
 ## Backlog
 
-- A `bytes` parameter is still refused on TDS; closing it is a § 1 cache-key question — `crates/nvs-db/src/tds.rs`'s module doc owns why.
-- SQLite is known gap 2's whole remainder: no connection path at all — `crates/nvs-stdlib/src/db.rs:3220`.
-- `examples/transaction.nvs` runs against PostgreSQL only — `docs/agent/loop-goal.toml` stage 5.
-- Stage 9's `an_open_host_matching_no_grant_is_a_diagnostic` — `nvs-types`, known gap 6, another goal's.
+- Stage 6's `nvs-db` check names no SQL Server handshake test — `docs/agent/loop-goal.toml:2976`.
+- `[context] modules` is missing `nvs-stdlib/src/db.rs` — `docs/agent/loop-goal.toml`.
+- Stage 9's `an_open_host_matching_no_grant_is_a_diagnostic` — `nvs_types::intrinsics`' known gap 6.
+- Known gap 2's remainder is SQLite alone — `crates/nvs-stdlib/src/db.rs:4669`.
+- SQL Server has no read-only transaction, so `{readOnly: true}` is an `InvalidInput` — ADR 0067 § 7.

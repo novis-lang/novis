@@ -2301,6 +2301,15 @@ is why" — is this file.
   green. Confirm once by *breaking* the case's own assertion and re-running the tool: a leg that names
   your case in its `FAILED` line ran it, and everything above the broken line passed on a real server.
   Then revert. Two calls, and it is the only evidence the matrix can give you.
+- **`tools/db-matrix.py` cannot run one test, and hand-setting `NVS_DB_MATRIX_*` to do it has two
+  traps that both surface as a failing assertion rather than as a bad setup.** `cargo test` runs
+  with the *crate* as its working directory, so `NVS_DB_MATRIX_CA=tests/db/ca.crt` resolves under
+  `crates/nvs-db/` and the handshake fails `NotFound` on a path that exists; and the credential is
+  not in that directory at all — `tests/db/compose.yaml`'s `MSSQL_SA_PASSWORD`, `MYSQL_PASSWORD`
+  and their siblings are its one home, which is why `matrix.rs` carries no default for one. Give
+  the anchor as an absolute path, take the password out of the compose file, and treat
+  `python tools/db-matrix.py --driver <name> --no-up` as the authoritative answer — the by-hand
+  run is only for reading the panic message a whole-suite `FAILED` line does not print.
 
 ## Writing a test case
 
