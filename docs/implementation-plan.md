@@ -45,10 +45,9 @@
 > is whole**, § 3's upgrade through § 13's reset.  § 9's type map decodes over it and § 7 nests as a
 > `SAVEPOINT` to any depth. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect` over a
 > memoized connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and `executeMany` ,
-> **`open` is live** and pools on § 13's settings hash.  **`queryAs<T>` hydrates** over
-> `ClassDesc::db_codec` into the `Core\Time`/`Core\Uuid` instances `Row`'s typed readers answer
-> with, and § 6's *request* converts — a `TINYINT(1)` reads as `bool` and a stored `7` throws.  **§
-> 13's pool is complete**, **ADR 0084 § 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue
+> **`open` is live**.  **`queryAs<T>` hydrates** over `ClassDesc::db_codec` into the
+> `Core\Time`/`Core\Uuid` instances `Row`'s typed readers answer with, and § 6's *request* converts.
+> **§ 13's pool is complete**, **ADR 0084 § 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue
 > migrate` applies § 2's schema in either dialect, §§ 1, 4 and 6 run on both, a worker runs on all
 > three, and real servers hold every statement it sends**. **MySQL and MariaDB both run a block end
 > to end**: `connect` and `open` pool either, §§ 1, 3, 5, 7, 9 and 13 follow each driver's own, and
@@ -59,9 +58,10 @@
 > `as string` refuse one. **Goals 1-5 and M4 are closed**. **`crates/nvs-server` runs an h1 request
 > as goal 2's `Isolate`**: a coroutine per connection, `hyper` under `block_on` (ADR 0138), `echo`
 > is the body, ADR 0097 §§ 4-5 bound and route it; `nvs serve` boots the whole mount table on one
-> core and § 4's static policy sends a file; `E0621` refuses a mount. **Stage 10's corpus opened**:
-> § 5's bindings, § 6's naming, § 7's flag. Conformance 1447, differential 256, migration 100%;
-> valgrind green.
+> core and § 4's static policy sends a file; `E0621`/`E0622` refuse a mount and a zero ceiling; §
+> 5's ceiling is an arithmetic against the memory budget, `503` before an isolate exists. **Stage
+> 10's corpus opened**: § 5's bindings, § 6's naming, § 7's flag. Conformance 1447, differential
+> 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

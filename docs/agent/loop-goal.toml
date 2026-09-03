@@ -100,6 +100,11 @@ adrs = [
   # Added when the request slice landed: every remaining stage-2 slice puts a bound on a connection or
   # on an outbound call, and § 5 is the one list of what those waits are called and what they default to.
   "0074 §5",
+  # Added when `max_in_flight` landed: 0097 § 5 states the ceiling but hands the *arithmetic* to this
+  # section, so an item naming "as amended by ADR 0106" arrives without the rule it is asked to keep.
+  # Every remaining `[server]` bound — the accept backoff (§ 8) and the wedged-core watchdog (§ 7) — is
+  # the same shape, so this is the section the whole block resolves against.
+  "0106 §13",
 ]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
