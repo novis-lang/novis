@@ -6615,6 +6615,17 @@ sibling in the same namespace unqualified.
   bits rather than a fourth method over them. The tell is a read that works against a hand-written
   transcript ending in a plain `DONE` and fails the moment the transcript is the shape a real RPC
   answers with.
+- **`nvs_stdlib::db::rendering_for` is `crate::queue`'s roster too, so giving a driver an encoder
+  fails two tests in a file you never opened.** `queue.rs`'s
+  `the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send` and
+  `the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one` both asked
+  `rendering_for(driver).is_some()` as "the queue can send over this one", which was true only
+  while `Core\Db`'s roster and ADR 0084 § 2's schema list were the same three drivers. SQL Server
+  gaining `nvs_db::tds::encode` parted them, and both failures name the queue rather than the
+  encoder that moved. The general shape: a `pub(crate)` predicate that a second module borrows as a
+  proxy for *its* roster is a coupling no signature shows, and the borrowing module's own doc is
+  where it is written down — `grep -rn '<fn>' crates/<crate>/src` before widening what one answers
+  `Some` for, and read the doc comment on each hit, not just the call.
 
 ## Divergences and refusals already pinned
 
