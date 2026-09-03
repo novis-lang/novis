@@ -1,0 +1,53 @@
+--TEST--
+A statement binds by position from a list-keyed array and by name from a string-keyed one, and a `:name` written twice reads one value the call site supplied once — ADR 0067 § 5
+--FILE--
+<?nvs
+// SQLite needs no server, so this case really prepares, binds and steps rather
+// than checking a signature — db-a-sqlite-block-opens-a-file-and-runs-
+// statements-over-it.nvst is where that is argued. This one asks only about
+// § 5's two spellings of a parameter.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute("create table t (id integer primary key, name text, label text)", []);
+
+// The positional form: a list-keyed array, one value per `?`, in the order the
+// markers appear. Nothing names anything, so nothing can be reordered either.
+var $one = $db->execute("insert into t (name, label) values (?, ?)", ["ada", "founder"]);
+echo "positional ", $one->affected(), "\n";
+
+// The named form: a string-keyed array, its keys the markers without their
+// `:`. They are written here in the opposite order to the one the statement
+// reads them in, which is what naming them buys — the array above has no
+// spelling for that, since its own order *is* the binding.
+var $two = $db->execute(
+    "insert into t (name, label) values (:name, :label)",
+    ["label" => "admiral", "name" => "grace"],
+);
+echo "named ", $two->affected(), "\n";
+
+// § 5: "a `:name` used twice binds one value once — which positional form
+// cannot express." One key is written and the statement reads it on both sides
+// of the `or`, so the same two-marker statement asks about the `name` column
+// for one call and about the `label` column for the next.
+var $either = "select name from t where name = :who or label = :who order by id";
+foreach ($db->query($either, ["who" => "grace"]) as Row $row) {
+    echo "by name ", $row->string("name") ?? "null", "\n";
+}
+foreach ($db->query($either, ["who" => "founder"]) as Row $row) {
+    echo "by label ", $row->string("name") ?? "null", "\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+positional 1
+named 1
+by name grace
+by label ada
