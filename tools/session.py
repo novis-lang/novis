@@ -136,6 +136,7 @@ PACK_NOTE_AT = 1_500
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import plan as planmod  # noqa: E402  -- the status block's one home; never reimplemented here
 import orient  # noqa: E402  -- its ANCHOR_RE is what the next pack expands, so it is what we gate on
+import playbook as playbookmod  # noqa: E402  -- bullet parsing has one home and it is not here
 
 
 def say(line: str = "") -> None:
@@ -470,6 +471,15 @@ def validate(sections: list[Section]) -> list[str]:
                               f"playbook.md has: {', '.join(heads)}")
             if not s.body.lstrip().startswith("-"):
                 errors.append(f"`## playbook: {s.arg}` -- a playbook entry is a `- ` bullet")
+            else:
+                for sel in playbook_collisions(s.arg, s.body):
+                    errors.append(
+                        f"`## playbook: {s.arg}` -- appending this bullet leaves "
+                        f"{sel!r} reachable by no selector, so `orient.py` can no longer hand "
+                        f"that trap to a goal that names it. Reword this bullet's lead-in: it "
+                        f"is the first sentence in bold, and it has to differ from the one it "
+                        f"collides with by more than its tail."
+                    )
         elif s.kind == "status":
             first = s.body.strip().split("\n")[0]
             if not first.startswith(STATUS_WORDS):
@@ -656,24 +666,61 @@ def apply_milestone(s: Section, dry: bool) -> str:
     return note
 
 
-def apply_playbook(s: Section, dry: bool) -> str:
-    text = PLAYBOOK.read_text(encoding="utf-8")
-    span = heading_index(text, s.arg)
-    assert span is not None  # validate() proved it
+def playbook_with(text: str, heading: str, body: str) -> str | None:
+    """`text` with this bullet appended under `heading`; None if there is no such heading.
+
+    The one home of *where* an appended bullet lands. `apply_playbook` writes what this returns
+    and `playbook_collisions` asks what it would mean, so the check and the write cannot end up
+    describing two different files."""
+    span = heading_index(text, heading)
+    if span is None:
+        return None
     lines = text.split("\n")
-    _start, end = span
     # Append at the end of the section's own bullets, before whatever heading follows, keeping
     # exactly one blank line ahead of that heading. This file is append-mostly by decision
     # (AGENTS.md § *Keep each slice small*); nothing here rewrites a bullet that is already there.
-    at = end
+    at = span[1]
     while at > 0 and not lines[at - 1].strip():
         at -= 1
-    bullet = s.body.rstrip().split("\n")
-    if dry:
-        return f"playbook: + {len(bullet)} line(s) under {s.arg!r}"
-    lines[at:at] = bullet
-    PLAYBOOK.write_text("\n".join(lines), encoding="utf-8", newline="")
-    return f"playbook: + {len(bullet)} line(s) under {s.arg!r}"
+    lines[at:at] = body.rstrip().split("\n")
+    return "\n".join(lines)
+
+
+def playbook_collisions(heading: str, body: str) -> list[str]:
+    """Selectors this bullet would make unreachable -- reported as a difference, not a total.
+
+    A lead-in two bullets share makes *both* of them unfetchable, and `orient.py` fetches a trap
+    by exactly that string, so an appended bullet can silently cost the session a trap it already
+    had. This is the moment that is cheap to catch: the collision exists because of the wording
+    in front of us, and rewording it now costs a line.
+
+    Only what this append would *introduce* is reported. A selector already unreachable in the
+    committed file is `playbook.py --check`'s finding to raise, and blocking this wrap over it
+    would charge one session for another session's collision."""
+    text = PLAYBOOK.read_text(encoding="utf-8")
+    after = playbook_with(text, heading, body)
+    if after is None:
+        return []  # validate() reports the missing heading itself
+
+    def unreachable(t: str) -> set[str]:
+        out = set()
+        for b in playbookmod.all_bullets(t):
+            hits, complaint = orient.slice_bullets(t, b["selector"])
+            if complaint or len(hits) != 1:
+                out.add(b["selector"])
+        return out
+
+    return sorted(unreachable(after) - unreachable(text))
+
+
+def apply_playbook(s: Section, dry: bool) -> str:
+    text = PLAYBOOK.read_text(encoding="utf-8")
+    new = playbook_with(text, s.arg, s.body)
+    assert new is not None  # validate() proved the heading is there
+    n = len(s.body.rstrip().split("\n"))
+    if not dry:
+        PLAYBOOK.write_text(new, encoding="utf-8", newline="")
+    return f"playbook: + {n} line(s) under {s.arg!r}"
 
 
 def apply_handoff(s: Section, dry: bool) -> str:
