@@ -1479,6 +1479,59 @@ mod tests {
         assert_eq!(conn.depth(), 0);
     }
 
+    /// A write that another connection's open transaction is holding the table
+    /// against is § 8's `Deadlock`, which is what makes § 7's `{retries: n}`
+    /// mean something on this backend.
+    ///
+    /// **Two connections to one database, and neither is a file.** A
+    /// `mode=memory&cache=shared` URI is a database two handles share, which is
+    /// the whole of what a lock conflict needs and is the one spelling of it
+    /// that leaves nothing on disk for a failing case to leak. `open`'s
+    /// `rusqlite::Connection::open` carries `SQLITE_OPEN_URI` in its default
+    /// flags, so the path is read as one rather than as a file with an odd
+    /// name.
+    ///
+    /// The kind is asserted and the extended code is not: a shared-cache
+    /// conflict answers `SQLITE_LOCKED` where a file conflict answers
+    /// `SQLITE_BUSY`, and § 8 maps both to the same kind precisely so a caller
+    /// never has to know which lock it lost. That is the claim `{retries: n}`
+    /// rests on, and it is the one this pins.
+    #[test]
+    fn a_lock_another_connection_holds_is_section_8s_deadlock_kind() {
+        let shared = Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(
+                "file:nvs-db-lock-conflict?mode=memory&cache=shared",
+            )),
+            ..Database::default()
+        };
+        let target = SqliteTarget::resolve(&shared).expect("the block resolves");
+        let holder = open(&target).expect("the first handle opens");
+        let waiter = open(&target).expect("the second handle opens");
+
+        holder
+            .query("create table t (v integer)", Vec::new())
+            .expect("the schema applies");
+        holder.begin(None, false).expect("the holder's transaction");
+        holder
+            .query("insert into t (v) values (1)", Vec::new())
+            .expect("the write that takes the table");
+
+        let refused = waiter
+            .query("insert into t (v) values (2)", Vec::new())
+            .expect_err("the second connection cannot have the table");
+        let server = ServerError::of(&refused).expect("a refusal carried no kind");
+        assert_eq!(server.kind, DbErrorKind::Deadlock);
+        assert_eq!(server.backend, "sqlite");
+
+        holder.commit().expect("the holder still owns its level");
+        assert_eq!(
+            waiter.depth(),
+            0,
+            "a refused statement opened no transaction on the connection that lost the lock"
+        );
+    }
+
     /// § 7's `Isolation` on the one backend that has a single level: every one
     /// of the five is accepted at the outermost level because serializable is
     /// stronger than any of them, none of them renders to a command, and a
