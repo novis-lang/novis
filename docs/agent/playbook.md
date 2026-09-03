@@ -6507,6 +6507,18 @@ sibling in the same namespace unqualified.
   name**, and `MariaConn` is a distinct type with the same surface over the same framing, so a
   second driver speaking MySQL's protocol needs a sharing seam before it needs an arm. Count the
   `Connection::` matches before pricing the slice.
+- **A refusal sentence that looks stale in a second module can be stale about a *different* thing,
+  and widening it to the first module's roster is the wrong fix.** `crate::db`'s `driverless` and
+  `crate::queue`'s gate carried the same sentence — "only PostgreSQL runs a statement so far" — so
+  when the first was widened to three drivers the second read as a copy left behind. It was not: db's
+  sentence is about which drivers can *send*, and the queue's is about which dialect its own SQL is
+  written in, and those are two rosters that happened to agree while there was one driver. Widening
+  the queue's gate to db's roster would have handed a MySQL server PostgreSQL's text. The tell is
+  cheap and it is not in either message: ask what the module would *do* with the widened case. Where
+  the answer is "the same statements", the sentence was a copy; where it is "statements it has not
+  written", the two are separate facts and the fix is to say which of them is missing. A third copy
+  of the same sentence was in `crates/nvs-cli/src/queue.rs`'s `DIALECT` doc, and its own refusal one
+  screen below had already been written the right way round — so grep the sentence, not the roster.
 
 ## Divergences and refusals already pinned
 
