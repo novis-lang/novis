@@ -59,16 +59,19 @@
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
 //!    not decide beyond `id` and `queue`, so [`COUNTS_POSTGRES`] sums `attempts` over [`JOBS_TABLE`] alone
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
-//! 5. **All four members run on either dialect; the worker still claims over PostgreSQL alone.**
+//! 5. **All four members, the worker and this module's own test legs run on either dialect.**
 //!    Three drivers send a statement — [`crate::db`]'s gap 2 is the two that do not — and each of
 //!    those three now reaches a text this module has: § 2's schema, § 4's claim and § 6's move as
 //!    [`Split`]s, § 5's three readers as ordinary second spellings, and [`queue_connection`] as
 //!    the seam that borrows the connection as whichever dialect it speaks. §§ 4 and 6's remaining
 //!    three — [`QUEUES_MYSQL`], [`SUCCEEDED_MYSQL`] and [`RETRY_MYSQL`] — are here too, so every
-//!    statement either half of § 1 sends has both texts. What is left is `nvs-cli`'s worker, which
-//!    takes a `PgConn` throughout and names the PostgreSQL half of each pair: a worker still
-//!    refuses a queue whose block is not PostgreSQL's even though `push`, `status`, `cancel` and
-//!    `stats` on the same block do not.
+//!    statement either half of § 1 sends has both texts, and `nvs-cli`'s worker opens, claims and
+//!    reports over whichever of the three its block names. `crates/nvs-stdlib/tests/queue.rs` is
+//!    what says those texts are ones a *server* accepts rather than ones this module agrees with
+//!    itself about: § 2's schema, § 4's claim, § 6's two write-backs and its move run against a
+//!    real MySQL and a real MariaDB there, beside the PostgreSQL cases they were written from.
+//!    What is left is the two drivers that send no statement at all, which is [`crate::db`]'s
+//!    gap 2 and not this module's to close.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
