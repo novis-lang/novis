@@ -5001,6 +5001,21 @@ is why" — is this file.
   `a_two_statement_literal_query_is_a_diagnostic`. So the search for "is this already pinned" runs over
   the goal file's *other checks* before it runs over the corpus: `grep -n` the drafted name's distinctive
   words with the underscores swapped in. A claim listed twice reads as open work forever and buys nothing.
+- **No `.nvst` case can reach a live queue, and the two that look as though they do point at a dead
+  port on purpose — but a `.nvst` case *can* reach a live database.** `Core\Queue`'s statements
+  exist for PostgreSQL and MySQL only (`crate::db`'s gap 2: SQLite sends nothing), so a
+  `[queue] connection` naming a `[db.main]` with `driver = "sqlite"` does not degrade to a refusal
+  about the missing schema — `Core\Queue::stats` throws a `RuntimeError` naming the *driver* before
+  it asks the server about a table, and the run prints four `no queue worker started` warnings to
+  stderr besides. `nvs queue migrate` cannot rescue it either: it is a CLI subcommand and `--RUN--`'s
+  roster is closed to `run`/`test`/`config dump`, so no case can create ADR 0084 § 2's schema. Every
+  *runtime* claim about a queue therefore belongs in a `-p nvs-stdlib` `#[test]` or under
+  `tests/db/`, which is why every `queue-*.nvst` calling `push` ends in `--EXPECTF-ERROR--` and
+  pins the type surface instead. `Core\Db` is the opposite and the lever this whole goal was
+  missing: a `[db.main]` with `driver = "sqlite"` and `path = ":memory:"` really opens inside a
+  case, so §§ 1, 4, 5, 7 and 13 are all assertable with no server, no container and no oracle
+  skip — and `:memory:` being per *connection* is the sharpest instrument there is for asking
+  whether two calls answered with one connection or two.
 
 ## Splitting a file that got too big
 
