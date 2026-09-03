@@ -1698,6 +1698,16 @@ is why" — is this file.
   `grep` of the file you were about to write it into. What the session then owes is the *comment*,
   in both `docs/agent/loop-goal.toml` and `docs/agent/goals/5-database.toml`: they carry the same
   check text, and fixing one leaves the other saying the feature does not exist.
+- **Taking a C dependency fails `--check-c-deps` on more crates than you took, and one of them is
+  never compiled.** Adding `rusqlite` to `nvs-db` put *two* `links =` crates in the shipped graph:
+  `libsqlite3-sys`, which is the real one, and `sqlite-wasm-rs`, which `libsqlite3-sys` names only
+  under `cfg(target_arch = "wasm32")` and which nothing in this tree ever builds. The gate reports
+  both identically, because `tools/gen-attribution.py`'s enumeration is deliberately host- *and*
+  target-independent — the same property that lists `windows-sys` on Linux. Do not go looking for
+  where the wasm crate got linked in; write it a `no-native-code` row naming the target gate, the
+  way `defmt`'s row names Cargo's one-version token. And run `python tools/gen-attribution.py`
+  after, not only `--check-c-deps`: new crates in the graph change `THIRD-PARTY-LICENSES.txt`, and
+  that is a second gate with a separate failure.
 
 ## Running things
 
