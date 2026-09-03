@@ -1,5 +1,5 @@
 --TEST--
-A SQLite column reads back as the type its schema *declared* rather than as the storage class the cell arrived in — a `date`, a `uuid`, a `decimal` and a `boolean` answer their own values, and a cell the declaration does not describe throws — ADR 0067 §§ 6, 9
+A SQLite column reads back as the type its schema *declared* rather than as the storage class the cell arrived in — a `date`, a `time`, a `uuid`, a `decimal` and a `boolean` answer their own values, a `blob` answers the octets it is, and a cell the declaration does not describe throws — ADR 0067 §§ 6, 9
 --FILE--
 <?nvs
 // § 9's last sentence is this backend's whole type map: "SQLite has no date or
@@ -10,43 +10,63 @@ A SQLite column reads back as the type its schema *declared* rather than as the 
 var $db = Core\Db::connect("main");
 
 var $made = $db->execute(
-    "create table t (id integer primary key, born date, ref uuid, owed decimal(10,2), live boolean)",
+    "create table t (id integer primary key, born date, opens time, ref uuid, owed decimal(10,2), live boolean, photo blob)",
     []
 );
 echo "created ", $made->affected(), "\n";
 
-// Three `TEXT` cells and one `INTEGER`, and the three are the same storage
-// class as each other: nothing about them says which is a date.
-var $wrote = $db->execute("insert into t (born, ref, owed, live) values (?, ?, ?, ?)", [
-    "2026-09-03",
-    "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
-    "1.25",
-    1,
-]);
+// Four `TEXT` cells, one `INTEGER` and one `BLOB`, and the four text ones are
+// the same storage class as each other: nothing about them says which is a
+// date and which is a clock reading. The blob is the other half of the map —
+// `blob` is a type SQLite really has, so its cell is already § 9's answer and
+// no declaration has to rescue it.
+var $wrote = $db->execute(
+    "insert into t (born, opens, ref, owed, live, photo) values (?, ?, ?, ?, ?, ?)",
+    [
+        "2026-09-03",
+        "09:30:00",
+        "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+        "1.25",
+        1,
+        "PNG" as bytes,
+    ]
+);
 echo "inserted ", $wrote->affected(), "\n";
 
 // § 6's typed readers ask nothing of SQLite: the column's declaration has
 // already decided, so `->date()` here is the same lookup and class check it is
 // against a PostgreSQL `DATE`, and `->bool()` reads a flag column the same way
 // it reads a MySQL `TINYINT(1)`.
-foreach ($db->query("select born, ref, owed, live from t", [])->all() as Core\Db\Row $row) {
+foreach ($db->query("select born, opens, ref, owed, live, photo from t", [])->all() as Core\Db\Row $row) {
     // Each reader answers `?T` because a NULL column is an ordinary absence
     // (§ 6), so the test is the one narrowing away it leaves every caller.
     var $born = $row->date("born");
+    // The `TIME` row of § 9's map, which this backend can only reach through a
+    // declaration: the cell is `TEXT` and every other text column beside it is
+    // too.
+    var $opens = $row->time("opens");
     var $ref = $row->uuid("ref");
     // A `decimal(10,2)` column has NUMERIC affinity, so SQLite has already
     // turned the bound `TEXT` into a `REAL` on the way in — the value is read
     // back for what is really stored, which is what makes the column usable.
     var $owed = $row->decimal("owed");
     var $live = $row->bool("live");
+    // `BLOB`/`bytes` is the one row of the map with no text form at all
+    // (ADR 0009), so it is compared as octets rather than printed.
+    var $photo = $row->bytes("photo");
+    var $stored = "PNG" as bytes;
     if ($born != null) {
         echo "born ", $born->format("yyyy-MM-dd"), "\n";
+    }
+    if ($opens != null) {
+        echo "opens ", $opens->format("HH:mm:ss"), "\n";
     }
     if ($ref != null) {
         echo "ref ", $ref->toString(), "\n";
     }
     echo "owed ", $owed, "\n";
     echo "live ", $live ? "yes" : "no", "\n";
+    echo "photo ", $photo == $stored ? "yes" : "no", "\n";
 }
 
 // The other half of § 9's sentence, on the same column: `20260903` is a
@@ -74,8 +94,10 @@ path = ":memory:"
 created 0
 inserted 1
 born 2026-09-03
+opens 09:30:00
 ref 3f2504e0-4f89-41d3-9a0c-0305e82c3301
 owed 1.25
 live yes
+photo yes
 inserted 1
 refused
