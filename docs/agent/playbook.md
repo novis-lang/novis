@@ -4886,6 +4886,16 @@ is why" — is this file.
   entry literally, so this is the one scope where what you write in `nvs.toml` is not what is
   compared. Also: `:memory:` is not a path and cannot be granted at all, so an `open` case that
   wants a real SQLite database needs a real file under an absolute root.
+- **A `?T` from a `Core\Db\Row` reader narrows through `if ($x != null)` and through nothing else —
+  not a declared local, and not an `&&` chain — and the scalar spelling in the case next door looks
+  like a counterexample.** `Core\Time\Date $born = $row->date("born");` is an `E0401` — expected
+  `Core\Time\Date`, found `null|Core\Time\Date` — while
+  `db-row-reads-a-column-by-type-and-answers-nullable.nvst`'s `string $unwrapped =
+  $named->string("owner");` compiles and is green, so copying that line's shape for a class-typed
+  reader costs a run. `if ($a != null && $b != null) { … }` costs a second one: the body still
+  raises `E0459` on both receivers, so the narrowing is per-`if` and does not ride a conjunction.
+  One `if` per object receiver is the shape that compiles; a `?decimal` and a `?bool` need none at
+  all, since `echo` and a ternary condition both take them.
 
 ## Splitting a file that got too big
 
