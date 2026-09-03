@@ -6715,6 +6715,29 @@ sibling in the same namespace unqualified.
   proxy for *its* roster is a coupling no signature shows, and the borrowing module's own doc is
   where it is written down — `grep -rn '<fn>' crates/<crate>/src` before widening what one answers
   `Some` for, and read the doc comment on each hit, not just the call.
+- **A pass that rewrites `nvs_config`'s typed tree has not changed what a request sees — the
+  half that reaches the runtime is the merged *table*.** `Snapshot::retype` deserializes
+  `Config` out of `Snapshot::table` afresh (and re-applies § 7's secrets over it, which is why
+  that one function exists), so `resolve()`'s in-place edits to `resolved.config` survive only
+  for the passes that run before the snapshot is built — `db::validate`, `queue::validate`,
+  `app::canonicalize`, all of which read the typed tree. `db::canonicalize` had been resolving a
+  `tls_ca_file` into a `Config` that was then thrown away: the trust check ran at the resolved
+  path while the driver opened the written fragment. The tell is cheap and nobody spent it — one
+  `nvs config dump` in a scratch directory prints the table, so a value still spelled the way the
+  operator typed it says the rewrite did not land. `app::canonicalize` is the exception that
+  makes this look fine from the neighbouring code: `Snapshot::build` reads `resolved.config.app`
+  directly, so its rewrite needs no table write and its shape is not the one to copy.
+
+- **Three of the values an operator writes into a `[db]` block's `path` are not paths, and a
+  resolver that treats them as one takes four green conformance cases down at once.** `:memory:`,
+  the empty string and any `file:` URI are SQLite's own spellings — the URI is how two handles
+  reach one shared-cache in-memory database, which is what `crates/nvs-db/src/sqlite.rs`'s
+  deadlock case rests on — and prefixing any of them with a directory produces a file name
+  nothing opens. `nvs_config::db::is_relative_file` is the predicate. A fourth trap is the same
+  shape and is Windows-only: a path written `/no-such/x` has `is_absolute() == false` there
+  because it names no drive, so joining it onto a base moves it to the base's *drive* and the
+  byte-exact `--EXPECT--` of a case that names one changes on one platform only. `Path::has_root`
+  is the test that answers the same on both.
 
 ## Divergences and refusals already pinned
 
