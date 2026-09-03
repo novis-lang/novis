@@ -2999,7 +2999,19 @@ args = ["test", "-p", "nvs-db"]
 tests = [
   "the_pool_is_per_core_and_keyed_as_connect_and_open_key",
   "postgres_resets_without_losing_its_statement_cache",
-  "mysql_and_mssql_reset_through_the_protocol_and_lose_theirs",
+  # § 13's asymmetry, which is the protocol's and not a choice: PostgreSQL's reset is a command list
+  # picked to KEEP the statement cache, and the others reset through a primitive that drops it. Split
+  # from `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs`, which paired a landed half with
+  # an unwritable one and so reported the whole claim open for twenty-five sessions. The MySQL half is
+  # `crates/nvs-db/src/mysql.rs`'s, asserting `COM_RESET_CONNECTION` went out, that the cache emptied
+  # with it, and that the same statement after it costs the prepare again; MariaDB's `reset` rides the
+  # same `crate::mysql::reset_session`, so it is that function's case and not a second one.
+  "a_reset_invalidates_the_statement_cache",
+  # The half that CANNOT be written yet, and the reason is that the feature does not exist rather than
+  # a filing bug: `crates/nvs-db/src/conn.rs`'s `TdsConn` is a stub carrying `state` and nothing else --
+  # no wire, no statement cache to lose, and no `sp_reset_connection` to lose it through. It lands with
+  # the TDS driver and not before, and until then this is the name this stage reports.
+  "mssql_resets_through_sp_reset_connection_and_loses_its_cache",
   "a_failed_reset_destroys_the_connection_rather_than_returning_it",
   "no_session_state_survives_a_return_to_the_pool",
   # The seam the four above cannot reach between them: `crates/nvs-db/tests/pool_reuse.rs` is an
