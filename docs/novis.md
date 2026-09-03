@@ -112,6 +112,7 @@ Conventions the whole file uses:
 | [`Core\Env`](#core-core-env) |  |
 | [`Core\Cap`](#core-core-cap) |  |
 | [`Core\Server`](#core-core-server) |  |
+| [`Core\Response`](#core-core-response) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
 | [`Core\Taint`](#core-core-taint) | the one way a value loses the `tainted` qualifier when no sink-named launderer fits — a call that says so by name and carries a written reason |
@@ -15752,6 +15753,67 @@ Core\Server::isDraining(): bool
 Reports whether this server has begun a graceful shutdown — the same fact `[server] health_path` answers a proxy with, for an application endpoint of its own.
 
 **Returns** `bool` — `true` once the server has stopped accepting connections, `false` while it is still accepting and in any process that is not serving.
+
+<a id="core-core-response"></a>
+### `Core\Response`
+
+Keywords: json, text, bytes
+
+| Member | Signature |
+|---|---|
+| [`Core\Response::json`](#core-core-response-json) | `json(mixed $value): void` |
+| [`Core\Response::text`](#core-core-response-text) | `text(string $body): void` |
+| [`Core\Response::bytes`](#core-core-response-bytes) | `bytes(bytes $body, string $contentType): void` |
+
+<a id="core-core-response-json"></a>
+#### `Core\Response::json`
+
+```nvs skip
+Core\Response::json(mixed $value): void
+```
+
+Answers with `$value` serialized as JSON, declaring `application/json` — the same encoder `Core\Json::encode` uses, on one line.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `mixed` | The value to serialize, in every shape `Core\Json::encode` accepts. A `tainted` value anywhere inside it is safe: the framing belongs to the serializer, so a tainted string becomes a JSON string and cannot escape it. |
+
+**Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error.
+
+**Throws** `LogicError` — `$value` holds something JSON cannot spell: a `NaN` or infinite `float`, a value of a type with no JSON encoding, an instance of a class without `#[Json\Derive]`, or nesting past 1024 levels.
+
+<a id="core-core-response-text"></a>
+#### `Core\Response::text`
+
+```nvs skip
+Core\Response::text(string $body): void
+```
+
+Answers with `$body` as the response body, declaring `text/plain; charset=utf-8` — one of the five body members that replace a single `write`, each owning one shape.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$body` | `string` (neutral) | The text to send. A `tainted` value is accepted: `nosniff` is on by default, so a `text/plain` body is never re-parsed as HTML. |
+
+**Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error.
+
+<a id="core-core-response-bytes"></a>
+#### `Core\Response::bytes`
+
+```nvs skip
+Core\Response::bytes(bytes $body, string $contentType): void
+```
+
+Answers with `$body` verbatim, declaring `$contentType` — the one body member that cannot know the media type, so it is told.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$body` | `bytes` (neutral) | The octets to send, unchanged. |
+| `$contentType` | `string` (sink) | The media type to declare. A sink: it becomes a header the peer obeys, so a `tainted` value is refused at compile time and one holding anything a header cannot carry is refused here. |
+
+**Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error.
+
+**Throws** `LogicError` — `$contentType` is empty or holds a byte outside a header field value — a control character, a newline, or anything above ASCII.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
