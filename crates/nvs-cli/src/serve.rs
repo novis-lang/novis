@@ -271,10 +271,16 @@ pub(crate) fn run(
             // `ControlFlow::Continue` forever: a development server runs until
             // the process is stopped, and ADR 0097 § 5's drain is the slice that
             // gives this command a control socket to be asked by.
-            let served =
-                nvs_server::serve_on_this_core(&mut listener, &handler, waits, &admission, || {
-                    ControlFlow::Continue(())
-                });
+            let served = nvs_server::serve_on_this_core(
+                &mut listener,
+                &handler,
+                waits,
+                &admission,
+                // The same place the boot's own notes go: this command is the
+                // logger the server crate deliberately is not.
+                |note| eprintln!("note: {note}"),
+                || ControlFlow::Continue(()),
+            );
             if let Err(error) = served {
                 eprintln!("error: the accept loop stopped: {error}");
                 stopped.set(true);

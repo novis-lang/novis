@@ -52,9 +52,13 @@
 //!   § 3's rendering of a failure into a development response are both the
 //!   configuration slice's, because a mode is what decides them and this loop
 //!   has not been given one.
-//! - **No accept backoff.** ADR 0097 § 5's last process-wide bound — a listener
-//!   that backs off on descriptor exhaustion rather than logging at the speed of
-//!   the loop — is not here yet. `max_in_flight` now is: [`crate::admit`] is the
+//! - **The accept loop backs off.** ADR 0097 § 5's last process-wide bound, as
+//!   [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//!   § 8 states it: descriptor exhaustion is the one `accept` failure the next
+//!   iteration recovers from, so it is the one this loop waits out instead of
+//!   ending on, and the one it logs once per window instead of once per
+//!   attempt. [`AcceptBackoff`] is both halves and nothing else in this file
+//!   knows the condition. `max_in_flight` is here too: [`crate::admit`] is the
 //!   arithmetic and the counter, and the refusal is taken in the service below
 //!   *before* the handler is asked for a [`Reply`], which is the order § 5 makes
 //!   the whole point of the valve. The four waits are here too:
@@ -72,6 +76,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 
 use hyper::body::{Body, Bytes, Frame, Incoming, SizeHint};
 use hyper::server::conn::http1;
@@ -81,6 +86,7 @@ use nvs_config::Waits;
 use nvs_host::{
     Completion, Isolate, NvsListener, NvsTcp, Waiting, Wake, block_on, spawn_child, suspend_current,
 };
+use nvs_runtime::host::Woken;
 use nvs_runtime::{Ctx, OutputSink, TaskRoot};
 
 use crate::ConnectionIo;
@@ -363,6 +369,11 @@ fn failed() -> Response<Answer> {
 /// one hot core refuse while its neighbours idle. Every connection this loop
 /// hands over gets a handle on the same count.
 ///
+/// `report` is handed the one line [`AcceptBackoff`] produces per window, for
+/// the reason [`crate::admit::Ceiling::clamp_note`] hands its own back as a
+/// `String`: this crate is given a socket and not a logger, and the boot that
+/// chose where a note goes is the one that owns writing it there.
+///
 /// `waits` is handed to every connection unchanged and is never re-read: ADR
 /// 0097 § 5 makes `[server]` `Boot`-class precisely because `header_timeout`
 /// and `keepalive_timeout` apply before any Novis code exists on a connection,
@@ -372,7 +383,11 @@ fn failed() -> Response<Answer> {
 /// # Errors
 ///
 /// The listener's own, which ends the whole loop — a listening socket that
-/// cannot accept is not a condition the next iteration recovers from.
+/// cannot accept is not a condition the next iteration recovers from. The one
+/// exception is descriptor exhaustion, which [`AcceptBackoff`] waits out rather
+/// than returning: it is a condition of the process and of every other core's
+/// listener too, so ending this loop would turn a transient shortage into a
+/// server that stays down after it clears (ADR 0106 § 8).
 /// [`nvs_host::NvsListener::accept`] already retries the failures that belong
 /// to one connection rather than to the socket. Also `Other` when this is
 /// called off a task, because there is then no parent to put a connection
@@ -383,6 +398,7 @@ pub fn serve_on_this_core<H>(
     handler: &Rc<H>,
     waits: Waits,
     admission: &Arc<Admission>,
+    mut report: impl FnMut(&str),
     mut keep_serving: impl FnMut() -> ControlFlow<()>,
 ) -> io::Result<()>
 where
@@ -396,9 +412,33 @@ where
         ));
     };
     let outstanding = Rc::new(Cell::new(0_usize));
+    let mut backoff = AcceptBackoff::default();
 
     loop {
-        let (stream, _peer) = listener.accept()?;
+        let (stream, _peer) = match listener.accept() {
+            Ok(accepted) => {
+                backoff.accepted();
+                accepted
+            }
+            Err(err) => {
+                // ADR 0106 § 8. `after` answering `None` is every other
+                // failure, and those still end the loop on the terms above.
+                let Some((wait, note)) = backoff.after(&err, Instant::now()) else {
+                    return Err(err);
+                };
+                if let Some(note) = note {
+                    report(&note);
+                }
+                // The core is handed back for the wait, so the connections this
+                // loop already spawned keep being served through a shortage
+                // that is the process's and not theirs. A cancelled wait is the
+                // task being torn down, which is the tail's own answer below.
+                if matches!(nvs_host::sleep(wait), Woken::Cancelled) {
+                    break;
+                }
+                continue;
+            }
+        };
         let handler = Rc::clone(handler);
         // An `Arc` and not an `Rc`: § 5's valve is counted process-wide, so the
         // one it is cloned from is shared by every core rather than by every
@@ -464,6 +504,105 @@ where
         }
     }
     Ok(())
+}
+
+/// The first wait a descriptor-exhausted `accept` parks for.
+///
+/// Short enough that a shortage clearing in a millisecond costs a millisecond,
+/// which is what keeps this off the price of an ordinary burst.
+const FIRST_WAIT: Duration = Duration::from_millis(10);
+
+/// The longest wait, and therefore the bound on how late an accept can be once
+/// descriptors are back: one attempt a second is a cost the loop can carry
+/// indefinitely, and a shortage that has lasted this long is not one the next
+/// attempt is going to clear either.
+const LONGEST_WAIT: Duration = Duration::from_secs(1);
+
+/// How often an episode is reported. ADR 0106 § 8's own reason for a window
+/// rather than a line per attempt: at [`LONGEST_WAIT`] the log alone would be a
+/// line a second for as long as the condition lasts.
+const REPORT_WINDOW: Duration = Duration::from_secs(60);
+
+/// The two error numbers § 8 names, because `io::ErrorKind` has no stable
+/// variant for either: `EMFILE` and `ENFILE` on Unix, and on Windows
+/// `WSAEMFILE` with the file-table exhaustion that reaches an `accept` through
+/// the same door.
+#[cfg(unix)]
+const EXHAUSTED: &[i32] = &[24, 23];
+#[cfg(windows)]
+const EXHAUSTED: &[i32] = &[10024, 4];
+#[cfg(not(any(unix, windows)))]
+const EXHAUSTED: &[i32] = &[];
+
+/// Whether `err` is the process running out of descriptors rather than anything
+/// about this socket.
+fn out_of_descriptors(err: &io::Error) -> bool {
+    err.raw_os_error()
+        .is_some_and(|code| EXHAUSTED.contains(&code))
+}
+
+/// ADR 0106 § 8's bounded backoff, and the once-per-window note that comes with
+/// it.
+///
+/// An `accept` that failed with `EMFILE`/`ENFILE` returns immediately and will
+/// fail the same way the instant it is retried, so a loop that retries at once
+/// is a core pinned at full utilisation for as long as the shortage lasts and a
+/// disk filled at the speed of the loop. The wait below bounds the first, the
+/// window bounds the second, and neither costs an accepting listener anything:
+/// [`Self::accepted`] puts the whole thing back to its default.
+///
+/// The wait doubles from [`FIRST_WAIT`] to [`LONGEST_WAIT`] rather than parking
+/// for a fixed span, because the two shortages this covers want opposite
+/// answers — a burst of connections that clears in a millisecond, and a leak
+/// that will still be there in a minute — and doubling is what asks the first
+/// question first.
+#[derive(Debug, Default)]
+struct AcceptBackoff {
+    /// What the previous exhausted `accept` parked for, and `None` whenever the
+    /// listener is accepting: the state that makes an episode an episode.
+    waited: Option<Duration>,
+    /// When this episode was last reported. `None` reports at once, which is
+    /// what makes the first exhaustion after a recovery a line rather than
+    /// silence inside a window opened by an episode already over.
+    reported: Option<Instant>,
+}
+
+impl AcceptBackoff {
+    /// The listener accepted: the episode is over and the next one reports.
+    fn accepted(&mut self) {
+        *self = Self::default();
+    }
+
+    /// How long to park after `err`, and the line to log when this is the first
+    /// exhaustion in a window.
+    ///
+    /// `None` is every failure that is not descriptor exhaustion — which the
+    /// caller ends the loop on, unchanged.
+    fn after(&mut self, err: &io::Error, now: Instant) -> Option<(Duration, Option<String>)> {
+        if !out_of_descriptors(err) {
+            return None;
+        }
+        let wait = match self.waited {
+            None => FIRST_WAIT,
+            Some(previous) => (previous * 2).min(LONGEST_WAIT),
+        };
+        self.waited = Some(wait);
+        let due = self
+            .reported
+            .is_none_or(|at| now.duration_since(at) >= REPORT_WINDOW);
+        if !due {
+            return Some((wait, None));
+        }
+        self.reported = Some(now);
+        Some((
+            wait,
+            Some(format!(
+                "the accept loop is out of file descriptors and is backing off \
+                 up to {LONGEST_WAIT:?} an attempt, reporting once per \
+                 {REPORT_WINDOW:?}: {err}"
+            )),
+        ))
+    }
 }
 
 /// One connection's place in the accept loop's tally, given back however that
@@ -585,6 +724,7 @@ mod tests {
                 &echo_the_path(),
                 Waits::default(),
                 &wide_open(),
+                |_note| {},
                 || ControlFlow::Break(()),
             )
             .expect("the accept loop failed");
@@ -647,6 +787,7 @@ mod tests {
                 &echo_the_path(),
                 Waits::default(),
                 &wide_open(),
+                |_note| {},
                 || ControlFlow::Break(()),
             )
             .expect("the accept loop failed");
@@ -709,6 +850,7 @@ mod tests {
                 &handler,
                 Waits::default(),
                 &wide_open(),
+                |_note| {},
                 || ControlFlow::Break(()),
             )
             .expect("the accept loop failed");
@@ -756,9 +898,14 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &echo_the_path(), waits, &wide_open(), || {
-                ControlFlow::Break(())
-            })
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_path(),
+                waits,
+                &wide_open(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
             .expect("the accept loop failed");
         });
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
@@ -811,9 +958,14 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &echo_the_path(), waits, &wide_open(), || {
-                ControlFlow::Break(())
-            })
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_path(),
+                waits,
+                &wide_open(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
             .expect("the accept loop failed");
         });
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
@@ -885,9 +1037,14 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &handler, Waits::default(), &serving, || {
-                ControlFlow::Break(())
-            })
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &serving,
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
             .expect("the accept loop failed");
         });
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
@@ -904,6 +1061,116 @@ mod tests {
         assert!(
             !asked.get(),
             "the handler was asked for a request the ceiling had already refused"
+        );
+    }
+
+    /// The condition, spelled the way the OS spells it on this platform.
+    fn exhausted() -> io::Error {
+        io::Error::from_raw_os_error(EXHAUSTED[0])
+    }
+
+    /// ADR 0106 § 8 asks for a backoff on descriptor exhaustion and on nothing
+    /// else, so the bound is asserted on both sides: the error the loop must
+    /// wait out, and a neighbouring `accept` failure it must still end on. A
+    /// backoff that widened to every error would look right against the first
+    /// half alone, and would turn a listener whose socket died into a process
+    /// that sleeps forever instead of reporting.
+    #[test]
+    fn descriptor_exhaustion_is_waited_out_and_no_other_failure_is() {
+        let now = Instant::now();
+        let mut backoff = AcceptBackoff::default();
+
+        let (wait, note) = backoff
+            .after(&exhausted(), now)
+            .expect("descriptor exhaustion was not recognised");
+        assert_eq!(wait, FIRST_WAIT, "the first wait is the short one");
+        assert!(note.is_some(), "the first exhaustion went unreported");
+
+        for other in [
+            io::Error::from(io::ErrorKind::ConnectionAborted),
+            io::Error::from(io::ErrorKind::PermissionDenied),
+            io::Error::other("the socket is gone"),
+        ] {
+            assert!(
+                backoff.after(&other, now).is_none(),
+                "the loop would have slept on an error it must end on: {other}"
+            );
+        }
+    }
+
+    /// The wait doubles to a ceiling and no further, and an accept puts it
+    /// back. Asserted by walking the whole episode rather than by reading one
+    /// step off, because a backoff that doubled without a bound and one that
+    /// never left its first wait both answer plausibly at any single step.
+    #[test]
+    fn the_wait_doubles_to_a_ceiling_and_an_accept_puts_it_back() {
+        let now = Instant::now();
+        let mut backoff = AcceptBackoff::default();
+        let mut waits = Vec::new();
+        for _ in 0..12 {
+            let (wait, _) = backoff.after(&exhausted(), now).expect("still exhausted");
+            waits.push(wait);
+        }
+
+        assert_eq!(waits[0], FIRST_WAIT, "the episode opened at the wrong wait");
+        assert!(
+            waits.windows(2).all(|pair| pair[1] >= pair[0]),
+            "a wait went backwards inside one episode: {waits:?}"
+        );
+        assert!(
+            waits.iter().all(|wait| *wait <= LONGEST_WAIT),
+            "the backoff went past its ceiling: {waits:?}"
+        );
+        assert_eq!(
+            waits.last(),
+            Some(&LONGEST_WAIT),
+            "twelve doublings did not reach the ceiling: {waits:?}"
+        );
+
+        backoff.accepted();
+        let (wait, _) = backoff.after(&exhausted(), now).expect("still exhausted");
+        assert_eq!(
+            wait, FIRST_WAIT,
+            "an accepted connection did not end the episode"
+        );
+    }
+
+    /// § 8's second half: once per window, not once per attempt — the reason
+    /// the section gives for the wait is the disk it would otherwise fill.
+    /// Asserted by **counting** the notes over a long episode, because a
+    /// backoff that reports every time still produces a correct-looking line at
+    /// each individual attempt.
+    #[test]
+    fn the_note_is_once_per_window_and_not_once_per_attempt() {
+        let opened = Instant::now();
+        let mut backoff = AcceptBackoff::default();
+        let inside = (0..200)
+            .filter_map(|attempt| {
+                let now = opened + REPORT_WINDOW / 400 * attempt;
+                backoff.after(&exhausted(), now).expect("still exhausted").1
+            })
+            .count();
+        assert_eq!(inside, 1, "the window reported {inside} times");
+
+        let (_, next) = backoff
+            .after(&exhausted(), opened + REPORT_WINDOW)
+            .expect("still exhausted");
+        let note = next.expect("the next window went unreported");
+        assert!(
+            note.contains("file descriptors"),
+            "the note does not say what the condition is: {note}"
+        );
+
+        // A recovery closes the window with it: the next episode is a new fact
+        // and reports at once, rather than being swallowed by a window the
+        // previous one opened.
+        backoff.accepted();
+        let (_, reopened) = backoff
+            .after(&exhausted(), opened + REPORT_WINDOW)
+            .expect("still exhausted");
+        assert!(
+            reopened.is_some(),
+            "an episode after a recovery was swallowed by the previous window"
         );
     }
 }
