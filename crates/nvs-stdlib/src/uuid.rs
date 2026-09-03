@@ -269,6 +269,18 @@ pub(crate) fn of_octets(octets: [u8; 16]) -> Value {
     built(Uuid::from_bytes(octets))
 }
 
+/// [`of_octets`]'s twin for a `Core\Uuid` that arrives as text — ADR 0067 § 9's
+/// SQLite half, where a `uuid` column holds the canonical rendering because
+/// SQLite has no type that holds sixteen octets as anything but a `BLOB`.
+///
+/// `None` for text that is not one, which is § 9's "throws on a value that does
+/// not parse" asked here; the caller holds the column's name and this seam does
+/// not. It is [`read`] and therefore [`nvs_core_uuid_parse`] exactly, so a cell
+/// a database hands back and a string a program parses are one grammar.
+pub(crate) fn of_text(text: &str) -> Option<Value> {
+    read(text).map(built)
+}
+
 /// The `Uuid` `text` spells, or `None` if it is not the canonical form.
 ///
 /// The length check is what narrows `uuid`'s four accepted spellings to the one

@@ -3068,6 +3068,59 @@ pub(crate) fn instant_at(at: &Civil, offset: i32) -> Option<Value> {
     zoned_at(at, offset).map(|at| instant_built(at.timestamp()))
 }
 
+/// [`date_at`] off a rendered date rather than off three numbers — ADR 0067
+/// § 9's SQLite half, where a `date` column holds text because SQLite has no
+/// type that holds anything else.
+///
+/// `None` for text that is not a date, which is what § 9's "throws on a value
+/// that does not parse" is asked here: the caller holds the column's name and
+/// this seam does not, exactly as [`date_at`]'s own `None` works.
+///
+/// The grammar is [`jiff`]'s ISO 8601 reader and not a second one written here,
+/// so a cell this accepts is a cell `Core\Time` would have rendered.
+pub(crate) fn date_of_text(text: &str) -> Option<Value> {
+    let date: civil::Date = text.trim().parse().ok()?;
+    date_at(
+        i32::from(date.year()),
+        u8::try_from(date.month()).ok()?,
+        u8::try_from(date.day()).ok()?,
+    )
+}
+
+/// [`date_of_text`]'s twin for § 9's `TIME` column.
+pub(crate) fn time_of_day_of_text(text: &str) -> Option<Value> {
+    let time: civil::Time = text.trim().parse().ok()?;
+    time_of_day_at(
+        u8::try_from(time.hour()).ok()?,
+        u8::try_from(time.minute()).ok()?,
+        u8::try_from(time.second()).ok()?,
+        u32::try_from(time.subsec_nanosecond()).ok()?,
+    )
+}
+
+/// [`date_of_text`]'s twin for § 9's zone-less `DATETIME`, read in the zone the
+/// connection declared — `offset` is [`datetime_at`]'s, for its reason.
+///
+/// The separator is either ISO 8601's `T` or the space SQLite's own `datetime()`
+/// writes, which [`jiff`] reads as one grammar; a rendering carrying an offset
+/// is refused here rather than silently dropping it, because a column declared
+/// `datetime` is § 9's zone-*less* row and an `Instant` is what carries one.
+pub(crate) fn datetime_of_text(text: &str, offset: i32) -> Option<Value> {
+    let at: civil::DateTime = text.trim().parse().ok()?;
+    datetime_at(
+        &Civil {
+            year: i32::from(at.year()),
+            month: u8::try_from(at.month()).ok()?,
+            day: u8::try_from(at.day()).ok()?,
+            hour: u8::try_from(at.hour()).ok()?,
+            minute: u8::try_from(at.minute()).ok()?,
+            second: u8::try_from(at.second()).ok()?,
+            nanosecond: u32::try_from(at.subsec_nanosecond()).ok()?,
+        },
+        offset,
+    )
+}
+
 /// The [`Zoned`] `at` names at a fixed offset, which is the whole of what the
 /// two seams above share.
 fn zoned_at(at: &Civil, offset: i32) -> Option<Zoned> {
