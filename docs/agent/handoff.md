@@ -2,52 +2,58 @@
 
 ## State
 
-**M8 goal 5, stage 7. SQL Server reads a result set back.**
-`crates/nvs-db/src/tds.rs:3226`'s `read_rows` takes a wire with a request already on it and answers a
-`TdsRows`: `ROW`, `NBCROW` and `PLP` over `Wire::read_packet`, with the remainder held across the
-packet boundary so a token cut at any offset is still one token. Its own doc owns the two things it
-holds that `MySqlRows` does not — the buffer, and the reuse of `Tokens` for every token but the two
-row ones, which `Tokens::consumed` is what makes possible. A `PLP` value's chunks are copied into
-the row as they arrive, so a `varbinary(max)` costs its size once and never lands in the buffer.
+**M8 goal 5, stage 7. SQL Server writes a statement as well as reading one.**
+`crates/nvs-db/src/tds.rs:3582`'s `sp_prepexec_request` builds ADR 0067 § 1's RPC — `ALL_HEADERS`,
+the procedure id, a by-reference `@handle`, the `@params` declaration, § 5's rewritten SQL and one
+argument per marker — and `crates/nvs-db/src/tds.rs:3781`'s `start_statement` sends it and hands back
+the `TdsRows` the previous slice built. Its own doc owns the two decisions: every parameter goes out
+as `nvarchar` and the server casts it (`crate::mysql::execute`'s account, reached through another
+protocol), and `sp_prepexec` rather than `sp_executesql` because § 1 keeps a cache and only this one
+answers with a handle.
 
-**Nothing writes a request yet**: no RPC, no `sp_prepexec`, no cache, no reset, and `TdsConn` still
-has no method that runs a statement. The standing acceptance failure
-`mssql_resets_through_sp_reset_connection_and_loses_its_cache` is therefore **unchanged and not a
-regression** — it needs the whole of the group below, and the playbook's bullet on that check's
-`_and_` conjunction still applies.
+`RETURNSTATUS` and `RETURNVALUE` are read; `crates/nvs-db/src/tds.rs:2906`'s `TdsRows::returned`
+keeps the last of them, which for `sp_prepexec` is the handle. `Done` gained `in_proc` — the
+playbook's new bullet owns why, and it is a fix to the *reader* this slice would otherwise have
+tripped over.
 
-`RETURNSTATUS` and `RETURNVALUE` are the two tokens a procedure call adds and this reader refuses by
-their byte. That is deliberate — only an RPC can produce one, and nothing sends an RPC yet — so the
-first slice below adds them where a test can script the shape it will really receive.
+**Two gaps are open on purpose.** A parameter that is not UTF-8 is refused by its marker: § 9's
+`bytes` maps to `varbinary`, and `nvarchar` → `varbinary` on SQL Server reinterprets UCS-2 rather
+than parsing, so the driver has no honest encoding for one yet — `nvs_stdlib::db::rendering_for`
+still answers `None` for `Driver::SqlServer`, so nothing above can reach this. And nothing files the
+handle, so every execution prepares a plan that lives until the connection closes; the next item
+closes it.
+
+The standing acceptance failure `mssql_resets_through_sp_reset_connection_and_loses_its_cache` is
+**unchanged and not a regression** — it is the next item whole, both halves of its `_and_`.
 
 ## Next group
 
 **One file set: `crates/nvs-db/src/tds.rs`, with `crates/nvs-db/src/conn.rs` and
-`crates/nvs-db/src/sql.rs` for the shared state.** `crates/nvs-db/src/mysql.rs:1687`'s `prepare` and
-`crates/nvs-db/src/mysql.rs:1872`'s `start_statement` are the shape to copy, and the playbook's
-`PgConn` trap is why each of these is a free function generic in the stream.
+`crates/nvs-db/src/sql.rs` for the shared state.** `crates/nvs-db/src/mysql.rs:1814`'s
+`cached_statement` and `crates/nvs-db/src/mysql.rs:1628`'s `reset_session` are the shapes to copy,
+and the playbook's `PgConn` trap is why each stays a free function generic in the stream.
 
-- [ ] **An RPC out: `sp_prepexec`'s request, § 5's parameters as its arguments, and the two
-      procedure tokens that answer it** (0067 §§ 1 and 5). `crates/nvs-db/src/tds.rs:1419`,
-      `crates/nvs-db/src/tds.rs:3226`, `crates/nvs-db/src/tds.rs:2733`,
-      `crates/nvs-db/src/mysql.rs:1687`. `login7_request` is the message-building shape; the reader
-      is already there, so this is the write half plus `RETURNSTATUS`/`RETURNVALUE` in `step` and
-      `shape` — a `RETURNVALUE` is a `TYPE_INFO` and a value, which `Tokens::type_info` and
-      `TdsRows::value` already measure between them.
-- [ ] **§ 1's cache keyed on SQL plus arity, and § 13's reset through `sp_reset_connection`** (0067
-      §§ 1 and 13). `crates/nvs-db/src/sql.rs:441`, `crates/nvs-db/src/tds.rs:369`,
-      `crates/nvs-db/src/mysql.rs:3958`. The reset is `Status::RESET_CONNECTION` on the next
-      message's first packet rather than a round trip of its own, and it drops the server's prepared
-      handles — so the cache is cleared with it, which is MySQL's asymmetry and its test's claim.
-      This is the slice the standing acceptance check names.
+- [ ] **§ 1's cache keyed on SQL plus arity, and § 13's reset through `sp_reset_connection`**
+      (0067 §§ 1 and 13). `crates/nvs-db/src/tds.rs:3781`, `crates/nvs-db/src/tds.rs:3582`,
+      `crates/nvs-db/src/tds.rs:2906`, `crates/nvs-db/src/conn.rs:772`,
+      `crates/nvs-db/src/sql.rs:290`. `StatementCache<i32>` on `TdsConn`; a hit sends `sp_execute`
+      (proc 12) with the handle and the values and no SQL, an eviction sends `sp_unprepare`
+      (proc 15), and the reset is an argument-less RPC of proc 16 that clears the cache — MySQL's
+      asymmetry, for the same protocol reason. **The wrinkle worth knowing before you start:** the
+      handle arrives in a `RETURNVALUE` *after* the rows, so `start_statement` cannot file it — either
+      `TdsRows` borrows the cache and files it in `end()`, or the caller reads `returned()` once
+      `next_row` has answered `None`. `sp_prepexec_request` already carries the per-argument writers
+      (`int_param`, `text_param`, `declarations`) the other three procedures need.
 - [ ] **`Driver::SqlServer` runs a statement end to end from `conn.rs`** (0067 §§ 4 and 5).
-      `crates/nvs-db/src/conn.rs:772`, `crates/nvs-db/src/tds.rs:3329`,
-      `crates/nvs-db/src/mysql.rs:1872`. `TdsConn` gains the two-line delegations over the free
-      functions above, and § 4's `may_start_statement` refusal is `pg.rs`'s `second_statement`.
+      `crates/nvs-db/src/conn.rs:772`, `crates/nvs-db/src/tds.rs:3781`,
+      `crates/nvs-db/src/tds.rs:3842`. The `TdsConn` methods that delegate to the two free functions,
+      then `nvs_stdlib::db`'s `rendering_for` gaining the driver.
+- [ ] **§ 9's `bytes` gets a SQL Server encoding, or the refusal is pinned as the answer**
+      (0067 § 9). `crates/nvs-db/src/tds.rs:3613` (`text_of`). A `varbinary` parameter needs its own
+      `TYPE_INFO` in `text_param`'s sibling, and the encoder above has to say which values take it.
 
 ## Backlog
 
-- § 7's `BEGIN`/`COMMIT`/`ROLLBACK` as `PacketType::Transaction`, not as text — `docs/adr/0067-core-db.md` § 7.
-- `nvs-stdlib`'s decode of a `TdsRow`'s bytes into § 9's values, against `TdsColumn::type_info`.
-- A real SQL Server in `tests/db/compose.yaml`'s matrix, per ADR 0067's *Verification*.
-- `crates/nvs-db/src/tds.rs` is past 5,000 lines; the split point is the framing half against the token half.
+- § 7's transactions and § 13's pool on this driver — `docs/adr/0067-core-db.md` §§ 7 and 13.
+- A `tests/db/compose.yaml` SQL Server leg and the matrix fields — `crates/nvs-db/src/matrix.rs`.
+- `sql_variant` and `xml` values decode to nothing yet — `crates/nvs-db/src/tds.rs`'s module doc.

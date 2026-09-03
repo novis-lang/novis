@@ -6599,6 +6599,15 @@ sibling in the same namespace unqualified.
   `crates/nvs-db/src/tds.rs:989`'s `Tunnel` keeps the flag in an `Rc<Cell<bool>>` and the caller
   takes its `TunnelEnd` *before* the handshake starts. The adapter then stays in the stream type for
   the connection's life, transparent — that is the price of the shape, not a leak to clean up.
+- **A TDS `DONE`'s *type byte* decides whether the answer ended, and its `DONE_MORE` status bit
+  does not.** `DONEINPROC` (`0xFF`) ends one statement *inside* a procedure and is never the last
+  token of a message — `sp_prepexec` sends the `RETURNVALUE` carrying § 1's handle *after* it — so a
+  reader keyed on `more()` alone ends the answer early and then refuses the connection with "carried
+  N byte(s) after the DONE that ended it". The `0xFD`/`0xFE`/`0xFF` split is lost by the time a
+  `Token::Done` exists, which is why `crate::tds::Done` carries an `in_proc` field beside the status
+  bits rather than a fourth method over them. The tell is a read that works against a hand-written
+  transcript ending in a plain `DONE` and fails the moment the transcript is the shape a real RPC
+  answers with.
 
 ## Divergences and refusals already pinned
 
