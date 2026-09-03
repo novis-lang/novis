@@ -36,8 +36,8 @@ use std::time::{Duration, Instant};
 
 use nvs_db::matrix::{self, Location, Server};
 use nvs_db::{
-    Driver, Isolation, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar, MySqlTarget,
-    PgConn, PgTarget, QuerySpan,
+    DbErrorKind, Driver, Isolation, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar,
+    MySqlTarget, PgConn, PgTarget, QuerySpan, ServerError,
 };
 use nvs_stdlib::queue;
 
@@ -568,6 +568,56 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
         .filter(|id| *id != 0)
         .expect("the insert answered the `AUTO_INCREMENT` id `MIGRATION_MYSQL` declares")
         .to_string()
+}
+
+/// [`queue::INSERT_MYSQL`]'s `then` alone, carrying a dedupe key, answering the
+/// id it wrote or the server's own refusal.
+///
+/// **The refusal is the point, so this answers a `Result` where [`push`]
+/// unwraps.** Running the second half without the first is not a shortcut: it is
+/// exactly what a concurrent pusher does under `read committed`, where the guard
+/// read the table a moment before the row it should have seen was committed.
+/// [`queue::INSERT_MYSQL`]'s own doc owns the reason that is safe.
+fn push_keyed(conn: &mut Conn, queue: &str, at: i64, key: &str) -> io::Result<String> {
+    let at = millis(at);
+    // `INSERT_MYSQL.then`'s order, as `push` sends it, with the eighth slot
+    // filled: that is the one an ordinary push leaves null.
+    let bound = [
+        Some(queue.as_bytes()),
+        Some(&b"scripts/receipt.nvs"[..]),
+        Some(&br#"{"order":7}"#[..]),
+        Some(PENDING),
+        Some(&b"3"[..]),
+        Some(&b"1000"[..]),
+        Some(at.as_slice()),
+        Some(key.as_bytes()),
+        Some(at.as_slice()),
+    ];
+    let Dialect::Framed(mut framed) = conn.dialect() else {
+        unreachable!("this pair is `INSERT_MYSQL`, and only the framed dialect runs it")
+    };
+    let mut answered = framed.query(queue::INSERT_MYSQL.then, &bound)?;
+    // As in `push`: draining is what ends the statement and what lets `last_id`
+    // be read, and a refusal surfaces here rather than at `query` when the
+    // server sent its `ERR` after the execute was written.
+    while answered.next_row()?.is_some() {}
+    Ok(answered
+        .last_id()
+        .filter(|id| *id != 0)
+        .expect("the insert answered the `AUTO_INCREMENT` id `MIGRATION_MYSQL` declares")
+        .to_string())
+}
+
+/// [`queue::INSERT_MYSQL`]'s `first` — the guard half — answering the pending
+/// job `key` already has, where it has one.
+///
+/// This is the read no case in this file had issued: `dedupe_pending = ?`
+/// resolves against `MIGRATION_MYSQL`'s stored generated column, so what it
+/// matches is not a column any statement writes and only a server can say
+/// whether the construct holds.
+fn pending_for(conn: &mut Conn, key: &str) -> Option<String> {
+    let mut found = rows(conn, queue::INSERT_MYSQL.first, &[Some(key.as_bytes())]);
+    (!found.is_empty()).then(|| found.remove(0).remove(0).expect("`id` is not null"))
 }
 
 /// One claim against `queue`, taken at `now`, returning jobs whose lease was
@@ -1510,5 +1560,186 @@ fn a_framed_exhausted_job_moves_to_the_dead_letter_table_in_one_transaction() {
             Some(FAILED.to_string()),
         ]],
         "it is in the other table, carrying its own columns and the array § 6 asks for"
+    );
+}
+
+/// § 2's dedupe on the framed dialect: the guard reads, but the **index** is
+/// what makes a key unique.
+///
+/// [`queue::INSERT_MYSQL`]'s doc states the rule and this is where it meets a
+/// server, because both halves are constructs no fake can stand in for.
+/// `dedupe_pending = ?` resolves against a *stored generated column*, and the
+/// uniqueness it feeds is `MIGRATION_MYSQL`'s `unique key nvs_jobs_dedupe` —
+/// MySQL has no partial index, so the pending-rows-only scope PostgreSQL writes
+/// as a `where` clause is carried here by the column evaluating to null for
+/// every row that has left `Pending`. Nothing but a server can say whether that
+/// pair behaves as the partial index it stands in for.
+///
+/// **Asserted on both sides of the bound, which is what makes it the emulation
+/// and not merely a unique key.** A second pending row on one key is refused;
+/// the same key inserts freely the moment its only holder is claimed. A schema
+/// that made the column `dedupe_key` outright would pass the first half and fail
+/// the second, and one that dropped the index would pass the second half on a
+/// guard that is not a guarantee.
+#[test]
+fn a_framed_dedupe_push_is_refused_by_the_index_and_not_by_the_guard() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-dedupe";
+    // Unique across the whole table rather than within the queue, so it names
+    // this case: `nvs_jobs_dedupe` covers the column and not `(queue, column)`.
+    const KEY: &str = "nvs-stdlib-tests-framed-dedupe:receipt:7";
+    const DUE: i64 = 1_000;
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    assert!(
+        pending_for(&mut conn, KEY).is_none(),
+        "an unseen key holds nothing, which is the arm `push`'s null has never reached"
+    );
+
+    let id = push_keyed(&mut conn, QUEUE, DUE, KEY).expect("an unheld key inserts");
+    assert_eq!(
+        pending_for(&mut conn, KEY).as_deref(),
+        Some(id.as_str()),
+        "the guard answers the pending job's own id, off a column no statement wrote"
+    );
+
+    let refused = push_keyed(&mut conn, QUEUE, DUE, KEY)
+        .expect_err("a second pending row on one key is not the server's to accept");
+    let raised = ServerError::of(&refused).expect("the refusal is the server's, not the wire's");
+    assert_eq!(
+        raised.kind,
+        DbErrorKind::UniqueViolation,
+        "§ 8's kind a caller branches on, from {}'s own code table: {raised}",
+        raised.backend
+    );
+    assert!(
+        raised.message.contains("nvs_jobs_dedupe"),
+        "the index § 2 names is what refused it, and not some other uniqueness: {raised}"
+    );
+
+    assert_eq!(
+        rows(
+            &mut conn,
+            "select count(*) from nvs_jobs where dedupe_key = ?",
+            &[Some(KEY.as_bytes())],
+        ),
+        vec![vec![Some("1".to_string())]],
+        "the refused insert wrote nothing"
+    );
+
+    // The other side. `state = 1` is `Core\Queue\State::Claimed`, and the
+    // generated column reads null for it — which is where MySQL's own rule that
+    // a unique key does not constrain nulls becomes § 2's partial index.
+    apply(
+        &mut conn,
+        "update nvs_jobs set state = 1 where id = ?",
+        &[Some(id.as_bytes())],
+    );
+    assert!(
+        pending_for(&mut conn, KEY).is_none(),
+        "a claimed job holds no key: the column is null for every state but `Pending`"
+    );
+    let again = push_keyed(&mut conn, QUEUE, DUE, KEY)
+        .expect("the key is free the moment its only holder stops being pending");
+    assert_ne!(
+        again, id,
+        "that is a second row and not the first one found again"
+    );
+}
+
+/// § 4's visibility bound on the framed dialect, asserted on both sides as its
+/// PostgreSQL twin is.
+///
+/// **What is new here is that the bound is enforced by a statement that is not
+/// the one writing the lease.** [`queue::CLAIM_POSTGRES`] chooses the row and
+/// re-takes it in a single statement, so the predicate and the write cannot
+/// disagree. [`queue::CLAIM_MYSQL`] is a [`queue::Split`]: `((state = 0 and
+/// run_at <= ?) or (state = 1 and claimed_at <= ?))` is on the `select` alone,
+/// and the `update` is keyed by the `id` that `select` named and asks nothing
+/// about the lease it is overwriting. What holds them together is the row lock
+/// the `for update` took, inside the transaction the helper opens — so the
+/// take-over path, and not the fresh claim the landed case already runs, is
+/// where that arrangement is worth a server's opinion.
+///
+/// **The retaken job's `attempts` is the assertion the split can get wrong on
+/// its own.** `attempts + 1 as attempts` is read by the `select`, before the
+/// `update` that increments the column — PostgreSQL's `returning` runs after
+/// its own write and reads the same number for the opposite reason. A fresh
+/// claim answers `1` either way and hides a disagreement; the second rung is
+/// where a half reading the column it is about to change answers `1` twice and
+/// § 6's ladder never reaches `max_attempts`.
+#[test]
+fn a_framed_visibility_timeout_returns_an_abandoned_job_to_the_queue() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-visibility";
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    let now = queue::now_millis();
+    let id = push(&mut conn, QUEUE, now, "3");
+
+    let first = claim(&mut conn, QUEUE, now, now);
+    assert_eq!(first.len(), 1, "a pending job due now is claimable");
+    assert_eq!(first[0][ID].as_deref(), Some(id.as_str()));
+    assert_eq!(first[0][ATTEMPTS].as_deref(), Some("1"));
+
+    // Held: the lease was taken at `now`, and this claim will take over only one
+    // from a millisecond earlier. The `select`'s second arm is what refuses it,
+    // and refusing it there is what stops the `update` running at all.
+    assert!(
+        claim(&mut conn, QUEUE, now + 1, now - 1).is_empty(),
+        "a job inside its visibility window is claimed by nobody else"
+    );
+    assert_eq!(
+        one(
+            &mut conn,
+            "select claimed_at from nvs_jobs where id = ?",
+            &[Some(id.as_bytes())],
+        ),
+        now.to_string(),
+        "a claim that took no row wrote no lease either: the pair's halves stand or fall together"
+    );
+
+    // Abandoned: the same claim, willing to take over a lease that old.
+    let again = claim(&mut conn, QUEUE, now + 2, now);
+    assert_eq!(
+        again.len(),
+        1,
+        "a lease older than the bound returns the job to the queue"
+    );
+    assert_eq!(
+        again[0][ID].as_deref(),
+        Some(id.as_str()),
+        "the job returned is the abandoned one and not a second row"
+    );
+    assert_eq!(
+        again[0][ATTEMPTS].as_deref(),
+        Some("2"),
+        "the `select` answered the count the `update` after it would write, on the rung where \
+         the two can disagree"
+    );
+
+    let written = rows(
+        &mut conn,
+        "select state, attempts, claimed_at from nvs_jobs where id = ?",
+        &[Some(id.as_bytes())],
+    );
+    assert_eq!(
+        written,
+        vec![vec![
+            Some("1".to_string()),
+            Some("2".to_string()),
+            Some((now + 2).to_string()),
+        ]],
+        "the lease moved to the claim that took it over, and the column agrees with what it answered"
     );
 }
