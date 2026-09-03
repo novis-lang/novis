@@ -679,6 +679,19 @@ pub struct Wire<S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     stream: S,
     inbox: Vec<u8>,
     codec: Codec,
+    /// ADR 0067 § 7's open transaction, as the descriptor every request has to
+    /// name it by, and zero where none is open.
+    ///
+    /// **Here rather than beside [`crate::conn::TdsConn::depth`], for the
+    /// reason the packet size is here**: it is a property of this session on
+    /// this stream, written by an `ENVCHANGE` the server sent and read by the
+    /// next request's `ALL_HEADERS`, and every function on either side of that
+    /// already holds the wire. A `Cell` on the connection would be the same
+    /// value threaded through ten signatures that have it in hand — and one of
+    /// them, [`TdsRows`], reads its tokens with nothing but the wire borrowed.
+    /// The depth stays on the connection because § 7's *nesting* is this
+    /// driver's own accounting; the descriptor is the server's.
+    descriptor: u64,
 }
 
 impl<S: Read + Write> std::fmt::Debug for Wire<S> {
@@ -699,6 +712,7 @@ impl<S: Read + Write> Wire<S> {
             stream,
             inbox: Vec::new(),
             codec: Codec::default(),
+            descriptor: NO_TRANSACTION,
         }
     }
 
@@ -723,7 +737,26 @@ impl<S: Read + Write> Wire<S> {
             stream: wrap(self.stream)?,
             inbox: self.inbox,
             codec: self.codec,
+            descriptor: self.descriptor,
         })
+    }
+
+    /// The open transaction's descriptor, for the `ALL_HEADERS` of the request
+    /// about to go out — zero where no transaction is open.
+    #[must_use]
+    pub fn descriptor(&self) -> u64 {
+        self.descriptor
+    }
+
+    /// What an [`EnvChange::Transaction`] said the open transaction now is.
+    ///
+    /// Written by whoever reads the token — [`TdsRows`] on a statement's
+    /// answer, [`reset_session`] on the reset's — rather than by the code that
+    /// sent the `BEGIN`: the descriptor is the server's answer and not a
+    /// consequence of the command, and a `BEGIN` inside a batch this driver did
+    /// not write would move it just the same.
+    pub fn set_descriptor(&mut self, descriptor: u64) {
+        self.descriptor = descriptor;
     }
 
     /// The framing, for the negotiation that resizes it.
@@ -1601,6 +1634,15 @@ const ENV_LANGUAGE: u8 = 2;
 const ENV_CHARSET: u8 = 3;
 /// `ENVCHANGE` type 4: the packet size, as decimal digits rather than a number.
 const ENV_PACKET_SIZE: u8 = 4;
+/// `ENVCHANGE` type 8: a transaction began, and the value is the descriptor
+/// every request after it has to name it by.
+const ENV_BEGIN_TRANSACTION: u8 = 8;
+/// `ENVCHANGE` type 9: a transaction committed.
+const ENV_COMMIT_TRANSACTION: u8 = 9;
+/// `ENVCHANGE` type 10: a transaction rolled back, which is type 9 as far as
+/// this driver is concerned — either way there is no open transaction left for
+/// the next request to enlist in.
+const ENV_ROLLBACK_TRANSACTION: u8 = 10;
 
 /// The severity at which SQL Server ends the connection rather than the
 /// statement.
@@ -1730,12 +1772,14 @@ pub struct LoginAck {
 
 /// An `ENVCHANGE` token: one session property, before and after.
 ///
-/// The variants are the four TDS 7.4 spells as text. Everything else —
-/// collation, the transaction descriptors, the routing answer an Azure failover
-/// sends — is [`EnvChange::Other`] carrying its type byte, because the value
-/// halves of those are bytes rather than characters and nothing here has a use
-/// for them yet. They are skipped by the token's own declared length, so an
-/// unread type never costs the reader its place in the stream.
+/// The variants are the four TDS 7.4 spells as text, plus the one it spells as
+/// bytes that this driver cannot do without: the transaction descriptor, which
+/// [`EnvChange::Transaction`] owns. Everything else — collation, the routing
+/// answer an Azure failover sends — is [`EnvChange::Other`] carrying its type
+/// byte, because the value halves of those are bytes rather than characters and
+/// nothing here has a use for them yet. They are skipped by the token's own
+/// declared length, so an unread type never costs the reader its place in the
+/// stream.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EnvChange {
     /// The database this session is in. Novis reads it because § 13's pool key
@@ -1766,6 +1810,23 @@ pub enum EnvChange {
     PacketSize {
         /// The size in force from the *next* packet onwards.
         to: u16,
+    },
+    /// The transaction this session's requests must now enlist in, which the
+    /// server sends on a begin, a commit and a rollback alike.
+    ///
+    /// **Not optional to read.** Once a transaction is open, a request whose
+    /// `ALL_HEADERS` names a different descriptor than this one is refused with
+    /// driver code 3989 — *new request is not allowed to start because it
+    /// should come with valid transaction descriptor* — so a driver that
+    /// skipped this token could open a transaction and never run a statement
+    /// inside it. It is the one `ENVCHANGE` whose value is bytes that this
+    /// driver has a use for, and [`Wire::descriptor`] is where the answer is
+    /// kept.
+    Transaction {
+        /// The descriptor now in force, and **zero for none**: a commit and a
+        /// rollback send an empty value, which is the protocol's way of saying
+        /// there is no transaction left to name.
+        to: u64,
     },
     /// A type this driver does not read, by its type byte.
     Other(u8),
@@ -2386,6 +2447,11 @@ impl<'a> Tokens<'a> {
                     },
                 }
             }
+            ENV_BEGIN_TRANSACTION | ENV_COMMIT_TRANSACTION | ENV_ROLLBACK_TRANSACTION => {
+                EnvChange::Transaction {
+                    to: self.transaction_descriptor()?,
+                }
+            }
             other => EnvChange::Other(other),
         };
         // Deliberately unconditional: an unread type is skipped by the token's
@@ -2393,6 +2459,34 @@ impl<'a> Tokens<'a> {
         // parser for.
         self.at = end;
         Ok(change)
+    }
+
+    /// The `B_VARBYTE` new value of a transaction `ENVCHANGE`: eight octets for
+    /// a begin, and empty for a commit or a rollback.
+    ///
+    /// The eight are opaque — this driver never reads a field out of them, only
+    /// writes them back in the next request's `ALL_HEADERS` — so they are taken
+    /// little-endian here and written little-endian there and the number in
+    /// between is a handle rather than a quantity.
+    ///
+    /// **Any other length is refused rather than read as zero.** A descriptor
+    /// this driver could not read is one every later request would name wrongly,
+    /// and the server answers that with code 3989 on a statement the program
+    /// wrote; a refusal at the token names the real fault at the message that
+    /// carried it.
+    fn transaction_descriptor(&mut self) -> io::Result<u64> {
+        let octets = usize::from(self.byte("ENVCHANGE")?);
+        match octets {
+            0 => Ok(NO_TRANSACTION),
+            8 => Ok(u64::from_le_bytes(
+                self.take(8, "ENVCHANGE")?.try_into().expect("eight bytes"),
+            )),
+            other => Err(malformed(format!(
+                "a TDS ENVCHANGE described an open transaction with {other} octets, and the \
+                 descriptor every request after a BEGIN has to carry is the eight the protocol \
+                 defines"
+            ))),
+        }
     }
 
     /// A `DONE`, `DONEPROC` or `DONEINPROC` token: twelve fixed bytes with no
@@ -3027,6 +3121,9 @@ impl<S: Read + Write> TdsRows<'_, S> {
                     return Ok(Some(row));
                 }
                 Some(_) => match self.token()? {
+                    // § 7's descriptor, which the next request has to carry —
+                    // [`EnvChange::Transaction`] owns what a missed one costs.
+                    Some(Token::Env(EnvChange::Transaction { to })) => self.wire.set_descriptor(to),
                     Some(Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_)) => {}
                     Some(Token::ReturnValue(returned)) => self.returned = Some(returned),
                     Some(Token::Error(message)) => {
@@ -4248,6 +4345,10 @@ impl<S: Read + Write> TdsRows<'_, S> {
                     self.columns = columns;
                     return Ok(());
                 }
+                // [`TdsRows::step`]'s arm, and this is where a § 7 command's
+                // own answer is read: a `BEGIN TRANSACTION` has no result set,
+                // so its `ENVCHANGE` arrives before the `DONE` here.
+                Some(Token::Env(EnvChange::Transaction { to })) => self.wire.set_descriptor(to),
                 Some(Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_)) => {}
                 Some(Token::ReturnValue(returned)) => self.returned = Some(returned),
                 Some(Token::Error(message)) => {
@@ -4347,6 +4448,10 @@ const TRANSACTION_HEADER_BYTES: u32 = 18;
 /// may carry that TDS 7.2 and later require.
 const HEADER_TRANSACTION: u16 = 0x0002;
 
+/// The descriptor of *no* transaction: what every request carries until a
+/// `BEGIN TRANSACTION` is answered, and what a commit or a rollback puts back.
+const NO_TRANSACTION: u64 = 0;
+
 /// `StatusFlags` for a parameter the server may write back —
 /// `sp_prepexec`'s `@handle`, and nothing else this driver sends.
 const PARAM_BY_REF: u8 = 0x01;
@@ -4399,9 +4504,13 @@ const NO_COLLATION: [u8; 5] = [0; 5];
 ///
 /// `InvalidInput` for a parameter that is not UTF-8, and for one whose UCS-2
 /// form is past [`MAX_MESSAGE`].
-pub fn sp_prepexec_request(sql: &str, params: &[Option<&[u8]>]) -> io::Result<Vec<u8>> {
+pub fn sp_prepexec_request(
+    sql: &str,
+    params: &[Option<&[u8]>],
+    descriptor: u64,
+) -> io::Result<Vec<u8>> {
     let bound = bind(params)?;
-    prepexec_request(sql, &bound, declarations(&bound).as_deref())
+    prepexec_request(sql, &bound, declarations(&bound).as_deref(), descriptor)
 }
 
 /// Every bound value as the UCS-2 [`text_param`] writes, or the refusal that
@@ -4426,9 +4535,13 @@ fn bind(params: &[Option<&[u8]>]) -> io::Result<Vec<Option<Vec<u8>>>> {
 }
 
 /// A request's `ALL_HEADERS` and `NameLenProcID`, up to the first argument.
-fn rpc_header(proc_id: u16) -> Vec<u8> {
+///
+/// Every RPC body goes through here, which is why `descriptor` is taken here
+/// rather than defaulted: a request shape added later cannot forget the header
+/// § 7 needs, because it cannot be built without naming the transaction.
+fn rpc_header(proc_id: u16, descriptor: u64) -> Vec<u8> {
     let mut out = Vec::new();
-    all_headers(&mut out);
+    all_headers(&mut out, descriptor);
     out.extend_from_slice(&PROC_ID_SWITCH.to_le_bytes());
     out.extend_from_slice(&proc_id.to_le_bytes());
     // `OptionFlags`: neither `fWithRecomp` nor the two metadata ones. A
@@ -4444,8 +4557,9 @@ fn prepexec_request(
     sql: &str,
     bound: &[Option<Vec<u8>>],
     declared: Option<&str>,
+    descriptor: u64,
 ) -> io::Result<Vec<u8>> {
-    let mut out = rpc_header(PROC_SP_PREPEXEC);
+    let mut out = rpc_header(PROC_SP_PREPEXEC, descriptor);
     // `@handle`, sent null and by reference: the server allocates the plan and
     // writes the number back in the `RETURNVALUE` [`TdsRows::returned`] keeps.
     int_param(&mut out, true, None);
@@ -4468,8 +4582,8 @@ fn prepexec_request(
 /// # Errors
 ///
 /// As [`text_param`], for the same values.
-fn execute_request(handle: i32, bound: &[Option<Vec<u8>>]) -> io::Result<Vec<u8>> {
-    let mut out = rpc_header(PROC_SP_EXECUTE);
+fn execute_request(handle: i32, bound: &[Option<Vec<u8>>], descriptor: u64) -> io::Result<Vec<u8>> {
+    let mut out = rpc_header(PROC_SP_EXECUTE, descriptor);
     // By value rather than by reference: this one is read and never written
     // back, so there is nothing for the server to return.
     int_param(&mut out, false, Some(handle));
@@ -4484,8 +4598,8 @@ fn execute_request(handle: i32, bound: &[Option<Vec<u8>>]) -> io::Result<Vec<u8>
 /// one left unread would be taken as the *next* statement's — this is the
 /// protocol's difference and not a choice, and it is why an eviction costs a
 /// round trip here and none there.
-fn unprepare_request(handle: i32) -> Vec<u8> {
-    let mut out = rpc_header(PROC_SP_UNPREPARE);
+fn unprepare_request(handle: i32, descriptor: u64) -> Vec<u8> {
+    let mut out = rpc_header(PROC_SP_UNPREPARE, descriptor);
     int_param(&mut out, false, Some(handle));
     out
 }
@@ -4499,9 +4613,9 @@ fn unprepare_request(handle: i32) -> Vec<u8> {
 /// parameters ([`start_statement`]), which is § 1's no-emulated-prepares rule,
 /// and the only thing composed into a batch here is a savepoint name this
 /// module minted.
-fn batch_request(sql: &str) -> Vec<u8> {
+fn batch_request(sql: &str, descriptor: u64) -> Vec<u8> {
     let mut out = Vec::new();
-    all_headers(&mut out);
+    all_headers(&mut out, descriptor);
     out.extend_from_slice(&ucs2_of(sql));
     out
 }
@@ -4548,14 +4662,18 @@ fn is_wide(ucs2: &[u8]) -> bool {
 
 /// A request's `ALL_HEADERS`: the transaction descriptor TDS 7.2 and later
 /// require, and nothing else.
-fn all_headers(out: &mut Vec<u8>) {
+///
+/// `descriptor` is [`Wire::descriptor`] — the transaction this request enlists
+/// in, and zero is *none*. It is a parameter rather than a constant because the
+/// server refuses a request that names the wrong one: once a `BEGIN
+/// TRANSACTION` has been answered, every later request on the session carries
+/// the eight octets that answer came with, and one still writing zero is
+/// refused with code 3989 before it runs.
+fn all_headers(out: &mut Vec<u8>, descriptor: u64) {
     out.extend_from_slice(&ALL_HEADERS_BYTES.to_le_bytes());
     out.extend_from_slice(&TRANSACTION_HEADER_BYTES.to_le_bytes());
     out.extend_from_slice(&HEADER_TRANSACTION.to_le_bytes());
-    // The transaction this request enlists in, and zero is *none*. § 7's
-    // transactions are statements on this connection rather than the descriptor
-    // MARS needs, so there is never a number to name here.
-    out.extend_from_slice(&0u64.to_le_bytes());
+    out.extend_from_slice(&descriptor.to_le_bytes());
     // `OutstandingRequestCount`: one, which is all § 4 ever allows in flight.
     out.extend_from_slice(&1u32.to_le_bytes());
 }
@@ -4832,10 +4950,15 @@ pub fn start_statement<'a, S: Read + Write>(
     let declared = declarations(&bound);
     let declared: Rc<str> = Rc::from(declared.as_deref().unwrap_or_default());
 
+    // § 7's open transaction, read once: a statement is one request or two, and
+    // the descriptor cannot move between them — nothing here sends a `BEGIN`,
+    // and the eviction below runs on the same transaction the execution does.
+    let descriptor = wire.descriptor();
+
     let mut stale = None;
     match cache.lookup(sql, params.len()) {
         Some(plan) if plan.declared == declared => {
-            let request = execute_request(plan.handle, &bound)?;
+            let request = execute_request(plan.handle, &bound, descriptor)?;
             send_request(wire, state, PacketType::Rpc, Status::NORMAL, &request)?;
             return read_answer(wire, state, span, None);
         }
@@ -4852,14 +4975,14 @@ pub fn start_statement<'a, S: Read + Write>(
 
     // Built before anything is written, so a value this driver will not send
     // costs neither an eviction nor a byte on the wire.
-    let request = prepexec_request(sql, &bound, cache_declaration(&declared))?;
+    let request = prepexec_request(sql, &bound, cache_declaration(&declared), descriptor)?;
     if let Some(handle) = stale.or_else(|| cache.make_room().map(|plan| plan.handle)) {
         send_request(
             wire,
             state,
             PacketType::Rpc,
             Status::NORMAL,
-            &unprepare_request(handle),
+            &unprepare_request(handle, descriptor),
         )?;
         drain(wire, state)?;
     }
@@ -5262,13 +5385,8 @@ fn batch_command<S: Read + Write>(
     if !state.get().may_start_statement() {
         return Err(crate::pg::second_statement(state));
     }
-    send_request(
-        wire,
-        state,
-        PacketType::SqlBatch,
-        Status::NORMAL,
-        &batch_request(sql),
-    )?;
+    let request = batch_request(sql, wire.descriptor());
+    send_request(wire, state, PacketType::SqlBatch, Status::NORMAL, &request)?;
     drain(wire, state)
 }
 
@@ -5283,13 +5401,23 @@ fn batch_command<S: Read + Write>(
 /// § 13 asks of a reset and what a bit riding the *next* request could not give
 /// — that request already belongs to the program the connection was handed to.
 ///
-/// [`crate::mysql::reset_session`]'s twin with one half missing: TDS has no
-/// session time zone to send again, [`TdsTarget::time_zone`] owns why, so the
-/// cache is the whole of what has to follow the reset. It is emptied here
-/// rather than by whoever pools the connection, for that function's reason —
-/// the plans are gone from the server the moment this answers, and a cache
-/// still naming them would bind the next request against handles this session
-/// no longer has.
+/// [`crate::mysql::reset_session`]'s twin with one half missing and one half
+/// this backend alone owes. TDS has no session time zone to send again,
+/// [`TdsTarget::time_zone`] owns why. The cache is emptied here rather than by
+/// whoever pools the connection, for that function's reason — the plans are
+/// gone from the server the moment this answers, and a cache still naming them
+/// would bind the next request against handles this session no longer has.
+///
+/// **The isolation level is put back by this driver, because the procedure does
+/// not put it back.** That is measured rather than assumed: the § 13 case in
+/// `crates/nvs-db/tests/handshake.rs` reads `sys.dm_exec_sessions` after a reset
+/// and finds the level the last `transaction()` asked for still in force. § 13
+/// states the reset as a *property* — after it, no session state the next
+/// request could observe — and names `sp_reset_connection` as the means; where
+/// the means falls short of the property, the property is what has to hold. The
+/// restore costs a round trip only for a session an isolation level actually
+/// moved, which is what [`TdsConn::isolation_moved`](crate::conn::TdsConn)
+/// records.
 ///
 /// Free and generic in the stream for this crate's usual reason: a
 /// `Wire<NvsTls<Tunnel<NvsTcp>>>` needs a socket and a certificate that no unit
@@ -5304,17 +5432,35 @@ pub fn reset_session<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
     cache: &mut StatementCache<TdsPlan>,
+    moved: &Cell<bool>,
 ) -> io::Result<()> {
+    // The one request that names no transaction however deep the session was.
+    // [`Status::RESET_CONNECTION`] is honoured *before* the request it rides is
+    // processed, so whatever § 7 had open is already rolled back by the time
+    // this message's `ALL_HEADERS` is read, and a descriptor naming it would
+    // name a transaction the server no longer has. Cleared before the request
+    // is built rather than after the answer, so a reset that failed leaves
+    // nothing behind either: § 13 destroys the connection on any error here.
+    wire.set_descriptor(NO_TRANSACTION);
     send_request(
         wire,
         state,
         PacketType::SqlBatch,
         Status::RESET_CONNECTION,
-        &batch_request(RESET_STATEMENT),
+        &batch_request(RESET_STATEMENT, NO_TRANSACTION),
     )?;
     drain(wire, state)?;
     cache.clear();
-    Ok(())
+    // The one piece of session state `sp_reset_connection` leaves standing, and
+    // the server is what says so: `crates/nvs-db/tests/handshake.rs`'s
+    // `a_mssql_reset_from_inside_a_transaction_leaves_none_and_the_logins_level`
+    // reads `sys.dm_exec_sessions` after a reset and finds the level the last
+    // `transaction()` asked for still in force. § 13 states the reset as a
+    // *property* rather than as a command list for exactly this reason — a
+    // pooled connection whose level one request moved would silently run the
+    // next request's statements at it — so the restore this driver already owes
+    // ([`begin`]) is paid here as well, and only where one is owed.
+    restore_isolation(wire, state, moved)
 }
 
 /// Writes one request and says where a failed write leaves the connection.
@@ -5463,14 +5609,21 @@ impl TdsConn {
     ///
     /// As [`reset_session`]. The connection is consumed either way.
     pub fn reset(mut self) -> io::Result<TdsConn> {
-        reset_session(&mut self.wire, &self.state, &mut self.cache)?;
-        // `sp_reset_connection` rolls back whatever transaction was open and
-        // puts the session's isolation level back at the login's default, so
-        // both of § 7's counters are answered by it — and a connection pooled at
-        // a depth it no longer has would open the next request's outermost
-        // `transaction()` as a `SAVE TRANSACTION` against nothing.
+        reset_session(
+            &mut self.wire,
+            &self.state,
+            &mut self.cache,
+            &self.isolation_moved,
+        )?;
+        // `sp_reset_connection` rolls back whatever transaction was open, so
+        // § 7's depth is answered by it — and the isolation level is **not**,
+        // which is why the flag is cleared by the restore [`reset_session`] pays
+        // rather than here. The third counter, the server's own transaction
+        // descriptor, is cleared there too, that being where the request
+        // carrying it is written. A connection pooled at a depth it no longer
+        // has would open the next request's outermost `transaction()` as a
+        // `SAVE TRANSACTION` against nothing.
         self.depth.set(0);
-        self.isolation_moved.set(false);
         Ok(self)
     }
 
@@ -6659,15 +6812,63 @@ mod tests {
     /// own length is what skips it.
     #[test]
     fn an_envchange_this_driver_does_not_read_is_skipped_by_its_length() {
-        // Type 8, `BEGIN TRANSACTION`, whose two halves are bytes rather than
-        // characters — so a reader that walked the value halves would be
-        // reading a transaction descriptor as a character count.
-        let mut payload = token(TOKEN_ENV_CHANGE, &[8, 8, 1, 2, 3, 4, 5, 6, 7, 8, 0]);
+        // Type 17, the routing answer an Azure failover sends, whose two halves
+        // are bytes rather than characters — so a reader that walked the value
+        // halves would be reading a routing address as a character count.
+        let mut payload = token(TOKEN_ENV_CHANGE, &[17, 8, 1, 2, 3, 4, 5, 6, 7, 8, 0]);
         payload.extend_from_slice(&done_token(0, 0));
 
         let read = tokens(&payload).expect("an unread type is not a malformed message");
-        assert_eq!(read[0], Token::Env(EnvChange::Other(8)));
+        assert_eq!(read[0], Token::Env(EnvChange::Other(17)));
         assert_eq!(read.len(), 2, "the DONE after it is still found");
+    }
+
+    /// § 7's descriptor is read off the token that carries it, on all three of
+    /// the types that carry one.
+    ///
+    /// The begin is where the eight octets arrive; the commit and the rollback
+    /// send an empty new value, and reading that as *no transaction* is what
+    /// puts the connection back where the next statement can run outside a
+    /// transaction at all.
+    #[test]
+    fn a_transaction_envchange_carries_the_descriptor_a_begin_opened() {
+        let opened = tokens(&token(
+            TOKEN_ENV_CHANGE,
+            &[ENV_BEGIN_TRANSACTION, 8, 1, 2, 3, 4, 5, 6, 7, 8, 0],
+        ))
+        .expect("a begin names the transaction it opened");
+        assert_eq!(
+            opened[0],
+            Token::Env(EnvChange::Transaction {
+                to: 0x0807_0605_0403_0201
+            }),
+            "the octets are echoed back in `ALL_HEADERS` and never read into fields"
+        );
+
+        for ended in [ENV_COMMIT_TRANSACTION, ENV_ROLLBACK_TRANSACTION] {
+            // The empty new value, then the descriptor as the *old* one, which
+            // this driver skips by the token's own length.
+            let read = tokens(&token(
+                TOKEN_ENV_CHANGE,
+                &[ended, 0, 8, 1, 2, 3, 4, 5, 6, 7, 8],
+            ))
+            .expect("an ended transaction names none");
+            assert_eq!(
+                read[0],
+                Token::Env(EnvChange::Transaction { to: NO_TRANSACTION }),
+                "type {ended}"
+            );
+        }
+
+        // A width this driver cannot echo is refused where it arrived, rather
+        // than carried into every later request as a descriptor naming nothing.
+        let refused = tokens(&token(
+            TOKEN_ENV_CHANGE,
+            &[ENV_BEGIN_TRANSACTION, 4, 1, 2, 3, 4, 0],
+        ))
+        .expect_err("a descriptor that is not eight octets");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+        assert!(refused.to_string().contains("4 octets"), "{refused}");
     }
 
     /// A field or a token that runs off the end says so, rather than reading
@@ -7798,6 +7999,7 @@ mod tests {
         let request = sp_prepexec_request(
             "select * from t where a = @p1 and b = @p2",
             &[Some(b"7"), None],
+            NO_TRANSACTION,
         )
         .expect("two bound values");
         let (proc_id, params) = sent_rpc(&request);
@@ -7838,7 +8040,8 @@ mod tests {
     /// the server then finds no parameters for.
     #[test]
     fn a_statement_that_binds_nothing_sends_a_null_declaration_and_no_values() {
-        let request = sp_prepexec_request("select 1", &[]).expect("no bound values");
+        let request =
+            sp_prepexec_request("select 1", &[], NO_TRANSACTION).expect("no bound values");
         let (_, params) = sent_rpc(&request);
 
         assert_eq!(params.len(), 3);
@@ -7861,8 +8064,12 @@ mod tests {
         )
         .expect("three positional markers");
 
-        let request = sp_prepexec_request(&statement.sql, &[Some(b"a"), Some(b"b"), Some(b"c")])
-            .expect("three bound values");
+        let request = sp_prepexec_request(
+            &statement.sql,
+            &[Some(b"a"), Some(b"b"), Some(b"c")],
+            NO_TRANSACTION,
+        )
+        .expect("three bound values");
         let (_, params) = sent_rpc(&request);
         let declared = params[1].text.clone().expect("a declaration");
 
@@ -7892,7 +8099,8 @@ mod tests {
         ] {
             let value = "x".repeat(chars);
             let request =
-                sp_prepexec_request("select @p1", &[Some(value.as_bytes())]).expect("one value");
+                sp_prepexec_request("select @p1", &[Some(value.as_bytes())], NO_TRANSACTION)
+                    .expect("one value");
             let (_, params) = sent_rpc(&request);
 
             assert_eq!(params[1].text.as_deref(), Some(&*format!("@p1 {spelling}")));
@@ -7905,7 +8113,7 @@ mod tests {
     /// two are different sentinels rather than one.
     #[test]
     fn a_null_value_is_the_narrow_forms_sentinel_and_a_max_one_is_plps() {
-        let request = sp_prepexec_request("select @p1", &[None]).expect("one null");
+        let request = sp_prepexec_request("select @p1", &[None], NO_TRANSACTION).expect("one null");
         let (_, params) = sent_rpc(&request);
         assert_eq!(params[3].declared, NVARCHAR_CHARS * 2);
         assert_eq!(params[3].text, None);
@@ -7913,7 +8121,7 @@ mod tests {
         // The `MAX` half of the same rule, asserted where a value forces it:
         // `@params` and `@stmt` take the same path as a bound value.
         let long = "y".repeat(usize::from(NVARCHAR_CHARS) + 1);
-        let request = sp_prepexec_request(&long, &[]).expect("a long statement");
+        let request = sp_prepexec_request(&long, &[], NO_TRANSACTION).expect("a long statement");
         let (_, params) = sent_rpc(&request);
         assert_eq!(params[2].declared, NO_LENGTH);
         assert_eq!(params[2].text.as_deref(), Some(&*long));
@@ -7921,8 +8129,12 @@ mod tests {
 
     #[test]
     fn a_parameter_that_is_not_utf8_is_refused_by_the_marker_it_was_bound_at() {
-        let refused = sp_prepexec_request("select @p1, @p2", &[Some(b"fine"), Some(&[0xFF, 0xFE])])
-            .expect_err("this driver has no binary parameter yet");
+        let refused = sp_prepexec_request(
+            "select @p1, @p2",
+            &[Some(b"fine"), Some(&[0xFF, 0xFE])],
+            NO_TRANSACTION,
+        )
+        .expect_err("this driver has no binary parameter yet");
 
         assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
         assert!(refused.to_string().contains("@p2"), "{refused}");
@@ -8437,7 +8649,11 @@ mod tests {
         );
         assert_eq!(cache.len(), 1);
 
-        reset_session(&mut wire, &state, &mut cache).expect("a reset the server acknowledged");
+        // No `transaction()` moved the level here, so the reset owes no restore
+        // and sends the one message this case is counting.
+        let moved = Cell::new(false);
+        reset_session(&mut wire, &state, &mut cache, &moved)
+            .expect("a reset the server acknowledged");
         assert!(
             cache.is_empty(),
             "§ 13: the reset drops every prepared statement, so a cache that \
@@ -8773,6 +8989,134 @@ mod tests {
             ],
             "the nested commit is the message that is not here"
         );
+    }
+
+    /// § 7's descriptor rides every request after the `BEGIN` that opened it —
+    /// the batch commands this driver writes itself and the RPC a program's
+    /// statement goes out as, alike.
+    ///
+    /// **The claim is the server's own refusal.** Once a transaction is open, a
+    /// request whose `ALL_HEADERS` still names zero is answered with driver code
+    /// 3989 — *new request is not allowed to start because it should come with
+    /// valid transaction descriptor* — rather than run, so a driver that opened
+    /// a transaction and kept writing zeroes could never run a statement inside
+    /// one. The scripted peer cannot refuse anything, answering whatever was
+    /// written to it, which is why this asserts on the header bytes that went
+    /// out and `crates/nvs-db/tests/handshake.rs` asks a real server.
+    ///
+    /// The first request names none on purpose: the `BEGIN` is written before
+    /// there is a transaction to enlist in, and the descriptor arrives in its
+    /// answer.
+    #[test]
+    fn every_request_after_a_begin_carries_the_descriptor_the_server_sent() {
+        const DESCRIPTOR: u64 = 0x0807_0605_0403_0201;
+
+        let mut wire = answering_each(&[
+            transaction_answer(ENV_BEGIN_TRANSACTION, Some(DESCRIPTOR)),
+            prepexec_answer(3),
+            transaction_answer(ENV_COMMIT_TRANSACTION, None),
+        ]);
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let moved = Cell::new(false);
+        let mut cache = plans(2);
+
+        begin(&mut wire, &state, &depth, &moved, None, false)
+            .expect("a transaction the server took");
+        assert_eq!(
+            wire.descriptor(),
+            DESCRIPTOR,
+            "the ENVCHANGE a begin answers with is read rather than skipped"
+        );
+
+        drop(
+            start_statement(&mut wire, &state, &mut cache, "select a", &[])
+                .expect("a statement inside the transaction"),
+        );
+        commit(&mut wire, &state, &depth, &moved).expect("the outermost commit");
+        assert_eq!(
+            wire.descriptor(),
+            NO_TRANSACTION,
+            "a commit ends the transaction the next request would otherwise name"
+        );
+
+        let carried: Vec<u64> = flushed(&wire.peer().sent)
+            .iter()
+            .map(|(_, _, body)| header_descriptor(body))
+            .collect();
+        assert_eq!(
+            carried,
+            [NO_TRANSACTION, DESCRIPTOR, DESCRIPTOR],
+            "the BEGIN opens the transaction the statement and the COMMIT enlist in"
+        );
+    }
+
+    /// § 13's reset is the one request that names no transaction however deep
+    /// the session was, because the bit it carries has already ended one.
+    ///
+    /// [`Status::RESET_CONNECTION`] is honoured *before* the request it rides is
+    /// processed, so a descriptor naming the rolled-back transaction would name
+    /// one the server no longer has — and the connection this hands back to the
+    /// pool must be one the next request can open its own transaction on.
+    #[test]
+    fn a_reset_from_inside_a_transaction_names_none_and_forgets_the_descriptor() {
+        let mut wire = answering_each(&[
+            transaction_answer(ENV_BEGIN_TRANSACTION, Some(0x0102_0304_0506_0708)),
+            done(),
+        ]);
+        let state = Cell::new(State::Idle);
+        let depth = Cell::new(0);
+        let moved = Cell::new(false);
+        let mut cache = plans(2);
+
+        begin(&mut wire, &state, &depth, &moved, None, false)
+            .expect("a transaction the server took");
+        reset_session(&mut wire, &state, &mut cache, &moved)
+            .expect("a reset the server acknowledged");
+
+        assert_eq!(wire.descriptor(), NO_TRANSACTION);
+        let sent = flushed(&wire.peer().sent);
+        let (_, status, body) = sent.last().expect("the reset went out");
+        assert_ne!(
+            status.bits() & Status::RESET_CONNECTION.bits(),
+            0,
+            "the bit is what makes this message the reset"
+        );
+        assert_eq!(header_descriptor(body), NO_TRANSACTION);
+    }
+
+    /// One answer for a transaction that began, committed or rolled back:
+    /// the `ENVCHANGE` and the `DONE` after it.
+    fn transaction_answer(kind: u8, descriptor: Option<u64>) -> Vec<u8> {
+        let mut value = Vec::new();
+        match descriptor {
+            // A begin: the eight octets as the new value, and no old one.
+            Some(open) => {
+                value.push(8);
+                value.extend_from_slice(&open.to_le_bytes());
+                value.push(0);
+            }
+            // A commit or a rollback: an empty new value, and the descriptor
+            // that ended as the old one.
+            None => {
+                value.push(0);
+                value.push(8);
+                value.extend_from_slice(&1_u64.to_le_bytes());
+            }
+        }
+        let mut body = vec![kind];
+        body.extend_from_slice(&value);
+        let mut answer = token(TOKEN_ENV_CHANGE, &body);
+        answer.extend_from_slice(&done_token(0, 0));
+        answer
+    }
+
+    /// The transaction a flushed request's `ALL_HEADERS` enlisted it in.
+    fn header_descriptor(body: &[u8]) -> u64 {
+        // `TotalLength`, then the one header's own length and type, then the
+        // eight octets — the layout [`all_headers`] writes.
+        let at = 4 + 4 + 2;
+        u64::from_le_bytes(body[at..at + 8].try_into().expect("eight bytes"))
     }
 
     /// § 7's `{isolation}` on the one backend where it is a **session** setting:
