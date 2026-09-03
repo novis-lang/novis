@@ -17195,7 +17195,7 @@ Opens the connection an operator named in a `[db.<name>]` block of `nvs.toml`, a
 
 **Returns** `Core\Db\Connection` — A `Core\Db\Connection`. The same call twice in one request answers the same object unless `shared` is `false`, and the connection is closed when the request ends.
 
-**Throws** `RuntimeError` — `db.connect` does not grant `$name`, no `[db.<name>]` block of that name exists, or the block cannot be read as a connection — a missing `driver`, a field belonging to another driver, or a `time_zone` that is not an offset.; `IOError` — The host does not resolve, or the connection, the TLS handshake or the login itself failed. A refusal the server worded carries its own message.
+**Throws** `RuntimeError` — `db.connect` does not grant `$name`, no `[db.<name>]` block of that name exists, or the block cannot be read as a connection — a missing `driver`, a field belonging to another driver, or a `time_zone` that is not an offset.; `IOError` — The host does not resolve, the connection, the TLS handshake or the login itself failed, or this core already holds `[db.<name>.pool] max` connections under that name and none came free within `acquire`. A refusal the server worded carries its own message.
 
 <a id="core-core-db-open"></a>
 #### `Core\Db::open`
@@ -17213,7 +17213,7 @@ Opens a connection to a server the program itself names, for the case a `[db.<na
 
 **Returns** `Core\Db\Connection` — A `Core\Db\Connection`, closed when the request ends. Two calls with settings that agree in every field answer the same object unless `shared` is `false`.
 
-**Throws** `RuntimeError` — `db.open` does not grant the host, the address it resolves to is a private range that `net.internal` does not except, the settings do not describe a connection this build can open, or `tls` asks for a mode weaker than `VerifyFull`.; `IOError` — The host does not resolve, or the connection, the TLS handshake or the login itself failed.
+**Throws** `RuntimeError` — `db.open` does not grant the host, the address it resolves to is a private range that `net.internal` does not except, the settings do not describe a connection this build can open, or `tls` asks for a mode weaker than `VerifyFull`.; `IOError` — The host does not resolve, the connection, the TLS handshake or the login itself failed, or this core already holds its `max` of connections to those settings and none came free while waiting.
 
 <a id="core-core-db-inlist"></a>
 #### `Core\Db::inList`
