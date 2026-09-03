@@ -1663,6 +1663,16 @@ is why" — is this file.
   leaves nothing dangling, where correcting the check leaves a doc link pointing at a test that does not
   exist — and a broken link in a `///` is invisible to every gate this repo runs. One
   `grep -rn '<drafted name>' crates/` is the whole decision.
+- **The handoff's own next-group item can already be on disk, and the anchor it names is where you
+  find that out.** Item 1 of a re-scoped group read "§ 8's `sql` is the fifth raw value and no throw
+  carries it" and pointed at `crates/nvs-stdlib/src/db.rs:3653`; the doc comment `orient.py` inlined
+  from that very anchor already explained *which* spelling of the text rides the throw, and the
+  runtime slot, the compiler's copy, the `OWN_PROPERTIES` row and `statement_failure`'s write of it
+  were two commits old — `fe39a987` and `b4e23338`. A stale item reads exactly like an open one,
+  because the handoff is written by the session that held the context and not by the tree, and a
+  re-scope can carry an item forward without re-checking it. `git log --oneline -S '<the symbol the
+  item is about>'` settles it in one call, which is cheaper than the four greps that establish it a
+  fact at a time; then say "already landed" in the next handoff, or the third session pays again.
 
 ## Running things
 

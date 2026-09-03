@@ -2,60 +2,52 @@
 
 ## State
 
-**§ 7's retry waits now, and known gap 9 is gone from `crates/nvs-stdlib/src/db.rs`'s list**, which
-ends at 8 with no renumbering — it was the last one. `retry_backoff` draws full jitter uniform in
-`[0, 10ms × 2^taken]`, capped at one second because `retries` is a `uint`; `wait_between_attempts`
-gives the core back for it and turns `Woken::Cancelled` into `Ctx::cancel`. Both conflict channels
-wait before the re-run: the commit's `io::Error` and the closure's pending `Core\Db\DbError`.
+**MySQL and MariaDB reach `Core\Db` through one body.** `Framed` in
+`crates/nvs-stdlib/src/db.rs` is the seam, and its doc owns the reading — MariaDB is its own driver
+*above* the framing, not inside it, because `nvs_db::MariaConn`'s `query` delegates into the same
+`nvs_db::mysql::start_statement` and hands back the same `MySqlRows`. `connect`, `open`,
+`query`/`execute`/`executeMany`, § 7's `transaction` and § 13's pooled reset each have a MariaDB arm
+now; known gap 2's roster in that module's doc is three drivers, and
+`the_refusal_names_every_driver_that_sends` holds `driverless`'s sentence to the arms rather than to
+whoever last edited it.
 
-**The RNG question closed with no dependency.** `rand` is already `nvs-stdlib`'s, for
-`crate::http::transport`'s ADR 0074 § 6 jitter, so ADR 0051 § 4 is not reopened and the draw follows
-that module's full-jitter shape rather than `crate::queue`'s id-mixed ladder — a transaction has no
-id to mix, which `retry_backoff`'s own doc argues.
-
-**`Host::sleep`, not the bounded park the last handoff named.** That trait's doc separates a wait for
-the *clock* from a wait for a peer, and nothing wakes a backoff: a connection coming free says
-nothing about a deadlock already broken. `wait_between_attempts`'s doc owns the reading, including
-why the no-host arm blocks.
+**The item this session opened on was already on disk.** § 8's `sql` landed in `fe39a987` and
+`b4e23338` — `nvs_runtime::SQL_SLOT`, `nvs_hir::errors::SQL_SLOT`, the `OWN_PROPERTIES` row and
+`statement_failure`'s write of it — and `docs/agent/loop-goal.toml`'s stage-9 program check already
+pins the spelling with `sql=insert into people (id, name) values (?, ?)`. Nothing was owed; the
+playbook bullet added this session is the check that would have said so in one call.
 
 **The driver's stage-7 check is unchanged and still correctly filed.**
 `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` needs SQL Server and there is no TDS
-driver — `TdsConn` in `crates/nvs-db/src/conn.rs` is a busy-state cell. Do not rename it, split it,
-or write a MySQL-only test under that name; MySQL's half is already asserted by
-`a_reset_invalidates_the_statement_cache` in `crates/nvs-db/src/mysql.rs`.
+driver — `TdsConn` is a busy-state cell. It is not starving the acceptance list either: `.loop/log.md`
+reads 194 checks an iteration. Do not rename it, split it, or write a MySQL-only test under it.
 
 ## Next group
 
-**One file, `crates/nvs-stdlib/src/db.rs`, plus `crates/nvs-db/src/maria.rs` read-only.** The first
-is small and self-contained; the second is the re-scoped MariaDB item — it is **not** the one-arm
-change the previous handoff priced, and the playbook bullet added this session is why.
+**One file, `crates/nvs-stdlib/src/queue.rs`.** ADR 0084 § 2's queue is the last PostgreSQL-only
+surface in `nvs-stdlib`. `Framed` is the shape to copy and not the code to share: these are the
+queue's own statements, and what differs between the drivers here is the SQL rather than the send.
 
-- [ ] **§ 8's `sql` is the fifth raw value and no throw carries it** (0067 § 8).
-      `crates/nvs-stdlib/src/db.rs:3653` is `statement_failure`, which builds the four that are
-      carried; `crates/nvs-stdlib/src/db.rs:5799` is `transacted`, whose doc now owns the account of
-      how a kind reaches `nvs_runtime::KIND_SLOT` and is where a fifth value has to fit. The SQL text
-      is developer-authored, so § 8 lets it ride where a bound parameter may not.
-- [ ] **A sharing seam for the two drivers over MySQL's framing** (0067 § 2, known gap 2), and take
-      this before the arms. `crates/nvs-stdlib/src/db.rs:4647` is `mysql_rows` and
-      `crates/nvs-stdlib/src/db.rs:4764` is `mysql_write`; both take `&mut nvs_db::MySqlConn` by
-      name, and `crates/nvs-db/src/maria.rs:423` is `MariaConn::query`, which answers the *same*
-      `crate::MySqlRows<'_, NvsTls<NvsTcp>>` through the same `crate::mysql::start_statement`.
-      Hoisting the `.query(...)` to the call site is the cheaper of the two shapes — the alternative
-      names that rows type in a local trait, which drags `nvs_host` types into this module.
-- [ ] **Then `open` opens a MariaDB** (0067 § 2, known gap 2), which is six arms once the seam
-      exists: `crates/nvs-stdlib/src/db.rs:3311` is `open`'s match (the Postgres arm above the
-      `other =>` is the shape), `crates/nvs-stdlib/src/db.rs:4135` is `warm_connection`'s reset,
-      `crates/nvs-stdlib/src/db.rs:4350` is the `Transacting` enum and its four delegating arms,
-      `crates/nvs-stdlib/src/db.rs:4417` is `transacting`, `crates/nvs-stdlib/src/db.rs:4494` is
-      `queried_rows`. `crates/nvs-db/src/maria.rs:215` is `MariaTarget`, which carries `time_zone`
-      and `statement_cache` exactly as `MySqlTarget` does. Then rewrite known gap 2 at
-      `crates/nvs-stdlib/src/db.rs:88`, gap 3 at `crates/nvs-stdlib/src/db.rs:108` and `driverless`
-      at `crates/nvs-stdlib/src/db.rs:4537`, whose message names the list.
+- [ ] **The claim path refuses the two drivers that now open** (0084 § 2).
+      `crates/nvs-stdlib/src/queue.rs:1295` is `postgres_of` and
+      `crates/nvs-stdlib/src/queue.rs:1315` is its one `let nvs_db::Connection::Postgres(…) else`;
+      widen both to the roster `crates/nvs-stdlib/src/db.rs`'s `driverless` now names, and decide
+      there whether the queue borrows `Framed` or keeps a refusal of its own.
+- [ ] **§ 2's schema is written in one dialect** (0084 § 2).
+      `crates/nvs-stdlib/src/queue.rs:192` is the DDL and the claim-order index beside it; `bigint`,
+      `text` and the identifier quoting are what a MySQL server reads differently, and § 5's
+      rewriter does not touch a `CREATE TABLE`.
+- [ ] **§ 4's claim needs a dialect, not a translation** (0084 § 4).
+      `crates/nvs-stdlib/src/queue.rs:298` is `CLAIM`, a `with … as` CTE ending in
+      `for update skip locked`; ADR 0084 § 4 already states the per-backend spelling, MySQL 8 has
+      `SKIP LOCKED` and MariaDB 10.6 does too, so this is a rendering and not a second algorithm.
 
 ## Backlog
 
-- `connect` opens no MariaDB either — `crates/nvs-stdlib/src/db.rs:2955` is its MySQL arm, and it is
-  the same seam once `open`'s is done. Known gap 2.
-- SQL Server has no driver at all, which is what holds the goal's stage-7 check open. `nvs-db`.
-- `crate::queue`'s four members are still PostgreSQL-only. Known gap 2's last sentence.
-- `[db.<name>.pool]` has no spelling an `open` can reach, and no `pool = false`. Known gap 1.
+- SQL Server has no driver at all, so stage 7's `mysql_and_mssql_…` check stays open —
+  `docs/agent/loop-goal.toml`, stage 7.
+- SQLite is ADR 0051 § 4's one audited C dependency and still has no connection path —
+  `crates/nvs-stdlib/src/db.rs` known gap 2.
+- `Core\Db::open`'s arm selection — that module's known gap 1.
+- Known gaps 4-8 in `crates/nvs-stdlib/src/db.rs`'s module doc, none of them blocking.
+- The five-driver CI matrix beyond the three that open — `crates/nvs-db/src/matrix.rs`.
