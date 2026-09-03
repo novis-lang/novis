@@ -23,8 +23,9 @@
 //! **The schema is this module's, and `nvs queue migrate` reads it.** § 2 makes the runtime own one
 //! jobs table and one dead-letter table, created by an explicit operator command — DDL is an
 //! injection sink and never issued from a request — so `push` writes into a table it does not create.
-//! [`MIGRATION`] is that command's whole schema and the one home for what those tables' columns are;
-//! `nvs-cli`'s `queue` module runs it and decides nothing about it. Two choices in it are worth their
+//! [`MIGRATION_POSTGRES`] and [`MIGRATION_MYSQL`] are that command's whole schema — one list per
+//! dialect, the same columns in each, and the one home for what those tables' columns are;
+//! `nvs-cli`'s `queue` module runs a list and decides nothing about it. Two choices in it are worth their
 //! sentence: every instant is a `bigint` of epoch milliseconds rather than a timestamp, because § 2
 //! supports all five of ADR 0067's backends and five timestamp dialects is exactly the cost a
 //! runtime-owned table should not carry; and `state` is the ordinal `Core\Queue\State` already is at
@@ -47,8 +48,9 @@
 //! 3. **`key`'s "at most one pending job per key" is enforced by the statement, and by the index
 //!    only where the migration has been applied.** [`INSERT`]'s `existing` arm reads the table
 //!    inside the same statement that writes it, which is correct against every other `push` on a
-//!    *serialized* transaction and racy against a concurrent one at `read committed`. The partial
-//!    unique index over `(dedupe_key) where state = 0` is [`MIGRATION`]'s `jobs.dedupe`, and the
+//!    *serialized* transaction and racy against a concurrent one at `read committed`. Both
+//!    migration lists carry the constraint under the name `nvs_jobs_dedupe` — a partial unique
+//!    index on PostgreSQL, a unique key over a stored generated column on MySQL — and the
 //!    statement is race-free against a schema carrying it without changing shape — so what is left
 //!    of this gap is a deployment that never ran `nvs queue migrate`, which is the one case the
 //!    index is absent in.
@@ -57,11 +59,13 @@
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
 //!    not decide beyond `id` and `queue`, so [`COUNTS`] sums `attempts` over [`JOBS_TABLE`] alone
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
-//! 5. **PostgreSQL only, and what is missing is the SQL and not the driver.** Three drivers send a
-//!    statement now — [`crate::db`]'s gap 2 is the two that do not — but § 2's schema and every
-//!    statement above it are written in one dialect, and [`no_dialect`]'s own doc owns why a second
-//!    backend needs statements of its own rather than a switch inside these. So [`postgres_of`]
-//!    refuses by name, saying which of the two things is in the way.
+//! 5. **The members are PostgreSQL only, and what is missing is the SQL and not the driver.** Three
+//!    drivers send a statement now — [`crate::db`]'s gap 2 is the two that do not — and § 2's
+//!    schema now has a list for two of them, but every statement the members themselves run is
+//!    still PostgreSQL's: § 4's claim, § 1's `insert` and § 6's move each rest on a construct MySQL
+//!    has no spelling for, which [`no_dialect`]'s own doc names. So [`postgres_of`] refuses by
+//!    name, saying which of the two things is in the way, and what closes this gap is a second set
+//!    of statements rather than a switch inside these.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -107,7 +111,7 @@ const JOBS_TABLE: &str = "nvs_jobs";
 
 /// § 6's dead-letter table, unqualified for [`JOBS_TABLE`]'s reason.
 ///
-/// **Two of its columns are all this module reads, and [`MIGRATION`] is where every one of them is
+/// **Two of its columns are all this module reads, and [`MIGRATION_POSTGRES`] is where every one of them is
 /// written down.** A job keeps the `id` and the `queue` it had in [`JOBS_TABLE`], so a
 /// `Core\Queue\Id` handed out before the job exhausted its attempts still names it afterwards, and
 /// that pair is the whole of what [`STATUS`] and [`COUNTS`] ask of the table. What else the row
@@ -142,18 +146,22 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
-/// ADR 0084 § 2's schema, in the order `nvs queue migrate` runs it.
+/// ADR 0084 § 2's schema in PostgreSQL's dialect, in the order `nvs queue migrate` runs it.
 ///
-/// **This is the one home for what the queue's tables are**, and the command reads it rather than
-/// carrying a copy: every column below is one a statement in this module binds or reads, and
-/// `the_ddl_creates_every_column_the_statements_name` holds the two lists together — a column
-/// renamed here and nowhere else fails that test rather than a deployment.
+/// **This is one of two homes for what the queue's tables are, and [`MIGRATION_MYSQL`] is the
+/// other** — one list per dialect rather than one list with holes in it. The identity column, the
+/// partial index and `create index if not exists` are each spelt differently across § 2's five
+/// backends, and two of those three have no MySQL spelling at all, so a string interpolating a
+/// dialect into itself would have stopped being a statement before it covered the second backend.
+/// What the two lists share is the *column list*, which is the part any statement in this module
+/// binds or reads: `the_ddl_creates_every_column_the_statements_name` walks both against those
+/// statements, so a column renamed in one dialect and nowhere else fails that test rather than a
+/// deployment.
 ///
-/// **PostgreSQL's dialect, because it is the only one the queue's statements are written in**
-/// (gap 5, and [`no_dialect`] is where that reading lives). A second backend brings its own list
-/// rather than a dialect switch inside these strings: the identity column, the partial index and
-/// `if not exists` are each spelt differently across § 2's five — and MySQL has no partial index at
-/// all — so a string with three holes in it has stopped being a statement.
+/// The command reads a list rather than carrying a copy, and which one it reads is the driver's
+/// answer — [`no_dialect`] is where the reading that a *statement* is still PostgreSQL-only lives
+/// (gap 5), and it is now a narrower gap than this constant's: the schema has both dialects and
+/// §§ 1 and 4's statements have one.
 ///
 /// **`if not exists` on every one, because § 2 says *created and upgraded*.** Running the command
 /// twice is not an error and running it against a half-built schema completes it, which is what
@@ -178,7 +186,7 @@ pub struct Migration {
 ///   so the array is § 6's shape at the depth this schema pays for, and [`dead_errors`] is where
 ///   that trade is written down. There is no `state`: a row is `Dead` by being in that table, which
 ///   is exactly what [`STATUS`]'s second arm asserts by answering the ordinal as a literal.
-pub const MIGRATION: &[Migration] = &[
+pub const MIGRATION_POSTGRES: &[Migration] = &[
     Migration {
         label: "jobs",
         sql: "create table if not exists nvs_jobs (\
@@ -236,6 +244,120 @@ pub const MIGRATION: &[Migration] = &[
     },
 ];
 
+/// The list § 2's schema is written in for `driver`, or `None` for a driver it has no dialect for.
+///
+/// **The one place a dialect is chosen**, which is the same rule that put the schema in this module
+/// rather than in `nvs queue migrate`: the command runs a list and decides nothing about it, so a
+/// backend gaining a dialect is one arm here and no edit there. MariaDB shares MySQL's list for
+/// [`MIGRATION_MYSQL`]'s stated reason.
+///
+/// **`None` is exactly the two drivers that run no statement at all** — [`crate::db`]'s gap 2 —
+/// and that agreement is held by `the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one`
+/// rather than by two lists that happen to match. A schema for a backend nothing can send it to
+/// would be a dialect nobody could check against a server, so the schema follows the driver rather
+/// than leading it.
+#[must_use]
+pub fn migration(driver: nvs_db::Driver) -> Option<&'static [Migration]> {
+    match driver {
+        nvs_db::Driver::Postgres => Some(MIGRATION_POSTGRES),
+        nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => Some(MIGRATION_MYSQL),
+        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => None,
+    }
+}
+
+/// ADR 0084 § 2's schema in MySQL's dialect, which MariaDB runs unchanged.
+///
+/// **The same columns as [`MIGRATION_POSTGRES`] and a different spelling of every construct around
+/// them**, which is what that constant's doc means by one list per dialect. Both are walked by
+/// `the_ddl_creates_every_column_the_statements_name` against the same statements, so the two lists
+/// cannot drift in the only way that would matter — the column names — while differing freely in
+/// the four ways below, each of which is a decision this doc owes a sentence.
+///
+/// **MariaDB shares it rather than earning a third list.** It is its own driver for the reasons
+/// [ADR 0067](../../../docs/adr/0067-core-db.md) gives — its own authentication roster, its own § 8
+/// error table — and none of those reach DDL: every construct here is one MariaDB spells exactly as
+/// MySQL does, stored generated columns included (10.2 and later). A separate list would be two
+/// copies of one text with no line differing, which is the drift this module's one-home rule exists
+/// to prevent rather than an accommodation of a real difference. A construct that does diverge
+/// later splits the list on that day.
+///
+/// **Two statements rather than five, because `create index if not exists` does not exist on
+/// MySQL** — the syntax is simply absent, and `create index` against an index already there is an
+/// error rather than a no-op. So each table's indexes are declared *inside* its own `create table if
+/// not exists`, which keeps § 2's *created and upgraded* reading in the form that matters to an
+/// operator: running `nvs queue migrate` twice is not an error, and there is no half-built state for
+/// the second run to complete, because a table and its indexes arrive in one statement or not at
+/// all. What this dialect cannot do is add an index to a table an *older* Novis created; that is a
+/// schema change with no `if not exists` to hide behind on this backend, and it is the migration
+/// command's problem on the day there is one to make rather than something a spelling here avoids.
+///
+/// **The dedupe index is a stored generated column with a plain unique index over it**, because
+/// MySQL has no partial index at all. `case when state = 0 then dedupe_key else null end` is `where
+/// state = 0` said on the other side: a row that is not pending stores `null` in the generated
+/// column, and MySQL's unique indexes do not collide on `null`, so exactly the pending rows are
+/// constrained and every other row is invisible to the constraint. That is the same guarantee gap
+/// 3's index gives on PostgreSQL — [`INSERT`]'s `existing` arm is refused by the index rather than
+/// admitted by a guard that read the table a moment earlier — reached by the construct MySQL does
+/// have. It costs one indexed column of storage per row, which is what a partial index costs
+/// nothing for and is priority 5 spent to buy priority 2.
+///
+/// **The two indexed columns are `varchar(255)` where PostgreSQL writes `text`.** MySQL cannot
+/// index a `text` column without a prefix length, and a prefix-unique index is not the constraint §
+/// 3 asks for — it would refuse two distinct dedupe keys that share their first *n* bytes, turning
+/// a uniqueness rule into a collision. 255 is what fits InnoDB's 3,072-byte key limit at
+/// `utf8mb4`'s four bytes a character with room for the rest of the `jobs.due` key, and the table
+/// declares that charset itself: ADR 0067 § 3 forces the *connection's* charset, which says nothing
+/// about the columns a `create table` builds, and a server still defaulting to `latin1` would
+/// otherwise store text [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) guarantees is UTF-8
+/// in a column that cannot hold it. `engine=innodb` is named for § 4's sake rather than for
+/// storage's: `for update skip locked` is a row lock, and it is the engine that has them.
+///
+/// `id bigint not null auto_increment` is the identity column, `longtext` carries the two payloads
+/// that are a caller's JSON rather than a name — `args` and the dead-letter `errors` array — and
+/// every instant stays the `bigint` of epoch milliseconds this module's own doc argues for, which
+/// is the one place the two dialects needed no translation at all.
+pub const MIGRATION_MYSQL: &[Migration] = &[
+    Migration {
+        label: "jobs",
+        sql: "create table if not exists nvs_jobs (\
+              id bigint not null auto_increment primary key, \
+              queue varchar(255) not null, \
+              script text not null, \
+              args longtext, \
+              state smallint not null, \
+              attempts int not null, \
+              max_attempts int not null, \
+              backoff_ms bigint not null, \
+              run_at bigint not null, \
+              dedupe_key varchar(255), \
+              created_at bigint not null, \
+              claimed_at bigint, \
+              dedupe_pending varchar(255) \
+              generated always as (case when state = 0 then dedupe_key else null end) stored, \
+              unique key nvs_jobs_dedupe (dedupe_pending), \
+              key nvs_jobs_due (queue, state, run_at)\
+              ) engine=innodb default charset=utf8mb4",
+    },
+    Migration {
+        label: "dead_letter",
+        sql: "create table if not exists nvs_dead_jobs (\
+              id bigint not null primary key, \
+              queue varchar(255) not null, \
+              script text not null, \
+              args longtext, \
+              attempts int not null, \
+              max_attempts int not null, \
+              backoff_ms bigint not null, \
+              run_at bigint not null, \
+              dedupe_key varchar(255), \
+              created_at bigint not null, \
+              failed_at bigint not null, \
+              errors longtext not null, \
+              key nvs_dead_jobs_queue (queue)\
+              ) engine=innodb default charset=utf8mb4",
+    },
+];
+
 /// ADR 0084 § 1's `push`, as one statement.
 ///
 /// **One statement rather than a check and an insert**, because two would be two moments and § 3's
@@ -267,7 +389,7 @@ pub const INSERT: &str = "with existing as (\
 /// protocol of ours: two workers running this against one server cannot come back with the same row,
 /// because the second one's lock attempt steps over what the first is holding instead of queueing
 /// behind it. § 4 names the other backends' spellings — `readpast`, and SQLite's immediate
-/// transaction — and each brings its own text for [`MIGRATION`]'s reason.
+/// transaction — and each brings its own text for [`MIGRATION_POSTGRES`]'s reason.
 ///
 /// **The `update` is in the same statement as the `select`**, as a CTE, because two statements would
 /// be two moments: the lock the first took is released by its own commit before the second could
@@ -277,7 +399,7 @@ pub const INSERT: &str = "with existing as (\
 /// **Two arms, and the second is § 4's visibility timeout.** A pending row is claimable once its
 /// `run_at` has passed; a claimed one is claimable again when nothing has finished it within
 /// `[queue] visibility` of the claim. `$3` is that cutoff — the instant `visibility` before now,
-/// computed by the caller — rather than a bound written into this text, because [`MIGRATION`]'s
+/// computed by the caller — rather than a bound written into this text, because [`MIGRATION_POSTGRES`]'s
 /// `claimed_at` records when the claim was *taken* precisely so that
 /// [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md) § 1's reload can move the
 /// bound under jobs that are already claimed.
@@ -288,7 +410,7 @@ pub const INSERT: &str = "with existing as (\
 /// for. It is also what makes [`COUNTS`]'s third counter answer during an attempt rather than after
 /// it.
 ///
-/// **Keyed on one queue**, as every other statement here is and as [`MIGRATION`]'s `jobs.due` index
+/// **Keyed on one queue**, as every other statement here is and as [`MIGRATION_POSTGRES`]'s `jobs.due` index
 /// is built for: `(queue, state, run_at)` is read leftmost-first, so a claim naming no queue would
 /// scan what this one seeks. Which queues one worker asks about is [`QUEUES`]'s question, asked one
 /// statement earlier and against the same two arms.
@@ -392,7 +514,7 @@ pub const DEAD_LETTER: &str = "with moved as (\
 
 /// § 6's `errors` array, as [`DEAD_LETTER`] binds it: one entry, the attempt that exhausted the job.
 ///
-/// [`MIGRATION`]'s own doc owns *why* the array is this deep and not deeper, and it is the one home
+/// [`MIGRATION_POSTGRES`]'s own doc owns *why* the array is this deep and not deeper, and it is the one home
 /// for that trade. What is decided here is the entry's shape: `at` is when the attempt started,
 /// which is the lease the move is keyed on, so the row says how long the last attempt ran for
 /// against `failed_at` beside it, and `class` and `message` are what the isolate answered with —
@@ -1112,7 +1234,7 @@ fn run_at_of(args: &[Value]) -> Result<Option<i64>, Fault> {
 /// with jitter and a cap and names no number, and § 2's `[queue]` block has no key for one — the
 /// base is a property of the *job*, which is why § 1 puts it on `push`'s options shape beside
 /// `maxAttempts` and not in the deployment's block. So the default lives here, and it is not
-/// nothing: [`MIGRATION`]'s `backoff_ms` is `not null`, so there is no row that means "retry at
+/// nothing: [`MIGRATION_POSTGRES`]'s `backoff_ms` is `not null`, so there is no row that means "retry at
 /// once", and a job whose first attempt failed against a database or an endpoint would otherwise
 /// make its second one at the same instant. One second is long enough for that not to be a second
 /// failure of the same outage and short enough to be invisible on a queue that is merely busy.
@@ -1329,11 +1451,12 @@ fn postgres_of<'a>(
 /// is the decision here rather than an omission.** That seam exists because MySQL and MariaDB
 /// *send* over one wire, so the three members that send would otherwise each grow a second arm
 /// copying the first line for line. The queue's shortfall is the other one: not a send it cannot
-/// spell but SQL it has not written. [`MIGRATION`]'s partial unique index, [`INSERT`]'s and
-/// [`CLAIM`]'s `returning`, and [`DEAD_LETTER`]'s data-modifying CTE are constructs MySQL has no
-/// spelling for at all, so §§ 2 and 4 owe a second backend statements of their own rather than a
-/// translation of these — which is gap 5, and is why borrowing `Framed` would buy one `match` arm
-/// and hand a MySQL server PostgreSQL's text.
+/// spell but SQL it has not written. [`INSERT`]'s and [`CLAIM`]'s `returning` and
+/// [`DEAD_LETTER`]'s data-modifying CTE are constructs MySQL has no spelling for at all, so § 4
+/// owes a second backend statements of its own rather than a translation of these — which is gap 5,
+/// and is why borrowing `Framed` would buy one `match` arm and hand a MySQL server PostgreSQL's
+/// text. § 2's half of that debt is paid: [`MIGRATION_MYSQL`] is the schema in MySQL's dialect, and
+/// what it demonstrates is the shape the statements owe — a second list, not a switch.
 ///
 /// So the sentence says **which of the two things is in the way**, because they call for different
 /// answers from whoever reads it: a driver that sends is one this module owes statements, and a
@@ -1840,10 +1963,11 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL, CLAIM, COUNTS, DEAD_LETTER, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING,
-        PUSH, QUEUES, RETRY, RETRY_CAP_MS, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
-        STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT,
-        STATS_PENDING_SLOT, STATUS, SUCCEEDED, dead_errors, no_dialect, retry_at,
+        CANCEL, CLAIM, COUNTS, DEAD_LETTER, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION_MYSQL,
+        MIGRATION_POSTGRES, Migration, PENDING, PUSH, QUEUES, RETRY, RETRY_CAP_MS, STATE, STATS,
+        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
+        STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS, SUCCEEDED,
+        dead_errors, migration, no_dialect, retry_at,
     };
 
     /// An agreement test rather than a wording one, in `the_refusal_names_every_driver_that_sends`'s
@@ -1878,15 +2002,33 @@ mod tests {
         }
     }
 
-    /// The statement with that label, or the test fails naming it: every assertion below is about
-    /// one of § 2's two tables, and a label typed differently in the DDL than in the command's
-    /// output contract is exactly the drift this file is holding.
-    fn labelled(label: &str) -> &'static str {
-        MIGRATION
-            .iter()
-            .find(|one| one.label == label)
-            .unwrap_or_else(|| panic!("`MIGRATION` carries no `{label}` statement"))
-            .sql
+    /// Everything one dialect's list says about one of § 2's two tables, joined into one text.
+    ///
+    /// **A table's share of a list, not a statement**, because how many statements a table takes is
+    /// itself the thing the two dialects disagree about: PostgreSQL's indexes are `create index`
+    /// statements of their own and MySQL's are clauses inside the `create table`, for
+    /// [`MIGRATION_MYSQL`]'s stated reason. Joining them means every assertion below asks what the
+    /// table *has* rather than which statement said so, which is the only form in which one
+    /// assertion can hold both lists. The label's head is what files a statement under a table, so
+    /// a label typed differently in the DDL than in the command's output contract still fails here.
+    fn table_ddl(list: &[Migration], table: &str) -> String {
+        let mut text = String::new();
+        for step in list {
+            if step
+                .label
+                .split_once('.')
+                .map_or(step.label, |(head, _)| head)
+                == table
+            {
+                text.push_str(step.sql);
+                text.push(' ');
+            }
+        }
+        assert!(
+            !text.is_empty(),
+            "no statement in this list builds `{table}`"
+        );
+        text
     }
 
     /// The `errors` column is text a reader has to parse, and what a job threw is arbitrary text —
@@ -1906,7 +2048,7 @@ mod tests {
         assert_eq!(
             entries.len(),
             1,
-            "one entry, which is `MIGRATION`'s doc's decision and the depth `nvs_jobs` pays for"
+            "one entry, which is `MIGRATION_POSTGRES`'s doc's decision and the depth `nvs_jobs` pays for"
         );
         assert_eq!(entries[0]["at"], 1_700_000_000_123_i64);
         assert_eq!(entries[0]["class"], "RuntimeError");
@@ -1916,51 +2058,142 @@ mod tests {
         );
     }
 
-    /// [`MIGRATION`] is the only place the queue's columns exist and the statements above are their
-    /// only readers — two lists in one file, with nothing but this test between them. A column
-    /// renamed in the DDL and nowhere else still compiles, still migrates, and fails on the first
-    /// `push` against a database an operator has already built.
+    /// [`migration`] and [`crate::db::rendering_for`] answer about one roster, and this is the
+    /// assertion that they answer the same way: § 2's schema has a dialect for exactly the drivers
+    /// that can be handed one.
+    ///
+    /// **Asked as agreement rather than as a list**, because a list here would be the third copy of
+    /// the same roster and would go stale silently — a driver gaining a `Dialect` in `nvs-db` while
+    /// this file kept its own answer is precisely the drift that would print PostgreSQL's DDL for a
+    /// server that cannot run it. Written as two directions so that either mistake fails: a schema
+    /// for a driver nothing sends, and a driver that sends with no schema to send.
+    #[test]
+    fn the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one() {
+        for driver in nvs_db::Driver::ALL {
+            let sends = crate::db::rendering_for(driver).is_some();
+            assert_eq!(
+                sends,
+                migration(driver).is_some(),
+                "{driver:?} sends {}, so § 2's schema {} a dialect for it",
+                if sends { "a statement" } else { "nothing" },
+                if sends { "owes it" } else { "owes it no" }
+            );
+        }
+        // MariaDB runs MySQL's list unchanged, which is `MIGRATION_MYSQL`'s own decision rather
+        // than a coincidence of two arms — asserted by identity, since two lists with equal text
+        // would be exactly the copy that doc argues against.
+        assert!(
+            std::ptr::eq(
+                migration(nvs_db::Driver::MariaDb).expect("MariaDB has a dialect"),
+                migration(nvs_db::Driver::MySql).expect("MySQL has a dialect")
+            ),
+            "MariaDB is handed MySQL's own list and not a copy of it"
+        );
+    }
+
+    /// The two [`Migration`] lists are the only place the queue's columns exist and the statements
+    /// above are their only readers — three lists in one file, with nothing but this test between
+    /// them. A column renamed in one DDL and nowhere else still compiles, still migrates, and fails
+    /// on the first `push` against a database an operator has already built.
+    ///
+    /// **Every assertion runs against both dialects**, which is what keeps them one schema rather
+    /// than two: the constructs around the columns differ freely, and the columns themselves may
+    /// not. A column added to PostgreSQL's list alone fails here on MySQL's, which is the drift the
+    /// second list opened the door to.
     #[test]
     fn the_ddl_creates_every_column_the_statements_name() {
-        let jobs = labelled("jobs");
-        let dead = labelled("dead_letter");
-        assert!(
-            jobs.contains(JOBS_TABLE) && dead.contains(DEAD_TABLE),
-            "each `create table` builds the table its own constant names"
-        );
-
         // `INSERT`'s parenthesised column list is the widest claim any statement makes about
-        // `nvs_jobs`: every other one reads a subset of it.
-        let list = INSERT
-            .split_once(&format!("insert into {JOBS_TABLE} ("))
-            .and_then(|(_, rest)| rest.split_once(')'))
-            .expect("`INSERT` names its columns as one parenthesised list")
-            .0;
-        for column in list.split(',').map(str::trim) {
+        // `nvs_jobs`, and § 6's move is the same for `nvs_dead_jobs`: every other statement reads a
+        // subset of one of the two. Both are cut once and asked of each dialect in turn.
+        let written = |statement: &'static str, table: &str| {
+            statement
+                .split_once(&format!("insert into {table} ("))
+                .and_then(|(_, rest)| rest.split_once(')'))
+                .expect("the statement names its columns as one parenthesised list")
+                .0
+        };
+        let inserted = written(INSERT, JOBS_TABLE);
+        let moved = written(DEAD_LETTER, DEAD_TABLE);
+
+        for (dialect, list) in [("postgres", MIGRATION_POSTGRES), ("mysql", MIGRATION_MYSQL)] {
+            let jobs = table_ddl(list, "jobs");
+            let dead = table_ddl(list, "dead_letter");
             assert!(
-                jobs.contains(&format!("{column} ")),
-                "the `jobs` DDL creates `{column}`, which `INSERT` binds"
+                jobs.contains(JOBS_TABLE) && dead.contains(DEAD_TABLE),
+                "{dialect}: each `create table` builds the table its own constant names"
             );
-        }
-        for column in ["state ", "attempts ", "queue "] {
+
+            for column in inserted.split(',').map(str::trim) {
+                assert!(
+                    jobs.contains(&format!("{column} ")),
+                    "{dialect}: the `jobs` DDL creates `{column}`, which `INSERT` binds"
+                );
+            }
+            for column in ["state ", "attempts ", "queue "] {
+                assert!(
+                    jobs.contains(column),
+                    "{dialect}: the `jobs` DDL creates the column `STATUS` and `COUNTS` read as \
+                     `{column}`"
+                );
+            }
+            // `CLAIM` is the one statement that reads a column no `INSERT` writes: a claim's own
+            // instant, which is where § 4's visibility timeout is measured from.
             assert!(
-                jobs.contains(column),
-                "the `jobs` DDL creates the column `STATUS` and `COUNTS` read as `{column}`"
+                jobs.contains("claimed_at "),
+                "{dialect}: the `jobs` DDL creates `claimed_at`, which `CLAIM` writes and reads back"
             );
+            assert!(
+                jobs.contains("(queue, state, run_at)"),
+                "{dialect}: `CLAIM` seeks by queue, then state, then due-ness, which is the order \
+                 of this index"
+            );
+            // Gap 3's constraint, asked as what it must *be* rather than as either dialect's
+            // spelling of it: PostgreSQL says `create unique index … where state = 0` and MySQL
+            // says a unique key over a generated column carrying `case when state = 0`. What both
+            // owe is one uniqueness rule, named `nvs_jobs_dedupe`, covering the pending rows by
+            // `PENDING`'s own ordinal — and a dialect that dropped the state condition would
+            // constrain every row, refusing a second push of a key whose first job is long done.
+            assert!(
+                jobs.contains("unique")
+                    && jobs.contains("nvs_jobs_dedupe")
+                    && jobs.contains(&format!("state = {PENDING}")),
+                "{dialect}: gap 3's index is unique over the pending rows, by `PENDING`'s own \
+                 ordinal as `INSERT` reads it"
+            );
+
+            for column in ["id ", "queue "] {
+                assert!(
+                    dead.contains(column),
+                    "{dialect}: the `dead_letter` DDL creates `{column}`, which is what \
+                     `DEAD_TABLE`'s doc says this module reads of it"
+                );
+            }
+            for column in moved.split(',').map(str::trim) {
+                assert!(
+                    dead.contains(&format!("{column} ")),
+                    "{dialect}: the `dead_letter` DDL creates `{column}`, which `DEAD_LETTER` writes"
+                );
+            }
+
+            for step in list {
+                let table = step
+                    .label
+                    .split_once('.')
+                    .map_or(step.label, |(head, _)| head);
+                assert!(
+                    matches!(table, "jobs" | "dead_letter"),
+                    "{dialect}: `{}` is labelled under one of § 2's two tables, which is what `nvs \
+                     queue migrate`'s output promises",
+                    step.label
+                );
+            }
         }
-        // `CLAIM` is the one statement that reads a column no `INSERT` writes: a claim's own
-        // instant, which is where § 4's visibility timeout is measured from.
-        assert!(
-            jobs.contains("claimed_at "),
-            "the `jobs` DDL creates `claimed_at`, which `CLAIM` writes and reads back"
-        );
+
+        // The statements themselves are PostgreSQL's alone (gap 5), so what they spell is asserted
+        // once rather than per dialect.
         assert!(
             CLAIM.contains("for update skip locked"),
             "§ 4's mutual exclusion is the database's, and this is the spelling that asks for it"
-        );
-        assert!(
-            labelled("jobs.due").contains("(queue, state, run_at)"),
-            "`CLAIM` seeks by queue, then state, then due-ness, which is the order of this index"
         );
         // The roster is read off the same table and the same column `CLAIM` is then keyed on, which
         // is the whole of why § 2 needs no fifth key to name a worker's queues.
@@ -1968,49 +2201,11 @@ mod tests {
             QUEUES.contains(JOBS_TABLE) && QUEUES.contains("distinct queue"),
             "`QUEUES` reads the roster off the column `INSERT` writes the queue name into"
         );
-        for column in ["id ", "queue "] {
-            assert!(
-                dead.contains(column),
-                "the `dead_letter` DDL creates `{column}`, which is what `DEAD_TABLE`'s doc says \
-                 this module reads of it"
-            );
-        }
-        // § 6's move is the only statement that writes `DEAD_TABLE`, so its column list is the
-        // widest claim anything makes about that table — the reading `INSERT`'s list gets above,
-        // against the other DDL.
-        let moved = DEAD_LETTER
-            .split_once(&format!("insert into {DEAD_TABLE} ("))
-            .and_then(|(_, rest)| rest.split_once(')'))
-            .expect("`DEAD_LETTER` names its columns as one parenthesised list")
-            .0;
-        for column in moved.split(',').map(str::trim) {
-            assert!(
-                dead.contains(&format!("{column} ")),
-                "the `dead_letter` DDL creates `{column}`, which `DEAD_LETTER` writes"
-            );
-        }
         assert!(
             DEAD_LETTER.contains(&format!("delete from {JOBS_TABLE} "))
                 && DEAD_LETTER.contains("claimed_at = $2::bigint"),
             "the move takes the row out of the jobs table keyed on the lease, as `SUCCEEDED` is"
         );
-
-        assert!(
-            labelled("jobs.dedupe").contains(&format!("where state = {PENDING}")),
-            "gap 3's index covers pending rows by `PENDING`'s own ordinal, as `INSERT` does"
-        );
-        for step in MIGRATION {
-            let table = step
-                .label
-                .split_once('.')
-                .map_or(step.label, |(head, _)| head);
-            assert!(
-                matches!(table, "jobs" | "dead_letter"),
-                "`{}` is labelled under one of § 2's two tables, which is what `nvs queue \
-                 migrate`'s output promises",
-                step.label
-            );
-        }
     }
 
     /// [`retry_at`] is ADR 0084 § 6's ladder and this is what makes it one: the delay doubles, it

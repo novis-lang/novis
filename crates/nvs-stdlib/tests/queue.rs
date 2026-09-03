@@ -43,7 +43,7 @@ use nvs_stdlib::queue;
 /// matrix leg that hangs reports nothing at all.
 const DEADLINE: Duration = Duration::from_secs(10);
 
-/// The ordinal `Core\Queue\State::Pending` is, as `MIGRATION`'s `state` column
+/// The ordinal `Core\Queue\State::Pending` is, as `MIGRATION_POSTGRES`'s `state` column
 /// holds it — ADR 0010's enums are their ordinal at runtime, so the enum and
 /// the column are one representation rather than two.
 const PENDING: &[u8] = b"0";
@@ -98,7 +98,7 @@ fn schema(server: &Server) {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
         let mut conn = open(server);
-        for step in queue::MIGRATION {
+        for step in queue::MIGRATION_POSTGRES {
             apply(&mut conn, step.sql, &[]);
         }
     });

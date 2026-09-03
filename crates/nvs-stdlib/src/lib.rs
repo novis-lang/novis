@@ -257,8 +257,9 @@ mod password;
 pub mod path;
 mod process;
 mod program;
-// `pub` for [`queue::MIGRATION`] alone: ADR 0084 § 2's schema is written beside the statements that
-// read its columns, and `nvs queue migrate` in `nvs-cli` is a second crate that has to run it. The
+// `pub` for [`queue::MIGRATION_POSTGRES`] and its MySQL sibling alone: ADR 0084 § 2's schema is written
+// beside the statements that read its columns, and `nvs queue migrate` in `nvs-cli` is a second
+// crate that has to run it — in whichever dialect the block it was pointed at speaks. The
 // members themselves are reached the way every other class's are, through [`registry`].
 pub mod queue;
 pub mod random;
