@@ -1,0 +1,87 @@
+--TEST--
+ADR 0067 § 7's `transaction` runs on a SQLite connection as it does on the other four drivers, and a nested one is a `SAVEPOINT` whose rollback undoes its own level and leaves the level around it to commit — ADR 0067 §§ 7, 8
+--FILE--
+<?nvs
+// The only case in this tree that runs § 7 against a *live* database. SQLite
+// needs no server, so `BEGIN`, `SAVEPOINT`, `ROLLBACK TO` and `COMMIT` are
+// really sent here — which is what makes this the case that would catch a
+// driver wired into `Transacting` and not behind it.
+use Core\Db;
+use Core\Db\Transaction;
+
+class Names {
+    // § 6's typed readers answer `?T`, a `null` being a NULL column, so the
+    // unwrapping happens once here rather than at each place that prints one.
+    public static function total(Core\Db\Connection $db): int {
+        var $row = $db->query("select count(*) as n from t", [])->first();
+        if ($row == null) {
+            return -1;
+        }
+        var $n = $row->int("n");
+        if ($n == null) {
+            return -1;
+        }
+        return $n;
+    }
+
+    public static function held(Core\Db\Connection $db, string $name): int {
+        var $row = $db->query("select count(*) as n from t where name = ?", [$name])->first();
+        if ($row == null) {
+            return -1;
+        }
+        var $n = $row->int("n");
+        if ($n == null) {
+            return -1;
+        }
+        return $n;
+    }
+}
+
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, name text not null)", []);
+
+// The outermost transaction is a `BEGIN`, and returning from the closure is the
+// commit — there is no `commit` member to reach for on either class.
+$db->transaction(fn (Transaction $tx): void => {
+    $tx->execute("insert into t (name) values (?)", ["ada"]);
+});
+echo "committed ", Names::total($db), "\n";
+
+// § 7's nesting, on the connection a library and its caller would share: the
+// inner `transaction` opens a `SAVEPOINT` rather than a second `BEGIN`, so the
+// throw inside it rolls back to that savepoint and the outer level survives to
+// commit its own row. `{retries: 1}` rides along to say the option is accepted
+// on this driver too — § 8 maps `SQLITE_BUSY` and `SQLITE_LOCKED` to
+// `Deadlock`, which is one of the two kinds a retry is for, and inducing a real
+// one needs a second connection to the same file rather than a program.
+$db->transaction(fn (Transaction $tx): void => {
+    $tx->execute("insert into t (name) values (?)", ["grace"]);
+    try {
+        $tx->transaction(fn (Transaction $inner): void => {
+            $inner->execute("insert into t (name) values (?)", ["alan"]);
+            throw new LogicError("this level keeps nothing");
+        });
+    } catch (LogicError $failed) {
+        echo "nested rolled back: ", $failed->message, "\n";
+    }
+}, {retries: 1});
+
+// Two rows, not three and not one: the savepoint took `alan` back out and left
+// `grace` where the outermost `COMMIT` could keep it.
+echo "kept ", Names::total($db), "\n";
+echo "alan ", Names::held($db, "alan"), "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it and there is no address for ADR 0058's table to have an
+# opinion about.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+committed 1
+nested rolled back: this level keeps nothing
+kept 2
+alan 0

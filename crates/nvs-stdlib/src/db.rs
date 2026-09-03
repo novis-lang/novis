@@ -85,8 +85,8 @@
 //!    [`settings_driver`] is therefore a literal one arm has already accepted,
 //!    which is why it reads the discriminant before it reads anything else and
 //!    why every slot it then reads is filled.
-//! 2. **Five drivers open, and everything past the handshake follows for all
-//!    but § 7.**
+//! 2. **Five drivers open, and everything past the handshake follows on every
+//!    one of them.**
 //!    `connect`
 //!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block,
 //!    a `mysql` block, a `mariadb` block and an `mssql` one each reach their own
@@ -120,14 +120,19 @@
 //!    spelling a savepoint `SAVE TRANSACTION`, having no `RELEASE` for a nested
 //!    commit to send and no read-only transaction to offer at all. What is still
 //!    PostgreSQL-only is [`crate::queue`]'s four members. **SQLite reaches
-//!    every member but § 7's**: [`rendering_for`] binds a parameter through
-//!    `nvs_db::sqlite::encode` as a storage class rather than as octets
+//!    every member the other four do**: [`rendering_for`] binds a parameter
+//!    through `nvs_db::sqlite::encode` as a storage class rather than as octets
 //!    ([`Binds`] is that split), and [`sqlite_rows`], [`sqlite_write`] and
 //!    `nvs_db::SqliteConn::execute_many` answer `query`, `queryAs`, `execute`
-//!    and `executeMany` over it. Known gap 2 is therefore § 7 alone —
-//!    [`HAS_A_DRIVER`], which [`driverless`] renders — and SQLite is still the
-//!    whole of it, on the one member whose commands `nvs_db::sqlite` has
-//!    written and [`Transacting`] has no arm for yet. **§ 9's declared-type map
+//!    and `executeMany` over it. § 7 is [`Transacting`]'s fifth arm, over
+//!    `nvs_db::sqlite`'s own `begin`, `commit` and `roll_back` — commands sent
+//!    by a call on the blocking pool rather than over a wire, accepting every
+//!    isolation level because this backend is always serializable and refusing
+//!    `readOnly` because it has no read-only transaction to open. **So this
+//!    list has no driver gap left, and [`transacting`] is total**: every
+//!    `nvs_db::Connection` variant has an arm, which is why the refusal that
+//!    used to name a roster of drivers is gone rather than left with an empty
+//!    list to render. **§ 9's declared-type map
 //!    runs on this driver like it does on the other four**, in
 //!    [`sqlite_column_value`] — a cell in a column the schema declared `date`,
 //!    `datetime`, `time`, `uuid`, `decimal` or `boolean` is that, and one the
@@ -4612,10 +4617,9 @@ pub(crate) fn rendering_for(driver: nvs_db::Driver) -> (nvs_db::Dialect, Encoder
 /// is written in its own connection's dialect rather than in one this module
 /// picked.
 ///
-/// It is asked **before** anything is rewritten, where [`driverless`] is asked
-/// after everything is bound. It no longer refuses anything: every driver binds,
-/// so what is left of gap 2 is the *send* — § 7's, which [`transacting`] is
-/// where a driver without it says so.
+/// It no longer refuses anything, and neither does anything downstream of it:
+/// every driver binds, every driver sends, and § 7's [`transacting`] — the last
+/// place a `sqlite` block was turned away — is total.
 ///
 /// The `block` is still taken because the lookup can fail for a reason that is
 /// this crate's own, and a message naming the connection is what says which one.
@@ -4695,6 +4699,15 @@ enum Transacting<'a> {
     /// transaction to ask for, and an isolation level is a *session* setting
     /// this driver has to put back when the outermost transaction ends.
     SqlServer(&'a mut nvs_db::TdsConn),
+    /// § 7 as ordinary SQL — `BEGIN`, `SAVEPOINT`, `RELEASE` — sent by a call
+    /// on `nvs_host`'s blocking pool rather than over a wire, which is the one
+    /// thing this arm does not share with the other four and is entirely
+    /// `nvs_db::sqlite`'s to hold. What it does differently in *this* module's
+    /// terms is only its refusals: `nvs_db::SqliteConn::begin` accepts all five
+    /// isolation levels, SQLite being always serializable, and refuses
+    /// `readOnly` at any depth because the property belongs to how the database
+    /// was opened rather than to a transaction.
+    Sqlite(&'a mut nvs_db::SqliteConn),
 }
 
 impl Transacting<'_> {
@@ -4705,6 +4718,7 @@ impl Transacting<'_> {
             Transacting::MySql(mysql) => mysql.depth(),
             Transacting::MariaDb(maria) => maria.depth(),
             Transacting::SqlServer(tds) => tds.depth(),
+            Transacting::Sqlite(sqlite) => sqlite.depth(),
         }
     }
 
@@ -4724,6 +4738,7 @@ impl Transacting<'_> {
             Transacting::MySql(mysql) => mysql.begin(isolation, read_only),
             Transacting::MariaDb(maria) => maria.begin(isolation, read_only),
             Transacting::SqlServer(tds) => tds.begin(isolation, read_only),
+            Transacting::Sqlite(sqlite) => sqlite.begin(isolation, read_only),
         }
     }
 
@@ -4738,6 +4753,7 @@ impl Transacting<'_> {
             Transacting::MySql(mysql) => mysql.commit(),
             Transacting::MariaDb(maria) => maria.commit(),
             Transacting::SqlServer(tds) => tds.commit(),
+            Transacting::Sqlite(sqlite) => sqlite.commit(),
         }
     }
 
@@ -4752,23 +4768,30 @@ impl Transacting<'_> {
             Transacting::MySql(mysql) => mysql.roll_back(),
             Transacting::MariaDb(maria) => maria.roll_back(),
             Transacting::SqlServer(tds) => tds.roll_back(),
+            Transacting::Sqlite(sqlite) => sqlite.roll_back(),
         }
     }
 }
 
 /// The connection filed under `key`, as the driver § 7's commands run on.
 ///
+/// **Total, and no longer a place a driver can be turned away.** It refused a
+/// `sqlite` block while `nvs_db::sqlite` had the commands and this enum had no
+/// arm over them; every `nvs_db::Connection` variant has one now, so the
+/// roster this refusal rendered would have had nothing to leave out and the
+/// message an operator read is gone rather than kept as an unreachable arm.
+/// The `[db.<name>]` block the caller holds is no longer passed either — it was
+/// here to be *named* in that sentence, and the one failure left names the key
+/// instead because it is this crate's bookkeeping rather than a program's
+/// configuration.
+///
 /// # Errors
 ///
-/// A thrown `RuntimeError` for a block naming a driver with no transaction
-/// behind it — [`driverless`]'s wording, because it is the same known gap 2 the
-/// statement members refuse under — and a [`Fault::fatal`] for a key the
-/// request's own table does not hold, which is this crate's paste error rather
-/// than a program's.
+/// A [`Fault::fatal`] for a key the request's own table does not hold, which is
+/// this crate's paste error rather than a program's.
 fn transacting<'a>(
     ctx: &'a mut nvs_runtime::Ctx,
     key: u64,
-    block: &Value,
     named: &str,
 ) -> Result<Transacting<'a>, Fault> {
     match filed_connection(ctx, key, named)? {
@@ -4776,7 +4799,7 @@ fn transacting<'a>(
         nvs_db::Connection::MySql(mysql) => Ok(Transacting::MySql(mysql)),
         nvs_db::Connection::MariaDb(maria) => Ok(Transacting::MariaDb(maria)),
         nvs_db::Connection::SqlServer(tds) => Ok(Transacting::SqlServer(tds)),
-        other => Err(driverless(named, block, other.driver())),
+        nvs_db::Connection::Sqlite(sqlite) => Ok(Transacting::Sqlite(sqlite)),
     }
 }
 
@@ -4898,73 +4921,6 @@ fn queried_rows(
     };
     watch.file(ctx, taken);
     Ok(answered)
-}
-
-/// Known gap 2's roster: the drivers ADR 0067 § 7's `transaction` reaches.
-///
-/// **It is one member's list now and no longer every member's.** It was two
-/// while SQL Server had statements and no
-/// commands — a batch needs no primitive a statement did not already need,
-/// where § 7's transaction needs commands of its own — and `nvs_db::tds`'s
-/// `begin`, `commit` and `roll_back` are what closed the gap between them. A
-/// roster per member costs a sentence that has to keep agreeing with the match
-/// arms it describes, and the way it fails is silent: it tells an operator
-/// "this build cannot do that" about a driver that just did.
-///
-/// SQLite is the whole of what is left outside it: `nvs_db::sqlite` has § 7's
-/// `begin`, `commit` and `roll_back` written, and [`Transacting`] has no arm
-/// over them yet. This module's `the_refusal_names_every_driver_that_sends` is
-/// what holds the list against the arms.
-const HAS_A_DRIVER: &[nvs_db::Driver] = &[
-    nvs_db::Driver::Postgres,
-    nvs_db::Driver::MySql,
-    nvs_db::Driver::MariaDb,
-    nvs_db::Driver::SqlServer,
-];
-
-/// The refusal a connection whose driver has no path to `named` draws — this
-/// module's known gap 2, worded once.
-///
-/// One member reaches it now — § 7's `transaction`, through [`transacting`] —
-/// where four did while binding was a gap too. It names the driver the block
-/// actually resolved to, because "this one is not supported" without saying
-/// which is what an operator cannot act on.
-///
-/// **The roster is [`HAS_A_DRIVER`] and is not a parameter**, the five members
-/// having agreed again since `nvs_db::tds` gained § 7's commands. It was one
-/// while they agreed the first time, and a per-caller argument is how the
-/// `executeMany` arm came to render the *transaction* roster and quietly leave
-/// SQL Server out of a sentence about a member it runs. It is rendered by
-/// [`named_drivers`] rather than written into the sentence, so the list an
-/// operator reads is the list a `match` arm below actually has.
-fn driverless(named: &str, block: &Value, driver: nvs_db::Driver) -> Fault {
-    Fault::thrown(format!(
-        "{named}: `[db.{}]` is a {} connection, and only {} run this member so far — this \
-         module's known gap 2 is the list",
-        block.as_text().unwrap_or("?"),
-        driver.display_name(),
-        named_drivers(HAS_A_DRIVER)
-    ))
-}
-
-/// A roster as the sentence [`driverless`] builds reads it: `A`, `A and B`,
-/// `A, B and C`.
-///
-/// Spelled out rather than joined with commas throughout, because an operator
-/// reads this and a trailing `, ` list reads as a truncation.
-fn named_drivers(drivers: &[nvs_db::Driver]) -> String {
-    let mut sentence = String::new();
-    for (index, driver) in drivers.iter().enumerate() {
-        if index > 0 {
-            sentence.push_str(if index + 1 == drivers.len() {
-                " and "
-            } else {
-                ", "
-            });
-        }
-        sentence.push_str(driver.display_name());
-    }
-    sentence
 }
 
 /// ADR 0067 § 4's `Write`, as the driver answered it and before it becomes the
@@ -6653,7 +6609,7 @@ nvs_runtime::nvs_helper! {
 
         transacted(
             ctx,
-            &mut Filed { key, block },
+            &mut Filed { key },
             &Attempted {
                 key,
                 block,
@@ -6737,19 +6693,18 @@ trait Attempts {
 /// [`Attempts`] over the connection this request has filed under `key` — the
 /// only implementation outside this module's own tests.
 ///
-/// Both fields are the caller's, borrowed for the length of one [`transacted`]
-/// call: the [`Value`] carries no reference of its own, exactly as
-/// [`Attempted`]'s two do.
+/// **One field, since [`transacting`] became total.** It carried the
+/// `[db.<name>]` block as well for as long as there was a driver to turn away
+/// by name; [`Attempted`] still holds one, because § 8's refusals are thrown
+/// about a *statement* and name the connection they ran on.
 struct Filed {
     /// § 2's key, as [`handle_of`] read it off the receiver.
     key: u64,
-    /// The `[db.<name>]` block, for [`transacting`]'s refusal to name.
-    block: Value,
 }
 
 impl Attempts for Filed {
     fn depth(&mut self, ctx: &mut nvs_runtime::Ctx) -> Result<u32, Fault> {
-        Ok(transacting(ctx, self.key, &self.block, TRANSACTION_MEMBER)?.depth())
+        Ok(transacting(ctx, self.key, TRANSACTION_MEMBER)?.depth())
     }
 
     fn begin(
@@ -6758,24 +6713,21 @@ impl Attempts for Filed {
         isolation: Option<nvs_db::Isolation>,
         read_only: bool,
     ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault> {
-        Ok(
-            transacting(ctx, self.key, &self.block, TRANSACTION_MEMBER)?
-                .begin(isolation, read_only),
-        )
+        Ok(transacting(ctx, self.key, TRANSACTION_MEMBER)?.begin(isolation, read_only))
     }
 
     fn commit(
         &mut self,
         ctx: &mut nvs_runtime::Ctx,
     ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault> {
-        Ok(transacting(ctx, self.key, &self.block, TRANSACTION_MEMBER)?.commit())
+        Ok(transacting(ctx, self.key, TRANSACTION_MEMBER)?.commit())
     }
 
     fn roll_back(
         &mut self,
         ctx: &mut nvs_runtime::Ctx,
     ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault> {
-        Ok(transacting(ctx, self.key, &self.block, TRANSACTION_MEMBER)?.roll_back())
+        Ok(transacting(ctx, self.key, TRANSACTION_MEMBER)?.roll_back())
     }
 }
 
@@ -8602,45 +8554,6 @@ mod tests {
             owned,
             vec![nvs_db::Driver::Sqlite],
             "a bound value is a storage class exactly where there is no protocol to render it for"
-        );
-    }
-
-    /// [`driverless`]'s refusal names every driver that reaches the member it is
-    /// about, and names no driver that does not.
-    ///
-    /// **An agreement test rather than a wording one.** Known gap 2's roster and
-    /// the match arms it describes live in places that cannot see each other —
-    /// [`transacting`]'s arms and the `const` [`driverless`] renders — and the
-    /// way it breaks is the roster going stale while the arms grow. What an
-    /// operator then reads is "this build cannot do that" about a driver that
-    /// just did, which is the one thing that message exists to prevent.
-    ///
-    /// **It is § 7's roster alone now.** [`queried_rows`], `execute` and
-    /// `executeMany` reach every driver, so their arms are total and no longer
-    /// name it at all; SQLite is the one driver outside § 7's, which is what
-    /// makes "named exactly when it reaches" askable of every other driver in
-    /// one loop.
-    #[test]
-    fn the_refusal_names_every_driver_that_sends() {
-        let block = Value::str(NvsStr::new(b"main"));
-        let refused = format!("{:?}", driverless(QUERY, &block, nvs_db::Driver::Sqlite));
-        assert!(
-            refused.contains(nvs_db::Driver::Sqlite.display_name()),
-            "a refusal an operator can act on names the driver the block resolved to: {refused}"
-        );
-        for driver in nvs_db::Driver::ALL {
-            if driver == nvs_db::Driver::Sqlite {
-                continue;
-            }
-            assert_eq!(
-                HAS_A_DRIVER.contains(&driver),
-                refused.contains(driver.display_name()),
-                "{driver:?} is named by this refusal exactly when it reaches the member: {refused}"
-            );
-        }
-        assert!(
-            !HAS_A_DRIVER.contains(&nvs_db::Driver::Sqlite),
-            "known gap 2 is SQLite, and a roster that named it would refuse nothing"
         );
     }
 
