@@ -2,57 +2,62 @@
 
 ## State
 
-**Stage 5's `-p nvs-stdlib` check is closed — all three of its names run.** § 7's retry loop is no
-longer inside `nvs_core_db_connection_transaction`: it is `transacted` at
-`crates/nvs-stdlib/src/db.rs:5652`, handed an `Attempts` — the four questions an attempt asks of its
-connection — instead of reading one back out of the ctx at four points. `Filed` is the only
-implementation the runtime builds and does exactly what those four sites did; the trait's own doc
-owns why the methods take the context rather than borrow out of it, and why three of them answer a
-`Result` inside a `Result`.
+**§ 13's pool for `open` is live.** `nvs_runtime::pool::Ticket::for_settings` carries the hash
+`settings_key` computes instead of rendering a key out of a block name, and is deliberately not
+generation-scoped — that constructor's own doc owns the argument, and the `Option` field it leaves
+`None` says the same thing from the struct's side. `open` now runs `connect`'s
+bounds-then-ticket-then-`admit` shape and files a `Some(lease)`, so `{shared: false}` draws from and
+returns to the pool as well. A settings literal has no `[db.<name>.pool]` table, so its bounds are
+`PoolBounds::DEFAULT`; what that spends — and the `pool = false` an operator cannot reach an `open`
+with — is this module's rewritten known gap 1.
 
-**`retries_recover_an_induced_deadlock` induces the conflict the way a server does.** The scripted
-closure throws what `statement_failure` renders a PostgreSQL `40P01` into, so the loop's decision
-goes through `Ctx::pending_slot` and § 8's normalised kind exactly as it does in a request. It reads
-the commands back in order rather than counting attempts, and asserts both sides of § 7's bound —
-at `retries: 0` the same conflict reaches the caller with the closure run once.
+**The pool key hashes two fields the memo did not need:** § 9's declared zone and the statement
+cache's size. A drawn connection carries both from the request that opened it, and § 13's reset
+restores the zone rather than re-reading it, so leaving them out would have answered a second
+request in the first one's zone.
 
-**`nvs_stdlib::db`'s known gap 1 is untouched, and one thing about it is now known:** an `open` pool
-has no `[db.<name>].pool` table to take its bounds from. `connect` resolves them with
-`nvs_config::db::pool_for(name, block, …)` at `crates/nvs-stdlib/src/db.rs:2916`, and a settings
-literal has no block — so slice 1 below has to decide what bounds a blockless pool gets (the
-defaults, or `PoolBounds::OFF`) before it can build a ticket. Within a request § 2's memo holds.
+**The driver's stage-7 check cannot close yet, and the reason is the second cause, not a filing
+bug.** `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` needs SQL Server, and there is
+no TDS driver at all: `TdsConn` in `crates/nvs-db/src/conn.rs` is a busy-state cell and nothing
+else. MySQL's half is landed and already asserted, by `a_reset_invalidates_the_statement_cache` in
+`crates/nvs-db/src/mysql.rs`. The check is correctly filed and stays open until that driver exists —
+do not rename it, split it, or write a MySQL-only test under that name.
 
 ## Next group
 
-**§ 13's pool for `open`, then what the docs still say about it. File set:
-`crates/nvs-stdlib/src/db.rs` with `crates/nvs-runtime/src/pool.rs`.** The first two are the group
-the last three handoffs named and are unchanged; the third is the paragraph they invalidate.
+**Three slices in one file: `crates/nvs-stdlib/src/db.rs`.** The first is what ADR 0067 § 7 requires
+and known gap 9 names; the other two are the gaps a session already in that file can close beside
+it.
 
-- [ ] **A ticket keyed on the settings hash, so `open` pools** (0067 § 13). `Ticket` is
-      `crates/nvs-runtime/src/pool.rs:127` and its one constructor
-      `crates/nvs-runtime/src/pool.rs:152` takes a block *name*, which
-      `crates/nvs-runtime/src/pool.rs:180` renders as `{generation:p}:{name}`; the hash `open`
-      already computes is `crates/nvs-stdlib/src/db.rs:3132` and cannot collide with a name.
-      `crates/nvs-stdlib/src/db.rs:2916` is `connect`'s bounds-then-ticket-then-`admit`, the shape
-      to follow, and `crates/nvs-stdlib/src/db.rs:3284` is `open`'s `hold_open_connection` with the
-      `None` lease that is the whole gap. Decide the blockless bounds question named in `## State`
-      and say what it spends.
-- [ ] **`{shared: false}` still draws from and returns to that pool** (0067 § 13). § 13 says the
-      option bypasses memoization within the request and never pooling across requests;
-      `crates/nvs-stdlib/src/db.rs:2986` is where `connect` already words that and files the lease
-      beside a `None` memo, and `crates/nvs-stdlib/src/db.rs:3284` is where `open` must do the same.
-- [ ] **The two places that still say `open` does not pool** (0067 § 13). Known gap 1 is
-      `crates/nvs-stdlib/src/db.rs:66` and names `Ticket::for_block` as the reason; the member's own
-      *what it spends* paragraph is `crates/nvs-stdlib/src/db.rs:3165`. Both are wrong the moment
-      slice 1 lands, and `OPEN_DOC`'s card is worth a look beside them.
+- [ ] **§ 7's wait between attempts — exponential backoff and jitter that suspends the coroutine**
+      (0067 § 7). `crates/nvs-stdlib/src/db.rs:5872` is the comment where the loop re-runs with no
+      wait, inside `transacted` at `crates/nvs-stdlib/src/db.rs:5741`; known gap 9's text to rewrite
+      is `crates/nvs-stdlib/src/db.rs:170`. `wait_for_slot` at `crates/nvs-stdlib/src/db.rs:4223` is
+      the shape for a bounded park — `host.park(Some(until))` through
+      `nvs_runtime::host::with_current`, with the `Woken::Cancelled` arm that ends the wait. Decide
+      where the jitter's randomness comes from: this module reaches no RNG today, and a dependency
+      for one is ADR 0051 § 4's question rather than a free pick.
+- [ ] **`open` opens a MariaDB** (0067 § 2, known gap 2). The driver landed —
+      `crates/nvs-db/src/maria.rs:328` is `MariaConn`'s own `impl` and
+      `crates/nvs-db/src/maria.rs:215` is `MariaTarget` — but `open`'s match still refuses it.
+      `crates/nvs-stdlib/src/db.rs:3353` is the Postgres arm to follow, one arm above the
+      `other =>` refusal that currently names MariaDB.
+- [ ] **§ 8's `sql` is the fifth raw value and no throw carries it** (0067 § 8).
+      `crates/nvs-stdlib/src/db.rs:3685` is `statement_failure`, which builds the four that are
+      carried; `crates/nvs-stdlib/src/db.rs:200` is the module doc's account of how a kind reaches
+      `nvs_runtime::KIND_SLOT`, which is where a fifth value has to fit.
 
 ## Backlog
 
-- § 7's wait between attempts — exponential backoff and jitter that suspends the coroutine. This
-  module's known gap 9, `crates/nvs-stdlib/src/db.rs`.
-- MariaDB and SQL Server have no `connect`, so `open` refuses both. Known gap 2, same module.
-- § 8's `sql` is the fifth raw value and no throw carries it yet — ADR 0067 § 8.
+- The stage-7 check's mssql half waits on the TDS driver; its ADR slot is pre-authorized as
+  stage 2 item 3 of `docs/agent/loop-goal.md`.
+- Where an operator writes pool bounds for a key only the program knows — an ADR 0067 § 13
+  question, and this module's known gap 1.
+- `open` still refuses SQLite and SQL Server outright — known gap 2, same module.
 - SQLite has no code table, so it contributes no column to
   `every_driver_normalises_its_codes_to_one_error_kind` in `crates/nvs-db/src/conn.rs`.
 - `docs/agent/loop-goal.toml` and `docs/agent/goals/5-database.toml` are still not byte-identical —
   the live one carries ADR 0133's stage 0, so an edit goes into both by hand.
+- `[context] modules` in `docs/agent/loop-goal.toml` names no `nvs-runtime` or `nvs-config` pattern,
+  so the map printed nothing for `crates/nvs-runtime/src/pool.rs` even though the item anchored on
+  it; both crates own half of this goal's pool work.
