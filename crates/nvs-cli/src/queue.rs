@@ -63,8 +63,10 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap};
 use crate::config::{LocalFiles, named_roots, working_directory};
 use crate::render_diagnostics;
 
-/// The driver [`nvs_stdlib::queue::MIGRATION`] is written in, which is the only one with a statement
-/// path at all — that constant's own doc owns why a second backend brings a second list.
+/// The driver [`nvs_stdlib::queue::MIGRATION`] is written in, which is the only dialect § 2's schema
+/// has and no longer the only driver that could run one — that constant's own doc owns why a second
+/// backend brings a second list, and `nvs_stdlib::queue`'s gap 5 owns why what is missing here is the
+/// SQL rather than the connection. The refusal below already says it that way.
 const DIALECT: &str = "postgres";
 
 /// `nvs queue migrate [--connection <name>] [--dry-run] [<file>...]`.

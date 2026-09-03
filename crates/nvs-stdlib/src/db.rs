@@ -4290,7 +4290,11 @@ type Encoder = fn(Value) -> std::io::Result<Option<Vec<u8>>>;
 /// [`nvs_db::Driver`] separates them for the auth plugins and error tables ADR
 /// 0067 keeps them apart for. `nvs_db::Dialect` has already made the same call
 /// for the text.
-fn rendering_for(driver: nvs_db::Driver) -> Option<(nvs_db::Dialect, Encoder)> {
+///
+/// `pub(crate)` for its `None`, which is this crate's one roster of the drivers
+/// with no statement path at all: [`crate::queue`]'s own refusal splits on that
+/// rather than carrying a second copy of the same five drivers.
+pub(crate) fn rendering_for(driver: nvs_db::Driver) -> Option<(nvs_db::Dialect, Encoder)> {
     let encode: Encoder = match driver {
         nvs_db::Driver::Postgres => nvs_db::encode,
         nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => nvs_db::mysql::encode,

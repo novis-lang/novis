@@ -57,8 +57,11 @@
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
 //!    not decide beyond `id` and `queue`, so [`COUNTS`] sums `attempts` over [`JOBS_TABLE`] alone
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
-//! 5. **PostgreSQL only**, as [`crate::db`]'s gap 2 is: the other four drivers have no statement path
-//!    yet, so [`postgres_of`] refuses them by name rather than writing a row nothing would claim.
+//! 5. **PostgreSQL only, and what is missing is the SQL and not the driver.** Three drivers send a
+//!    statement now — [`crate::db`]'s gap 2 is the two that do not — but § 2's schema and every
+//!    statement above it are written in one dialect, and [`no_dialect`]'s own doc owns why a second
+//!    backend needs statements of its own rather than a switch inside these. So [`postgres_of`]
+//!    refuses by name, saying which of the two things is in the way.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -146,10 +149,11 @@ pub struct Migration {
 /// `the_ddl_creates_every_column_the_statements_name` holds the two lists together — a column
 /// renamed here and nowhere else fails that test rather than a deployment.
 ///
-/// **PostgreSQL's dialect, because it is the only driver with a statement path at all** (gap 5). A
-/// second backend brings its own list rather than a dialect switch inside these strings: the
-/// identity column, the partial index and `if not exists` are each spelt differently across § 2's
-/// five, and a string with three holes in it has stopped being a statement.
+/// **PostgreSQL's dialect, because it is the only one the queue's statements are written in**
+/// (gap 5, and [`no_dialect`] is where that reading lives). A second backend brings its own list
+/// rather than a dialect switch inside these strings: the identity column, the partial index and
+/// `if not exists` are each spelt differently across § 2's five — and MySQL has no partial index at
+/// all — so a string with three holes in it has stopped being a statement.
 ///
 /// **`if not exists` on every one, because § 2 says *created and upgraded*.** Running the command
 /// twice is not an error and running it against a half-built schema completes it, which is what
@@ -1283,13 +1287,14 @@ fn job_of(value: Value, member: &str) -> Result<(u64, String), Fault> {
 
 /// The queue's PostgreSQL connection, by the key it is filed under.
 ///
-/// [`crate::db`]'s `postgres_of` one module over, and separate rather than shared because the two
-/// name their connection differently: that one has the caller's own `Core\Db\Connection` to quote
-/// back, and this one has the block name out of configuration, which is a `&str` and not a `Value`.
+/// [`crate::db`]'s `filed_connection` one module over, and separate rather than shared because the
+/// two name their connection differently: that one has the caller's own `Core\Db\Connection` to
+/// quote back, and this one has the block name out of configuration, which is a `&str` and not a
+/// `Value`.
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` for a driver with no statement path yet ([`crate::db`]'s gap 2). A
+/// A thrown `RuntimeError` by way of [`no_dialect`] for any driver but PostgreSQL. A
 /// [`Fault::fatal`] for a key the request's own table does not hold, which is this crate's paste
 /// error rather than a program's.
 fn postgres_of<'a>(
@@ -1311,14 +1316,49 @@ fn postgres_of<'a>(
                 "{member}: the connection filed under the key {key} is not `nvs-db`'s"
             ))
         })?;
-    let driver = connection.driver();
-    let nvs_db::Connection::Postgres(postgres) = connection else {
-        return Err(Fault::thrown(format!(
-            "{member}: `[db.{block}]` is a {driver:?} connection, and only PostgreSQL runs a \
-             statement so far"
-        )));
+    match connection {
+        nvs_db::Connection::Postgres(postgres) => Ok(postgres),
+        other => Err(no_dialect(member, block, other.driver())),
+    }
+}
+
+/// The refusal a connection this module cannot run its statements over earns, in the two spellings
+/// its two causes deserve.
+///
+/// **The queue keeps a refusal of its own rather than borrowing [`crate::db`]'s `Framed`, and that
+/// is the decision here rather than an omission.** That seam exists because MySQL and MariaDB
+/// *send* over one wire, so the three members that send would otherwise each grow a second arm
+/// copying the first line for line. The queue's shortfall is the other one: not a send it cannot
+/// spell but SQL it has not written. [`MIGRATION`]'s partial unique index, [`INSERT`]'s and
+/// [`CLAIM`]'s `returning`, and [`DEAD_LETTER`]'s data-modifying CTE are constructs MySQL has no
+/// spelling for at all, so §§ 2 and 4 owe a second backend statements of their own rather than a
+/// translation of these — which is gap 5, and is why borrowing `Framed` would buy one `match` arm
+/// and hand a MySQL server PostgreSQL's text.
+///
+/// So the sentence says **which of the two things is in the way**, because they call for different
+/// answers from whoever reads it: a driver that sends is one this module owes statements, and a
+/// driver that does not is [`crate::db`]'s gap 2 and owes nothing here at all. An operator can act
+/// on the first — run the queue's block against PostgreSQL — and can only wait on the second.
+fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
+    let missing = match driver {
+        // ADR 0067 § 5 renders a statement for these two, so the connection is not what is in the
+        // way: what is missing is above the wire and belongs to this module.
+        nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => {
+            "and the queue's own statements are PostgreSQL's dialect so far — this module's known \
+             gap 5 is the list"
+        }
+        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => {
+            "and that driver runs no statement at all yet — `Core\\Db`'s known gap 2 is the list"
+        }
+        // Unreachable: [`postgres_of`] matches this arm out before it asks. Spelled rather than
+        // left to a `_` so that a sixth driver arrives as a build failure instead of as whichever
+        // of the two sentences happens to be written last.
+        nvs_db::Driver::Postgres => "and it is the one driver the queue does run — this is a bug",
     };
-    Ok(postgres)
+    Fault::thrown(format!(
+        "{member}: `[db.{block}]` is a {} connection, {missing}",
+        driver.display_name()
+    ))
 }
 
 nvs_runtime::nvs_helper! {
@@ -1801,10 +1841,42 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 mod tests {
     use super::{
         CANCEL, CLAIM, COUNTS, DEAD_LETTER, DEAD_TABLE, INSERT, JOBS_TABLE, MIGRATION, PENDING,
-        QUEUES, RETRY, RETRY_CAP_MS, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
+        PUSH, QUEUES, RETRY, RETRY_CAP_MS, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
         STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT,
-        STATS_PENDING_SLOT, STATUS, SUCCEEDED, dead_errors, retry_at,
+        STATS_PENDING_SLOT, STATUS, SUCCEEDED, dead_errors, no_dialect, retry_at,
     };
+
+    /// An agreement test rather than a wording one, in `the_refusal_names_every_driver_that_sends`'s
+    /// shape one module over: what this file must not do is tell an operator to fix the wrong thing.
+    /// The split it asserts is *which sentence* a driver earns, and the roster behind it is
+    /// [`crate::db::rendering_for`]'s `None` rather than a second list of five drivers here — so a
+    /// driver gaining a statement path in that module moves this refusal with it, and a sixth
+    /// arriving fails the build in [`no_dialect`] before it reaches this test at all.
+    #[test]
+    fn the_queues_refusal_says_which_of_the_two_things_is_missing() {
+        for driver in nvs_db::Driver::ALL {
+            if driver == nvs_db::Driver::Postgres {
+                continue;
+            }
+            let refused = format!("{:?}", no_dialect(PUSH, "main", driver));
+            assert!(
+                refused.contains(driver.display_name()),
+                "a refusal an operator can act on names the driver the block resolved to: {refused}"
+            );
+            let sends = crate::db::rendering_for(driver).is_some();
+            assert_eq!(
+                sends,
+                refused.contains("known gap 5"),
+                "{driver:?} sends a statement, so what the queue owes it is its own SQL: {refused}"
+            );
+            assert_eq!(
+                !sends,
+                refused.contains("known gap 2"),
+                "{driver:?} sends nothing, so the queue owes it nothing and `Core\\Db` does: \
+                 {refused}"
+            );
+        }
+    }
 
     /// The statement with that label, or the test fails naming it: every assertion below is about
     /// one of § 2's two tables, and a label typed differently in the DDL than in the command's
