@@ -405,6 +405,25 @@ impl<H: Clone> StatementCache<H> {
             .flatten()
     }
 
+    /// Drops the statement recorded under this key, handing back the handle its
+    /// caller must now deallocate, or `None` for a key the cache does not hold.
+    ///
+    /// The eviction [`Self::make_room`] does not cover: a driver reaches for
+    /// this when a *hit* turns out to be unusable rather than when there is no
+    /// room. SQL Server compiles a plan against the `@params` declaration the
+    /// first execution sent, so the same key run later with a value that
+    /// declaration does not fit names a plan that would truncate it —
+    /// `crate::tds::TdsPlan`'s own doc owns that reading. Removing the entry
+    /// rather than committing over it is what keeps the cache from holding two
+    /// under one key, which [`Self::lookup`]'s linear scan could not tell apart.
+    pub fn forget(&mut self, sql: &str, arity: usize) -> Option<H> {
+        let at = self
+            .entries
+            .iter()
+            .position(|entry| entry.arity == arity && entry.sql == sql)?;
+        Some(self.entries.remove(at).handle)
+    }
+
     /// Records a statement the server has now prepared, as most-recently-used.
     ///
     /// Only ever called for a statement whose prepare has landed, and once per

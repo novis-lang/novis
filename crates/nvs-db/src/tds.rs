@@ -93,7 +93,7 @@ use crate::conn::{
     BlockError, ColumnType, DbErrorKind, Driver, ServerError, State, TdsConn, written_value,
 };
 use crate::span::QuerySpan;
-use crate::sql::{Dialect, statement_cache_for, time_zone_for};
+use crate::sql::{Dialect, StatementCache, statement_cache_for, time_zone_for};
 
 /// The header in front of every packet: type, status, length, SPID, packet id,
 /// window.
@@ -362,10 +362,18 @@ impl Status {
     /// discards it. Sent with [`Status::EOM`] as the tail of a cancelled
     /// message.
     pub const IGNORE: Status = Status(0x02);
-    /// ADR 0067 § 13's reset, as a bit rather than as a statement: the next
-    /// batch or procedure call resets the session before it runs, which is
-    /// `sp_reset_connection` without the round trip of asking for it. It rides
-    /// the **first** packet of that message — see [`Codec::encode`].
+    /// ADR 0067 § 13's reset, as a bit rather than as a statement: the batch or
+    /// procedure call carrying it resets the session before it runs, which is
+    /// `sp_reset_connection` said in the header rather than asked for by name.
+    /// It rides the **first** packet of that message — see [`Codec::encode`].
+    ///
+    /// **[`reset_session`] spends a message of its own on it rather than
+    /// letting it ride the next real one.** § 13 makes the reset a security
+    /// boundary that a failed reset destroys the connection over, and a bit
+    /// riding the next request cannot be proven until that request — belonging
+    /// to the program this connection was just handed to — has already run on
+    /// it. The cheaper spelling is cheaper only because it moves the proof to
+    /// the wrong side of the boundary.
     pub const RESET_CONNECTION: Status = Status(0x08);
     /// [`Status::RESET_CONNECTION`] for a connection inside a transaction the
     /// caller wants kept. Novis never sets it: § 13's reset happens at release,
@@ -2821,6 +2829,13 @@ pub struct TdsRows<'a, S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     /// the stream, after the rows, so a caller reads it once
     /// [`TdsRows::next_row`] has answered `None` — see [`TdsRows::returned`].
     returned: Option<ReturnValue>,
+    /// [ADR 0067 § 1](../../../docs/adr/0067-core-db.md)'s cache and the key
+    /// this answer's handle belongs under, for a `sp_prepexec` whose plan is to
+    /// be kept; `None` for every other answer, which is most of them.
+    ///
+    /// The stream borrows the cache rather than the caller filing it afterwards
+    /// — [`Filing`] owns why.
+    filing: Option<Filing<'a>>,
     /// [ADR 0067 § 11](../../../docs/adr/0067-core-db.md)'s trace event for this
     /// statement, opened when the request went out and ended by whatever ends
     /// the stream — [`crate::MySqlRows`]' field, for [`crate::span`]'s reasons.
@@ -3022,6 +3037,24 @@ impl<S: Read + Write> TdsRows<'_, S> {
         // return value.
         let affected = if refused { None } else { self.affected() };
         self.span.finished(affected);
+        // § 1's cache is filed here and nowhere else, because here is the first
+        // moment the handle exists: `sp_prepexec` writes it into a `RETURNVALUE`
+        // that arrives after the rows, so a caller filing it would have to be
+        // told to read `returned()` and would be free to forget. A refusal files
+        // nothing — the server compiled no plan there is a number for — and
+        // neither does a stream that ended any other way, which leaves that plan
+        // alive on the server until the connection closes rather than filed
+        // under a handle this side never read.
+        let filing = self.filing.take().filter(|_| !refused);
+        if let (Some(filing), Some(handle)) =
+            (filing, self.returned.as_ref().and_then(ReturnValue::as_i32))
+        {
+            let plan = TdsPlan {
+                handle,
+                declared: filing.declared,
+            };
+            filing.cache.commit(&filing.sql, filing.arity, plan);
+        }
         if !self.last || self.at < self.buffer.len() {
             return Err(malformed(format!(
                 "a TDS answer carried {} byte(s) after the DONE that ended it",
@@ -3441,6 +3474,38 @@ pub fn read_rows<'a, S: Read + Write>(
     state: &'a Cell<State>,
     span: QuerySpan,
 ) -> io::Result<TdsRows<'a, S>> {
+    read_answer(wire, state, span, None)
+}
+
+/// The cache entry an answer is about to complete: [ADR 0067
+/// § 1](../../../docs/adr/0067-core-db.md)'s key, and the cache to file the
+/// handle in once the token carrying it arrives.
+///
+/// **The stream holds this rather than the caller** because `sp_prepexec`'s
+/// handle is a `RETURNVALUE` that arrives *after* the rows, and a statement with
+/// no result set has already ended by the time [`read_rows`] returns — so a
+/// caller filing it afterwards would file nothing on exactly the statements a
+/// cache is worth the most on. [`TdsRows::end`] is the one place it lands.
+#[derive(Debug)]
+struct Filing<'a> {
+    /// Where the handle goes.
+    cache: &'a mut StatementCache<TdsPlan>,
+    /// § 1's key, first half: the statement as written.
+    sql: String,
+    /// § 1's key, second half: how many markers § 5's rewrite left in it.
+    arity: usize,
+    /// The `@params` the plan is being compiled against — [`TdsPlan::declared`]
+    /// owns why a plan is not usable without it.
+    declared: Rc<str>,
+}
+
+/// [`read_rows`], plus the cache entry a `sp_prepexec` answer completes.
+fn read_answer<'a, S: Read + Write>(
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    span: QuerySpan,
+    filing: Option<Filing<'a>>,
+) -> io::Result<TdsRows<'a, S>> {
     state.set(State::Streaming);
     let mut rows = TdsRows {
         wire,
@@ -3453,6 +3518,7 @@ pub fn read_rows<'a, S: Read + Write>(
         counted: None,
         ended: false,
         returned: None,
+        filing,
         span,
     };
     match rows.shape() {
@@ -3511,6 +3577,27 @@ impl<S: Read + Write> TdsRows<'_, S> {
 /// `NameLenProcID` and it saves the server the lookup as well as the bytes,
 /// which is the whole difference between the two spellings.
 const PROC_SP_PREPEXEC: u16 = 13;
+
+/// `sp_execute`'s procedure id — MS-TDS § 2.2.6.6's `Sp_Execute`.
+///
+/// [ADR 0067 § 1](../../../docs/adr/0067-core-db.md)'s cached re-execution: the
+/// handle [`PROC_SP_PREPEXEC`] answered with and the values, and no SQL on the
+/// wire at all.
+const PROC_SP_EXECUTE: u16 = 12;
+
+/// `sp_unprepare`'s procedure id — MS-TDS § 2.2.6.6's `Sp_Unprepare`.
+///
+/// What an eviction sends, so the server never holds more plans than the
+/// block's `statement_cache` allows.
+const PROC_SP_UNPREPARE: u16 = 15;
+
+/// The batch [`Status::RESET_CONNECTION`] rides.
+///
+/// The bit resets the session *before* the message carrying it is processed, so
+/// there has to be a message — and this is the smallest well-formed one whose
+/// answer proves the reset landed. It deliberately sets nothing: anything this
+/// batch did would be session state the reset had just finished removing.
+const RESET_STATEMENT: &str = "select 1";
 
 /// `NameLenProcID`'s first field when what follows is a procedure *id* rather
 /// than a name.
@@ -3580,32 +3667,116 @@ const NO_COLLATION: [u8; 5] = [0; 5];
 /// `InvalidInput` for a parameter that is not UTF-8, and for one whose UCS-2
 /// form is past [`MAX_MESSAGE`].
 pub fn sp_prepexec_request(sql: &str, params: &[Option<&[u8]>]) -> io::Result<Vec<u8>> {
-    let mut bound: Vec<Option<Vec<u8>>> = Vec::with_capacity(params.len());
+    let bound = bind(params)?;
+    prepexec_request(sql, &bound, declarations(&bound).as_deref())
+}
+
+/// Every bound value as the UCS-2 [`text_param`] writes, or the refusal that
+/// names the marker one of them was bound at.
+///
+/// Done once per statement and before anything is written, so a refusal costs
+/// no bytes on the wire and neither of § 1's two request shapes has to repeat
+/// the conversion to decide which of them is being sent.
+///
+/// # Errors
+///
+/// `InvalidInput` for a value that is not UTF-8 — [`text_of`]'s refusal.
+fn bind(params: &[Option<&[u8]>]) -> io::Result<Vec<Option<Vec<u8>>>> {
+    let mut bound = Vec::with_capacity(params.len());
     for (index, value) in params.iter().enumerate() {
         bound.push(match value {
             None => None,
             Some(bytes) => Some(ucs2_of(text_of(bytes, index + 1)?)),
         });
     }
+    Ok(bound)
+}
 
+/// A request's `ALL_HEADERS` and `NameLenProcID`, up to the first argument.
+fn rpc_header(proc_id: u16) -> Vec<u8> {
     let mut out = Vec::new();
     all_headers(&mut out);
     out.extend_from_slice(&PROC_ID_SWITCH.to_le_bytes());
-    out.extend_from_slice(&PROC_SP_PREPEXEC.to_le_bytes());
+    out.extend_from_slice(&proc_id.to_le_bytes());
     // `OptionFlags`: neither `fWithRecomp` nor the two metadata ones. A
     // recompile on every execution is the opposite of what § 1's cache is for.
     out.extend_from_slice(&0u16.to_le_bytes());
+    out
+}
 
+/// [`sp_prepexec_request`] over values already bound and a declaration already
+/// derived, which is what [`start_statement`] is holding by the time it knows
+/// this is the shape to send.
+fn prepexec_request(
+    sql: &str,
+    bound: &[Option<Vec<u8>>],
+    declared: Option<&str>,
+) -> io::Result<Vec<u8>> {
+    let mut out = rpc_header(PROC_SP_PREPEXEC);
     // `@handle`, sent null and by reference: the server allocates the plan and
     // writes the number back in the `RETURNVALUE` [`TdsRows::returned`] keeps.
     int_param(&mut out, true, None);
-    let declared = declarations(&bound);
-    text_param(&mut out, declared.as_deref().map(ucs2_of), "@params")?;
-    text_param(&mut out, Some(ucs2_of(sql)), "@stmt")?;
-    for (index, value) in bound.into_iter().enumerate() {
-        text_param(&mut out, value, &Dialect::SqlServer.marker(index + 1))?;
-    }
+    let declaration = declared.map(ucs2_of);
+    text_param(&mut out, declaration.as_deref(), "@params")?;
+    text_param(&mut out, Some(&ucs2_of(sql)), "@stmt")?;
+    values(&mut out, bound)?;
     Ok(out)
+}
+
+/// § 1's cached re-execution: `sp_execute`, naming the plan the server already
+/// holds and carrying the same values in the same order.
+///
+/// **No SQL and no `@params`.** The plan already knows both, which is the whole
+/// of what a hit buys on this protocol — a four-byte handle where the first
+/// execution carried the statement. The declaration the plan was compiled
+/// against is therefore not this call's to change, which is why
+/// [`TdsPlan::declared`] is compared before one is sent.
+///
+/// # Errors
+///
+/// As [`text_param`], for the same values.
+fn execute_request(handle: i32, bound: &[Option<Vec<u8>>]) -> io::Result<Vec<u8>> {
+    let mut out = rpc_header(PROC_SP_EXECUTE);
+    // By value rather than by reference: this one is read and never written
+    // back, so there is nothing for the server to return.
+    int_param(&mut out, false, Some(handle));
+    values(&mut out, bound)?;
+    Ok(out)
+}
+
+/// § 1's eviction: `sp_unprepare`, dropping one plan the server is holding.
+///
+/// Sent as a message of its own and read to its `DONEPROC`, unlike MySQL's
+/// `COM_STMT_CLOSE`, which answers nothing. Every TDS request has an answer, so
+/// one left unread would be taken as the *next* statement's — this is the
+/// protocol's difference and not a choice, and it is why an eviction costs a
+/// round trip here and none there.
+fn unprepare_request(handle: i32) -> Vec<u8> {
+    let mut out = rpc_header(PROC_SP_UNPREPARE);
+    int_param(&mut out, false, Some(handle));
+    out
+}
+
+/// The batch [`RESET_STATEMENT`] goes out as, carrying no headers of its own
+/// beyond the transaction descriptor every request needs.
+fn reset_request() -> Vec<u8> {
+    let mut out = Vec::new();
+    all_headers(&mut out);
+    out.extend_from_slice(&ucs2_of(RESET_STATEMENT));
+    out
+}
+
+/// One argument per marker, in § 5's order, for either of the two procedures
+/// that take them.
+///
+/// # Errors
+///
+/// As [`text_param`].
+fn values(out: &mut Vec<u8>, bound: &[Option<Vec<u8>>]) -> io::Result<()> {
+    for (index, value) in bound.iter().enumerate() {
+        text_param(out, value.as_deref(), &Dialect::SqlServer.marker(index + 1))?;
+    }
+    Ok(())
 }
 
 /// One bound value as text, or the refusal that names the marker it was bound
@@ -3709,11 +3880,11 @@ fn int_param(out: &mut Vec<u8>, by_ref: bool, value: Option<i32>) {
 /// `InvalidInput` for a value past [`MAX_MESSAGE`], which is the ceiling this
 /// driver reads a message to and therefore the widest one it is willing to
 /// write.
-fn text_param(out: &mut Vec<u8>, value: Option<Vec<u8>>, what: &str) -> io::Result<()> {
+fn text_param(out: &mut Vec<u8>, value: Option<&[u8]>, what: &str) -> io::Result<()> {
     param_header(out, false);
     out.push(TY_NVARCHAR);
 
-    let wide = value.as_deref().is_some_and(is_wide);
+    let wide = value.is_some_and(is_wide);
     if wide {
         out.extend_from_slice(&NO_LENGTH.to_le_bytes());
     } else {
@@ -3748,14 +3919,43 @@ fn text_param(out: &mut Vec<u8>, value: Option<Vec<u8>>, what: &str) -> io::Resu
         // can size its buffer once.
         out.extend_from_slice(&u64::from(length).to_le_bytes());
         out.extend_from_slice(&length.to_le_bytes());
-        out.extend_from_slice(&ucs2);
+        out.extend_from_slice(ucs2);
         out.extend_from_slice(&0u32.to_le_bytes());
     } else {
         let short = u16::try_from(length).expect("narrower than NVARCHAR_CHARS characters");
         out.extend_from_slice(&short.to_le_bytes());
-        out.extend_from_slice(&ucs2);
+        out.extend_from_slice(ucs2);
     }
     Ok(())
+}
+
+/// One plan this connection has the server holding, as [ADR 0067
+/// § 1](../../../docs/adr/0067-core-db.md)'s cache records it.
+///
+/// The handle alone would be [`crate::mysql::Prepared`]'s twin. It is not
+/// enough here, and the second field is why.
+#[derive(Debug, Clone)]
+pub struct TdsPlan {
+    /// The number `sp_execute` and `sp_unprepare` name — the `@handle`
+    /// `sp_prepexec` wrote back.
+    pub handle: i32,
+    /// The `@params` declaration this plan was compiled against, empty for a
+    /// statement that binds nothing.
+    ///
+    /// **§ 1's key is one component short on this protocol.** [`declarations`]
+    /// widens a marker to `nvarchar(max)` for a value past [`NVARCHAR_CHARS`],
+    /// so one statement run first with a short value and then with a long one
+    /// wants two different plans under a key — the SQL text and the arity —
+    /// that cannot tell them apart. A long value bound against a plan declared
+    /// narrow is *truncated* by SQL Server rather than refused, which is silent
+    /// data loss, so this is carried and compared and a mismatch is a miss that
+    /// unprepares the plan it did not fit. The key itself is left alone: § 1
+    /// states it once, for four drivers, and this is one driver's reason to
+    /// reject a hit rather than a fifth way to spell the key.
+    ///
+    /// `Rc<str>` because [`StatementCache::lookup`] clones the handle on every
+    /// hit, and a hit is the path the cache exists for.
+    declared: Rc<str>,
 }
 
 /// [ADR 0067 §§ 1 and 4](../../../docs/adr/0067-core-db.md)'s one statement,
@@ -3766,21 +3966,27 @@ fn text_param(out: &mut Vec<u8>, value: Option<Vec<u8>>, what: &str) -> io::Resu
 /// state by reference so § 4's one-statement-at-a-time rule is enforced here
 /// rather than by each caller remembering to.
 ///
-/// It does **not** file the handle `sp_prepexec` returns yet: § 1's statement
-/// cache is the next slice, and until it lands every execution prepares a fresh
-/// plan that lives until the connection closes. [`TdsRows::returned`] is where
-/// that handle arrives, and it arrives after the rows.
+/// **§ 1's cache decides which of two requests goes out.** A hit sends
+/// [`execute_request`] — the handle and the values, no SQL — and files nothing,
+/// since the plan is already recorded. A miss sends [`prepexec_request`] and
+/// hands the stream a [`Filing`], because the handle it will be recorded under
+/// arrives in a `RETURNVALUE` after the rows. An eviction and a rejected hit
+/// both send [`unprepare_request`] *first*, so the server never holds more
+/// plans than `statement_cache` allows, not even for the length of one round
+/// trip — `crate::mysql`'s `cached_statement` ordering, for its reason.
 ///
 /// # Errors
 ///
 /// `InvalidInput` for a statement written to a connection that is not idle and
-/// for [`sp_prepexec_request`]'s refusals — neither of which touches the wire,
-/// so neither poisons the connection; otherwise as [`read_rows`]. A write that
-/// failed part-way leaves the connection [`State::Poisoned`], because a
-/// half-written packet is not a boundary anything can be found from.
+/// for [`bind`]'s and [`text_param`]'s refusals — none of which touches the
+/// wire, so none poisons the connection; otherwise as [`read_rows`], including
+/// for an eviction's own answer. A write that failed part-way leaves the
+/// connection [`State::Poisoned`], because a half-written packet is not a
+/// boundary anything can be found from.
 pub fn start_statement<'a, S: Read + Write>(
     wire: &'a mut Wire<S>,
     state: &'a Cell<State>,
+    cache: &'a mut StatementCache<TdsPlan>,
     sql: &str,
     params: &[Option<&[u8]>],
 ) -> io::Result<TdsRows<'a, S>> {
@@ -3792,14 +3998,143 @@ pub fn start_statement<'a, S: Read + Write>(
     // and never `params` — `crate::span`'s module doc owns why that is a
     // signature rather than a rule.
     let span = QuerySpan::opened(Driver::SqlServer, sql);
-    let request = sp_prepexec_request(sql, params)?;
+    let bound = bind(params)?;
+    let declared = declarations(&bound);
+    let declared: Rc<str> = Rc::from(declared.as_deref().unwrap_or_default());
 
+    let mut stale = None;
+    match cache.lookup(sql, params.len()) {
+        Some(plan) if plan.declared == declared => {
+            let request = execute_request(plan.handle, &bound)?;
+            send_request(wire, state, PacketType::Rpc, Status::NORMAL, &request)?;
+            return read_answer(wire, state, span, None);
+        }
+        // A hit whose plan was compiled against a different declaration — see
+        // `TdsPlan::declared`. The entry is dropped rather than shadowed so the
+        // cache never holds two under one key, and the plan is unprepared
+        // because nothing else will ever name it again.
+        Some(plan) => {
+            cache.forget(sql, params.len());
+            stale = Some(plan.handle);
+        }
+        None => {}
+    }
+
+    // Built before anything is written, so a value this driver will not send
+    // costs neither an eviction nor a byte on the wire.
+    let request = prepexec_request(sql, &bound, cache_declaration(&declared))?;
+    if let Some(handle) = stale.or_else(|| cache.make_room().map(|plan| plan.handle)) {
+        send_request(
+            wire,
+            state,
+            PacketType::Rpc,
+            Status::NORMAL,
+            &unprepare_request(handle),
+        )?;
+        drain(wire, state)?;
+    }
+    send_request(wire, state, PacketType::Rpc, Status::NORMAL, &request)?;
+    read_answer(
+        wire,
+        state,
+        span,
+        Some(Filing {
+            cache,
+            sql: sql.to_owned(),
+            arity: params.len(),
+            declared,
+        }),
+    )
+}
+
+/// The `@params` a declaration string stands for: `None` where it is empty,
+/// which is the statement that binds nothing and which the procedure reads as a
+/// plan with no parameters where an empty string would not.
+fn cache_declaration(declared: &Rc<str>) -> Option<&str> {
+    (!declared.is_empty()).then(|| &**declared)
+}
+
+/// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, and the cache it
+/// takes with it.
+///
+/// **`sp_reset_connection` as [`Status::RESET_CONNECTION`] on a message of its
+/// own**, which is MS-TDS's own spelling of that procedure and is why nothing
+/// here names it: the bit resets the session before the message carrying it is
+/// processed, and [`RESET_STATEMENT`] is the smallest well-formed message there
+/// is to carry it. Its answer is what proves the reset landed, which is what
+/// § 13 asks of a reset and what a bit riding the *next* request could not give
+/// — that request already belongs to the program the connection was handed to.
+///
+/// [`crate::mysql::reset_session`]'s twin with one half missing: TDS has no
+/// session time zone to send again, [`TdsTarget::time_zone`] owns why, so the
+/// cache is the whole of what has to follow the reset. It is emptied here
+/// rather than by whoever pools the connection, for that function's reason —
+/// the plans are gone from the server the moment this answers, and a cache
+/// still naming them would bind the next request against handles this session
+/// no longer has.
+///
+/// Free and generic in the stream for this crate's usual reason: a
+/// `Wire<NvsTls<Tunnel<NvsTcp>>>` needs a socket and a certificate that no unit
+/// test has.
+///
+/// # Errors
+///
+/// As [`read_rows`], for the batch the bit rode in on. § 13 destroys the
+/// connection on any of them, so what the cache holds on that path is nobody's
+/// business.
+pub fn reset_session<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    cache: &mut StatementCache<TdsPlan>,
+) -> io::Result<()> {
+    send_request(
+        wire,
+        state,
+        PacketType::SqlBatch,
+        Status::RESET_CONNECTION,
+        &reset_request(),
+    )?;
+    drain(wire, state)?;
+    cache.clear();
+    Ok(())
+}
+
+/// Writes one request and says where a failed write leaves the connection.
+///
+/// # Errors
+///
+/// Whatever the write reported, with the connection [`State::Poisoned`]: a
+/// half-written packet is not a boundary anything can be found from.
+fn send_request<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    kind: PacketType,
+    status: Status,
+    request: &[u8],
+) -> io::Result<()> {
     state.set(State::Executing);
-    if let Err(e) = wire.send(PacketType::Rpc, Status::NORMAL, &request) {
+    if let Err(e) = wire.send(kind, status, request) {
         state.set(State::Poisoned);
         return Err(e);
     }
-    read_rows(wire, state, span)
+    Ok(())
+}
+
+/// Reads an answer this driver sent for its own reasons to its end, and throws
+/// it away.
+///
+/// The span it opens is dropped with the stream on purpose: § 11's trace event
+/// is one statement a *program* ran, and neither an eviction nor a reset is
+/// one. Reading to the end is not optional — a TDS answer left on the wire is
+/// read as the next statement's.
+///
+/// # Errors
+///
+/// As [`read_rows`] and [`TdsRows::next_row`].
+fn drain<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io::Result<()> {
+    let mut rows = read_answer(wire, state, QuerySpan::opened(Driver::SqlServer, ""), None)?;
+    while rows.next_row()?.is_some() {}
+    Ok(())
 }
 
 /// The refusal for an answer the server stopped sending without ending it.
@@ -3888,7 +4223,25 @@ impl TdsConn {
             // § 9's zone-less row is decoded a layer up, where the target is
             // gone — see the field.
             time_zone: target.time_zone,
+            // § 1's capacity is the `[db.<name>]` block's, already read by
+            // `statement_cache_for` and carried here on the target.
+            cache: StatementCache::new(target.statement_cache),
         })
+    }
+
+    /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, before this
+    /// connection may be handed to another request.
+    ///
+    /// Takes `self` by value for [`crate::MySqlConn::reset`]'s reason: a reset
+    /// that failed must not be able to hand a connection back, and a signature
+    /// that borrowed would let a caller ignore the `Err` and pool it anyway.
+    ///
+    /// # Errors
+    ///
+    /// As [`reset_session`]. The connection is consumed either way.
+    pub fn reset(mut self) -> io::Result<TdsConn> {
+        reset_session(&mut self.wire, &self.state, &mut self.cache)?;
+        Ok(self)
     }
 
     /// The zone a `datetime` or `datetime2` off this connection is read in, as
@@ -6337,9 +6690,11 @@ mod tests {
 
         let mut wire = answering(&[payload]);
         let state = Cell::new(State::Idle);
+        let mut cache = plans(2);
         let mut rows = start_statement(
             &mut wire,
             &state,
+            &mut cache,
             "select * from t where a = @p1",
             &[Some(b"7")],
         )
@@ -6366,15 +6721,262 @@ mod tests {
     fn a_statement_on_a_busy_connection_is_refused_and_a_bad_parameter_leaves_it_idle() {
         let mut wire = Wire::new(Script::silent());
         let busy = Cell::new(State::Streaming);
-        let refused = start_statement(&mut wire, &busy, "select 1", &[])
+        let mut cache = plans(2);
+        let refused = start_statement(&mut wire, &busy, &mut cache, "select 1", &[])
             .expect_err("a second statement on one connection");
         assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
 
         let idle = Cell::new(State::Idle);
-        let refused = start_statement(&mut wire, &idle, "select @p1", &[Some(&[0xFF])])
+        let refused = start_statement(&mut wire, &idle, &mut cache, "select @p1", &[Some(&[0xFF])])
             .expect_err("a parameter that is not UTF-8");
         assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
         assert_eq!(idle.get(), State::Idle, "nothing was written");
         assert!(wire.peer().sent.is_empty());
+    }
+
+    /// An empty § 1 cache of `capacity` plans.
+    fn plans(capacity: usize) -> StatementCache<TdsPlan> {
+        StatementCache::new(capacity)
+    }
+
+    /// One `Wire` answering a *sequence* of requests, each answer a message of
+    /// its own — where [`answering`] builds one answer out of many packets.
+    fn answering_each(answers: &[Vec<u8>]) -> Wire<Script> {
+        let mut inbound = Vec::new();
+        for payload in answers {
+            inbound.extend_from_slice(&packet(PacketType::TabularResult, Status::EOM, 1, payload));
+        }
+        Wire::new(Script::answering(inbound, READ_CHUNK))
+    }
+
+    /// Every message the driver flushed, reassembled from the packets it wrote.
+    ///
+    /// `Script` records one stream of bytes, and § 1's cache is asserted on the
+    /// *sequence* of requests rather than on any one of them: which procedure
+    /// went out, in what order, is the whole of what a hit and an eviction are.
+    /// Messages and not packets, because a `nvarchar(max)` value is longer than
+    /// the negotiated packet size and a request counted in packets would make a
+    /// long parameter look like three requests. The status kept is the **first**
+    /// packet's, which is where [`Status::RESET_CONNECTION`] rides.
+    fn flushed(sent: &[u8]) -> Vec<(PacketType, Status, Vec<u8>)> {
+        let mut out: Vec<(PacketType, Status, Vec<u8>)> = Vec::new();
+        let mut at = 0;
+        let mut open = false;
+        while at < sent.len() {
+            let length = usize::from(u16::from_be_bytes([sent[at + 2], sent[at + 3]]));
+            let kind = PacketType::from_byte(sent[at]).expect("a type this driver writes");
+            let status = Status(sent[at + 1]);
+            let body = &sent[at + HEADER..at + length];
+            if open {
+                out.last_mut()
+                    .expect("a message these bytes continue")
+                    .2
+                    .extend_from_slice(body);
+            } else {
+                out.push((kind, status, body.to_vec()));
+            }
+            open = !status.contains(Status::EOM);
+            at += length;
+        }
+        out
+    }
+
+    /// `sp_prepexec`'s answer for a statement with no result set: the inner
+    /// statement's own end, then the handle and the status, then the procedure's.
+    fn prepexec_answer(handle: i32) -> Vec<u8> {
+        let mut out = done_kind(TOKEN_DONE_IN_PROC, DONE_COUNT, 1);
+        out.extend_from_slice(&return_value_token("@handle", Some(handle)));
+        out.extend_from_slice(&return_status_token(0));
+        out.extend_from_slice(&done_kind(TOKEN_DONE_PROC, 0, 0));
+        out
+    }
+
+    /// What `sp_unprepare` answers: a status and the end of the procedure.
+    fn procedure_answer() -> Vec<u8> {
+        let mut out = return_status_token(0);
+        out.extend_from_slice(&done_kind(TOKEN_DONE_PROC, 0, 0));
+        out
+    }
+
+    /// ADR 0067 § 13's reset on this backend, both halves of it: the session is
+    /// reset through `sp_reset_connection` — which MS-TDS spells as a header bit
+    /// rather than as a call — and § 1's cache is emptied with it, because the
+    /// reset drops the server's prepared statements.
+    ///
+    /// The asymmetry § 13 names, from the other side: PostgreSQL's reset is a
+    /// command list picked so the cache *survives*, and this one has no such
+    /// choice to make. A cache that survived here would bind the next request
+    /// against plan handles this session no longer has — a wrong answer rather
+    /// than a slow one.
+    #[test]
+    fn mssql_resets_through_sp_reset_connection_and_loses_its_cache() {
+        const SQL: &str = "select a";
+
+        let mut wire = answering_each(&[
+            prepexec_answer(9),
+            done_token(DONE_COUNT, 1),
+            prepexec_answer(11),
+        ]);
+        let state = Cell::new(State::Idle);
+        let mut cache = plans(2);
+
+        drop(
+            start_statement(&mut wire, &state, &mut cache, SQL, &[])
+                .expect("a statement the server answered"),
+        );
+        assert_eq!(cache.len(), 1);
+
+        reset_session(&mut wire, &state, &mut cache).expect("a reset the server acknowledged");
+        assert!(
+            cache.is_empty(),
+            "§ 13: the reset drops every prepared statement, so a cache that \
+             kept one is naming a plan the server does not have"
+        );
+        assert_eq!(
+            state.get(),
+            State::Idle,
+            "the reset left the wire at a boundary"
+        );
+
+        drop(
+            start_statement(&mut wire, &state, &mut cache, SQL, &[])
+                .expect("a statement the server answered"),
+        );
+
+        let sent = flushed(&wire.peer().sent);
+        assert_eq!(sent.len(), 3);
+        assert_eq!(sent[0].0, PacketType::Rpc);
+        assert_eq!(sent[1].0, PacketType::SqlBatch);
+        assert!(
+            sent[1].1.contains(Status::RESET_CONNECTION),
+            "the reset is the header bit, which is MS-TDS's own sp_reset_connection"
+        );
+        assert_eq!(sent[2].0, PacketType::Rpc);
+        assert_eq!(
+            sent_rpc(&sent[2].2).0,
+            PROC_SP_PREPEXEC,
+            "the same statement after a reset costs the prepare again"
+        );
+    }
+
+    /// § 1's "cached re-executions cost one round trip", on this protocol: the
+    /// second execution names the plan and carries the values, and no byte of
+    /// the statement is on the wire.
+    #[test]
+    fn a_cached_statement_is_sent_as_sp_execute_with_no_sql() {
+        const SQL: &str = "select a from t where b = @p1";
+
+        let mut wire = answering_each(&[prepexec_answer(9), done_token(DONE_COUNT, 1)]);
+        let state = Cell::new(State::Idle);
+        let mut cache = plans(2);
+
+        drop(
+            start_statement(&mut wire, &state, &mut cache, SQL, &[Some(b"7")])
+                .expect("the first execution, which prepares"),
+        );
+        drop(
+            start_statement(&mut wire, &state, &mut cache, SQL, &[Some(b"8")])
+                .expect("the second, which does not"),
+        );
+
+        let sent = flushed(&wire.peer().sent);
+        assert_eq!(
+            sent.len(),
+            2,
+            "one message each, and the eviction sent none"
+        );
+        assert_eq!(sent_rpc(&sent[0].2).0, PROC_SP_PREPEXEC);
+
+        let (proc_id, params) = sent_rpc(&sent[1].2);
+        assert_eq!(proc_id, PROC_SP_EXECUTE);
+        assert_eq!(
+            params.len(),
+            2,
+            "the handle and the one value — no SQL, no @params"
+        );
+        assert_eq!(params[0].type_id, TY_INTN);
+        assert!(
+            !params[0].by_ref,
+            "the handle is read here, never written back"
+        );
+        assert_eq!(params[0].text.as_deref(), Some("9"));
+        assert_eq!(params[1].text.as_deref(), Some("8"));
+        assert_eq!(cache.len(), 1, "one plan, executed twice");
+    }
+
+    /// § 1's capacity is what the *server* holds, so the eviction goes out
+    /// before the prepare that needed the room and not after it.
+    #[test]
+    fn an_eviction_unprepares_before_the_prepare_that_needed_the_room() {
+        let mut wire = answering_each(&[
+            prepexec_answer(9),
+            prepexec_answer(10),
+            procedure_answer(),
+            prepexec_answer(11),
+        ]);
+        let state = Cell::new(State::Idle);
+        let mut cache = plans(2);
+
+        for sql in ["select 1", "select 2", "select 3"] {
+            drop(
+                start_statement(&mut wire, &state, &mut cache, sql, &[])
+                    .expect("a statement the server answered"),
+            );
+        }
+
+        let sent = flushed(&wire.peer().sent);
+        assert_eq!(sent.len(), 4);
+        let (proc_id, params) = sent_rpc(&sent[2].2);
+        assert_eq!(proc_id, PROC_SP_UNPREPARE);
+        assert_eq!(
+            params[0].text.as_deref(),
+            Some("9"),
+            "the plan unprepared is the least recently used one, not the new one"
+        );
+        assert_eq!(sent_rpc(&sent[3].2).0, PROC_SP_PREPEXEC);
+        assert_eq!(cache.len(), 2, "never more plans than the block allowed");
+    }
+
+    /// The reason [`TdsPlan`] carries more than a handle: a plan compiled
+    /// against `nvarchar(4000)` would *truncate* a longer value rather than
+    /// refuse it, so the hit is rejected, the plan unprepared and a new one
+    /// compiled against the declaration this execution needs.
+    #[test]
+    fn a_hit_whose_plan_was_declared_narrower_is_unprepared_rather_than_truncating() {
+        const SQL: &str = "select a from t where b = @p1";
+        let long = "x".repeat(usize::from(NVARCHAR_CHARS) + 1);
+
+        let mut wire =
+            answering_each(&[prepexec_answer(9), procedure_answer(), prepexec_answer(10)]);
+        let state = Cell::new(State::Idle);
+        let mut cache = plans(4);
+
+        drop(
+            start_statement(&mut wire, &state, &mut cache, SQL, &[Some(b"7")])
+                .expect("a short value, declared narrow"),
+        );
+        drop(
+            start_statement(&mut wire, &state, &mut cache, SQL, &[Some(long.as_bytes())])
+                .expect("a long one, which the narrow plan cannot hold"),
+        );
+
+        let sent = flushed(&wire.peer().sent);
+        assert_eq!(
+            sent.len(),
+            3,
+            "the hit was rejected, so this one prepares too"
+        );
+        assert_eq!(sent_rpc(&sent[1].2).0, PROC_SP_UNPREPARE);
+        let (proc_id, params) = sent_rpc(&sent[2].2);
+        assert_eq!(proc_id, PROC_SP_PREPEXEC);
+        assert!(
+            params[1]
+                .text
+                .as_deref()
+                .expect("a declaration")
+                .contains("nvarchar(max)"),
+            "the new plan is compiled against the declaration the value needs"
+        );
+        assert_eq!(cache.len(), 1, "the stale entry is dropped, not shadowed");
     }
 }

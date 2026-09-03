@@ -789,6 +789,13 @@ pub struct TdsConn {
     /// the one driver with no session time zone to send it to, which
     /// [`crate::tds::TdsTarget::time_zone`] owns.
     pub(crate) time_zone: i32,
+    /// ADR 0067 § 1's statement cache, keyed on SQL text plus expansion arity.
+    ///
+    /// Its handle is [`crate::tds::TdsPlan`] rather than the bare number
+    /// `sp_prepexec` answers with, and that type's own doc owns why one number
+    /// is not enough to decide a hit on this protocol. § 13's reset empties it,
+    /// as MySQL's does and unlike PostgreSQL's.
+    pub(crate) cache: StatementCache<crate::tds::TdsPlan>,
 }
 
 /// A SQLite connection: `rusqlite`, a file handle, and no bytes on any wire.
