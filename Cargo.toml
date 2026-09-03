@@ -585,7 +585,21 @@ fallible-iterator = "0.2"
 # C crate in the graph *and* on a recorded one that is not in it, so the two
 # halves cannot be split across sessions. A version here is not a graph edge --
 # nothing resolves a workspace dependency no crate names.
-rusqlite = "0.40"
+#
+# `bundled` is not optional here and is the security-relevant half of the
+# choice: without it the crate links whatever `libsqlite3` the host happens to
+# ship, so the version an audit was written against and the version a
+# deployment runs are unrelated, and ADR 0051 § 4's verification record belongs
+# to *SQLite's own* build under its own configuration. Compiling the
+# amalgamation ourselves makes the shipped engine a fact of this repository's
+# lockfile, and it is also what lets the crate build on a machine with no
+# SQLite installed at all.
+# `column_decltype` is the second required feature and is ADR 0067 § 9's: that
+# section maps a SQLite column off what the *schema* declared it as, because a
+# storage class cannot say whether `20260903` was meant as a number or a date.
+# Without this feature `sqlite3_column_decltype` is not exposed at all and the
+# map has nothing to key on.
+rusqlite = { version = "0.40", features = ["bundled", "column_decltype"] }
 
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in nvs-diagnostics (the output format is

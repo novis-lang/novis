@@ -195,6 +195,31 @@ C_DEPENDENCIES: dict[str, tuple[str, tuple[str, ...], str]] = {
         "that decision, including why the wasm branch is not available to a "
         "client that owns its socket.",
     ),
+    "libsqlite3-sys": (
+        "verified",
+        ("bundled",),
+        "SQLite itself, compiled from the amalgamation by `rusqlite`'s sys crate. "
+        "Question 1 is yes -- a database engine parses SQL an application composed "
+        "and stores bytes a request supplied -- and question 2 is the one record "
+        "ADR 0051 section 4 names by hand: TH3, 100% MC/DC branch coverage over the "
+        "whole library, plus a continuous fuzzing corpus and the anomaly log SQLite "
+        "publishes against every release. `bundled` is required rather than "
+        "incidental, and Cargo.toml's `rusqlite` comment is the home of why -- a "
+        "host's own libsqlite3 is a different build of a different version, and the "
+        "verification record belongs to the one this tree compiles.",
+    ),
+    "sqlite-wasm-rs": (
+        "no-native-code",
+        (),
+        "`libsqlite3-sys`'s wasm32 half, and a target-gated dependency this tree "
+        "never compiles: it is reached only under `cfg(target_arch = \"wasm32\")`, "
+        "and Novis's own wasm target is the extension sandbox, which links no "
+        "database at all. It is in the graph for the same reason `windows-sys` is "
+        "listed on Linux -- this enumeration is deliberately host-independent, so "
+        "a Windows and a Linux checkout produce the same bytes. The engine this "
+        "binary actually runs is `libsqlite3-sys`'s bundled amalgamation, "
+        "immediately above.",
+    ),
     "blake3": (
         "no-native-code",
         ("pure",),

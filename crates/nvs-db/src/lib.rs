@@ -167,6 +167,7 @@ pub mod mysql;
 pub mod pg;
 pub mod span;
 pub mod sql;
+pub mod sqlite;
 pub mod tds;
 
 pub use conn::{
@@ -178,4 +179,5 @@ pub use mysql::{MySqlDate, MySqlRow, MySqlRows, MySqlScalar, MySqlTarget, MySqlT
 pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode};
 pub use span::{QuerySpan, SQL_LIMIT};
 pub use sql::{Binding, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite};
+pub use sqlite::{SqliteColumn, SqliteRows, SqliteTarget, SqliteValue};
 pub use tds::TdsTarget;

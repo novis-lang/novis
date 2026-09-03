@@ -32,6 +32,7 @@
 //! [`State::Idle`], or is [`State::Poisoned`].
 
 use std::cell::Cell;
+use std::sync::{Arc, Mutex};
 
 use mysql_common::constants::CapabilityFlags;
 
@@ -821,10 +822,25 @@ pub struct TdsConn {
 /// the whole of its reset, because a file handle has no session state to leak.
 #[derive(Debug)]
 pub struct SqliteConn {
+    /// The open database, behind the lock that lets it cross to a blocking-pool
+    /// thread and back.
+    ///
+    /// [`mod@crate::sqlite`]'s own doc owns why this is an `Arc<Mutex<_>>` and
+    /// not a plain field: `rusqlite::Connection` is `Send` and not `Sync`, so
+    /// nothing else satisfies the `Send + 'static` bound
+    /// [`nvs_host::blocking::run`] puts on the closure. It is never contended —
+    /// [`State`] below gives one request the connection at a time.
+    pub(crate) handle: Arc<Mutex<rusqlite::Connection>>,
     /// ADR 0132 § 4's busy state; the reasoning is on [`PgConn`]. SQLite carries it for
     /// the same reason the others do even with no wire to be mid-message on:
     /// ADR 0067 § 4's `LogicError` is a property of the API, not of a socket.
     pub(crate) state: Cell<State>,
+    /// ADR 0067 § 9's declared zone, in seconds east of UTC.
+    ///
+    /// Read from the block by the same `time_zone_for` every other driver goes
+    /// through, and — as on SQL Server — sent nowhere, because there is no
+    /// session to send it to. It governs decoding alone.
+    pub(crate) time_zone: i32,
 }
 
 /// One open connection to one database, whichever backend it is.
@@ -943,7 +959,7 @@ impl nvs_runtime::HeldConnection for Connection {
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::Instant;
 
     use nvs_config::db::PoolBounds;
@@ -980,7 +996,11 @@ mod tests {
     /// nothing about the property below.
     fn idle_connection() -> Box<Connection> {
         Box::new(Connection::Sqlite(SqliteConn {
+            handle: Arc::new(Mutex::new(
+                rusqlite::Connection::open_in_memory().expect("an in-memory database opens"),
+            )),
             state: Cell::new(State::Idle),
+            time_zone: 0,
         }))
     }
 

@@ -64,6 +64,14 @@ flate2.workspace = true
 # `postgres-protocol`'s own surface rather than two more dependencies of ours.
 bytes.workspace = true
 fallible-iterator.workspace = true
+# SQLite, and the edge the comment at the top of this block is about: taking it
+# puts `libsqlite3-sys` in the shipped graph, so this crate's slice also carries
+# that crate's row in `tools/gen-attribution.py`'s `C_DEPENDENCIES` ledger. It
+# is the only backend with no wire at all -- there is no framing to borrow and
+# no handshake to write, so unlike the other four this dependency *is* the
+# protocol, and what `sqlite.rs` adds around it is the blocking-pool handoff
+# ADR 0132 § 3 requires and ADR 0067's own vocabulary on top.
+rusqlite.workspace = true
 
 # The SCRAM server `pg.rs`'s tests answer with. It exists because the compose
 # file's PostgreSQL serves a self-signed certificate and `NvsTls` verifies
