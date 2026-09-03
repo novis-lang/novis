@@ -2256,6 +2256,18 @@ is why" — is this file.
   `docker compose -f tests/db/compose.yaml cp mariadb:/certs/ca.crt <dir>` is the export the tool
   itself does per run — the anchor belongs to a Docker volume and is reissued with it, so a copy kept
   in the tree is right only until the next `down -v`.
+- **`python tools/db-matrix.py` captures every suite's output, so a case that *skipped* reads
+  exactly like a case that asserted — both are `ok`.** The whole file returns early when
+  `NVS_DB_MATRIX_DRIVER` names a driver its gate does not want, which is correct and invisible: a
+  new framed case that never ran because its gate was wrong reports green on the first try. Two
+  cheap checks. To see one case's output at all, reuse the harness's own readers from a throwaway
+  under `.agent-tmp/` — `importlib` the tool (register it in `sys.modules` first or its
+  `@dataclass` fails), then `DRIVERS`, `compose_config`, `endpoint_of` and `export_anchor` build
+  the whole `NVS_DB_MATRIX_*` group, which nothing else can do because `tests/db/compose.yaml` is
+  the one home for those ports and credentials. To prove the case reached the server, flip one
+  expected value and re-run the leg: a `FAILED` naming your case is the proof, and reverting it
+  costs one edit. Wall clock says nothing — six real cases over TLS to a container finish in
+  0.07s, the same as six skips.
 
 ## Writing a test case
 

@@ -2,60 +2,66 @@
 
 ## State
 
-**M8 goal 5. `crates/nvs-cli/src/worker.rs` runs on every driver `nvs-db` can send a statement
-over.** `open` reads `[db.<name>]`'s `driver` first and connects as that backend, `roster` and
-`claim` read their answer through the dialect, and `report`'s three write-backs pick their text and
-their bind order the same way — including the retry, whose MySQL order is `run_at`, `id`,
-`claimed_at` where PostgreSQL's is `id`, `claimed_at`, `run_at`
-(`crates/nvs-stdlib/src/queue.rs:697` owns why). The claim and the dead-letter move are `Split`s on
-MySQL, each pair inside one transaction that rolls back before a refusal propagates.
+**M8 goal 5, known gap 5 closed.** `crates/nvs-stdlib/src/queue.rs`'s gap list is the one home and
+now says it: all four members, `nvs-cli`'s worker and this file's own cases run on either dialect,
+and what is left is the two drivers that send no statement at all (`crate::db`'s gap 2).
 
-**Three types carry that**, at `crates/nvs-cli/src/worker.rs:921` onward: `Wire` is the owned
-connection with one arm per driver, `Dialect` is it borrowed as the two dialects
-`nvs_stdlib::queue` writes, and `Framed` flattens MySQL and MariaDB, which differ here only in the
-type of the borrow. `nvs-stdlib` has the same last enum and it is `pub(crate)` there — ADR 0132 § 1's
-crate graph puts the two on opposite sides, and what is shared is the statements.
+**`crates/nvs-stdlib/tests/queue.rs` is driver-agnostic and asserts against real MySQL and
+MariaDB.** Four types carry it, mirroring `crates/nvs-cli/src/worker.rs`: `Leg` is the driver plus
+the server the harness published, `Conn` is the owned connection with one arm per driver,
+`Dialect` is it borrowed as the two dialects `queue` writes, and `Framed` flattens MySQL and
+MariaDB. `postgres()` and `framed()` are the two gates over one `endpoint()`, which skips SQLite
+and SQL Server by asking `queue::migration`. `rendered` is what the binary protocol costs: MySQL
+answers a `bigint` as octets where PostgreSQL renders it, so a framed row is read against the
+column definition it arrived under and rendered to the text both protocols agree on.
 
-**Known gap 5 is now the test legs, not the code.** Nothing outside PostgreSQL has met a real
-server: `crates/nvs-stdlib/tests/queue.rs` is `PgConn` from its gate down, so every MySQL statement
-the worker now sends is held only by the unit agreements in `crates/nvs-stdlib/src/queue.rs`. That
-is the next group.
+**Three cases are new and all three ran against a real server**: § 2's schema and § 4's claim
+(the split's lock, `attempts + 1`, the lease written by value), § 6's two write-backs keyed on the
+lease from both sides, and § 6's move as a pair inside one transaction. `python tools/db-matrix.py
+--driver postgres --driver mysql --driver mariadb` is 3/3 ok.
+
+**Two things in the file are still PostgreSQL's and deliberately so.** `orders` builds § 3's
+application table with `bigserial`, and its two cases are `postgres()`-gated; `push` and `claim`
+branch on `Conn::driver()` and every other case's ad-hoc SQL is written in the driver's own
+placeholder spelling through `Conn::text()`.
 
 **The driver's stage-7 check is unchanged and still correctly filed.**
 `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` needs SQL Server and there is no TDS
-driver — `TdsConn` is a busy-state cell. Do not rename it, split it, or write a MySQL-only test
-under it.
+driver — `TdsConn` is a busy-state cell. Do not rename it or write a MySQL-only test under it.
+
+**`[context]` gap:** the manifest's `adrs` carries no ADR 0084 section, and every item below cites
+one. The statements' own doc comments carried it this time; add `0084 §2`, `§4`, `§6` before a
+session has to write a *new* statement rather than run a landed one.
 
 ## Next group
 
-**One file set: `crates/nvs-stdlib/tests/queue.rs`, with `crates/nvs-db/src/matrix.rs` read for the
-`NVS_DB_MATRIX_*` fields only.** The first slice is what the other two stand on, so take them in
-order; each later one is a case that skips with no `NVS_DB_MATRIX_DRIVER` set, exactly as the file's
-PostgreSQL cases already do.
+**One file set: `crates/nvs-stdlib/tests/queue.rs`, with `crates/nvs-stdlib/src/queue.rs` read at
+the constant each item names.** Every case skips with no `NVS_DB_MATRIX_DRIVER`, exactly as the
+nine already there do. Take them in any order — they share the helpers and touch nothing else.
 
-- [ ] **The file's helpers open either driver** (0067 § 2, 0084 § 2).
-      `crates/nvs-stdlib/tests/queue.rs:57` is `postgres()`, the gate that returns `None` for any
-      other driver and so skips the whole file; `crates/nvs-stdlib/tests/queue.rs:69` is `open`,
-      `:97` is `schema`, `:159` is `rows`, `:187` is `one` and `:197` is `apply` — all six typed on
-      `nvs_db::PgConn`. The shape to follow is `crates/nvs-cli/src/worker.rs:948`'s `Dialect` and
-      `crates/nvs-cli/src/worker.rs:968`'s `Framed`, which is the same flattening one crate over.
-- [ ] **A matrix case that migrates, pushes and claims against a real MySQL server** (0084 §§ 2, 4).
-      `crates/nvs-stdlib/tests/queue.rs:206` is `push` and `:229` is `claim`, both of which send
-      `INSERT_POSTGRES`/`CLAIM_POSTGRES` by name; the MySQL twins are `Split`s
-      (`crates/nvs-stdlib/src/queue.rs:594` and `:622`) and need the transaction
-      `crates/nvs-cli/src/worker.rs:432`'s `framed_claim` wraps them in.
-- [ ] **The write-back and the move run on MySQL too** (0084 § 6).
-      `crates/nvs-stdlib/tests/queue.rs:290` is the dead-letter case and `:397` the visibility one;
-      `crates/nvs-stdlib/tests/queue.rs:247`'s `landed` is what reads the two tables back.
+- [ ] **A framed dedupe push is refused by the index, not by the guard** (0084 § 2, gap 3).
+      `crates/nvs-stdlib/src/queue.rs:597` is `INSERT_MYSQL`, whose `first` is the dedupe read this
+      file has never issued: `dedupe_pending = ?` reaches `MIGRATION_MYSQL`'s stored generated
+      column, which is a construct only a server can refuse. `crates/nvs-stdlib/tests/queue.rs:505`
+      is `push`, which binds `None` there and needs a keyed sibling to reach the pair at all.
+- [ ] **§ 4's visibility arm on the framed dialect** (0084 § 4).
+      `crates/nvs-stdlib/tests/queue.rs:576`'s `claim` sends `cutoff` and every framed case so far
+      passes `0`, so `CLAIM_MYSQL`'s `(state = 1 and claimed_at <= ?)` arm
+      (`crates/nvs-stdlib/src/queue.rs:625`) has never matched a row. Assert the bound from both
+      sides, as `a_visibility_timeout_returns_an_abandoned_job_to_the_queue` does for PostgreSQL.
+- [ ] **§ 5's roster answers on the framed dialect, and say what the other three cost** (0084 § 5).
+      `crates/nvs-stdlib/src/queue.rs:670`'s `QUEUES_MYSQL` is `pub` and reachable now.
+      `STATUS_MYSQL` (`crates/nvs-stdlib/src/queue.rs:813`), `CANCEL_MYSQL` (`:844`) and
+      `COUNTS_MYSQL` (`:885`) are private, as their PostgreSQL twins are, so an integration test
+      cannot name them: either they go `pub` in both dialects beside `QUEUES_*`, or the case is an
+      in-crate `#[cfg(test)]` one. Decide it in the item and write down which.
 
 ## Backlog
 
-- No test of `nvs-cli`'s worker at all — the dialect branch is proven only by the matrix legs above
-  (`docs/agent/loop-goal.toml` stage 8).
-- `examples/queue.nvs` runs against PostgreSQL only (`docs/agent/loop-goal.toml` stage 8).
-- Stage 7's `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` waits on a TDS driver
-  (`crates/nvs-db/src/conn.rs`'s known gaps).
-- SQL Server and SQLite run no queue statement at all — `nvs_stdlib::queue`'s `no_dialect` is the
-  list.
-- A dead-lettered row still carries only the last attempt's error
-  (`crates/nvs-cli/src/worker.rs`'s module doc, *Known gap*).
+- `nvs-cli`'s worker has no real-server leg at all; its readers live in a binary crate, so one
+  needs a lib target first — ADR 0132 § 1 owns that boundary.
+- `orders`' `bigserial` is § 3's last PostgreSQL-only construct in the test file; splitting it the
+  way `MIGRATION_MYSQL` splits § 2's is what a framed § 3 case would need.
+- `tools/db-matrix.py`'s `SUITES` is two entries; a third would be where a `nvs-cli` leg lands.
+- SQL Server: no TDS driver, so § 13's reset and every queue statement stay unasserted there —
+  `crates/nvs-db/src/conn.rs`'s `TdsConn` is the whole of it.
