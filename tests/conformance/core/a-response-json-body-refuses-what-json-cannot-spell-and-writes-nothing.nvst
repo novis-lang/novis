@@ -1,0 +1,36 @@
+--TEST--
+`Core\Response::json` throws on a value JSON cannot spell and leaves the body untouched, because a refusal that has already written half a document is not a refusal -- ADR 0088 § 4, spec § 10
+--FILE--
+<?nvs
+// The boundary this member stops at is `Core\Json::encode`'s own, reached
+// through the same encoder: a non-finite `float` and a `bytes` buffer are two
+// of the three values that ADR 0063 R4 makes throw rather than answer falsy.
+try {
+    Core\Response::json(Core\Math::sqrt(-1.0));
+    echo "not refused\n";
+} catch (LogicError $nan) {
+    echo $nan->message, "\n";
+}
+
+// Nothing was written on the way to that throw. Asserted through a capture,
+// which is ADR 0088 § 5's redirection of the same output a body member writes
+// to -- a member that serialized into the body and then discovered the value
+// was unencodable would show up here as a partial document.
+var $written = Core\Out::capture(fn (): void => {
+    try {
+        Core\Response::json(["ok" => 1, "bad" => "text" as bytes]);
+    } catch (LogicError $binary) {
+    }
+});
+echo "wrote [", $written, "]\n";
+
+// The declaration is not made either -- it is recorded only once the value has
+// serialized -- so a request that caught this and answered some other way is
+// not carrying `application/json` over a body that is not JSON. That half is
+// asserted in `nvs-server`, where a `Content-Type` is observable at all.
+Core\Response::json(["ok" => 1]);
+echo "\n";
+--EXPECT--
+Core\Response::json(): `NAN` has no JSON spelling — JSON has no `NaN` and no `Infinity`
+wrote []
+{"ok":1}

@@ -1,0 +1,73 @@
+--TEST--
+`Core\Response::bytes` names the last content type a header field can carry and the first one it cannot, and refuses with nothing written -- ADR 0088 §§ 1, 4 and ADR 0074
+--FILE--
+<?nvs
+// ADR 0088 § 1: the content type is a sink, because it is the one string here
+// that becomes an *instruction* to the peer about how to read the rest. So the
+// bound is asserted on both sides -- a member that stopped one byte early
+// would print plausibly against either half alone.
+//
+// Accepted: printable ASCII, from the narrowest media type to one carrying
+// every punctuation character a parameter list uses.
+array<string> $spellable = [
+    "a/b",
+    "application/vnd.api+json",
+    "text/plain; charset=utf-8",
+    "multipart/form-data; boundary=\"~!#$%&'*+-.^_`|\"",
+];
+uint $accepted = 0;
+foreach ($spellable as string $type) {
+    try {
+        Core\Response::bytes("" as bytes, $type);
+        $accepted = $accepted + 1;
+    } catch (LogicError $refused) {
+    }
+}
+echo "accepted ", $accepted, " of 4\n";
+
+// Refused: empty, and every byte outside a field value -- the newline that is
+// header injection, the carriage return beside it, a control character, and a
+// non-ASCII byte that no field value may carry.
+array<string> $unspellable = [
+    "",
+    "text/plain\r\nX-Injected: yes",
+    "text/plain\nX-Injected: yes",
+    "text/pl\tain",
+    "text/plänn",
+];
+uint $refusedCount = 0;
+foreach ($unspellable as string $type) {
+    try {
+        Core\Response::bytes("body" as bytes, $type);
+    } catch (LogicError $refused) {
+        $refusedCount = $refusedCount + 1;
+    }
+}
+echo "refused ", $refusedCount, " of 5\n";
+
+// The sentence one of them refuses with, which names what it was given rather
+// than only that something was wrong. The empty type is the one whose message
+// is spellable in an exact expectation.
+try {
+    Core\Response::bytes("body" as bytes, "");
+} catch (LogicError $empty) {
+    echo $empty->message, "\n";
+}
+
+// And the refusal wrote nothing: a body sent under a header the server then
+// could not spell is the failure this check exists to prevent.
+// The `catch` inside the closure binds `$injected` rather than `$refused`:
+// repeating an enclosing frame's `catch` name inside a closure is an ICE in
+// the lowerer today, which the playbook's *Writing a test case* section owns.
+var $written = Core\Out::capture(fn (): void => {
+    try {
+        Core\Response::bytes("body" as bytes, "text/plain\r\nX-Injected: yes");
+    } catch (LogicError $injected) {
+    }
+});
+echo "wrote [", $written, "]\n";
+--EXPECT--
+accepted 4 of 4
+refused 5 of 5
+Core\Response::bytes(): `` is not a media type a `Content-Type` header can carry — a field value is printable ASCII and never empty
+wrote []

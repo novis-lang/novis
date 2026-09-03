@@ -1,0 +1,38 @@
+--TEST--
+`Core\Response::json` writes exactly what `Core\Json::encode` answers, over every shape both accept, so the response body and the library agree rather than each having a walk -- ADR 0088 § 4
+--FILE--
+<?nvs
+// ADR 0088 § 4 makes `json` safe by an argument about the *serializer*: a
+// tainted string becomes a JSON string value and cannot escape it. That
+// argument holds only if there is one serializer, so what this case pins is
+// the agreement and not the spelling of any one line -- a second walk that
+// framed a string differently would pass every row-by-row eyeball and fail
+// here.
+array<mixed> $subjects = [
+    null,
+    true,
+    42,
+    1.5,
+    "a \"quoted\" word",
+    [1, 2, 3],
+    ["k" => "v"],
+];
+
+uint $agreed = 0;
+foreach ($subjects as mixed $subject) {
+    var $written = Core\Out::capture(fn (): void => {
+        Core\Response::json($subject);
+    });
+    if (($written as string) == Core\Json::encode($subject)) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "agreed ", $agreed, " of 7\n";
+
+// And the body is the encoder's own one-line form: no `pretty` option here,
+// because a response is read by a program.
+Core\Response::json(["k" => "v"]);
+echo "\n";
+--EXPECT--
+agreed 7 of 7
+{"k":"v"}

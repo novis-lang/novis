@@ -1365,6 +1365,12 @@ pub const CLASSES: &[CoreClass] = &[
     // request carrying it. [`crate::server`]'s module doc owns that gap, and
     // why the bit it reads lives in `nvs-runtime`.
     crate::server::CLASS,
+    // § 15's fourth request-facing class, and the first one that *writes*: ADR
+    // 0088 § 4's five body members, of which `text` is registered. Beside
+    // `Core\Server` because the two are the same request's two halves, and
+    // [`crate::response`]'s module doc owns what a written body is — the bytes
+    // are `echo`'s output and the member adds the `Content-Type`.
+    crate::response::CLASS,
     // ADR 0020 § 1, and no spec § of its own: the escalation ladder's ADR is
     // where this member is specified, because what it registers is a rung of
     // that ladder rather than a library facility. [`crate::fatal`] owns why the

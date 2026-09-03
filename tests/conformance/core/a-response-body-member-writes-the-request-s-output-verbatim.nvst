@@ -1,0 +1,20 @@
+--TEST--
+`Core\Response::text` writes its argument to the request's output with nothing escaped or substituted, because the media type it declares is not HTML -- ADR 0088 §§ 3-4
+--FILE--
+<?nvs
+// ADR 0088 § 4: `text` owns one body shape and sets `text/plain` for it, so
+// the bytes are the argument's own. Markup in the argument is markup in the
+// body -- an escape here would be the HTML sink's rule applied to a body that
+// declared it is not HTML.
+Core\Response::text("<b>a & b</b>");
+echo "\n";
+
+// § 3's table: the bytes go to whatever sink is in force, which is what makes
+// the member spellable at all outside a request. The member names the shape;
+// the context names the destination.
+Core\Response::text("");
+Core\Response::text("plain");
+echo "\n";
+--EXPECT--
+<b>a & b</b>
+plain

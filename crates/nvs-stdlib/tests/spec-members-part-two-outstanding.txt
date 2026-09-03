@@ -38,14 +38,11 @@
 §15 Request::route
 §15 Request::scheme
 §15 Response::addCookie
-§15 Response::bytes
 §15 Response::html
-§15 Response::json
 §15 Response::redirect
 §15 Response::sendFile
 §15 Response::setHeader
 §15 Response::setStatus
-§15 Response::text
 §15 Session::clear
 §15 Session::destroy
 §15 Session::get

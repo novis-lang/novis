@@ -5060,6 +5060,15 @@ is why" — is this file.
   leftover from before it. Before pinning a rule from a section, read the section that owns the key set
   — one `peek.py` of the ADR's `### N` — and fix the example rather than reconciling it in your head,
   because the same paragraph is what the next session will write its case from.
+- **Repeating an enclosing frame's `catch` binding name inside a closure is an ICE, and the
+  panic names the closure rather than the `catch`.** A `try`/`catch (LogicError $refused)` at
+  the top level, and a second `catch (LogicError $refused)` inside a `fn (): void => {…}`
+  passed to `Core\Out::capture`, panics the lowerer with
+  `nvs-ir: the closure at 0:N..M captures $refused, which is not bound in the enclosing
+  frame` (`crates/nvs-ir/src/lower/expr.rs:2424`) — the inner `catch` binding is recorded as a
+  capture of the outer one. A `catch` inside a closure is fine on its own; only the name
+  collision is. Renaming the inner binding is the whole workaround, and it costs a `--EXPECT--`
+  section nothing.
 
 ## Splitting a file that got too big
 
@@ -6946,6 +6955,15 @@ sibling in the same namespace unqualified.
   rather than a note. Every private domain module already spells it `pub(crate)`
   (`crates/nvs-stdlib/src/env.rs:109`, `cap.rs:79`, `out.rs:66`); `address` is `pub(crate)` in all of
   them for the same reason.
+- **`CoreTy::Text(Qual::Contagious)` on a `void` member *refuses* the tainted argument the ADR
+  says it admits, and the ADR's word for a row is not always the enum's case.** ADR 0088 § 4
+  calls `Core\Response::text`'s body "contagious", but `nvs_types`' `admits_tainted_argument`
+  (`crates/nvs-types/src/expr/quals.rs:288`) reads `Contagious` as "admits `tainted` only where
+  the *return type* can carry the bit back out" — so a `void` row marked that way gives
+  `E0401: expected string, found tainted string` at every tainted call site. The two taxonomies
+  are over different things: § 4's column is about the **body**, `Qual` is about the **answer**.
+  A writer that answers nothing and takes what it is given is `Qual::Neutral`, which is what
+  `Core\Cli::write`'s `string` arm has been all along (`crates/nvs-stdlib/src/cli.rs:435`).
 
 ## Divergences and refusals already pinned
 

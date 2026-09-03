@@ -1,0 +1,30 @@
+--TEST--
+`Core\Response::bytes` sends its buffer verbatim, including octets no text-shaped body member could carry -- ADR 0088 § 4, ADR 0009
+--FILE--
+<?nvs
+// ADR 0088 § 4's fourth row is the member for a body that is not text, so the
+// edge worth pinning is the one `text` cannot reach: a buffer holding a NUL
+// and bytes that are not valid UTF-8 goes out unchanged and unmeasured. The
+// write is read back through a capture -- § 5's redirection of the same output
+// -- and re-hexed, because the bytes themselves are not something an exact
+// expectation can spell.
+bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a00ff");
+var $sent = Core\Out::capture(fn (): void => {
+    Core\Response::bytes($png, "image/png");
+});
+echo Core\Encoding::toHex($sent as string as bytes), "\n";
+
+// An empty body is a body: nothing is written, and nothing refuses. The
+// content type still had to be spellable, which is the other parameter's
+// business rather than this one's.
+Core\Response::bytes("" as bytes, "application/octet-stream");
+echo "[empty]\n";
+
+// A media type with parameters is one string, not a shape: § 4 says the type
+// is "as given", so whatever the program spelled is what is declared.
+Core\Response::bytes("id,name" as bytes, "text/csv; charset=utf-8; header=present");
+echo "\n";
+--EXPECT--
+89504e470d0a1a0a00ff
+[empty]
+id,name
