@@ -4876,6 +4876,16 @@ is why" — is this file.
   reaches with no rows in hand — set `State::Poisoned` on the connection directly — and that is the
   security-relevant half anyway: § 13 closes a connection that cannot be proven clean, and the
   streaming half is held by a stronger mechanism than a test.
+- **A `Scope::Path` capability root in a case's `nvs.toml` has to be absolute, and a relative one
+  refuses everything while reading like a grant.** `nvs_config::capability`'s matcher canonicalises
+  the *queried* path and then asks `path.starts_with(root)` with the root exactly as written — so
+  `read = ["scratch.db"]` never matches the absolute path the query resolved to, and the refusal is
+  the ordinary "not granted" sentence with no hint that the root was the problem. Two runs went into
+  reading it as "the capability I asked for is the wrong one" while landing `Core\Db::open`'s SQLite
+  arm; the design was right and the fixture was not. `Scope::Host` and `Scope::Name` compare the
+  entry literally, so this is the one scope where what you write in `nvs.toml` is not what is
+  compared. Also: `:memory:` is not a path and cannot be granted at all, so an `open` case that
+  wants a real SQLite database needs a real file under an absolute root.
 
 ## Splitting a file that got too big
 
