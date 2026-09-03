@@ -704,6 +704,10 @@ pub fn build_signatures(
             enums,
             consts,
             attributes: &empty_attributes,
+            // This pass checks no expression, so nothing in it can ask a
+            // capability question — the placeholder tables beside it are here
+            // for the same reason.
+            grants: None,
             src: file.src,
             interner: &mut *interner,
             exprs: &mut placeholder_exprs,

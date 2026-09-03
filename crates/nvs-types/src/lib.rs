@@ -230,7 +230,7 @@ pub mod string_lit;
 pub mod testing;
 pub mod ty;
 
-pub use check::{HOOK_VALUE_PARAM, check_program};
+pub use check::{HOOK_VALUE_PARAM, check_program, check_program_granted};
 pub use core_lib::symbol_of as core_symbol_of;
 pub use defaults::ConstArg;
 pub use derive::{DerivedCodec, DerivedField};
@@ -386,6 +386,20 @@ pub(crate) struct Env<'a> {
     /// be written above the declaration it asks about; see
     /// [`crate::retrieval::AttributeTable`].
     pub attributes: &'a crate::retrieval::AttributeTable<'a>,
+    /// The `[capabilities]` block of the configuration the *compiling* machine
+    /// read, or `None` where nothing read one — [ADR 0067](../../docs/adr/0067-core-db.md)
+    /// § 10's "`nvs.toml` is read at boot on the machine that compiles",
+    /// which is the only thing in front of this pass that is not the program.
+    ///
+    /// **`None` says nothing rather than denying**, and
+    /// [`crate::check::check_program_granted`] owns why. The rule for anything
+    /// added here: a grant may only ever move a refusal
+    /// `nvs_runtime::capability::require` would also have made *earlier*,
+    /// never make one it would not — so a check reads
+    /// [`nvs_config::capability::Capabilities`] through the same list walk the
+    /// door does, and a scope this pass cannot resolve statically is left to
+    /// the door.
+    pub grants: Option<&'a nvs_config::tree::Capabilities>,
     pub src: &'a SourceFile,
     pub interner: &'a mut TypeInterner,
     /// Where a call's/`new`'s resolved target is persisted for `nvs-ir` to

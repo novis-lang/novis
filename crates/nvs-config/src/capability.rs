@@ -261,6 +261,15 @@ fn grant_of(setting: &Setting) -> Grant<'_> {
     }
 }
 
+/// Whether `host` is one of the hosts `list` grants, **case-insensitively because DNS is**.
+///
+/// One home for the comparison, because [`Capabilities::allows`] and
+/// [`Capabilities::allows_host`] are the runtime's asker and the compiler's, and a check that
+/// disagreed with the run it precedes is the one failure ADR 0057 § 4 forbids outright.
+fn host_granted(list: &[String], host: &str) -> bool {
+    list.iter().any(|entry| entry.eq_ignore_ascii_case(host))
+}
+
 impl Capabilities {
     /// § 1's question: does this configuration grant `cap` for `scope`?
     ///
@@ -277,9 +286,7 @@ impl Capabilities {
             (Grant::Nothing, _) => false,
             (Grant::Everything, _) => true,
             (Grant::These(_), Scope::Unscoped) => true,
-            (Grant::These(list), Scope::Host(host)) => {
-                list.iter().any(|entry| entry.eq_ignore_ascii_case(host))
-            }
+            (Grant::These(list), Scope::Host(host)) => host_granted(list, host),
             (Grant::These(list), Scope::Name(name)) => list.iter().any(|entry| entry == name),
             (Grant::These(list), Scope::Path(path)) => {
                 let Some(path) = resolved(path, files) else {
@@ -287,6 +294,28 @@ impl Capabilities {
                 };
                 list.iter().any(|root| path.starts_with(Path::new(root)))
             }
+        }
+    }
+
+    /// [`allows`](Self::allows) for a host, and the one form of the question a caller with no
+    /// filesystem in front of it can ask.
+    ///
+    /// [`Scope::Host`] never reaches [`Files`] — a hostname is matched against the grant list and
+    /// nothing is canonicalized — so demanding one is demanding a parameter the answer does not
+    /// depend on. The compiler is the caller that has none:
+    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 10 has `nvs check` refuse a **literal**
+    /// `Core\Db::open` host no `db.open` grant covers, and a checking pass has no request, no
+    /// resolver and no reason to grow one. Both spellings share this list walk, so a run and a
+    /// check cannot disagree about which hosts are granted.
+    #[must_use]
+    pub fn allows_host(&self, cap: Cap, host: &str) -> bool {
+        let Some(setting) = cap.grant(self) else {
+            return false;
+        };
+        match grant_of(setting) {
+            Grant::Nothing => false,
+            Grant::Everything => true,
+            Grant::These(list) => host_granted(list, host),
         }
     }
 

@@ -765,6 +765,7 @@ mod tests {
             enums: &enums,
             consts: &consts,
             attributes: &attributes,
+            grants: None,
             src: map.file(file),
             interner: &mut interner,
             exprs: &mut exprs,

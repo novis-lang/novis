@@ -85,6 +85,34 @@ pub fn check_program(
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
 ) -> crate::EnumTable {
+    check_program_granted(files, module, None, interner, exprs, diags)
+}
+
+/// [`check_program`] with the deployment's `[capabilities]` block in front of
+/// it — [ADR 0118](../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+/// § 1's grants, as the machine that is compiling reads them.
+///
+/// **`None` is "no configuration was read", and it is not an empty grant
+/// set.** A capability check made against an absent configuration would refuse
+/// every program compiled outside a project root, which is the opposite of
+/// what deny-by-default means here: the door is
+/// `nvs_runtime::capability::require`, and this pass only ever moves one of
+/// that door's refusals earlier ([ADR 0057](../../docs/adr/0057-intrinsic-folding.md)
+/// § 4). Every fixture in the tree checks with `None` for that reason, and
+/// says nothing about capabilities at all.
+///
+/// A second entry point rather than a sixth parameter on the first: one call
+/// site in the whole workspace has a `Capabilities` to pass, and threading an
+/// argument twenty harnesses would all spell `None` prices the seam to the
+/// callers that do not use it.
+pub fn check_program_granted(
+    files: &[crate::ProgramFile<'_>],
+    module: &Module,
+    grants: Option<&nvs_config::tree::Capabilities>,
+    interner: &mut TypeInterner,
+    exprs: &mut ExprTypeTable,
+    diags: &mut Diagnostics,
+) -> crate::EnumTable {
     // ADR 0010 § 2's backing types first: interning an enum-typed annotation
     // needs one, and `build_signatures` interns every declared annotation in
     // the program. See `crate::enums`.
@@ -128,6 +156,7 @@ pub fn check_program(
             enums: &enums,
             consts: &consts,
             attributes: &attributes,
+            grants,
             src: file.src,
             interner: &mut *interner,
             exprs: &mut *exprs,

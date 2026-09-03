@@ -14,13 +14,11 @@ nvs-syntax.workspace = true
 nvs-hir.workspace = true
 nvs-stdlib.workspace = true
 rustc-hash.workspace = true
-
-# `core_lib.rs`'s `process_exec_is_deny_by_default` reads the capability a
-# registry row names, and ADR 0118 § 3 puts that enum in `nvs-config` -- so the
-# assertion has to name `Cap::ProcessExec` itself rather than a string. A
-# dev-dependency and not a dependency: the checker resolves signatures and asks
-# nothing of the configuration.
-[dev-dependencies]
+# ADR 0118 § 3 puts the capability enum and the grant walk in `nvs-config`, and
+# ADR 0067 § 10 has `nvs check` ask one of its questions: `Env::grants` carries
+# the compiling machine's `[capabilities]` block, and `intrinsics.rs` reads a
+# literal `Core\Db::open` host against it through the same
+# `Capabilities::allows_host` the runtime door uses.
 nvs-config.workspace = true
 
 [lints]
