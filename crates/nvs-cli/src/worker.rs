@@ -13,8 +13,9 @@
 //!
 //! That is also why this lives in `nvs-cli` rather than beside `Core\Queue` in `nvs-stdlib`:
 //! [`nvs_host::Scheduler`] is created here, and a task is a thing only its owner can spawn. What is
-//! *shared* is the schema — [`nvs_stdlib::queue::QUEUES`] and [`nvs_stdlib::queue::CLAIM_POSTGRES`] are read
-//! from the module that owns § 2's tables, so a worker decides nothing about them.
+//! *shared* is the schema — [`nvs_stdlib::queue::QUEUES_POSTGRES`] and
+//! [`nvs_stdlib::queue::CLAIM_POSTGRES`] are read from the module that owns § 2's tables, so a
+//! worker decides nothing about them.
 //!
 //! [`nvs_runtime::TaskRoot::Worker`] and not `Request`, per
 //! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 2:
@@ -201,9 +202,9 @@ fn claim_until_stopped(
 
 /// One turn: which queues have due work, then one claim against each.
 ///
-/// The roster is asked first for the reason [`nvs_stdlib::queue::QUEUES`] owns — § 2 names no
-/// queues, so the table is the only place they are written down — and the two instants are computed
-/// once here so that every claim in this turn judges due-ness against the same moment.
+/// The roster is asked first for the reason [`nvs_stdlib::queue::QUEUES_POSTGRES`] owns — § 2 names
+/// no queues, so the table is the only place they are written down — and the two instants are
+/// computed once here so that every claim in this turn judges due-ness against the same moment.
 fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut nvs_db::PgConn, window: i64) -> io::Result<bool> {
     let now = nvs_stdlib::queue::now_millis();
     let cutoff = now.saturating_sub(window);
@@ -223,11 +224,12 @@ fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut nvs_db::PgConn, window: i64) -> i
     Ok(claimed)
 }
 
-/// The queues holding work this worker could take, as [`nvs_stdlib::queue::QUEUES`] answers it.
+/// The queues holding work this worker could take, as [`nvs_stdlib::queue::QUEUES_POSTGRES`]
+/// answers it.
 fn roster(conn: &mut nvs_db::PgConn, now: i64, cutoff: i64) -> io::Result<Vec<String>> {
     let sending = [Some(millis(now)), Some(millis(cutoff))];
     let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
-    let mut answered = conn.query(nvs_stdlib::queue::QUEUES, &bound)?;
+    let mut answered = conn.query(nvs_stdlib::queue::QUEUES_POSTGRES, &bound)?;
     // Taken before the first row because a `PgRows` lends its columns and its rows out of one
     // borrow, which is how `Core\Queue::status` reads its own single column.
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
@@ -451,10 +453,10 @@ fn refusal(message: String) -> nvs_host::Failure {
 /// [`nvs_stdlib::queue`], which owns all three and every column they name.
 ///
 /// **Keyed on the lease `held_at`**, which is the `claimed_at` this worker's own claim wrote —
-/// [`nvs_stdlib::queue::SUCCEEDED`]'s doc owns why, and it is why this takes the turn's instant
-/// rather than reading the clock again. A statement that matches no row is the ordinary shape of a
-/// worker that overran § 4's visibility window, not an error, so the affected count is deliberately
-/// not judged: another worker owns the job by then and has its own attempt to report.
+/// [`nvs_stdlib::queue::SUCCEEDED_POSTGRES`]'s doc owns why, and it is why this takes the turn's
+/// instant rather than reading the clock again. A statement that matches no row is the ordinary
+/// shape of a worker that overran § 4's visibility window, not an error, so the affected count is
+/// deliberately not judged: another worker owns the job by then and has its own attempt to report.
 ///
 /// The retry's own `run_at` is computed against a *fresh* instant, because the attempt has just
 /// spent however long it spent: a backoff measured from the claim would already be part-elapsed,
@@ -471,7 +473,7 @@ fn report(
     let Some(failure) = failure else {
         return apply(
             conn,
-            nvs_stdlib::queue::SUCCEEDED,
+            nvs_stdlib::queue::SUCCEEDED_POSTGRES,
             &[Some(id.as_slice()), Some(held.as_slice())],
         );
     };
@@ -504,7 +506,7 @@ fn report(
     ));
     apply(
         conn,
-        nvs_stdlib::queue::RETRY,
+        nvs_stdlib::queue::RETRY_POSTGRES,
         &[
             Some(id.as_slice()),
             Some(held.as_slice()),

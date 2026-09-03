@@ -2,25 +2,27 @@
 
 ## State
 
-**M8 goal 5. All four of ADR 0084 § 1's members run on PostgreSQL, MySQL and MariaDB alike.**
-`queue_connection` in `crates/nvs-stdlib/src/queue.rs` is the seam: it borrows the filed connection
-as `Queued::Postgres` or as `crate::db::Framed`, which is `pub(crate)` now and carries § 7's
-`begin`/`commit`/`roll_back` beside the send because a `Split` is a pair one transaction runs.
-`push` runs `INSERT_MYSQL` as that pair; `status`, `cancel` and `stats` have plain second texts —
-`STATUS_MYSQL`, `CANCEL_MYSQL`, `COUNTS_MYSQL` — since no construct is missing for them, and one
-reader (`counted_row`) answers for all three over both dialects because all three read integers.
+**M8 goal 5. Every statement ADR 0084 §§ 1, 4 and 6 name now has both dialects.** The three the
+worker sends joined the second list this session: `crates/nvs-stdlib/src/queue.rs:667`'s
+`QUEUES_MYSQL`, `SUCCEEDED_MYSQL` and `RETRY_MYSQL`, ordinary transcriptions rather than `Split`s,
+beside PostgreSQL twins now named `QUEUES_POSTGRES`, `SUCCEEDED_POSTGRES` and `RETRY_POSTGRES` for
+the file's own convention. `each_second_text_binds_a_value_wherever_its_first_names_one` is the new
+agreement test: a `?` per `$` over all six non-`Split` pairs, plus the one place the orders differ —
+MySQL's retry binds `run_at` first, because the `set` clause is left of the `where` and a `?` is
+positional where a `$n` is not. A caller sending PostgreSQL's order into that text would push every
+job's next attempt out to its own id.
 
-**Known gap 5 has narrowed to `nvs-cli`'s worker.** `QUEUES`, `SUCCEEDED` and `RETRY` are still
-PostgreSQL-only text and `worker.rs` takes a `&mut PgConn` throughout, so a worker refuses a MySQL
-block that the members on that same block accept. That is the next group's first two items.
-
-**`no_dialect` is one sentence again** — `Core\Db`'s gap 2, the two drivers that send nothing — and
-a sending driver reaching it is now a bug rather than a shortfall;
-`the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send` holds that.
+**Known gap 5 is now only `nvs-cli`'s worker, and it is a wire question rather than a dialect one.**
+`crates/nvs-cli/src/worker.rs` takes a `&mut nvs_db::PgConn` from `start` down to `apply` and names
+the PostgreSQL half of every pair, so a worker still refuses a MySQL block its own `push`, `status`,
+`cancel` and `stats` accept. Two things the next group needs and this session found: `Queued` and
+`crate::db::Framed` are `pub(crate)` in `nvs-stdlib`, so `nvs-cli` cannot borrow that seam and needs
+its own arm-flattening over `nvs_db::Connection` — and `crates/nvs-cli/src/queue.rs:218`'s
+`open_and_apply!` is already the three-arm connect the worker's `open` is missing, in the same crate.
 
 **None of the MySQL text has met a real server yet.** The unit tests hold the dialects against each
-other and against the enum's ordinals; what is not asserted anywhere is that a MySQL server accepts
-them, which is the matrix case below.
+other, against the state enum's ordinals and now against each other's parameter counts; that a MySQL
+server accepts them is the matrix case below.
 
 **The driver's stage-7 check is unchanged and still correctly filed.**
 `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` needs SQL Server and there is no TDS
@@ -29,29 +31,31 @@ under it.
 
 ## Next group
 
-**One file set: `crates/nvs-stdlib/src/queue.rs`, then `crates/nvs-cli/src/worker.rs`.** Take the
-first two together for the reason this session's pair went together: a worker routed to a MySQL
-connection while its three statements are PostgreSQL's would refuse for a reason no doc states.
+**One file set: `crates/nvs-cli/src/worker.rs`, with `crates/nvs-stdlib/src/queue.rs` read for its
+statements only.** The first two are one refactor split at the point where a claim starts decoding
+rows, so take them in order; the first leaves the worker opening and reporting over three drivers
+with its claim still PostgreSQL-only, which compiles and is honest.
 
-- [ ] **The worker's three statements in MySQL's dialect** (0084 §§ 4 and 6).
-      `crates/nvs-stdlib/src/queue.rs:463` is `QUEUES`, `crates/nvs-stdlib/src/queue.rs:483` is
-      `SUCCEEDED` and `crates/nvs-stdlib/src/queue.rs:494` is `RETRY` — all three are ordinary
-      transcriptions rather than `Split`s (`$n::type` casts and the placeholder, nothing more), so
-      they follow `STATUS_MYSQL` beside them and join
-      `the_mysql_statements_spell_nothing_only_postgresql_has`'s list.
-- [ ] **The worker claims and reports over either driver** (0084 §§ 4 and 6).
-      `crates/nvs-cli/src/worker.rs:207` is `turn`, `:227` is `roster`, `:281` is `claim` and
-      `:464` is `report`, each taking `&mut nvs_db::PgConn`. `CLAIM_MYSQL` is a `Split`, so the
-      claim needs the transaction `push_in_two` shows the shape of; `crate::db::Framed` is not
-      reachable from `nvs-cli`, so this owes a decision about where that borrow lives.
+- [ ] **The worker opens and reports over either driver** (0084 §§ 2 and 6).
+      `crates/nvs-cli/src/worker.rs:551` is `open`, which resolves a `PgTarget` and connects —
+      `crates/nvs-cli/src/queue.rs:218`'s `open_and_apply!` macro is the three-arm shape to follow,
+      in this crate already. `crates/nvs-cli/src/worker.rs:139`, `crates/nvs-cli/src/worker.rs:167`
+      and `crates/nvs-cli/src/worker.rs:208` thread the connection; `crates/nvs-cli/src/worker.rs:229`
+      is `roster` and `crates/nvs-cli/src/worker.rs:465` is `report`, whose write-backs are
+      `SUCCEEDED_MYSQL` and `RETRY_MYSQL` (different bind order — `crates/nvs-stdlib/src/queue.rs:697`
+      owns why) and `DEAD_LETTER_MYSQL`, which is a `Split` and so needs
+      `crates/nvs-cli/src/worker.rs:523`'s `apply` inside one transaction.
+- [ ] **The worker's claim over either driver** (0084 § 4).
+      `crates/nvs-cli/src/worker.rs:283` is `claim`, which reads six columns by ordinal through
+      `PgColumn::scalar`. `crates/nvs-stdlib/src/queue.rs:622`'s `CLAIM_MYSQL` is a `Split` whose
+      `first` answers the same six in the same order, so this is one transaction plus a
+      `nvs_db::MySqlRows` walk beside the `PgRows` one.
 - [ ] **A matrix case that migrates, pushes and claims against a real MySQL server** (0084 § 2).
-      `crates/nvs-stdlib/tests/queue.rs:57` is `postgres()` and `:69` its `open` — both name
-      `PgConn`, so the case is a second pair beside them rather than a generalisation of them.
+      `crates/nvs-db/src/matrix.rs:107` is `endpoint`, which is how a test finds a server at all,
+      and `crates/nvs-stdlib/tests/queue.rs:233` is the PostgreSQL case whose shape it takes.
 
 ## Backlog
 
-- `Core\Db` gap 2: SQL Server and SQLite run no statement at all — `crates/nvs-stdlib/src/db.rs`.
-- `Core\Queue` gaps 1 and 2 need a shape parameter in the registry — ADR 0135 specifies it.
-- § 6's `stats` counts four things and no fifth; a dead-lettered job's attempts are not summed —
-  `crates/nvs-stdlib/src/queue.rs`'s known gap 4.
-- The five-driver CI matrix ADR 0067's *Verification* names is PostgreSQL, MySQL and MariaDB so far.
+- SQL Server and SQLite still send no statement at all — `Core\Db`'s known gap 2 owns the list.
+- `nvs-db`'s stage-7 pool check needs a TDS driver, per `docs/agent/loop-goal.toml`.
+- § 2's roster has no configured form, so both dialects scan due rows — `QUEUES_POSTGRES`'s doc.

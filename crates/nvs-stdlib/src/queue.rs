@@ -63,10 +63,12 @@
 //!    Three drivers send a statement — [`crate::db`]'s gap 2 is the two that do not — and each of
 //!    those three now reaches a text this module has: § 2's schema, § 4's claim and § 6's move as
 //!    [`Split`]s, § 5's three readers as ordinary second spellings, and [`queue_connection`] as
-//!    the seam that borrows the connection as whichever dialect it speaks. What is left is
-//!    `nvs-cli`'s worker, which runs [`QUEUES`], [`SUCCEEDED`] and [`RETRY`] beside the claim: those
-//!    three have no MySQL text yet, so a worker still refuses a queue whose block is not
-//!    PostgreSQL's even though `push`, `status`, `cancel` and `stats` on the same block do not.
+//!    the seam that borrows the connection as whichever dialect it speaks. §§ 4 and 6's remaining
+//!    three — [`QUEUES_MYSQL`], [`SUCCEEDED_MYSQL`] and [`RETRY_MYSQL`] — are here too, so every
+//!    statement either half of § 1 sends has both texts. What is left is `nvs-cli`'s worker, which
+//!    takes a `PgConn` throughout and names the PostgreSQL half of each pair: a worker still
+//!    refuses a queue whose block is not PostgreSQL's even though `push`, `status`, `cancel` and
+//!    `stats` on the same block do not.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -180,7 +182,7 @@ pub struct Migration {
 /// - **The dead-letter row is the job's own columns plus `failed_at` and `errors`**, where `errors`
 ///   is the JSON array § 6 asks for — an entry carrying when an attempt ran and what it threw.
 ///   **It is one entry deep, and that entry is the attempt that exhausted the job**, because the
-///   jobs table above has nowhere to keep what an earlier attempt threw: [`RETRY`] arms a failed
+///   jobs table above has nowhere to keep what an earlier attempt threw: [`RETRY_POSTGRES`] arms a
 ///   row for the next attempt and keeps the count and nothing else. Recording all of them would be
 ///   a text column on `nvs_jobs` appended to on every failure — a row rewritten once per attempt,
 ///   carrying a value only the exhausted job ever reads, on the table § 4's claim contends over —
@@ -417,8 +419,8 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 ///
 /// **Keyed on one queue**, as every other statement here is and as [`MIGRATION_POSTGRES`]'s `jobs.due` index
 /// is built for: `(queue, state, run_at)` is read leftmost-first, so a claim naming no queue would
-/// scan what this one seeks. Which queues one worker asks about is [`QUEUES`]'s question, asked one
-/// statement earlier and against the same two arms.
+/// scan what this one seeks. Which queues one worker asks about is [`QUEUES_POSTGRES`]'s question,
+/// asked one statement earlier and against the same two arms.
 ///
 /// The `returning` list is what running a job needs and nothing else: `queue` is `$1` and the row's
 /// other columns are the migration's business.
@@ -460,7 +462,11 @@ pub const CLAIM_POSTGRES: &str = "with due as (\
 /// O(queues). That is the right trade while the alternative is a configuration key: a deployment
 /// whose due backlog is large enough for it to matter is one that wants a roster written down, and
 /// the roster is where this should move when § 2 grows one.
-pub const QUEUES: &str = "select distinct queue from nvs_jobs \
+///
+/// **PostgreSQL's dialect, and [`QUEUES_MYSQL`] is the same question asked in the other one** — one
+/// whole text each, per [`Split`]'s doc, since nothing here rests on a construct only PostgreSQL
+/// has.
+pub const QUEUES_POSTGRES: &str = "select distinct queue from nvs_jobs \
     where (state = 0 and run_at <= $1::bigint) or (state = 1 and claimed_at <= $2::bigint)";
 
 /// ADR 0084 § 6's write-back for an attempt that returned, and [`CLAIM_POSTGRES`]'s other half.
@@ -476,11 +482,14 @@ pub const QUEUES: &str = "select distinct queue from nvs_jobs \
 /// claim*, and a finished job holds none.
 ///
 /// The `2` is `Core\Queue\State::Succeeded`'s ordinal, a literal for [`PENDING`]'s reason and held
-/// to the enum by `queue_statements_agree_with_the_state_enum`.
+/// to the enum by `queue_statements_agree_with_the_state_enum`, in both dialects.
 ///
-/// `pub` for [`CLAIM_POSTGRES`]'s reason: the worker that writes it lives in `nvs-cli`, and § 2's schema has
-/// one home.
-pub const SUCCEEDED: &str = "update nvs_jobs set state = 2, claimed_at = null \
+/// `pub` for [`CLAIM_POSTGRES`]'s reason: the worker that writes it lives in `nvs-cli`, and § 2's
+/// schema has one home.
+///
+/// **PostgreSQL's dialect, and [`SUCCEEDED_MYSQL`] is the other one**, binding the same two values
+/// in the same order.
+pub const SUCCEEDED_POSTGRES: &str = "update nvs_jobs set state = 2, claimed_at = null \
     where id = $1::bigint and claimed_at = $2::bigint";
 
 /// § 6's other write-back: the attempt did not return, and the job is armed for the next one.
@@ -490,9 +499,12 @@ pub const SUCCEEDED: &str = "update nvs_jobs set state = 2, claimed_at = null \
 /// § 6's ladder is exponential *and jittered*, and neither the previous rungs nor the jitter is
 /// something SQL should be deciding on a row it is already updating.
 ///
-/// Keyed on the lease exactly as [`SUCCEEDED`] is, and for the same reason.
-pub const RETRY: &str = "update nvs_jobs set state = 0, run_at = $3::bigint, claimed_at = null \
-    where id = $1::bigint and claimed_at = $2::bigint";
+/// Keyed on the lease exactly as [`SUCCEEDED_POSTGRES`] is, and for the same reason.
+///
+/// **PostgreSQL's dialect, and [`RETRY_MYSQL`] is the other one** — the same three values, in an
+/// order that dialect's placeholders force rather than choose, which that constant's doc owns.
+pub const RETRY_POSTGRES: &str = "update nvs_jobs set state = 0, run_at = $3::bigint, \
+    claimed_at = null where id = $1::bigint and claimed_at = $2::bigint";
 
 /// § 6's third write-back and the floor under the other two: the attempt was the job's last, so the
 /// row leaves [`JOBS_TABLE`] for [`DEAD_TABLE`] instead of being armed again.
@@ -503,9 +515,9 @@ pub const RETRY: &str = "update nvs_jobs set state = 0, run_at = $3::bigint, cla
 /// held here rather than by a transaction a worker would otherwise have to open around two
 /// statements and keep right on every path out of them.
 ///
-/// **Keyed on the lease exactly as [`SUCCEEDED`] and [`RETRY`] are**, and for the same reason: a
-/// worker that overran § 4's visibility window matches no row here, so it cannot dead-letter a job
-/// the claim that replaced it is still running.
+/// **Keyed on the lease exactly as [`SUCCEEDED_POSTGRES`] and [`RETRY_POSTGRES`] are**, and for the
+/// same reason: a worker that overran § 4's visibility window matches no row here, so it cannot
+/// dead-letter a job the claim that replaced it is still running.
 ///
 /// The columns are listed rather than `select *`-ed because the two tables are deliberately not one
 /// shape: the job keeps its `id` and its `queue` ([`DEAD_TABLE`]'s doc says why), leaves `state` and
@@ -641,6 +653,49 @@ pub const DEAD_LETTER_MYSQL: Split = Split {
             where id = ? and claimed_at = ?",
     then: "delete from nvs_jobs where id = ? and claimed_at = ?",
 };
+
+/// [`QUEUES_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
+///
+/// **Not a [`Split`], for [`STATUS_MYSQL`]'s reason**: a `select distinct` over one table with two
+/// arms is the same statement in both dialects, so what changes is the placeholder spelling and the
+/// casts PostgreSQL needs to type a text-format parameter at all. Its two values are that
+/// statement's two, in its order — the instant now, and the instant `[queue] visibility` before it.
+///
+/// The scan [`QUEUES_POSTGRES`]'s doc costs out is the same scan here, for the same reason: MySQL
+/// will not answer `distinct` off the leading column of `jobs.due` without walking the due rows
+/// either, and § 2's roster is where both dialects stop paying for it.
+pub const QUEUES_MYSQL: &str = "select distinct queue from nvs_jobs \
+    where (state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)";
+
+/// [`SUCCEEDED_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
+///
+/// **The lease keying survives the transcription intact**, which is the whole of what makes this
+/// the same write-back rather than a weaker one: `id` and `claimed_at` are bound here in the order
+/// they are `$1` and `$2` there, so a worker that overran § 4's visibility window matches no row in
+/// either dialect and cannot cancel the attempt that replaced it.
+///
+/// A statement matching no row therefore stays an ordinary outcome rather than an error, and the
+/// affected count is what says which happened — the same reading [`CANCEL_MYSQL`]'s doc makes of a
+/// dialect that has no `returning` to answer with.
+pub const SUCCEEDED_MYSQL: &str = "update nvs_jobs set state = 2, claimed_at = null \
+    where id = ? and claimed_at = ?";
+
+/// [`RETRY_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
+///
+/// **Its three values go out in a different order from [`RETRY_POSTGRES`]'s, and that is forced
+/// rather than chosen.** A `$n` is named where its value is wanted and may be named anywhere; a `?`
+/// is bound by the position it occupies in the text. The `run_at` this writes is in the `set`
+/// clause, which is left of the `where`, so this binds `run_at`, `id`, `claimed_at` where
+/// PostgreSQL binds `id`, `claimed_at`, `run_at`. Reordering PostgreSQL's `$n`s to match would be
+/// editing a landed text to make a new one resemble it, and the caller is where the two orders are
+/// reconciled anyway — once, beside the connection it already had to branch on.
+///
+/// The delay stays a bound value for [`RETRY_POSTGRES`]'s reason: § 6's ladder is exponential and
+/// jittered, and neither is something SQL should be deciding on a row it is already updating. The
+/// `0` is `Core\Queue\State::Pending`'s ordinal, held to the enum beside its twin by
+/// `queue_statements_agree_with_the_state_enum`.
+pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, claimed_at = null \
+    where id = ? and claimed_at = ?";
 
 /// § 6's `errors` array, as [`DEAD_LETTER_POSTGRES`] binds it: one entry, the attempt that exhausted the job.
 ///
@@ -2491,10 +2546,12 @@ mod tests {
     use super::{
         CANCEL_MYSQL, CANCEL_POSTGRES, CLAIM_MYSQL, CLAIM_POSTGRES, COUNTS_MYSQL, COUNTS_POSTGRES,
         DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE, INSERT_MYSQL, INSERT_POSTGRES,
-        JOBS_TABLE, MIGRATION_MYSQL, MIGRATION_POSTGRES, Migration, PENDING, PUSH, QUEUES, RETRY,
-        RETRY_CAP_MS, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
-        STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
-        STATUS_MYSQL, STATUS_POSTGRES, SUCCEEDED, dead_errors, migration, no_dialect, retry_at,
+        JOBS_TABLE, MIGRATION_MYSQL, MIGRATION_POSTGRES, Migration, PENDING, PUSH, QUEUES_MYSQL,
+        QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, STATE, STATS,
+        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
+        STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL,
+        STATUS_POSTGRES, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, dead_errors, migration, no_dialect,
+        retry_at,
     };
 
     /// An agreement test rather than a wording one, in `the_refusal_names_every_driver_that_sends`'s
@@ -2547,9 +2604,9 @@ mod tests {
             ("STATUS_POSTGRES", STATUS_POSTGRES),
             ("CANCEL_POSTGRES", CANCEL_POSTGRES),
             ("COUNTS_POSTGRES", COUNTS_POSTGRES),
-            ("QUEUES", QUEUES),
-            ("SUCCEEDED", SUCCEEDED),
-            ("RETRY", RETRY),
+            ("QUEUES_POSTGRES", QUEUES_POSTGRES),
+            ("SUCCEEDED_POSTGRES", SUCCEEDED_POSTGRES),
+            ("RETRY_POSTGRES", RETRY_POSTGRES),
         ] {
             assert!(
                 !sql.contains('?'),
@@ -2772,19 +2829,22 @@ mod tests {
             );
         }
         // The roster is read off the same table and the same column a claim is then keyed on, which
-        // is the whole of why § 2 needs no fifth key to name a worker's queues. PostgreSQL's alone,
-        // since `QUEUES` rests on no construct MySQL lacks and so has no second text to walk.
-        assert!(
-            QUEUES.contains(JOBS_TABLE) && QUEUES.contains("distinct queue"),
-            "`QUEUES` reads the roster off the column the push writes the queue name into"
-        );
+        // is the whole of why § 2 needs no fifth key to name a worker's queues. Asked of both
+        // dialects, because both spell it themselves: the roster rests on no construct MySQL lacks,
+        // so nothing but this would notice one of the two texts reading a different column.
+        for (dialect, roster) in [("postgres", QUEUES_POSTGRES), ("mysql", QUEUES_MYSQL)] {
+            assert!(
+                roster.contains(JOBS_TABLE) && roster.contains("distinct queue"),
+                "{dialect}: the roster is read off the column the push writes the queue name into"
+            );
+        }
         // The lease is what both moves are keyed on, in the two places each dialect spells it: one
         // statement on PostgreSQL, and the copy *and* the delete on MySQL — where keying only the
         // first would take a row out from under the worker that claimed it next.
         assert!(
             DEAD_LETTER_POSTGRES.contains(&format!("delete from {JOBS_TABLE} "))
                 && DEAD_LETTER_POSTGRES.contains("claimed_at = $2::bigint"),
-            "the move takes the row out of the jobs table keyed on the lease, as `SUCCEEDED` is"
+            "the move takes the row out of the jobs table keyed on the lease, as `SUCCEEDED_POSTGRES` is"
         );
         assert!(
             DEAD_LETTER_MYSQL
@@ -2822,6 +2882,11 @@ mod tests {
         texts.push(("status", STATUS_MYSQL));
         texts.push(("cancel", CANCEL_MYSQL));
         texts.push(("stats", COUNTS_MYSQL));
+        // §§ 4 and 6's three worker statements, which are not [`Split`]s either and owe the check
+        // for the same reason the readers above do.
+        texts.push(("roster", QUEUES_MYSQL));
+        texts.push(("succeeded", SUCCEEDED_MYSQL));
+        texts.push(("retry", RETRY_MYSQL));
         for (member, sql) in texts {
             for absent in ["returning", "::", "$1", "with ", "filter (where"] {
                 assert!(
@@ -2834,6 +2899,44 @@ mod tests {
                 "{member}'s MySQL text binds nothing, so it is not the statement it replaces"
             );
         }
+    }
+
+    /// A second text that is not a [`Split`] binds exactly as many values as its first names, which
+    /// is the one thing a transcription loses silently. The two counts are not equal by
+    /// construction: a `$n` may be named as often as a statement likes and a `?` may not, so
+    /// [`STATUS_MYSQL`] carries four placeholders for two values and [`COUNTS_MYSQL`] two for one.
+    /// A text that dropped or doubled one still parses on the server and binds a value into the
+    /// wrong column.
+    ///
+    /// Asked of the six pairs and not of the [`Split`]s, whose two halves divide one PostgreSQL
+    /// text's placeholders between them and so answer a different question.
+    #[test]
+    fn each_second_text_binds_a_value_wherever_its_first_names_one() {
+        for (member, postgres, mysql) in [
+            ("status", STATUS_POSTGRES, STATUS_MYSQL),
+            ("cancel", CANCEL_POSTGRES, CANCEL_MYSQL),
+            ("stats", COUNTS_POSTGRES, COUNTS_MYSQL),
+            ("roster", QUEUES_POSTGRES, QUEUES_MYSQL),
+            ("succeeded", SUCCEEDED_POSTGRES, SUCCEEDED_MYSQL),
+            ("retry", RETRY_POSTGRES, RETRY_MYSQL),
+        ] {
+            assert_eq!(
+                mysql.matches('?').count(),
+                postgres.matches('$').count(),
+                "{member}'s MySQL text binds a different number of values than its PostgreSQL twin \
+                 names, so one list of arguments cannot be right about both"
+            );
+        }
+        // The one place the two orders differ, asserted rather than left to a doc comment: MySQL's
+        // retry writes `run_at` in its `set` clause, which is left of the `where`, so its first
+        // value is the delay where PostgreSQL's first is the id. A caller sending PostgreSQL's
+        // order into this text would push every job's next attempt out to its own id.
+        assert!(
+            RETRY_MYSQL
+                .split_once("run_at = ?")
+                .is_some_and(|(before, _)| !before.contains('?')),
+            "MySQL's retry binds the delay before the lease it is keyed on"
+        );
     }
 
     /// A worker reads a claimed job's columns **by ordinal**, so the two dialects owe each other
@@ -2987,16 +3090,24 @@ mod tests {
         assert_eq!(
             case("Succeeded"),
             2,
-            "`SUCCEEDED` writes this ordinal for an attempt that returned"
+            "`SUCCEEDED_POSTGRES` writes this ordinal for an attempt that returned"
         );
-        assert!(
-            SUCCEEDED.contains("set state = 2"),
-            "the write-back for a job that ran spells the ordinal above"
-        );
-        assert!(
-            RETRY.contains("set state = 0"),
-            "a retried job goes back to `Pending`'s own ordinal, which is what makes it claimable"
-        );
+        // Both dialects for each write-back, because each spells the ordinal in its own text: a
+        // second text that transcribed the statement and not the number would run everywhere and
+        // finish a job into a state nothing reads.
+        for (dialect, succeeded) in [("postgres", SUCCEEDED_POSTGRES), ("mysql", SUCCEEDED_MYSQL)] {
+            assert!(
+                succeeded.contains("set state = 2"),
+                "{dialect}: the write-back for a job that ran spells the ordinal above"
+            );
+        }
+        for (dialect, retry) in [("postgres", RETRY_POSTGRES), ("mysql", RETRY_MYSQL)] {
+            assert!(
+                retry.contains("set state = 0"),
+                "{dialect}: a retried job goes back to `Pending`'s own ordinal, which is what makes \
+                 it claimable"
+            );
+        }
         assert!(
             COUNTS_POSTGRES.contains("filter (where state = 0)"),
             "`COUNTS_POSTGRES` counts waiting jobs by `Pending`'s own ordinal"
@@ -3028,10 +3139,14 @@ mod tests {
                 "{dialect}: a claim's first arm takes pending rows by `Pending`'s own ordinal"
             );
         }
-        assert!(
-            QUEUES.contains("state = 0 and run_at") && QUEUES.contains("state = 1 and claimed_at"),
-            "`QUEUES` asks `CLAIM_POSTGRES`'s two arms, so a roster entry is a queue with due work in it"
-        );
+        for (dialect, roster) in [("postgres", QUEUES_POSTGRES), ("mysql", QUEUES_MYSQL)] {
+            assert!(
+                roster.contains("state = 0 and run_at")
+                    && roster.contains("state = 1 and claimed_at"),
+                "{dialect}: the roster asks the claim's two arms, so a roster entry is a queue with \
+                 due work in it"
+            );
+        }
         assert!(
             COUNTS_POSTGRES.contains("filter (where state = 1)"),
             "`COUNTS_POSTGRES` counts jobs a worker holds by the ordinal above"

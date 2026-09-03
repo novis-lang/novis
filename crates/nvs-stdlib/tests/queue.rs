@@ -678,9 +678,9 @@ fn a_rolled_back_write_leaves_no_job() {
 /// **The ladder's arithmetic is `a_retry_is_exponential_jittered_and_capped`'s
 /// and is not asserted again here.** [`queue::retry_at`] is a pure function and
 /// that unit test walks twelve rungs of it. What this case can say and that one
-/// cannot is that the delay is a wait the *server* enforces: [`queue::RETRY`]
-/// writes it to `run_at`, and a claim a millisecond earlier answers with
-/// nothing at all.
+/// cannot is that the delay is a wait the *server* enforces:
+/// [`queue::RETRY_POSTGRES`] writes it to `run_at`, and a claim a millisecond
+/// earlier answers with nothing at all.
 ///
 /// **Bounded is asserted by counting the claims rather than by reading the last
 /// row.** Two jobs at two attempts each is four claims and then a queue that
@@ -738,7 +738,7 @@ fn retries_are_bounded_and_backoff_is_jittered() {
         assert_eq!(
             apply(
                 &mut conn,
-                queue::RETRY,
+                queue::RETRY_POSTGRES,
                 &[
                     Some(expected.as_bytes()),
                     // The lease this claim wrote, which is what the write-back
