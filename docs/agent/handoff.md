@@ -2,54 +2,57 @@
 
 ## State
 
-**M8 goal 5. The stage 0 catch-up item is closed and its acceptance check passes.** `nvs_array_new`
-hands every caller on a thread the same header, so `[]` after a thread's first is a refcount bump;
-`crates/nvs-runtime/src/array.rs`'s module doc § *an empty array is a per-thread singleton* owns the
-decision and what it spends. `NvsArray::new` still allocates — only the extern primitive moves, and
-its Rust-side callers (`make_unique` first) take a handle they mean to write through.
-`docs/perf/userland-gap.md` § K is priced by count rather than by clock, which is why the "delete
-this row if the first number is noise" escape it carried never applied. `nvs_runtime::
-prime_empty_array` is how a `live_bytes` balance outside this crate takes the singleton before its
-window opens; the playbook bullet is the general shape.
+**M8 goal 5, stage 9. ADR 0067 § 10's host check is live and its `-p nvs-types` test passes.**
+`E0618` refuses a **literal** `Core\Db::open` host that the compiling machine's `db.open` grant
+does not cover; `crates/nvs-types/src/intrinsics.rs`' module doc owns the pass and `E0618`'s own
+doc comment in `nvs-diagnostics` owns why it is a capability code and not a type one. Three
+things had to meet: `Intrinsic::field` now addresses a key *inside* the written argument, so § 18's
+`Db\Settings` shape is reachable from § 1's table; `Env::grants` carries the deployment's
+`[capabilities]` block, filled by `nvs_types::check_program_granted`; and `Grammar::Host` walks the
+grant through `nvs_config::capability::Capabilities::allows_host`, the same list walk
+`nvs_runtime::capability::require` uses, so a check cannot disagree with the run it precedes.
 
-**The `resolve()` passes were audited, and the finding is one rule rather than one mechanism.**
-`Snapshot::retype`'s doc § *The seam every `resolve()` pass is measured against* is its home:
-`db::canonicalize` writes the table too, `secret::materialize` carries its value beside the table and
-re-applies it below, and `app::canonicalize` writes only the tree because `Snapshot::build` reads
-`resolved.config.app` directly and then drops `app` from the table — three answers to three different
-questions, since a secret may not reach the table and the roster may not survive into a per-app
-snapshot. What they share is the rule a fourth pass is checked against, and `Snapshot::table`'s own
-doc now says it is the authoritative half. The five read-only passes rewrite nothing and cross no
-seam; `retype` is reached from exactly two places, both after `build` removed `app`.
+**`None` grants say nothing rather than deny**, and that is the load-bearing half —
+`check_program_granted`'s doc is its home. Every other fixture in the tree checks with `None`, and
+so does every `nvs check` today, because `nvs-cli`'s check path reads no `nvs.toml`. The refusal is
+therefore exercised and fires for nobody yet; `intrinsics.rs` gap 6 is that gap and nothing else.
 
-**The standing acceptance failure is stage 9's `an_open_host_matching_no_grant_is_a_diagnostic`**,
-gated on `nvs_types::intrinsics`' known gap 6's two obstacles, which that gap names. Nothing else is
-open on this goal that the checks report.
+**Stage 9's acceptance check still fails, on its last unwritten test.**
+`a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted` does not exist, and the playbook
+bullet added this session corrects what gap 6 used to claim about it: the refusal already fires as
+`E0401` at the `host:` field, and only the *naming* of ADR 0067 § 3's way through is missing.
 
 ## Next group
 
-**One file set: `crates/nvs-types/src/intrinsics.rs` with `crates/nvs-types/src/lib.rs`.** The third
-slice is where it widens, to the diagnostic registry and one conformance case.
+**One file set: `crates/nvs-types/src/expr/args.rs` with `crates/nvs-types/tests/intrinsics.rs`,
+widening to `crates/nvs-stdlib/src/registry.rs` on the third.**
 
-- [ ] **Let an `Intrinsic` address a field inside a shape literal, not only a written argument
-      position.** ADR 0135 § 3 merges `Core\Db::open`'s `host` into its own slot and ADR 0067 § 3
-      makes that field the sink, so the row that classifies it has nothing to point at today.
-      `crates/nvs-types/src/intrinsics.rs:132` is the struct,
-      `crates/nvs-types/src/intrinsics.rs:36` the gap list it half-closes.
-- [ ] **Carry the granted capability set on the checking environment.** ADR 0067 § 3's `db.open`
-      roster is what a host is compared against, and `crate::Env` carries no capabilities at all —
-      the second of gap 6's two obstacles. `crates/nvs-types/src/lib.rs:356`.
-- [ ] **The diagnostic and the case the acceptance check names.** `E0618` is the next free `E06xx`
-      and `crates/nvs-diagnostics/src/lib.rs` is the whole registry;
-      `an_open_host_matching_no_grant_is_a_diagnostic` is the test, and
-      `crates/nvs-types/src/intrinsics.rs:36` loses its gap-6 entry in the same commit.
+- [ ] **Name ADR 0067 § 3's only way through in the tainted-host refusal.** § 3 makes
+      `Settings.host` a sink with no launderer, so the bare "expected `string`, found
+      `tainted string`" leaves a reader with nowhere to go. Attach the help where a `Qual::Sink`
+      text parameter is refused a `tainted` argument. `crates/nvs-types/src/expr/args.rs:729` is
+      `select_arm`, `crates/nvs-types/src/core_lib.rs:253` is where a `CoreTy::Shape` parameter's
+      arms are lowered.
+- [ ] **Write `a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted`**, beside its two
+      ADR 0024 § 4 siblings. `crates/nvs-types/tests/intrinsics.rs:422` is
+      `a_tainted_value_at_a_query_text_parameter_is_a_diagnostic`, and
+      `crates/nvs-types/tests/intrinsics.rs:628` is `open`, the `Core\Db::open` fixture builder
+      this session added — pass it a `tainted` host rather than writing a third program shape.
+- [ ] **Decide whether `Core\Taint::assertTrusted` earns a registry row**, since after the first
+      slice a diagnostic names a member no class declares. `crates/nvs-stdlib/src/registry.rs:1176`
+      is `CLASSES`; ADR 0024 § 4 and ADR 0067 § 3 are the two that ask for it.
 
 ## Backlog
 
-- `nvs config dump` prints the resolved `path` and `tls_ca_file` now; no case asserts it —
-  `docs/adr/0103-configuration-is-a-tree-of-files.md` § 9.
-- ADR 0067 § 10's unterminated-literal disagreement between `nvs_types::intrinsics` and
-  `nvs_db::sql` — `crates/nvs-types/src/intrinsics.rs` known gap 5.
-- § K's clock number, if a bench ever wants one beyond the allocation count —
-  `docs/perf/userland-gap.md` § K.
-- `docs/perf/userland-gap.md` §§ D–J are the userland-gap rows still unlanded.
+- Wire `nvs check` to a resolved `[capabilities]` block — `crates/nvs-cli/src/main.rs:637` calls
+  `check_program`, `crates/nvs-cli/src/config.rs:142` is `load`. A command that reads configuration
+  is a command a broken `nvs.toml` can fail, which is the decision; `intrinsics.rs` gap 6 owns it.
+- That wiring flips an already-green case:
+  `tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst` expects a
+  **runtime** refusal for a literal ungranted host, which becomes `E0618` at compile time.
+- No `.nvst` case pins `E0618` yet, and none can until the wiring above lands — the runner compiles
+  through `nvs`, which passes no grants.
+- A `db.open` grant is matched host-for-host, so ADR 0067 § 3's own `"*.tenants.internal"` example
+  matches nothing. `nvs_config::capability`'s rule, and `intrinsics.rs` gap 7 records it.
+- `docs/adr/0067-core-db.md` § 10 is not in the goal's `[context] adrs`; this session worked from
+  the gap list and the `[[check]]` block instead. Add `0067 §10` to the manifest.

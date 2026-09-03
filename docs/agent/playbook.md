@@ -6747,6 +6747,17 @@ sibling in the same namespace unqualified.
   because it names no drive, so joining it onto a base moves it to the base's *drive* and the
   byte-exact `--EXPECT--` of a case that names one changes on one platform only. `Path::has_root`
   is the test that answers the same on both.
+- **A crate's own *known gaps* list can be stale about the tree in the same way a
+  `loop-goal.toml` comment can, and the item that quotes it inherits the error.**
+  `nvs_types::intrinsics`' gap 6 said `a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted`
+  was gated on `Intrinsic` learning to address a field inside a shape literal. It never was:
+  `Db\Settings`' `host` is `CoreTy::Text(Qual::Sink)`, so the ordinary argument check already
+  refuses a `tainted` value there with `E0401`, and what the test actually wants is for that
+  message to *name* the way out. One `target/debug/nvs.exe check` on a four-line scratch file
+  settled it in a single call, against reading two passes to work out which one owned the refusal
+  — and the binary is already built at the commit a session opens on. Probe the claim before
+  budgeting the work it implies, and prefer the compiler itself to a grep when the claim is about
+  what a program does.
 
 ## Divergences and refusals already pinned
 
