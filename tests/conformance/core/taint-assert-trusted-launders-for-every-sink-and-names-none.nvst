@@ -1,0 +1,38 @@
+--TEST--
+`Core\Taint::assertTrusted` answers a plain `string` for a tainted argument, and that answer is taken by every grammar sink rather than by the one sink a launderer normally names — ADR 0024 § 3
+--FILE--
+<?nvs
+// ADR 0024 § 3 makes laundering sink-named — a value safe for HTML text is not
+// safe for a shell argument, so there is no generic `sanitize()` — and then
+// names the one exception: the developer validated the value and needs to say
+// so. Every other `Qual::Launder` row on the roster is refused at the sinks it
+// did not name; this is the row that names none, so the claim is asked of
+// three of ADR 0063 R11's grammars across three classes rather than of one.
+// A row that grew its own narrower answer still reads right on its own line
+// and fails here.
+tainted string $pattern = "a.b";
+tainted string $template = "%d item";
+tainted string $format = "n";
+
+// The escape happens, and the declared type is the assertion: a member that
+// carried the qualifier through stops the case here rather than at a sink.
+string $trustedPattern = Core\Taint::assertTrusted($pattern, "the case wrote this literal itself, ten lines up");
+echo $trustedPattern, "\n";
+
+// The pattern grammar, at the member that compiles one.
+Core\Regex\Pattern $p = Core\Regex::compile($trustedPattern);
+echo Core\Regex::matches("a.b", $p) ? "y" : "n", "\n";
+echo Core\Regex::matches("ab", $p) ? "y" : "n", "\n";
+
+// The `printf` template, from a second class — and a second call, because the
+// escape hatch is per value and never a mode the file enters.
+echo Core\Str::format(Core\Taint::assertTrusted($template, "the case wrote this literal itself"), 3), "\n";
+
+// The pack format, from a third.
+echo Core\Bytes::length(Core\Bytes::pack(Core\Taint::assertTrusted($format, "the case wrote this literal itself"), 1)), "\n";
+--EXPECT--
+a.b
+y
+n
+3 item
+2

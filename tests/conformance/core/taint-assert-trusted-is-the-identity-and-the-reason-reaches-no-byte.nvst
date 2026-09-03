@@ -1,0 +1,40 @@
+--TEST--
+`Core\Taint::assertTrusted` answers its operand byte for byte, takes a reason that is not required to be a literal, and is legal on a value that was never tainted — ADR 0024 § 3
+--FILE--
+<?nvs
+// § 3 asks for a written reason and for nothing to be done to the value: the
+// whole member is a compile-time judgement, so the run-time answer has to be
+// the argument itself. The values below are the ones a member that trimmed,
+// escaped or re-encoded anything would answer plausibly on and fail here — an
+// empty string, the characters every escaper reaches for, a value that is only
+// padding, and one whose bytes are not one code unit each.
+tainted string $empty = "" as tainted string;
+tainted string $markup = "<a href='x'>Tom & Jerry</a>" as tainted string;
+tainted string $padded = "  spaced  " as tainted string;
+tainted string $wide = "ünïcodé" as tainted string;
+
+echo "[", Core\Taint::assertTrusted($empty, "the case wrote this value itself"), "]\n";
+echo "[", Core\Taint::assertTrusted($markup, "the case wrote this value itself"), "]\n";
+echo "[", Core\Taint::assertTrusted($padded, "the case wrote this value itself"), "]\n";
+echo "[", Core\Taint::assertTrusted($wide, "the case wrote this value itself"), "]\n";
+
+// The reason is checked as an ordinary `string` and read by nobody. § 3 asks
+// for it to be written, not for it to be a literal — a binding holding one is
+// as greppable at the call site as the text would have been, which is
+// `nvs_stdlib::secret`'s reason for the same omission one axis over.
+string $why = "the value was matched against an allowlist at the request boundary";
+echo Core\Taint::assertTrusted($markup, $why), "\n";
+
+// And asserting a value that was never tainted is the identity and is legal.
+// Refusing it would cost a diagnostic and prevent no injection: the qualifier
+// is a bit on the type, so a member that insisted on seeing it set would refuse
+// the very code that already did the right thing.
+string $plain = "plain";
+echo Core\Taint::assertTrusted($plain, "nothing to assert, and that is legal"), "\n";
+--EXPECT--
+[]
+[<a href='x'>Tom & Jerry</a>]
+[  spaced  ]
+[ünïcodé]
+<a href='x'>Tom & Jerry</a>
+plain

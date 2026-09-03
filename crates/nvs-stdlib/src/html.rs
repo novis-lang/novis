@@ -684,6 +684,13 @@ mod tests {
     /// "the sink writes this value's bytes out raw" — and ADR 0058's sink
     /// neither auto-launders nor escapes anything.
     ///
+    /// `Core\Taint::assertTrusted` is the third, and the one row that names no
+    /// sink at all: § 1's predicate still answers, because the transform is the
+    /// identity and so idempotent by inspection, and a value the developer has
+    /// just sworn is trusted re-entering an auto-escaping sink is the case that
+    /// predicate exists to let pass. `nvs_stdlib::registry`'s `Qual` doc
+    /// comment is the home of why one row is allowed to name all of them.
+    ///
     /// The roster is asserted whole, so a launderer added anywhere fails here
     /// until someone places it against the predicate — which is the day the
     /// decision is actually being made.
@@ -701,6 +708,7 @@ mod tests {
             (r"Core\IO::within", false),
             (r"Core\Regex::quote", false),
             (r"Core\SignedCookie::open", false),
+            (r"Core\Taint::assertTrusted", false),
             (r"Core\Uri::encodeComponent", false),
             (r"Core\Uri::encodeFormValue", false),
         ];

@@ -113,6 +113,7 @@ Conventions the whole file uses:
 | [`Core\Cap`](#core-core-cap) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
+| [`Core\Taint`](#core-core-taint) | the one way a value loses the `tainted` qualifier when no sink-named launderer fits — a call that says so by name and carries a written reason |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
 | [`Core\Mail`](#core-core-mail) |  |
 | [`Core\Storage`](#core-core-storage) |  |
@@ -15825,6 +15826,55 @@ Writes one log record — the same record, through the same writer, the engine i
 | `$fields` | `array<mixed>` (default `[]`) | Structured context, written as a `fields` object beside the message rather than pasted into it. Omitted from the record entirely when it is empty, so an ordinary call costs no key. Nothing a bag can hold makes a write fail: a value the format has no spelling for — `bytes`, a closure, a cycle — is rendered as what it is rather than refused. |
 
 **Returns** `void` — Nothing. A record that cannot be written is dropped rather than retried: the log is not the program's storage.
+
+<a id="core-core-taint"></a>
+### `Core\Taint`
+
+Keywords: taint, tainted, assertTrusted, trust, untrusted input, injection, sanitize, allowlist, escape hatch, validation, assertTrusted
+
+`Core\Taint::assertTrusted` answers its operand with the `tainted` qualifier dropped, on your own written
+authority. Every other way out of `tainted` is *sink-named*: `Core\Html::escape` for HTML text,
+`Core\Regex::quote` for a pattern, `Core\Uri::encodeComponent` for a URI component. That is deliberate — a
+value safe for HTML text is not safe for a shell argument, and a generic `sanitize()` would invite exactly
+the false confidence taint tracking exists to prevent. This member is the one case that rule cannot cover:
+you validated the value yourself, and you need to say so.
+
+It is modeled on the `unsafe` keyword's job in Rust rather than on a cast. It is forbidden by default, it is
+rare, it is greppable by its own name, and it carries in the source the reason the value can be trusted.
+Nothing reads that reason at run time; it is written for the next person to read the line.
+
+The place it is not a fallback but the only route is a database host. `Core\Db\Settings.host` refuses a
+`tainted` value and has **no launderer of its own**, because no string check can establish that a hostname
+is safe to send credentials to — a malicious server can answer any query with a `LOCAL INFILE` request and
+read files off the application host. An Adminer-style tool where a human genuinely types the host is the
+case that call site exists for, and this is its honest spelling.
+
+Asserting a value that was never `tainted` is the identity and is legal: refusing it would cost a
+diagnostic and prevent no injection.
+
+The two qualifiers are independent bits, and this member answers on one of them. A `secret` operand is
+refused outright — `Core\Secret::reveal` is the escape hatch on that axis. A value carrying both reveals
+first, whose answer is still `tainted`, and asserts second; the other order does not compile.
+
+| Member | Signature |
+|---|---|
+| [`Core\Taint::assertTrusted`](#core-core-taint-asserttrusted) | `assertTrusted(string $value, string $reason): string` |
+
+<a id="core-core-taint-asserttrusted"></a>
+#### `Core\Taint::assertTrusted`
+
+```nvs skip
+Core\Taint::assertTrusted(string $value, string $reason): string
+```
+
+Answers `$value` with the `tainted` qualifier dropped, on the developer's own written authority — the escape hatch for the case no sink-named launderer fits, forbidden by default and greppable by its own name.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `string` (launder) | The value being asserted trustworthy. A plain `string` is accepted and asserting it is the identity. |
+| `$reason` | `string` (neutral) | What was checked, and why the value can be trusted, written for the next reader. Nothing reads it at run time. |
+
+**Returns** `string` — The same text, with `tainted` gone and nothing else changed. The other axis never arrives here: a `secret` operand is refused outright, so a value carrying both passes `Core\Secret::reveal` first and this member second.
 
 <a id="core-core-secret"></a>
 ### `Core\Secret`

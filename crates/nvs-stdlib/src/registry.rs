@@ -1369,6 +1369,13 @@ pub const CLASSES: &[CoreClass] = &[
     // severities and why a record reaches the output stream rather than the
     // diagnostic one.
     crate::log::CLASS,
+    // ADR 0024 § 3, and no spec § of its own, for the reason `Core\Secret` below
+    // has none: a member that removes `tainted` is a rung of the qualifier's own
+    // mechanism rather than a library facility. Registered immediately before
+    // its twin because the two are one shape on two axes — one narrow, named,
+    // reasoned call each — and [`Qual`]'s doc comment is the home of why this
+    // one writes [`Qual::Launder`] and names no single sink.
+    crate::taint::CLASS,
     // ADR 0033 § 3, and no spec § of its own: what this class is for is decided
     // by the qualifier's ADR, because a member that removes `secret` is a rung
     // of that mechanism rather than a library facility. The only class that may
