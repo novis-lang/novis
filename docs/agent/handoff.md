@@ -2,61 +2,54 @@
 
 ## State
 
-**M8 goal 5, stage 8. A `[db.<name>] path` is resolved against the directory of the file that
-wrote it** (ADR 0103 § 5), one `origins` lookup beside the `tls_ca_file` that already did it, in
-`crates/nvs-config/src/db.rs`'s `canonicalize`. `SqliteTarget::path`'s doc claim is now true, and
-the asymmetry it rests on is stated on both sides: a program-supplied `Db\Settings.path` stays
-relative to the process, because resolving a string the program computed against a configuration
-file it never named would make its meaning depend on where the operator keeps `nvs.toml`.
+**M8 goal 5. The stage 0 catch-up item is closed and its acceptance check passes.** `nvs_array_new`
+hands every caller on a thread the same header, so `[]` after a thread's first is a refcount bump;
+`crates/nvs-runtime/src/array.rs`'s module doc § *an empty array is a per-thread singleton* owns the
+decision and what it spends. `NvsArray::new` still allocates — only the extern primitive moves, and
+its Rust-side callers (`make_unique` first) take a handle they mean to write through.
+`docs/perf/userland-gap.md` § K is priced by count rather than by clock, which is why the "delete
+this row if the first number is noise" escape it carried never applied. `nvs_runtime::
+prime_empty_array` is how a `live_bytes` balance outside this crate takes the singleton before its
+window opens; the playbook bullet is the general shape.
 
-**That fix uncovered a real one.** `Snapshot::retype` deserializes `Config` out of the merged
-*table*, so `canonicalize`'s rewrite of `resolved.config` never reached a driver — including the
-`tls_ca_file` it had been doing all along, which was trust-checked at the resolved path and then
-opened at the written fragment. Both keys are now written back into the table as well, by
-`db::rewrite`, whose doc owns the reasoning; the playbook bullet is the general shape.
+**The `resolve()` passes were audited, and the finding is one rule rather than one mechanism.**
+`Snapshot::retype`'s doc § *The seam every `resolve()` pass is measured against* is its home:
+`db::canonicalize` writes the table too, `secret::materialize` carries its value beside the table and
+re-applies it below, and `app::canonicalize` writes only the tree because `Snapshot::build` reads
+`resolved.config.app` directly and then drops `app` from the table — three answers to three different
+questions, since a secret may not reach the table and the roster may not survive into a per-app
+snapshot. What they share is the rule a fourth pass is checked against, and `Snapshot::table`'s own
+doc now says it is the authoritative half. The five read-only passes rewrite nothing and cross no
+seam; `retype` is reached from exactly two places, both after `build` removed `app`.
 
-**What is resolved is a *relative file*, and `db::is_relative_file` is the whole of that rule.**
-`:memory:`, the empty string and a `file:` URI are SQLite spellings rather than paths, and a
-rooted path is not relative even where Windows says it is not absolute either. Both halves are
-pinned in `crates/nvs-config/tests/resolve.rs`.
-
-**`nvs_types::intrinsics`' known gap 6 is two obstacles, not three.** `Core\Db::open` has a
-registry row since ADR 0135's shape parameter landed. What stands: `Intrinsic` addresses a
-written argument position while § 18 puts the host inside a shape literal, and checking has no
-capability set in front of it at all (`crate::Env` carries none).
-
-The standing acceptance failure, stage 9's `an_open_host_matching_no_grant_is_a_diagnostic`, is
-gated on both of those and stays open — the gap now says so by name rather than leaving a reader
-to re-derive it.
+**The standing acceptance failure is stage 9's `an_open_host_matching_no_grant_is_a_diagnostic`**,
+gated on `nvs_types::intrinsics`' known gap 6's two obstacles, which that gap names. Nothing else is
+open on this goal that the checks report.
 
 ## Next group
 
-**One file set: `crates/nvs-config/src/snapshot.rs`** with `crates/nvs-config/tests/resolve.rs`,
-and `crates/nvs-config/src/app.rs` for the third.
+**One file set: `crates/nvs-types/src/intrinsics.rs` with `crates/nvs-types/src/lib.rs`.** The third
+slice is where it widens, to the diagnostic registry and one conformance case.
 
-- [ ] **Audit the other three `resolve()` passes for the table/tree split the `[db]` one had.**
-      `crates/nvs-config/src/resolve.rs:298` (`secret::materialize`, which solves it a third way
-      — beside the table, re-applied by `retype`), `crates/nvs-config/src/resolve.rs:313`
-      (`app::canonicalize`, which is safe only because `Snapshot::build` reads
-      `resolved.config.app` directly), `crates/nvs-config/src/snapshot.rs:203` (`retype`, the
-      seam). Three mechanisms for one question is the finding to write down or reduce; say which
-      in the module doc rather than leaving the next reader to diff them.
-- [ ] **A case pinning that a relative `tls_ca_file` reaches the driver resolved**, which is the
-      half of this session's bug fix that nothing yet asserts end to end.
-      `crates/nvs-config/tests/resolve.rs:361` (`a_db_blocks_path_resolves_against_the_file_it_is_written_in`,
-      the shape to copy — it asserts the table as well as the tree, and that second assertion is
-      the one that would have caught this) and `crates/nvs-config/src/db.rs:97` (`rewrite`).
-- [ ] **Say in `Snapshot::table`'s own doc that it is the half a driver reads.**
-      `crates/nvs-config/src/snapshot.rs:63`. Its doc today explains why the table is *kept*
-      (§ 9's `dump --origin`); what cost this session time is that it is also what `config` is
-      rebuilt from, which the field's doc never says and `retype`'s says only in passing.
+- [ ] **Let an `Intrinsic` address a field inside a shape literal, not only a written argument
+      position.** ADR 0135 § 3 merges `Core\Db::open`'s `host` into its own slot and ADR 0067 § 3
+      makes that field the sink, so the row that classifies it has nothing to point at today.
+      `crates/nvs-types/src/intrinsics.rs:132` is the struct,
+      `crates/nvs-types/src/intrinsics.rs:36` the gap list it half-closes.
+- [ ] **Carry the granted capability set on the checking environment.** ADR 0067 § 3's `db.open`
+      roster is what a host is compared against, and `crate::Env` carries no capabilities at all —
+      the second of gap 6's two obstacles. `crates/nvs-types/src/lib.rs:356`.
+- [ ] **The diagnostic and the case the acceptance check names.** `E0618` is the next free `E06xx`
+      and `crates/nvs-diagnostics/src/lib.rs` is the whole registry;
+      `an_open_host_matching_no_grant_is_a_diagnostic` is the test, and
+      `crates/nvs-types/src/intrinsics.rs:36` loses its gap-6 entry in the same commit.
 
 ## Backlog
 
-- `nvs config dump` prints the resolved tree now for these two keys; no case asserts it —
+- `nvs config dump` prints the resolved `path` and `tls_ca_file` now; no case asserts it —
   `docs/adr/0103-configuration-is-a-tree-of-files.md` § 9.
-- Stage 9's `an_open_host_matching_no_grant_is_a_diagnostic` needs a capability set on
-  `nvs_types::Env` — `crates/nvs-types/src/intrinsics.rs` known gap 6.
 - ADR 0067 § 10's unterminated-literal disagreement between `nvs_types::intrinsics` and
-  `nvs_db::sql` — same list, gap 5.
-- `Core\Db::open`'s host has no check-time grant test; gap 6's first obstacle owns why.
+  `nvs_db::sql` — `crates/nvs-types/src/intrinsics.rs` known gap 5.
+- § K's clock number, if a bench ever wants one beyond the allocation count —
+  `docs/perf/userland-gap.md` § K.
+- `docs/perf/userland-gap.md` §§ D–J are the userland-gap rows still unlanded.

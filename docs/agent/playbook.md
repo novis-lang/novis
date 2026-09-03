@@ -4904,6 +4904,15 @@ is why" — is this file.
   Keep a statement literal on one line however long it gets, or build it by concatenation; the
   corpus's other long statements are all one line, which is why nothing about this is visible from
   reading them.
+- **A `live_bytes` balance taken across a thread's *first* `[]` is off by one `ArrayHeader`.**
+  `nvs_array_new` hands out a per-thread singleton (`crates/nvs-runtime/src/array.rs`'s module doc
+  § *an empty array is a per-thread singleton*), so the first call on a thread allocates a header
+  that is never freed and every later one allocates nothing at all. A balance test outside
+  `nvs-runtime` that runs compiled code building any array therefore reads that header as something
+  the run leaked — which is how `a_fatal_releases_the_frames_locals` failed by exactly 112 bytes.
+  Call `nvs_runtime::prime_empty_array()` before `let before = live_bytes()`. `nvs-runtime`'s own
+  tests never see it, because Rust-side code builds arrays through `NvsArray::new`, which still
+  allocates one each; and an `allocated_bytes` delta is unaffected once the singleton exists.
 
 ## Splitting a file that got too big
 

@@ -42,7 +42,7 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 5 of the parity program — `Core\Db`, M8 — is running.**  **`crates/nvs-db`'s
-> PostgreSQL is whole**, § 3's upgrade through § 13's reset.  § 9's type map decodes over itand § 7
+> PostgreSQL is whole**, § 3's upgrade through § 13's reset.  § 9's type map decodes over it and § 7
 > nests as a `SAVEPOINT` to any depth. **`Core\Db` has opened in `nvs-stdlib`**: § 18's `connect`
 > over a memoized connection, `inList`, `quoteIdentifier` and § 4's `query`, `execute` and
 > `executeMany` ,  **`open` is live** and pools on § 13's settings hash. **§ 7's `transaction` is on
@@ -54,14 +54,14 @@
 > migrate` applies § 2's schema in either dialect, §§ 1, 4 and 6 run on both, a worker runs on all
 > three, and real servers hold every statement it sends**, and **a shape encodes as a JSON object**.
 > **MySQL and MariaDB both run a block end to end**: `connect` and `open` pool either, §§ 1, 3, 5,
-> 7, 9 and 13 follow each driver's own — MariaDB's auth roster and § 8 table over MySQL's framing,
-> `Framed` the one send body — and a real server of each holds § 3's park, § 7, § 8 and § 13's pool.
-> **SQL Server holds §§ 1, 3, 4, 7 and 13 on a real server, and SQLite runs §§ 4, 7, 9 and 13 off
-> the blocking pooland reads a column back as declared; a block's paths resolve against their own
-> file**. **Stage 9 is § 10's three diagnostics, ADR 0024 § 4's pair, and § 11 whole.** **ADR 0133's
-> carrier landed**: `Core\Html::escape` answers `Core\Html\Markup`, `toSource` is the one way out,
-> and `.`, `.=`, interpolation and `as string` refuse one. **Goals 1-4 and M4 are closed**.
-> Conformance 1441, differential 250, migration 90%/74%.
+> 7, 9 and 13 follow each driver's own, and a real server of each holds § 3's park, § 7, § 8 and §
+> 13's pool. **SQL Server holds §§ 1, 3, 4, 7 and 13 on a real server, and SQLite runs §§ 4, 7, 9
+> and 13 off the blocking pooland reads a column back as declared; a block's paths resolve against
+> their own file, in the table too**. **`[]` is a per-thread singleton**. **Stage 9 is § 10's three
+> diagnostics, ADR 0024 § 4's pair, and § 11 whole.** **ADR 0133's carrier landed**:
+> `Core\Html::escape` answers `Core\Html\Markup`, `toSource` is the one way out, and `.`, `.=`,
+> interpolation and `as string` refuse one. **Goals 1-4 and M4 are closed**. Conformance 1441,
+> differential 250, migration 90%/74%.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
