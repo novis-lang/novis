@@ -396,6 +396,36 @@ fn a_db_blocks_path_resolves_against_the_file_it_is_written_in() {
     );
 }
 
+/// § 5 for the other path a `[db]` block can carry, and § 6 for what makes it the sharper case: a
+/// `tls_ca_file` is trust-checked at the *resolved* path, so a pass that rewrote the typed tree alone
+/// would prove one file safe and hand the driver a different one to open.
+#[test]
+fn a_db_blocks_tls_ca_file_reaches_the_table_resolved_too() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\npath = \"conf.d/db.toml\"\n"),
+        (
+            "etc/conf.d/db.toml",
+            "[db.main]\ndriver = \"postgres\"\nhost = \"db.internal\"\n\
+             tls_ca_file = \"ca.pem\"\n",
+        ),
+        ("etc/conf.d/ca.pem", "-----BEGIN CERTIFICATE-----\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    let want = p("etc/conf.d/ca.pem");
+
+    assert_eq!(
+        resolved.config.db["main"].tls_ca_file.as_deref(),
+        Some(want.to_string_lossy().as_ref())
+    );
+    // The half a driver reads: `Snapshot::retype` deserializes `Config` back out of the table, so
+    // the tree above is a view that a reload rebuilds and this line is the one that says the
+    // handshake verifies against the bundle the trust check actually examined.
+    assert_eq!(
+        resolved.table["db"]["main"]["tls_ca_file"].as_str(),
+        Some(want.to_string_lossy().as_ref())
+    );
+}
+
 /// § 2: a cycle is refused with the chain named. The chain and not merely the repeated file, because
 /// an operator shown only the file that repeated has to rediscover how it was reached.
 #[test]
