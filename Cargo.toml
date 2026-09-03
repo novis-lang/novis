@@ -40,6 +40,7 @@ nvs-codegen = { path = "crates/nvs-codegen", version = "0.0.1" }
 nvs-render = { path = "crates/nvs-render", version = "0.0.1" }
 nvs-runtime = { path = "crates/nvs-runtime", version = "0.0.1" }
 nvs-host = { path = "crates/nvs-host", version = "0.0.1" }
+nvs-server = { path = "crates/nvs-server", version = "0.0.1" }
 nvs-config = { path = "crates/nvs-config", version = "0.0.1" }
 nvs-db = { path = "crates/nvs-db", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
@@ -82,6 +83,47 @@ core_affinity = "0.8"
 # this tree's lock file. `crates/nvs-host/src/reactor.rs` owns the parking
 # contract above it.
 mio = { version = "1", features = ["os-poll", "net"] }
+
+# --- HTTP/1 framing (ADR 0097 § 1: a development server and a proxied origin) ---
+# The one dependency in this file that ADR 0051 § 4's first question answers
+# **yes** to: every octet `hyper` parses arrived from the network, and framing is
+# where request smuggling lives. That is the reason to take it rather than a
+# reason to refuse it — § 4's escalation is about *C*, and the confinement clause
+# has nothing to bite on here: `hyper` is pure Rust with no C, no build script
+# and no `unsafe` outside its own audited buffer handling, so the memory-safety
+# half of the question does not arise and what is left is the semantic half. On
+# that, its record is the exceptional one § 4 asks for — continuously fuzzed, and
+# the most-exercised h1 implementation in the language, against a hand-rolled
+# parser of ours that would be exercised by this repository alone.
+# `docs/plan/design.md`'s refusal to own FCGI framing is the same argument and
+# `docs/agent/loop-goal.md` § *Two things every session must hold* applies it here.
+#
+# **`default-features = false` is load-bearing, not tidiness.** With `http1` and
+# `server` alone the graph is `http`, `http-body`, `bytes`, `futures-core`,
+# `futures-channel`, `pin-project-lite`, `httparse`, `httpdate`, `itoa`,
+# `smallvec` and `atomic-waker` — all pure Rust and all MIT. No `http2` and no
+# `client`: ADR 0097 § 1 dropped h2c and this binary is not an HTTP client
+# (`Core\Http` is `ureq`'s), and both features are where `h2` and `want` would
+# come from.
+#
+# **`tokio` is in the lock file, and it is not a runtime.** `hyper` 1.11 depends
+# on `tokio` unconditionally with `features = ["sync"]` — one `oneshot` in
+# `src/upgrade.rs`, on the h1 server path — and tokio's own default feature set
+# is empty, so what is compiled is its synchronisation primitives and *nothing*
+# else: no `rt`, no `net`, no `time`, no executor, no reactor, no `spawn`. That
+# is the distinction ADR 0072 actually draws, and it survives: this binary still
+# has exactly one scheduler, `nvs-host`'s, and the connection future is driven
+# by `nvs_host::block_on` on the coroutine that owns the connection (ADR 0138)
+# over `crates/nvs-server/src/io.rs`'s adapters. h1 needs no `Executor` and
+# `serve_connection` spawns nothing.
+#
+# The alternative — pinning `hyper` to the last release before that dependency
+# became unconditional — buys the *name* out of the lock file and pays for it in
+# unpatched HTTP framing, which AGENTS.md's ordering refuses: priority 1 is not
+# traded for anything, least of all for a string. What guards the real rule is a
+# test over the lock file's *feature set*, and `docs/agent/handoff.md` names the
+# open decision about what that test is called.
+hyper = { version = "1", default-features = false, features = ["http1", "server"] }
 
 # --- the configuration's trust boundary (ADR 0103 § 6) ---
 # § 6 is "no account but this one, root or an administrator may write it", and

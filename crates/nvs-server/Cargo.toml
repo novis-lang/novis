@@ -1,0 +1,29 @@
+[package]
+name = "nvs-server"
+description = "The built-in HTTP server: a socket to a root isolate and back"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+# The h1 framing, and the one dependency in this tree ADR 0051 § 4's first
+# question answers "yes" to. The workspace `Cargo.toml`'s comment above it is
+# where that is argued, including why `default-features = false` is what keeps
+# `tokio` out of the graph rather than a tidiness choice.
+hyper.workspace = true
+# The parking stream this crate adapts, and the `block_on` that drives the
+# future over it. `src/io.rs` is the whole of the seam; ADR 0138 is its
+# specification.
+nvs-host.workspace = true
+
+# This crate inherits the workspace lint policy unchanged, `unsafe_code =
+# "forbid"` included. That is a decision and not an omission: the obvious way to
+# fill `hyper`'s `ReadBufCursor` is to hand the socket its uninitialised bytes
+# through an `unsafe` cast, and `src/io.rs`'s own docs say what taking the copy
+# instead spends and why the ordering in AGENTS.md puts it that way round.
+[lints]
+workspace = true

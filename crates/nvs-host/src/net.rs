@@ -108,10 +108,14 @@
 
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
+// `mio::Poll` is a poller and `std::task::Poll` is an answer; both are spelled
+// `Poll` and this module now names them in adjacent functions, so the poller
+// takes the alias — it appears once, in `block_until_ready`.
+use std::task::Poll;
 use std::time::{Duration, Instant};
 
 use mio::event::Source;
-use mio::{Events, Poll, Token};
+use mio::{Events, Poll as MioPoll, Token};
 
 use crate::reactor::{self, Interest, Reactor};
 use crate::scheduler::{TaskId, Waiting, current_task, suspend_current};
@@ -509,6 +513,120 @@ impl<S: Source> NvsStream<S> {
         Ok(())
     }
 
+    /// [`Read::read`]'s three steps, stopped one short: try the syscall, and on
+    /// `WouldBlock` arm the reactor and answer `Pending` rather than suspend.
+    ///
+    /// This is the half a `poll` may call, and the difference is the whole of
+    /// [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+    /// § 4's rejected alternative. Suspending *inside* a poll parks the
+    /// coroutine with the future's borrow still held and the drive that owns
+    /// the waker never reached, so the readiness that ends the park resumes a
+    /// stack that is standing in the middle of `hyper` rather than in the loop
+    /// that would re-poll it. Answering `Pending` hands the decision back up to
+    /// [`crate::block_on()`], which parks on its own stack with its permission
+    /// installed — one park per drive, not one per byte.
+    ///
+    /// The registration is armed *before* the answer, which is [ADR 0115]'s
+    /// rule 1 in the shape a poll can keep it: the wake has somewhere to be
+    /// recorded before there is anything to record.
+    ///
+    /// [ADR 0115]: ../../../docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md
+    ///
+    /// # Errors
+    ///
+    /// The socket's own, or `TimedOut` once this stream's deadline has passed.
+    pub fn poll_read(&mut self, buf: &mut [u8]) -> Poll<io::Result<usize>>
+    where
+        S: Read,
+    {
+        loop {
+            match self.inner.read(buf) {
+                Ok(read) => return self.answer(Ok(read)),
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    match self.arm_only(Interest::READABLE) {
+                        Ok(true) => return Poll::Pending,
+                        Ok(false) => {}
+                        Err(err) => return self.answer(Err(err)),
+                    }
+                }
+                Err(err) => return self.answer(Err(err)),
+            }
+        }
+    }
+
+    /// [`Self::poll_read`] on the other interest.
+    ///
+    /// # Errors
+    ///
+    /// The socket's own, or `TimedOut` once this stream's deadline has passed.
+    pub fn poll_write(&mut self, buf: &[u8]) -> Poll<io::Result<usize>>
+    where
+        S: Write,
+    {
+        loop {
+            match self.inner.write(buf) {
+                Ok(written) => return self.answer(Ok(written)),
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    match self.arm_only(Interest::WRITABLE) {
+                        Ok(true) => return Poll::Pending,
+                        Ok(false) => {}
+                        Err(err) => return self.answer(Err(err)),
+                    }
+                }
+                Err(err) => return self.answer(Err(err)),
+            }
+        }
+    }
+
+    /// Ends a poll, lifting the deadline the stream may have filed with the
+    /// core's timers on its way to a `Pending`.
+    ///
+    /// The parking path takes its timer entry back out on the far side of the
+    /// suspend, where the wait has plainly ended. A poll has no far side — the
+    /// resume lands in [`crate::block_on()`]'s loop and arrives back here as an
+    /// ordinary call — so the entry is lifted by whichever poll answers
+    /// `Ready`. Same rule, stated where this shape can keep it.
+    fn answer<T>(&mut self, outcome: io::Result<T>) -> Poll<io::Result<T>> {
+        if self.deadline.is_some()
+            && let Some(me) = current_task()
+        {
+            reactor::with_current(|reactor| reactor.timers().disarm(me));
+        }
+        Poll::Ready(outcome)
+    }
+
+    /// Files `interest` with this core's reactor without waiting on it.
+    ///
+    /// `true` means armed, and the caller may answer `Pending`. `false` is the
+    /// case this module's docs § *Off a core, it blocks* owns: there is no
+    /// reactor to arrange a wake with, [`crate::block_on()`] would park a thread
+    /// nothing is going to unpark, so the wait happens here on the descriptor's
+    /// own poll and the caller goes back round its retry loop.
+    fn arm_only(&mut self, interest: Interest) -> io::Result<bool> {
+        let deadline = self.deadline;
+        if deadline.is_some_and(|at| Instant::now() >= at) {
+            return Err(timed_out());
+        }
+        if let Some(me) = current_task()
+            && let Some(armed) = reactor::with_current(|reactor| {
+                let armed = self.arm(reactor, me, interest);
+                if armed.is_ok()
+                    && let Some(at) = deadline
+                {
+                    reactor.timers().arm(me, at);
+                }
+                armed
+            })
+        {
+            armed?;
+            return Ok(true);
+        }
+        self.block_until_ready(interest, deadline)?;
+        Ok(false)
+    }
+
     /// Drops the reactor-side registration, if this stream holds one.
     fn unregister(&mut self) {
         let Some((task, _)) = self.registered.take() else {
@@ -536,7 +654,7 @@ impl<S: Source> NvsStream<S> {
         // gives that registration up first.
         self.unregister();
 
-        let mut poll = Poll::new()?;
+        let mut poll = MioPoll::new()?;
         poll.registry()
             .register(&mut self.inner, Token(0), interest)?;
         let mut events = Events::with_capacity(1);
