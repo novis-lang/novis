@@ -97,3 +97,15 @@ toml = "docs/agent/goals/9-schema.toml"
 handoff = "docs/agent/goals/9-schema.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+
+# Post-parity: ADR 0136's typed `callable`. Last on the chain because it is the only entry that reaches
+# the front end -- `nvs-syntax` through `nvs-codegen` -- and every goal before it writes callbacks whose
+# rows this one rewrites; running it earlier would mean converting the same registry rows twice. Docker
+# preflight because its floor is goal 9's, which brings up every backend.
+[[goal]]
+name = "10 typed-callable"
+md = "docs/agent/goals/10-typed-callable.md"
+toml = "docs/agent/goals/10-typed-callable.toml"
+handoff = "docs/agent/goals/10-typed-callable.handoff.md"
+milestone = "post-parity"
+preflight = "docker"

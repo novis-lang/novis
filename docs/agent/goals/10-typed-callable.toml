@@ -1,0 +1,216 @@
+# Goal 10 -- a `callable` carries its signature. The acceptance test, as data.
+#
+# `10-typed-callable.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/typed-callable.nvs",
+]
+
+[context]
+
+modules = [
+  # The type grammar's parser -- ADR 0136 s1's production lands in `parse_type`.
+  "crates/nvs-syntax/src/parser/ty.rs",
+  # The `Ty` enum, the interner, the display arm, and the two variants being retired.
+  "crates/nvs-types/src/ty.rs",
+  # `is_assignable` -- the first non-invariant relation in the checker.
+  "crates/nvs-types/src/expr/assign.rs",
+  # `check_fn_literal` -- where a closure body is checked, and where the expected type lands.
+  "crates/nvs-types/src/expr/calls.rs",
+  # `check_generic_args` -- the call-site half of binding.
+  "crates/nvs-types/src/expr/args.rs",
+  # The structural walk: `bind`, `substitute`, and both binding-site readers being deleted.
+  "crates/nvs-types/src/generics.rs",
+  # `CoreTy` -> `Ty` lowering, including the two variants' arms.
+  "crates/nvs-types/src/core_lib.rs",
+  # `CoreTy` itself, its guard tests, and the registry rows' shape.
+  "crates/nvs-stdlib/src/registry.rs",
+  # `map`'s row -- the first and most-used `CallableTo`.
+  "crates/nvs-stdlib/src/arr.rs",
+  # `Task::all` and `Task::map` -- the `CallableShapeTo` pair.
+  "crates/nvs-stdlib/src/task.rs",
+  # The closure representation, the two metadata slots, and `check_param_tags` itself.
+  "crates/nvs-runtime/src/closure.rs",
+  # `lower_closure_literal` writes both slots; the call sites are lowered beside it.
+  "crates/nvs-ir/src/lower/expr.rs",
+  # The synthesized class -- one field per capture, one `invoke`.
+  "crates/nvs-ir/src/lower/closure.rs",
+]
+
+rules = ["0136", "0007", "0027", "0031", "0036", "0063", "0072", "0002", "0004"]
+
+# 0136 whole: it is this goal's entire design and the only ADR a session should need in full.
+# The rest are sections, not bodies.
+adrs = ["0136", "0007 §3", "0007 §5", "0031 §4", "0072 §1"]
+
+shapes = ["A diagnostic", "A `.nvst` test case", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goals 4-9's container-backed checks, and goal 9's round-trip property asserts on
+# all five backends. Same compose file, same memoization.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the atom parses, and two callable types compare. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the atom"
+name = "nvs-syntax (the callable signature production)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_callable_type_parses_its_parameters_and_return",
+  "a_callable_type_with_no_parameters_parses",
+  "a_callable_type_without_a_return_type_is_refused",
+  "a_callable_type_naming_a_parameter_is_refused",
+  "a_bare_callable_still_parses_as_the_opaque_atom",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the atom"
+name = "nvs-types (assignability between two callable types)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_closure_of_lower_arity_satisfies_a_wider_callable_type",
+  "a_closure_of_higher_arity_than_the_type_is_refused",
+  "a_callable_parameter_may_be_wider_than_the_slot_declares",
+  "a_callable_parameter_narrower_than_the_slot_is_refused",
+  "a_callable_return_may_be_narrower_than_the_slot_declares",
+  "a_callable_return_wider_than_the_slot_is_refused",
+  "every_callable_signature_is_assignable_to_bare_callable",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the inference: a literal takes its parameter types from its position. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the inference"
+name = "nvs-types (parameter types inferred at an fn literal)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "an_unannotated_fn_parameter_takes_the_expected_types_position",
+  "an_annotated_fn_parameter_may_be_wider_than_the_expected_type",
+  "an_annotated_fn_parameter_narrower_than_expected_is_refused",
+  "a_block_bodied_fn_still_declares_its_return_type",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the stdlib rows, and CallableTo retired. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the rows"
+name = "nvs-types (a callback that is a variable binds its result)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "map_binds_its_result_from_a_written_fn_literal",
+  "map_binds_its_result_from_a_callable_typed_variable",
+  "map_binds_its_result_from_a_first_class_callable_reference",
+  "bind_descends_into_a_callable_types_parameters",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the rows"
+name = "nvs-stdlib (no row names a retired binding-site variant)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "no_registry_row_names_a_callable_binding_site_variant",
+  "every_callback_parameter_declares_its_signature",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- Task::all, and CallableShapeTo retired. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 task all"
+name = "nvs-types (a shape of typed callables rebuilds a shape)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "task_all_binds_its_result_shape_from_written_literals",
+  "task_all_binds_its_result_shape_from_callable_typed_variables",
+  "task_all_no_longer_refuses_a_field_that_is_not_a_literal",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- spending the proof: a proven site emits no tag check. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the codegen"
+name = "nvs-codegen (the tag check is emitted only where it is still needed)"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "a_proven_callable_call_site_emits_no_param_tag_check",
+  "a_bare_callable_call_site_still_emits_the_param_tag_check",
+  "a_closure_object_still_carries_both_metadata_slots",
+]
+
+# The end-to-end fixture: the surface, the inference, and the safety property in one runnable file.
+
+[[check]]
+kind = "exact"
+stage = "6 the codegen"
+file = "examples/typed-callable.nvs"
+want = [
+  "a typed callback runs and returns its declared type",
+  "a shorter callback receives only what it declares",
+  "a callable-typed variable reaches Core\\Arr::map",
+  "Task::all answers a shape of its callbacks' return types",
+]
+
+# The safety property, as the case `closure.rs` names: a mismatched callback is a compile error rather
+# than a runtime LogicError. This is the goal's reason for existing, so it is its own check.
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 the codegen"
+name = "conformance (typed callables)"
+args = ["test", "tests/conformance/types/callable"]
