@@ -309,7 +309,11 @@ pub fn resolve(
     // has a block to point at is a question only the merged `[db]` map can answer.
     crate::queue::validate(&resolved.config, &origins)?;
     // ADR 0104 § 1's keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
-    // so the roster only exists once the merge is done.
+    // so the roster only exists once the merge is done. Alone among the three passes above it
+    // rewrites `config` and never the table, which reaches a driver only because the roster is read
+    // off `resolved.config` and then dropped — `Snapshot::retype`'s doc § *The seam every
+    // `resolve()` pass is measured against* is where that rule lives, and what a fourth pass here
+    // is checked against.
     crate::app::canonicalize(&mut resolved.config, &origins, files)?;
     // ADR 0104 § 3's bound, once the roster is keyed: what a block asks for is compared against the
     // global `[limits.hard]`, which is a property of the merged tree and of nothing smaller.

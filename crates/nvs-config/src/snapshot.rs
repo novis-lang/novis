@@ -63,6 +63,12 @@ pub struct Snapshot {
     /// [`Resolved::table`](crate::resolve::Resolved::table) is: § 9's `nvs config dump --origin`
     /// renders keys the typed tree has no field for, and [`Current::publish`] compares two trees
     /// key by key, which the typed tree cannot be turned back into.
+    ///
+    /// **This is the half a driver reads**, even though a driver never touches a `toml::Value`:
+    /// [`retype`](Snapshot::retype) derives `config` from *this*, so it is authoritative and
+    /// `config` is a view of it. A resolving pass that writes a path into `config` alone has
+    /// written somewhere this overwrites — `retype`'s own doc § *The seam every `resolve()` pass is
+    /// measured against* is the rule, and the three sound answers to it.
     pub table: toml::Table,
     /// The entry file this snapshot is for, canonical.
     pub entry: PathBuf,
@@ -196,6 +202,31 @@ impl Snapshot {
     /// this function for that reason — the build below and the `Boot` carry a reload does — and a
     /// second deserialization written anywhere else would silently drop the credential the way this
     /// one used to.
+    ///
+    /// # The seam every `resolve()` pass is measured against
+    ///
+    /// A pass that rewrites [`config`](Snapshot::config) in place has written to the half this
+    /// function overwrites, so it only reaches a driver if one of three things is true — and
+    /// [`resolve`](crate::resolve)'s three rewriting passes use one each:
+    ///
+    /// - It writes the **table** as well, as [`db::canonicalize`](crate::db::canonicalize) does
+    ///   through its `rewrite`. This is the default and the one a fourth pass should reach for.
+    /// - Its value is carried **beside** the table and re-applied by the line above —
+    ///   [ADR 0103] § 7's secrets, which may not be in the table at all.
+    /// - Its key is read off `resolved.config` **before** any retype and then removed from the
+    ///   table, as [`app::canonicalize`](crate::app::canonicalize)'s roster is: [`build`] reads
+    ///   `resolved.config.app` directly and then drops `app` from the snapshot's table, so nothing
+    ///   here re-derives it.
+    ///
+    /// Three mechanisms because they answer three different questions, not because one question was
+    /// answered three times: a secret must not reach the table, and the `[[app]]` roster must not
+    /// survive into a per-app snapshot. What they share is the rule a fourth pass is checked
+    /// against — **a rewrite of `config` that neither reaches the table nor is re-applied here is
+    /// lost, silently, at the first thing that retypes.** The read-only passes beside them
+    /// (`db::validate`, `app::bound`, `queue::validate`, `schedule::validate`, `http::validate`)
+    /// rewrite nothing and so have no seam to cross.
+    ///
+    /// [`build`]: Snapshot::build
     ///
     /// # Errors
     ///
