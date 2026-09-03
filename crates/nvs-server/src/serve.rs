@@ -75,7 +75,6 @@ use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
@@ -88,7 +87,7 @@ use nvs_host::{
     Completion, Isolate, NvsListener, NvsTcp, Waiting, Wake, block_on, spawn_child, suspend_current,
 };
 use nvs_runtime::host::Woken;
-use nvs_runtime::{Ctx, OutputSink, TaskRoot};
+use nvs_runtime::{Ctx, Drain, OutputSink, TaskRoot};
 
 use crate::ConnectionIo;
 use crate::admit::Admission;
@@ -254,20 +253,33 @@ impl Reply {
 /// probe answering `200` for a process whose socket is already closed, which is
 /// exactly the window a proxy uses this endpoint to avoid.
 ///
-/// Process-wide and shared by every core, for [`crate::Admission`]'s reason: a
-/// shutdown drains the process, and a probe that answered from whichever core
-/// took the connection would answer differently on each. One relaxed atomic,
-/// read once per probe and written once per process — this is not on the value
-/// path the non-atomic-refcount decision protects, and there is no ordering to
-/// establish because the bit is the whole of the message.
-#[derive(Clone, Debug, Default)]
-pub struct Draining(Arc<AtomicBool>);
+/// **The bit is [`nvs_runtime::Drain`] and this is the handle over it.** An
+/// application reads the same drain through `Core\Server::isDraining()`, and
+/// `nvs-stdlib` does not depend on this crate — so the fact sits in the crate
+/// both rest on, and that module's docs own the atomic, its ordering, and why a
+/// server that is this process takes the process's bit rather than one per
+/// core. What lives here is the rule above: who may write it.
+#[derive(Clone, Debug)]
+pub struct Draining(Drain);
 
 impl Draining {
-    /// A server that is accepting.
+    /// The process's drain — the handle a server that *is* this process takes,
+    /// and so the one whose answer a proxy takes an instance out of rotation
+    /// on.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn process() -> Self {
+        Self(Drain::process())
+    }
+
+    /// A drain no other server in this process shares.
+    ///
+    /// For an accept loop whose stopping is not this process stopping — a
+    /// second listener a harness ends on its own, and every test that runs this
+    /// loop to completion beside others. [`nvs_runtime::drain`] owns why that
+    /// is a case rather than an escape hatch.
+    #[must_use]
+    pub fn detached() -> Self {
+        Self(Drain::detached())
     }
 
     /// Stop accepting: from here the probe answers `503`.
@@ -275,13 +287,13 @@ impl Draining {
     /// Idempotent, because a drain that has begun cannot begin again and a
     /// second core reaching this is the same shutdown, not a new one.
     pub fn begin(&self) {
-        self.0.store(true, Ordering::Relaxed);
+        self.0.begin();
     }
 
     /// Whether the drain has begun.
     #[must_use]
     pub fn is_draining(&self) -> bool {
-        self.0.load(Ordering::Relaxed)
+        self.0.is_draining()
     }
 }
 
@@ -823,7 +835,7 @@ mod tests {
                 &echo_the_path(),
                 Waits::default(),
                 &wide_open(),
-                &Draining::new(),
+                &Draining::detached(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -887,7 +899,7 @@ mod tests {
             (probe(), probe())
         });
 
-        let draining = Draining::new();
+        let draining = Draining::detached();
         let handler = Rc::new({
             let draining = draining.clone();
             move |request: Request<Incoming>| {
@@ -983,7 +995,7 @@ mod tests {
                 &echo_the_path(),
                 Waits::default(),
                 &wide_open(),
-                &Draining::new(),
+                &Draining::detached(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -1047,7 +1059,7 @@ mod tests {
                 &handler,
                 Waits::default(),
                 &wide_open(),
-                &Draining::new(),
+                &Draining::detached(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -1101,7 +1113,7 @@ mod tests {
                 &echo_the_path(),
                 waits,
                 &wide_open(),
-                &Draining::new(),
+                &Draining::detached(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -1162,7 +1174,7 @@ mod tests {
                 &echo_the_path(),
                 waits,
                 &wide_open(),
-                &Draining::new(),
+                &Draining::detached(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -1242,7 +1254,7 @@ mod tests {
                 &handler,
                 Waits::default(),
                 &serving,
-                &Draining::new(),
+                &Draining::detached(),
                 |_note| {},
                 || ControlFlow::Break(()),
             )

@@ -256,6 +256,7 @@ mod ctx;
 pub mod decimal;
 pub mod deferred;
 pub mod dispatch;
+pub mod drain;
 pub mod environment;
 pub mod floor;
 mod fmt;
@@ -329,6 +330,7 @@ pub use dispatch::{
     CrossedFixtures, Fixtures, RowValues, call_erased_method, call_method, call_render,
     call_static, construct_and_call, method_address,
 };
+pub use drain::Drain;
 pub use fmt::php_float_to_string;
 pub use graph::{GraphError, copy_graph, copy_graph_into, decode, encode};
 pub use helpers::{stringify, symbols, value_to_string, value_truthy};

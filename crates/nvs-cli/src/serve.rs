@@ -225,7 +225,10 @@ pub(crate) fn run(
     // it: this command never asks the loop to stop yet, so it reads `false` for
     // the whole of a run and § 5's `503` half arrives with the control socket
     // that can ask (ADR 0078 § 6).
-    let draining = nvs_server::Draining::new();
+    // The *process's* bit, because this command is the process: an application
+    // reads the same one through `Core\Server::isDraining()`, which has no
+    // handle to have been given (`nvs_runtime::drain`).
+    let draining = nvs_server::Draining::process();
     let handler = Rc::new({
         let compiler = Rc::clone(&compiler);
         let table = Rc::clone(&table);
