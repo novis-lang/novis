@@ -54,14 +54,14 @@
 > to end**: `connect` and `open` pool either, §§ 1, 3, 5, 7, 9 and 13 follow each driver's own, and
 > a real server of each holds § 3's park, § 7, § 8 and § 13's pool. **SQL Server holds §§ 1, 3, 4, 7
 > and 13 on a real server, and SQLite runs §§ 4, 7, 9 and 13 off the blocking pool and reads a
-> column back as declared; a block's paths resolve against their own file, in the table too**.
-> **`E0618` refuses an ungranted literal `Db::open` host**. **ADR 0133's carrier landed**:
-> `Core\Html::escape` answers `Core\Html\Markup`, `toSource` is the one way out, and `.`, `.=`,
-> interpolation and `as string` refuse one. **Goals 1-5 and M4 are closed**. **`crates/nvs-server`
-> runs an h1 request as goal 2's `Isolate`**: a coroutine per connection, `hyper` under `block_on`
-> (ADR 0138), `echo` is the body, ADR 0097 §§ 4-5 bound and route it; `nvs serve` runs one core;
-> `E0621` refuses a mount. **Stage 10's corpus opened**: § 5's bindings, § 6's naming, § 7's flag.
-> Conformance 1447, differential 256, migration 100%; valgrind green.
+> column back as declared**. **`E0618` refuses an ungranted literal `Db::open` host**. **ADR 0133's
+> carrier landed**: `Core\Html::escape` answers `Core\Html\Markup`,  `.`, `.=`, interpolation and
+> `as string` refuse one. **Goals 1-5 and M4 are closed**. **`crates/nvs-server` runs an h1 request
+> as goal 2's `Isolate`**: a coroutine per connection, `hyper` under `block_on` (ADR 0138), `echo`
+> is the body, ADR 0097 §§ 4-5 bound and route it; `nvs serve` boots the whole mount table on one
+> core and § 4's static policy sends a file; `E0621` refuses a mount. **Stage 10's corpus opened**:
+> § 5's bindings, § 6's naming, § 7's flag. Conformance 1447, differential 256, migration 100%;
+> valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

@@ -2,66 +2,66 @@
 
 ## State
 
-**Goal 6, Stage 3 is half landed: the mount table exists on both sides of the seam.**
-`nvs_config::mount` reads `[[server.mount]]` into the literal set of entry files a server may
-execute, with every `scan` glob already walked against the disk; `nvs_server::mount` is ADR 0097
-§ 4's five steps over that table. `nvs serve <file>` now *selects* through those steps instead of
-being handed one file.
+**Goal 6, Stage 3 is closed on the request path: the table selects, and the server answers.**
+ADR 0097 § 4's static paragraph is `crates/nvs-server/src/statics.rs` — `send` at
+`crates/nvs-server/src/statics.rs:149` takes a file, the request's headers and a [`Source`], and
+answers the exact file with `no-cache`, a strong `ETag` over `(size, mtime_nanos)`,
+`If-None-Match`, one `Range`, a refused multi-range and a fixed extension table. **Nothing in it
+takes a mode or a switch**, which is how "one policy in both deployments" is kept rather than
+asserted; that module's own docs own the reasoning, including why every `Range` it cannot honour
+exactly is a `416` and never a silent `200`.
 
-**On disk, the boot half.** `crates/nvs-config/src/mount.rs` — `check` is everything a block can be
-wrong about with no disk and runs inside `server::validate`, so `nvs config check` refuses a
-malformed mount on a machine holding none of the files; `expand` walks the globs and is the server's
-own boot step. `E0621` is every refusal, and the module doc owns why the split is where it is.
-`expand` has no production caller yet: the next group's second item is what gives it one.
+**§ 4's sole default document is in the selection, not the sending.**
+`crates/nvs-server/src/mount.rs:358`'s `default_document` gives step 3 an `index.html` for a
+remainder that spells a directory *below* the mount root, and never at the root itself, where step
+5's entry is what a mount means (`statics.rs`'s § *Decision*).
 
-**On disk, the request half.** `crates/nvs-server/src/mount.rs` — `Table::select` runs steps 1-5 in
-order and answers `What::Static` (a file to send) or `What::Run` (a file to run), or `None` for
-step 1's 404. Steps 3 and 4 are the only place in the crate where a remainder meets a filesystem;
-the module doc § *What a remainder may be* owns the lexical refusal and the canonical containment
-check that make that keep § 2 rather than spend it. A handler now answers `nvs_server::Reply` —
-`Run(Isolate)` or `Done(Response)` — because step 1's 404 and step 3's file are not programs.
-
-**Two decisions recorded in module docs rather than an ADR.** An unwritten `dispatch`/`static` reads
-as the *production* pair, not development's, until the mode slice resolves ADR 0091 § 3a's defaults
-(`crates/nvs-server/src/mount.rs`'s § *Decision*). And `nvs serve <file>` is § 4's table with one
-row in it, mounted at `/` with the file's own directory as the mount root
-(`crates/nvs-cli/src/serve.rs`'s § *Decision*).
+**`nvs serve` boots the whole `[[server.mount]]` table.** `nvs_config::mount::expand` has its first
+production caller (`crates/nvs-cli/src/serve.rs:135`): a tree that writes mounts is served through
+all of them, every mounted entry is compiled before the socket is bound, and a `<file>` the table
+does not mount is refused rather than silently serving another application. A tree that writes none
+still gets `one_mount`'s table of one. `crate::config::boot_origins` now keeps the origins map, so
+`waits_for`, `listen_on` and `expand` all resolve and refuse against the file a value was written
+in rather than against the cwd.
 
 **Unchanged limits.** A served request's context still carries no configuration snapshot
-(`crates/nvs-server/src/serve.rs:374` hands each connection a bare `Ctx::new(OutputSink::Sink)`), a
-Unix-domain `listen` entry still classifies and is then refused in the CLI, and the driver's
-`native examples/upload.nvs` failure is stage 5's frozen `want` ahead of the frontier — the
-playbook's bullet on that owns it.
+(`crates/nvs-server/src/serve.rs:387` is the bare `Ctx::new(OutputSink::Sink)` each connection
+gets), a Unix-domain `listen` entry still classifies and is then refused in the CLI, and the
+driver's `native examples/upload.nvs` failure is stage 5's frozen `want` ahead of the frontier —
+the playbook's bullet on that owns it. `orient.py` printed no map line for `crates/nvs-cli/src/serve.rs`
+although the item named it: `[context] modules` in `docs/agent/loop-goal.toml` wants an `nvs-cli`
+pattern.
 
 ## Next group
 
-**The static file policy and the deployment table.** One file set:
-`crates/nvs-server/src/mount.rs`, `crates/nvs-server/src/serve.rs`,
-`crates/nvs-cli/src/serve.rs`, `crates/nvs-config/src/mount.rs`.
+**The `[server]` block's bounds — the four names stage 3's check still misses.** One file set:
+`crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/io.rs`, `crates/nvs-config/src/tree.rs`,
+`crates/nvs-config/src/server.rs`.
 
-- [ ] **Static serving is one policy in both deployments.** ADR 0097 § 4's own paragraph — exact
-      file, never a listing, `no-cache` with a strong `ETag` over `(size, mtime_nanos)`,
-      `If-None-Match`, one `Range` and a refused multi-range, a fixed extension table with
-      `application/octet-stream` for an unknown one. The selection already exists:
-      `crates/nvs-server/src/mount.rs:255`'s `What::Static`, turned into
-      `crates/nvs-server/src/serve.rs:99`'s `Answer` and handed back as
-      `crates/nvs-server/src/serve.rs:151`'s `Reply::Done`; the CLI's temporary fallback to the
-      mount's entry is `crates/nvs-cli/src/serve.rs:188`. Pins
-      `static_files_are_one_policy_in_both_deployments`.
-- [ ] **`nvs serve` boots the whole `[[server.mount]]` table, not a table of one.**
-      `crates/nvs-config/src/mount.rs:207`'s `expand` is the call; `crates/nvs-cli/src/serve.rs:293`'s
-      `one_mount` is what it replaces or falls back to, and the boot compile above it has to become
-      one per mounted entry so § 2 still holds before the socket is bound.
-- [ ] **A served request's context carries the configuration snapshot.** `Core\Config` inside a
-      served program is empty today: `crates/nvs-server/src/serve.rs:374` is the bare `Ctx`, and the
-      selected mount's `origin` and `captures` (`crates/nvs-server/src/mount.rs:244`) are what
-      `Core\Router::urlAbsolute` and `Core\Request::mount()` read off it.
+- [ ] **`max_in_flight` is an arithmetic against the memory budget, and an over-capacity request is
+      refused with `503` before it is allocated.** ADR 0097 § 5 as amended by ADR 0106 — the
+      directive is `crates/nvs-config/src/tree.rs:775`, the place a request becomes an isolate is
+      `crates/nvs-server/src/serve.rs:248`, and `crates/nvs-server/src/serve.rs:55` is the module-doc
+      bullet that currently says neither is here. Pins
+      `max_in_flight_is_derived_from_the_memory_budget` and
+      `an_over_capacity_request_is_refused_with_503_before_it_is_allocated`.
+- [ ] **The four idle timeouts are finite, asserted where the check looks for it.** The boot refusal
+      of an unbounded one is `crates/nvs-config/src/server.rs:57`'s `Waits`, but the acceptance check
+      names the test under `-p nvs-server`, whose holder is `crates/nvs-server/src/io.rs`'s `Phase` —
+      the playbook's bullet on a check naming a crate applies before writing it. Pins
+      `the_four_idle_timeouts_are_finite`.
+- [ ] **A mount carries no policy of its own.** ADR 0097 § 10: `crates/nvs-config/src/tree.rs:797`'s
+      `Mount` has routing fields alone, and a limit key written in a `[[server.mount]]` block is
+      `E0621` rather than a second per-app block. Pins `a_mount_carries_no_policy_of_its_own`.
 
 ## Backlog
 
-- § 6's forwarded-header walk replaces `Table::select`'s host — ADR 0097 § 6.
-- `max_in_flight` as ADR 0106's arithmetic, and the accept backoff — ADR 0097 § 5.
-- § 3's last paragraph: a literal `urlAbsolute` in a mount with no `origin` is a boot error, and it
-  needs the compiled unit — `crates/nvs-config/src/mount.rs`'s § *What is not here yet*.
-- One listener fanned out over several cores — `nvs_host::NvsListener::from_std`.
-- A Unix-domain listener, which is what unblocks `listen`'s already-classified `Listen::Unix`.
+- A served request's context carries the configuration snapshot, and the selection's `origin` and
+  `captures` (`crates/nvs-server/src/mount.rs:251`) — docs/plan/m7.md.
+- `is_draining_answers_during_a_graceful_shutdown` — needs ADR 0078 § 6's control socket first.
+- `[server] static` and `dispatch` defaults come from the mode, not from what was written —
+  ADR 0091 § 3a, `crates/nvs-server/src/mount.rs:146`.
+- § 6's forwarded-header walk replaces the `Host` `Table::select` reads — ADR 0097 § 6.
+- A static response is one buffer per in-flight request; a byte cache goes behind `Source` —
+  `crates/nvs-server/src/statics.rs`'s § *What it spends*.
+- ADR 0105's uploads, stage 5 — the driver's frozen `want` for `examples/upload.nvs`.
