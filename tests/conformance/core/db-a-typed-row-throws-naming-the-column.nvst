@@ -1,0 +1,60 @@
+--TEST--
+Every refusal a typed `Core\Db\Row` reader makes names the column it was asked about — the wrong family, the value that would not survive the crossing, and the column the statement never described — ADR 0067 § 6
+--FILE--
+<?nvs
+// SQLite runs for real (db-a-sqlite-block-opens-a-file-and-runs-statements-
+// over-it.nvst argues why that matters), so these are the refusals the reader
+// really makes and not a signature check.
+//
+// What is asserted is `contains` and never the whole sentence: § 6 promises
+// that the column is *named*, and freezing three wordings here would pin
+// something it does not promise and break on every rewording of a message.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute("create table t (id integer primary key, nickname text, owed integer)", []);
+$db->execute("insert into t (nickname, owed) values (?, ?)", ["ada", -3]);
+
+foreach ($db->query("select nickname, owed from t", []) as Row $row) {
+    // The wrong family. A `TEXT` column has no `int` value to be read
+    // losslessly or otherwise, so there is no crossing to consider.
+    try {
+        $row->int("nickname");
+        echo "family: not refused\n";
+    } catch (LogicError $refused) {
+        echo "family: ", Core\Str::contains($refused->message, "nickname") ? "names it" : "does not", "\n";
+    }
+
+    // The right family, the wrong value: `-3` is an `INTEGER` and is not a
+    // `uint`, so it is the crossing that is refused rather than the type. § 6
+    // keeps the two refusals in different words, and this case is what says
+    // both of them still answer the same question about the column.
+    try {
+        $row->uint("owed");
+        echo "range: not refused\n";
+    } catch (LogicError $refused) {
+        echo "range: ", Core\Str::contains($refused->message, "owed") ? "names it" : "does not", "\n";
+    }
+
+    // And the column the statement never described, where naming it is the
+    // whole of the answer because there is no value to describe instead.
+    try {
+        $row->string("nomatter");
+        echo "unknown: not refused\n";
+    } catch (LogicError $refused) {
+        echo "unknown: ", Core\Str::contains($refused->message, "nomatter") ? "names it" : "does not", "\n";
+    }
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+family: names it
+range: names it
+unknown: names it
