@@ -6899,6 +6899,17 @@ sibling in the same namespace unqualified.
   `children_still_running()` alone leaves the wake to tree bookkeeping whose ordering against the
   child's last instruction is not stated, and a `Waiting::Yielded` spin never lets the core poll the
   reactor the child is parked on.
+- **A task holds one timer entry, and a `Ready` poll on a stream's *other* interest used to lift
+  it — so an idle read timeout was silently cancelled by the write that answered the request.**
+  `nvs_host::NvsStream::answer` disarms the task's timer when a poll ends, which is right for one
+  interest and wrong for two: `hyper` polls the readable half (`Pending`, deadline filed), then
+  polls the writable half in the same pass (`Ready`, deadline lifted), and the connection parks on
+  readiness alone with no clock left. The tell is a test that hangs for exactly the *client's*
+  patience and then finds the deadline already expired — the wake came from the peer's own close,
+  not from the timer. Four probe builds to see it, and the probe that settled it was printing the
+  poll order plus `deadline().map(saturating_duration_since)` in the adapter. `NvsStream::timed`
+  now records which interest filed the entry; anything else that parks two interests of one stream
+  under one task inherits the same question.
 
 ## Divergences and refusals already pinned
 

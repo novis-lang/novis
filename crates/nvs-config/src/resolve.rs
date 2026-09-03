@@ -325,6 +325,10 @@ pub fn resolve(
     // `[http.cookies] secure` are in force is a question only the whole stream has answered, and a
     // per-file check would refuse a base file an include was about to correct.
     crate::http::validate(&resolved.config, &origins)?;
+    // ADR 0097 § 5's four inbound waits, beside the outbound half above: what the merge settled is
+    // the wait the listener will actually be started with, and a `false` there is the one spelling
+    // ADR 0074 has no version of.
+    crate::server::validate(&resolved.config, &origins)?;
     // ADR 0020 § 4's target, over the merged tree for the http check's reason and for one of its
     // own: the floor is the rung that reports when nothing else can, so the last place to discover
     // that its destination does not parse is the failure it was configured to report.

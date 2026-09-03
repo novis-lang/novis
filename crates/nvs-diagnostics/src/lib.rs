@@ -1425,6 +1425,22 @@ pub mod code {
     /// `E0616`'s reason: what it reads is a grant, not a type.
     pub const E_UNGRANTED_HOST: Code = Code::new("E0618");
 
+    /// A `[server]` wait that would never end: `false`, or `0`. ADR 0074's
+    /// headline is that Novis never waits forever and ADR 0097 § 5 states its
+    /// four inbound waits as finite with nothing configured, so `false` — which
+    /// removes a ceiling everywhere else in the tree ([ADR 0005]) — has no
+    /// meaning here and is refused rather than read as a default. `0` is the
+    /// same refusal from the other side: a wait that expires as it is armed
+    /// closes every connection before it can say anything, which is a server
+    /// that accepts and answers nothing.
+    ///
+    /// A value that is not a duration at all is `E0601` in
+    /// `nvs_config::value`'s own words; this code is only for a well-formed
+    /// duration whose *magnitude* is the problem.
+    ///
+    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+    pub const E_UNBOUNDED_WAIT: Code = Code::new("E0619");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

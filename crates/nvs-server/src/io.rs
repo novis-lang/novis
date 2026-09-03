@@ -40,6 +40,37 @@
 //! to it, so the read goes into a zeroed stack buffer and is copied into the
 //! cursor with [`ReadBufCursor::put_slice`].
 //!
+//! # The clock, and why it lives here
+//!
+//! [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+//! § 5's four waits are the stream's own deadline — `hyper` knows nothing about
+//! them — and they are **idle** waits rather than totals, so a slow 2 GB upload
+//! completes while a stalled socket does not. That is one rule and two
+//! mechanisms, both of them in this module because this is the only code that
+//! sees a byte move:
+//!
+//! - **Arm on entry.** Every poll below sets the stream's deadline to
+//!   `now + the wait the current [`Phase`] names`, once per phase rather than
+//!   once per poll. Re-arming on every poll would be a bound that never fires:
+//!   the poll that follows a deadline's own expiry is exactly the one that has
+//!   to see it passed, and it would instead push it forward.
+//! - **Refresh on progress.** A poll that actually moved bytes re-arms the same
+//!   phase, which is what makes the wait idle. A `Pending` refreshes nothing.
+//!
+//! **Three of the four phase changes are visible here and one is not.** A first
+//! byte after a response ends the keep-alive wait, and a read attempted while a
+//! response was being written is `hyper` going back for the next request — but
+//! the end of a request *head* is a framing fact only `hyper` has, so the
+//! connection loop sets [`Phase::Body`] and [`Phase::Write`] through the
+//! [`ConnectionIo::phase`] handle. What this module cannot see it is told, and
+//! it is told by the one place that knows.
+//!
+//! An expired wait surfaces as [`std::io::ErrorKind::TimedOut`] out of the
+//! poll, which `hyper` ends the connection on. **A timed-out connection is
+//! closed and not answered**: a peer that has not finished a request head is
+//! owed no status, and one that has stopped reading is by definition not
+//! reading a `408` either.
+//!
 //! **What that spends**, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
 //! [`SCRATCH`] bytes of the accepting coroutine's own stack while a read is in
 //! flight, and one `memcpy` of at most that much per readable poll. Per
@@ -49,11 +80,15 @@
 //! side of that trade; if a benchmark ever says otherwise, the thing to change
 //! is the buffer's size, and only then the `forbid`.
 
+use std::cell::Cell;
 use std::io;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 
 use hyper::rt::{Read, ReadBufCursor, Write};
+use nvs_config::Waits;
 use nvs_host::NvsTcp;
 
 /// The scratch buffer one read borrows from the coroutine's stack.
@@ -65,6 +100,39 @@ use nvs_host::NvsTcp;
 /// costs less than this.
 pub const SCRATCH: usize = 8 * 1024;
 
+/// Which of ADR 0097 § 5's four waits bounds this connection right now.
+///
+/// A connection is always in exactly one of these, starting in [`Phase::Head`]
+/// from the moment it is accepted: there is no unbounded state to fall into,
+/// which is the whole of ADR 0074's headline stated as a type.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Phase {
+    /// Reading a request head — `header_timeout`.
+    Head,
+    /// Reading a request body — `body_idle_timeout`. Set by the connection
+    /// loop, because framing a head is `hyper`'s knowledge and not this
+    /// module's.
+    Body,
+    /// Writing a response — `write_idle_timeout`. Set by the connection loop
+    /// when the request has been answered.
+    Write,
+    /// Idle between one response and the next request's first byte —
+    /// `keepalive_timeout`.
+    KeepAlive,
+}
+
+impl Phase {
+    /// The wait this phase is bounded by.
+    fn wait_in(self, waits: &Waits) -> Duration {
+        match self {
+            Phase::Head => waits.header,
+            Phase::Body => waits.body_idle,
+            Phase::Write => waits.write_idle,
+            Phase::KeepAlive => waits.keepalive,
+        }
+    }
+}
+
 /// One accepted connection, as the two traits `hyper` drives it through.
 ///
 /// Concrete over [`NvsTcp`] rather than generic over the stream: ADR 0097 § 1
@@ -74,20 +142,67 @@ pub const SCRATCH: usize = 8 * 1024;
 #[derive(Debug)]
 pub struct ConnectionIo {
     stream: NvsTcp,
+    /// The four numbers, fixed for this connection's life — `[server]` is
+    /// `Boot`-class (ADR 0097 § 5), so a reload does not move them under a
+    /// connection already being served.
+    waits: Waits,
+    /// The phase in force, shared with the connection loop: the module doc
+    /// § *The clock* says which of the four changes each of the two can see.
+    phase: Rc<Cell<Phase>>,
+    /// The phase the stream's deadline was last armed for, so that a poll which
+    /// changed nothing does not push the deadline it is about to be judged
+    /// against forward.
+    armed: Option<Phase>,
 }
 
 impl ConnectionIo {
-    /// Takes over an accepted connection.
+    /// Takes over an accepted connection, bounded by `waits`.
     #[must_use]
-    pub fn new(stream: NvsTcp) -> Self {
-        Self { stream }
+    pub fn new(stream: NvsTcp, waits: Waits) -> Self {
+        Self {
+            stream,
+            waits,
+            phase: Rc::new(Cell::new(Phase::Head)),
+            armed: None,
+        }
+    }
+
+    /// The handle the connection loop moves between the head, the body and the
+    /// response.
+    ///
+    /// A shared cell rather than a method on this type, because by the time
+    /// there is a request to frame this value has been moved into `hyper` and
+    /// the loop can no longer reach it. Setting it is not itself an arming: the
+    /// next poll notices the phase changed and re-arms, which is the only
+    /// moment at which a wait can honestly start.
+    #[must_use]
+    pub fn phase(&self) -> Rc<Cell<Phase>> {
+        Rc::clone(&self.phase)
+    }
+
+    /// Puts the current phase's wait on the stream, or refreshes it.
+    ///
+    /// `progressed` is what makes a wait idle rather than total: bytes moved,
+    /// so the clock starts again. Without it the arming is once per phase, for
+    /// the module doc's reason — the poll after an expiry is the one that has
+    /// to see it.
+    fn arm(&mut self, progressed: bool) {
+        let phase = self.phase.get();
+        if !progressed && self.armed == Some(phase) {
+            return;
+        }
+        self.armed = Some(phase);
+        let at = Instant::now() + phase.wait_in(&self.waits);
+        self.stream_mut().set_deadline(Some(at));
     }
 
     /// The stream underneath, for the caller that has to set a deadline on it.
     ///
-    /// ADR 0074 § 5's idle timeouts are the stream's own bound and not
-    /// something `hyper` knows about, so the connection loop reaches through
-    /// here to move them between the request head, the body and the response.
+    /// ADR 0097 § 5's idle waits are the stream's own bound and not something
+    /// `hyper` knows about, so [`ConnectionIo::arm`] reaches through here to
+    /// move them between the request head, the body and the response — and so
+    /// does a caller that has taken the stream back for an upgrade and owns the
+    /// clock from then on.
     pub fn stream_mut(&mut self) -> &mut NvsTcp {
         &mut self.stream
     }
@@ -100,19 +215,35 @@ impl ConnectionIo {
     /// caller keeps it past that — an upgrade to a WebSocket, which
     /// [ADR 0083](../../../docs/adr/0083-persistent-connections-are-isolates.md)
     /// makes an isolate over the same descriptor.
+    ///
+    /// The deadline goes with it: what bounds a WebSocket is that isolate's own
+    /// wait and not the response wait this connection happened to be in when
+    /// the upgrade was agreed, so the stream is handed over unbounded and the
+    /// caller arms it.
     #[must_use]
-    pub fn into_stream(self) -> NvsTcp {
+    pub fn into_stream(mut self) -> NvsTcp {
+        self.stream.set_deadline(None);
         self.stream
     }
 }
 
 impl Read for ConnectionIo {
-    /// The module's one sentence, on the readable interest.
+    /// The module's one sentence, on the readable interest — and the two phase
+    /// changes a read is the evidence for.
     fn poll_read(
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
         mut cursor: ReadBufCursor<'_>,
     ) -> Poll<io::Result<()>> {
+        // `hyper` reads again only once it is finished writing, so a read
+        // attempted in the response phase *is* the end of that response. The
+        // one shape this reads early is a body `hyper` drains after answering,
+        // and the consequence there is the longer of two waits on a connection
+        // that is demonstrably still moving.
+        if self.phase.get() == Phase::Write {
+            self.phase.set(Phase::KeepAlive);
+        }
+        self.arm(false);
         let want = cursor.remaining().min(SCRATCH);
         if want == 0 {
             // `hyper` has nowhere to put anything, so a syscall here could only
@@ -122,6 +253,14 @@ impl Read for ConnectionIo {
         let mut scratch = [0_u8; SCRATCH];
         match self.stream.poll_read(&mut scratch[..want]) {
             Poll::Ready(Ok(read)) => {
+                // The first byte after a response is the next request's head,
+                // which ends the keep-alive wait and starts the header one.
+                if read > 0 {
+                    if self.phase.get() == Phase::KeepAlive {
+                        self.phase.set(Phase::Head);
+                    }
+                    self.arm(true);
+                }
                 cursor.put_slice(&scratch[..read]);
                 Poll::Ready(Ok(()))
             }
@@ -138,7 +277,12 @@ impl Write for ConnectionIo {
         _cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        self.stream.poll_write(buf)
+        self.arm(false);
+        let written = self.stream.poll_write(buf);
+        if matches!(written, Poll::Ready(Ok(bytes)) if bytes > 0) {
+            self.arm(true);
+        }
+        written
     }
 
     /// Nothing is buffered on this side, so there is nothing to push.

@@ -774,14 +774,16 @@ pub struct Server {
     /// The in-flight ceiling.
     pub max_in_flight: Option<u64>,
     /// The header read wait — one of four waits, all finite with nothing configured and all *idle*
-    /// rather than total.
-    pub header_timeout: Option<String>,
+    /// rather than total. [`mod@crate::server`] reads all four into durations and owns what each
+    /// one bounds; a `Setting` rather than a `String` so that `"10s"` and a bare `10` spell the
+    /// same wait, which is [`mod@crate::value`]'s rule for every duration in the tree.
+    pub header_timeout: Option<Setting>,
     /// The body idle wait.
-    pub body_idle_timeout: Option<String>,
+    pub body_idle_timeout: Option<Setting>,
     /// The write idle wait.
-    pub write_idle_timeout: Option<String>,
+    pub write_idle_timeout: Option<Setting>,
     /// The keep-alive idle wait.
-    pub keepalive_timeout: Option<String>,
+    pub keepalive_timeout: Option<Setting>,
     /// `[[server.mount]]` — one rule per mount (§ 4).
     pub mount: Vec<Mount>,
 }

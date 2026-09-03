@@ -45,13 +45,13 @@
 //!   § 3's rendering of a failure into a development response are both the
 //!   configuration slice's, because a mode is what decides them and this loop
 //!   has not been given one.
-//! - **No deadline on a connection.** [`crate::io::ConnectionIo::stream_mut`]
-//!   exists for exactly that and nothing calls it here, so a peer that opens a
-//!   socket and says nothing holds a coroutine until it goes away.
-//!   [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 5's
-//!   waits are the `[server]` configuration this loop has not been given, and
-//!   until it has, nothing user-reachable starts this loop — `nvs serve` is the
-//!   slice that changes both at once.
+//! - **No `max_in_flight` and no accept backoff.** ADR 0097 § 5's other two
+//!   bounds are process-wide rather than per connection — a fixed `503` before
+//!   an isolate is allocated, and a listener that backs off on descriptor
+//!   exhaustion — and both belong to the slice that gives this loop a core
+//!   count to be process-wide across. The four waits *are* here:
+//!   [`crate::io::Phase`] is which one is in force, and the connection loop
+//!   below is what moves it.
 //! - **One core.** The name says so: a listener bound once and handed to several
 //!   cores through [`nvs_host::NvsListener::from_std`] is the fan-out, and it is
 //!   the same loop on each of them.
@@ -68,12 +68,14 @@ use hyper::body::{Body, Bytes, Frame, Incoming, SizeHint};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
+use nvs_config::Waits;
 use nvs_host::{
     Completion, Isolate, NvsListener, NvsTcp, Waiting, Wake, block_on, spawn_child, suspend_current,
 };
 use nvs_runtime::{Ctx, OutputSink, TaskRoot};
 
 use crate::ConnectionIo;
+use crate::io::Phase;
 
 /// A response body this server already holds in full, sent as one frame.
 ///
@@ -163,20 +165,40 @@ impl Body for Answer {
 /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
 /// lazily yielded parts are the slice that reads one.
 ///
+/// **`waits` is the clock, and it is a parameter and not a default.** ADR 0097
+/// § 5's four waits bound this connection from the moment it is accepted, and
+/// [`crate::io`]'s § *The clock* is where they are actually enforced; what this
+/// function owns is the one phase change no adapter can see, which is that
+/// `hyper` framing a head ends the header wait and answering the request starts
+/// the write one.
+///
 /// # Errors
 ///
 /// `hyper`'s own for this connection: a peer that spoke something other than
-/// h1, a socket that failed under it, or a request it refused to frame. A
-/// cancelled task is not one of them — the drive answers `None` and this
-/// reports `Ok`, because the connection ended for a reason its caller already
-/// knows about. **A request's own failure is not one either**: ADR 0006's
-/// failure is a value, so it becomes a response instead.
-pub fn serve_connection<H>(stream: NvsTcp, ctx: &mut Ctx, handler: &H) -> hyper::Result<()>
+/// h1, a socket that failed under it, a request it refused to frame, or a wait
+/// that expired under it. A cancelled task is not one of them — the drive
+/// answers `None` and this reports `Ok`, because the connection ended for a
+/// reason its caller already knows about. **A request's own failure is not one
+/// either**: ADR 0006's failure is a value, so it becomes a response instead.
+pub fn serve_connection<H>(
+    stream: NvsTcp,
+    ctx: &mut Ctx,
+    handler: &H,
+    waits: Waits,
+) -> hyper::Result<()>
 where
     H: Fn(Request<Incoming>) -> Isolate,
 {
     let ctx = RefCell::new(ctx);
+    let io = ConnectionIo::new(stream, waits);
+    // Taken before the adapter is handed to `hyper`, because that is the last
+    // moment anything on this side can reach it.
+    let phase = io.phase();
     let service = service_fn(|request: Request<Incoming>| {
+        // A head that framed is a head that arrived: what this connection is
+        // waiting for from here is the body, and then nothing until the answer
+        // exists.
+        phase.set(Phase::Body);
         let isolate = handler(request);
         let answered = match isolate.run(&mut ctx.borrow_mut()) {
             Ok(done) => answer(done),
@@ -186,9 +208,13 @@ where
             // is one more `500`.
             Err(_refused) => failed(),
         };
+        // The request took as long as it took — a request's own runtime is
+        // ADR 0106's ceiling and not a socket wait — and what remains on this
+        // connection is a peer reading what it asked for.
+        phase.set(Phase::Write);
         std::future::ready(Ok::<_, Infallible>(answered))
     });
-    let connection = http1::Builder::new().serve_connection(ConnectionIo::new(stream), service);
+    let connection = http1::Builder::new().serve_connection(io, service);
     block_on(connection).unwrap_or(Ok(()))
 }
 
@@ -242,6 +268,12 @@ fn failed() -> Response<Answer> {
 /// control socket is one such caller) and this loop has no business polling for
 /// it.
 ///
+/// `waits` is handed to every connection unchanged and is never re-read: ADR
+/// 0097 § 5 makes `[server]` `Boot`-class precisely because `header_timeout`
+/// and `keepalive_timeout` apply before any Novis code exists on a connection,
+/// so a reload that moved them under a socket already accepted would be a
+/// promise two of the four could not keep.
+///
 /// # Errors
 ///
 /// The listener's own, which ends the whole loop — a listening socket that
@@ -254,6 +286,7 @@ fn failed() -> Response<Answer> {
 pub fn serve_on_this_core<H>(
     listener: &mut NvsListener,
     handler: &Rc<H>,
+    waits: Waits,
     mut keep_serving: impl FnMut() -> ControlFlow<()>,
 ) -> io::Result<()>
 where
@@ -293,7 +326,7 @@ where
             // is the one that failed, and the accept loop above must not stop
             // for it — the log this belongs in is the slice that gives this
             // loop a configuration.
-            drop(serve_connection(stream, ctx, handler.as_ref()));
+            drop(serve_connection(stream, ctx, handler.as_ref(), waits));
         });
         if spawned.is_none() {
             // Unreachable while `Wake::current` answered above, and the guard
@@ -358,6 +391,16 @@ mod tests {
     use nvs_runtime::Value;
     use std::io::{Read as _, Write as _};
     use std::net::TcpStream;
+    use std::time::Duration;
+
+    /// How long a client waits before it gives up and closes, in the two tests
+    /// whose subject is a connection the *server* is supposed to close.
+    ///
+    /// Comfortably above every wait those tests configure and comfortably below
+    /// any default, so a phase machine that never armed the wait under test
+    /// fails the assertion instead of hanging the suite: the client's own close
+    /// is what lets the accept loop finish and the test report.
+    const CLIENT_PATIENCE: Duration = Duration::from_secs(10);
 
     /// The isolate the first two tests answer with: a program that echoes the
     /// path back, so that a response asserted below is the answer to the
@@ -418,8 +461,10 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &echo_the_path(), || ControlFlow::Break(()))
-                .expect("the accept loop failed");
+            serve_on_this_core(&mut listener, &echo_the_path(), Waits::default(), || {
+                ControlFlow::Break(())
+            })
+            .expect("the accept loop failed");
         });
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
 
@@ -474,8 +519,10 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &echo_the_path(), || ControlFlow::Break(()))
-                .expect("the accept loop failed");
+            serve_on_this_core(&mut listener, &echo_the_path(), Waits::default(), || {
+                ControlFlow::Break(())
+            })
+            .expect("the accept loop failed");
         });
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
 
@@ -530,8 +577,10 @@ mod tests {
         let _installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
-            serve_on_this_core(&mut listener, &handler, || ControlFlow::Break(()))
-                .expect("the accept loop failed");
+            serve_on_this_core(&mut listener, &handler, Waits::default(), || {
+                ControlFlow::Break(())
+            })
+            .expect("the accept loop failed");
         });
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
 
@@ -543,6 +592,109 @@ mod tests {
         assert!(
             answer.to_ascii_lowercase().contains("content-length: 0"),
             "a failed request answered with a body: {answer}"
+        );
+    }
+
+    /// ADR 0097 § 5's header wait, as the connection it ends: a peer that opens
+    /// a socket and says nothing holds a coroutine to hear nothing, and the
+    /// clock is the only thing that can notice. Asserted as a **closed**
+    /// connection rather than as a status — [`crate::io`]'s docs § *The clock*
+    /// own why a peer that never framed a request is owed no response.
+    #[test]
+    fn a_connection_that_sends_no_head_is_closed_by_the_header_wait() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            let mut seen = String::new();
+            (socket.read_to_string(&mut seen).is_ok(), seen)
+        });
+
+        let waits = Waits {
+            header: Duration::from_millis(60),
+            ..Waits::default()
+        };
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(&mut listener, &echo_the_path(), waits, || {
+                ControlFlow::Break(())
+            })
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let (closed, seen) = client.join().expect("the client thread panicked");
+        assert!(
+            closed,
+            "a connection that said nothing outlived its header wait"
+        );
+        assert!(
+            seen.is_empty(),
+            "a connection that framed no request was answered anyway: {seen}"
+        );
+    }
+
+    /// The keep-alive wait, which is the one that proves the phase machine
+    /// **moves**: this connection is answered under the header wait and then
+    /// closed under a different one. The header wait is left far above the
+    /// client's own patience on purpose, so a machine stuck in
+    /// [`Phase::Head`](crate::io::Phase::Head) fails the assertion rather than
+    /// passing it slowly.
+    #[test]
+    fn an_idle_kept_alive_connection_is_closed_by_the_keepalive_wait() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            // No `Connection: close`, so the connection is the server's to keep
+            // and the client asks for nothing more.
+            socket
+                .write_all(b"GET /one HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .expect("the write failed");
+            let mut seen = String::new();
+            (socket.read_to_string(&mut seen).is_ok(), seen)
+        });
+
+        let waits = Waits {
+            header: Duration::from_secs(30),
+            keepalive: Duration::from_millis(60),
+            ..Waits::default()
+        };
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(&mut listener, &echo_the_path(), waits, || {
+                ControlFlow::Break(())
+            })
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let (closed, seen) = client.join().expect("the client thread panicked");
+        assert!(
+            seen.contains("hello /one"),
+            "the connection was closed before it answered: {seen}"
+        );
+        assert!(
+            closed,
+            "an idle kept-alive connection was still open a header wait later: {seen}"
         );
     }
 }

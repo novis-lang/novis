@@ -22,11 +22,14 @@
 //! § 3). There is one isolation path in this tree and that is it; a second one
 //! would leave M7's state-bleed suite proving nothing.
 //!
+//! **A connection is bounded by a clock**: ADR 0097 § 5's four waits arrive as
+//! one `nvs_config::server::Waits`, and [`io`]'s docs § *The clock* are where
+//! they are enforced — idle waits refreshed by the bytes that move, never a
+//! total, and no state a connection can be in that is not one of the four.
+//!
 //! What is **not** here yet is the mount table that decides *which* isolate a
-//! request selects, and the `[server]` configuration. [`serve`]'s own docs
-//! § *What this module does not decide yet* is the list, and it includes the
-//! one that matters most — a connection carries no deadline, so nothing
-//! user-reachable starts this loop until it does.
+//! request selects, and the rest of `[server]`. [`serve`]'s own docs
+//! § *What this module does not decide yet* is the list.
 //!
 //! # Why `hyper` and not our own h1
 //!
@@ -53,5 +56,5 @@
 pub mod io;
 pub mod serve;
 
-pub use io::ConnectionIo;
+pub use io::{ConnectionIo, Phase};
 pub use serve::{Answer, serve_connection, serve_on_this_core};
