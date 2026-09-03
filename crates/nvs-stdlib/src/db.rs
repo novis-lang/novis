@@ -85,12 +85,14 @@
 //!    [`settings_driver`] is therefore a literal one arm has already accepted,
 //!    which is why it reads the discriminant before it reads anything else and
 //!    why every slot it then reads is filled.
-//! 2. **Two drivers open, and MySQL runs only `query` of the four members that
-//!    send.** `connect`
-//!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block
-//!    and a `mysql` block each reach their own target, their own default port
-//!    and their own `nvs_db::Connection` variant. A block naming any of the
-//!    other three is still refused by `nvs_db::PgTarget::resolve` with the
+//! 2. **Three drivers open, and everything past the handshake follows.**
+//!    `connect`
+//!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block,
+//!    a `mysql` block and a `mariadb` block each reach their own target, their
+//!    own default port and their own `nvs_db::Connection` variant, and `open`
+//!    branches the same three ways on the settings hash's own `driver`. A block
+//!    naming either of the other two is still refused by
+//!    `nvs_db::PgTarget::resolve` with the
 //!    message that names the driver it is, which is the honest answer while
 //!    those variants have no connect path behind them. Past the handshake the
 //!    list is shorter than that. Binding is whole: [`rendering_of`] pairs § 5's
@@ -100,12 +102,15 @@
 //!    and [`mysql_rows`] drains a binary result set through § 9's decode, so
 //!    `query`, `queryAs`, `execute` and `executeMany` answer on either driver,
 //!    § 11's event included. § 7's `transaction` does too, over [`Transacting`]
-//!    — the two drivers' commands differ and `nvs_db::mysql`'s `begin` owns how,
-//!    but the five points this module asks them at do not. What is still
-//!    PostgreSQL-only is [`crate::queue`]'s four members, and that is all of
-//!    known gap 2 above the handshake. MariaDB binds and then has nowhere to
-//!    send, which is the arm [`driverless`] refuses on.
-//! 3. **Only the two drivers that open are pooled.** ADR 0067 § 13's pool is
+//!    — the drivers' commands differ and `nvs_db::mysql`'s `begin` owns how,
+//!    but the five points this module asks them at do not. MySQL and MariaDB
+//!    reach all of it through one body rather than two: [`Framed`] is that
+//!    seam, and its doc is where "its own driver above the framing, not inside
+//!    it" is argued. What is still PostgreSQL-only is [`crate::queue`]'s four
+//!    members, and that is all of known gap 2 above the handshake. SQL Server
+//!    binds and then has nowhere to send, which is the arm [`driverless`]
+//!    refuses on.
+//! 3. **Only the three drivers that open are pooled.** ADR 0067 § 13's pool is
 //!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
 //!    teardown under the ticket `Core\Db::connect` files, and
 //!    [`warm_connection`] takes one back out behind that section's reset. A
@@ -2954,6 +2959,16 @@ pub(crate) fn open_named(
                     .map_err(|err| opening(address, &err))?;
                 nvs_db::Connection::MySql(conn)
             }
+            Some(nvs_db::Driver::MariaDb) => {
+                let target = nvs_db::MariaTarget::resolve(block).map_err(|refused| {
+                    Fault::thrown(format!("{named}: {}", refused.refusal(name)))
+                })?;
+                let address =
+                    address_of(target.host, block.port, nvs_db::maria::DEFAULT_PORT, name)?;
+                let conn = nvs_db::MariaConn::connect(address, &target, deadline)
+                    .map_err(|err| opening(address, &err))?;
+                nvs_db::Connection::MariaDb(conn)
+            }
             _ => {
                 let target = nvs_db::PgTarget::resolve(block).map_err(|refused| {
                     Fault::thrown(format!("{named}: {}", refused.refusal(name)))
@@ -3318,6 +3333,15 @@ nvs_runtime::nvs_helper! {
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::MySql(conn)
                     }
+                    nvs_db::Driver::MariaDb => {
+                        let mut target = nvs_db::MariaTarget::resolve(&block).map_err(refused)?;
+                        target.time_zone = zone;
+                        let address =
+                            SocketAddr::new(pinned, port_of(port, nvs_db::maria::DEFAULT_PORT));
+                        let conn = nvs_db::MariaConn::connect(address, &target, deadline)
+                            .map_err(|err| opening(address, &err))?;
+                        nvs_db::Connection::MariaDb(conn)
+                    }
                     nvs_db::Driver::Postgres => {
                         let mut target = nvs_db::PgTarget::resolve(&block).map_err(refused)?;
                         target.time_zone = zone;
@@ -3327,9 +3351,9 @@ nvs_runtime::nvs_helper! {
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::Postgres(conn)
                     }
-                    // MariaDB and SQL Server, which bind and decode but have no
-                    // handshake here — known gap 2's list, and the same refusal
-                    // a block naming one earns.
+                    // SQL Server, which binds and decodes but has no handshake
+                    // here — known gap 2's list, and the same refusal a block
+                    // naming it earns. SQLite left above, at its own field.
                     other => {
                         return Err(Fault::thrown(format!(
                             "{OPEN}: `{}` is a driver this build has no connection path for yet, \
@@ -4130,8 +4154,10 @@ fn batch_of(
 /// section's property is met.
 ///
 /// A connection filed by any other driver is dropped here for the same reason —
-/// `nvs_db::Connection`'s other three variants have no reset behind them yet,
-/// so they are not poolable and this is the one place that is enforced.
+/// `nvs_db::Connection`'s other two variants have no reset behind them yet, so
+/// they are not poolable and this is the one place that is enforced. MariaDB's
+/// arm is MySQL's: `COM_RESET_CONNECTION` is one protocol's command and § 13
+/// says of both that it drops the prepared statements with the session state.
 fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connection> {
     let held = nvs_runtime::pool::take(lease, std::time::Instant::now())?;
     let connection = held.into_any().downcast::<nvs_db::Connection>().ok()?;
@@ -4140,6 +4166,9 @@ fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connectio
             Some(nvs_db::Connection::Postgres(postgres.reset().ok()?))
         }
         nvs_db::Connection::MySql(mysql) => Some(nvs_db::Connection::MySql(mysql.reset().ok()?)),
+        nvs_db::Connection::MariaDb(maria) => {
+            Some(nvs_db::Connection::MariaDb(maria.reset().ok()?))
+        }
         _ => None,
     }
 }
@@ -4334,7 +4363,7 @@ fn filed_connection<'a>(
 
 /// A connection ADR 0067 § 7's commands are written for, borrowed as one thing.
 ///
-/// The two drivers spell a transaction differently — `nvs_db::mysql`'s `begin`
+/// The drivers spell a transaction differently — `nvs_db::mysql`'s `begin`
 /// owns the differences, from `START TRANSACTION` down to the release a nested
 /// rollback does not owe — but they answer the same four questions, and
 /// `transaction` asks them at five points around a closure it does not control.
@@ -4352,6 +4381,10 @@ enum Transacting<'a> {
     Postgres(&'a mut nvs_db::PgConn),
     /// § 7 over `COM_QUERY`, with an isolation level as a command of its own.
     MySql(&'a mut nvs_db::MySqlConn),
+    /// The same commands over the same framing — `nvs_db::mysql`'s `begin`,
+    /// `commit` and `roll_back` are what `nvs_db::MariaConn` delegates to, as
+    /// [`Framed`] says of the send path.
+    MariaDb(&'a mut nvs_db::MariaConn),
 }
 
 impl Transacting<'_> {
@@ -4360,6 +4393,7 @@ impl Transacting<'_> {
         match self {
             Transacting::Postgres(postgres) => postgres.depth(),
             Transacting::MySql(mysql) => mysql.depth(),
+            Transacting::MariaDb(maria) => maria.depth(),
         }
     }
 
@@ -4377,6 +4411,7 @@ impl Transacting<'_> {
         match self {
             Transacting::Postgres(postgres) => postgres.begin(isolation, read_only),
             Transacting::MySql(mysql) => mysql.begin(isolation, read_only),
+            Transacting::MariaDb(maria) => maria.begin(isolation, read_only),
         }
     }
 
@@ -4389,6 +4424,7 @@ impl Transacting<'_> {
         match self {
             Transacting::Postgres(postgres) => postgres.commit(),
             Transacting::MySql(mysql) => mysql.commit(),
+            Transacting::MariaDb(maria) => maria.commit(),
         }
     }
 
@@ -4401,6 +4437,7 @@ impl Transacting<'_> {
         match self {
             Transacting::Postgres(postgres) => postgres.roll_back(),
             Transacting::MySql(mysql) => mysql.roll_back(),
+            Transacting::MariaDb(maria) => maria.roll_back(),
         }
     }
 }
@@ -4423,6 +4460,7 @@ fn transacting<'a>(
     match filed_connection(ctx, key, named)? {
         nvs_db::Connection::Postgres(postgres) => Ok(Transacting::Postgres(postgres)),
         nvs_db::Connection::MySql(mysql) => Ok(Transacting::MySql(mysql)),
+        nvs_db::Connection::MariaDb(maria) => Ok(Transacting::MariaDb(maria)),
         other => Err(driverless(named, block, other.driver())),
     }
 }
@@ -4517,9 +4555,22 @@ fn queried_rows(
         nvs_db::Connection::Postgres(postgres) => {
             postgres_rows(postgres, &statement, &sending, source, watch, named)?
         }
-        nvs_db::Connection::MySql(mysql) => {
-            mysql_rows(mysql, &statement, &sending, source, watch, named)?
-        }
+        nvs_db::Connection::MySql(mysql) => mysql_rows(
+            Framed::MySql(mysql),
+            &statement,
+            &sending,
+            source,
+            watch,
+            named,
+        )?,
+        nvs_db::Connection::MariaDb(maria) => mysql_rows(
+            Framed::MariaDb(maria),
+            &statement,
+            &sending,
+            source,
+            watch,
+            named,
+        )?,
         other => return Err(driverless(named, &statement.block, other.driver())),
     };
     watch.file(ctx, taken);
@@ -4536,8 +4587,8 @@ fn queried_rows(
 /// saying which is what an operator cannot act on.
 fn driverless(named: &str, block: &Value, driver: nvs_db::Driver) -> Fault {
     Fault::thrown(format!(
-        "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL and MySQL run a \
-         statement so far — this module's known gap 2 is the list",
+        "{named}: `[db.{}]` is a {driver:?} connection, and only PostgreSQL, MySQL and MariaDB \
+         run a statement so far — this module's known gap 2 is the list",
         block.as_text().unwrap_or("?")
     ))
 }
@@ -4621,8 +4672,62 @@ fn postgres_rows(
     ))
 }
 
-/// [`queried_rows`] over the MySQL driver: ADR 0067 § 1's `COM_STMT_EXECUTE`,
-/// and § 9's decode of the binary rows it answers with.
+/// A connection `nvs_db::mysql`'s statement path is written for, borrowed as
+/// one thing.
+///
+/// **MariaDB is its own driver above the framing, not inside it.** ADR 0067 § 2
+/// is emphatic that treating it as a MySQL flag is a design error, and
+/// `nvs_db::maria` obeys that where it counts — its own targets, its own
+/// authentication roster, its own § 8 code table. What it does not duplicate is
+/// the wire: `nvs_db::MariaConn::query` is a two-line delegation into the same
+/// `nvs_db::mysql::start_statement` that `nvs_db::MySqlConn::query` is, and it
+/// hands back the same `nvs_db::MySqlRows`. So the only difference this module
+/// can observe between the two on the send path is the *type of the borrow*,
+/// and the three send members would otherwise each grow a second arm that
+/// copies the first line for line.
+///
+/// An enum rather than a trait, for [`Transacting`]'s reason and no other: what
+/// wants flattening is the call sites. Where the two drivers genuinely part —
+/// MariaDB's `RETURNING`, which MySQL does not have — the arm belongs on the
+/// connection in `nvs-db`, and nothing about it reaches here.
+enum Framed<'a> {
+    /// § 1's two round trips as MySQL frames them.
+    MySql(&'a mut nvs_db::MySqlConn),
+    /// The same two, framed as MariaDB and authenticated by its own roster.
+    MariaDb(&'a mut nvs_db::MariaConn),
+}
+
+impl Framed<'_> {
+    /// § 9's zone a zone-less `DATETIME` off this connection is read in, as
+    /// seconds east of UTC.
+    fn time_zone(&self) -> i32 {
+        match self {
+            Framed::MySql(mysql) => mysql.time_zone(),
+            Framed::MariaDb(maria) => maria.time_zone(),
+        }
+    }
+
+    /// ADR 0067 § 1's round trips for one statement, and the rows it answers
+    /// with.
+    ///
+    /// # Errors
+    ///
+    /// As the driver's own `query`, which on both is
+    /// `nvs_db::mysql::start_statement`'s.
+    fn query(
+        &mut self,
+        sql: &str,
+        params: &[Option<&[u8]>],
+    ) -> std::io::Result<nvs_db::MySqlRows<'_>> {
+        match self {
+            Framed::MySql(mysql) => mysql.query(sql, params),
+            Framed::MariaDb(maria) => maria.query(sql, params),
+        }
+    }
+}
+
+/// [`queried_rows`] over the two drivers [`Framed`] covers: ADR 0067 § 1's
+/// `COM_STMT_EXECUTE`, and § 9's decode of the binary rows it answers with.
 ///
 /// **The same shape as [`postgres_rows`] and deliberately not shared with it.**
 /// The two drivers agree on what a row *is* — a keyed array under the labels the
@@ -4645,7 +4750,7 @@ fn postgres_rows(
 /// for a row narrower than the definitions it was decoded against, which is a
 /// `nvs-db` bug rather than a program's.
 fn mysql_rows(
-    mysql: &mut nvs_db::MySqlConn,
+    mut framed: Framed<'_>,
     statement: &Statement,
     sending: &[Option<&[u8]>],
     source: Option<&str>,
@@ -4654,8 +4759,8 @@ fn mysql_rows(
 ) -> Result<(Answered, Option<(String, std::time::Duration)>), Fault> {
     // As [`postgres_rows`], and § 9's zone rule is the connection's on both
     // drivers.
-    let zone = mysql.time_zone();
-    let mut answered = mysql
+    let zone = framed.time_zone();
+    let mut answered = framed
         .query(&statement.sql, sending)
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
     name_span(&mut answered, statement.block.as_text());
@@ -4762,14 +4867,14 @@ fn postgres_write(
 ///
 /// [`statement_failure`] for anything the server refused.
 fn mysql_write(
-    mysql: &mut nvs_db::MySqlConn,
+    mut framed: Framed<'_>,
     statement: &Statement,
     sending: &[Option<&[u8]>],
     source: Option<&str>,
     watch: QueryWatch,
     named: &str,
 ) -> Result<(Written, Option<(String, std::time::Duration)>), Fault> {
-    let mut answered = mysql
+    let mut answered = framed
         .query(&statement.sql, sending)
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
     name_span(&mut answered, statement.block.as_text());
@@ -5333,8 +5438,16 @@ nvs_runtime::nvs_helper! {
                 postgres_write(postgres, &statement, &sending, source, watch, EXECUTE)?
             }
             nvs_db::Connection::MySql(mysql) => {
-                mysql_write(mysql, &statement, &sending, source, watch, EXECUTE)?
+                mysql_write(Framed::MySql(mysql), &statement, &sending, source, watch, EXECUTE)?
             }
+            nvs_db::Connection::MariaDb(maria) => mysql_write(
+                Framed::MariaDb(maria),
+                &statement,
+                &sending,
+                source,
+                watch,
+                EXECUTE,
+            )?,
             other => return Err(driverless(EXECUTE, &statement.block, other.driver())),
         };
         watch.file(ctx, taken);
@@ -5413,6 +5526,11 @@ nvs_runtime::nvs_helper! {
         let written = match connection {
             nvs_db::Connection::Postgres(postgres) => postgres.execute_many(&batch.sql, &sets),
             nvs_db::Connection::MySql(mysql) => mysql.execute_many(&batch.sql, &sets),
+            // Not through [`Framed`]: that seam exists to stop a *body* being
+            // written twice, and this arm is the whole body. § 4 runs N
+            // executions on both drivers and `nvs_db::mysql::execute_many` is
+            // the one that runs them.
+            nvs_db::Connection::MariaDb(maria) => maria.execute_many(&batch.sql, &sets),
             other => return Err(driverless(EXECUTE_MANY, &batch.block, other.driver())),
         }
         .map_err(|refused| {
@@ -7328,6 +7446,42 @@ mod tests {
             ],
             "this module's known gap 2 names the drivers a statement is written for, and a driver \
              that gains an encoder belongs in both places"
+        );
+    }
+
+    /// [`driverless`]'s refusal names every driver that does send, and names no
+    /// driver that does not.
+    ///
+    /// **An agreement test rather than a wording one.** Known gap 2's roster
+    /// lives in places that cannot see each other — the match arms of
+    /// [`queried_rows`], `execute` and `executeMany`, § 5's encoder roster that
+    /// the test above pins, and one sentence inside [`driverless`] — and the
+    /// way it breaks is the sentence going stale while the arms grow. What an
+    /// operator then reads is "this build cannot do that" about a driver that
+    /// just did, which is the one thing that message exists to prevent.
+    #[test]
+    fn the_refusal_names_every_driver_that_sends() {
+        let sending = [
+            nvs_db::Driver::Postgres,
+            nvs_db::Driver::MySql,
+            nvs_db::Driver::MariaDb,
+        ];
+        let block = Value::str(NvsStr::new(b"main"));
+        let refused = format!("{:?}", driverless(QUERY, &block, nvs_db::Driver::SqlServer));
+        for driver in sending {
+            assert!(
+                rendering_for(driver).is_some(),
+                "{driver:?} sends a statement, so § 5 has to render one for it"
+            );
+            assert!(
+                refused.contains(driver.display_name()),
+                "{driver:?} sends a statement, and the refusal a driver that cannot earns has to \
+                 say so: {refused}"
+            );
+        }
+        assert!(
+            !refused.contains(nvs_db::Driver::Sqlite.display_name()),
+            "and it must not name one no arm reaches: {refused}"
         );
     }
 
