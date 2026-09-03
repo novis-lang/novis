@@ -61,6 +61,30 @@ to. A driver that interpolates inside itself has reintroduced exactly the thing 
    something with no pass behind it is worse than a short one." It is the same pass over a second format,
    and it goes first because § 6's `queryAs<T>` is written against it and a row-mapping written without it
    is written twice.
+3. **An empty array is a per-thread singleton, not an allocation** —
+   [userland-gap.md](../perf/userland-gap.md) § K is the whole design, the pricing and the two things it
+   rules out; this item is only the pointer and the sites. **It shares no file with the rest of the goal
+   and gets its own session**, exactly as item 1 does, and it is in the catch-up class for the same reason
+   item 1 is: it is `nvs-runtime` work that nothing in stages 2–10 will ever open, so the alternative is
+   that it waits behind five drivers, a pool and a queue for no reason. The sites:
+   [`array.rs:1212`](../../crates/nvs-runtime/src/array.rs) is `nvs_array_new`, and it is **the only
+   function that changes** — it stops boxing a header and answers the thread-local instead;
+   [`array.rs:990`](../../crates/nvs-runtime/src/array.rs) is `make_unique`, which is what makes that
+   sound and needs no edit at all, since a singleton the thread-local holds a reference to never has a
+   refcount of 1 and therefore always separates before a write. `retain`, `release` and the teardown path
+   are untouched and **no hot path gains a pointer comparison** — if a slice finds itself adding one, the
+   design has been mis-read. [`alloc.rs:99`](../../crates/nvs-runtime/src/alloc.rs) is the const-init
+   `thread_local!` pattern to copy, and its own § *The one trap* is why the singleton is a
+   `Cell<*mut ArrayHeader>` rather than the header by value.
+   **Read § K before writing anything**: it records why this is deliberately *not* the immortal-header
+   arrangement [`string.rs:96`](../../crates/nvs-runtime/src/string.rs) § *An immortal string* gives a
+   string literal — a read takes `table.borrow()` and writes the `RefCell` flag, so a header shared
+   between threads is a race on every `count()` — and why null-is-the-empty-array is ruled out rather
+   than open. The guard is `an_empty_array_allocates_nothing` in `array.rs`, over
+   `counting_alloc::allocated_bytes`, which is `pub(crate)` and so fixes the test's home; the playbook's
+   control rule applies, since the same test must show that writing into one *does* allocate. **Price it
+   first and say the number in the commit** — § K is explicitly unpriced, and if the measurement lands in
+   the noise then deleting § K and this item, rather than landing the singleton, is the right outcome.
 
 ## Stage 1 — the floor
 

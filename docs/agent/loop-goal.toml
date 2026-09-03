@@ -85,6 +85,12 @@ modules = [
   # The two things the type map borrows: Time's types for date columns, Json's for the JSON ones.
   "crates/nvs-stdlib/src/time.rs",
   "crates/nvs-stdlib/src/json.rs",
+  # Stage 0 item 3 only, and one map line each. `array.rs` is the file that changes, `alloc.rs` holds
+  # the const-init thread-local pattern it copies, and `string.rs` holds the arrangement it deliberately
+  # does not copy. No later stage opens any of the three.
+  "crates/nvs-runtime/src/array.rs",
+  "crates/nvs-runtime/src/alloc.rs",
+  "crates/nvs-runtime/src/string.rs",
 ]
 
 rules = ["0067", "0084", "0071", "0051", "0058", "0024", "0054", "0063", "0082"]
@@ -227,6 +233,31 @@ tests = [
 # before it lands is written against the wrong engine, and a catastrophic pattern that silently works
 # today is a case that silently stops working later.
 # ---------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- an empty array is a per-thread singleton. docs/perf/userland-gap.md § K is the design and
+# the pricing; item 3 in loop-goal.md is the sites. It is in the catch-up class rather than in a later
+# goal because it opens `nvs-runtime`, which nothing in stages 2-10 touches, and it is a GATE rather
+# than a note because a queued intent with nothing holding it is how the last four perf items waited.
+#
+# The control half is not optional. A test that only asserts "nothing was allocated" passes just as
+# well when the measurement is broken, so the SAME test must show that writing into the array does
+# allocate -- the playbook's control rule, and the reason both names are listed here.
+#
+# If the slice's own measurement lands in the noise, the right outcome is deleting § K, item 3 and this
+# block -- NOT landing the singleton to make a check pass. A check is allowed to be retired by the
+# session that proves it was not worth having; loop.py's own header says a session may rewrite this file.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 empty array"
+name = "nvs-runtime (an empty array allocates nothing)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "an_empty_array_allocates_nothing",
+  "writing_into_an_empty_array_allocates",
+]
+
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
