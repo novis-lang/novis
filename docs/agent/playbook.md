@@ -2407,6 +2407,20 @@ is why" — is this file.
   the whole run in `/tmp/leak-err` inside WSL, so
   `wsl.exe -- grep -n -B2 -A14 "definitely lost" /tmp/leak-err` is the next call after any
   `exit 97`, and only a block headed `… are definitely lost in loss record N` is yours.
+- **A `loop-goal.toml` fixture check whose frozen `want` belongs to a later stage cuts the
+  acceptance sweep off at that fixture, and the orientation banner calls it a regression.**
+  `native examples/upload.nvs` is checked against stage 5's `parts=2 / field=title / …` while
+  the fixture on disk prints what stage 2 can actually print, and `Goal._check` returns at the
+  first failure with the native program legs running ahead of every cargo check — so session
+  0005 ran **55 checks where session 0003 ran 307**, and no cargo test, no WSL leg and no
+  valgrind sweep ran at all. `.loop/log.md`'s `goal cost: Ns over N check(s)` is the line that
+  says so, and `tools/loop.py`'s own `load_goal` docstring records the same short-circuit
+  costing seventeen sessions on an earlier run. Two things follow. The banner's rule — "any
+  failure that is not `did not run` is a regression and outranks new work" — is wrong for a
+  fixture whose expected output is frozen ahead of the frontier, so read the `[[check]]` block's
+  `stage` before believing it; and the fix is never to rewrite the fixture to print the frozen
+  strings, because the file's header says the output is frozen and the *source* is not. The
+  fixture goes green when the stage that owns it lands.
 
 ## Writing a test case
 
