@@ -4,7 +4,7 @@
 
 **Goal 10 — a `callable` carries its signature — has just started; nothing of it has landed yet.** Goal
 9's whole list is this goal's Stage 1 floor. The design is settled and is not to be re-derived:
-[ADR 0136](../adr/0136-a-callable-carries-its-signature.md) landed with this goal and its five decisions
+ADR 0136 landed with this goal and its five decisions
 were taken with the user — the spelling `callable(T, U): R` with a mandatory return and no parameter
 names, bare `callable` kept as the top of the lattice, arity a prefix match (`n ≤ m`, matching what
 `call_closure` already does when it trims), parameters contravariant with a covariant return, and a `fn`

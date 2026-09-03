@@ -1,0 +1,206 @@
+# Goal 11 -- `///` is a doc comment. The acceptance test, as data.
+#
+# `11-doc-comments.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/doc-comments.nvs",
+]
+
+[context]
+
+modules = [
+  # `skip_trivia` -- ADR 0099 s1's one site, and the run-length rule lands in it.
+  "crates/nvs-syntax/src/lexer.rs",
+  # Where `TriviaKind` lives, beside the token types the LSP and the snapshot tests share.
+  "crates/nvs-syntax/src/token.rs",
+  # `parse_file` -- becomes `Parsed { stmts, trivia }`; the strict wrapper keeps every call site.
+  "crates/nvs-syntax/src/parser/mod.rs",
+  # Declarations and their attributes already meet here; the doc comment joins them.
+  "crates/nvs-syntax/src/parser/decl.rs",
+  # The AST node a doc comment hangs on.
+  "crates/nvs-syntax/src/ast.rs",
+  # The code registry -- the new codes are declared here or they do not exist.
+  "crates/nvs-diagnostics/src/lib.rs",
+  # `Command::Meta`, and where `--strict-docs` and `nvs doc` are wired.
+  "crates/nvs-cli/src/main.rs",
+  # The JSON emitter ADR 0117 s2 shapes; stage 5 adds the user half.
+  "crates/nvs-cli/src/meta.rs",
+]
+
+rules = ["0137", "0099", "0117", "0087", "0046", "0015", "0007", "0011"]
+
+# 0137 whole: it is this goal's entire design. 0099 s1 is the tree shape being built; s5 is the hover
+# row it feeds. The rest are sections.
+adrs = ["0137", "0099 §1", "0117 §2", "0087 §1"]
+
+shapes = ["A diagnostic", "A `.nvst` test case", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goals 4-10's container-backed checks.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: trivia is retained and the file survives it. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the trivia layer"
+name = "nvs-syntax (the fourth trivia kind, and the run-length rule)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "three_slashes_lex_as_a_doc_comment",
+  "two_slashes_lex_as_a_line_comment",
+  "four_or_more_slashes_lex_as_a_line_comment",
+  "a_hash_comment_is_never_a_doc_comment",
+  "a_block_comment_keeps_its_own_kind",
+  "tokens_and_trivia_reproduce_every_corpus_file_byte_for_byte",
+]
+
+# The seven files already carrying `///` reclassify with no edit. This is the check that says so, and it
+# is why stage 0 is empty.
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the trivia layer"
+name = "nvs-syntax (the existing corpus reclassifies without an edit)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "the_existing_triple_slash_comments_attach_to_their_declarations",
+  "the_four_slash_divider_in_the_encoding_case_stays_ordinary",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- attachment, and the closed set. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the closed set"
+name = "nvs-syntax (attachment, and every tag but the two)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_doc_comment_run_attaches_to_the_declaration_that_follows",
+  "a_blank_line_breaks_attachment",
+  "a_doc_comment_attached_to_nothing_is_refused",
+  "see_and_example_parse_as_tags",
+  "param_is_refused_naming_the_signature",
+  "returns_is_refused_naming_the_signature",
+  "throws_is_refused_naming_the_prose",
+  "an_invented_tag_is_refused",
+  "an_at_sign_inside_prose_is_not_a_tag",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the two checks that keep a tag honest. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the checks"
+name = "nvs-hir (@see resolves, @example exists and is walked)"
+args = ["test", "-p", "nvs-hir"]
+tests = [
+  "a_see_target_that_resolves_is_accepted",
+  "a_see_target_that_names_no_member_is_refused",
+  "an_example_naming_a_missing_file_is_refused",
+  "an_example_outside_every_test_directory_is_refused",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- one JSON, one more input. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+# The renderers on this pipeline are `tools/reference.py` and the website's `sync:core`. Neither may
+# change, so the no-argument form is held byte-identical.
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the json"
+name = "nvs-cli (meta gains an argument and keeps its old output)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "meta_json_with_no_argument_is_byte_identical_to_the_registry_dump",
+  "meta_json_with_an_entry_emits_the_programs_declarations",
+  "a_user_declarations_shape_carries_prose_see_and_example",
+]
+
+[[check]]
+kind = "command"
+stage = "5 the json"
+name = "the one-file reference still regenerates from the binary"
+args = ["python", "tools/reference.py", "--check"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the renderer and the lint. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 doc and strict"
+name = "nvs-cli (nvs doc renders, --strict-docs reports only what it should)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "nvs_doc_writes_one_page_per_class",
+  "nvs_doc_renders_a_see_target_as_a_link",
+  "strict_docs_reports_an_undocumented_public_member",
+  "strict_docs_is_silent_about_a_private_member",
+  "nvs_check_is_silent_about_documentation_without_the_flag",
+]
+
+# The end-to-end fixture: the surface, both tags, and the default silence in one runnable file.
+
+[[check]]
+kind = "exact"
+stage = "6 doc and strict"
+file = "examples/doc-comments.nvs"
+want = [
+  "a documented member runs unchanged",
+  "an ordinary comment is not documentation",
+  "four slashes are not documentation",
+  "the program compiles with no documentation diagnostics",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 doc and strict"
+name = "conformance (doc comments)"
+args = ["test", "tests/conformance/syntax/doc-comment"]

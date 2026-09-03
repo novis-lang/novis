@@ -9,9 +9,13 @@ the `nvs-server` goal 6 creates. An eighth, [`Core\Program::id()`](8-program-id.
 member exposing the program fingerprint over hashes the artifact cache already computes. A ninth,
 [`Core\Db\Schema`](9-schema.md), closes [ADR 0067](../../adr/0067-core-db.md)'s own *Revisiting* item and
 sits there because its acceptance property needs every driver goal 5 builds to be finished. A tenth,
-[a typed `callable`](10-typed-callable.md), is last: [ADR 0136](../../adr/0136-a-callable-carries-its-signature.md)
+[a typed `callable`](10-typed-callable.md), follows it: [ADR 0136](../../adr/0136-a-callable-carries-its-signature.md)
 gives the type a function value's parameters and return, and it goes after every goal that *writes*
-callbacks so their registry rows are converted once rather than twice.
+callbacks so their registry rows are converted once rather than twice. An eleventh,
+[doc comments](11-doc-comments.md), is last —
+[ADR 0137](../../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md)'s `///`, whose stage 2 builds
+ADR 0099 § 1's trivia layer because a doc comment cannot be read without it, so **M4B starts with its
+own tree half already done**.
 
 [loop-authoring.md](../loop-authoring.md) owns how a goal is *written* and [coordinator.md](../coordinator.md)
 owns how one is *driven*. This file owns only what is specific to running six of them back to back, and it
@@ -40,6 +44,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [8 program-id](8-program-id.md) | post-parity, ADR 0061 amendment | `nvs-config`, `nvs-hir`, `nvs-runtime`, `nvs-stdlib` |
 | [9 schema](9-schema.md) | post-parity, one ADR slot | `nvs-db`, `nvs-stdlib`, `nvs-cli` |
 | [10 typed-callable](10-typed-callable.md) | post-parity, ADR 0136 | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
+| [11 doc-comments](11-doc-comments.md) | post-parity, ADR 0137 + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
 
 ## The chain contract
 
@@ -99,7 +104,7 @@ TOML for a doubled floor before restarting.
   functions and 253 types** accounted for, every `member` row registered, every one of them cased. The
   inventory grew from 925 on 2026-08-29, when the oracle build gained `mysqli`, `pgsql` and `sqlite3`:
   the three APIs [ADR 0067](../../adr/0067-core-db.md) replaces are now inside the audit rather than a
-  named hole beside it. Goals 7, 8, 9 and 10 going green, in chain order, is then what ends the run.
+  named hole beside it. Goals 7 through 11 going green, in chain order, is then what ends the run.
 - **A goal reports `BLOCKED`.** Reserved for a decision that is expensive to reverse *and* has no safe
   default. Every goal's standing decisions exist to make this rare.
 - **`--max-stalls` consecutive sessions move `HEAD` nowhere.**

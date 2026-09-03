@@ -109,3 +109,15 @@ toml = "docs/agent/goals/10-typed-callable.toml"
 handoff = "docs/agent/goals/10-typed-callable.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+
+# Post-parity: ADR 0137's doc comments. After goal 10 because both reach the front end and goal 10's
+# signature work is the larger edit there, and because its stage 2 builds ADR 0099 s1's trivia layer --
+# M4B's own tree item, landing early because a doc comment cannot be read without it. M4B then starts
+# with that half done. Docker preflight because its floor is goal 10's.
+[[goal]]
+name = "11 doc-comments"
+md = "docs/agent/goals/11-doc-comments.md"
+toml = "docs/agent/goals/11-doc-comments.toml"
+handoff = "docs/agent/goals/11-doc-comments.handoff.md"
+milestone = "post-parity"
+preflight = "docker"
