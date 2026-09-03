@@ -57,19 +57,16 @@
 //! 4. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
 //!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
-//!    not decide beyond `id` and `queue`, so [`COUNTS`] sums `attempts` over [`JOBS_TABLE`] alone
+//!    not decide beyond `id` and `queue`, so [`COUNTS_POSTGRES`] sums `attempts` over [`JOBS_TABLE`] alone
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
-//! 5. **The members are PostgreSQL only, and what is missing is now the seam and not the SQL.**
-//!    Three drivers send a statement — [`crate::db`]'s gap 2 is the two that do not — and § 2's
-//!    schema has a list for two of them. The three statements resting on a construct MySQL has no
-//!    spelling for now have a second spelling apiece: [`INSERT_MYSQL`], [`CLAIM_MYSQL`] and
-//!    [`DEAD_LETTER_MYSQL`], each a [`Split`] because what MySQL lacks is exactly the construct
-//!    that answered in one statement. What is left is that every member still reaches its
-//!    connection through [`postgres_of`], which refuses anything else by name; the members that
-//!    would then need a second text are `status`, `cancel` and `stats`, whose statements differ
-//!    from PostgreSQL's in the `$n::type` casts and [`COUNTS`]'s `filter (where …)` alone — a
-//!    transcription rather than a construct, which is why they wait on the seam and not the other
-//!    way round.
+//! 5. **All four members run on either dialect; the worker still claims over PostgreSQL alone.**
+//!    Three drivers send a statement — [`crate::db`]'s gap 2 is the two that do not — and each of
+//!    those three now reaches a text this module has: § 2's schema, § 4's claim and § 6's move as
+//!    [`Split`]s, § 5's three readers as ordinary second spellings, and [`queue_connection`] as
+//!    the seam that borrows the connection as whichever dialect it speaks. What is left is
+//!    `nvs-cli`'s worker, which runs [`QUEUES`], [`SUCCEEDED`] and [`RETRY`] beside the claim: those
+//!    three have no MySQL text yet, so a worker still refuses a queue whose block is not
+//!    PostgreSQL's even though `push`, `status`, `cancel` and `stats` on the same block do not.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -118,7 +115,7 @@ const JOBS_TABLE: &str = "nvs_jobs";
 /// **Two of its columns are all this module reads, and [`MIGRATION_POSTGRES`] is where every one of them is
 /// written down.** A job keeps the `id` and the `queue` it had in [`JOBS_TABLE`], so a
 /// `Core\Queue\Id` handed out before the job exhausted its attempts still names it afterwards, and
-/// that pair is the whole of what [`STATUS`] and [`COUNTS`] ask of the table. What else the row
+/// that pair is the whole of what [`STATUS_POSTGRES`] and [`COUNTS_POSTGRES`] ask of the table. What else the row
 /// carries — § 6's payload, every attempt's error and its timing — is decided by the DDL below and
 /// not by the worker that will write one: a column has to exist before anything can move a row into
 /// it, so the migration is the earlier of the two decisions and the only one there is room for.
@@ -129,7 +126,7 @@ const DEAD_TABLE: &str = "nvs_dead_jobs";
 /// Written as the number rather than read off [`STATE`] because the SQL beside it cannot read the
 /// enum either — a statement's `state = 0` is a literal in a string — so one spelling of the rule
 /// covering both is worth more than two half-rules. `queue_statements_agree_with_the_state_enum` is
-/// that spelling: it holds this constant and the ordinals inside [`INSERT_POSTGRES`] and [`STATUS`] to
+/// that spelling: it holds this constant and the ordinals inside [`INSERT_POSTGRES`] and [`STATUS_POSTGRES`] to
 /// [`STATE`]'s own cases.
 const PENDING: i16 = 0;
 
@@ -189,7 +186,7 @@ pub struct Migration {
 ///   carrying a value only the exhausted job ever reads, on the table § 4's claim contends over —
 ///   so the array is § 6's shape at the depth this schema pays for, and [`dead_errors`] is where
 ///   that trade is written down. There is no `state`: a row is `Dead` by being in that table, which
-///   is exactly what [`STATUS`]'s second arm asserts by answering the ordinal as a literal.
+///   is exactly what [`STATUS_POSTGRES`]'s second arm asserts by answering the ordinal as a literal.
 pub const MIGRATION_POSTGRES: &[Migration] = &[
     Migration {
         label: "jobs",
@@ -240,7 +237,7 @@ pub const MIGRATION_POSTGRES: &[Migration] = &[
               errors text not null)",
     },
     Migration {
-        // `COUNTS`'s fourth counter is a scalar subquery over this table, keyed on the queue and on
+        // `COUNTS_POSTGRES`'s fourth counter is a scalar subquery over this table, keyed on the queue and on
         // nothing else, so the depth of one queue's dead letters costs a lookup rather than a scan
         // of every queue's.
         label: "dead_letter.queue",
@@ -415,7 +412,7 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// **`attempts` is incremented by the claim and not by the failure that follows it.** § 6's bound
 /// has to hold for the worker that dies reporting nothing at all, and an attempt counted only when a
 /// job reports its own failure retries forever on exactly the failure mode the timeout above exists
-/// for. It is also what makes [`COUNTS`]'s third counter answer during an attempt rather than after
+/// for. It is also what makes [`COUNTS_POSTGRES`]'s third counter answer during an attempt rather than after
 /// it.
 ///
 /// **Keyed on one queue**, as every other statement here is and as [`MIGRATION_POSTGRES`]'s `jobs.due` index
@@ -502,7 +499,7 @@ pub const RETRY: &str = "update nvs_jobs set state = 0, run_at = $3::bigint, cla
 ///
 /// **One statement, because the move is one moment.** The `delete` is a data-modifying CTE whose
 /// `returning` list is what the `insert` selects from, so there is no instant in which the job is in
-/// both tables or in neither — which is exactly the claim [`STATUS`]'s doc makes about its two arms,
+/// both tables or in neither — which is exactly the claim [`STATUS_POSTGRES`]'s doc makes about its two arms,
 /// held here rather than by a transaction a worker would otherwise have to open around two
 /// statements and keep right on every path out of them.
 ///
@@ -578,6 +575,10 @@ pub struct Split {
 /// the caller, not a second meaning. Gap 3 reads exactly as it does there: two concurrent pushes of
 /// an unseen key at `read committed` both find nothing, and the second insert is refused by
 /// `nvs_jobs_dedupe` rather than admitted by a guard that read the table a moment earlier.
+///
+/// **A push with no key runs [`Split::then`] alone**, and [`push_in_two`] owns why that is not
+/// merely two round trips saved: `dedupe_pending = null` is a range scan here where
+/// [`INSERT_POSTGRES`]'s `existing` arm is an empty CTE.
 pub const INSERT_MYSQL: Split = Split {
     first: "select id from nvs_jobs where dedupe_pending = ? limit 1 for update",
     then: "insert into nvs_jobs \
@@ -732,11 +733,30 @@ fn jitter(id: i64, attempts: i64) -> u64 {
 /// it to [`STATE`]. That arm also costs nothing under a design where a dead job stays in
 /// [`JOBS_TABLE`] with its state written instead of moving — the first arm is tried first and the
 /// `limit 1` takes it — so the statement is correct either way and the worker is free to choose.
-const STATUS: &str = "select state from nvs_jobs \
+const STATUS_POSTGRES: &str = "select state from nvs_jobs \
     where id = $1::bigint and queue = $2::text \
     union all \
     select 3 from nvs_dead_jobs \
     where id = $1::bigint and queue = $2::text \
+    limit 1";
+
+/// [`STATUS_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged for [`MIGRATION_MYSQL`]'s
+/// reason.
+///
+/// **Not a [`Split`], and that is the difference between this member and § 4's three**: nothing
+/// here rests on a construct MySQL lacks — a `union all` of two `select`s is the same statement in
+/// both dialects — so what changes is the placeholder spelling and the casts PostgreSQL needs to
+/// type a text-format parameter at all.
+///
+/// **Four placeholders where PostgreSQL has two.** `$1` can be named as often as a statement likes
+/// and a `?` cannot, so the id and the queue each go out twice: the same two values bound twice,
+/// not two more arguments for a caller to get wrong. [`counted_row`] is where that pair is doubled,
+/// once, rather than in each of the two members that send it.
+const STATUS_MYSQL: &str = "select state from nvs_jobs \
+    where id = ? and queue = ? \
+    union all \
+    select 3 from nvs_dead_jobs \
+    where id = ? and queue = ? \
     limit 1";
 
 /// ADR 0084 § 1's `cancel`, as one conditional update.
@@ -750,10 +770,21 @@ const STATUS: &str = "select state from nvs_jobs \
 /// **An update and not a delete**, because a program that cancels a job and then asks `status`
 /// about it is owed an answer rather than a refusal; [`STATE`]'s `Cancelled` case is the answer.
 /// The `4` is that case's ordinal, held to the enum by
-/// `queue_statements_agree_with_the_state_enum` for the reason [`STATUS`]'s `3` is.
-const CANCEL: &str = "update nvs_jobs set state = 4 \
+/// `queue_statements_agree_with_the_state_enum` for the reason [`STATUS_POSTGRES`]'s `3` is.
+const CANCEL_POSTGRES: &str = "update nvs_jobs set state = 4 \
     where id = $1::bigint and queue = $2::text and state = 0 \
     returning id";
+
+/// [`CANCEL_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
+///
+/// **No `returning`, and the member's answer is the affected count instead** — not a weaker
+/// reading of the same question. `set state = 4 where … and state = 0` changes every row it
+/// matches, so the count of rows the server says it changed and the count PostgreSQL returns are
+/// one number, and [`Counted::touched`] is where the two spellings are read as one fact. MariaDB
+/// answers `returning` for an `insert` and a `delete` and not for an `update`, so this is the text
+/// both drivers run rather than a MySQL-only concession.
+const CANCEL_MYSQL: &str = "update nvs_jobs set state = 4 \
+    where id = ? and queue = ? and state = 0";
 
 /// ADR 0084 §§ 1 and 6's `stats`, as one aggregate over one queue.
 ///
@@ -763,7 +794,7 @@ const CANCEL: &str = "update nvs_jobs set state = 4 \
 /// **One row and not four**, which is the whole reason `stats` answers a record instead of
 /// answering a number four times: an aggregate with no `group by` is exactly one row however empty
 /// the table is, so the four counters describe one instant rather than four of them with a worker's
-/// claim free to land in between. That is [`STATUS`]'s reading of § 2 applied to a whole queue.
+/// claim free to land in between. That is [`STATUS_POSTGRES`]'s reading of § 2 applied to a whole queue.
 ///
 /// **The `0` and the `1` are [`STATE`]'s `Pending` and `Claimed` ordinals**, literals for
 /// [`PENDING`]'s reason — no `const` reaches inside a SQL string — and held to the enum by
@@ -775,12 +806,30 @@ const CANCEL: &str = "update nvs_jobs set state = 4 \
 /// Every column is cast to `bigint` so the four decode the same way whatever widths `nvs queue
 /// migrate` gives their columns, and `filter` is PostgreSQL's spelling — gap 5 is why that costs
 /// nothing yet, since a second driver needs its own text for [`INSERT_POSTGRES`]'s `returning` regardless.
-const COUNTS: &str = "select \
+const COUNTS_POSTGRES: &str = "select \
     (count(*) filter (where state = 0))::bigint, \
     (count(*) filter (where state = 1))::bigint, \
     (coalesce(sum(attempts), 0))::bigint, \
     (select count(*) from nvs_dead_jobs where queue = $1::text)::bigint \
     from nvs_jobs where queue = $1::text";
+
+/// [`COUNTS_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
+///
+/// **`count(case when … then 1 end)` is the aggregate filter PostgreSQL spells `filter (where …)`**,
+/// and it counts rather than sums for the empty queue: `count` ignores the `null` the `case` falls
+/// through to and answers `0` over no rows at all, where a `sum` of ones would answer `null` and
+/// § 6 means zero. That is the same reading [`COUNTS_POSTGRES`]'s `coalesce` makes of its third
+/// counter.
+///
+/// **The third counter is cast and the first two are not**, which is § 9 rather than an
+/// inconsistency: MySQL answers `sum` over an integer column as a `decimal`, so the cast is what
+/// keeps all four columns one type for one reader, while `count` is already a `bigint`.
+const COUNTS_MYSQL: &str = "select \
+    count(case when state = 0 then 1 end), \
+    count(case when state = 1 then 1 end), \
+    cast(coalesce(sum(attempts), 0) as signed), \
+    (select count(*) from nvs_dead_jobs where queue = ?) \
+    from nvs_jobs where queue = ?";
 
 /// A [`ID`]'s first slot: the primary key the insert returned.
 const ID_SLOT: &str = "id";
@@ -811,7 +860,7 @@ const STATS_ATTEMPTS_SLOT: &str = "attempts";
 /// Its fourth: how many of the queue's jobs are in [`DEAD_TABLE`].
 const STATS_DEAD_SLOT: &str = "deadLettered";
 
-/// [`STATS_PENDING_SLOT`]'s index, and [`COUNTS`]'s first column.
+/// [`STATS_PENDING_SLOT`]'s index, and [`COUNTS_POSTGRES`]'s first column.
 const STATS_PENDING_AT: usize = 0;
 
 /// [`STATS_CLAIMED_SLOT`]'s.
@@ -923,7 +972,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         // The same receipt, and an answer that is a `bool` although § 1 annotates no
         // return at all: what a caller of this member needs to know is whether it got
-        // there first, and there is no other way for it to find out. [`CANCEL`] owns
+        // there first, and there is no other way for it to find out. [`CANCEL_POSTGRES`] owns
         // why that race is the ordinary case rather than an unlucky one.
         CoreMethod {
             name: "cancel",
@@ -1181,7 +1230,7 @@ pub(crate) const ID: CoreClass = CoreClass {
 /// reason, and ADR 0084 § 1 now carries the annotation so there is one home for it.
 ///
 /// **Four counters, because § 6 names four things to watch**: what is waiting, what is held, how
-/// much has been attempted, and how deep the dead-letter table is. [`COUNTS`] is the one home for
+/// much has been attempted, and how deep the dead-letter table is. [`COUNTS_POSTGRES`] is the one home for
 /// which four and for why a fifth is a schema change first.
 ///
 /// The four slots are filled once, by [`nvs_core_queue_stats`], out of a single row — which is the
@@ -1243,7 +1292,7 @@ pub(crate) const STATS: CoreClass = CoreClass {
 /// event: a job whose `runAt` has not come round is `Pending`, because waiting for a worker and
 /// waiting for a clock are one thing to everything that reads this column, and a case separating
 /// them would be a distinction no claim statement makes. `Cancelled` is what a cancel *is* on a
-/// table nobody polls twice — [`CANCEL`] writes it in place of `Pending`, and every claim statement
+/// table nobody polls twice — [`CANCEL_POSTGRES`] writes it in place of `Pending`, and every claim statement
 /// reads `Pending`, so a job leaves the queue by changing one column.
 ///
 /// **The values are declaration ordinals and mean nothing else**, as they are for every enum here
@@ -1251,7 +1300,7 @@ pub(crate) const STATS: CoreClass = CoreClass {
 /// this ordinal in its `state` column, so the enum and the column are one representation and not
 /// two, and each case's number is part of the schema `nvs queue migrate` will create. Renumbering
 /// one is therefore a migration and not an edit. `queue_statements_agree_with_the_state_enum` pins
-/// them for that reason: [`PENDING`] and the ordinals written inside [`INSERT_POSTGRES`] and [`STATUS`] are
+/// them for that reason: [`PENDING`] and the ordinals written inside [`INSERT_POSTGRES`] and [`STATUS_POSTGRES`] are
 /// uses of this table that no `const` can reach.
 pub(crate) const STATE: CoreEnum = CoreEnum {
     name: STATE_NAME,
@@ -1536,24 +1585,25 @@ fn job_of(value: Value, member: &str) -> Result<(u64, String), Fault> {
     Ok((id, queue))
 }
 
-/// The queue's PostgreSQL connection, by the key it is filed under.
+/// The queue's connection, as the dialect the member's statements are written in.
 ///
-/// [`crate::db`]'s `filed_connection` one module over, and separate rather than shared because the
-/// two name their connection differently: that one has the caller's own `Core\Db\Connection` to
-/// quote back, and this one has the block name out of configuration, which is a `&str` and not a
-/// `Value`.
+/// **Two arms and not five, because that is how many dialects this module has** — § 2's two
+/// migration lists, and § 4's statements once as PostgreSQL's single-statement text and once as a
+/// [`Split`]. The second arm is [`crate::db::Framed`] rather than a pair of its own: MySQL and
+/// MariaDB are one send path and one dialect here, and that constant's doc owns why a driver
+/// difference that is only the type of the borrow is flattened at the call sites.
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` by way of [`no_dialect`] for any driver but PostgreSQL. A
-/// [`Fault::fatal`] for a key the request's own table does not hold, which is this crate's paste
-/// error rather than a program's.
-fn postgres_of<'a>(
+/// A thrown `RuntimeError` by way of [`no_dialect`] for a driver this module has no dialect for at
+/// all. A [`Fault::fatal`] for a key the request's own table does not hold, which is this crate's
+/// paste error rather than a program's.
+fn queue_connection<'a>(
     ctx: &'a mut nvs_runtime::Ctx,
     key: u64,
     block: &str,
     member: &str,
-) -> Result<&'a mut nvs_db::PgConn, Fault> {
+) -> Result<Queued<'a>, Fault> {
     let filed = ctx.open_connection_mut(key).ok_or_else(|| {
         Fault::fatal(format!(
             "{member}: no connection is filed under the key {key}"
@@ -1568,47 +1618,53 @@ fn postgres_of<'a>(
             ))
         })?;
     match connection {
-        nvs_db::Connection::Postgres(postgres) => Ok(postgres),
+        nvs_db::Connection::Postgres(postgres) => Ok(Queued::Postgres(postgres)),
+        nvs_db::Connection::MySql(mysql) => Ok(Queued::Framed(crate::db::Framed::MySql(mysql))),
+        nvs_db::Connection::MariaDb(maria) => Ok(Queued::Framed(crate::db::Framed::MariaDb(maria))),
         other => Err(no_dialect(member, block, other.driver())),
     }
 }
 
-/// The refusal a connection this module cannot run its statements over earns, in the two spellings
-/// its two causes deserve.
+/// The queue's connection, borrowed as the driver whose dialect the member holds.
 ///
-/// **The queue keeps a refusal of its own rather than borrowing [`crate::db`]'s `Framed`, and that
-/// is the decision here rather than an omission.** That seam exists because MySQL and MariaDB
-/// *send* over one wire, so the three members that send would otherwise each grow a second arm
-/// copying the first line for line. The queue's shortfall is the other one: not a send it cannot
-/// spell but statements it has not yet reached for. [`INSERT_POSTGRES`]'s and
-/// [`CLAIM_POSTGRES`]'s `returning` and [`DEAD_LETTER_POSTGRES`]'s data-modifying CTE are
-/// constructs MySQL has no spelling for at all, so § 4 owed a second backend statements of its own
-/// rather than a translation of these — and borrowing `Framed` would have bought one `match` arm
-/// and handed a MySQL server PostgreSQL's text. Both halves of that debt are now written:
-/// [`MIGRATION_MYSQL`] is § 2's schema in MySQL's dialect and [`INSERT_MYSQL`], [`CLAIM_MYSQL`] and
-/// [`DEAD_LETTER_MYSQL`] are the three statements, each a [`Split`] because the construct that
-/// answered in one is what is missing. What is left is this function's own caller: every member
-/// still reaches its connection through [`postgres_of`], which is gap 5.
+/// [`crate::db`]'s `filed_connection` one module over, and separate rather than shared because that
+/// one narrows to § 7's three commands and this one to § 4's statements — the same downcast asked
+/// two different questions.
+enum Queued<'a> {
+    /// [`INSERT_POSTGRES`], [`CLAIM_POSTGRES`] and [`DEAD_LETTER_POSTGRES`], each answering in one
+    /// statement.
+    Postgres(&'a mut nvs_db::PgConn),
+    /// [`INSERT_MYSQL`], [`CLAIM_MYSQL`] and [`DEAD_LETTER_MYSQL`], each a [`Split`] the caller
+    /// runs inside one transaction — and MariaDB runs every one of them unchanged.
+    Framed(crate::db::Framed<'a>),
+}
+
+/// The refusal a connection this module cannot run its statements over earns.
 ///
-/// So the sentence says **which of the two things is in the way**, because they call for different
-/// answers from whoever reads it: a driver that sends is one this module owes statements, and a
-/// driver that does not is [`crate::db`]'s gap 2 and owes nothing here at all. An operator can act
-/// on the first — run the queue's block against PostgreSQL — and can only wait on the second.
+/// **What is left in the way is the wire and no longer the dialect.** This function used to say
+/// which of two things was missing, because for a while the queue could reach a MySQL server and
+/// had nothing to send it: [`INSERT_POSTGRES`]'s and [`CLAIM_POSTGRES`]'s `returning` and
+/// [`DEAD_LETTER_POSTGRES`]'s data-modifying CTE are constructs MySQL has no spelling for, so § 4
+/// owed a second backend statements of its own rather than a translation of these. That debt is
+/// paid — [`MIGRATION_MYSQL`] is § 2's schema, [`INSERT_MYSQL`], [`CLAIM_MYSQL`] and
+/// [`DEAD_LETTER_MYSQL`] are § 4's and § 6's statements as [`Split`]s, and [`STATUS_MYSQL`],
+/// [`CANCEL_MYSQL`] and [`COUNTS_MYSQL`] are § 5's three readers — and [`queue_connection`] is the
+/// seam that reaches them, so every driver `nvs-db` can send a statement over is one all four
+/// members run on.
+///
+/// So one sentence is left, and it is about a driver with no send path at all: [`crate::db`]'s
+/// known gap 2, which an operator can only wait on. The three arms that cannot be reached are
+/// spelled rather than left to a `_`, so that a sixth driver arrives as a build failure instead of
+/// as whichever sentence happens to be written last.
 fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
     let missing = match driver {
-        // ADR 0067 § 5 renders a statement for these two, so the connection is not what is in the
-        // way: what is missing is above the wire and belongs to this module.
-        nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => {
-            "and the queue's members reach a PostgreSQL connection only so far — this module's \
-             known gap 5 is the seam"
-        }
         nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => {
             "and that driver runs no statement at all yet — `Core\\Db`'s known gap 2 is the list"
         }
-        // Unreachable: [`postgres_of`] matches this arm out before it asks. Spelled rather than
-        // left to a `_` so that a sixth driver arrives as a build failure instead of as whichever
-        // of the two sentences happens to be written last.
-        nvs_db::Driver::Postgres => "and it is the one driver the queue does run — this is a bug",
+        // Unreachable: [`queue_connection`] matches all three of these out before it asks.
+        nvs_db::Driver::Postgres | nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => {
+            "and it is one of the three the queue does run — this is a bug"
+        }
     };
     Fault::thrown(format!(
         "{member}: `[db.{block}]` is a {} connection, {missing}",
@@ -1667,69 +1723,457 @@ nvs_runtime::nvs_helper! {
         // enqueue would commit on its own. The memo is what makes the property hold.
         let handle = crate::db::open_named(ctx, &configured.connection, true, None, PUSH)?;
         let now = now_millis();
-        let sending: [Option<Vec<u8>>; 9] = [
-            key.map(String::into_bytes),
-            Some(queue.clone().into_bytes()),
-            Some(script.into_bytes()),
-            payload.map(String::into_bytes),
-            Some(PENDING.to_string().into_bytes()),
-            Some(max_attempts.to_string().into_bytes()),
-            Some(backoff.to_string().into_bytes()),
-            Some(run_at.unwrap_or(now).to_string().into_bytes()),
-            Some(now.to_string().into_bytes()),
-        ];
-        let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
+        // Encoded once and bound twice, because the two dialects want the same nine values in two
+        // orders: [`INSERT_POSTGRES`] names the dedupe key first, since `$1` is read by both of
+        // its arms, and [`INSERT_MYSQL`]'s insert names it in column order like every other value.
+        // One array per order over one set of buffers, rather than a second encoding of the same
+        // integers.
+        let dedupe = key.map(String::into_bytes);
+        let queued = queue.clone().into_bytes();
+        let scripted = script.into_bytes();
+        let payloaded = payload.map(String::into_bytes);
+        let state = PENDING.to_string().into_bytes();
+        let attempts = max_attempts.to_string().into_bytes();
+        let backing = backoff.to_string().into_bytes();
+        let due = run_at.unwrap_or(now).to_string().into_bytes();
+        let created = now.to_string().into_bytes();
 
         let block = configured.connection.clone();
         // ADR 0067 § 11's event belongs to a *statement*, not to `Core\Db`, so this one files it
         // on the same terms as that class's own — read before the connection takes the context,
-        // for the reason [`crate::db::QueryWatch`] gives.
-        let watch = crate::db::QueryWatch::named(ctx, Some(&block));
-        let postgres = postgres_of(ctx, handle, &block, PUSH)?;
-        let mut answered = postgres.query(INSERT_POSTGRES, &bound).map_err(|refused| {
-            Fault::thrown_as(
-                ThrownClass::Io,
-                format!(
-                    "{PUSH}: the insert into `{JOBS_TABLE}` on `[db.{block}]` was refused: \
-                     {refused} — `nvs queue migrate` is what creates that table"
-                ),
-            )
-        })?;
-        crate::db::name_span(&mut answered, Some(&block));
-        // Every row is read before the id is asked for, exactly as `Core\Db\Connection::execute`
-        // does it: the connection has to be back at a message boundary before this returns, or the
-        // next statement on it — the caller's own, inside the same transaction — meets a busy one.
-        while answered
-            .next_row()
-            .map_err(|refused| {
-                Fault::thrown_as(
-                    ThrownClass::Io,
-                    format!("{PUSH}: reading the id back from `{JOBS_TABLE}` failed: {refused}"),
-                )
-            })?
-            .is_some()
-        {}
-        // ADR 0067 § 4's `lastId`, which on PostgreSQL is what the `returning` clause handed back —
-        // so the decoding is the driver's and this member parses nothing. `None` would mean the
-        // statement's `union all` answered neither an insert nor a pending duplicate, which it
-        // cannot: the `existing` arm is the only thing the insert stands down for.
-        let last = answered.last_id();
-        // Taken after the drain, so the span carries what the caller waited for, and filed after
-        // the rows have let the context go — `Core\Db`'s reader does both in the same order, and
-        // a `PgRows` holds `ctx` until it is dropped. Filed before the id is judged: a statement
-        // the server ran is one a trace should show, whatever this member then makes of it.
-        let taken = watch.taken(answered.span());
-        drop(answered);
-        watch.file(ctx, taken);
-        let id = last.ok_or_else(|| {
-            Fault::fatal(format!(
-                "{PUSH}: the insert into `{JOBS_TABLE}` answered no id at all"
-            ))
-        })?;
+        // for the reason [`crate::db::QueryWatch`] gives. The split dialect runs up to four
+        // statements, so what a driver hands back is a *list* of spans, filed once the connection
+        // has let the context go.
+        let mut spans = Spans::of(ctx, &block);
+        let id = match queue_connection(ctx, handle, &block, PUSH)? {
+            Queued::Postgres(postgres) => {
+                let bound: [Option<&[u8]>; 9] = [
+                    dedupe.as_deref(),
+                    Some(&queued),
+                    Some(&scripted),
+                    payloaded.as_deref(),
+                    Some(&state),
+                    Some(&attempts),
+                    Some(&backing),
+                    Some(&due),
+                    Some(&created),
+                ];
+                push_in_one(postgres, &bound, &block, &mut spans)?
+            }
+            Queued::Framed(framed) => {
+                let bound: [Option<&[u8]>; 9] = [
+                    Some(&queued),
+                    Some(&scripted),
+                    payloaded.as_deref(),
+                    Some(&state),
+                    Some(&attempts),
+                    Some(&backing),
+                    Some(&due),
+                    dedupe.as_deref(),
+                    Some(&created),
+                ];
+                push_in_two(framed, dedupe.as_deref(), &bound, &block, &mut spans)?
+            }
+        };
+        spans.file(ctx);
         Ok(crate::instance::build(
             &ID,
             [Value::uint(id), Value::str(NvsStr::new(queue.as_bytes()))],
         ))
+    }
+}
+
+/// The refusal an enqueue the server would not run earns, in one wording for both dialects.
+///
+/// The table is named rather than the statement, because what an operator does about it is the
+/// same whichever dialect was sent and whichever of a [`Split`]'s two halves came back: the
+/// migration has not been applied here.
+fn insert_refused(block: &str, refused: &dyn std::fmt::Display) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Io,
+        format!(
+            "{PUSH}: the insert into `{JOBS_TABLE}` on `[db.{block}]` was refused: {refused} — \
+             `nvs queue migrate` is what creates that table"
+        ),
+    )
+}
+
+/// [`INSERT_POSTGRES`]: § 1's enqueue as the one statement that dedupes and inserts, and the id it
+/// answers with.
+///
+/// # Errors
+///
+/// [`insert_refused`] for anything the server refused, and a [`Fault::fatal`] for a statement that
+/// answered no id — which the `union all` cannot do, the `existing` arm being the only thing the
+/// insert stands down for.
+fn push_in_one(
+    postgres: &mut nvs_db::PgConn,
+    bound: &[Option<&[u8]>],
+    block: &str,
+    spans: &mut Spans,
+) -> Result<u64, Fault> {
+    let mut answered = postgres
+        .query(INSERT_POSTGRES, bound)
+        .map_err(|refused| insert_refused(block, &refused))?;
+    crate::db::name_span(&mut answered, Some(block));
+    // Every row is read before the id is asked for, exactly as `Core\Db\Connection::execute`
+    // does it: the connection has to be back at a message boundary before this returns, or the
+    // next statement on it — the caller's own, inside the same transaction — meets a busy one.
+    while answered
+        .next_row()
+        .map_err(|refused| {
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!("{PUSH}: reading the id back from `{JOBS_TABLE}` failed: {refused}"),
+            )
+        })?
+        .is_some()
+    {}
+    // ADR 0067 § 4's `lastId`, which on PostgreSQL is what the `returning` clause handed back —
+    // so the decoding is the driver's and this member parses nothing.
+    let last = answered.last_id();
+    // Taken after the drain, so the span carries what the caller waited for, and filed after
+    // the rows have let the context go — `Core\Db`'s reader does both in the same order, and
+    // a `PgRows` holds `ctx` until it is dropped. Taken before the id is judged: a statement
+    // the server ran is one a trace should show, whatever this member then makes of it.
+    spans.note(answered.span());
+    last.ok_or_else(|| {
+        Fault::fatal(format!(
+            "{PUSH}: the insert into `{JOBS_TABLE}` answered no id at all"
+        ))
+    })
+}
+
+/// [`INSERT_MYSQL`]: the same enqueue as the pair one transaction runs, and the id it answers with.
+///
+/// **A push with no `key` runs the insert alone, outside a transaction of this member's own.**
+/// [`Split::first`] is the dedupe read and there is nothing to dedupe against, so the pair is one
+/// statement — and that is not only an economy of two round trips. `dedupe_pending = ?` with a
+/// `null` parameter is never true, but it is also not an equality InnoDB can answer from the
+/// unique index: the `select … for update` degenerates to a range scan and gap-locks what it
+/// passes, on the one statement every enqueue runs. PostgreSQL's `existing` arm costs nothing in
+/// the same case because it is a planner's arm inside a single statement rather than a lock taken
+/// across two.
+///
+/// **A keyed push holds § 3's property with a transaction where PostgreSQL held it by
+/// construction**, which is what [`Split`] means. Where the request already has one open on this
+/// connection — § 2's recommended configuration, and the whole point of the memo — `begin` is a
+/// `SAVEPOINT` and `commit` its release, so the enqueue still commits with the write that caused
+/// it and never on its own.
+///
+/// **A refusal rolls back before it propagates.** The caller's transaction is the one thing this
+/// member must not leave changed on its way out: an enqueue that failed inside a savepoint and
+/// left it open would fail the caller's next statement instead, blaming the wrong write.
+///
+/// # Errors
+///
+/// [`insert_refused`] for anything the server refused, including the transaction commands, and a
+/// [`Fault::fatal`] for an insert whose OK packet carried no `AUTO_INCREMENT` value.
+fn push_in_two(
+    mut framed: crate::db::Framed<'_>,
+    dedupe: Option<&[u8]>,
+    bound: &[Option<&[u8]>],
+    block: &str,
+    spans: &mut Spans,
+) -> Result<u64, Fault> {
+    let Some(key) = dedupe else {
+        return inserted(&mut framed, bound, block, spans);
+    };
+    let opened = framed
+        .begin(None, false)
+        .map_err(|refused| insert_refused(block, &refused))?;
+    spans.named(block, opened);
+    let outcome = deduped(&mut framed, key, bound, block, spans);
+    match outcome {
+        Ok(id) => {
+            let closed = framed
+                .commit()
+                .map_err(|refused| insert_refused(block, &refused))?;
+            spans.named(block, closed);
+            Ok(id)
+        }
+        Err(failed) => {
+            // Best effort, and the enqueue's own refusal is what the caller hears: a rollback that
+            // fails has poisoned the connection in `nvs-db` already, and a second message about it
+            // would replace the one that says what the caller did wrong.
+            let _undone = framed.roll_back();
+            Err(failed)
+        }
+    }
+}
+
+/// [`Split::first`] and then [`Split::then`], inside the transaction [`push_in_two`] opened.
+///
+/// # Errors
+///
+/// [`insert_refused`]'s, and a [`Fault::fatal`] for a `first` whose row answered no integer id —
+/// which is the column [`MIGRATION_MYSQL`] declares `bigint auto_increment`, so anything else is
+/// a table some other writer created.
+fn deduped(
+    framed: &mut crate::db::Framed<'_>,
+    key: &[u8],
+    bound: &[Option<&[u8]>],
+    block: &str,
+    spans: &mut Spans,
+) -> Result<u64, Fault> {
+    let reading: [Option<&[u8]>; 1] = [Some(key)];
+    let mut answered = framed
+        .query(INSERT_MYSQL.first, &reading)
+        .map_err(|refused| insert_refused(block, &refused))?;
+    crate::db::name_span(&mut answered, Some(block));
+    // Described before the first row, for `Core\Db`'s reason: a value is read against the
+    // definition it arrived under, and the definitions are lent out of a shared borrow while the
+    // rows are read out of a mutable one.
+    let columns = answered.columns().to_vec();
+    let mut pending: Option<u64> = None;
+    while let Some(row) = answered
+        .next_row()
+        .map_err(|refused| insert_refused(block, &refused))?
+    {
+        // `limit 1`, so the guard is about the shape of the loop and not about a second row —
+        // every row is still read, because draining is what ends the statement on this driver.
+        if pending.is_some() {
+            continue;
+        }
+        let body = row.value(0).ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PUSH}: the row read back from `{JOBS_TABLE}` has no first column"
+            ))
+        })?;
+        let scalar = nvs_db::mysql::scalar(&columns[0], body)
+            .map_err(|refused| insert_refused(block, &refused))?;
+        pending = match scalar {
+            nvs_db::MySqlScalar::Int(id) => u64::try_from(id).ok(),
+            nvs_db::MySqlScalar::UInt(id) => Some(id),
+            other => {
+                return Err(Fault::fatal(format!(
+                    "{PUSH}: `{JOBS_TABLE}`.`id` read back as {other:?}, not an integer"
+                )));
+            }
+        };
+    }
+    spans.note(answered.span());
+    drop(answered);
+    // [`INSERT_POSTGRES`]'s trailing `union all` moved into the caller: a pending job under this
+    // key is the answer, and the insert stands down rather than being refused by the index.
+    match pending {
+        Some(id) => Ok(id),
+        None => inserted(framed, bound, block, spans),
+    }
+}
+
+/// [`Split::then`]: the insert itself, and § 4's `lastId` off the write's own OK packet.
+///
+/// # Errors
+///
+/// [`insert_refused`] for anything the server refused, and a [`Fault::fatal`] for an insert that
+/// generated no `AUTO_INCREMENT` value — [`MySqlRows::last_id`](nvs_db::MySqlRows::last_id) says
+/// `0` for none, and [`MIGRATION_MYSQL`] declares the column that makes it impossible.
+fn inserted(
+    framed: &mut crate::db::Framed<'_>,
+    bound: &[Option<&[u8]>],
+    block: &str,
+    spans: &mut Spans,
+) -> Result<u64, Fault> {
+    let mut answered = framed
+        .query(INSERT_MYSQL.then, bound)
+        .map_err(|refused| insert_refused(block, &refused))?;
+    crate::db::name_span(&mut answered, Some(block));
+    // An insert answers no result set, but draining is what ends the statement on this driver and
+    // what lets `last_id` be read at all — `Core\Db\Connection::execute` does the same.
+    while answered
+        .next_row()
+        .map_err(|refused| insert_refused(block, &refused))?
+        .is_some()
+    {}
+    let last = answered.last_id().filter(|id| *id != 0);
+    spans.note(answered.span());
+    drop(answered);
+    last.ok_or_else(|| {
+        Fault::fatal(format!(
+            "{PUSH}: the insert into `{JOBS_TABLE}` answered no id at all"
+        ))
+    })
+}
+
+/// ADR 0067 § 11's events one member is holding until the connection lets the context go, and
+/// what is reading them.
+///
+/// **A member's statements are a list here where `Core\Db`'s are one**, which is what a [`Split`]
+/// costs the trace: an enqueue on MySQL is up to four statements — the transaction's two commands
+/// and the pair itself — and § 11 describes statements rather than members, so each of them files
+/// its own event. The two fields travel together everywhere because neither is usable without the
+/// other: a span nothing is reading is never taken, and a taken span cannot be filed until the
+/// rows have let go of `ctx`.
+struct Spans {
+    /// What § 11 and ADR 0041's trace are asking for, read before the first statement goes out —
+    /// [`crate::db::QueryWatch`] owns why it cannot be read at the point the event is filed.
+    watch: crate::db::QueryWatch,
+    /// One entry per statement that ran, in the order they ran.
+    taken: Vec<(String, std::time::Duration)>,
+}
+
+impl Spans {
+    /// What the context and the queue's block say, before the first statement goes out.
+    fn of(ctx: &nvs_runtime::Ctx, block: &str) -> Spans {
+        Spans {
+            watch: crate::db::QueryWatch::named(ctx, Some(block)),
+            taken: Vec::new(),
+        }
+    }
+
+    /// A running statement's span, taken while its rows still lend it out.
+    fn note(&mut self, span: &nvs_db::QuerySpan) {
+        if let Some(one) = self.watch.taken(span) {
+            self.taken.push(one);
+        }
+    }
+
+    /// The same, for § 7's three commands, which have no rows to hang a span on and so carry the
+    /// block name here — `crate::db`'s `file_span` is this rule for a caller holding a `Value`.
+    fn named(&mut self, block: &str, mut span: nvs_db::QuerySpan) {
+        span.name(block);
+        self.note(&span);
+    }
+
+    /// Files every event held, once the connection has let the context go.
+    fn file(self, ctx: &mut nvs_runtime::Ctx) {
+        let Spans { watch, taken } = self;
+        for one in taken {
+            watch.file(ctx, Some(one));
+        }
+    }
+}
+
+/// What one of § 1's three reading members got back: its row, as the integers § 2's schema
+/// declares, and what the server said the statement touched.
+///
+/// **All three read integers and nothing else** — a state ordinal, a cancel's yes-or-no, four
+/// counters — which is what lets [`counted_row`] answer for every one of them over both dialects.
+/// A reader that decoded § 9's whole type map would be `Core\Db`'s, and that class has one.
+struct Counted {
+    /// The first row's requested columns, or `None` for a statement that answered no row at all.
+    /// The inner `Option` is "that column was an integer", judged after the drain rather than
+    /// inside it, because the connection owes the caller a message boundary either way.
+    row: Option<Vec<Option<i64>>>,
+    /// ADR 0067 § 4's affected count, which both drivers define as the rows a write changed or the
+    /// rows a read answered with.
+    affected: Option<u64>,
+}
+
+impl Counted {
+    /// Whether the statement touched a row, in whichever way its dialect says so.
+    ///
+    /// [`CANCEL_POSTGRES`] says it with a returned row and [`CANCEL_MYSQL`] with the count on its
+    /// OK packet; a member asking "did this happen" wants the same answer from both, and neither
+    /// driver invents one — an `update` that matched nothing answers no row *and* zero.
+    fn touched(&self) -> bool {
+        self.row.is_some() || self.affected.is_some_and(|rows| rows > 0)
+    }
+}
+
+/// One statement, on whichever dialect the connection speaks, and the first row's integers.
+///
+/// **The two texts and their two bindings arrive together**, because a dialect is not only its
+/// SQL: [`STATUS_MYSQL`] binds four parameters where [`STATUS_POSTGRES`] binds two, and a signature
+/// taking one binding for both would make that impossible to say. What it is *not* is a rewrite —
+/// `nvs_db::sql::rewrite` renders one spelling into another, and these are two statements.
+///
+/// `columns` is how many of the row's columns to read, so `cancel` asks for none and reads
+/// [`Counted::touched`] alone.
+///
+/// # Errors
+///
+/// Whatever `refused` makes of a server's refusal — one wording per member, since what an operator
+/// does about it depends on what was being asked — and a [`Fault::fatal`] for a row narrower than
+/// the result set described it, which is a `nvs-db` bug rather than a program's.
+fn counted_row(
+    queued: Queued<'_>,
+    postgres: (&str, &[Option<&[u8]>]),
+    framed: (&str, &[Option<&[u8]>]),
+    columns: usize,
+    block: &str,
+    refused: &dyn Fn(&dyn std::fmt::Display) -> Fault,
+    spans: &mut Spans,
+) -> Result<Counted, Fault> {
+    match queued {
+        Queued::Postgres(connection) => {
+            let mut answered = connection
+                .query(postgres.0, postgres.1)
+                .map_err(|failed| refused(&failed))?;
+            crate::db::name_span(&mut answered, Some(block));
+            // Described before the first row, as `Core\Db`'s own reader describes it: a `PgRows`
+            // lends its columns and its rows out of one borrow, and the rows are read with it held
+            // mutably.
+            let described: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
+            let mut row: Option<Vec<Option<i64>>> = None;
+            // Every row is read before the answer is judged: the connection has to be back at a
+            // message boundary before this returns, or the next statement on it — the caller's
+            // own, inside the same transaction — meets a busy one. Each of the three statements
+            // answers at most one row, so the guard is about the shape of the loop rather than
+            // about a second row.
+            while let Some(reading) = answered.next_row().map_err(|failed| refused(&failed))? {
+                if row.is_some() {
+                    continue;
+                }
+                let mut read = Vec::with_capacity(columns);
+                for (at, column) in described.iter().enumerate().take(columns) {
+                    let body = reading.column(at).map_err(|failed| refused(&failed))?;
+                    let scalar = column.scalar(body).map_err(|failed| refused(&failed))?;
+                    read.push(match scalar {
+                        nvs_db::PgScalar::Int(number) => Some(number),
+                        _ => None,
+                    });
+                }
+                row = Some(read);
+            }
+            let affected = answered.affected();
+            spans.note(answered.span());
+            Ok(Counted { row, affected })
+        }
+        Queued::Framed(mut connection) => {
+            let mut answered = connection
+                .query(framed.0, framed.1)
+                .map_err(|failed| refused(&failed))?;
+            crate::db::name_span(&mut answered, Some(block));
+            // Cloned for the arm above's reason and for one more: this driver reads a value
+            // against the definition it arrived under, so the definitions outlive the borrow the
+            // rows are read through.
+            let described = answered.columns().to_vec();
+            let mut row: Option<Vec<Option<i64>>> = None;
+            while let Some(reading) = answered.next_row().map_err(|failed| refused(&failed))? {
+                if row.is_some() {
+                    continue;
+                }
+                let mut read = Vec::with_capacity(columns);
+                for (at, column) in described.iter().enumerate().take(columns) {
+                    // Unreachable from source: `nvs-db` decodes one value per definition, so a
+                    // row is exactly as wide as the result set said, and the statement is this
+                    // module's own text rather than anything a program wrote. `Core\Db`'s walk
+                    // states the same reading — it is a `fatal` because a narrower row is that
+                    // crate disagreeing with itself and not something a statement can ask for.
+                    let body = reading.value(at).ok_or_else(|| {
+                        Fault::fatal(format!(
+                            "the row has no column {at}, where the result set described {}",
+                            described.len()
+                        ))
+                    })?;
+                    let scalar =
+                        nvs_db::mysql::scalar(column, body).map_err(|failed| refused(&failed))?;
+                    read.push(match scalar {
+                        nvs_db::MySqlScalar::Int(number) => Some(number),
+                        // § 9's `uint` row: MySQL answers `count` as `bigint unsigned`, so the
+                        // two counters that are not cast land here rather than above.
+                        nvs_db::MySqlScalar::UInt(number) => i64::try_from(number).ok(),
+                        _ => None,
+                    });
+                }
+                row = Some(read);
+            }
+            let affected = answered.affected();
+            spans.note(answered.span());
+            Ok(Counted { row, affected })
+        }
     }
 }
 
@@ -1741,7 +2185,7 @@ nvs_runtime::nvs_helper! {
     /// the first is what [`ID`] exists to spare the caller.
     ///
     /// **One statement over both of § 2's tables**, so the answer describes one instant.
-    /// [`STATUS`] owns why that is two arms rather than two queries, and the reading it rests on is
+    /// [`STATUS_POSTGRES`] owns why that is two arms rather than two queries, and the reading it rests on is
     /// § 6's: a job that ran out of attempts is moved rather than deleted, so there is a row to
     /// answer from until an operator removes one.
     ///
@@ -1760,6 +2204,7 @@ nvs_runtime::nvs_helper! {
             Some(queue.clone().into_bytes()),
         ];
         let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
+        let twice: Vec<Option<&[u8]>> = bound.iter().chain(bound.iter()).copied().collect();
         let refused_by_server = |refused: &dyn std::fmt::Display| {
             Fault::thrown_as(
                 ThrownClass::Io,
@@ -1771,46 +2216,24 @@ nvs_runtime::nvs_helper! {
             )
         };
         // ADR 0067 § 11's event, as `push` files it and for the reason given there.
-        let watch = crate::db::QueryWatch::named(ctx, Some(&block));
-        let postgres = postgres_of(ctx, handle, &block, STATUS_OF)?;
-        let mut answered = postgres
-            .query(STATUS, &bound)
-            .map_err(|refused| refused_by_server(&refused))?;
-        crate::db::name_span(&mut answered, Some(&block));
-        // Taken before the first row, as `Core\Db`'s own reader takes it: a `PgRows` lends its
-        // columns and its rows out of one borrow, and the rows are read with it held mutably.
-        let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
-        // Every row is read before the answer is judged, exactly as `push` reads its id back: the
-        // connection has to be back at a message boundary before this returns, or the caller's
-        // next statement — inside the same transaction — meets a busy one. `limit 1` makes that
-        // one row, so the guard below is about the shape of the loop and not about a second row.
-        // The outer `Option` is "there was a row", the inner one "its column was an integer",
-        // both judged after the drain rather than inside it.
-        let mut read: Option<Option<i64>> = None;
-        loop {
-            let Some(row) = answered
-                .next_row()
-                .map_err(|refused| refused_by_server(&refused))?
-            else {
-                break;
-            };
-            if read.is_none() {
-                let body = row.column(0).map_err(|refused| refused_by_server(&refused))?;
-                let scalar = columns[0]
-                    .scalar(body)
-                    .map_err(|refused| refused_by_server(&refused))?;
-                read = Some(match scalar {
-                    nvs_db::PgScalar::Int(ordinal) => Some(ordinal),
-                    _ => None,
-                });
-            }
-        }
+        let mut spans = Spans::of(ctx, &block);
+        let counted = counted_row(
+            queue_connection(ctx, handle, &block, STATUS_OF)?,
+            (STATUS_POSTGRES, &bound),
+            // The same two values a second time, which is [`STATUS_MYSQL`]'s whole difference: a
+            // `?` cannot be named twice where a `$1` can.
+            (STATUS_MYSQL, &twice),
+            1,
+            &block,
+            &refused_by_server,
+            &mut spans,
+        )?;
         // Filed as `push` files it, and before the answer is judged for the same reason: the
         // statement ran either way, and a trace showing it is what § 11 asks for.
-        let taken = watch.taken(answered.span());
-        drop(answered);
-        watch.file(ctx, taken);
-        let ordinal = read
+        spans.file(ctx);
+        let ordinal = counted
+            .row
+            .and_then(|read| read.first().copied())
             .ok_or_else(|| {
                 Fault::thrown(format!(
                     "{STATUS_OF}: no job {id} is in the `{queue}` queue on `[db.{block}]`, in \
@@ -1856,7 +2279,7 @@ nvs_runtime::nvs_helper! {
     /// throwing for the second would make the commonest race an exception. ADR 0084 § 1 carries the
     /// annotation now, so there is one home for it.
     ///
-    /// **The state test is in [`CANCEL`] and not here**, which is why nothing in this body reads
+    /// **The state test is in [`CANCEL_POSTGRES`] and not here**, which is why nothing in this body reads
     /// the job's state first. The whole member is one statement for the reason `push` is: two would
     /// be two moments and the answer would be about the earlier one.
     ///
@@ -1885,30 +2308,24 @@ nvs_runtime::nvs_helper! {
             )
         };
         // ADR 0067 § 11's event, as `push` files it and for the reason given there.
-        let watch = crate::db::QueryWatch::named(ctx, Some(&block));
-        let postgres = postgres_of(ctx, handle, &block, CANCEL_OF)?;
-        let mut answered = postgres
-            .query(CANCEL, &bound)
-            .map_err(|refused| refused_by_server(&refused))?;
-        crate::db::name_span(&mut answered, Some(&block));
-        // The rows are counted rather than read: `returning id` is here to make the affected count
-        // observable and nothing reads the id, since the caller already holds it. Draining is what
-        // `push` and `status` drain for — the connection owes the caller a message boundary before
-        // the next statement on it, which may be the caller's own inside the same transaction.
-        let mut cancelled = false;
-        while answered
-            .next_row()
-            .map_err(|refused| refused_by_server(&refused))?
-            .is_some()
-        {
-            cancelled = true;
-        }
+        let mut spans = Spans::of(ctx, &block);
+        // No column is read: `returning id` is in [`CANCEL_POSTGRES`] to make the affected count
+        // observable and nothing reads the id, since the caller already holds it —
+        // [`Counted::touched`] is that reading, and the one [`CANCEL_MYSQL`] answers without a
+        // row at all.
+        let counted = counted_row(
+            queue_connection(ctx, handle, &block, CANCEL_OF)?,
+            (CANCEL_POSTGRES, &bound),
+            (CANCEL_MYSQL, &bound),
+            0,
+            &block,
+            &refused_by_server,
+            &mut spans,
+        )?;
         // As `push`: taken while the rows still lend the span out, filed once they have let the
         // context go. A cancel that lost § 4's race is a statement like any other and files one.
-        let taken = watch.taken(answered.span());
-        drop(answered);
-        watch.file(ctx, taken);
-        Ok(Value::bool(cancelled))
+        spans.file(ctx);
+        Ok(Value::bool(counted.touched()))
     }
 }
 
@@ -1919,7 +2336,7 @@ nvs_runtime::nvs_helper! {
     /// four: the other three take the receipt [`ID`] is, because they are about one row, and this
     /// one is about a population an operator watches.
     ///
-    /// **One statement, so the four counters are one fact.** [`COUNTS`] owns why an aggregate with
+    /// **One statement, so the four counters are one fact.** [`COUNTS_POSTGRES`] owns why an aggregate with
     /// no `group by` is the shape, and why the dead-letter depth is a scalar subquery beside it
     /// rather than a second query: four queries would be four instants, and a caller comparing
     /// `pending` against `claimed` across them would be comparing two different queues.
@@ -1947,6 +2364,7 @@ nvs_runtime::nvs_helper! {
         let handle = crate::db::open_named(ctx, &block, true, None, STATS_OF)?;
         let sending: [Option<Vec<u8>>; 1] = [Some(queue.clone().into_bytes())];
         let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
+        let twice: Vec<Option<&[u8]>> = bound.iter().chain(bound.iter()).copied().collect();
         let refused_by_server = |refused: &dyn std::fmt::Display| {
             Fault::thrown_as(
                 ThrownClass::Io,
@@ -1958,60 +2376,36 @@ nvs_runtime::nvs_helper! {
             )
         };
         // ADR 0067 § 11's event, as `push` files it and for the reason given there.
-        let watch = crate::db::QueryWatch::named(ctx, Some(&block));
-        let postgres = postgres_of(ctx, handle, &block, STATS_OF)?;
-        let mut answered = postgres
-            .query(COUNTS, &bound)
-            .map_err(|refused| refused_by_server(&refused))?;
-        crate::db::name_span(&mut answered, Some(&block));
-        // Taken before the first row, as `status` takes them: a `PgRows` lends its columns and its
-        // rows out of one borrow, and the rows are read with it held mutably.
-        let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
-        // Every row is drained before the answer is judged, exactly as `push` and `status` drain:
-        // the connection owes the caller a message boundary before the next statement on it, which
-        // may be the caller's own inside the same transaction. An aggregate with no `group by` is
-        // one row, so the guard below is about the shape of the loop and not about a second row.
-        let mut read: Option<[i64; 4]> = None;
-        loop {
-            let Some(row) = answered
-                .next_row()
-                .map_err(|refused| refused_by_server(&refused))?
-            else {
-                break;
-            };
-            if read.is_some() {
-                continue;
-            }
-            let mut counted = [0i64; 4];
-            for (at, held) in counted.iter_mut().enumerate() {
-                let body = row
-                    .column(at)
-                    .map_err(|refused| refused_by_server(&refused))?;
-                let scalar = columns[at]
-                    .scalar(body)
-                    .map_err(|refused| refused_by_server(&refused))?;
-                let nvs_db::PgScalar::Int(count) = scalar else {
-                    return Err(Fault::fatal(format!(
-                        "{STATS_OF}: the `{}` counter came back as something other than an \
-                         integer, and every one of `COUNTS`'s four columns is cast to `bigint` \
-                         here",
-                        STATS.slots[at]
-                    )));
-                };
-                *held = count;
-            }
-            read = Some(counted);
-        }
+        let mut spans = Spans::of(ctx, &block);
+        let read = counted_row(
+            queue_connection(ctx, handle, &block, STATS_OF)?,
+            (COUNTS_POSTGRES, &bound),
+            // The queue a second time, for [`STATUS_MYSQL`]'s reason: the dead-letter subquery and
+            // the aggregate's own `where` each bind their own `?`.
+            (COUNTS_MYSQL, &twice),
+            4,
+            &block,
+            &refused_by_server,
+            &mut spans,
+        )?;
         // As `push`, and before the row is judged for the reason `status` gives.
-        let taken = watch.taken(answered.span());
-        drop(answered);
-        watch.file(ctx, taken);
-        let counted = read.ok_or_else(|| {
+        spans.file(ctx);
+        let row = read.row.ok_or_else(|| {
             Fault::fatal(format!(
                 "{STATS_OF}: the aggregate over `{JOBS_TABLE}` answered no row at all, and one \
                  with no `group by` answers exactly one however empty the table is"
             ))
         })?;
+        let mut counted = [0i64; 4];
+        for (at, held) in counted.iter_mut().enumerate() {
+            *held = row.get(at).copied().flatten().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{STATS_OF}: the `{}` counter came back as something other than an integer, \
+                     and both dialects declare all four columns a `bigint` here",
+                    STATS.slots[at]
+                ))
+            })?;
+        }
         // Saturating at zero rather than refusing: a negative count is not something the server
         // can produce from a `count` or from a sum of non-negative attempts, so the alternative is
         // a refusal nothing can reach.
@@ -2060,7 +2454,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$stats->attempts(): uint` — the attempts the queue's own rows have used, which
-    /// [`COUNTS`] sums over [`JOBS_TABLE`] alone for [`DEAD_TABLE`]'s reason.
+    /// [`COUNTS_POSTGRES`] sums over [`JOBS_TABLE`] alone for [`DEAD_TABLE`]'s reason.
     fn nvs_core_queue_stats_attempts(_ctx, args: [1]) {
         counter(args, "attempts", STATS_ATTEMPTS_AT)
     }
@@ -2095,26 +2489,28 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL, CLAIM_MYSQL, CLAIM_POSTGRES, COUNTS, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES,
-        DEAD_TABLE, INSERT_MYSQL, INSERT_POSTGRES, JOBS_TABLE, MIGRATION_MYSQL, MIGRATION_POSTGRES,
-        Migration, PENDING, PUSH, QUEUES, RETRY, RETRY_CAP_MS, STATE, STATS, STATS_ATTEMPTS_AT,
-        STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT,
-        STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS, SUCCEEDED, dead_errors, migration,
-        no_dialect, retry_at,
+        CANCEL_MYSQL, CANCEL_POSTGRES, CLAIM_MYSQL, CLAIM_POSTGRES, COUNTS_MYSQL, COUNTS_POSTGRES,
+        DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE, INSERT_MYSQL, INSERT_POSTGRES,
+        JOBS_TABLE, MIGRATION_MYSQL, MIGRATION_POSTGRES, Migration, PENDING, PUSH, QUEUES, RETRY,
+        RETRY_CAP_MS, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
+        STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
+        STATUS_MYSQL, STATUS_POSTGRES, SUCCEEDED, dead_errors, migration, no_dialect, retry_at,
     };
 
     /// An agreement test rather than a wording one, in `the_refusal_names_every_driver_that_sends`'s
     /// shape one module over: what this file must not do is tell an operator to fix the wrong thing.
-    /// The split it asserts is *which sentence* a driver earns, and the roster behind it is
-    /// [`crate::db::rendering_for`]'s `None` rather than a second list of five drivers here — so a
-    /// driver gaining a statement path in that module moves this refusal with it, and a sixth
-    /// arriving fails the build in [`no_dialect`] before it reaches this test at all.
+    /// The roster behind it is [`crate::db::rendering_for`]'s `None` rather than a second list of
+    /// five drivers here — so a driver gaining a statement path in that module moves this refusal
+    /// with it, and a sixth arriving fails the build in [`no_dialect`] before it reaches this test.
+    ///
+    /// **The two halves used to be two sentences and are now a sentence and a bug**, which is the
+    /// whole of what § 4's second dialect changed here: a driver this crate can send over is one
+    /// all four members have a statement for, so the only refusal left names `Core\Db`'s gap 2 —
+    /// and a sending driver reaching [`no_dialect`] at all means [`queue_connection`] grew a hole,
+    /// which is what the second assertion is for.
     #[test]
-    fn the_queues_refusal_says_which_of_the_two_things_is_missing() {
+    fn the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send() {
         for driver in nvs_db::Driver::ALL {
-            if driver == nvs_db::Driver::Postgres {
-                continue;
-            }
             let refused = format!("{:?}", no_dialect(PUSH, "main", driver));
             assert!(
                 refused.contains(driver.display_name()),
@@ -2122,15 +2518,42 @@ mod tests {
             );
             let sends = crate::db::rendering_for(driver).is_some();
             assert_eq!(
-                sends,
-                refused.contains("known gap 5"),
-                "{driver:?} sends a statement, so what the queue owes it is its own SQL: {refused}"
-            );
-            assert_eq!(
                 !sends,
                 refused.contains("known gap 2"),
                 "{driver:?} sends nothing, so the queue owes it nothing and `Core\\Db` does: \
                  {refused}"
+            );
+            assert_eq!(
+                sends,
+                refused.contains("this is a bug"),
+                "{driver:?} sends a statement and the queue has one for it, so nothing should be \
+                 refusing it: {refused}"
+            );
+        }
+    }
+
+    /// The other direction of the test above, which is not the same assertion: a `?` in a
+    /// PostgreSQL text binds nothing and the server cannot say so usefully — it reads the character
+    /// as an operator and answers a syntax error naming a statement no `.nvst` case can see. The
+    /// two dialects are two whole texts precisely because no rewrite stands between them
+    /// ([`Split`]'s doc), so each list owes the check that it is written in its own dialect
+    /// throughout rather than in most places.
+    #[test]
+    fn no_postgresql_statement_binds_the_other_dialects_placeholder() {
+        for (name, sql) in [
+            ("INSERT_POSTGRES", INSERT_POSTGRES),
+            ("CLAIM_POSTGRES", CLAIM_POSTGRES),
+            ("DEAD_LETTER_POSTGRES", DEAD_LETTER_POSTGRES),
+            ("STATUS_POSTGRES", STATUS_POSTGRES),
+            ("CANCEL_POSTGRES", CANCEL_POSTGRES),
+            ("COUNTS_POSTGRES", COUNTS_POSTGRES),
+            ("QUEUES", QUEUES),
+            ("SUCCEEDED", SUCCEEDED),
+            ("RETRY", RETRY),
+        ] {
+            assert!(
+                !sql.contains('?'),
+                "`{name}` is PostgreSQL's, so every parameter in it is a `$n`: {sql}"
             );
         }
     }
@@ -2281,7 +2704,7 @@ mod tests {
             for column in ["state ", "attempts ", "queue "] {
                 assert!(
                     jobs.contains(column),
-                    "{dialect}: the `jobs` DDL creates the column `STATUS` and `COUNTS` read as \
+                    "{dialect}: the `jobs` DDL creates the column `STATUS_POSTGRES` and `COUNTS_POSTGRES` read as \
                      `{column}`"
                 );
             }
@@ -2385,23 +2808,31 @@ mod tests {
     /// to be interesting, so a fourth statement added to this set is covered on the day it lands.
     #[test]
     fn the_mysql_statements_spell_nothing_only_postgresql_has() {
+        let mut texts: Vec<(&str, &str)> = Vec::new();
         for (member, split) in [
             ("push", INSERT_MYSQL),
             ("claim", CLAIM_MYSQL),
             ("move", DEAD_LETTER_MYSQL),
         ] {
-            for (half, sql) in [("first", split.first), ("then", split.then)] {
-                for absent in ["returning", "::", "$1", "with "] {
-                    assert!(
-                        !sql.contains(absent),
-                        "{member}'s `{half}` spells `{absent}`, which MySQL has no reading for"
-                    );
-                }
+            texts.push((member, split.first));
+            texts.push((member, split.then));
+        }
+        // § 5's three readers are not [`Split`]s — nothing in them rests on a construct MySQL
+        // lacks — but they are the same second dialect and owe the same check.
+        texts.push(("status", STATUS_MYSQL));
+        texts.push(("cancel", CANCEL_MYSQL));
+        texts.push(("stats", COUNTS_MYSQL));
+        for (member, sql) in texts {
+            for absent in ["returning", "::", "$1", "with ", "filter (where"] {
                 assert!(
-                    sql.contains('?'),
-                    "{member}'s `{half}` binds nothing, so it is not the statement it replaces"
+                    !sql.contains(absent),
+                    "{member}'s MySQL text spells `{absent}`, which MySQL has no reading for"
                 );
             }
+            assert!(
+                sql.contains('?'),
+                "{member}'s MySQL text binds nothing, so it is not the statement it replaces"
+            );
         }
     }
 
@@ -2524,24 +2955,34 @@ mod tests {
         assert_eq!(
             case("Dead"),
             3,
-            "`STATUS`'s dead-letter arm spells this `3`"
+            "`STATUS_POSTGRES`'s dead-letter arm spells this `3`"
         );
         assert!(
-            STATUS.contains("select 3 from nvs_dead_jobs"),
-            "`STATUS` answers the ordinal above for a dead-lettered job"
+            STATUS_POSTGRES.contains("select 3 from nvs_dead_jobs"),
+            "`STATUS_POSTGRES` answers the ordinal above for a dead-lettered job"
         );
         assert!(
-            STATUS.contains(JOBS_TABLE) && STATUS.contains(DEAD_TABLE),
-            "`STATUS` reads both of § 2's tables"
+            STATUS_POSTGRES.contains(JOBS_TABLE) && STATUS_POSTGRES.contains(DEAD_TABLE),
+            "`STATUS_POSTGRES` reads both of § 2's tables"
+        );
+        assert!(
+            STATUS_MYSQL.contains("select 3 from nvs_dead_jobs")
+                && STATUS_MYSQL.contains(JOBS_TABLE)
+                && STATUS_MYSQL.contains(DEAD_TABLE),
+            "`STATUS_MYSQL` answers the same ordinal over the same two tables"
         );
         assert_eq!(
             case("Cancelled"),
             4,
-            "`CANCEL` writes this ordinal in place of `Pending`"
+            "`CANCEL_POSTGRES` writes this ordinal in place of `Pending`"
         );
         assert!(
-            CANCEL.contains("set state = 4") && CANCEL.contains("and state = 0"),
-            "`CANCEL` moves a job from the ordinal above to the one before it, and only that one"
+            CANCEL_POSTGRES.contains("set state = 4") && CANCEL_POSTGRES.contains("and state = 0"),
+            "`CANCEL_POSTGRES` moves a job from the ordinal above to the one before it, and only that one"
+        );
+        assert!(
+            CANCEL_MYSQL.contains("set state = 4") && CANCEL_MYSQL.contains("and state = 0"),
+            "`CANCEL_MYSQL` moves a job between the same two ordinals"
         );
         assert_eq!(
             case("Succeeded"),
@@ -2557,13 +2998,19 @@ mod tests {
             "a retried job goes back to `Pending`'s own ordinal, which is what makes it claimable"
         );
         assert!(
-            COUNTS.contains("filter (where state = 0)"),
-            "`COUNTS` counts waiting jobs by `Pending`'s own ordinal"
+            COUNTS_POSTGRES.contains("filter (where state = 0)"),
+            "`COUNTS_POSTGRES` counts waiting jobs by `Pending`'s own ordinal"
+        );
+        assert!(
+            COUNTS_MYSQL.contains("case when state = 0")
+                && COUNTS_MYSQL.contains("case when state = 1"),
+            "`COUNTS_MYSQL` counts by the same two ordinals, in the spelling MySQL has for a \
+             filtered count"
         );
         assert_eq!(
             case("Claimed"),
             1,
-            "`COUNTS`'s second counter spells this `1`"
+            "`COUNTS_POSTGRES`'s second counter spells this `1`"
         );
         // Both dialects, because both spell the ordinals themselves: the arms are in the half that
         // reads and the write is in the half that takes, which is the one place the split moved an
@@ -2586,16 +3033,16 @@ mod tests {
             "`QUEUES` asks `CLAIM_POSTGRES`'s two arms, so a roster entry is a queue with due work in it"
         );
         assert!(
-            COUNTS.contains("filter (where state = 1)"),
-            "`COUNTS` counts jobs a worker holds by the ordinal above"
+            COUNTS_POSTGRES.contains("filter (where state = 1)"),
+            "`COUNTS_POSTGRES` counts jobs a worker holds by the ordinal above"
         );
         assert!(
-            COUNTS.contains(JOBS_TABLE) && COUNTS.contains(DEAD_TABLE),
-            "`COUNTS` reads both of § 2's tables, taking the depth from the second"
+            COUNTS_POSTGRES.contains(JOBS_TABLE) && COUNTS_POSTGRES.contains(DEAD_TABLE),
+            "`COUNTS_POSTGRES` reads both of § 2's tables, taking the depth from the second"
         );
     }
 
-    /// Three separate places say what order [`STATS`]'s counters are in — [`COUNTS`]'s select
+    /// Three separate places say what order [`STATS`]'s counters are in — [`COUNTS_POSTGRES`]'s select
     /// list, the slot roster, and the `*_AT` index each reader passes — and only the first is
     /// beyond a test's reach. Nothing else would notice the other two disagreeing: a swapped pair
     /// still type-checks, still runs, and answers the wrong number.
@@ -2604,7 +3051,7 @@ mod tests {
         let members: Vec<&str> = STATS.instance.iter().map(|one| one.name).collect();
         assert_eq!(
             members, STATS.slots,
-            "each counter is named for the slot it reads, in `COUNTS`'s column order"
+            "each counter is named for the slot it reads, in `COUNTS_POSTGRES`'s column order"
         );
         for (at, slot) in [
             (STATS_PENDING_AT, STATS_PENDING_SLOT),

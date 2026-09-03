@@ -4694,7 +4694,16 @@ fn postgres_rows(
 /// wants flattening is the call sites. Where the two drivers genuinely part —
 /// MariaDB's `RETURNING`, which MySQL does not have — the arm belongs on the
 /// connection in `nvs-db`, and nothing about it reaches here.
-enum Framed<'a> {
+///
+/// **`pub(crate)` because [`crate::queue`] sends over the same two drivers**, and
+/// for [`QueryWatch`]'s reason: ADR 0084's members drive a result set themselves
+/// rather than through this class's, so a second borrow-flattening enum over
+/// there would be this one with the same two arms. It carries § 7's three
+/// commands as well as the send, which [`Transacting`] also spells — the two are
+/// not one type because that one covers PostgreSQL, whose arm the queue's splits
+/// must not reach: a `Split` is what a driver *without* the single-statement
+/// construct runs, and PostgreSQL runs the single statement instead.
+pub(crate) enum Framed<'a> {
     /// § 1's two round trips as MySQL frames them.
     MySql(&'a mut nvs_db::MySqlConn),
     /// The same two, framed as MariaDB and authenticated by its own roster.
@@ -4718,7 +4727,7 @@ impl Framed<'_> {
     ///
     /// As the driver's own `query`, which on both is
     /// `nvs_db::mysql::start_statement`'s.
-    fn query(
+    pub(crate) fn query(
         &mut self,
         sql: &str,
         params: &[Option<&[u8]>],
@@ -4726,6 +4735,46 @@ impl Framed<'_> {
         match self {
             Framed::MySql(mysql) => mysql.query(sql, params),
             Framed::MariaDb(maria) => maria.query(sql, params),
+        }
+    }
+
+    /// § 7's `START TRANSACTION`, or the `SAVEPOINT` a nested one is.
+    ///
+    /// # Errors
+    ///
+    /// As the driver's own `begin`.
+    pub(crate) fn begin(
+        &mut self,
+        isolation: Option<nvs_db::Isolation>,
+        read_only: bool,
+    ) -> std::io::Result<nvs_db::QuerySpan> {
+        match self {
+            Framed::MySql(mysql) => mysql.begin(isolation, read_only),
+            Framed::MariaDb(maria) => maria.begin(isolation, read_only),
+        }
+    }
+
+    /// § 7's `COMMIT`, or the release that closes a nested level.
+    ///
+    /// # Errors
+    ///
+    /// As the driver's own `commit`.
+    pub(crate) fn commit(&mut self) -> std::io::Result<nvs_db::QuerySpan> {
+        match self {
+            Framed::MySql(mysql) => mysql.commit(),
+            Framed::MariaDb(maria) => maria.commit(),
+        }
+    }
+
+    /// § 7's `ROLLBACK`, or the undo of a nested level.
+    ///
+    /// # Errors
+    ///
+    /// As the driver's own `roll_back`.
+    pub(crate) fn roll_back(&mut self) -> std::io::Result<nvs_db::QuerySpan> {
+        match self {
+            Framed::MySql(mysql) => mysql.roll_back(),
+            Framed::MariaDb(maria) => maria.roll_back(),
         }
     }
 }
