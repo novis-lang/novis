@@ -2,23 +2,29 @@
 
 ## State
 
-**M8 goal 5. The queue is the last PostgreSQL-only surface in `nvs-stdlib`, and it stays that way for
-one more group: what it lacks is SQL, not a send.** `crates/nvs-stdlib/src/queue.rs:1342`'s
-`no_dialect` is that decision's home — the queue keeps a refusal of its own rather than borrowing
-`crate::db`'s `Framed`, because that seam unifies a *wire* two drivers share and nothing here is
-blocked on the wire. Its sentence now splits on whether the driver sends: MySQL and MariaDB earn "the
-queue's statements are PostgreSQL's dialect" (this module's gap 5), SQL Server and SQLite earn "runs
-no statement at all" (`Core\Db`'s gap 2). `crate::db::rendering_for` is `pub(crate)` so
-`the_queues_refusal_says_which_of_the_two_things_is_missing` reads the crate's one roster instead of
-a second list.
+**M8 goal 5. ADR 0084 § 2's schema now has two dialects and `nvs queue migrate` runs whichever one
+its block's driver speaks; the queue's *members* still send PostgreSQL only.** That split is the
+state to hold onto: `crates/nvs-stdlib/src/queue.rs:260`'s `migration(driver)` is the one place a
+dialect is chosen, `MIGRATION_POSTGRES` and `MIGRATION_MYSQL` are the two lists, and module gap 5
+now names what is left — § 4's claim, § 1's `insert` and § 6's move, not the schema under them.
 
-**The finding that re-scopes the rest of the group: MySQL has no partial unique index, no
-data-modifying CTE and no `RETURNING`** (MariaDB has `RETURNING` but not the CTE), and
-`MIGRATION`'s `jobs.dedupe`, `INSERT`, `CLAIM` and `DEAD_LETTER` each rest on one of those. So §§ 2
-and 4 are a second design rather than a translation, and the schema is worth writing only together
-with the statements that read it — `the_ddl_creates_every_column_the_statements_name`
-(`crates/nvs-stdlib/src/queue.rs:1924`) is what binds the two lists, and a DDL no statement claims
-has nothing to be held to.
+**`MIGRATION_MYSQL`'s doc owns every construct decision** and is the file to read before writing a
+second statement set: the dedupe index is a stored generated column (`case when state = 0 then
+dedupe_key else null end`) with a plain unique key over it, because MySQL has no partial index and
+its unique indexes do not collide on `null`; each table's indexes are declared inside its own
+`create table if not exists`, because `create index if not exists` does not exist there; the two
+indexed columns are `varchar(255)` because MySQL cannot index a `text` without a prefix, and a
+prefix-unique index would refuse two distinct keys sharing a prefix.
+
+**Two agreements are held by tests rather than by matching lists.**
+`the_ddl_creates_every_column_the_statements_name` walks *both* lists against the same statements,
+so the dialects may differ freely in constructs and not at all in columns;
+`the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one` holds `migration` to
+`crate::db::rendering_for`, so a schema for a driver nothing sends fails, as does the reverse.
+
+**One latent bug fixed on the way:** `crates/nvs-cli/src/queue.rs`'s shared `address_of` defaulted
+every driver's port to PostgreSQL's 5432; it now takes the driver's own, as `nvs_stdlib::db`'s twin
+already did.
 
 **The driver's stage-7 check is unchanged and still correctly filed.**
 `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` needs SQL Server and there is no TDS
@@ -27,38 +33,32 @@ under it.
 
 ## Next group
 
-**One file set: `crates/nvs-stdlib/src/queue.rs`, with `crates/nvs-cli/src/queue.rs` behind it** —
-the migrate command is what chooses a list, so the schema slice lands in both. Take the first two
-together: a schema written apart from the statements that read it is the thing this session's State
-block argues against.
+**One file set: `crates/nvs-stdlib/src/queue.rs`.** Take the first two together — a second statement
+set and the seam that reaches it are one change, and splitting them lands statements nothing calls.
 
-- [ ] **§ 2's schema in MySQL's dialect, with the dedupe index as a generated column** (0084 § 2).
-      `crates/nvs-stdlib/src/queue.rs:181` is `MIGRATION` and its doc owns the dialect argument;
-      `crates/nvs-stdlib/src/queue.rs:1924` is the test binding DDL to statements and needs to walk
-      both lists. Two constructs have no MySQL spelling and the answer is decided per construct, not
-      per statement: a partial unique index becomes a stored generated column (`case when state = 0
-      then dedupe_key else null end`) with a plain unique index over it, since NULLs do not collide;
-      and `create index if not exists` does not exist on MySQL, so an index declared inside the
-      `create table if not exists` is what keeps § 2's *created and upgraded* reading.
-- [ ] **§ 4's claim needs a dialect, not a translation** (0084 § 4).
-      `crates/nvs-stdlib/src/queue.rs:302` is `CLAIM`, `crates/nvs-stdlib/src/queue.rs:253` is
-      `INSERT` and `crates/nvs-stdlib/src/queue.rs:383` is `DEAD_LETTER` — all three are
-      data-modifying CTEs with a `returning`, and MySQL has neither half. `for update skip locked`
-      *is* there (MySQL 8, MariaDB 10.6), so the claim is a select-then-update inside one
-      transaction keyed on the lease, and the lease key is what already makes that safe.
-- [ ] **`nvs queue migrate` picks the list by driver** (0084 § 2).
-      `crates/nvs-cli/src/queue.rs:70` is `DIALECT`, a `&str` that is one driver by construction, and
-      `crates/nvs-cli/src/queue.rs:141` is the `match` that refuses everything else. The refusal's
-      wording is already right; what changes is that two drivers stop reaching it.
+- [ ] **§ 4's claim and § 1's push in MySQL's dialect** (0084 §§ 1 and 4).
+      `crates/nvs-stdlib/src/queue.rs:424` is `CLAIM` and `crates/nvs-stdlib/src/queue.rs:375` is
+      `INSERT`; `crates/nvs-stdlib/src/queue.rs:505` is `DEAD_LETTER`, the third statement resting
+      on a construct MySQL lacks. No `returning` and no data-modifying CTE, so each becomes a
+      `select … for update skip locked` and then an `update`, both inside one transaction — two
+      statements in one moment, which is the property `CLAIM`'s own doc argues for rather than the
+      single statement it happens to use. **First, settle whether these texts go through
+      `nvs_db::sql::rewrite`** (ADR 0067 § 5's one-spelling-in rewriter): if they do, the `$n`
+      placeholders are already per-driver and only the constructs and the `::text` casts differ,
+      which is a materially smaller second list than it looks.
+- [ ] **The members reach a connection by driver, not through `postgres_of`** (0084 § 4).
+      `crates/nvs-stdlib/src/queue.rs:1422` is `postgres_of` and
+      `crates/nvs-stdlib/src/queue.rs:1465` is `no_dialect`, whose two sentences narrow again as
+      each member gains its second arm. `crates/nvs-cli/src/queue.rs`'s `dialect_of` is the shape
+      that worked for the command.
+- [ ] **A matrix case that migrates and pushes against a real MySQL server** (0084 § 2).
+      `crates/nvs-stdlib/tests/queue.rs:97` is `schema`, which runs `MIGRATION_POSTGRES` against
+      the compose PostgreSQL; the MySQL leg is the same shape over `nvs_db::matrix`.
 
 ## Backlog
 
-- Gap 5's last mile: `postgres_of` (`crates/nvs-stdlib/src/queue.rs:1300`) widens to a per-driver
-  gate only once the three slices above land — `crates/nvs-stdlib/src/queue.rs`'s module doc.
-- Queue gap 1 says the registry cannot spell a shape parameter, so `limits`/`grants` are undeclared;
-  ADR 0135 decided `CoreTy::Shape` and `Core\Db::open` is live, so that gap may be stale —
-  `crates/nvs-stdlib/src/queue.rs:41`.
-- Stage 7's `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` stays open until a TDS
-  driver exists — `docs/agent/loop-goal.toml`.
-- `Core\Queue`'s `$args` is `mixed` and so does not refuse a `secret`, which ADR 0084 § 1 asks for —
-  module gap 2.
+- MySQL cannot add an index to a table an older Novis created — `MIGRATION_MYSQL`'s doc says so and
+  the migration command owns the day there is a schema change to make.
+- SQL Server and SQLite have no schema because they send no statement; `crate::db`'s gap 2 is the list.
+- `nvs queue migrate` against a MySQL block is untested end to end — no compose leg names one yet.
+- Module gap 1: `limits`/`grants` wait on a shape parameter, now that ADR 0135 has specified one.
