@@ -2268,6 +2268,14 @@ is why" — is this file.
   expected value and re-run the leg: a `FAILED` naming your case is the proof, and reverting it
   costs one edit. Wall clock says nothing — six real cases over TLS to a container finish in
   0.07s, the same as six skips.
+- **`python tools/db-matrix.py` reports `ok` for a case that never ran, so a green matrix proves
+  nothing about a case you just wrote.** Every case in `crates/nvs-stdlib/tests/queue.rs` returns
+  early when its gate answers `None`, and the tool runs `cargo test -q`, so a case that skipped and a
+  case that asserted against a real server produce the same `3/3 drivers ok`. A gate misspelled, a
+  helper that returned before the assertions, a `framed()` where `postgres()` was meant — all read as
+  green. Confirm once by *breaking* the case's own assertion and re-running the tool: a leg that names
+  your case in its `FAILED` line ran it, and everything above the broken line passed on a real server.
+  Then revert. Two calls, and it is the only evidence the matrix can give you.
 
 ## Writing a test case
 
@@ -4762,6 +4770,16 @@ is why" — is this file.
   descriptor drops the value silently (`Thrown::new_as`). `crates/nvs-stdlib/src/db.rs`'s
   `retries_recover_an_induced_deadlock` is the shape; the playbook's `Ctx::class_desc` bullet is the
   same seam reached for a different reason.
+- **A fake server that parses the client's own message can be flaky in a way that reads as a driver
+  bug, and `cargo test` in a loop will not find it.** `crates/nvs-db/src/pg.rs`'s SCRAM fake took the
+  client nonce with `rsplit_once("r=")` out of `n=,r=<nonce>`. `postgres_protocol` draws 24 characters
+  from RFC 5802's comma-free printable set, which contains both `r` and `=`, so about one run in 368
+  the split landed *inside* the nonce, the fake echoed a suffix, and the driver correctly refused its
+  own exchange — failing whichever of the five SCRAM cases the run reached. It failed one acceptance
+  check and then passed every re-run, including the whole `-p nvs-db` suite twice. The general shape:
+  a fixture that parses with a needle the value it is parsing may contain is a coin flip, not a
+  fixture, and the tell is an acceptance failure that does not reproduce at the same commit. Split on
+  the attribute's own delimiter — `,r=` here — which the grammar guarantees the value cannot hold.
 
 ## Splitting a file that got too big
 

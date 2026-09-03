@@ -52,9 +52,9 @@
 > readers answer with, and § 6's *request* converts — a `TINYINT(1)` reads as `bool` and a stored
 > `7` throws; `examples/db.nvs` runs end to end.  **§ 13's pool is complete, every bound and the
 > park live**, **ADR 0084 § 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue migrate`
-> applies § 2's schema in either dialect, all four of § 1's members run on either, §§ 4 and 6's
-> statements have both dialects, and a worker runs on all three, whose schema, claim and reports
-> real servers hold**, and **a shape encodes as a JSON object**. **MySQL and MariaDB both run a
+> applies § 2's schema in either dialect, § 1's four members run on either, §§ 4 and 6's statements
+> have both dialects, a worker runs on all three, and real servers hold its schema, dedupe, claim,
+> timeout and reports**, and **a shape encodes as a JSON object**. **MySQL and MariaDB both run a
 > block end to end**: `connect` and `open` open and pool either, §§ 1, 3, 5, 7, 9 and 13 follow each
 > driver's own — MariaDB's auth roster and § 8 table are its own over MySQL's framing, and `Framed`
 > is the one send body — and a real server of each holds § 3's park, § 7, § 8 and § 13's pool.
