@@ -167,7 +167,7 @@ tests = [
 kind = "command"
 stage = "5 the json"
 name = "the one-file reference still regenerates from the binary"
-args = ["python", "tools/reference.py", "--check"]
+argv = ["python", "tools/reference.py", "--check"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the renderer and the lint. Goal prose stage 6.
