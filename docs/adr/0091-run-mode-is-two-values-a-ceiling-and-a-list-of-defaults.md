@@ -222,7 +222,8 @@ That default gets every case right with no ceremony:
 |---|---|---|
 | Production host | nothing | Started in `production`, ceiling is `production`. **No code path anywhere can reach development mode.** |
 | Developer's machine | `nvs serve --mode=development` | Ceiling is `development`. Flips are free; nothing to configure. |
-| One host, mixed applications | `[mode] default = "production"`, `[mode] ceiling = "development"` | The host is production by default and each application selects its own — in code, or on its mount ([0097](0097-development-server-and-proxied-origin.md) § 10). |
+| One host, mixed applications | `[mode] default = "production"`, `[mode] ceiling = "development"` | The host is production by default and each application selects its own — in code, or in its `[[app]]` block ([0104](0104-an-application-is-an-entry-file-path.md) § 1, which
+[0097](0097-development-server-and-proxied-origin.md) § 10 routes to rather than giving a mount a `mode`). |
 
 **The ceiling bounds a runtime flip, not the startup value.** `nvs serve --mode=development` in a directory
 with no `nvs.toml` still simply works — the flag sets the startup mode, and the ceiling follows it. A

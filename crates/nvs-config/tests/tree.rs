@@ -89,6 +89,84 @@ fn every_block_an_adr_writes_out_is_in_the_tree() {
     );
 }
 
+/// ADR 0097 § 10: a mount routes and carries nothing else. § 3's five keys say where a request
+/// arrives and which file answers it; every directive saying what the code answering it *may do*
+/// belongs to ADR 0104 § 1's `[[app]]` block, keyed on the entry file path. A `[[server.mount]]`
+/// that grew one would be a second home for a fact [ADR 0005] owns, and the per-app block goal 3
+/// built re-implemented one block over.
+///
+/// Asserted on both sides, because either half alone reads as correct: § 3's routing keys parse
+/// together, and each policy directive is refused under `[[server.mount]]` **while the same
+/// directive parses under `[[app]]`** — so a refusal that came from the directive being unspellable
+/// anywhere, rather than from the mount declining to hold policy, fails here too.
+///
+/// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+#[test]
+fn a_mount_carries_no_policy_of_its_own() {
+    let routing = tree(concat!(
+        "[[server.mount]]\n",
+        "scan = \"*/public/index.nvs\"\n",
+        "prefix = \"/{1}\"\n",
+        "host = \"{1}.example.com\"\n",
+        "origin = \"https://{1}.example.com\"\n",
+        "[[server.mount]]\n",
+        "prefix = \"/admin\"\n",
+        "entry = \"Backoffice/public/index.nvs\"\n",
+    ));
+    let mounts = routing.server.expect("[server] parses").mount;
+    assert_eq!(
+        mounts.len(),
+        2,
+        "§ 3's five routing keys are the whole of what a mount holds",
+    );
+
+    // One policy directive per row: how it would be written under a mount, and the `[[app]]`
+    // spelling that is its real home. The `[[app]]` half is the roster's own, so a directive that
+    // moved keeps this test honest rather than turning it green by going missing everywhere.
+    const POLICY: &[(&str, &str)] = &[
+        ("mode = \"production\"\n", "mode = \"production\"\n"),
+        (
+            "[server.mount.limits]\nwall_time = \"600s\"\n",
+            "[app.limits]\nwall_time = \"600s\"\n",
+        ),
+        (
+            "[server.mount.limits.hard]\nmemory = \"1G\"\n",
+            "[app.limits.hard]\nmemory = \"1G\"\n",
+        ),
+        (
+            "[server.mount.capabilities]\nprocess.exec = true\n",
+            "[app.capabilities]\nprocess.exec = true\n",
+        ),
+        (
+            "[server.mount.log]\nlevel = \"warning\"\n",
+            "[app.log]\nlevel = \"warning\"\n",
+        ),
+    ];
+
+    for (on_the_mount, on_the_app) in POLICY {
+        let diagnostic = refusal(&format!(
+            "[[server.mount]]\nprefix = \"/shop\"\nentry = \"shop/public/index.nvs\"\n{on_the_mount}"
+        ));
+        assert_eq!(
+            diagnostic.code,
+            Some(code::E_BAD_DIRECTIVE),
+            "a policy directive under a mount is an unknown key like any other: {on_the_mount:?}",
+        );
+        assert!(
+            diagnostic.message.contains("unknown field"),
+            "and the message says so: {:?}",
+            diagnostic.message,
+        );
+
+        let app = tree(&format!("[[app]]\nroot = \"/srv/www/shop\"\n{on_the_app}"));
+        assert_eq!(
+            app.app.len(),
+            1,
+            "and ADR 0104 § 1's block is where it does parse: {on_the_app:?}",
+        );
+    }
+}
+
 /// ADR 0064 § 3: an unknown key is refused, under the same code a bad value gets, and the refusal
 /// says which **block** it was found in — `unknown field \`memory\`` is unreadable until you know it
 /// was written under `[metrics]`.

@@ -39,7 +39,8 @@
   [0083](0083-persistent-connections-are-isolates.md) — its upgrade path is h1-only, so RFC 8441 extended
   `CONNECT` is not reachable and not needed. [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
   — § 3 gains a `[log] access` row, a new § 3a carries the `Boot`/`System` defaults a mode selects, and § 5's
-  mixed-application host gains its mechanism in a mount's `mode`.
+  mixed-application host gains its mechanism in [0104](0104-an-application-is-an-entry-file-path.md)'s
+  `[[app]]` block, which § 10 routes to.
   [0095](0095-ambiguous-input-is-refused-never-repaired.md) — its closed list gains two rows (§ 6), and its
   *Context* no longer argues from a deployment with no proxy.
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 15 — `Core\Request` gains `scheme`,
@@ -406,18 +407,21 @@ Novis already has.
 
 ### 10. A mount routes and carries nothing else; policy is the per-app block's
 
-**A mount carries no `mode`, no limits and no capabilities.** `path` and `root` say where requests arrive;
-everything about what the code serving them may do belongs to
-[0104](0104-an-application-is-an-entry-file-path.md)'s `[[app]]` block, keyed on the entry file path.
-The two usually name the same directory, and that is the intended shape:
+**A mount carries no `mode`, no limits and no capabilities.** § 3's `prefix`, `host`, `scan` and `entry` are
+its whole key set, and they say where a request arrives and which file answers it; everything about what the
+code answering it may do belongs to [0104](0104-an-application-is-an-entry-file-path.md)'s `[[app]]` block,
+keyed on the entry file path. The two usually cover the same tree, and that is the intended shape:
 
 ```toml
+[server]
+root = "/srv/www"                     # every mount path resolves inside this (§ 3)
+
 [[server.mount]]
-path = "/shop"
-root = "/srv/www/shop"        # routing
+prefix = "/shop"                      # routing
+entry  = "shop/public/index.nvs"
 
 [[app]]
-root = "/srv/www/shop"        # policy
+root = "/srv/www/shop"                # policy
 mode = "production"
 ```
 
