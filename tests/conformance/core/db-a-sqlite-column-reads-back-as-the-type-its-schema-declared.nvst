@@ -1,0 +1,81 @@
+--TEST--
+A SQLite column reads back as the type its schema *declared* rather than as the storage class the cell arrived in — a `date`, a `uuid`, a `decimal` and a `boolean` answer their own values, and a cell the declaration does not describe throws — ADR 0067 §§ 6, 9
+--FILE--
+<?nvs
+// § 9's last sentence is this backend's whole type map: "SQLite has no date or
+// time types; mapping keys off the *declared* column type and throws on a value
+// that does not parse". Every value written below is bound as one of SQLite's
+// five storage classes — `nvs_db::sqlite::encode` has no other shape to bind —
+// and what each reads back as is the schema's business, not the cell's.
+var $db = Core\Db::connect("main");
+
+var $made = $db->execute(
+    "create table t (id integer primary key, born date, ref uuid, owed decimal(10,2), live boolean)",
+    []
+);
+echo "created ", $made->affected(), "\n";
+
+// Three `TEXT` cells and one `INTEGER`, and the three are the same storage
+// class as each other: nothing about them says which is a date.
+var $wrote = $db->execute("insert into t (born, ref, owed, live) values (?, ?, ?, ?)", [
+    "2026-09-03",
+    "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    "1.25",
+    1,
+]);
+echo "inserted ", $wrote->affected(), "\n";
+
+// § 6's typed readers ask nothing of SQLite: the column's declaration has
+// already decided, so `->date()` here is the same lookup and class check it is
+// against a PostgreSQL `DATE`, and `->bool()` reads a flag column the same way
+// it reads a MySQL `TINYINT(1)`.
+foreach ($db->query("select born, ref, owed, live from t", [])->all() as Core\Db\Row $row) {
+    // Each reader answers `?T` because a NULL column is an ordinary absence
+    // (§ 6), so the test is the one narrowing away it leaves every caller.
+    var $born = $row->date("born");
+    var $ref = $row->uuid("ref");
+    // A `decimal(10,2)` column has NUMERIC affinity, so SQLite has already
+    // turned the bound `TEXT` into a `REAL` on the way in — the value is read
+    // back for what is really stored, which is what makes the column usable.
+    var $owed = $row->decimal("owed");
+    var $live = $row->bool("live");
+    if ($born != null) {
+        echo "born ", $born->format("yyyy-MM-dd"), "\n";
+    }
+    if ($ref != null) {
+        echo "ref ", $ref->toString(), "\n";
+    }
+    echo "owed ", $owed, "\n";
+    echo "live ", $live ? "yes" : "no", "\n";
+}
+
+// The other half of § 9's sentence, on the same column: `20260903` is a
+// perfectly good `INTEGER` and a plausible spelling of the date above, and the
+// declaration is the only thing that says it is not one. It throws at the read
+// rather than answering the class it happens to be stored in.
+var $bad = $db->execute("insert into t (born) values (?)", ["the third"]);
+echo "inserted ", $bad->affected(), "\n";
+try {
+    var $again = $db->query("select born from t order by id", []);
+    echo "read ", $again->count(), "\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+created 0
+inserted 1
+born 2026-09-03
+ref 3f2504e0-4f89-41d3-9a0c-0305e82c3301
+owed 1.25
+live yes
+inserted 1
+refused

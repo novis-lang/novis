@@ -127,11 +127,12 @@
 //!    and `executeMany` over it. Known gap 2 is therefore § 7 alone —
 //!    [`HAS_A_DRIVER`], which [`driverless`] renders — and SQLite is still the
 //!    whole of it, on the one member whose commands `nvs_db::sqlite` has
-//!    written and [`Transacting`] has no arm for yet. What a SQLite `query`
-//!    does *not* do is § 9's declared-type map: a cell arrives as the storage
-//!    class it was stored in, and turning the `TEXT` in a `date` column into a
-//!    `Core\Time\Date` is `Core\Db\Row`'s typed reader under § 6, which is
-//!    known gap 9.
+//!    written and [`Transacting`] has no arm for yet. **§ 9's declared-type map
+//!    runs on this driver like it does on the other four**, in
+//!    [`sqlite_column_value`] — a cell in a column the schema declared `date`,
+//!    `datetime`, `time`, `uuid`, `decimal` or `boolean` is that, and one the
+//!    declaration does not describe throws — so nothing downstream of a row
+//!    learns that SQLite has five storage classes and no date.
 //! 3. **Every driver has a reset behind it, and all five are pooled.** ADR 0067
 //!    § 13's pool is
 //!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
@@ -5437,6 +5438,11 @@ fn sqlite_rows(
     if let Some(name) = statement.block.as_text() {
         span.name(name);
     }
+    // Read before the statement borrows the connection, and once for the whole
+    // result — [`postgres_rows`]' reason: § 9's zone-less `DATETIME` is decoded
+    // in the zone this connection declared, which is a property of the
+    // connection rather than of the row.
+    let zone = sqlite.time_zone();
     let mut answered = sqlite
         .query(&statement.sql, statement.binds.sqlite())
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
@@ -5460,12 +5466,15 @@ fn sqlite_rows(
                 columns.len()
             )));
         }
-        // Built whole before it joins the result, for [`postgres_rows`]' reason.
+        // Built whole before it joins the result, for [`postgres_rows`]' reason
+        // — which this driver now needs for its own: a cell the column's
+        // declaration does not describe throws part way through a row, and
+        // `NvsArray`'s `Drop` releases what was already set.
         let mut one = NvsArray::new();
         for (column, cell) in columns.iter().zip(row) {
             one.set(
                 NvsStr::new(column.name.as_bytes()),
-                sqlite_column_value(cell),
+                sqlite_column_value(column, cell, zone, named)?,
             );
         }
         span.row();
@@ -5555,29 +5564,167 @@ fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsArray {
     described
 }
 
-/// One stepped cell as the Novis value of the class it was **stored** in.
+/// One stepped cell as [ADR 0067 § 9](../../../../docs/adr/0067-core-db.md)'s
+/// value for the type its column was **declared** — the storage class it
+/// arrived in wherever that declaration names something SQLite can hold, and a
+/// `Core\Time`, a `Core\Uuid`, a `decimal` or a `bool` where it does not.
 ///
-/// **Deliberately not § 9's declared-type map**, and this is the one driver
-/// where those are two different questions. The other four read a type code the
-/// server sent and the encoding follows from it, so a `date` column can only
-/// arrive as a date; SQLite stores five classes whatever the column was declared
-/// as, so `20260903` in a column declared `date` is an integer and
-/// `'2026-09-03'` in the same column is text. Building a `Core\Time\Date` here
-/// would mean guessing which, and § 6 has already said the *requested* type
-/// drives a conversion — so the class is what a cell reads as, the declared type
-/// rides beside it on the column's own [`COLUMN`], and `Core\Db\Row`'s typed
-/// reader is where the two meet. That reader is known gap 9.
+/// **The declaration and not the cell, and that is § 9's sentence for this
+/// backend rather than a preference.** The other four drivers read a type code
+/// the server sent and the encoding follows from it, so a `date` column can only
+/// arrive as a date. SQLite stores five classes whatever the column was declared
+/// as, so `'2026-09-03'` in a column declared `date` is text and `20260903` in
+/// the same column is an integer — and § 9 answers that with "mapping keys off
+/// the *declared* column type and throws on a value that does not parse", which
+/// is the schema's word deciding and the cell either agreeing or being a
+/// mistake. The five arms below are the whole of "agreeing"; everything else in
+/// a converting column is [`unparsed_column`].
 ///
-/// Total, and it allocates nothing a value does not already own: the two owned
-/// arms move their buffer into the Novis string or bytes rather than copying it
-/// a second time.
-fn sqlite_column_value(cell: nvs_db::SqliteValue) -> Value {
+/// **So the *natural* type of a SQLite column is § 9's, exactly as it is on the
+/// other four**, and that is what makes this the only edit the map needed:
+/// `get`, `toArray`, all eleven of [`ROW`]'s typed readers, `queryAs<T>` and
+/// [`converted`] read the value this built and none of them learns that SQLite
+/// exists. A reader that parsed text on request instead would be § 6's
+/// *conversion* rule doing § 9's *map*'s job — it would loosen `->date()` on
+/// the four drivers that have a real `DATE`, and it could not reach a
+/// `DATETIME` at all, § 6's eleven readers having no member for one.
+///
+/// **A `DECIMAL` accepts a `REAL`, which is the one place this loses precision
+/// and it is lost before the read.** A column declared `decimal(10,2)` has
+/// NUMERIC affinity, so SQLite converts the `TEXT` `nvs_db::sqlite::encode`
+/// binds into a `REAL` on the way in; refusing one here would mean no `decimal`
+/// column on this backend ever reads back. The shortest round-trip rendering is
+/// therefore the honest answer for what is actually stored, and
+/// [ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md) is not weakened
+/// by it — the value crossed binary floating point in the *engine*, and reading
+/// it back as a `float` would only hide that.
+///
+/// `zone` is the connection's declared zone, for § 9's zone-less `DATETIME`; it
+/// is [`postgres_rows`]' `zone` and read once for the same reason.
+///
+/// It still allocates nothing a value does not already own on the arms that do
+/// not convert: the two owned ones move their buffer into the Novis string or
+/// bytes rather than copying it a second time.
+///
+/// # Errors
+///
+/// [`unparsed_column`] for a cell the column's declaration does not describe.
+fn sqlite_column_value(
+    column: &nvs_db::SqliteColumn,
+    cell: nvs_db::SqliteValue,
+    zone: i32,
+    named: &str,
+) -> Result<Value, Fault> {
+    use nvs_db::{ColumnType, SqliteValue};
+
+    // § 9 reads a SQL NULL back as `null` whatever the column was declared, so
+    // the map below never has one to refuse.
+    if matches!(cell, SqliteValue::Null) {
+        return Ok(Value::null());
+    }
+    let declared = column.column_type();
+    let want = match declared {
+        ColumnType::Date => "a date",
+        ColumnType::Time => "a time of day",
+        ColumnType::DateTime => "a date and time",
+        ColumnType::Uuid => "a UUID",
+        ColumnType::Decimal => "a number",
+        ColumnType::Bool => "`0` or `1`",
+        // `Int`, `Float`, `Text`, `Bytes` and `Other` are storage classes
+        // SQLite has, so the cell is already § 9's answer — and this map never
+        // answers `Uint`, `Instant` or `Json`, which
+        // `nvs_db::SqliteColumn::column_type` argues in full.
+        _ => return Ok(sqlite_stored_value(cell)),
+    };
+    let built = match (declared, &cell) {
+        (ColumnType::Date, SqliteValue::Text(text)) => crate::time::date_of_text(text),
+        (ColumnType::Time, SqliteValue::Text(text)) => crate::time::time_of_day_of_text(text),
+        (ColumnType::DateTime, SqliteValue::Text(text)) => {
+            crate::time::datetime_of_text(text, zone)
+        }
+        (ColumnType::Uuid, SqliteValue::Text(text)) => crate::uuid::of_text(text),
+        (ColumnType::Decimal, SqliteValue::Text(text)) => {
+            nvs_runtime::Decimal::parse(text).map(Value::decimal)
+        }
+        (ColumnType::Decimal, SqliteValue::Int(int)) => {
+            nvs_runtime::Decimal::parse(&int.to_string()).map(Value::decimal)
+        }
+        (ColumnType::Decimal, SqliteValue::Real(real)) => {
+            nvs_runtime::Decimal::parse(&real.to_string()).map(Value::decimal)
+        }
+        // § 6's `bool` rule, said where § 9 has to say it: `0` and `1` are the
+        // whole of what a flag column holds, and a stored `7` throws rather
+        // than reading as PHP's `true`. [`requested_bool`] is the same rule on
+        // the *request* side and the two agree by construction.
+        (ColumnType::Bool, SqliteValue::Int(0)) => Some(Value::bool(false)),
+        (ColumnType::Bool, SqliteValue::Int(1)) => Some(Value::bool(true)),
+        _ => None,
+    };
+    built.ok_or_else(|| unparsed_column(named, column, &cell, want))
+}
+
+/// One cell as the Novis value of the storage class it arrived in — § 9's
+/// answer for every column whose declared type names something SQLite holds
+/// natively, and [`sqlite_column_value`]'s non-converting half.
+fn sqlite_stored_value(cell: nvs_db::SqliteValue) -> Value {
     match cell {
         nvs_db::SqliteValue::Null => Value::null(),
         nvs_db::SqliteValue::Int(int) => Value::int(int),
         nvs_db::SqliteValue::Real(real) => Value::float(real),
         nvs_db::SqliteValue::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
         nvs_db::SqliteValue::Blob(bytes) => Value::bytes(NvsStr::new(&bytes)),
+    }
+}
+
+/// § 9's SQLite throw: the column's declaration says what its values are, and
+/// this cell is not one.
+///
+/// [`unrepresentable_column`]'s twin, and the division is which side wrote the
+/// value — that one is a reading the server rendered correctly and no
+/// `Core\Time` type has, this one is a cell the schema's own word does not
+/// describe. Both are a [`Fault::thrown`] rather than a `Db\DbError`, because
+/// neither is anything a driver reported: the statement succeeded and the
+/// decode is this crate's.
+///
+/// The cell is quoted, bounded by [`sqlite_storage_class`], because the column
+/// is what the program has to go and fix.
+fn unparsed_column(
+    named: &str,
+    column: &nvs_db::SqliteColumn,
+    cell: &nvs_db::SqliteValue,
+    want: &str,
+) -> Fault {
+    Fault::thrown(format!(
+        "{named}: the column `{}` is declared `{}` and holds {}, which is not {want} — ADR 0067 \
+         § 9 keys SQLite off the declared type, a storage class saying nothing about what a value \
+         was meant as, and throws on one that does not parse",
+        column.name,
+        // Always present: a column with no declared type describes as
+        // `ColumnType::Other`, which never reaches this throw.
+        column.declared.as_deref().unwrap_or("an expression"),
+        sqlite_storage_class(cell)
+    ))
+}
+
+/// What a cell holds, for [`unparsed_column`]'s sentence: its storage class,
+/// and the value itself where that is short enough to be worth reading.
+///
+/// Bounded at 40 characters because a column is program data and a message is a
+/// log line — [`crate::uuid`]'s `shown` is the same bound for the same reason.
+fn sqlite_storage_class(cell: &nvs_db::SqliteValue) -> String {
+    match cell {
+        nvs_db::SqliteValue::Null => "SQL `NULL`".to_owned(),
+        nvs_db::SqliteValue::Int(int) => format!("the `INTEGER` {int}"),
+        nvs_db::SqliteValue::Real(real) => format!("the `REAL` {real}"),
+        nvs_db::SqliteValue::Text(text) => {
+            let shown: String = text.chars().take(40).collect();
+            if shown.len() == text.len() {
+                format!("the `TEXT` \"{shown}\"")
+            } else {
+                format!("the `TEXT` \"{shown}…\"")
+            }
+        }
+        nvs_db::SqliteValue::Blob(bytes) => format!("a `BLOB` of {} byte(s)", bytes.len()),
     }
 }
 
@@ -7328,8 +7475,10 @@ fn converted(
         // `db_reachable` maps none of them to a nested class, so this arm is
         // § 9's five value types and nothing else. The instance is built long
         // before hydration reads it — [`column_value`] is where a driver's
-        // components become a `Core\Time` or a `Core\Uuid` — so all this arm
-        // asks is the question every other one asks: is it what the field
+        // components become a `Core\Time` or a `Core\Uuid`, and
+        // [`sqlite_column_value`] is where the one driver that sends no
+        // components does it off the column's declaration instead — so all this
+        // arm asks is the question every other one asks: is it what the field
         // declared.
         //
         // By rendered name rather than by descriptor pointer, because the two
@@ -8173,6 +8322,153 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 mod tests {
     use super::*;
     use nvs_runtime::{Ctx, Decimal, OutputSink, call};
+
+    /// Drops the one reference [`sqlite_column_value`] handed back, which every
+    /// case below owns exactly as a member's caller would.
+    fn released(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the reference released here is the one this frame was \
+                      handed, and nothing else holds the instance"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// One row of [`one_sqlite_cell_reads_as_five_things_under_five_declarations`]'s
+    /// sweep: a declared type, a cell every row of the sweep shares the storage
+    /// class of, and the question the answer has to say yes to.
+    type Declared = (&'static str, &'static str, fn(Value) -> bool);
+
+    /// One SQLite result column, declared as `declared` — the half of
+    /// [`nvs_db::SqliteColumn`] every case below varies.
+    fn sqlite_column(declared: &str) -> nvs_db::SqliteColumn {
+        nvs_db::SqliteColumn {
+            name: "c".to_owned(),
+            declared: Some(declared.to_owned()),
+        }
+    }
+
+    /// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s SQLite rule, asserted
+    /// as the **agreement** it is: one cell, five declarations, five different
+    /// answers.
+    ///
+    /// The point is that the storage class is constant across the sweep and the
+    /// answer is not, which is the whole of "mapping keys off the *declared*
+    /// column type" — a decoder that read the cell instead would answer `TEXT`
+    /// five times and still look right on any one line of it.
+    #[test]
+    fn one_sqlite_cell_reads_as_five_things_under_five_declarations() {
+        let text = |held: &str| nvs_db::SqliteValue::Text(held.to_owned());
+        let cases: [Declared; 5] = [
+            ("date", "2026-09-03", |value| {
+                crate::instance::is_instance(value, &crate::time::DATE)
+            }),
+            ("datetime", "2026-09-03 10:11:12", |value| {
+                crate::instance::is_instance(value, &crate::time::DATETIME)
+            }),
+            ("time", "10:11:12", |value| {
+                crate::instance::is_instance(value, &crate::time::TIME_OF_DAY)
+            }),
+            ("uuid", "3f2504e0-4f89-41d3-9a0c-0305e82c3301", |value| {
+                crate::instance::is_instance(value, &crate::uuid::CLASS)
+            }),
+            ("text", "2026-09-03", |value| value.tag() == Some(Tag::Str)),
+        ];
+        for (declared, held, is_wanted) in cases {
+            let read = sqlite_column_value(&sqlite_column(declared), text(held), 0, "query")
+                .unwrap_or_else(|_| panic!("`{held}` is what a `{declared}` column holds"));
+            assert!(
+                is_wanted(read),
+                "a `{declared}` column holding \"{held}\" read back as the wrong type"
+            );
+            released(read);
+        }
+    }
+
+    /// § 9's other half — "throws on a value that does not parse" — asserted on
+    /// **both sides of the bound**: the same declaration, one cell it describes
+    /// and one it does not.
+    ///
+    /// `20260903` is the case the decoder is written around: it is a perfectly
+    /// good `INTEGER` and a plausible spelling of the date beside it, and the
+    /// column's own word is the only thing that says it is not one. A decoder
+    /// that guessed would answer a date for both lines.
+    #[test]
+    fn a_sqlite_cell_the_declaration_does_not_describe_throws() {
+        let column = sqlite_column("date");
+        let accepted = sqlite_column_value(
+            &column,
+            nvs_db::SqliteValue::Text("2026-09-03".to_owned()),
+            0,
+            "query",
+        )
+        .expect("a rendered date is what a `date` column holds");
+        assert!(crate::instance::is_instance(accepted, &crate::time::DATE));
+        released(accepted);
+
+        for cell in [
+            nvs_db::SqliteValue::Int(20_260_903),
+            nvs_db::SqliteValue::Text("the third".to_owned()),
+        ] {
+            let refused = sqlite_column_value(&column, cell, 0, "query")
+                .expect_err("neither is a date, whatever it would be in another column");
+            let Fault::Thrown(_, why) = refused else {
+                panic!("§ 9's refusal is a throw a program can catch");
+            };
+            assert!(
+                why.contains("is declared `date`"),
+                "the refusal names the declaration and not the cell: {why}"
+            );
+        }
+    }
+
+    /// A `DECIMAL` column reads back through every storage class SQLite's
+    /// NUMERIC affinity can leave in one, which is what makes the column usable
+    /// at all — [`sqlite_column_value`]'s own doc argues the `REAL` arm.
+    ///
+    /// A `BOOLEAN` is the same shape with § 6's bound on it: `0` and `1` cross
+    /// and a stored `7` does not, which is [`requested_bool`]'s rule reached
+    /// from the map rather than from a request.
+    #[test]
+    fn a_sqlite_decimal_crosses_from_three_classes_and_a_bool_from_two() {
+        let exact = |value: Value| {
+            value
+                .as_decimal()
+                .map(|held| held.to_string())
+                .expect("the column is declared `decimal`")
+        };
+        let column = sqlite_column("decimal(10,2)");
+        for (cell, rendered) in [
+            (nvs_db::SqliteValue::Text("1.25".to_owned()), "1.25"),
+            (nvs_db::SqliteValue::Int(3), "3"),
+            (nvs_db::SqliteValue::Real(1.25), "1.25"),
+        ] {
+            let read = sqlite_column_value(&column, cell, 0, "query").expect("a number crosses");
+            assert_eq!(exact(read), rendered);
+        }
+        assert!(
+            sqlite_column_value(
+                &column,
+                nvs_db::SqliteValue::Text("not a number".to_owned()),
+                0,
+                "query"
+            )
+            .is_err()
+        );
+
+        let flag = sqlite_column("boolean");
+        for (held, want) in [(0, false), (1, true)] {
+            let read = sqlite_column_value(&flag, nvs_db::SqliteValue::Int(held), 0, "query")
+                .expect("`0` and `1` are the whole of what a flag column holds");
+            assert_eq!(read.as_bool(), Some(want));
+        }
+        assert!(
+            sqlite_column_value(&flag, nvs_db::SqliteValue::Int(7), 0, "query").is_err(),
+            "a stored `7` throws rather than reading as PHP's `true`"
+        );
+    }
 
     /// ADR 0067 § 13's key for `open` is § 2's memo key, so what that hash
     /// separates is what two requests are refused a shared connection over.
