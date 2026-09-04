@@ -7016,6 +7016,16 @@ sibling in the same namespace unqualified.
   from a full `-p nvs-stdlib` test run, so it costs a whole verify cycle at the very end of a
   session. Delete the line in the same edit as the row. Members in §§ 1-12 do not have this: those
   sections are `| Member |` tables and a different test reads them.
+- **Nothing in this tree can write one header name twice, and both layers that stop it are named
+  for setting rather than for replacing.** `Ctx::declare_header` searches the list and overwrites
+  in place — its own doc says "set, not add", and points at `addCookie` as the member that will
+  ask the other question — and `nvs_server::serve`'s answer path then calls
+  `response.headers_mut().insert(name, value)`, which is `hyper`'s *replacing* insert rather than
+  its `append`. So a `Set-Cookie` written twice survives neither layer, and it fails silently:
+  the program sets two cookies, the peer gets the second one, and nothing anywhere reports a
+  dropped header. `addCookie` therefore needs an appending path added at **both** ends before it
+  can be a member at all, which makes it a four-crate slice rather than the five edits a `Core`
+  member usually is.
 
 ## Divergences and refusals already pinned
 
