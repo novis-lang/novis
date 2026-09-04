@@ -2,57 +2,54 @@
 
 ## State
 
-**Goal 6, M7. ADR 0102 § 1 is whole: a request is matched once at the door, and the match now
-reaches the program.** `Core\Request::route()` answers `?Core\Router\Match`, built by
-`nvs_stdlib::router`'s `match_value` out of the `nvs_runtime::routes::Match` the door left on the
-`Inbound`. The class answers `name()`, `params()` and `param()` and carries nothing else — its own
-doc owns why the matched `Route` does not cross, and `nvs_runtime::routes` gap 3 says the same from
-the other side.
+**Goal 6, M7. ADR 0102 § 2's *table half* is whole, on both sides of the crossing.**
+`nvs_runtime::routes::Routes::methods_for` walks the table with the verb filter dropped and answers
+the verbs a path claims, once each and in load order; `Core\Router::methodsFor(tainted string
+$path): array<Core\Http\Method>` is its program-visible reader over `Ctx::routes`. Empty is § 2's
+`404` and non-empty is the `405`'s `Allow:`. § 1's match is unchanged.
 
-**A capture is a union, not a string.** `params()` answers `array<uint|int|tainted string>`;
-`router.rs`'s `CAPTURE` owns the argument, and it is that § 1's "typed parameters" forbids
-re-parsing a `{id: uint}`, while `mixed` was refused because a `mixed` binding accepts a `tainted
-string` and would launder the request path. `name()` is plain `?string`: it is the unit's own
-`#[Route(name: …)]` literal rather than anything the peer wrote.
+**The door does not send either answer, and the check that says it does is wrong.** ADR 0102 § 1 —
+"the program may still serve the request however it likes, because nothing here dispatches" — and a
+door refusing a miss would refuse every request of a program that declares no route at all. So
+stage 5's `no_methods_for_a_path_is_404_and_some_is_405_with_allow`, filed `-p nvs-server`, cannot
+assert a status anything sends; the playbook bullet under *Tooling* has the whole finding. The
+previous handoff's item 3 ("the door answers 404/405") is what that bullet retires.
 
-**The driver's `nvs-server (match once, and the two answers)` check still fails on its other three
-names**, which is the ordinary open state. Triage of the one it reports, so the next session does
-not redo it: **neither half of `the_csrf_check_and_the_route_label_read_the_match_rather_than_
-matching_again` exists in any crate yet** — `crates/nvs-server` names no `csrf` at all and its
-`Cargo.toml` does not depend on `nvs-stdlib`, where `Core\Csrf::verify` lives; and no metric label
-named `route` is emitted anywhere. That item is open work with a design call in front of it, not a
-misfiling.
+**The other failing name is unchanged and still triaged**: neither half of
+`the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again` exists — `nvs-server`
+depends on no `nvs-stdlib`, where `Core\Csrf::verify` would live, and no `route` metric label is
+emitted anywhere.
 
-**`orient.py` did not print what that triage needed**: `[context] adrs` in
-`docs/agent/loop-goal.toml` should gain ADR 0102 §§ 4 and 8 and ADR 0096 § 4, which are what the
-group's remaining two items are specified against.
+**`orient.py`'s gap, carried forward unclosed**: `[context] adrs` in `docs/agent/loop-goal.toml`
+should gain ADR 0102 §§ 4 and 8 and ADR 0096 § 4 — §§ 4 and 8 are what the two open items are
+specified against, and nothing printed them this session either.
 
 ## Next group
 
-**ADR 0102 § 2's two answers — the question asked only once `match` has returned `null`.** The file
-set is `crates/nvs-runtime/src/routes.rs`, `crates/nvs-stdlib/src/router.rs` and
-`crates/nvs-server/src/route.rs`.
+**Where § 2's two answers are *sent* from, and the two names stage 5's check still reports.** The
+file set is `crates/nvs-server/src/route.rs`, `crates/nvs-runtime/src/routes.rs` and
+`docs/agent/loop-goal.toml`.
 
-- [ ] **`Routes::methods_for` answers the verbs a path claims, in load order** (ADR 0102 § 2) — the
-      same walk `crates/nvs-runtime/src/routes.rs:447`'s `match_request` already performs, collecting
-      every row's verb instead of stopping at the best rank, and reporting both forms where § 4's
-      `{name?}` makes a node terminal.
-- [ ] **`Core\Router::methodsFor` is its program-visible reader** (ADR 0102 § 2) — the five edits at
-      `crates/nvs-stdlib/src/router.rs:209`'s `CLASS` and `crates/nvs-stdlib/src/router.rs:458`'s
-      `address`, answering `array<Core\Http\Method>` over the table `Ctx` was installed with;
-      `crates/nvs-stdlib/src/router.rs:339`'s `MATCH` is the sibling that landed this session and
-      the shape to copy.
-- [ ] **The door answers `404` where a path claims no verb and `405` with `Allow` where it does**
-      (ADR 0102 § 2) — `crates/nvs-server/src/route.rs:57`'s `take`, which today records a match and
-      returns; the `Allow:` list is the member above, and § 2 says it is asked only after `match`
-      answered `null`.
+- [ ] **File `no_methods_for_a_path_is_404_and_some_is_405_with_allow` where it can be honest**
+      (ADR 0102 §§ 1-2) — the walk it would assert is `crates/nvs-runtime/src/routes.rs:479`'s
+      `methods_for`, already covered there by three tests and by three `.nvst` cases; what is open is
+      the check block at `docs/agent/loop-goal.toml:3447`, whose `args = ["test", "-p",
+      "nvs-server"]` puts the test in the one crate that may not send the status. Decide between
+      moving the check to `-p nvs-runtime` and giving `crates/nvs-server/src/route.rs:57` a
+      *shape* — the reply a dispatcher would send — with no sender behind it; the first is what
+      the ADR reads like, and the comment above the block is the specification either way.
+- [ ] **The CSRF check and the `route` label read the match rather than matching again**
+      (ADR 0102 §§ 1 and 8, ADR 0096 § 4) — `crates/nvs-server/src/route.rs:57` is where the match
+      lands and the reader would sit; `crates/nvs-server/Cargo.toml:1` is the manifest that names no
+      `nvs-stdlib`, which is why the CSRF half is a dependency decision before it is a test.
+- [ ] **`nvs_runtime::routes` gap 2: a `decimal` and a `Core\Uuid` capture still match as text**
+      (ADR 0102 § 5) — `crates/nvs-runtime/src/routes.rs:100`'s `CaptureConv::Unconverted` and the
+      arm missing from `crates/nvs-runtime/src/routes.rs:321`'s `convert`, which is `commands`' gap 1
+      with the same fix waiting.
 
 ## Backlog
 
-- The CSRF check and the `route` label read the match — ADR 0102 § 8, ADR 0096 § 4; blocked on where
-  the check runs, per the triage in `## State`.
 - `Core\Router::match` stays out of scope — `docs/agent/loop-goal.md` § *Standing decisions*.
-- ADR 0102 § 7's mount captures reaching a handler as tainted values — same stage 5 check.
-- A capture's value is still percent-encoded — `nvs_runtime::routes` gap 4.
-- `decimal` and `Core\Uuid` captures are unconverted — `nvs_runtime::routes` gap 2.
-- The match walk is a linear scan rather than ADR 0077 § 2's trie — `nvs_runtime::routes` gap 1.
+- The mount prefix in front of a link — `crates/nvs-stdlib/src/router.rs`'s gap 2.
+- A capture's text is still percent-encoded — `crates/nvs-runtime/src/routes.rs`'s gap 4.
+- A `501` at the door for a verb outside the roster — `crates/nvs-stdlib/src/router.rs`'s gap 4.

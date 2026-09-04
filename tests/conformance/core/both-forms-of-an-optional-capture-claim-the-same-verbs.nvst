@@ -1,0 +1,48 @@
+--TEST--
+`Core\Router::methodsFor` answers the same verbs for both forms of a terminal `{name?}`, so the shorter form cannot 404 while the longer one 405s — ADR 0102 § 2
+--FILE--
+<?nvs
+// § 2's `{name?}` rule, asserted as the *agreement* it exists to force rather
+// than as two counts read off two lines: a member that walked only the written
+// path would answer for `/posts/3` and not for `/posts`, and the two forms
+// would then be a `405` and a `404` for one route.
+class Posts {
+    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::page")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(uint $page = 1): string { return "page " . $page; }
+}
+
+// A `{rest...}` is the other terminal form, and it is deliberately *not* the
+// same rule: every remaining segment as one value means at least one segment,
+// so the bare prefix is claimed by nobody.
+class Files {
+    #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get, name: "Files::send")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function send(string $rest): string { return "file " . $rest; }
+}
+
+array<Core\Http\Method> $short = Core\Router::methodsFor("/posts");
+array<Core\Http\Method> $long = Core\Router::methodsFor("/posts/3");
+
+echo "short=", Core\Arr::count($short), "\n";
+echo "long=", Core\Arr::count($long), "\n";
+
+// The verbs themselves agree, position for position — a table answering the
+// same *number* of verbs out of two different rows still fails this.
+int $agree = 0;
+int $n = Core\Arr::count($short) as int;
+int $i = 0;
+for (; $i < $n; ) {
+    if ($short[$i] == $long[$i]) { $agree = $agree + 1; }
+    $i = $i + 1;
+}
+echo "agree=", $agree, "\n";
+
+echo "rest=", Core\Arr::count(Core\Router::methodsFor("/files/a/b/c.png")), "\n";
+echo "bare=", Core\Arr::count(Core\Router::methodsFor("/files")), "\n";
+--EXPECT--
+short=1
+long=1
+agree=1
+rest=1
+bare=0

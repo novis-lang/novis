@@ -1871,6 +1871,18 @@ is why" — is this file.
   "known gaps" rather than implemented or absent. Two of the four names additionally cannot be
   hosted by `-p nvs-server`: `Core\Request::route()` is `nvs-stdlib`'s and that crate is in
   neither the dependencies nor the dev-dependencies of `crates/nvs-server/Cargo.toml`.
+- **A `loop-goal.toml` check can name a *status* an ADR forbids anything to send, and the sentence
+  that settles it is in the section the check itself cites.** Stage 5's
+  `no_methods_for_a_path_is_404_and_some_is_405_with_allow` is filed `-p nvs-server` and reads as
+  "the door answers `404`/`405`", which the handoff's item repeated. ADR 0102 § 1 forbids it in one
+  clause — "the program may still serve the request however it likes, because nothing here
+  dispatches" — and the construction proof is shorter still: a door that refused a miss would refuse
+  **every** request of a program that declares no `#[Route]`, since an empty table claims no path,
+  which is ADR 0077 § 5's opt-in rule inverted. § 2's own last paragraph says the same thing about
+  `OPTIONS`, and § 8 names a *dispatcher* rather than the server as the enforcer. So the two answers
+  are a computation the table performs and the *program* sends. The general shape: when a check name
+  contains a wire-level effect (a status, a header, a close), find who is allowed to emit it before
+  writing the test — the crate in `args` is where a session will otherwise put it.
 
 ## Running things
 

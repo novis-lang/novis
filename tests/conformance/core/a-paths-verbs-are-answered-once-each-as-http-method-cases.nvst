@@ -1,0 +1,44 @@
+--TEST--
+`Core\Router::methodsFor` answers `Core\Http\Method` cases, once each and in the order the routes were declared — ADR 0102 § 2
+--FILE--
+<?nvs
+// Two rows claim `/users/me` under one verb — the literal and the `{id}` it
+// beats — so a member that answered one entry per matching *row* rather than
+// one per verb spells `Allow: GET, GET` here.
+class Users {
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Delete, name: "Users::destroy")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function destroy(string $id): string { return "gone " . $id; }
+
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $id): string { return "user " . $id; }
+
+    #[Core\Route(path: "/users/me", method: Core\Http\Method::Get, name: "Users::me")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function me(): string { return "me"; }
+
+    // A row of the table that claims a *different* path, so the walk has
+    // something to skip and an answer including `POST` is a failure.
+    #[Core\Route(path: "/users", method: Core\Http\Method::Post, name: "Users::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string { return "created"; }
+}
+
+array<Core\Http\Method> $verbs = Core\Router::methodsFor("/users/me");
+echo "verbs=", Core\Arr::count($verbs), "\n";
+
+// The answer is the enum, not text: each entry is compared against the case
+// it should be, and an entry that is neither prints `?` rather than silently
+// reading as one of them.
+foreach ($verbs as Core\Http\Method $verb) {
+    string $label = "?";
+    if ($verb == Core\Http\Method::Get) { $label = "GET"; }
+    if ($verb == Core\Http\Method::Post) { $label = "POST"; }
+    if ($verb == Core\Http\Method::Delete) { $label = "DELETE"; }
+    echo "verb=", $label, "\n";
+}
+--EXPECT--
+verbs=2
+verb=DELETE
+verb=GET

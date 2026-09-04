@@ -57,13 +57,13 @@
 //!    reason and says so where a program can see it: it reads
 //!    [`Ctx::origin`](nvs_runtime::Ctx::origin) and throws when a unit has
 //!    resolved none, rather than answering an empty authority.
-//! 3. **`match` and `methodsFor` are absent.** § 4's other two members answer a
-//!    *request*, which lands with the server; `docs/agent/loop-goal.md`
-//!    § *Standing decisions* keeps `::match` out of scope on purpose. The type
-//!    both answer with is here — [`MATCH`], reached through
-//!    `Core\Request::route()` — so what those two would still owe is a table to
-//!    match a *second*, program-chosen path against, and ADR 0102 § 2's
-//!    `methodsFor` walk behind it.
+//! 3. **`match` is absent.** § 4's last member answers a *request* against a
+//!    second, program-chosen path, and `docs/agent/loop-goal.md` § *Standing
+//!    decisions* keeps it out of scope on purpose. The type it would answer
+//!    with is here — [`MATCH`], reached through `Core\Request::route()` — and
+//!    the table it would walk is now reached, by [`nvs_core_router_methods_for`]
+//!    through [`Ctx::routes`](nvs_runtime::Ctx::routes), so what it still owes
+//!    is the member and nothing under it.
 //! 4. **The parse of a verb into one of these cases is [`crate::request`]'s**,
 //!    not this module's — `Core\Request::method` is the one reader that turns a
 //!    method token into a case, and its module doc owns the two decisions in
@@ -199,13 +199,24 @@ pub(crate) const NAME: &str = r"Core\Router";
 /// own captures rather than about a type.
 const PARAMS: CoreTy = CoreTy::Array(&CoreTy::Mixed);
 
-/// Spec § 15's `Core\Router`, as much of it as ADR 0077 § 4's link half needs.
+/// `array<Core\Http\Method>` — [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// § 2's answer, as the enum this module already owns rather than as text.
 ///
-/// `match` and `methodsFor` are deliberately absent — they answer *a request*,
-/// which belongs with the server (`docs/agent/loop-goal.md` § *Standing
-/// decisions* keeps `::match` out of scope) — so what is here is the two
-/// members that build a link, which is what a program does with the table
-/// before there is a server to match against it.
+/// A list of cases, so that the `Allow:` header a caller writes out of it is
+/// spelled by [`METHOD`]'s roster in one place — a member answering
+/// `array<string>` would be a second spelling of the eight verbs, free to
+/// disagree with the first about what `Delete` looks like.
+const METHODS: CoreTy = CoreTy::Array(&CoreTy::Enum(METHOD_NAME));
+
+/// Spec § 15's `Core\Router`, as much of it as ADR 0077 § 4's link half and
+/// ADR 0102 § 2's other answer need.
+///
+/// `match` is deliberately absent — it answers *a request*, which belongs with
+/// the server, and `docs/agent/loop-goal.md` § *Standing decisions* keeps it
+/// out of scope. `methodsFor` is here rather than beside it because the
+/// question it asks is not a request's: it is asked *of the table*, about a
+/// path, once § 1's match has already answered `null`, and every input it takes
+/// is the caller's.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -226,6 +237,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Str,
             symbol: "nvs_core_router_url_absolute",
             doc: Some(&URL_ABSOLUTE_DOC),
+        },
+        CoreMethod {
+            name: "methodsFor",
+            names: &["path"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: METHODS,
+            symbol: "nvs_core_router_methods_for",
+            doc: Some(&METHODS_FOR_DOC),
         },
     ],
     instance: &[],
@@ -277,6 +297,24 @@ const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
         desc: "For everything `url` throws for, and when no origin is configured for the unit, \
                since an origin is never derived from a request header.",
     }],
+};
+
+/// `Core\Router::methodsFor`'s reference card — ADR 0117.
+const METHODS_FOR_DOC: MethodDoc = MethodDoc {
+    short: "Every verb the route table claims `$path` under, in the order the routes were \
+            declared — the question left over once `Core\\Request::route()` has answered `null`, \
+            and the one a `404` and a `405` are told apart by.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The path to ask about, as a URL path and with no query string; a mount's prefix is \
+               already stripped from the one the request arrived with.",
+        shape: &[],
+    }],
+    ret: "The verbs, once each: an empty array where no route claims the path at all — the `404` \
+          — and otherwise the list an `Allow:` header spells for the `405`. Both forms of a \
+          terminal `{name?}` answer the same verbs, and a path whose capture will not convert is \
+          claimed by nobody.",
+    errors: &[],
 };
 
 /// `Core\Router\Match`'s fully-qualified name, written once so the registry row
@@ -461,6 +499,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_url_absolute" => (nvs_core_router_url_absolute as *const ()).cast(),
         "nvs_core_router_link" => (nvs_core_router_link as *const ()).cast(),
         "nvs_core_router_link_absolute" => (nvs_core_router_link_absolute as *const ()).cast(),
+        "nvs_core_router_methods_for" => (nvs_core_router_methods_for as *const ()).cast(),
         "nvs_core_router_match_name" => (nvs_core_router_match_name as *const ()).cast(),
         "nvs_core_router_match_params" => (nvs_core_router_match_params as *const ()).cast(),
         "nvs_core_router_match_param" => (nvs_core_router_match_param as *const ()).cast(),
@@ -735,6 +774,66 @@ pub(crate) fn match_value(matched: &nvs_runtime::routes::Match) -> Value {
             Value::array(params),
         ],
     )
+}
+
+/// Which case of [`METHOD`] a table row's declared verb is, by its ordinal.
+///
+/// The comparison is ASCII-case-insensitive for the reason
+/// [`nvs_runtime::routes::Routes::match_request`]'s is: a row's verb is the
+/// case's own name (`Get`) in a table the compiler built, and a table built by
+/// hand may spell it as the wire token (`GET`). `None` is a verb this roster
+/// does not name, which no compiled table can hold — `#[Route(method: …)]`
+/// takes a case of this enum and nothing else.
+fn method_case(verb: &str) -> Option<i64> {
+    METHOD
+        .cases
+        .iter()
+        .find(|(case, _)| case.eq_ignore_ascii_case(verb))
+        .map(|(_, ordinal)| *ordinal)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router::methodsFor(tainted string $path): array<Core\Http\Method>`
+    /// — ADR 0102 § 2's second answer, over the table
+    /// [`Ctx::routes`](nvs_runtime::Ctx::routes) holds.
+    ///
+    /// **An empty array is the `404` and a non-empty one is the `405`**, whose
+    /// `Allow:` the caller writes out of it. § 2's own rule is that this is
+    /// asked *only after* `Core\Request::route()` answered `null`, so nothing
+    /// here is on a served request's path; the walk it performs is
+    /// [`nvs_runtime::routes::Routes::methods_for`]'s, which is where the two
+    /// answers and their reasoning live.
+    ///
+    /// **A program with no `#[Route]` answers the empty array**, not a throw:
+    /// ADR 0077 § 5's table is opt-in, and "no route claims this path" is
+    /// exactly true of a program that declares none. That is the same reading
+    /// [`Ctx::route`](nvs_runtime::Ctx::route) takes of the absent table.
+    ///
+    /// **Each verb appears once**, because `methods_for` answers verbs rather
+    /// than rows, and an enum case is its ordinal on the way out (ADR 0010) —
+    /// the same crossing `Core\Request::method` makes in the other direction.
+    fn nvs_core_router_methods_for(ctx, args: [1]) {
+        // Unreachable from source, as every mistyped argument slot is: the
+        // row's parameter is `CoreTy::Text(Qual::Neutral)`, so `E0401` refuses
+        // anything but a `string` before this body runs. The tag is also the
+        // whole UTF-8 guarantee (ADR 0009 § 3), so there is nothing left to
+        // check about the path before comparing it against a declared one.
+        let path = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Router::methodsFor expected a `string` path, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        let mut verbs = NvsArray::new();
+        if let Some(table) = ctx.routes() {
+            for verb in table.methods_for(path) {
+                if let Some(ordinal) = method_case(verb) {
+                    verbs.append(Value::int(ordinal));
+                }
+            }
+        }
+        Ok(Value::array(verbs))
+    }
 }
 
 /// One capture as [`CAPTURE`] spells it — the one place

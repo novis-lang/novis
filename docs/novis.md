@@ -88,7 +88,7 @@ Conventions the whole file uses:
 | [`Core\Hash`](#core-core-hash) | digests and HMACs over text or bytes, answered as raw `bytes` — the algorithm is an argument, never part of the member's name |
 | [`Core\Hash\Stream`](#core-core-hash-stream) | an incremental digest — fed piece by piece with `update`, closed once with `finish` |
 | [`Core\Uri`](#core-core-uri) | RFC 3986 URI references read, rebuilt, resolved and compared, with the two percent-encoders and PHP's query-string convention |
-| [`Core\Router`](#core-core-router) | reverse routing — a link to a route by its declared `name`, as a rooted path or with the configured origin in front |
+| [`Core\Router`](#core-core-router) | reverse routing — a link to a route by its declared `name`, as a rooted path or with the configured origin in front — and the verbs a path claims |
 | [`Core\Router\Match`](#core-core-router-match) | the route a request matched — its declared `name` and the captures its path filled, decided once at the door |
 | [`Core\Csv`](#core-core-csv) | RFC 4180 documents read into rows of `string` fields and written back, with an optional header row and dialect |
 | [`Core\Serialize`](#core-core-serialize) | a value graph — scalars, arrays, objects, cycles included — copied into Novis's own byte format and rebuilt from it |
@@ -13798,7 +13798,7 @@ Orders the receiver against `$other` over their RFC 3986 § 6.2.2 normal forms �
 <a id="core-core-router"></a>
 ### `Core\Router`
 
-Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, url, urlAbsolute
+Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405, url, urlAbsolute, methodsFor
 
 `Core\Router::url` builds a link from a route's `name` as its `#[Core\Route]` declared it: each
 `{capture}` in the path is substituted from `$params`, percent-encoded into its own segment. It is
@@ -13808,6 +13808,13 @@ one is a compile error, as is a `$params` array missing a capture or carrying a 
 a capture nor a handler parameter declared `#[Core\Query]` — a declared one becomes the link's query
 string, `/users/7?page=2`. `urlAbsolute` is `url` with the `[[app]] origin` from `nvs.toml` in
 front, and throws `RuntimeError` when none is configured.
+
+`methodsFor` asks the table the other question, the one `Core\Request::route()` leaves open when it
+answers `null`: which verbs does this path claim? An empty array means no route claims it at all —
+the `404` — and a non-empty one is the list an `Allow:` header spells alongside a `405`. Both forms
+of a terminal `{page?}` answer the same verbs, so `/posts` and `/posts/3` are never a `404` and a
+`405` for one route. Nothing about it is a request: it is asked of the table, about a path, and the
+program decides what to send.
 
 ```toml file=nvs.toml
 [[app]]
@@ -13846,6 +13853,7 @@ https://example.test/users/7
 |---|---|
 | [`Core\Router::url`](#core-core-router-url) | `url(string $name, array<mixed> $params): string` |
 | [`Core\Router::urlAbsolute`](#core-core-router-urlabsolute) | `urlAbsolute(string $name, array<mixed> $params): string` |
+| [`Core\Router::methodsFor`](#core-core-router-methodsfor) | `methodsFor(string $path): array<Core\Http\Method>` |
 
 <a id="core-core-router-url"></a>
 #### `Core\Router::url`
@@ -13882,6 +13890,21 @@ Core\Router::urlAbsolute(string $name, array<mixed> $params): string
 **Returns** `string` — The absolute URL, `https://example.test/users/42?page=2`.
 
 **Throws** `RuntimeError` — For everything `url` throws for, and when no origin is configured for the unit, since an origin is never derived from a request header.
+
+<a id="core-core-router-methodsfor"></a>
+#### `Core\Router::methodsFor`
+
+```nvs skip
+Core\Router::methodsFor(string $path): array<Core\Http\Method>
+```
+
+Every verb the route table claims `$path` under, in the order the routes were declared — the question left over once `Core\Request::route()` has answered `null`, and the one a `404` and a `405` are told apart by.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (neutral) | The path to ask about, as a URL path and with no query string; a mount's prefix is already stripped from the one the request arrived with. |
+
+**Returns** `array<Core\Http\Method>` — The verbs, once each: an empty array where no route claims the path at all — the `404` — and otherwise the list an `Allow:` header spells for the `405`. Both forms of a terminal `{name?}` answer the same verbs, and a path whose capture will not convert is claimed by nobody.
 
 <a id="core-core-router-match"></a>
 ### `Core\Router\Match`
