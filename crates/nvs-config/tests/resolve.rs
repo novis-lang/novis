@@ -1052,6 +1052,55 @@ fn a_same_site_that_is_none_of_the_three_is_refused() {
     );
 }
 
+/// ADR 0074 § 2: the three lists reach a preflight's answer as one header line each and `max_age`
+/// reaches it as a number of seconds, so a boot refuses here what `nvs_server::cors` would
+/// otherwise have to repair while answering — an entry the wire cannot carry, and a duration that
+/// is not one. Both halves are one case because they are one rule: § 2's block is resolved into
+/// header lines at boot, and every value that cannot become one is refused before a server starts.
+#[test]
+fn a_cors_value_a_preflight_cannot_be_answered_with_is_refused() {
+    for key in ["methods", "headers", "expose"] {
+        assert_eq!(
+            refusal(
+                &http(&format!(
+                    "[http.cors]\n{key} = [\"GET\\r\\nX-Injected: yes\"]\n"
+                )),
+                "etc/nvs.toml",
+            )
+            .code,
+            Some(code::E_UNCARRIABLE_HEADER),
+            "`[http.cors] {key}` reaches a header line verbatim",
+        );
+    }
+
+    let diagnostic = refusal(&http("[http.cors]\nmax_age = \"soon\"\n"), "etc/nvs.toml");
+    assert_eq!(diagnostic.code, Some(code::E_BAD_DIRECTIVE));
+    assert!(
+        diagnostic.message.contains("http.cors.max_age"),
+        "the refusal names the directive whose value is not a duration: {}",
+        diagnostic.message,
+    );
+
+    let allowed = [
+        "[http.cors]\norigins = [\"https://a.example\"]\nmethods = [\"GET\", \"DELETE\"]\n",
+        "[http.cors]\nheaders = [\"Authorization\"]\nexpose = []\n",
+        "[http.cors]\nmax_age = \"10m\"\n",
+        // A bare number of seconds is the same duration written the other way, and § 2's own
+        // block writes neither key at all.
+        "[http.cors]\nmax_age = \"600\"\n",
+        "[http.cors]\norigins = []\n",
+    ];
+    let accepted = allowed
+        .iter()
+        .filter(|block| tree_of(&http(block), "etc/nvs.toml").config.http.is_some())
+        .count();
+    assert_eq!(
+        accepted,
+        allowed.len(),
+        "a spelling § 2 states was refused by the check on the ones it does not",
+    );
+}
+
 /// ADR 0074 § 1: the three free-text policies go onto every response verbatim, so a byte a header
 /// line cannot carry is refused at boot. `nvs_server::secure` declines to spell such a value and
 /// emits the shipped default instead, which is right for a request in flight and is exactly what

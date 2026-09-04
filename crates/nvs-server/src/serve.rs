@@ -604,26 +604,29 @@ where
             return Ok::<_, Infallible>(refused);
         };
         // ADR 0074 § 2, asked here for the reason the valve above it is: a
-        // preflight nobody configured selects no mount, allocates no isolate and
-        // runs no Novis code. Under the valve rather than over it, because the
-        // ceiling is what protects the process and a `503` is the answer a server
-        // at capacity owes every request, whatever it was going to ask.
-        // [`crate::cors`] owns why the refusal is the policy's and never an
-        // application's.
-        if let Some(refusal) = serving.cors.preflight(request.method(), request.headers()) {
+        // preflight selects no mount, allocates no isolate and runs no Novis
+        // code, under an open policy exactly as under a closed one — § 2
+        // configures the whole answer, so an application asked to produce it
+        // would be answering a question already decided above it. Under the
+        // valve rather than over it, because the ceiling is what protects the
+        // process and a `503` is the answer a server at capacity owes every
+        // request, whatever it was going to ask. [`crate::cors`] owns which
+        // status the policy gives and what it grants with it.
+        if let Some(preflight) = serving.cors.preflight(request.method(), request.headers()) {
             phase.set(Phase::Write);
-            let mut refused = Response::new(Answer::empty());
-            *refused.status_mut() = refusal;
-            serving.secure.fill(refused.headers_mut(), scheme);
-            return Ok::<_, Infallible>(refused);
+            let mut permitted = Response::new(Answer::empty());
+            *permitted.status_mut() = preflight.status();
+            serving.secure.fill(permitted.headers_mut(), scheme);
+            preflight.fill(permitted.headers_mut());
+            return Ok::<_, Infallible>(permitted);
         }
         // § 2's other half, decided here because the handler below takes the
-        // request by value and the `Origin` it must read is on it. The two
-        // refusals above carry none of this on purpose: they are the door's own
-        // answers, they carry no CORS header under any policy, and saying they
-        // varied by an origin nothing looked at would be a claim about an
-        // answer the policy never produced. [`crate::cors`] owns the rest,
-        // including why a cache is what `Vary` is for.
+        // request by value and the `Origin` it must read is on it. The valve's
+        // own `503` carries none of this on purpose: it is the door's answer
+        // rather than the policy's, it carries no CORS header under any policy,
+        // and saying it varied by an origin nothing looked at would be a claim
+        // about an answer the policy never produced. [`crate::cors`] owns the
+        // rest, including why a cache is what `Vary` is for.
         let crossing = serving.cors.answer(request.headers());
         let mut answered = match handler(request, origin) {
             // Already an answer: a mount table's `404`, or a file this server is
@@ -2573,6 +2576,75 @@ mod tests {
                 .contains("x-content-type-options: nosniff"),
             "§ 1's set did not reach a response this server wrote: {answer}"
         );
+    }
+
+    /// ADR 0074 § 2's granting half over the wire: a named origin's preflight is
+    /// answered `204` with what the block configures, and **no program is asked**
+    /// for that answer either.
+    ///
+    /// The flag is again the load-bearing half. `403` and `204` are two answers
+    /// to the same question, and the reason the second one may not come from a
+    /// handler is the reason the first may not: § 2 configures the whole answer,
+    /// so an application producing it would be answering a question already
+    /// decided above it — and the two could disagree. What is asserted beside it
+    /// is that the shipped `methods` and `max_age` reach the wire, `[http.cors]`
+    /// naming nothing but an origin; `cors::tests` is where each line's own value
+    /// is pinned.
+    #[test]
+    fn a_named_origins_preflight_is_granted_before_any_program_runs() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let asked = Rc::new(Cell::new(false));
+        let handler = Rc::new({
+            let asked = Rc::clone(&asked);
+            move |_request: Request<Incoming>, _origin: Origin| {
+                asked.set(true);
+                Reply::status(StatusCode::OK)
+            }
+        });
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"OPTIONS /widgets HTTP/1.1\r\nHost: localhost\r\n\
+                      Origin: https://allowed.example\r\n\
+                      Access-Control-Request-Method: POST\r\nConnection: close\r\n\r\n",
+                )
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let answer = served_under(listener, &handler, client, naming_one_origin());
+        let sent = answer.to_ascii_lowercase();
+        assert!(
+            answer.starts_with("HTTP/1.1 204 No Content"),
+            "§ 2 answers a named origin's preflight `204`: {answer}"
+        );
+        assert!(
+            !asked.get(),
+            "the preflight reached the handler, so the grant was taken below the policy \
+             that owns it: {answer}"
+        );
+        for line in [
+            "access-control-allow-origin: https://allowed.example",
+            "access-control-allow-methods: get, head, post",
+            "access-control-max-age: 600",
+            "vary: origin",
+        ] {
+            assert!(
+                sent.contains(line),
+                "the grant did not carry `{line}`: {answer}"
+            );
+        }
     }
 
     /// ADR 0097 § 5's probe across a shutdown: `200` while the loop is

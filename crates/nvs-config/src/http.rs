@@ -40,6 +40,14 @@
 //! its policy is in force and nothing says otherwise. `E0625` at boot is what makes that fallback
 //! unreachable from a server that started, and both are kept.
 //!
+//! **§ 2's own values are refused on the same two terms**, because `nvs_server::cors` resolves them
+//! into header lines at boot and so has the same fallbacks to make unreachable: an entry of
+//! `methods`, `headers` or `expose` that a header line cannot carry is `E0625`, and a `max_age`
+//! that is not a duration is `E0601` — the code a directive whose value is not what its unit takes
+//! has however it arrived, so [`mod@crate::value`] writes that sentence rather than this module.
+//! `origins` is deliberately not checked for either: nothing writes it onto a response, and an
+//! entry a header line could not carry is one no `Origin` can equal.
+//!
 //! Cost: four `bool`s built at boot, at reload, and once per `Core\Config::set` naming a key under
 //! `[http.cors]` or `[http.cookies]`. Every other `set` returns before this module is reached.
 //! [`Cookies::of`] is a fifth read plus one `String` clone, once per `addCookie` call; the three
@@ -52,7 +60,8 @@ use std::collections::BTreeMap;
 use nvs_diagnostics::{Diagnostic, code};
 
 use crate::resolve::{Origin, origin_note};
-use crate::tree::{Config, Http};
+use crate::tree::{Config, Http, Setting};
+use crate::value::{Quantity, Unit};
 
 /// The four values §§ 2-3's two refusals are decided from, resolved to what is in force.
 ///
@@ -312,6 +321,8 @@ fn is_true(value: &str) -> bool {
 /// One [`Diagnostic`], `E0612`, for the first pair with no correct meaning: `origins = ["*"]` with
 /// `credentials = true`, or `same_site = "None"` with `secure = false`. `E0624` first, for a
 /// `same_site` that is none of the three spellings — a value neither pair can be decided from.
+/// Before either, `E0625` for a value under `[http.headers]` or a list entry under `[http.cors]`
+/// that a header line cannot carry, and `E0601` for a `[http.cors] max_age` that is not a duration.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     // § 1's three free-text policies, before anything about meaning: a value the wire cannot carry
     // is not a policy that is wrong, it is a policy that never reaches a peer at all.
@@ -343,6 +354,49 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
                 "write the policy on one line, or leave the key out for § 1's shipped default"
                     .to_string(),
             ));
+        }
+    }
+    let cors = config.http.as_ref().and_then(|http| http.cors.as_ref());
+    if let Some(cors) = cors {
+        // § 2's three lists reach a preflight's header lines exactly as § 1's policies reach an
+        // ordinary answer's, so they are refused here on the same terms and under the same code.
+        // `origins` is not among them: it is never written onto a response, only compared byte for
+        // byte against an `Origin` a peer sent, and a value the wire delivered is carriable by
+        // construction — so an uncarriable one there is unmatchable rather than unsendable.
+        for (key, written) in [
+            ("methods", cors.methods.as_deref()),
+            ("headers", cors.headers.as_deref()),
+            ("expose", cors.expose.as_deref()),
+        ] {
+            let Some(values) = written else { continue };
+            if values.iter().all(|value| carriable(value)) {
+                continue;
+            }
+            return Err(Diagnostic::error(
+                code::E_UNCARRIABLE_HEADER,
+                format!("`[http.cors] {key}` holds a byte a header line cannot carry"),
+            )
+            .with_note(format!(
+                "§ 2 sends this list to a browser as one header line, so each entry is printable \
+                 ASCII and nothing else — a carriage return or a newline in one would end the \
+                 header and begin one nobody wrote{}",
+                origin_note(origins.get(&format!("http.cors.{key}")))
+            ))
+            .with_help(
+                "write one method or header name per entry, or leave the key out for § 2's \
+                 shipped default"
+                    .to_string(),
+            ));
+        }
+        // `max_age` is written as a duration and sent as a number of seconds, and this is the only
+        // place the crossing between them can be refused: `nvs_server::cors` resolves it at boot
+        // with no arm for a value that is not a duration, which is what keeps a preflight from ever
+        // being answered with a repaired number.
+        if let Some(written) = cors.max_age.as_deref() {
+            let key = "http.cors.max_age";
+            let value = Setting::Text(written.to_owned());
+            Quantity::parse(key, Unit::Duration, &value)
+                .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
         }
     }
     // Before the pairs, because an unreadable `same_site` leaves § 3's question unanswerable: a
