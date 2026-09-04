@@ -1,0 +1,30 @@
+--TEST--
+`Core\Command::run` converts a `Core\Uuid` argument through the one parse `Core\Uuid::parse` reads, so an upper-case command line normalizes — ADR 0086 § 6, spec § 11
+--FILE--
+<?nvs
+// The one *class* § 6 admits an argument at, matched nominally. Its grammar is
+// `nvs_runtime::uuid`, which is also what `Core\Uuid::parse` and a
+// `{id: Core\Uuid}` route capture read (ADR 0102 § 5) — one home, so a
+// command line's word, a program's parse and a request's segment cannot come
+// to disagree about which spellings are a UUID.
+//
+// Two claims, and the second is why the case is worth a run: the value arrives
+// as a `Core\Uuid` rather than as its text — `->toString()` is a member no
+// `tainted string` has — and it arrives *normalized*, so the canonical form
+// comes back lower-cased from a command line that shouted it.
+class Fleet {
+    #[Core\Command(name: "show", about: "Show one account")]
+    public static function show(Core\Uuid $account): uint {
+        echo "account: ", $account->toString(), "\n";
+        return 0;
+    }
+}
+
+uint $status = Core\Command::run();
+echo "status: ", $status, "\n";
+--ARGS--
+show
+F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4
+--EXPECT--
+account: f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4
+status: 0

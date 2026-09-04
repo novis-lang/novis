@@ -1,0 +1,35 @@
+--TEST--
+`Core\Command::run` converts a `decimal` argument into the exact number the command line wrote, keeping the scale a `float` would lose — ADR 0086 § 6, ADR 0054
+--FILE--
+<?nvs
+// § 6's "a matched value's type comes from the parameter", for the type the
+// argument matcher had admitted and could not yet convert. The conversion is
+// `nvs_runtime::decimal`'s own parse rather than a second one written beside
+// the matcher, which is what keeps a word a command line supplies and a
+// `{amount: decimal}` segment a route matches (ADR 0102 § 5) on one grammar.
+//
+// The claim is the *scale*, not merely that a number arrived: `1.10` is two
+// decimal places, a `float` argument would print `1.1`, and the doubling is
+// what a text argument could not have been asked for at all — a `tainted
+// string` does not add.
+class Ledger {
+    #[Core\Command(name: "deposit", about: "Add to the balance")]
+    public static function deposit(decimal $amount): uint {
+        decimal $doubled = $amount + $amount;
+        echo "amount: ", $amount, "\n";
+        echo "doubled: ", $doubled, "\n";
+        return 0;
+    }
+}
+
+// The status is taken first, because the handler writes while `run` is still
+// being evaluated.
+uint $status = Core\Command::run();
+echo "status: ", $status, "\n";
+--ARGS--
+deposit
+1.10
+--EXPECT--
+amount: 1.10
+doubled: 2.20
+status: 0

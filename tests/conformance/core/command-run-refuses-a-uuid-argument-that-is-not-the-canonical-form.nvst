@@ -1,0 +1,30 @@
+--TEST--
+`Core\Command::run` refuses the unhyphenated spelling of a `Core\Uuid` argument, because the argument matcher takes exactly what `Core\Uuid::parse` takes — ADR 0086 § 6, spec § 11
+--FILE--
+<?nvs
+// The bound stated on both sides: the sibling case's canonical word converts,
+// and the same sixteen octets written without hyphens do not. That refusal is
+// not the matcher being strict on its own account — it is
+// `nvs_runtime::uuid::read` being the *only* reader, and
+// `uuid-parses-only-the-canonical-form.nvst` pins the same three rejected
+// spellings for `Core\Uuid::parse`. A matcher that accepted a second spelling
+// here would be a second grammar, and one of the two would drift.
+//
+// A usage error rather than a throw, for the reason the `decimal` sibling
+// states: a command line is input.
+class Fleet {
+    #[Core\Command(name: "show", about: "Show one account")]
+    public static function show(Core\Uuid $account): uint {
+        echo "show ran, and no word on this command line converted\n";
+        return 0;
+    }
+}
+
+echo "status: ", Core\Command::run(), "\n";
+echo "still running", "\n";
+--ARGS--
+show
+f9168c5eceb24faab6bf329bf39fa1e4
+--EXPECT--
+status: 2
+still running

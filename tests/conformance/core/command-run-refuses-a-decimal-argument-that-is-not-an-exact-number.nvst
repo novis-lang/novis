@@ -1,0 +1,30 @@
+--TEST--
+`Core\Command::run` answers a word no `decimal` reads with a usage status and runs no handler, rather than with a plausible zero — ADR 0086 § 6, ADR 0095
+--FILE--
+<?nvs
+// The other side of the conversion, and the side that decides whether it is
+// worth having: a command line is *input*, so a word the parameter's type does
+// not read is a usage error and never a throw — § 6's own answer for a command
+// line the table cannot fill. The two wrong answers are a zero the handler
+// cannot tell from a written one and a `1.2` taken off the front of the word,
+// which is the repair ADR 0095 refuses generally.
+//
+// The usage page itself goes to standard error (`Core\Command::run`'s own doc
+// owns why), so what a case sees on stdout is the status and the silence where
+// the handler would have written.
+class Ledger {
+    #[Core\Command(name: "deposit", about: "Add to the balance")]
+    public static function deposit(decimal $amount): uint {
+        echo "deposit ran, and nothing on this command line selected it\n";
+        return 0;
+    }
+}
+
+echo "status: ", Core\Command::run(), "\n";
+echo "still running", "\n";
+--ARGS--
+deposit
+1.2.3
+--EXPECT--
+status: 2
+still running
