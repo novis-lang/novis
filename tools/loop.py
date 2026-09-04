@@ -3545,7 +3545,7 @@ def run_cli():
 #: doc comments and which `.github/workflows/ci.yml` runs on every push regardless. `verify.py`'s
 #: *Why `doc` is a periodic gate* owns that argument. At ten it costs the loop about four seconds
 #: a session; raising it trades a longer blind window for very little more.
-DOC_GATE_EVERY = 10
+DOC_GATE_EVERY = 5
 
 
 def write_doc_gate(since, failed=None, session=""):
