@@ -2,78 +2,61 @@
 
 ## State
 
-**Goal 6, M7. ADR 0139 § 1's `start` is on disk and green.** `Core\Session::start(?tainted string
-$presented = null): void` is registered, implemented and asked by three conformance cases. The
-record has somewhere to live: `nvs_runtime::Session` — an id, ADR 0023's byte record and a dirty
-flag, and no `Value`, so a context has nothing to release at teardown
-(`crates/nvs-runtime/src/ctx.rs:1146`).
+**Goal 6, M7. ADR 0139 § 1's seven members are all on disk and green.** `start`, `get`, `set`,
+`remove`, `clear`, `regenerate` and `destroy` are registered, implemented, carded and addressed in
+`crates/nvs-stdlib/src/session.rs`; § 2's four store operations are complete now that `destroy`
+has `redis::Connection::del` under it. The record lives on the request as `nvs_runtime::Session` —
+id, ADR 0023 bytes, dirty flag — reached only through `Ctx::open_session`/`session`/`session_mut`/
+`close_session` (`crates/nvs-runtime/src/ctx.rs:1654`).
+
+**What ADR 0139 still owes is § 4's write-back at the end of the request.** A `set` this build
+accepts is visible to the rest of that request and to nothing after it; `regenerate` and `destroy`
+reach the store as they land, because § 4 makes those two immediate. The module doc says so out
+loud.
+
+**The write-back needs a seam that does not exist yet, and that is the next group's first item.**
+`crates/nvs-server/src/serve.rs:709` is where a request ends with its `Ctx` still live, but
+`crates/nvs-server/Cargo.toml` names only `hyper`, `nvs-host`, `nvs-config` and `nvs-runtime` —
+and `nvs-host` names no `nvs-stdlib` either — so the door cannot reach the store at all. The
+installed-trait seam already in the tree is `nvs_runtime::host::install`.
 
 **The driver's stage-5 failure is not a regression.** `a_schedule_entry_fires_as_a_root_isolate` is
-genuinely unwritten — `grep` over `crates/nvs-server/src` finds no schedule surface at all — so it
+still genuinely unwritten — `grep` over `crates/nvs-server/src` finds no schedule surface — so it
 is an item still open, which `orient.py` calls this goal's ordinary state.
 
-**One slice of three, deliberately.** Slice 2 is a *hard* slice: three members, a record codec
-whose ABI this session never read, and **nine** conformance cases under
-`conformance_coverage.rs`'s per-member floor of three. That is past the ~45k the context gate
-budgets for one slice, and its two open questions are answered below so the next session does not
-re-derive them.
+**One manifest gap, and it cost about four calls.** `[context] modules` names no `nvs-runtime`
+entry for `src/array.rs` or `src/value.rs`, so the `NvsArray`/`Value` API every `Core` member that
+touches a map is written against had to be re-derived by hand. Add both patterns.
 
 ## Next group
 
-**ADR 0139 § 1's six remaining members, over one file set:**
-`crates/nvs-stdlib/src/session.rs`, `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`
-and `tests/conformance/core/session-*.nvst`. Nothing else needs touching: the class is registered
-(`crates/nvs-stdlib/src/registry.rs:1425`), the address chain has its arm
-(`crates/nvs-stdlib/src/lib.rs:417`), and `Ctx` already carries the record.
+**§ 4's write-back, over one file set:** `crates/nvs-runtime/src/host.rs`,
+`crates/nvs-runtime/src/ctx.rs`, `crates/nvs-stdlib/src/session.rs` and
+`crates/nvs-server/src/serve.rs`.
 
-**Two answers this session paid for, before the first item.**
-
-*The record's encoding.* ADR 0139 § 2 says the record is ADR 0023's byte carrier, which is
-`nvs_runtime::encode`/`decode` — `crates/nvs-stdlib/src/cache.rs:816` and `:856` are the two call
-sites to copy, including the `ctx.class_desc` resolver `decode` needs. A record is **one encoded
-array**, decoded per read and re-encoded per write; empty is zero bytes rather than the encoding of
-an empty map, which `crates/nvs-runtime/src/ctx.rs:1146`'s `record` field already states and
-`start` already relies on. Decode-per-read is O(record) per member call and that is the accepted
-trade: a session record is a handful of keys next to the network round trip `start` already spent,
-and holding a decoded `Value` on the context would put an object at teardown that ADR 0017's unit
-swap could strand. Say what it spends in the members' own docs.
-
-*What a `.nvst` case can ask.* No conformance case can reach a session store — there is no redis
-under `nvs test` — so the round trip belongs in `-p nvs-stdlib` unit tests over the scripted store
-already in `crates/nvs-stdlib/src/session.rs:466`'s `serving`, and the nine cases ask the
-*language* rule: § 1's "a member called before `start` throws naming it". Three questions that do
-not repeat: the refusal itself, the conventions' **agreement** shape (every member refuses
-identically before `start`, asserted by counting rather than read off a line), and the class being
-catchable at the root of spec § 10's tree.
-
-- [ ] **`get`, `set` and `remove` over the started record** (ADR 0139 §§ 1, 4) — three rows in the
-      `CLASS` at `crates/nvs-stdlib/src/session.rs:88`, three cards after `START_DOC` at
-      `crates/nvs-stdlib/src/session.rs:110` in row order, three bodies and three arms in
-      `address` at `crates/nvs-stdlib/src/session.rs:434`. Each reads the record through
-      `Ctx::session`/`session_mut` (`crates/nvs-runtime/src/ctx.rs:1660`,
-      `crates/nvs-runtime/src/ctx.rs:1667`) and throws naming `start()` while it is `None`. `set`
-      and `remove` set `dirty`; `get` must not. Strike three lines from
-      `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:34`.
-- [ ] **`clear`, `regenerate` and `destroy`** (ADR 0139 §§ 1, 4) — same five edits at the same
-      anchors. `regenerate` is `mint` (`crates/nvs-stdlib/src/session.rs:207`) plus `save` under
-      the new id, then the old entry destroyed, **in that order**, plus the cookie —
-      `crates/nvs-stdlib/src/session.rs:403`'s `issue_cookie` is written for exactly this second
-      caller. § 2's fourth operation, `destroy`, has no implementation yet: it is one `DEL` beside
-      `load` at `crates/nvs-stdlib/src/session.rs:230`, and `serving`'s RESP fixture panics on any
-      command it does not know, so it needs the arm too.
-- [ ] **§ 4's write-back at the end of the request** — the record is written when the request ends
-      and only if `dirty`. Nothing calls it yet, so a `set` is currently lost. The hook belongs
-      beside the request teardown in `crates/nvs-cli/src/serve.rs` and the door in
-      `crates/nvs-server/src/serve.rs:818`; take it only after the two above, since it is the one
-      item in this group that leaves the file set.
+- [ ] **Decide where a dirty record is sent, and record the decision** (ADR 0139 § 4) — the door
+      ends the request at `crates/nvs-server/src/serve.rs:709`, with the context still live, and
+      cannot call `nvs-stdlib`; `nvs_runtime::host::install` at
+      `crates/nvs-runtime/src/host.rs:551` is the trait `nvs-cli` already installs, and a request-
+      end method on it is the shape that reaches both sides. Deciding is pre-authorized under the
+      goal's § *Standing decisions*; the home for the reasoning is `session.rs`'s module doc, not a
+      new ADR.
+- [ ] **Send the record the flag earned** (ADR 0139 § 4) — `crates/nvs-stdlib/src/session.rs:559`
+      is `write_back`, which sets `dirty` and nothing else; the send is
+      `save(open, &id, &record, ttl(ctx))` for a dirty record and *nothing at all* for a clean one,
+      which is the whole of "writing only when the record changed". `crates/nvs-runtime/src/ctx.rs:1667`
+      is the only route to the flag.
+- [ ] **Pin it both ways** (ADR 0139 § 4) — extend the scripted store at
+      `crates/nvs-stdlib/src/session.rs:1060`, whose doc already requires a new command to be
+      taught to it, and assert that a request that wrote sends exactly one `SET` and one that only
+      read sends none. A `.nvst` case cannot reach a store, so this is a `-p nvs-stdlib` `#[test]`
+      beside `a_destroyed_record_is_gone_and_forgetting_it_twice_is_not_a_failure`.
 
 ## Backlog
 
-- `a_schedule_entry_fires_as_a_root_isolate` — ADR 0073, unwritten in `crates/nvs-server`; the
-  driver reports it every iteration.
-- The `db` backend: `nvs_config::session::Backend::Db` resolves and `start` throws naming the gap
-  (`crates/nvs-stdlib/src/session.rs`'s module doc owns which half is on disk).
-- `[context]` gained nothing this session — the pack printed everything the item named. It did not
-  print `crates/nvs-stdlib/src/response.rs`, which the cookie edit needed; add it to `modules` if
-  the next session touches the cookie again.
-- Raw/unparsed body access for an arbitrary content-type — ADR 0024's *Revisiting*, `docs/plan/m7.md`.
+- § 3's `db` store: `start` throws naming it — `crates/nvs-stdlib/src/session.rs`'s module doc.
+- `a_schedule_entry_fires_as_a_root_isolate`: ADR 0073's `[[schedule]]` has no surface in
+  `crates/nvs-server/src` — the driver's standing stage-5 failure.
+- `destroy` writes no expiring `Set-Cookie`; ADR 0139 § 1 does not ask for one, and the reasoning
+  is in that member's doc if it should.
+- ADR 0139 § 5's sweeper and the store's own expiry — `docs/adr/0139-…` § 5.

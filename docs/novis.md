@@ -16368,11 +16368,17 @@ Adds one `Set-Cookie` to this response, every option it leaves out taken from `[
 <a id="core-core-session"></a>
 ### `Core\Session`
 
-Keywords: start
+Keywords: start, get, set, remove, clear, regenerate, destroy
 
 | Member | Signature |
 |---|---|
 | [`Core\Session::start`](#core-core-session-start) | `start(?string $presented = null): void` |
+| [`Core\Session::get`](#core-core-session-get) | `get(string $key): mixed` |
+| [`Core\Session::set`](#core-core-session-set) | `set(string $key, mixed $value): void` |
+| [`Core\Session::remove`](#core-core-session-remove) | `remove(string $key): void` |
+| [`Core\Session::clear`](#core-core-session-clear) | `clear(): void` |
+| [`Core\Session::regenerate`](#core-core-session-regenerate) | `regenerate(): void` |
+| [`Core\Session::destroy`](#core-core-session-destroy) | `destroy(): void` |
 
 <a id="core-core-session-start"></a>
 #### `Core\Session::start`
@@ -16390,6 +16396,97 @@ Opens the session the store issued, taking the identifier from the session cooki
 **Returns** `void` — Nothing. Afterwards the other six members of this class operate on the record; before it, each of them throws.
 
 **Throws** `RuntimeError` — No `[session] backend` is configured, so there is no store a record could live in; the configured store is `db`, whose half of § 2 is not on disk; or `[cache.shared] url` is unset, unreachable by capability, or this request has already started a session.; `IOError` — The configured store cannot be reached. It throws rather than answering as though the record were absent, since a store that is down must not read as a forged identifier — the two have opposite responses.
+
+<a id="core-core-session-get"></a>
+#### `Core\Session::get`
+
+```nvs skip
+Core\Session::get(string $key): mixed
+```
+
+Reads one key of the record this request's session holds, answering `null` where the record does not hold it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | The key to read. One the record does not hold is `null` rather than a refusal, so a session that stored a `null` and one that stored nothing read alike. |
+
+**Returns** `mixed` — The value stored under `$key`, or `null`. Reading never marks the record changed, so a request that starts a session and only reads it makes no second round trip.
+
+**Throws** `RuntimeError` — This request has not called `start()`, so there is no record to read.; `ParseError` — The stored record names a class this program cannot resolve — what a record written by a unit that declared the class and read by one that does not looks like.
+
+<a id="core-core-session-set"></a>
+#### `Core\Session::set`
+
+```nvs skip
+Core\Session::set(string $key, mixed $value): void
+```
+
+Writes one key of the record this request's session holds, replacing whatever was under it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | The key to write. |
+| `$value` | `mixed` | What to store under it — any value the cross-boundary copy admits, which is the same carrier a `Core\Cache` entry crosses on. It is not `tainted`: a qualifier is a compile-time fact and a record is bytes, so nothing could carry one back out of `get()`. |
+
+**Returns** `void` — Nothing. The record is marked changed, which is what earns it a write back to the store when the request ends.
+
+**Throws** `RuntimeError` — This request has not called `start()`, so there is no record to write.; `LogicError` — `$value` holds something the cross-boundary copy refuses — a closure, a resource, or an object holding one.; `ParseError` — As `get()`, because writing one key reads the whole record first.
+
+<a id="core-core-session-remove"></a>
+#### `Core\Session::remove`
+
+```nvs skip
+Core\Session::remove(string $key): void
+```
+
+Takes one key out of the record this request's session holds.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | The key to take out. One the record does not hold is not a refusal, and does not mark the record changed either — there is nothing to write back. |
+
+**Returns** `void` — Nothing. Removing a key the record held marks it changed; removing one it did not hold leaves it exactly as it was.
+
+**Throws** `RuntimeError` — This request has not called `start()`, so there is no record to change.; `LogicError` — As `set()`: what is left of the record is encoded again, and the carrier refuses the same graphs on the way out as on the way in.; `ParseError` — As `get()`, because removing one key reads the whole record first.
+
+<a id="core-core-session-clear"></a>
+#### `Core\Session::clear`
+
+```nvs skip
+Core\Session::clear(): void
+```
+
+Empties the record this request's session holds, keeping the session and its identifier.
+
+**Returns** `void` — Nothing. The session stays open under the same identifier, so what this clears is the record and not the client's claim to it — `destroy()` is the member that takes both.
+
+**Throws** `RuntimeError` — This request has not called `start()`, so there is no record to empty.
+
+<a id="core-core-session-regenerate"></a>
+#### `Core\Session::regenerate`
+
+```nvs skip
+Core\Session::regenerate(): void
+```
+
+Issues a new identifier, moves the record to it and forgets the old entry — what to call the moment a request changes who the session speaks for.
+
+**Returns** `void` — Nothing. The response carries the new identifier in its session cookie, and the record survives the move unchanged. There is no argument for keeping the old entry: one of the two answers is a fixation window and the other is a lost session.
+
+**Throws** `RuntimeError` — This request has not called `start()`, so there is no session to move; the shared store is unconfigured or refused by capability; or `[session] cookie` is not a cookie name.; `IOError` — The configured store cannot be reached. Unlike `start()`, this is not recoverable by issuing a fresh session: the old identifier is still live wherever the store is, which is the whole thing this member was called to end.
+
+<a id="core-core-session-destroy"></a>
+#### `Core\Session::destroy`
+
+```nvs skip
+Core\Session::destroy(): void
+```
+
+Forgets the record in the store and closes the session on this request, which is what signing out is.
+
+**Returns** `void` — Nothing. Afterwards this request has no session at all, so every member of this class throws again until `start()` opens one — the same answer they give before the first `start()`, because it is the same state.
+
+**Throws** `RuntimeError` — This request has not called `start()`, so there is no session to forget; or the shared store is unconfigured or refused by capability.; `IOError` — The configured store cannot be reached, so the record is still there. It throws rather than closing the session quietly, because a program told the sign-out succeeded would stop trying.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
@@ -20938,7 +21035,10 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `session_start` | dropped | `Core\Session`'s members are the session ([01 § 15](spec/01-core-library.md)). There is no superglobal to populate first, so there is no call that must come before the others and no failure mode where it did not |
 | `session_status` | dropped | a session that must be asked whether it is running is one the program had to start |
 | `session_id` | dropped | the identifier is the cookie's business. The one operation a program performs on it is `Core\Session::regenerate` after a privilege change, and reading it out is how it ends up in a log |
+| `session_regenerate_id` | member | `Core\Session::regenerate`, which is the whole of it: PHP's `$delete_old_session` argument chose between a fixation window and a lost session, and only one of those is correct |
 | `session_create_id` | dropped | ids are minted by the session. A program that mints its own must be trusted to mint it unpredictably, and `Core\Random` is what it would have to reach for to do so |
+| `session_destroy` | member | `Core\Session::destroy` |
+| `session_unset` | member | `Core\Session::clear`, which empties the data without ending the session |
 | `session_reset` | dropped | it re-reads the stored data over uncommitted changes, which is only meaningful where writes are buffered until a commit |
 | `session_abort` | dropped | the same buffer, discarded from the other end |
 | `session_commit` | dropped | there is no request-long write buffer to flush: `Core\Session::set` is the write |
