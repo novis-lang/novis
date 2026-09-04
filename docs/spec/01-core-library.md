@@ -1061,8 +1061,8 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   `Get`-only route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` are
   resolved from the socket peer unless a peer in `[server] trusted_proxies` asserted otherwise;
   `files(): Iterable<Part>` is the **only** way to receive an uploaded file and yields parts lazily, each
-  carrying `name`, a `tainted` `filename` that is never a path and a `tainted` `contentType`, and consumed
-  by `readAll({max?}): tainted bytes`, by iterating `content: Iterable<bytes>`, or by
+  answering `name()`, a `filename()` that is never a path and a `contentType()` — all three `tainted` —
+  and consumed by `readAll({max?}): tainted bytes`, by iterating `content(): Iterable<bytes>`, or by
   `saveTo(string $path, {max?, overwrite?})` — there is no temp path, no `move_uploaded_file` and no `size`
   ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)); a
   multipart form's non-file parts are buffered into `post()` as usual; and

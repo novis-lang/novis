@@ -5156,6 +5156,14 @@ is why" — is this file.
   `ASSERTED_OFF_THE_CORPUS` — the phrase "no case can reach this" within 8 lines above the site,
   plus the `#[test]` that asserts it instead. Reach for it only when a case genuinely cannot exist;
   the phrase is greppable precisely so a wrong use is findable.
+- **An `--EXPECTF-ERROR--` section's `-->` line is indented by the width of the *line number*, and
+  `%A` cannot swallow the difference because it comes after.** Every worked example in
+  `tests/conformance/core/` shows `  --> case.nvs:9:40` — two spaces — and copying that shape onto a
+  case whose error is on line 14 fails with a diff whose two halves look identical in a terminal.
+  The gutter is `" ".repeat(digits) + " --> "`, so a two-digit line takes three spaces and a
+  three-digit one takes four. `python tools/try.py <case>` prints the real thing; take the first two
+  lines from its output verbatim rather than from a neighbouring case, since the neighbour's line
+  number is what set its width.
 
 ## Splitting a file that got too big
 
@@ -7154,6 +7162,27 @@ sibling in the same namespace unqualified.
   service once the answer exists, which costs one extra poll and makes `hyper` read again with the
   dispatcher idle. Debugging it takes timestamps: the trace reads identically without them, because
   the post-response read *does* eventually happen — ten seconds later, when the client's FIN arrives.
+- **A `Core` instance has no property a program can reach, so an ADR that writes `$x->thing` in its
+  example is describing a surface the registry cannot express.** ADR 0105 § 3's worked block reads
+  `$part->filename;` and `foreach ($part->content as $chunk)`, and `CoreClass` has `methods`,
+  `instance`, `slots` and `constants` — no field roster and no reader synthesis. The rule is already
+  settled and stated four times, but only inside `CoreTy::Instance`'s doc and in comments on *other*
+  classes (`registry.rs`'s `Core\Queue\Stats` and its neighbours: "readers rather than properties, for
+  the reason `CoreTy::Instance` states"), so a session implementing a new class reads the ADR, writes
+  the slots, and finds out at the row. Check `CoreTy::Instance`'s doc before believing a spec'd
+  property spelling; the fix is a reader with parentheses, folded back into the ADR body and the spec
+  line in the same commit.
+
+- **A member answering `tainted` is on a closed roster in another crate, and registering one fails
+  `-p nvs-types` rather than `-p nvs-stdlib`.** `nvs_types::core_lib`'s
+  `a_verified_signature_does_not_launder_its_claims` holds every `Core` member whose *return type*
+  carries the qualifier as a literal set, with the count written into the assertion message and a
+  paragraph of its doc comment per member — so a new one is four edits (the row, the set, the count,
+  the prose) in a crate the slice otherwise never opens. It is the third gate a new Part II member
+  owes, after `conformance_coverage.rs`'s floor of three and
+  `spec-members-part-two-outstanding.txt`, whose line only shrinks and which fails with "names a
+  member that is registered now" rather than with anything about the member. Budget all three when
+  the row you are adding is qualified.
 
 ## Divergences and refusals already pinned
 

@@ -103,21 +103,28 @@ order.
 Those buffered fields are charged against `[limits] request_body`, not against a third directive: form
 field text is bytes parsed into memory, which is exactly what § 5 makes that cap mean.
 
-A `Part` carries `name` (the form field name), `filename` (the client's claimed name — `tainted`, and
-never a path) and `contentType` (`tainted`). **It carries no `size`.** There is no honest value to put
-there before the part has been consumed, and inventing one is the repair
-[0095](0095-ambiguous-input-is-refused-never-repaired.md) exists to forbid.
+A `Part` answers `name()` (the form field name), `filename()` (the client's claimed name, never a path)
+and `contentType()` — **all three `tainted`**, all three read through a member rather than a property,
+because a `Core` instance has no property a program can reach and `nvs_stdlib::registry`'s `CoreTy::Instance`
+is where that rule lives. `name` is marked with the other two although it is the form's own field name:
+a peer is under no obligation to send back the names the form declared, so it is untrusted input on the
+same terms, and leaving it plain would have made it the one launderer on the class. `contentType()`
+answers RFC 7578 § 4.4's `text/plain` where the part declared none, which is that RFC's stated default
+rather than a repaired value.
+
+**It carries no `size`.** There is no honest value to put there before the part has been consumed, and
+inventing one is the repair [0095](0095-ambiguous-input-is-refused-never-repaired.md) exists to forbid.
 
 ### 3. Three ways to consume a part
 
 ```nvs
 foreach (Core\Request::files() as $part) {
-    $part->filename;                                  // tainted string — never a path
-    $part->contentType;                               // tainted string
+    $part->filename();                                // tainted string — never a path
+    $part->contentType();                             // tainted string
 
     $csv = $part->readAll();                          // bounded by request_body
     $big = $part->readAll(max: "200M");               // bounded by [limits] memory
-    foreach ($part->content as $chunk) { … }          // Iterable<bytes>, each tainted
+    foreach ($part->content() as $chunk) { … }        // Iterable<bytes>, each tainted
     $part->saveTo($dest, max: "50M");                 // straight to disk
 }
 ```
@@ -127,7 +134,7 @@ foreach (Core\Request::files() as $part) {
   split is what makes the bare call safe by construction while leaving a deliberate 200M buffer
   expressible: `request_body` governs what arrives unasked, `[limits] memory` governs what the
   application chooses to hold.
-- **`content: Iterable<bytes>`** — the part's chunks, each `tainted`, valid only while this part is the
+- **`content(): Iterable<bytes>`** — the part's chunks, each `tainted`, valid only while this part is the
   iterator's current one.
 - **`saveTo(string $path, {max?, overwrite?})`** — the shorthand for § 4, and the path 99.9% of uploads
   take.
