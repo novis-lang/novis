@@ -280,6 +280,7 @@ pub mod script;
 mod secret;
 mod serialize;
 mod server;
+mod session;
 mod signed_cookie;
 mod storage;
 pub mod str;

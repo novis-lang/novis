@@ -147,6 +147,38 @@ impl Connection {
         }
     }
 
+    /// `SET key payload EX seconds` — the entry replaced, and the store told
+    /// when to forget it.
+    ///
+    /// A second method rather than an `Option<u64>` on [`Connection::set`],
+    /// because the two callers are two decisions and neither may drift into the
+    /// other's: `Core\Cache`'s entries have no expiry at all
+    /// ([ADR 0059](../../../../docs/adr/0059-cross-request-state-is-explicit.md)
+    /// § 1 gives the tier a cap and not a clock), while every
+    /// [`crate::session`] record has one and a record written without one is
+    /// [ADR 0139](../../../../docs/adr/0139-a-session-is-a-record-its-store-issued.md)
+    /// § 5's sweeper coming back. A default argument would let a caller reach
+    /// the wrong one by omission; two names cannot be omitted.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::set`].
+    pub(crate) fn set_expiring(
+        &mut self,
+        key: &[u8],
+        payload: &[u8],
+        seconds: u64,
+    ) -> Result<(), String> {
+        let ttl = seconds.to_string();
+        match self.command(
+            &[b"SET", key, payload, b"EX", ttl.as_bytes()],
+            Replay::Idempotent,
+        )? {
+            Reply::Simple(word) if word == "OK" => Ok(()),
+            other => Err(other.unexpected("SET")),
+        }
+    }
+
     /// `GET key` — the entry's bytes, or `None` for one that is not there.
     ///
     /// # Errors

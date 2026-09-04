@@ -572,7 +572,10 @@ thread_local! {
 /// Absent and blank are the same answer on purpose: `url = ""` is an operator
 /// clearing a setting, and reading it as a host would produce a refusal about a
 /// name rather than about the configuration.
-fn configured(ctx: &Ctx, key: &str) -> Option<String> {
+///
+/// `pub(crate)` because [`crate::session`] reads its own three directives the
+/// same way and a second copy of "blank is absent" would be a second rule.
+pub(crate) fn configured(ctx: &Ctx, key: &str) -> Option<String> {
     ctx.config()
         .and_then(|config| config.get(key))
         .map(|text| text.trim().to_owned())

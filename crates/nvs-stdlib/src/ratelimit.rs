@@ -113,7 +113,7 @@ pub(crate) const DECISION_NAME: &str = r"Core\RateLimit\Decision";
 
 /// What every key this module writes is prefixed with, so a limiter's entry and
 /// a cache entry of the same name are two entries — see the module doc.
-const PREFIX: &str = "nvs:ratelimit:";
+pub(crate) const PREFIX: &str = "nvs:ratelimit:";
 
 /// `Core\Time\Duration`, as the two places below spell it.
 const DURATION: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
