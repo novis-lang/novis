@@ -454,6 +454,28 @@ where
             // sending rather than running. Nothing is started for it, so the
             // isolate accounting below does not apply to it either.
             Reply::Done(response) => response,
+            // **Nothing under this call may park on the request body**, and the
+            // reason is `hyper`'s dispatcher rather than anything here: its h1
+            // loop runs `poll_read` and `poll_write` in that order on one task,
+            // and the service future is what `poll_write` polls. A body chunk
+            // therefore only arrives on an iteration of that loop, and this
+            // closure is *inside* one — so a `block_on` over the body, whether
+            // it is written here or reached through `nvs_runtime::RequestBody`
+            // from inside the isolate, suspends the coroutine that owes the next
+            // `poll_read` and waits for a wake only that read can send. Not a
+            // slow path: a deadlock, and one the first chunk of the smallest
+            // body reaches, since `poll_read` has not been asked for body bytes
+            // yet the first time the service is polled.
+            //
+            // What that costs is stated where the carrier is built
+            // (`nvs-cli/src/serve.rs`): the door hands over no body yet, so
+            // `Inbound::has_body` is false on every request this server serves.
+            // Closing it is a change to the shape of this closure, not to the
+            // carrier — the service has to become a real future that answers
+            // `Pending` while the isolate runs as a peer task, at which point
+            // `want`'s two-way signalling drives itself: the isolate's pull
+            // registers interest, that wakes this connection's task, its
+            // `poll_read` delivers the chunk and wakes the isolate back.
             Reply::Run(isolate) => match isolate.run(&mut ctx.borrow_mut()) {
                 Ok(done) => answer(done),
                 // The *argument* had no meaning on the other side, so no request

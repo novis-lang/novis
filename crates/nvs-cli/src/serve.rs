@@ -309,6 +309,15 @@ pub(crate) fn run(
             for (name, value) in request.headers() {
                 inbound.push_header(name.as_str(), value.as_bytes());
             }
+            // And no body, which is a gap rather than a decision: ADR 0105 § 5
+            // decides that one crosses as `nvs_runtime::RequestBody` and not as
+            // bytes — that trait's own docs are the argument, and the two caps
+            // are what make it arithmetic rather than taste — but nothing may
+            // pull one until `nvs_server::serve_connection`'s service stops
+            // being a synchronous closure. The comment at its `Reply::Run` arm
+            // is why, and it is `hyper`'s dispatcher's reason rather than this
+            // door's, so attaching an unpullable reader here would only move
+            // the deadlock to whichever member reached for it first.
             Reply::Run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
         }
     });

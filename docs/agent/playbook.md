@@ -7110,6 +7110,17 @@ sibling in the same namespace unqualified.
   ADR 0051 § 4's answer is that it should not gain one for a parameter type. `nvs_server` re-exports
   `Request` and `Incoming` for exactly this, so the fix is a `use` and an annotated parameter, not a
   body reordered around inference.
+- **Nothing reached from inside `nvs_server::serve_connection`'s service closure may park on the
+  request body, and the deadlock is `hyper`'s shape rather than a slow path.** Its h1 dispatcher
+  (`proto/h1/dispatch.rs`'s `poll_inner`) runs `poll_read` then `poll_write` in one loop on one
+  task, and the service future is what `poll_write` polls — so a body chunk only arrives on an
+  iteration of that loop, and the closure is *inside* one. A `block_on` over the body written there,
+  or reached through the isolate `Reply::Run` starts, suspends the very coroutine that owes the next
+  `poll_read`. It is not a large-body problem: `poll_read` has not been asked for body bytes yet the
+  first time the service is polled, so the smallest body deadlocks too. Reading ADR 0138 does not
+  warn you — that ADR is about driving *one* future and says nothing about the request body. The way
+  out is a service future that answers `Pending` while the isolate runs as a peer task, at which
+  point `want`'s two-way signalling drives itself.
 
 ## Divergences and refusals already pinned
 
