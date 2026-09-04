@@ -4323,6 +4323,17 @@ impl Ctx {
     pub fn inbound(&self) -> Option<&Inbound> {
         self.inbound.as_deref()
     }
+    /// The same request, borrowed so its body can be pulled from.
+    ///
+    /// Beside [`Self::inbound`] rather than replacing it, because the two
+    /// halves of the carrier are read on different terms: the request line and
+    /// the head are facts that stay put however many members ask, and
+    /// [`Inbound::body`] advances a socket. A member that only wants a header
+    /// takes the shared borrow and cannot consume anything by mistake.
+    #[must_use]
+    pub fn inbound_mut(&mut self) -> Option<&mut Inbound> {
+        self.inbound.as_deref_mut()
+    }
     /// Takes everything written so far, if this context buffers its output.
     #[must_use]
     pub fn take_buffered_output(&mut self) -> Option<Vec<u8>> {
@@ -4358,9 +4369,9 @@ impl Ctx {
 /// field here — there is no representation of a qualifier at runtime.
 ///
 /// **What it spends:** three short allocations per served request, plus two per
-/// header field line and one growing vector to hold them, and nothing at all
-/// for a process serving none.
-#[derive(Debug, Clone)]
+/// header field line and one growing vector to hold them, one more allocation
+/// for a request that arrived with a body, and nothing at all for a process
+/// serving none. **Not the body's bytes** — see [`RequestBody`].
 pub struct Inbound {
     /// The method token the peer wrote, verbatim and un-uppercased.
     method: Box<str>,
@@ -4387,6 +4398,31 @@ pub struct Inbound {
     /// make rather than this carrier's. A Novis `string` is bytes either way,
     /// so nothing downstream pays for it.
     headers: Vec<(Box<str>, Box<[u8]>)>,
+    /// The body still on the wire, as [`RequestBody`] — never its bytes — and
+    /// `None` for a request that arrived without one.
+    ///
+    /// The three fields above are read off the request *line* and the head, both
+    /// of which are bounded before a mount is even selected. A body is not: ADR
+    /// 0105 § 5 lets one be `upload_total` large, which is `"256M"` by default
+    /// and `"2G"` at its ceiling, so what is held here decides the resident cost
+    /// of every in-flight request and, through ADR 0106 § 13's arithmetic, the
+    /// number of requests this process may admit at once.
+    body: Option<Box<dyn RequestBody>>,
+}
+
+impl std::fmt::Debug for Inbound {
+    /// Written out rather than derived, because a [`RequestBody`] is a socket
+    /// mid-read and there is nothing to print of it but whether one is here.
+    /// Reading it to say more would consume what the program is owed.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Inbound")
+            .field("method", &self.method)
+            .field("path", &self.path)
+            .field("query", &self.query)
+            .field("headers", &self.headers)
+            .field("body", &self.body.is_some())
+            .finish()
+    }
 }
 
 impl Inbound {
@@ -4399,6 +4435,7 @@ impl Inbound {
             path: path.into(),
             query: query.into(),
             headers: Vec::new(),
+            body: None,
         }
     }
     /// The verb, verbatim.
@@ -4436,6 +4473,111 @@ impl Inbound {
     pub fn headers(&self) -> impl ExactSizeIterator<Item = (&str, &[u8])> {
         self.headers.iter().map(|(name, value)| (&**name, &**value))
     }
+    /// Gives this carrier the body the peer is still sending, which nothing
+    /// has read a byte of yet.
+    ///
+    /// Called at most once, by whoever accepted the request, beside the
+    /// [`Self::push_header`] calls and before the program runs. A request that
+    /// arrived with no body — a `GET`, or a `POST` with `Content-Length: 0` —
+    /// leaves this unset, and that is what [`Self::body`] answering `None`
+    /// means: not "the body is empty" but "there is no body to read", which is
+    /// the distinction RFC 9110 § 8.6 draws and the one a `Core\Request` member
+    /// reports differently.
+    pub fn set_body(&mut self, body: Box<dyn RequestBody>) {
+        self.body = Some(body);
+    }
+    /// The body, to pull chunks from — `None` where the request carried none.
+    ///
+    /// **A borrow rather than a take, and a mutable one**, which is the whole
+    /// difference between this and [`Self::headers`]: pulling a chunk advances
+    /// the wire, so a reader that could be handed out twice would be two
+    /// programs consuming one stream. `&mut self` on the carrier is what makes
+    /// ADR 0105 § 8's exclusivity — `files()` and `body()` on one request are
+    /// refused — a rule about *which* member read it rather than a rule about
+    /// how many did.
+    pub fn body(&mut self) -> Option<&mut (dyn RequestBody + 'static)> {
+        self.body.as_deref_mut()
+    }
+    /// Whether a body arrived at all, without reading it or taking a mutable
+    /// borrow to ask.
+    #[must_use]
+    pub fn has_body(&self) -> bool {
+        self.body.is_some()
+    }
+}
+
+/// The body of a served request, as chunks the program pulls one at a time —
+/// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
+/// stream, at the seam where it crosses into a crate that has never heard of
+/// HTTP.
+///
+/// # A reader rather than the bytes, and § 5 is what decides it
+///
+/// The alternative was for whoever accepted the request to read the body to its
+/// end and hand [`Inbound`] a `Box<[u8]>` beside its three strings, which is
+/// what PHP does and what every part of this design would then be built on top
+/// of. ADR 0105 § 5 rules it out arithmetically rather than as a preference.
+/// That section states **two** caps because they measure two different things:
+/// `request_body` (`"8M"`, ceiling `"64M"`) bounds *bytes parsed into memory*,
+/// and `upload_total` (`"256M"`, ceiling `"2G"`) bounds *the total of a streamed
+/// multipart body*. A door that buffered would collapse them into one, and into
+/// the larger — the bytes are already resident by the time any member could
+/// apply the tighter number, so `request_body` would be a check over something
+/// already paid for, which is not a bound. What is left is a per-request
+/// resident cost of `upload_total`, multiplied by `max_in_flight` by
+/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// § 13's arithmetic: a 2G ceiling against a memory budget divides the effective
+/// admission ceiling to approximately nothing, so the honest configuration and
+/// the working one stop being the same file.
+///
+/// § 6 closes the third option before it is asked: there is no temp file, so
+/// "neither resident nor streamed" is not a place a body can be put. Buffered
+/// or streamed is the whole choice, and only one of them is bounded — which is
+/// exactly what `docs/plan/m7.md`'s load-bearing acceptance case asserts, a
+/// multipart body far larger than any in-memory bound received in full at a
+/// bounded resident **high-water mark**.
+///
+/// # A chunk is borrowed, not owned
+///
+/// [`Self::next_chunk`] answers a slice of the supplier's own buffer, valid
+/// until the next pull — ADR 0105 § 3's "valid only while this part is the
+/// iterator's current one", one layer down and as a lifetime rather than as
+/// advice. A reader that wants to keep bytes copies them into the bound it
+/// chose, which is the point at which a cap can be applied to a number that has
+/// not been spent yet; a reader that is writing them to a destination
+/// (§ 3's `saveTo`) never copies at all. Returning an owned `Vec` would have
+/// charged every upload one allocation and one copy per chunk for a byte almost
+/// none of them keep.
+///
+/// **What it spends:** whatever the supplier holds for one chunk, and nothing
+/// per request beyond the `Box` on [`Inbound`]. O(in-flight) by construction,
+/// because no implementation may accumulate: the contract below says a chunk is
+/// invalidated by the next pull precisely so that none has to.
+pub trait RequestBody {
+    /// The next chunk of the body, `Ok(None)` at its end.
+    ///
+    /// Blocks the calling *task* — never the thread — for as long as the peer
+    /// takes to send it. The supplier is whoever accepted the request and it
+    /// owns how that wait is spelled; for the built-in server it is
+    /// [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)'s
+    /// `block_on` over the connection's body stream, which is why an
+    /// implementation of this trait may not be pulled from inside the poll of
+    /// the very connection future that would deliver the bytes.
+    ///
+    /// Chunk boundaries are the wire's and mean nothing: a reader that needs a
+    /// record, a line or a MIME boundary finds it across chunks and never
+    /// assumes one arrives whole.
+    ///
+    /// # Errors
+    ///
+    /// A body that cannot be completed: the connection failed under it, the
+    /// peer stopped short of its declared length, or ADR 0105 § 5's
+    /// `upload_total` was crossed mid-stream by a body that declared no length.
+    /// The message is for the member reading it to turn into its own throw —
+    /// this seam classifies nothing, for [`Inbound`]'s own reason. **An `Err`
+    /// ends the body**: nothing may be pulled after one, and a supplier that
+    /// answered one has already given up on the connection.
+    fn next_chunk(&mut self) -> Result<Option<&[u8]>, Box<str>>;
 }
 
 /// One header a program declared for its response, and how it joins the ones
@@ -4878,6 +5020,105 @@ pub unsafe extern "C" fn nvs_probe_call_exit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A [`RequestBody`] whose chunks are decided in advance — every part of
+    /// the contract this crate can hold, in a crate with no socket in it. What
+    /// a real supplier adds is only where the bytes come from.
+    struct Canned {
+        chunks: Vec<Vec<u8>>,
+        at: usize,
+    }
+
+    impl Canned {
+        fn of(chunks: &[&str]) -> Box<dyn RequestBody> {
+            Box::new(Self {
+                chunks: chunks.iter().map(|c| c.as_bytes().to_vec()).collect(),
+                at: 0,
+            })
+        }
+    }
+
+    impl RequestBody for Canned {
+        fn next_chunk(&mut self) -> Result<Option<&[u8]>, Box<str>> {
+            if self.at >= self.chunks.len() {
+                return Ok(None);
+            }
+            let at = self.at;
+            self.at += 1;
+            Ok(Some(&self.chunks[at]))
+        }
+    }
+
+    /// [`RequestBody`]'s reason for existing, asserted as the thing it is:
+    /// the carrier hands the body out a chunk at a time and holds none of it,
+    /// so what is resident is one chunk and not the body.
+    ///
+    /// Chunk boundaries are the wire's, which is why the assertion is over the
+    /// *joined* bytes and over the count of pulls separately — a supplier that
+    /// split the same body differently is not a different body.
+    #[test]
+    fn a_carrier_hands_out_its_body_one_chunk_at_a_time_and_never_holds_it() {
+        let mut inbound = Inbound::new("POST", "/upload", "");
+        inbound.set_body(Canned::of(&["one ", "part ", "at a time"]));
+
+        let mut joined = Vec::new();
+        let mut pulls = 0;
+        let body = inbound.body().expect("a body was set");
+        while let Some(chunk) = body.next_chunk().expect("the canned body cannot fail") {
+            joined.extend_from_slice(chunk);
+            pulls += 1;
+        }
+        assert_eq!(String::from_utf8(joined).unwrap(), "one part at a time");
+        assert_eq!(pulls, 3);
+
+        // Past the end and staying there: a body is consumed once, and the
+        // pull after the last one is not the start of a second reading.
+        let body = inbound.body().expect("a body was set");
+        assert!(body.next_chunk().expect("still not a failure").is_none());
+    }
+
+    /// [`Inbound::set_body`]'s distinction, which is RFC 9110 § 8.6's: a `GET`
+    /// carries no body and a `POST` may carry an empty one, and a member that
+    /// read them as the same thing would answer `""` where the honest answer is
+    /// that there was nothing to read.
+    #[test]
+    fn a_request_with_no_body_is_not_a_request_whose_body_is_empty() {
+        let mut none = Inbound::new("GET", "/", "");
+        assert!(!none.has_body());
+        assert!(none.body().is_none());
+
+        let mut empty = Inbound::new("POST", "/", "");
+        empty.set_body(Canned::of(&[]));
+        assert!(empty.has_body());
+        let body = empty.body().expect("an empty body is still a body");
+        assert!(body.next_chunk().expect("no failure").is_none());
+    }
+
+    /// The two halves of the carrier reach a program on different terms —
+    /// [`Ctx::inbound`] for what stays put, [`Ctx::inbound_mut`] for what
+    /// advances a socket — and a context that answers one answers both.
+    #[test]
+    fn the_head_is_read_as_often_as_asked_and_the_body_exactly_once() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let mut inbound = Inbound::new("POST", "/upload", "part=1");
+        inbound.push_header("content-type", b"text/plain");
+        inbound.set_body(Canned::of(&["body"]));
+        ctx.set_inbound(inbound);
+
+        assert_eq!(ctx.inbound().map(Inbound::method), Some("POST"));
+        assert_eq!(ctx.inbound().map(Inbound::query), Some("part=1"));
+        assert_eq!(ctx.inbound().map(Inbound::query), Some("part=1"));
+
+        let body = ctx
+            .inbound_mut()
+            .and_then(Inbound::body)
+            .expect("the carrier arrived with one");
+        assert_eq!(body.next_chunk().expect("no failure"), Some(&b"body"[..]));
+
+        // And the head is still there afterwards: reading the body consumed
+        // the body and nothing else.
+        assert_eq!(ctx.inbound().map(Inbound::method), Some("POST"));
+    }
 
     /// The invariant `nvs-server` writes this list back out under: a set is
     /// total, so a name that already carried appended values has exactly one
