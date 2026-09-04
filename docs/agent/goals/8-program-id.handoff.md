@@ -28,5 +28,6 @@ the id cannot be a compile-time-folded constant.
   descriptions, `docs/reference/core/Program.md`, the conformance case, `examples/program-id.nvs`)
   shares no files with stage 2 except the ctx seam — a session that lands stage 2 with headroom starts
   the ADR amendment, which is prose and cheap.
-- When this goal's last check goes green the driver takes goal 9 — `Core\Db\Schema`. The chain runs to
-  goal 17; M4B is entries 12–15, and 16–17 are the request-body and test-request pair.
+- When this goal's last check goes green the driver takes goal 9 — `Core\Db\Schema`.
+  `docs/agent/goals/chain.toml` is the schedule and this does not restate it: the hand-written entries
+  end at goal 20, whose emitter writes everything from 21 on.

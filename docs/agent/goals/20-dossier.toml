@@ -1,0 +1,83 @@
+# Goal 20 -- queue the dossier. The acceptance test, as data.
+#
+# `20-dossier.md` is the prose. One home each.
+
+files = []
+
+[context]
+
+modules = [
+  # Where the roster comes from: `nvs meta --json` is the CLI command, and the registry is what it
+  # walks. A generated goal that names a group this does not is a group that was renamed.
+  "crates/nvs-cli/src/meta.rs",
+  "crates/nvs-stdlib/src/registry.rs",
+]
+
+rules = ["0134", "0026", "0079", "0117", "0004", "0063"]
+
+# None. ADR 0134 is this goal's decision and it is already written; the goal prose says what the one
+# new thing -- a session may now fire the emitter -- is recorded in instead.
+adrs = []
+
+shapes = [
+  "A feature's four proofs — an example, an attack, a bench, a `covers:` marker",
+  "A commit message",
+]
+
+playbook = [
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Running things > target/release/nvs.exe is',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goals 4-19's container-backed checks. Same compose file, same memoization. This
+# goal itself needs no container -- it runs one Python command -- but the floor under it does, and the
+# floor is not traded for anything above it.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the emission is on the chain, and re-running it changes nothing.
+#
+# `--dry-run` is the point: a check that appended the hundred entries itself would pass by doing the
+# work it exists to judge. This one writes nothing and passes only when every goal the emitter would
+# write is already named by the chain -- which is false if the session skipped the emission, and false
+# again if a later re-emission would rename a file the chain points at.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the emission"
+name = "dossier: the chain already names every emitted goal"
+argv = ["python", "tools/dossier.py", "--emit-goals",
+        "--append-chain", "docs/agent/goals/chain.toml", "--dry-run"]
+want = ["already names every one of them -- nothing appended"]
+
+# The chain is the schedule and the plan's `Carried by` cells are derived from it, so a hundred new
+# entries are a hundred chances for the two to disagree. `dossier` is a label rather than a milestone
+# id, which `plan.py` expects (MILESTONE_TAG_RE), so this passes without a new row in the index.
+[[check]]
+kind = "command"
+stage = "2 the emission"
+name = "plan.py: the index and the grown chain still agree"
+argv = ["python", "tools/plan.py", "--check"]
+want = ["every cell agreeing with the chain"]

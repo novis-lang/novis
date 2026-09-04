@@ -218,11 +218,26 @@ preflight = "docker"
 # surfaces read, and every goal before it writes routes and commands against the roster as it stands;
 # running it earlier would mean rewriting their fixtures when the roster opened. Its stage 4 closes the
 # two known gaps goal 6 and the CLI work left behind by name, so both have to exist first. This is the
-# last entry on the chain.
+# last entry the parity program itself needs.
 [[goal]]
 name = "19 parses"
 md = "docs/agent/goals/19-parses.md"
 toml = "docs/agent/goals/19-parses.toml"
 handoff = "docs/agent/goals/19-parses.handoff.md"
 milestone = "M7"
+preflight = "docker"
+
+# The chain stops adding surface here and starts closing what is behind it. Goal 20 writes no proof: it
+# fires `dossier.py --emit-goals --append-chain` at this file, so ADR 0134's roster -- one goal per group
+# of features owing four proofs -- lands on the end of the chain the driver is already walking, and
+# `Chain.refresh()` in loop.py walks into it without a restart. Everything after goal 20 is generated;
+# nothing after it is hand-written, and it is last because a proof is only worth writing over a feature
+# that has stopped moving.
+[[goal]]
+name = "20 dossier"
+md = "docs/agent/goals/20-dossier.md"
+toml = "docs/agent/goals/20-dossier.toml"
+handoff = "docs/agent/goals/20-dossier.handoff.md"
+milestone = "dossier"
+# Its own check is one Python command. Its floor is goals 4-19, which is where the containers are.
 preflight = "docker"
