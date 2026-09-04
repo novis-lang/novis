@@ -9,12 +9,12 @@
 //! § 4's five body members: `text`, `json` and `bytes`. The other two — `html`,
 //! whose parameter is a carrier this class cannot take until `Core\Html\Markup`
 //! is spellable in a registry row, and `sendFile`, whose path is § 1's sink
-//! over a file the server resolves — and `addCookie` and `redirect` are known
-//! gaps of this module rather than of
+//! over a file the server resolves — and `addCookie` are known gaps of this
+//! module rather than of
 //! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15.
 //!
-//! Beside them, § 15's `setStatus` and `setHeader`: the two members here that
-//! shape a response without writing one.
+//! Beside them, § 15's `setStatus`, `setHeader` and `redirect`: the three
+//! members here that shape a response without writing one.
 //!
 //! # Why five members and not one `write`
 //!
@@ -102,6 +102,34 @@
 //! is something a program means, so this class spells a header the one way
 //! [`spellable`] already spells a media type.
 //!
+//! # A redirect is a status and a header, and the status is a closed set
+//!
+//! `redirect` makes both declarations at once — the code onto the context and
+//! `Location` into the header list above — because a response carrying one
+//! without the other is not a redirect. A `303` with no destination sends a
+//! peer somewhere unnamed, and a `Location` under a `200` is a header every
+//! client ignores; one member is what makes the pair unforgettable, which is
+//! the argument § 4 already makes for a body member owning its own media type.
+//!
+//! **The status is [`REDIRECT`]'s three cases and not any `3xx`.** `303`, `307`
+//! and `308` are the codes whose meaning is stated without reference to what a
+//! peer historically did — fetch the other resource with a `GET`, repeat this
+//! request elsewhere for now, repeat it elsewhere for good. `301` and `302` are
+//! the two RFC 9110 still lets a client rewrite a `POST` into a `GET` under, so
+//! what a program means by one of them is not what every peer does with it, and
+//! the rest of the class — `300`, `304`, `305` — names no destination this
+//! member could write. Nothing is thereby unspellable: a program that means
+//! `301` exactly writes `setStatus(301)` beside `setHeader("Location", …)`,
+//! which is the general pair this member is the safe shorthand for.
+//!
+//! **The URL is § 1's sink**, and it is the sink on this class that carries the
+//! most: a destination chosen by the request is an open redirect, which is a
+//! peer trusting this origin about where it goes next. Beyond that the value is
+//! checked exactly as a header value is — [`carriable`], and non-empty, an
+//! empty `Location` naming nothing. What a URL may otherwise be is not asked
+//! here, because the qualifier has already answered the question that made it
+//! worth asking.
+//!
 //! # `text` takes `tainted`, and the mark is not the word § 4 uses
 //!
 //! § 4's table says the body is **contagious**, and
@@ -141,7 +169,10 @@
 
 use nvs_runtime::{Fault, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
+    ParamDoc, Qual,
+};
 
 /// What `text` declares — § 4's `text/plain`, with the charset every other
 /// text-shaped answer in this runtime carries.
@@ -174,6 +205,13 @@ const STATUS_MAX: u16 = 599;
 /// body member wrote the body. The module doc owns why it is refused rather
 /// than admitted as one more override.
 const CONTENT_TYPE_HEADER: &str = "Content-Type";
+
+/// The header a redirect names its destination in, and the one header name
+/// this class writes on a program's behalf rather than being told.
+///
+/// A constant beside [`CONTENT_TYPE_HEADER`] rather than a literal at the
+/// declaration, so the two names this module knows about read in a column.
+const LOCATION_HEADER: &str = "Location";
 
 /// The fifteen non-alphanumeric bytes RFC 9110's `token` admits, which is what
 /// a field name is made of.
@@ -245,6 +283,21 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_response_set_header",
             doc: Some(&SET_HEADER_DOC),
+        },
+        CoreMethod {
+            name: "redirect",
+            names: &["url", "status"],
+            // The URL is § 1's sink on `setHeader`'s reasoning and then some:
+            // a `Location` is an instruction about where the peer goes next,
+            // so a `tainted` one is an open redirect written by whoever sent
+            // the request. The status is not classified because it cannot be
+            // — a closed enum leaves a caller nothing to put there but one of
+            // three cases, and a case carries no origin.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Enum(REDIRECT_NAME)],
+            defaults: &[Const::EnumCase(REDIRECT_NAME, "SeeOther")],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_response_redirect",
+            doc: Some(&REDIRECT_DOC),
         },
     ],
     instance: &[],
@@ -360,6 +413,82 @@ const SET_HEADER_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Response::redirect`'s reference card — ADR 0117.
+const REDIRECT_DOC: MethodDoc = MethodDoc {
+    short: "Answers by sending the peer to `$url`, declaring the redirect status and the \
+            `Location` header together — spec § 15's redirect, replacing a `Location` written \
+            by hand beside `http_response_code`.",
+    params: &[
+        ParamDoc {
+            name: "url",
+            desc: "Where the peer is being sent: printable ASCII and non-empty, absolute or \
+                   relative to the request. A sink, because a destination chosen by whoever \
+                   sent the request is an open redirect.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "status",
+            desc: "Which redirect this is. Defaults to `SeeOther`, the one that answers a form \
+                   post by sending the browser to fetch a page.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing, and no byte of body. The last call on one response is the one that answers, \
+          and a request that failed answers `500` carrying neither the status nor the header.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$url` is empty, or holds a byte outside printable ASCII — a newline included, \
+               which would end the header line and begin one the program never wrote.",
+    }],
+};
+
+/// `Core\Response\Redirect`'s fully-qualified name, written once — [`REDIRECT`]
+/// declares it and the [`CoreTy::Enum`] naming it resolves against
+/// [`crate::registry::ENUMS`], so the two cannot drift apart.
+pub(crate) const REDIRECT_NAME: &str = r"Core\Response\Redirect";
+
+/// The closed set of statuses [`nvs_core_response_redirect`] will declare —
+/// the module doc owns which three and why the other five `3xx` codes are not
+/// among them.
+///
+/// **The ordinal is the status code itself**, unlike every other `Core` enum
+/// here, whose cases are numbered from zero. The wire has already assigned
+/// these three names a number apiece, and a second numbering beside it would be
+/// a table two files would have to agree about; [`redirect_status`] is still
+/// the conversion, so the coincidence is stated once rather than cast.
+pub(crate) const REDIRECT: CoreEnum = CoreEnum {
+    name: REDIRECT_NAME,
+    cases: &[("SeeOther", 303), ("Temporary", 307), ("Permanent", 308)],
+    doc: Some(&REDIRECT_CASES_DOC),
+};
+
+/// [`REDIRECT`]'s reference card — ADR 0117.
+///
+/// Named for its cases rather than `REDIRECT_DOC`, which the member above it
+/// already is: the class and the enum share the one word the spec gives them.
+const REDIRECT_CASES_DOC: EnumDoc = EnumDoc {
+    short: "Which redirect a response is. The three cases are the redirect statuses whose \
+            meaning is defined without reference to what browsers historically did with them, \
+            so what a program writes is what every peer performs.",
+    cases: &[
+        CaseDoc {
+            name: "SeeOther",
+            desc: "`303` — the other resource is fetched with a `GET`, whatever method asked. \
+                   The answer to a form post, and the default.",
+        },
+        CaseDoc {
+            name: "Temporary",
+            desc: "`307` — repeat this request, method and body intact, at the new address \
+                   this time only. Nothing is cached and nothing is renamed.",
+        },
+        CaseDoc {
+            name: "Permanent",
+            desc: "`308` — repeat this request, method and body intact, and the new address is \
+                   the one from now on. Caches and crawlers are entitled to remember it.",
+        },
+    ],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -369,6 +498,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_response_bytes" => (nvs_core_response_bytes as *const ()).cast(),
         "nvs_core_response_set_status" => (nvs_core_response_set_status as *const ()).cast(),
         "nvs_core_response_set_header" => (nvs_core_response_set_header as *const ()).cast(),
+        "nvs_core_response_redirect" => (nvs_core_response_redirect as *const ()).cast(),
         _ => return None,
     })
 }
@@ -395,6 +525,30 @@ fn spellable(media_type: &str) -> bool {
 /// header a program may well mean.
 fn carriable(value: &str) -> bool {
     value.bytes().all(|byte| (0x20..=0x7e).contains(&byte))
+}
+
+/// One [`REDIRECT`] case as the status code it stands for.
+///
+/// Written out rather than cast off the ordinal, on the reasoning
+/// [`crate::cli`]'s own enum conversions give: the two numbers coincide today
+/// by [`REDIRECT`]'s design, and a cast would put a fourth case straight on the
+/// wire the day one is declared, where this refuses it until the arm beside it
+/// is written.
+fn redirect_status(status: &Value) -> Result<u16, Fault> {
+    match status.as_int() {
+        Some(303) => Ok(303),
+        Some(307) => Ok(307),
+        Some(308) => Ok(308),
+        // Unreachable from source: the row's second parameter is
+        // `CoreTy::Enum(REDIRECT_NAME)`, so `E0401` refuses anything that is
+        // not one of the three cases before this runs, and compiled code
+        // writes the case's own constant rather than a number a program chose.
+        _ => Err(Fault::fatal(format!(
+            "Core\\Response::redirect expected a `{REDIRECT_NAME}` case, got tag {} value {:?}",
+            status.tag_byte(),
+            status.as_int()
+        ))),
+    }
 }
 
 /// Whether `name` is an RFC 9110 field name — a non-empty `token`.
@@ -550,6 +704,49 @@ nvs_runtime::nvs_helper! {
             ));
         }
         ctx.declare_header(name, value);
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Response::redirect(string $url, Core\Response\Redirect $status): void`
+    /// — spec § 15's redirect, replacing a `Location` written through `header`
+    /// beside an `http_response_code`.
+    ///
+    /// Two declarations and no write, which is the whole of what makes this
+    /// one member rather than shorthand for either half. The module doc owns
+    /// why the status is a closed set and why the URL is a sink; what is here
+    /// is the order — both checks run before either declaration, on `bytes`'
+    /// reasoning — and that the header goes in through the same
+    /// [`Ctx::declare_header`](nvs_runtime::Ctx::declare_header) `setHeader`
+    /// uses, so a program that names `Location` itself afterwards overrides
+    /// this one exactly as it overrides the server's own.
+    fn nvs_core_response_redirect(ctx, args: [2]) {
+        // Unreachable from source: the row's first parameter is a
+        // `CoreTy::Text`, so `E0401` refuses anything that is not a `string`,
+        // and refuses a `tainted` one besides, that being § 1's sink.
+        let url = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Response::redirect expected a `string` for the URL, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        let status = redirect_status(&args[1])?;
+        if url.is_empty() || !carriable(url) {
+            // A literal stem before the first hole, which is
+            // `conformance_coverage`'s error-path gate matching a site.
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "Core\\Response::redirect(): `{url}` is not a destination a `Location` \
+                     header can carry — a field value is printable ASCII and never empty, so \
+                     an empty URL and a newline that would begin a second header are refused \
+                     alike"
+                ),
+            ));
+        }
+        ctx.declare_status(status);
+        ctx.declare_header(LOCATION_HEADER, url);
         Ok(Value::null())
     }
 }

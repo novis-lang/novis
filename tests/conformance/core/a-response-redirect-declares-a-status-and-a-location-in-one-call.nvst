@@ -1,0 +1,48 @@
+--TEST--
+`Core\Response::redirect` is two declarations and no byte of body, and its status argument is optional -- spec § 15
+--FILE--
+<?nvs
+// Like `setStatus` and `setHeader`, and unlike ADR 0088 § 4's five body
+// members: a redirect declares and writes nothing. That is why `E0801` does
+// not reach it, and why an `echo` beside one is the ordinary spelling rather
+// than two writers disagreeing about what the body is.
+var $quiet = Core\Out::capture(fn (): void => {
+    Core\Response::redirect("/signed-in");
+});
+echo "a redirect wrote [", $quiet, "]\n";
+
+// The status is optional and defaults to the case that answers a form post,
+// so the shorthand and the spelled-out call are the same call -- both quiet,
+// and both admitted.
+var $both = Core\Out::capture(fn (): void => {
+    Core\Response::redirect("/signed-in");
+    Core\Response::redirect("/signed-in", Core\Response\Redirect::SeeOther);
+});
+echo "with and without the status wrote [", $both, "]\n";
+
+// Set, not add, since the destination goes in through the same header list
+// `setHeader` writes: a program may name one as often as it likes and the last
+// one answers. Nothing here reads the status or the header back -- that
+// crossing is asserted in `nvs-server`, where a response exists -- so what is
+// pinned is that a second call is admitted rather than refused as a duplicate.
+uint $accepted = 0;
+uint $i = 0;
+while ($i < 3) {
+    Core\Response::redirect("/somewhere");
+    $accepted = $accepted + 1;
+    $i = $i + 1;
+}
+echo "one destination named ", $accepted, " times\n";
+
+// And a redirect beside a body leaves the body alone, byte for byte: which of
+// the two the peer is given is the server's question, not this member's.
+var $withBody = Core\Out::capture(fn (): void => {
+    Core\Response::redirect("/elsewhere", Core\Response\Redirect::Permanent);
+    Core\Response::text("moved");
+});
+echo "a body under a redirect is [", $withBody, "]\n";
+--EXPECT--
+a redirect wrote []
+with and without the status wrote []
+one destination named 3 times
+a body under a redirect is [moved]

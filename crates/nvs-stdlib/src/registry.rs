@@ -2016,6 +2016,11 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::env::MODE,
     crate::router::METHOD,
     crate::router::AUDIENCE,
+    // The one enum whose case values are not numbered from zero: they are the
+    // HTTP status codes themselves, which [`crate::response::REDIRECT`]'s own
+    // doc owns. It sits beside the router's two because all three are read off
+    // one request.
+    crate::response::REDIRECT,
     crate::cli::STREAM,
     crate::cli::COLOR_DEPTH,
     crate::cli::SHELL,

@@ -1,0 +1,48 @@
+--TEST--
+`Core\Response::redirect` admits every case of its closed status set, and the codes it leaves out stay spellable beside it -- spec § 15
+--FILE--
+<?nvs
+// Invariance over the whole set rather than three answers read off three
+// lines: every case of the enum is a status this member converts, so a case
+// declared without an arm behind it fails here rather than on the wire.
+array<Core\Response\Redirect> $set = [
+    Core\Response\Redirect::SeeOther,
+    Core\Response\Redirect::Temporary,
+    Core\Response\Redirect::Permanent,
+];
+uint $admitted = 0;
+foreach ($set as Core\Response\Redirect $status) {
+    Core\Response::redirect("/next", $status);
+    $admitted = $admitted + 1;
+}
+echo "admitted ", $admitted, " of ", Core\Arr::count($set), "\n";
+
+// The set is closed because `301` and `302` mean whatever a peer does with
+// them, not because a `3xx` is unreachable: the general pair is still two
+// ordinary calls, and it is what this member is the safe shorthand for.
+uint $spelled = 0;
+try {
+    Core\Response::setStatus(301);
+    Core\Response::setHeader("Location", "/moved");
+    $spelled = $spelled + 1;
+} catch (LogicError $refused) {
+}
+echo "the pair still spells 301 ", $spelled, " time\n";
+
+// And the destination is what the sink guards, so a URL a program wrote is
+// carried whatever shape it is -- absolute, relative, or a query the peer
+// will re-ask with.
+array<string> $carried = ["/next", "/next?a=b&c=d", "https://example.test/next", "~"];
+uint $sent = 0;
+foreach ($carried as string $where) {
+    try {
+        Core\Response::redirect($where, Core\Response\Redirect::Temporary);
+        $sent = $sent + 1;
+    } catch (LogicError $unwritable) {
+    }
+}
+echo "carried ", $sent, " of 4 destinations\n";
+--EXPECT--
+admitted 3 of 3
+the pair still spells 301 1 time
+carried 4 of 4 destinations

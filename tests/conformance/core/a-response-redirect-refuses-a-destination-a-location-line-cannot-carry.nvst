@@ -1,0 +1,57 @@
+--TEST--
+`Core\Response::redirect` names both sides of what a `Location` line carries, and declares nothing when it refuses -- spec § 15
+--FILE--
+<?nvs
+// The bound is the header line's, not the URL grammar's: a field value is
+// printable ASCII and never empty. The newline is the one that matters -- a
+// destination carrying one would end the header line and begin a second the
+// program never wrote -- and the empty string is refused because a `Location`
+// naming nothing is a redirect to nowhere.
+array<string> $unwritable = ["", "/next\r\nX-Injected: 1", "/next\nSet-Cookie: a=b", "/next\tspaced"];
+uint $refused = 0;
+foreach ($unwritable as string $where) {
+    try {
+        Core\Response::redirect($where);
+    } catch (LogicError $unspellable) {
+        $refused = $refused + 1;
+    }
+}
+echo "refused ", $refused, " of 4\n";
+
+// The other side of the same bound, one byte in from each end of the printable
+// range: a member that stopped one value early would still look right against
+// the half above.
+array<string> $accepted = [" ", "~", "/a b", "/next~"];
+uint $carried = 0;
+foreach ($accepted as string $edge) {
+    try {
+        Core\Response::redirect($edge);
+        $carried = $carried + 1;
+    } catch (LogicError $rejected) {
+    }
+}
+echo "carried ", $carried, " of 4\n";
+
+// A refusal leaves nothing behind, on `setHeader`'s rule: both checks run
+// before either declaration, so neither the status nor the header is written
+// for a call that threw -- and no byte of body is either.
+var $onRefusal = Core\Out::capture(fn (): void => {
+    try {
+        Core\Response::redirect("/next\r\nX-Injected: 1");
+    } catch (LogicError $unwritten) {
+    }
+});
+echo "a refusal wrote [", $onRefusal, "]\n";
+
+// And the sentence says which rule refused, since a URL and a header value are
+// two grammars a program could have had in mind.
+try {
+    Core\Response::redirect("");
+} catch (LogicError $why) {
+    echo $why->message, "\n";
+}
+--EXPECT--
+refused 4 of 4
+carried 4 of 4
+a refusal wrote []
+Core\Response::redirect(): `` is not a destination a `Location` header can carry — a field value is printable ASCII and never empty, so an empty URL and a newline that would begin a second header are refused alike
