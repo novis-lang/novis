@@ -103,32 +103,20 @@ rules = ["0097", "0012", "0024", "0074", "0088", "0102", "0105", "0073", "0076",
 # every stage that touches a path reads both; 0088 § 3's binding table decides which sink an `echo` takes
 # and half the stages produce output. Fourteen ADRs are named above; read the rest at the item's heading.
 adrs = [
+  # **Take a section out when its stage closes.** This is the pack's largest section — 20,343 B of
+  # 76,225 on 2026-09-04, 27% of what every turn is re-billed for — and it grew the same way every
+  # time: a stage opened, its sections went in under a comment saying so, the stage closed, and
+  # nothing ever took them out. Six of the twelve here were for stages 2 and 5 and were still being
+  # piped into every session of stage 5's routing group. A section earns its place from the group
+  # the handoff names NEXT, not from the group that first needed it.
   "0097 §2",
   "0097 §4",
   "0088 §3",
-  # Added when the request slice landed: every remaining stage-2 slice puts a bound on a connection or
-  # on an outbound call, and § 5 is the one list of what those waits are called and what they default to.
-  "0074 §5",
   # Added when `max_in_flight` landed: 0097 § 5 states the ceiling but hands the *arithmetic* to this
   # section, so an item naming "as amended by ADR 0106" arrives without the rule it is asked to keep.
   # Every remaining `[server]` bound — the accept backoff (§ 8) and the wedged-core watchdog (§ 7) — is
   # the same shape, so this is the section the whole block resolves against.
   "0106 §13",
-  # Added when the session fixture's check turned out to want what no program leg can print: § 4 is where
-  # `Core\Session::start()` is fixed and where the backing store is deferred, so it is what says whether a
-  # `nvs run` leg could ever answer a session at all. Stage 5's item 14 opens here.
-  "0012 §4",
-  # Beside it, the rule that item is under: a session read on one core and written on another must see one
-  # value, so the local tier is not one of its backends.
-  "0059 §4",
-  # Added after two sessions in a row sliced these by hand and said so in the handoff. Stage 5's upload
-  # items are worked one § at a time: § 2 is the parse that tells a file part from a form field, which is
-  # what `Core\Request::post()` is written against; § 3 is the three consumers and the ordinal rule under
-  # them; § 4 is `saveTo`'s delegation to `Core\IO::writeStream`, where its options bag and its two rules
-  # live rather than in a copy on the request side.
-  "0105 §2",
-  "0105 §3",
-  "0105 §4",
   # Added when ADR 0074 § 2 closed and stage 5's routing item became the open one: § 1 is the rule that the
   # server matches once before the handler and that `Core\Request::route()` is that match, and § 2 is the
   # two answers a table gives — `404` where a path has no methods and `405` with `Allow` where it has some.
@@ -136,6 +124,10 @@ adrs = [
   # them, so a session opening that item without both is reading the check's comment instead of the rule.
   "0102 §1",
   "0102 §2",
+  # Taken out 2026-09-04, every one of them a closed stage the handoff's group and backlog no longer
+  # name: 0074 § 5 (stage 2's bounds), 0012 § 4 and 0059 § 4 (the session fixture), 0105 §§ 2-4
+  # (uploads). Put one back on the session that names it again — this list is cheap to add to and
+  # only ever expensive to leave alone.
 ]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
