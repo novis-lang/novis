@@ -5184,6 +5184,16 @@ is why" — is this file.
   session: **run a new case before writing its `--EXPECTF-ERROR--` block** —
   `target/debug/nvs test tests/conformance/<dir>/<one>.nvst` prints the actual diagnostics beside
   the expected ones, with the line and column already in the corpus's own `case.nvs` numbering.
+- **A `-p <crate>` check is *impossible* rather than unwritten when that crate's `Cargo.toml` does not
+  name the crate owning the surface, and that list is a one-call answer.** The
+  `nvs-server (ADR 0105, whole)` check named seven tests about `files()`, a part and its consumers;
+  `crates/nvs-server/Cargo.toml` names `hyper`, `nvs-host`, `nvs-config` and `nvs-runtime`, and
+  `nvs-stdlib` is not among them — so six of the seven could never have run there however end-to-end
+  the claim reads, and the seventh was already landed in `nvs-stdlib` under the check's own spelling.
+  The sibling bullets say to read the named crate's known gaps, or the ADR section the check's comment
+  cites; this is the cheaper test and it is decisive, so `sed -n '1,40p' crates/<crate>/Cargo.toml`
+  before writing a line of the test. Adding a dev-dependency to make the filing true is the wrong
+  repair: it puts the test one layer above the rule it asserts.
 
 ## Splitting a file that got too big
 
