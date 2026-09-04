@@ -26,7 +26,7 @@ modules = [
   # The four hand-written MIGRATION_* lists stage 7 retires, and the guard test over them.
   "crates/nvs-stdlib/src/queue.rs",
   # `quoteIdentifier`'s judgement, which the identifier rule reuses rather than restating.
-  "crates/nvs-stdlib/src/db.rs",
+  "crates/nvs-stdlib/src/db/open.rs",
   # `Core\Db\Schema` and its plan types are registered here.
   "crates/nvs-stdlib/src/registry.rs",
   # `nvs queue migrate`, which stage 7 rewrites, and where `nvs schema` is wired in beside it.

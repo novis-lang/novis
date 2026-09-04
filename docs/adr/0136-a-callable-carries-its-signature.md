@@ -57,7 +57,8 @@
   argument, on the path `Core\Arr::map` sits on, standing in for a check a type could have discharged.
 - **The stdlib already needs the signature and works around not having it.**
   `CoreTy::CallableTo("U")` (`crates/nvs-stdlib/src/arr.rs:118`, and four more rows across `cli.rs` and
-  `db.rs`) is a parameter that is `callable` for every purpose except that it also names the variable
+  `db/registry.rs`) is a parameter that is `callable` for every purpose except that it also names the
+  variable
   its *result* binds; `CoreTy::CallableShapeTo` is the same trick one level up for `Task::all`.
   `crates/nvs-types/src/generics.rs` states the gap they leave: "**Only a written `fn` literal
   binds.** … an argument that is a variable, a parameter, or first-class callable syntax has none to
@@ -315,8 +316,9 @@ as the reserve that replaces it, `E09xx` being internal compiler errors.
 - **M2 (checker)** — the atom parses in every type position; assignability accepts and refuses the five
   cases in § 4 and the three in § 3; a `fn` literal in an expected-callable position types its
   parameters from it; `E0450` still fires on a block body with no declared return.
-- **M2 (stdlib signatures)** — every former `CoreTy::CallableTo` row (`arr.rs`, `cli.rs` ×2, `db.rs`
-  ×2) binds its result variable from a callback that is a **variable** rather than a written literal,
+- **M2 (stdlib signatures)** — every former `CoreTy::CallableTo` row (`arr.rs`, `cli.rs` ×2,
+  `db/registry.rs` ×2) binds its result variable from a callback that is a **variable** rather than a
+  written literal,
   which is the case that bound nothing before; `Task::all` accepts a shape field holding a
   `callable(): T` variable.
 - **M4 (lowering and codegen)** — a proven call site emits no `check_param_tags` sequence and a bare

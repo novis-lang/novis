@@ -67,7 +67,7 @@ One file set: `crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/expr/a
 
 ## Stage 4 — the stdlib rows, and the first variant retired
 
-One file set: `crates/nvs-stdlib/src/registry.rs`, `arr.rs`, `cli.rs`, `db.rs`,
+One file set: `crates/nvs-stdlib/src/registry.rs`, `arr.rs`, `cli.rs`, `db/registry.rs`,
 `crates/nvs-types/src/core_lib.rs`, `crates/nvs-cli/src/meta.rs`.
 
 1. **`CoreTy::CallableTo` is deleted** (`crates/nvs-stdlib/src/registry.rs:335`), with its `Ty`
@@ -75,7 +75,7 @@ One file set: `crates/nvs-stdlib/src/registry.rs`, `arr.rs`, `cli.rs`, `db.rs`,
    its reader `callback_result_var` (`crates/nvs-types/src/generics.rs:137`) and its `meta` rendering
    (`crates/nvs-cli/src/meta.rs:305`).
 2. **Five rows write an ordinary type instead** — `arr.rs:118` (`map`), `cli.rs:318` and `:327`,
-   `db.rs:846` and `:8743`. `map` becomes
+   `db/registry.rs:361` and `db/transaction.rs:646`. `map` becomes
    `map(array<T> $a, callable(T, string): U $fn): array<U>`.
 3. **`bind` descends into a callable type** (`crates/nvs-types/src/generics.rs`), which is ADR 0136 § 6's
    first extension: one more structural position, no constraint set, no occurs check. The gap this

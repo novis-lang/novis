@@ -171,7 +171,7 @@ behaviour-preserving refactor with a frozen expected output rather than a rewrit
   concession, and refusing it outright would make SQLite second-class in the one tool where a dev-machine
   SQLite is most useful.
 - **An identifier is validated, never delimited**, by the judgement `Core\Db::quoteIdentifier` already
-  states at [crates/nvs-stdlib/src/db.rs:3488](../../../crates/nvs-stdlib/src/db.rs). A second answer to
+  states at [crates/nvs-stdlib/src/db/open.rs:1022](../../../crates/nvs-stdlib/src/db/open.rs). A second answer to
   that question is the thing [ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md) refuses.
 - **Ambiguity about a seam resolves toward `nvs-db`**: the vocabulary, the emitters, the introspectors and
   the diff are all sans-io and belong beside `Dialect`, per
