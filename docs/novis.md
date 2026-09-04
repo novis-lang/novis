@@ -15762,7 +15762,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream, files
+Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream, files, post
 
 | Member | Signature |
 |---|---|
@@ -15776,6 +15776,7 @@ Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream
 | [`Core\Request::body`](#core-core-request-body) | `body(): tainted string` |
 | [`Core\Request::bodyStream`](#core-core-request-bodystream) | `bodyStream(): Core\Request\BodyStream` |
 | [`Core\Request::files`](#core-core-request-files) | `files(): Core\Request\Files` |
+| [`Core\Request::post`](#core-core-request-post) | `post(string $name): mixed` |
 
 <a id="core-core-request-method"></a>
 #### `Core\Request::method`
@@ -15917,7 +15918,24 @@ The uploaded files this request carries, as a walk over its parts — the one wa
 
 **Returns** `Core\Request\Files` — An `Iterable<Core\Request\Part>` a `foreach` walks once, yielding each file part as it comes off the wire. Ordinary form fields are not parts of this walk: they are buffered as the walk passes them and read back through `post`. Empty where the request declared no `multipart/form-data` body, which is what a request carrying no upload is.
 
-**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `bodyStream` — the three are exclusive on one request, and naming this walk is the reading.; `ParseError` — The request declared a `multipart/form-data` body and then did not say how to read one — no `boundary`, two of them, or one outside RFC 2046's grammar — or what arrived is not the body it declared. An ambiguous body is refused rather than guessed at.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body`, `bodyStream` or `post` — those readings are exclusive with this one, and naming this walk is the reading. `post` after this walk is the one order that is allowed, because the walk buffers the form fields on its way past.; `ParseError` — The request declared a `multipart/form-data` body and then did not say how to read one — no `boundary`, two of them, or one outside RFC 2046's grammar — or what arrived is not the body it declared. An ambiguous body is refused rather than guessed at.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+
+<a id="core-core-request-post"></a>
+#### `Core\Request::post`
+
+```nvs skip
+Core\Request::post(string $name): mixed
+```
+
+One submitted form field by name, read with PHP's bracket convention — the same parse `query` performs, over a `multipart/form-data` body's non-file parts or over a urlencoded one, replacing `$_POST` and `filter_input(INPUT_POST, …)`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The field's name, as the form declared it and without brackets for a nested value. |
+
+**Returns** `mixed` — The field's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` where the form carried no such name. Reading the body to its end is what this member does, so on a `multipart/form-data` request it is called **after** the `files()` walk, never before: the uploads are drained on the way to the last field.
+
+**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `bodyStream` — those two hand the bytes over uninterpreted and leave no fields behind. A body `files` is walking is the one case this member joins rather than refuses.; `ParseError` — The request declared a `multipart/form-data` body and then did not say how to read one, or what arrived is not the body it declared, or a urlencoded field holds percent escapes that decode to octets that are not UTF-8.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
 
 <a id="core-core-request-bodystream"></a>
 ### `Core\Request\BodyStream`

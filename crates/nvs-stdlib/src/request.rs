@@ -477,8 +477,10 @@ const FILES_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "LogicError",
             desc: "This program is not answering a request, or this request's body has already \
-                   been read by `body` or `bodyStream` — the three are exclusive on one \
-                   request, and naming this walk is the reading.",
+                   been read by `body`, `bodyStream` or `post` — those readings are exclusive \
+                   with this one, and naming this walk is the reading. `post` after this walk \
+                   is the one order that is allowed, because the walk buffers the form fields \
+                   on its way past.",
         },
         ErrorDoc {
             error: "ParseError",
