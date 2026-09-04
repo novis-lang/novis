@@ -6,10 +6,10 @@
 //! rather than another request's resource.
 //!
 //! [`HeldConnection`] is the trait that lets this crate hold a
-//! [ADR 0132](/docs/adr/0132-database-driver-shape.md) driver's connection
-//! without depending on the driver — the dependency runs the other way, so the
-//! field is a `dyn Trait` and the only method on it is the downcast a holder
-//! needs to get its own type back.
+//! [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+//! driver's connection without depending on the driver — the dependency runs
+//! the other way, so the field is a `dyn Trait` and the only method on it is
+//! the downcast a holder needs to get its own type back.
 
 use super::*;
 

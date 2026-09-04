@@ -3,7 +3,7 @@
 //! [`Inbound`] is what a host fills in before the request runs and what
 //! `Core\Request` reads back — method, path, query, headers, the client
 //! address and the [`Scheme`] a trusted proxy asserted
-//! ([ADR 0097](/docs/adr/0097-proxy-headers-are-configured-not-trusted.md) § 6).
+//! ([ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md) § 6).
 //!
 //! The body is a [`RequestBody`] rather than bytes, and that is this file's one
 //! real decision:

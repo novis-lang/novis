@@ -8,9 +8,10 @@
 //! language itself.
 //!
 //! The determinism knobs live here for the same reason.
-//! [ADR 0079](/docs/adr/0079-a-test-is-a-program.md) § 12's fixed clock, the
-//! seeded random state and the scripted answers are all *the host deciding what
-//! a request observes*, which is what every other setter in this file is too.
+//! [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 12's fixed
+//! clock, the seeded random state and the scripted answers are all *the host
+//! deciding what a request observes*, which is what every other setter in this
+//! file is too.
 
 use super::*;
 

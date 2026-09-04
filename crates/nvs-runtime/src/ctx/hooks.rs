@@ -3,7 +3,8 @@
 //! Four callables, each held by the context for the length of one request:
 //! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 3's limit handler,
 //! its uncaught handler, the exit hooks a program registers, and
-//! [ADR 0044](/docs/adr/0044-deferred-work.md)'s deferred work.
+//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 6's
+//! deferred work.
 //!
 //! They share a shape, which is why they share a file: each runs *after*
 //! something has already gone wrong or already finished, so each runs under a
