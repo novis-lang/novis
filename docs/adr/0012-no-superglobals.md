@@ -25,7 +25,7 @@
   [0011](0011-functions-and-constants-are-class-members.md) — `Core\Server`, `Core\Request`, `Core\Session`,
   `Core\Cli` and `Core\Script` join the illustrative domain-class roster its *Revisiting* section already
   says is incomplete.
-- **Amended by:** 0023, 0024, 0046, 0091, 0124
+- **Amended by:** 0023, 0024, 0046, 0091, 0124, 0139
 
 > **In short:** PHP populates `$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION`, `$_ENV` and
 > `$GLOBALS` ambiently — a script never declares them, they are simply present, and `$GLOBALS` additionally
@@ -131,11 +131,15 @@ Fixed here: there is no ambient `$_SESSION` array and no implicit `session_start
 state, so "this request uses sessions" is a line in the source rather than a fact discoverable only by
 grepping for `$_SESSION`.
 
-Deferred to the milestone that builds it (M7/M8, per [the implementation plan](../implementation-plan.md)):
-the storage backend (file, in-memory, external store), its selection via an [ADR 0005](0005-config-changeability.md)-style directive, locking semantics, and garbage collection. Those are a real
-feature with their own questions, the same reason [ADR 0008](0008-static-and-global.md) §*Alternatives
-rejected* declined to smuggle a memoisation cache into a decision about a keyword — this ADR fixes the
-*shape* (a class, explicit start, no ambient array) and leaves the *mechanics* open.
+The mechanics are **not** this ADR's, for the same reason [ADR 0008](0008-static-and-global.md)
+§*Alternatives rejected* declined to smuggle a memoisation cache into a decision about a keyword: this
+ADR fixes the *shape* — a class, explicit start, no ambient array — and the storage backend, its
+selection via an [ADR 0005](0005-config-changeability.md)-style directive, locking semantics and garbage
+collection are a real feature with their own questions. All four are answered in
+[ADR 0139](0139-a-session-is-a-record-its-store-issued.md): the backends are the shared cache tier and
+the database, with the local tier refused at boot naming
+[ADR 0059](0059-cross-request-state-is-explicit.md) § 4; there is no lock; and expiry is the store's own
+rather than a sweeper's.
 
 ### 5. `Core\Cli` is CLI-SAPI-only, and says so loudly
 

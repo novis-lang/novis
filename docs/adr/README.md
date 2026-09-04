@@ -85,6 +85,7 @@ so you never have to open this file to route a topic.
 | Temporary files and directories — `tmpfile`, `tempnam`, `sys_get_temp_dir`, `Core\IO::temporaryDir`, who deletes a temp dir and when, the orphan sweep, `nvs tmp clean`, `[io] temp_root`, `[debug] keep_temporary` | [0131](0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md) |
 | `spawn script`, isolates, the request boundary | [0006](0006-isolated-script-execution.md) |
 | Caching between requests, APCu, `Core\Cache`, why a cached value is copied | [0059](0059-cross-request-state-is-explicit.md) |
+| `Core\Session`, `session_*`, where a session record lives, `[session] backend`, session locking, session garbage collection, what a presented session id is checked against | [0139](0139-a-session-is-a-record-its-store-issued.md) |
 | `include`/`require`, loading another file into the current frame | [0021](0021-single-file-inclusion-construct.md) |
 | Case sensitivity, whether `IF`/`TRUE` parse, whether `new httpclient()` resolves, or why a `require` that works on Windows must work on Linux | [0062](0062-case-sensitivity-is-a-compiler-property.md) |
 | Autoloading, `spl_autoload_register`, PSR-4, Composer's `vendor/autoload.php`, or enumerating classes nothing references by name | [0061](0061-compile-time-autoload-and-program-discovery.md) |
@@ -376,6 +377,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0136](0136-a-callable-carries-its-signature.md) | A `callable` carries its signature | Accepted |
 | [0137](0137-a-doc-comment-is-three-slashes-and-two-tags.md) | A doc comment is `///`, and its only tags are `@see` and `@example` | Accepted |
 | [0138](0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md) | a connection future is driven by the coroutine that owns it, and a waker is one wake | Accepted |
+| [0139](0139-a-session-is-a-record-its-store-issued.md) | A session is a record its store issued, and its backend is never the local tier | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

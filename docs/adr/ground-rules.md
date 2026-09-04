@@ -185,6 +185,9 @@ spellings rejected, and the reasoning.
   ([0017](0017-hot-reload-without-restart.md)).
 - **Cross-request state is explicit: `Core\Cache` is per-core, copied in and out, charged to the core**
   ([0059](0059-cross-request-state-is-explicit.md)).
+- **A session is a record its store issued, and `[session] backend` names the shared tier or the
+  database — never the local one, which is refused at boot**
+  ([0139](0139-a-session-is-a-record-its-store-issued.md)).
 - **`Core\Process` is the only way to run another program, and it never accepts a shell string**
   ([0044](0044-core-process-argv-only-no-shell.md)).
 - **An outbound URL is a sink, and the connection is made to a pinned address**

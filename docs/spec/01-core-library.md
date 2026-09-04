@@ -1090,8 +1090,12 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   present on every request whether or not the trace is sampled and is Novis's only request identifier
   ([ADR 0076](../adr/0076-observability-export.md)), and `isDraining(): bool`, true once graceful shutdown
   has begun ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 5).
-- `Core\Session`: `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25 `session_*`
-  functions. May not use `Core\Cache` ([ADR 0059](../adr/0059-cross-request-state-is-explicit.md)).
+- `Core\Session`: `start`, `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25
+  `session_*` functions. `start` is the one that reaches the store, and a member called before it throws
+  ([ADR 0012](../adr/0012-no-superglobals.md) § 4). Where the record lives is `[session] backend`, which
+  names the shared cache tier or the database and refuses the local one
+  ([ADR 0139](../adr/0139-a-session-is-a-record-its-store-issued.md) § 3, enforcing
+  [ADR 0059](../adr/0059-cross-request-state-is-explicit.md) § 4).
 - `Core\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env\Mode`, and the constants `EOL`, `OS`,
   `VERSION`; its one enum is `Env\Mode` — `Production`, `Development`. Read-only —
   `putenv` has no equivalent, because a process-global mutation is unsound across cores. `mode` reads the

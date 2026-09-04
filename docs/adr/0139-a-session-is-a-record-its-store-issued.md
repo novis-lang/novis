@@ -1,0 +1,212 @@
+# ADR 0139 — A session is a record its store issued, and its backend is never the local tier
+
+- **Status:** Accepted
+- **Date:** 2026-09-04
+- **Scope:** the mechanics [0012](0012-no-superglobals.md) § 4 deferred — the member roster
+  `Core\Session` carries, the four operations a backend answers, which backends `[session] backend`
+  admits and how the excluded one is refused, when a record is read and written, and when it expires.
+  Not the *shape* of the class, which 0012 § 4 already fixed (a class, an explicit start, no ambient
+  array); not the seal on the cookie that carries the id, which is
+  [0060](0060-application-security-protocols.md) § 1's ring; not the strict-id rule, which is
+  [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) § 6; and not the ban on the local
+  tier itself, which is [0059](0059-cross-request-state-is-explicit.md) § 4's and is only *enforced*
+  here.
+- **Depends on:** [0059](0059-cross-request-state-is-explicit.md), which decides what may not hold a
+  session and therefore what is left to choose between.
+- **Amends:** [0012](0012-no-superglobals.md) § 4 — its deferral of "the storage backend, its selection
+  via a directive, locking semantics, and garbage collection" is answered, and that section now names
+  this ADR rather than a milestone.
+- **Validated by:** `crates/nvs-stdlib/src/session.rs`'s
+  `a_session_is_never_backed_by_the_local_cache_tier` and
+  `a_session_survives_a_request_landing_on_another_core`.
+
+> **In short:** a session is one record in a store that can answer *did I issue this id*, keyed by an
+> identifier the store minted and the client carries back sealed. The backends are the shared tier and
+> the database; the local tier is not on the list and writing it is a boot refusal naming
+> [0059](0059-cross-request-state-is-explicit.md) § 4, which is what makes that section enforced rather
+> than documented. The record is loaded once at `start`, written whole when it changes, and expired by
+> the store itself — there is no request-long lock, because a lock a request holds across its own
+> lifetime is the cross-request channel [0052](0052-closed-doors.md) § 3 closed and the stall
+> [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) exists to make impossible.
+
+## Context
+
+[0012](0012-no-superglobals.md) § 4 fixed the *shape* of `Core\Session` — a class, an explicit start,
+no `$_SESSION` — and deferred the mechanics to the milestone that builds it, naming four of them: the
+storage backend, its selection via a directive, locking semantics, and garbage collection. Two later
+decisions have since constrained that list from opposite ends.
+[0059](0059-cross-request-state-is-explicit.md) § 4 removed the local cache tier from the candidates
+and said the removal is "enforced rather than documented", without saying by what.
+[0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) § 6 added a demand no PHP session
+handler is obliged to meet: the store must be able to answer whether it issued a presented id, because
+Novis has no off position for strict mode.
+
+What is left is genuinely open and is decided here. It is decided now, in goal 6, rather than in the
+milestone that writes the class, because the acceptance check that asserts § 4's ban is a check on a
+*roster* — and a roster nobody has written down cannot exclude anything.
+
+## Decision
+
+### 1. The roster is `start` and six members, and `start` is the one that talks to the store
+
+```php
+Core\Session::start(?tainted string $presented = null): void
+Core\Session::get(string $key): mixed
+Core\Session::set(string $key, mixed $value): void
+Core\Session::remove(string $key): void
+Core\Session::clear(): void
+Core\Session::regenerate(): void
+Core\Session::destroy(): void
+```
+
+[docs/spec/01-core-library.md](../spec/01-core-library.md) § 15 lists the six;
+[0012](0012-no-superglobals.md) § 4 and
+[0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) § 6 both name `start` beside them,
+and this section is where the seven are one list. `start` is where the presented id is checked and the
+record is loaded; the six operate on the record already in hand. A member called before `start` throws
+naming it, which is the whole benefit 0012 § 4 was buying — "this request uses sessions" is a line in
+the source — and it is worth nothing if the first `get` can silently start one.
+
+`regenerate` issues a new id, moves the record to it and destroys the old entry, in that order; it
+takes no argument, because PHP's `$delete_old_session` chose between a fixation window and a lost
+session and only one of those is correct
+([02 § *Sessions, requests and headers*](../spec/02-php-migration.md)).
+
+### 2. A backend answers four operations, and one of them is *did I issue this*
+
+| operation | what it does |
+|---|---|
+| `issue` | mint an identifier this store has never issued, write an empty record under it, answer the id |
+| `load` | the record under an id, or **absent** — which is also the answer to § 6 of [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) |
+| `save` | replace the record under an id, refreshing its expiry |
+| `destroy` | forget the record under an id |
+
+**`load` answering absent is the whole of the strict-id rule.** An id the store did not issue, one it
+issued and has since expired, and one an attacker minted are the same answer, and `start` responds to
+all three identically: discard it and `issue` a fresh one. There is no separate `validateId`, because a
+second question is a second thing that can disagree with the first, and PHP 8.6 deprecating handlers
+without one is evidence that the pair is hard to keep in agreement rather than that the pair is right.
+
+The identifier is 128 bits from the same CSPRNG `Core\Crypto` draws from, rendered base64url. Not a
+counter and not a hash of anything the client supplied: an id is a bearer credential for the length of
+its life, and the only property it needs is that guessing one is not a strategy.
+
+The record itself crosses the boundary as [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s
+byte carrier, exactly as a `Core\Cache` entry does and for the first of the two reasons
+`crates/nvs-stdlib/src/cache.rs`'s module doc gives: a record outlives the request that filled it, so
+under [0017](0017-hot-reload-without-restart.md)'s unit swap a live entry would name a `ClassDesc` the
+old unit owned.
+
+### 3. `[session] backend` admits `shared` and `db`, and writing `local` is a boot refusal naming § 4
+
+```toml
+[session]
+backend = "shared"      # or "db"; there is no third value and no default that reaches a store
+ttl     = "2h"          # how long an untouched record survives; the store enforces it
+cookie  = "nvsid"       # the name the identifier rides under
+```
+
+`backend = "local"` is `E0626`, and its note names [0059](0059-cross-request-state-is-explicit.md) § 4
+and the file the key was written in. **This is what "enforced rather than documented" means**: the
+value is refused where it is written, not where it is used, so a deployment cannot be running on a
+per-core session store while believing otherwise. A generic unknown-value refusal would not do it —
+an operator who wrote `local` because APCu was where their sessions lived needs the sentence explaining
+why the fast answer is the wrong one, and § 4 is that sentence.
+
+The key is `System`-class and `Boot`-apply per [0005](0005-config-changeability.md): where a fleet's
+sessions live is a deployment decision, and moving it mid-flight would strand every live session in the
+store nobody is reading any more.
+
+`[session]` absent is not "sessions off with a default backend" — it is a session surface that throws
+on `start`, naming the block to write. [0074](0074-http-defaults-safe-and-finite.md)'s premise is that
+a deployment with nothing configured is safe, and the safe answer for a store nobody chose is no store.
+
+### 4. The record is loaded once and written whole, and there is no lock
+
+`start` reads the record; `set`, `remove` and `clear` mutate the copy in the request's own heap; the
+record is written back when the request ends, and immediately for `regenerate` and `destroy`. Two
+requests writing one session concurrently is last-write-wins over the **whole record**, and this is
+stated rather than repaired.
+
+PHP holds an exclusive lock on the session file for the length of the request, which is why two
+concurrent requests from one browser serialize. Novis does not, for two reasons that are the same
+reason: a lock held for the length of a request is a cross-request channel
+([0052](0052-closed-doors.md) § 3), and a request that dies holding one wedges every later request for
+that session until it expires — the failure
+[0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) is named after. The cost is
+real and belongs to a narrow case: two concurrent requests that both write *different keys* of one
+session lose one of the two writes. An application for which that matters has state that is not
+session state, and [0059](0059-cross-request-state-is-explicit.md) § 4's own list — locks, counters,
+idempotency keys — already sends it to the shared tier or the database directly.
+
+**Writing only when the record changed** is what keeps a read-only request off the write path: a
+request that starts a session and reads it makes one round trip, not two.
+
+### 5. Expiry is the store's, and there is no sweeper
+
+`ttl` is written onto the entry — `SET … EX` on the shared tier, an `expires_at` column and a
+`DELETE … WHERE expires_at < now()` in the database backend's own schema, run by the same worker
+[0084](0084-durable-background-jobs.md) already schedules. There is no `session.gc_probability`
+equivalent and no sweep on a percentage of requests: PHP's pair exists because a filesystem cannot
+expire anything by itself, and both backends here can.
+
+An expired record is absent, so § 2's `load` already answers it and § 1's `start` already issues a
+fresh id. Expiry needs no code path of its own, which is the point of choosing backends that expire.
+
+## Consequences
+
+- **Sessions cost one round trip on a read and two on a write**, to whichever store `[session] backend`
+  names. That is priority 3 spent to buy priority 1, and it is the price
+  [0059](0059-cross-request-state-is-explicit.md) § 4 already decided to pay when it refused the tier
+  with no round trip at all.
+- **Memory is O(in-flight)**: one decoded record per request that started a session, released with the
+  request heap. Nothing accumulates per session served, which is the growth
+  [AGENTS.md](../../AGENTS.md)'s ordering calls a leak rather than a trade-off.
+- **An APCu-shaped deployment does not lift and shift.** It is refused at boot with a sentence, which
+  is the outcome [0059](0059-cross-request-state-is-explicit.md)'s own *Consequences* predicted for
+  `nvs convert` and now happens one step earlier.
+- **Two concurrent writes to one session lose one**, per § 4. Simplicity and the absence of a wedge
+  bought at the cost of a correctness edge that PHP's lock covers; the edge is named in the member's
+  own reference card so it is not discovered in production.
+- **The database backend is specified and not yet written.** § 3's roster admits it so that the roster
+  is complete and the refusal in it is meaningful; `crates/nvs-stdlib/src/session.rs`'s module doc owns
+  which half is on disk.
+
+## Alternatives rejected
+
+- **A file backend.** PHP's default, and the reason `session.save_path` is a support burden: it is
+  per-machine, so a fleet either shares a filesystem or loses sessions on every deploy. It also cannot
+  expire an entry, which is what forces § 5's sweeper back into existence. Rejected on both counts, and
+  a single-machine deployment loses nothing it cannot get from the shared tier on loopback.
+- **A signed cookie holding the record itself**, with no store at all. Zero round trips and no expiry
+  problem. Rejected on § 2: a store that holds nothing cannot answer "did I issue this id", so
+  [0124](0124-php-86-lands-as-four-refusals-and-one-session-rule.md) § 6 has no implementation, a
+  logged-out session stays valid until its own expiry, and the size limit on the state becomes a cookie
+  header's. `Core\SignedCookie` remains available for an application that wants exactly this and knows
+  what it is choosing.
+- **A per-key write instead of a whole-record one.** Narrows § 4's lost update to the key actually
+  contended. Rejected: it makes one session N entries in the store, so `clear`, `regenerate` and
+  `destroy` each become a multi-key operation, and a multi-key atomic step over the shared tier is what
+  [0075](0075-core-ratelimit.md) § 4 names as deliberately absent.
+- **A request-long lock, as PHP has.** Closes § 4's edge exactly. Rejected in § 4 on
+  [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)'s own terms: the failure it
+  introduces is a wedged session, and it is introduced on the request path of every application whether
+  or not it has concurrent writers.
+- **An implicit `start` on first access.** Removes the member that does nothing an application asked
+  for. Rejected: it deletes the property [0012](0012-no-superglobals.md) § 4 bought, and it puts a
+  store round trip behind a `get` that reads as a map lookup.
+
+## Verification
+
+- `[session] backend = "local"` is `E0626` at boot, and its note names ADR 0059 § 4 and the file the
+  key was written in. The roster the refusal is derived from is asserted to contain no local entry, so
+  a backend added later cannot re-admit it by accident — that is the pair
+  `a_session_is_never_backed_by_the_local_cache_tier` asserts.
+- A record saved from one core is loaded by another through a connection the first never touched,
+  against one store, while the same bytes put through `Core\Cache::local()` on the first core are
+  absent from the second — `a_session_survives_a_request_landing_on_another_core`. The contrast is the
+  test, not the round trip: a round trip alone passes for a store that happens to be reachable.
+- An id no store issued, one that expired and one an attacker minted are all answered by a fresh
+  session rather than by an error, per § 2.
+- **M8:** `regenerate` moves the record and destroys the old entry, asserted by the old id being
+  absent afterwards rather than by the new one being present.
