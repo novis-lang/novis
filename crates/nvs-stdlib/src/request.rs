@@ -2263,11 +2263,11 @@ mod tests {
         nvs_core_request_body_stream_advance, nvs_core_request_body_stream_current,
         nvs_core_request_body_stream_iterate, nvs_core_request_files,
         nvs_core_request_files_advance, nvs_core_request_files_current,
-        nvs_core_request_files_iterate, nvs_core_request_part_content,
-        nvs_core_request_part_content_advance, nvs_core_request_part_content_current,
-        nvs_core_request_part_content_iterate, nvs_core_request_part_content_type,
-        nvs_core_request_part_filename, nvs_core_request_part_name, nvs_core_request_part_read_all,
-        nvs_core_request_part_save_to,
+        nvs_core_request_files_iterate, nvs_core_request_is_head, nvs_core_request_method,
+        nvs_core_request_part_content, nvs_core_request_part_content_advance,
+        nvs_core_request_part_content_current, nvs_core_request_part_content_iterate,
+        nvs_core_request_part_content_type, nvs_core_request_part_filename,
+        nvs_core_request_part_name, nvs_core_request_part_read_all, nvs_core_request_part_save_to,
     };
     use crate::router::METHOD;
     use nvs_runtime::{Ctx, Inbound, RequestBody, Value};
@@ -2468,6 +2468,80 @@ mod tests {
     fn a_verb_outside_the_roster_has_no_ordinal() {
         for verb in ["CONNECT", "get", "Post", "", "GET "] {
             assert_eq!(method_ordinal(verb), None, "`{verb}` parsed to a case");
+        }
+    }
+
+    /// The two members that answer a `HEAD` request, asked **together** and
+    /// over the whole roster: no request reports the `Head` case, and `isHead`
+    /// is true for exactly the one whose request line carried that token.
+    ///
+    /// [`every_parsed_verb_is_a_case_of_the_roster`] owns the parse — that
+    /// [`method_ordinal`] answers `Get`'s ordinal for `HEAD` — and this owns
+    /// what a *program* sees, which is a different claim: the difference the
+    /// parse throws away has to come back somewhere, and `isHead` is the only
+    /// member that can carry it. So the question is put to both members per
+    /// verb rather than to one, because what this exists to catch is
+    /// **agreement**. An `isHead` written off `method()`'s answer would report
+    /// `false` for every request and still look right on its own line, and a
+    /// `method` that stopped folding `HEAD` would leave `isHead` telling the
+    /// truth beside it; each half is plausible alone and the pair is useless.
+    ///
+    /// **`Head` stays a case of the enum**, and that is not in tension with
+    /// this. ADR 0077 § 1's roster is what a `#[Route]` may be declared under
+    /// and a route may name `Head` there; the rule is only that no request
+    /// *reports* it. The arm is therefore reachable from a declaration and
+    /// unreachable from this member, which is why the sweep asserts what
+    /// `method()` answers and never that [`METHOD`] has one case fewer.
+    #[test]
+    fn method_reports_get_for_a_head_request_and_is_head_carries_the_truth() {
+        /// A context answering a request whose request line carried `verb` and
+        /// which is uninteresting in every other way.
+        fn asked(verb: &str) -> Ctx {
+            let mut ctx = Ctx::buffered();
+            ctx.set_inbound(Inbound::new(verb, "/", ""));
+            ctx
+        }
+
+        let case_of = |wanted: &str| {
+            METHOD
+                .cases
+                .iter()
+                .find(|(name, _)| *name == wanted)
+                .expect("the roster names the case")
+                .1
+        };
+        let (get, head) = (case_of("Get"), case_of("Head"));
+
+        for (name, ordinal) in METHOD.cases {
+            let verb = name.to_ascii_uppercase();
+            let is_head = verb == "HEAD";
+            let mut ctx = asked(&verb);
+            let reported = nvs_runtime::call(nvs_core_request_method, &mut ctx, &[])
+                .expect("a roster verb reaches a case")
+                .as_int()
+                .expect("an enum answers as its ordinal");
+            let carried = nvs_runtime::call(nvs_core_request_is_head, &mut ctx, &[])
+                .expect("every request being answered can be asked")
+                .as_bool()
+                .expect("the member answers a bool");
+
+            assert_eq!(
+                reported,
+                if is_head { get } else { *ordinal },
+                "`{verb}` reported the case at {reported}, and every verb but `HEAD` reports \
+                 its own"
+            );
+            assert_ne!(
+                reported, head,
+                "`{verb}` reported the `Head` case, which a request never does — the case \
+                 exists for a `#[Route]` to be declared under and `method()` folds it into \
+                 `Get` so that a `Get`-only table still matches one"
+            );
+            assert_eq!(
+                carried, is_head,
+                "`{verb}` answered `isHead()` as {carried}: the byte the parse discarded is \
+                 this member's whole content, and it is what a handler skips building a body on"
+            );
         }
     }
 
@@ -3591,6 +3665,105 @@ mod tests {
         );
         dropped(part);
         dropped(files);
+    }
+
+    /// ADR 0105 § 3's three consumers, asked as **agreement**: the same part on
+    /// the same wire hands back the same octets whichever of them reads it, and
+    /// the rows that read the octets at all are those three.
+    ///
+    /// The three are one walk with three doors — `content()` *is* the walk,
+    /// `readAll` is that walk collected under a bound, and `saveTo` is that
+    /// walk with a file on the end of it — which is exactly what makes this
+    /// worth asserting rather than obvious. Three doors onto one
+    /// implementation are indistinguishable until one of them grows a step of
+    /// its own, and a `readAll` that trimmed, a `saveTo` that wrote a chunk
+    /// twice or a `content()` that dropped the last one are each plausible
+    /// against their own case while failing here.
+    ///
+    /// **Asked over three requests rather than three calls**, because
+    /// consuming is what these members do: a part is the walk's current one and
+    /// its octets are still on the wire, so a second reader of one part would
+    /// be asserting the claim rule instead — which is
+    /// [`a_body_is_claimed_by_the_member_that_read_it_and_refused_to_the_other`]'s
+    /// at the body. The three wires are the same `UPLOAD` bytes, so "the same
+    /// part" is a fact here and not an assumption.
+    ///
+    /// **Which rows the three are is read off [`PART`] rather than written
+    /// out**: a row that reaches the octets answers the walk, the bytes, or the
+    /// `void` of having put them somewhere else, while the three answering
+    /// `tainted string` are what the peer *declared* about the part and read
+    /// nothing. A seventh row lands in one partition or the other and is looked
+    /// at either way. That nothing outside these rows can be handed a part at
+    /// all is
+    /// [`files_is_a_lazy_iterator_and_the_only_way_to_receive_an_upload`]'s
+    /// closing assertion and is not restated here.
+    #[test]
+    fn a_part_is_consumed_by_read_all_by_iteration_or_by_save_to() {
+        let (mut consumers, mut declarations) = (Vec::new(), Vec::new());
+        for member in super::PART.methods.iter().chain(super::PART.instance) {
+            if matches!(member.return_ty, CoreTy::TaintedStr) {
+                declarations.push(member.name);
+            } else {
+                consumers.push(member.name);
+            }
+        }
+        assert_eq!(
+            consumers,
+            vec!["content", "readAll", "saveTo"],
+            "§ 3's consumers are three, and the partition is by what the row answers: the walk \
+             itself, the octets held whole, and the `void` of having written them to a \
+             destination the application named"
+        );
+        assert_eq!(
+            declarations,
+            vec!["name", "filename", "contentType"],
+            "the rest of the class is what the peer said about the part, which reads none of it \
+             — a row that answered `tainted string` while pulling a chunk would be a fourth \
+             consumer nobody could see"
+        );
+
+        /// The first part of an `UPLOAD` body, consumed by `consume` and
+        /// answered as the octets that came back.
+        fn through(consume: impl FnOnce(&mut Ctx, Value) -> Vec<u8>) -> Vec<u8> {
+            let mut arriving = saving(Chunks::of(UPLOAD));
+            let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+                .expect("a request that declared a multipart body can be walked");
+            let part = next_part(&mut arriving, files).expect("the body carries two file parts");
+            let octets = consume(&mut arriving, part);
+            dropped(part);
+            dropped(files);
+            octets
+        }
+
+        let walked = through(|ctx, part| {
+            content_of(ctx, part)
+                .expect("a part still on the wire walks")
+                .concat()
+        });
+        let held = through(|ctx, part| {
+            read_all(ctx, part, u64::MAX).expect("a part still on the wire is read whole")
+        });
+        let saved = through(|ctx, part| {
+            let path = scratch("consumed-once.pdf");
+            save_to(ctx, part, &path, false).expect("a granted destination is written");
+            std::fs::read(&path).expect("the file `saveTo` made")
+        });
+
+        assert!(
+            !walked.is_empty(),
+            "the fixture has to deliver something for the agreement below to mean anything"
+        );
+        assert_eq!(
+            walked, held,
+            "the bound collects the walk and adds nothing: `readAll` is `content()` with a \
+             ceiling, so a chunk boundary is as invisible to one as to the other"
+        );
+        assert_eq!(
+            held, saved,
+            "ADR 0105 § 4's delegation carries the same octets to disk that a program reading \
+             them into memory would have seen, which is what makes the choice between them a \
+             memory decision and nothing else"
+        );
     }
 
     /// A context answering a multipart request **and** granting `fs.write`,
