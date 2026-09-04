@@ -1903,6 +1903,17 @@ is why" — is this file.
   the gate find the formatting and fix that diff with `Edit`, rather than formatting the tree by hand
   first. The same trap applies to any tool that rewrites a file you have open: `session.py --wrap` is
   safe only because the session ends there.
+- **A `loop-goal.toml` check whose name is a conjunction can have its two halves in two *crates*, and
+  the tell is that one half names a compile-time fact.** § 7's
+  `a_mounts_captures_reach_the_handler_as_tainted_values` was filed `-p nvs-server`, and the door's
+  half of it is genuinely that crate's — the prefix and the captures are fields of the row
+  `Table::resolve` already chose. `tainted` is not: it is a qualifier on a `nvs_stdlib::registry`
+  row's signature, and `crates/nvs-server/Cargo.toml` names neither `nvs-stdlib` nor `nvs-types`, so
+  the door writes two strings with nothing to write a qualifier with. The sibling bullets ask which
+  crate *can* host a test; this one asks it of each half separately, because a name with an "as …"
+  or an "and …" in it is often two claims that landed a crate apart. Splitting the check is the
+  repair, and the second half then names where the qualifier is declared rather than where the value
+  was carried.
 
 ## Running things
 
