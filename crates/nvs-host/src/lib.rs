@@ -115,7 +115,7 @@ pub use block_on::block_on;
 pub use blocking::BlockingPool;
 pub use channel::{Receiver, RecvError, SendError, Sender, TryRecvError, TrySendError, channel};
 pub use group::SchedulerHost;
-pub use isolate::{Completion, Failure, Isolate, Output, Program};
+pub use isolate::{Completion, Failure, Isolate, Output, Program, Running};
 #[cfg(unix)]
 pub use net::NvsUnix;
 pub use net::{NvsListener, NvsStream, NvsTcp};

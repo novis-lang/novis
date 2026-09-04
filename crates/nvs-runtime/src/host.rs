@@ -349,6 +349,41 @@ pub trait Running: std::fmt::Debug {
     /// bytes reach the parent's stream at the one point where the ordering is a
     /// fact rather than a race.
     fn join(self: Box<Self>, ctx: &mut Ctx) -> Completion;
+
+    /// Whether the child has already ended, asked **without waiting** for it.
+    ///
+    /// The question a caller that may not suspend has to be able to ask, and
+    /// the whole of why it exists: a `Future` polled by somebody else's loop —
+    /// the built-in server's service, driven by `hyper` under
+    /// [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+    /// § 1 — answers `Pending` while this is `false` and calls
+    /// [`Running::join`] only once it is `true`, at which point that call has
+    /// nothing left to wait for and does not park. A caller with no such
+    /// constraint never asks: `join` is the whole of `await`.
+    ///
+    /// `false` says only that the child had not ended when it was asked. What
+    /// tells a poller to ask again is a **wake** — the child's own, delivered
+    /// to the task that started it as its body ends — and never a re-read of
+    /// this on a loop, which would be the spin the seam exists to avoid.
+    fn finished(&self) -> bool;
+
+    /// Ends the child now, and does not return while it is still running.
+    ///
+    /// The counterpart to the plain drop above, for a caller whose *own* frame
+    /// is the child's structure rather than its task: a future that owns a
+    /// request may be dropped by the loop polling it while its isolate is still
+    /// going, and letting that drop return with the child running would leave
+    /// work outside anything that can be proven finished — which is exactly
+    /// what [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 4 refuses. So this cancels and then waits, as `join` does for a
+    /// cancelled parent, and discards whatever the child had produced: nobody
+    /// is left to read an answer.
+    ///
+    /// **The one case it may not wait for is its own teardown.** A stack being
+    /// force-unwound is not a stack that may park, and it does not need to be:
+    /// the child is a task under this one, so the scheduler cancels it as this
+    /// task retires. An implementation is expected to make that test itself.
+    fn abandon(self: Box<Self>);
 }
 
 /// Whatever is running tasks on this thread, as much of it as a `Core` member
@@ -613,6 +648,14 @@ mod tests {
                 error: None,
             }
         }
+
+        fn finished(&self) -> bool {
+            // The comment above: with no scheduler under it, "started" and
+            // "finished" are the same moment, so a poller never waits.
+            true
+        }
+
+        fn abandon(self: Box<Self>) {}
     }
 
     fn recording() -> &'static Recording {

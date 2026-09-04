@@ -85,7 +85,8 @@ use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
 use nvs_config::Waits;
 use nvs_host::{
-    Completion, Isolate, NvsListener, NvsTcp, Waiting, Wake, block_on, spawn_child, suspend_current,
+    Completion, Isolate, NvsListener, NvsTcp, Running, Waiting, Wake, block_on, spawn_child,
+    suspend_current,
 };
 use nvs_runtime::host::Woken;
 use nvs_runtime::{Ctx, Drain, OutputSink, TaskRoot};
@@ -345,6 +346,51 @@ impl Serving {
     }
 }
 
+/// The isolate answering one request, held by the future that is waiting for it.
+///
+/// Two things live here that a bare `Box<dyn Running>` does not say. The first
+/// is that the wait is a **poll** and not a park:
+/// [`nvs_host::Running::finished`] is the non-parking question the service
+/// future asks each time `hyper` polls it, which is what leaves the
+/// connection's own task free to go round the dispatcher's loop — and the read
+/// side of that loop is where a request's body comes from
+/// ([`serve_connection`]'s docs own the argument).
+///
+/// The second is what a **drop** means. A service future can be dropped with
+/// its request still running — `hyper` giving up on the connection, or this
+/// task being torn down under it — and a drop that simply released the handle
+/// would leave an isolate running with nothing left that could prove it
+/// finished, which is
+/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 4
+/// gone rather than kept. So the drop **abandons**: cancel, then wait.
+/// [`nvs_host::Running::abandon`] owns both halves and the one case that may
+/// not wait.
+struct Peer(Option<Box<dyn Running>>);
+
+impl Peer {
+    /// Whether the request has ended, asked without waiting for it.
+    fn finished(&self) -> bool {
+        self.0.as_ref().is_none_or(|running| running.finished())
+    }
+
+    /// Takes the answer, once the request has ended.
+    ///
+    /// `None` only for a `Peer` already collected, which the one caller cannot
+    /// reach — worth an answer rather than a panic all the same, since what it
+    /// would cost a future caller is one `500` instead of a connection.
+    fn collect(&mut self, ctx: &mut Ctx) -> Option<Completion> {
+        self.0.take().map(|running| running.join(ctx))
+    }
+}
+
+impl Drop for Peer {
+    fn drop(&mut self) {
+        if let Some(running) = self.0.take() {
+            running.abandon();
+        }
+    }
+}
+
 /// Drives one accepted connection to completion on the calling coroutine.
 ///
 /// The whole of ADR 0138 § 1: one future, on this task's own stack, polled by
@@ -360,13 +406,25 @@ impl Serving {
 /// would prove nothing about two of them. Where it is already a response
 /// (ADR 0097 § 4's `404`, or a file), nothing is run for it at all.
 ///
-/// **That isolate runs inside the connection future's poll, and it may park.**
-/// That is what ADR 0138 § 1 bought: the future is driven on this coroutine's
-/// own stack, so the join's suspend parks the whole stack — `hyper`'s poll
-/// frame included — and the resume lands back inside that same poll, with the
-/// core having served its other connections in between. Nothing re-enters
-/// while it is parked, because a suspended task runs nothing at all, which is
-/// what gives the borrow below one borrower by construction.
+/// **That isolate runs as a peer task, and the service answers `Pending` until
+/// it has ended.** The request is started here ([`Isolate::start`]) and
+/// collected here, but it is not *run* here: what stands between the two is a
+/// future that asks [`nvs_host::Running::finished`] each time `hyper` polls it,
+/// so the connection's own task is free to go round its dispatcher's loop while
+/// the request is still going. That is the shape the body needs and the reason
+/// it is not the simpler one — `hyper`'s h1 dispatcher polls the read side and
+/// the service on **one** task, so a request that has to wait for body bytes
+/// can only get them if this future can answer `Pending` and be polled again;
+/// a service that ran the isolate to completion inside its own poll would be
+/// waiting for a read that its own frame is what owes. [`Peer`] is that wait,
+/// and it is also ADR 0072 § 4's cancellation.
+///
+/// ADR 0138 § 1 is what makes answering `Pending` cheap rather than an
+/// executor: the connection future is driven on this coroutine's own stack, so
+/// the park is [`nvs_host::block_on()`]'s and the resume lands back inside the
+/// same poll, with the core having served its other connections in between.
+/// Nothing re-enters while it is parked, because a suspended task runs nothing
+/// at all, which is what gives the borrow below one borrower by construction.
 ///
 /// `ctx` is the connection task's, and that makes it the root of this
 /// connection's request tree
@@ -420,10 +478,16 @@ where
     H: Fn(Request<Incoming>) -> Reply,
 {
     let ctx = RefCell::new(ctx);
+    // Borrowed once, here, rather than captured: the service below hands its
+    // captures on to a future that outlives the call that made it, and a
+    // shared reference is the one kind of capture an `async move` may take out
+    // of an `Fn` closure — it copies rather than moves.
+    let ctx = &ctx;
     let io = ConnectionIo::new(stream, waits);
     // Taken before the adapter is handed to `hyper`, because that is the last
     // moment anything on this side can reach it.
     let phase = io.phase();
+    let phase = &phase;
     // ADR 0074 § 1's effective scheme, and it is `http` for every request this
     // server sees: Novis terminates no TLS (ADR 0097 § 1), so the only thing
     // that can assert `https` is a *trusted* proxy's `X-Forwarded-Proto` — ADR
@@ -431,7 +495,7 @@ where
     // anyway while `trusted_proxies` is empty. Named once, so that the slice
     // landing that walk has one line to change rather than a search.
     let scheme = Scheme::Http;
-    let service = service_fn(|request: Request<Incoming>| {
+    let service = service_fn(move |request: Request<Incoming>| async move {
         // A head that framed is a head that arrived: what this connection is
         // waiting for from here is the body, and then nothing until the answer
         // exists.
@@ -447,43 +511,86 @@ where
             phase.set(Phase::Write);
             let mut refused = crate::admit::over_capacity();
             serving.secure.fill(refused.headers_mut(), scheme);
-            return std::future::ready(Ok::<_, Infallible>(refused));
+            return Ok::<_, Infallible>(refused);
         };
         let mut answered = match handler(request) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
             // isolate accounting below does not apply to it either.
             Reply::Done(response) => response,
-            // **Nothing under this call may park on the request body**, and the
-            // reason is `hyper`'s dispatcher rather than anything here: its h1
-            // loop runs `poll_read` and `poll_write` in that order on one task,
-            // and the service future is what `poll_write` polls. A body chunk
-            // therefore only arrives on an iteration of that loop, and this
-            // closure is *inside* one — so a `block_on` over the body, whether
-            // it is written here or reached through `nvs_runtime::RequestBody`
-            // from inside the isolate, suspends the coroutine that owes the next
-            // `poll_read` and waits for a wake only that read can send. Not a
-            // slow path: a deadlock, and one the first chunk of the smallest
-            // body reaches, since `poll_read` has not been asked for body bytes
-            // yet the first time the service is polled.
+            // **This future may not run the request; it may only wait for it.**
+            // The reason is `hyper`'s dispatcher rather than anything here: its
+            // h1 loop runs `poll_read` and `poll_write` in that order on one
+            // task, and this future is what `poll_write` polls. A body chunk
+            // therefore only arrives on an iteration of that loop — so a frame
+            // that sat here holding the core until the request had finished
+            // would be waiting for a read its own frame is what owes, which is
+            // not a slow path but a deadlock, reached by the first chunk of the
+            // smallest body. Starting the isolate and answering `Pending` until
+            // it has ended is what takes the request off this task: the
+            // isolate's pull can then park the isolate, `want`'s two-way
+            // signalling wakes this connection, its `poll_read` delivers the
+            // chunk and wakes the isolate back.
             //
-            // What that costs is stated where the carrier is built
-            // (`nvs-cli/src/serve.rs`): the door hands over no body yet, so
-            // `Inbound::has_body` is false on every request this server serves.
-            // Closing it is a change to the shape of this closure, not to the
-            // carrier — the service has to become a real future that answers
-            // `Pending` while the isolate runs as a peer task, at which point
-            // `want`'s two-way signalling drives itself: the isolate's pull
-            // registers interest, that wakes this connection's task, its
-            // `poll_read` delivers the chunk and wakes the isolate back.
-            Reply::Run(isolate) => match isolate.run(&mut ctx.borrow_mut()) {
-                Ok(done) => answer(done),
-                // The *argument* had no meaning on the other side, so no request
-                // was ever started. Everywhere else that is the parent's to
-                // raise; here the parent is a connection with nobody to raise it
-                // in, so it is one more `500`.
-                Err(_refused) => failed(),
-            },
+            // The supplier is the half still missing, and it is stated where
+            // the carrier is built (`nvs-cli/src/serve.rs`): the door hands
+            // over no body yet, so `Inbound::has_body` is false on every
+            // request this server serves.
+            Reply::Run(isolate) => {
+                // A statement of its own, because the borrow a `match`
+                // scrutinee takes lives to the end of the whole `match` — and
+                // the arm below borrows the same context again to collect.
+                let started = isolate.start(&mut ctx.borrow_mut());
+                match started {
+                    Ok(running) => {
+                        let mut peer = Peer(Some(running));
+                        let mut parked = false;
+                        // No waker is registered, and that is the seam rather
+                        // than an omission: what ends this wait is the
+                        // isolate's own end waking the **task** that started it
+                        // (`Isolate::start` takes this connection's `Wake`),
+                        // and ADR 0138 § 1's loop re-polls whatever the task
+                        // was resumed for. A waker stored here would be a
+                        // second route to the same resume.
+                        std::future::poll_fn(|_cx| {
+                            if peer.finished() {
+                                Poll::Ready(())
+                            } else {
+                                parked = true;
+                                Poll::Pending
+                            }
+                        })
+                        .await;
+                        // A request that made this future answer `Pending` left
+                        // `hyper`'s read side blocked on the head it speculated
+                        // about while the isolate ran — and a blocked read side
+                        // is the one case `Conn::maybe_notify` skips its
+                        // post-response read in. That read is what ends
+                        // `Phase::Write` and starts the keep-alive clock
+                        // (`crate::io`'s § *The clock*), so without a second
+                        // poll an idle connection would sit under the write
+                        // wait instead of § 5's keep-alive one. One wake is the
+                        // whole fix: ADR 0138 § 2's loop re-polls with the
+                        // response written and the dispatcher idle, which is
+                        // where `hyper` reads again.
+                        if parked {
+                            std::future::poll_fn(|cx| {
+                                cx.waker().wake_by_ref();
+                                Poll::Ready(())
+                            })
+                            .await;
+                        }
+                        // Nothing left to wait for, so this join does not park.
+                        peer.collect(&mut ctx.borrow_mut())
+                            .map_or_else(failed, answer)
+                    }
+                    // The *argument* had no meaning on the other side, so no
+                    // request was ever started. Everywhere else that is the
+                    // parent's to raise; here the parent is a connection with
+                    // nobody to raise it in, so it is one more `500`.
+                    Err(_refused) => failed(),
+                }
+            }
         };
         // The request took as long as it took — a request's own runtime is
         // ADR 0106's ceiling and not a socket wait — and what remains on this
@@ -493,7 +600,7 @@ where
         // response carries beside whatever wrote it, and filling leaves a name
         // the answer already spelled for itself exactly as it is.
         serving.secure.fill(answered.headers_mut(), scheme);
-        std::future::ready(Ok::<_, Infallible>(answered))
+        Ok(answered)
     });
     let connection = http1::Builder::new().serve_connection(io, service);
     block_on(connection).unwrap_or(Ok(()))
@@ -1518,6 +1625,91 @@ mod tests {
             seen.matches("HTTP/1.1 200 OK").count(),
             2,
             "the two answers were not two responses: {seen}"
+        );
+    }
+
+    /// The isolate answering this one hands the core back twice before it says
+    /// anything, so the request cannot be finished inside the poll that started
+    /// it.
+    fn echo_after_two_parks() -> Rc<impl Fn(Request<Incoming>) -> Reply> {
+        Rc::new(|_request: Request<Incoming>| {
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                for _ in 0..2 {
+                    // `Yielded` rather than `Parked`: nothing is going to wake
+                    // this child, so what it is standing on is the scheduler's
+                    // run queue — a request that is *running* and unfinished,
+                    // which is the state the service future has to survive.
+                    suspend_current(Waiting::Yielded);
+                }
+                child
+                    .write_output(b"answered after two parks")
+                    .expect("a buffer");
+                Value::null()
+            });
+            Reply::Run(Isolate::new(program, Value::null(), Output::Capture))
+        })
+    }
+
+    /// A request that is not finished when its poll ends is still answered:
+    /// the isolate runs as a **peer task**, the service future answers
+    /// `Pending` until [`nvs_host::Running::finished`] says otherwise, and the
+    /// child's own end is what wakes this connection back into the poll that
+    /// collects it.
+    ///
+    /// Over a socket rather than against the future directly, because the half
+    /// that can break is the wake: a service that answered `Pending` with
+    /// nothing arranging a re-poll leaves the connection open and silent, which
+    /// is exactly what a client sees here if it regresses. The keep-alive case
+    /// below is the other half of the same mechanism — `hyper` skips its
+    /// post-response read after a request that parked, so the phase the clock
+    /// reads is the loop's to move.
+    #[test]
+    fn a_request_that_parks_is_answered_when_its_isolate_ends() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(b"GET /slow HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            let read = socket.read_to_string(&mut answer);
+            (read.is_ok(), answer)
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &echo_after_two_parks(),
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let (read, answer) = client.join().expect("the client thread panicked");
+        assert!(read, "the connection never answered: {answer}");
+        assert!(
+            answer.starts_with("HTTP/1.1 200 OK\r\n"),
+            "a request that parked did not answer with a response: {answer}"
+        );
+        assert!(
+            answer.ends_with("answered after two parks"),
+            "the response did not carry what the isolate echoed after its parks: {answer}"
         );
     }
 

@@ -343,11 +343,25 @@ impl Running for Collected {
         let completion = self.completion.take().unwrap_or_else(cancelled_completion);
         hand_over(completion, self.output, ctx)
     }
+
+    fn finished(&self) -> bool {
+        // "Started" and "finished" were the same moment for this one, so a
+        // poller never sees it unfinished and `join` never parks.
+        true
+    }
+
+    fn abandon(self: Box<Self>) {
+        // The program already ran, and its answer is the only thing left; the
+        // drop below is what discards it.
+    }
 }
 
-impl Running for Started {
-    fn join(self: Box<Self>, ctx: &mut Ctx) -> Completion {
-        let mut cancelling = false;
+impl Started {
+    /// Parks until the child's task has ended, however it ends.
+    ///
+    /// `cancelling` is whether the child has already been told to stop, so that
+    /// the one cancellation this loop can issue is not issued twice.
+    fn park_until_done(&self, mut cancelling: bool) {
         while !self.done.get() {
             let resumed = suspend_current(Waiting::Parked);
             if !resumed.suspended() {
@@ -365,6 +379,12 @@ impl Running for Started {
                 cancel_task(self.id);
             }
         }
+    }
+}
+
+impl Running for Started {
+    fn join(self: Box<Self>, ctx: &mut Ctx) -> Completion {
+        self.park_until_done(false);
 
         let completion = self.slot.borrow_mut().take();
         hand_over(
@@ -372,6 +392,33 @@ impl Running for Started {
             self.output,
             ctx,
         )
+    }
+
+    fn finished(&self) -> bool {
+        // [`Ended`] is what sets this, and it is a `Drop`, so it is true for a
+        // child that returned, one that threw and one that was torn down
+        // half-way — every state in which there is nothing left to wait for.
+        self.done.get()
+    }
+
+    fn abandon(self: Box<Self>) {
+        if self.done.get() {
+            return;
+        }
+        cancel_task(self.id);
+        if nvs_runtime::Teardown::in_progress() {
+            // This task's own stack is being unwound, and a stack being unwound
+            // may not park: `suspend_current` here would suspend a task the
+            // scheduler is in the middle of taking apart. It is also the one
+            // case that needs nothing — `Scheduler::orphan` cancels the
+            // children of a task as it retires, so the child dies with this one
+            // either way, which is the trait's own "dropping is not a leak".
+            return;
+        }
+        self.park_until_done(true);
+        // The completion, if the child filed one before it was told, is dropped
+        // with `self.slot`: nobody is left to read an answer, and ADR 0116 § 5
+        // makes discarding the copy the whole of freeing it.
     }
 }
 
@@ -1326,6 +1373,136 @@ mod tests {
         assert_eq!(
             done.output, b"as far as here",
             "what it echoed before the safepoint, it did echo"
+        );
+    }
+
+    /// [`Running::finished`] is the whole of what a caller that may not park
+    /// can ask, and both answers matter: `false` while the child has not run,
+    /// `true` once it has, with no suspend of the asking task in either. That
+    /// is the built-in server's request future — it polls this and answers
+    /// `Pending`, because the task it is standing on owes `hyper` its next
+    /// read.
+    ///
+    /// The join at the end is the other half of the pair: asked only once the
+    /// answer is `true`, it has nothing left to wait for, so a caller that
+    /// polled its way here never parks at all.
+    #[test]
+    fn a_started_child_answers_finished_without_a_join() {
+        let seen: Rc<Cell<(bool, bool)>> = Rc::new(Cell::new((true, false)));
+        let recorded = Rc::clone(&seen);
+        let answer: Rc<RefCell<Option<Completion>>> = Rc::new(RefCell::new(None));
+        let filed = Rc::clone(&answer);
+
+        let mut sched = Scheduler::new();
+        sched.spawn(parent(), TaskRoot::Request, move |parent_ctx| {
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                child.write_output(b"ran").expect("a buffer");
+                Value::int(7)
+            });
+            let running = Isolate::new(program, Value::null(), Output::Capture)
+                .start(parent_ctx)
+                .expect("a null argument crosses");
+            let before = running.finished();
+            // The core goes back rather than the task parking on the child:
+            // this stands in for the poll a future makes, and what ends it is
+            // the same question answering differently.
+            let mut after = false;
+            for _ in 0..8 {
+                if running.finished() {
+                    after = true;
+                    break;
+                }
+                if !suspend_current(Waiting::Yielded).suspended() {
+                    break;
+                }
+            }
+            recorded.set((before, after));
+            *filed.borrow_mut() = Some(running.join(parent_ctx));
+        });
+        sched.run();
+
+        let (before, after) = seen.get();
+        assert!(!before, "a child that had not run yet answered finished");
+        assert!(after, "a child that had ended never answered finished");
+        let done = answer.borrow_mut().take().expect("the task ran to the end");
+        assert!(done.ok, "{:?}", done.error);
+        assert_eq!(done.value.as_int(), Some(7));
+        assert_eq!(
+            done.output, b"ran",
+            "the join that follows a poll collects the same answer"
+        );
+    }
+
+    /// ADR 0072 § 4 on the one path a join never reaches: a caller that will
+    /// **not** await the child still may not leave with it running.
+    /// [`Running::abandon`] is that path — the server's request future takes it
+    /// when `hyper` drops the service out from under a request — and it owes
+    /// both halves, the cancellation and the wait.
+    ///
+    /// The wait is what is asserted, by reading the child's own teardown *at
+    /// the point the abandonment returns*: a call that cancelled and went on
+    /// would read `false` there while the child was still on its stack, which
+    /// is the rule quietly gone rather than kept.
+    #[test]
+    fn an_abandoned_child_is_torn_down_before_the_call_returns() {
+        /// The stand-in for whatever the child holds, and the flag its drop
+        /// sets — the same shape as the cancelled-parent case above.
+        struct Held(Rc<Cell<bool>>);
+        impl Drop for Held {
+            fn drop(&mut self) {
+                self.0.set(true);
+            }
+        }
+
+        let torn = Rc::new(Cell::new(false));
+        let in_child = Rc::clone(&torn);
+        let read_back = Rc::clone(&torn);
+        let at_abandon = Rc::new(Cell::new(false));
+        let observed = Rc::clone(&at_abandon);
+        let started = Rc::new(Cell::new(false));
+        let running_now = Rc::clone(&started);
+
+        let mut sched = Scheduler::new();
+        sched.spawn(parent(), TaskRoot::Request, move |parent_ctx| {
+            let program: Program = Box::new(move |_child: &mut Ctx, _args| {
+                running_now.set(true);
+                let _holding = Held(in_child);
+                // Parked on something that never arrives, so what is abandoned
+                // is a child that is genuinely running rather than one that was
+                // about to finish anyway.
+                suspend_current(Waiting::Parked);
+                Value::null()
+            });
+            let running = Isolate::new(program, Value::null(), Output::Capture)
+                .start(parent_ctx)
+                .expect("a null argument crosses");
+            // Hand the core back until the child has reached its own park: a
+            // single yield re-queues this task ahead of the child it just
+            // spawned, and what is abandoned has to be a child that is
+            // genuinely running.
+            for _ in 0..8 {
+                if started.get() {
+                    break;
+                }
+                suspend_current(Waiting::Yielded);
+            }
+            assert!(started.get(), "the child never got a slice");
+            assert!(!running.finished(), "the parked child reported finished");
+            running.abandon();
+            observed.set(read_back.get());
+        });
+        let report = sched.run();
+
+        assert!(
+            at_abandon.get(),
+            "the abandonment returned with the child still running"
+        );
+        assert_eq!(report.cancelled, 1, "the child was not torn down");
+        assert_eq!(sched.tracked_tasks(), 0, "the tree kept a dead task");
+        assert_eq!(
+            sched.parked_count(),
+            0,
+            "the abandoning task was left parked"
         );
     }
 }

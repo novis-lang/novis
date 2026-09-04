@@ -65,6 +65,13 @@
 //! [`ConnectionIo::phase`] handle. What this module cannot see it is told, and
 //! it is told by the one place that knows.
 //!
+//! **That first rule needs the loop's help for a request that parked**, and
+//! `crate::serve`'s service owns the reason: `hyper` skips its own
+//! post-response read whenever its read side is already blocked, which it is
+//! for every request whose service answered `Pending`, so the read this module
+//! reads the end of a response off would not happen at all. The service wakes
+//! its connection once more instead of this module guessing.
+//!
 //! An expired wait surfaces as [`std::io::ErrorKind::TimedOut`] out of the
 //! poll, which `hyper` ends the connection on. **A timed-out connection is
 //! closed and not answered**: a peer that has not finished a request head is

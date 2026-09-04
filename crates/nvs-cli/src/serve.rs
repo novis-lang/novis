@@ -312,12 +312,14 @@ pub(crate) fn run(
             // And no body, which is a gap rather than a decision: ADR 0105 § 5
             // decides that one crosses as `nvs_runtime::RequestBody` and not as
             // bytes — that trait's own docs are the argument, and the two caps
-            // are what make it arithmetic rather than taste — but nothing may
-            // pull one until `nvs_server::serve_connection`'s service stops
-            // being a synchronous closure. The comment at its `Reply::Run` arm
-            // is why, and it is `hyper`'s dispatcher's reason rather than this
-            // door's, so attaching an unpullable reader here would only move
-            // the deadlock to whichever member reached for it first.
+            // are what make it arithmetic rather than taste. What used to stand
+            // in the way was the shape of the service that runs the isolate,
+            // and it does not any more: the request is a peer task and its
+            // connection answers `Pending` while it runs, so a pull can park
+            // the isolate and be answered by the connection's next read. What
+            // is missing is the **supplier** — the reader over this request's
+            // `Incoming` that this door would attach — and until it exists
+            // `Inbound::has_body` is false on every request served here.
             Reply::Run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
         }
     });

@@ -4558,11 +4558,15 @@ pub trait RequestBody {
     ///
     /// Blocks the calling *task* — never the thread — for as long as the peer
     /// takes to send it. The supplier is whoever accepted the request and it
-    /// owns how that wait is spelled; for the built-in server it is
-    /// [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)'s
-    /// `block_on` over the connection's body stream, which is why an
-    /// implementation of this trait may not be pulled from inside the poll of
-    /// the very connection future that would deliver the bytes.
+    /// owns how that wait is spelled; for the built-in server the puller is the
+    /// request's own isolate, and that is a task **beside** the connection
+    /// rather than a frame inside its poll — `nvs_server::serve_connection`'s
+    /// service answers `Pending` while it runs
+    /// ([ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+    /// § 1) — so a pull parks that isolate and the connection's next poll is
+    /// what delivers the bytes. Stated as the rule an implementation has to
+    /// keep: **nothing may pull one from inside the poll of the very
+    /// connection future that would deliver them.**
     ///
     /// Chunk boundaries are the wire's and mean nothing: a reader that needs a
     /// record, a line or a MIME boundary finds it across chunks and never
