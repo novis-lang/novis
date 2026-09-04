@@ -5201,6 +5201,17 @@ is why" — is this file.
   cites; this is the cheaper test and it is decisive, so `sed -n '1,40p' crates/<crate>/Cargo.toml`
   before writing a line of the test. Adding a dev-dependency to make the filing true is the wrong
   repair: it puts the test one layer above the rule it asserts.
+- **A handoff item can name an unknown the same file has already answered, and the fixture is usually
+  three lines below the anchor it gave you.** The item for
+  `a_part_is_consumed_by_read_all_by_iteration_or_by_save_to` said to "decide the `saveTo` leg first",
+  because it delegates to `Core\IO::writeStream` and so "wants a real destination and whatever that
+  member asks of a `-p nvs-stdlib` context" — stated as the unknown that had stopped a session taking
+  the item. All three answers were already on disk in that same test module, written by the session
+  that landed `saveTo` itself: `saving()` builds a context granting `fs.write` through a
+  `nvs_config::Snapshot`, `scratch()` owns a directory under `std::env::temp_dir()`, and `save_to()`
+  flattens the row's four slots. One `grep -n 'fn ' crates/<crate>/src/<file>.rs | awk -F: '$1>NNNN'`
+  over the test module lists every fixture it holds, and it is the first call to make when an item
+  predicts a setup cost — a member that landed with tests brought its fixtures with it.
 
 ## Splitting a file that got too big
 
