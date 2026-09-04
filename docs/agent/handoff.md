@@ -2,60 +2,54 @@
 
 ## State
 
-**Goal 6, Stage 5: the carrier's body is a stream, and nothing supplies one yet.**
-`nvs_runtime::Inbound` gained a `RequestBody` — chunks pulled one at a time, each borrowed from the
-supplier's own buffer and invalidated by the next pull, so no implementation may accumulate. That
-trait's doc comment at `crates/nvs-runtime/src/ctx.rs:4556` is the one home of *why a reader and not
-bytes*: ADR 0105 § 5's two caps measure different things and a buffering door collapses them into the
-larger, which ADR 0106 § 13 then multiplies by `max_in_flight`. `Ctx::inbound_mut` is how a member
-reaches it, beside `Ctx::inbound` for the head; `Inbound` lost `Clone`, which nothing used and which
-a body makes wrong.
+**Goal 6, Stage 5: the service future is real, and a request runs as a peer task.**
+`nvs_server::serve_connection`'s service is an `async move` that starts the isolate
+(`Isolate::start`), answers `Pending` while `Running::finished` is false, and joins only once it is
+true — so the connection's own task stays free to go round `hyper`'s dispatcher loop, which is where
+a body's bytes will come from. `Running` gained that non-parking question and `abandon` beside
+`join`; `Peer`'s drop (`crates/nvs-server/src/serve.rs:368`) is ADR 0072 § 4 on the path a join never
+reaches, and `Started::abandon` is the one call that may not wait — `nvs_runtime::Teardown` is how it
+tells.
 
-**Nothing supplies one, and that is a blocker rather than an omission.** `hyper`'s h1 dispatcher
-polls read and write in one loop on one task, so anything that parks on the body from inside
-`serve_connection`'s synchronous service closure deadlocks on the *first* chunk of the *smallest*
-body. The comment at `crates/nvs-server/src/serve.rs:479` is the one home of that and of what closing
-it takes; the playbook carries it as a trap.
+**Nothing supplies a body yet, and that is now the only thing in the way.** The shape objection is
+gone: a pull may park the *isolate*, and the connection's next poll delivers. What is missing is the
+reader over `hyper`'s `Incoming`, which is item 1 below. `Inbound::has_body` is false on every request
+this server serves until then, so `examples/upload.nvs` — the failing acceptance check — stays failing
+through items 1 and 2.
 
-**The failing acceptance check is still `examples/upload.nvs`**, and it stays failing until the
-service future is real: `body()`, `bodyStream()` and `files()` all pull, so none of them can be
-exercised over a socket before item 1 below. That is why this group re-orders the previous one rather
-than continuing it.
-
-**`[context]` gaps.** `adrs` selects no section of ADR 0105 — this item needed §§ 3, 5 and 6 and its
-*Verification*, all peeked by hand — and no § 1 of ADR 0138, which is what says a park suspends the
-task rather than the thread. Spec § 15 still has no `spec` selector.
+**`[context]` gaps, unchanged:** `adrs` selects no section of ADR 0105 (items 1-3 need §§ 3, 5, 6 and
+its *Verification*) and no § 1 of ADR 0138; spec § 15 has no `spec` selector.
 
 ## Next group
 
-**The body's supply path, which is what every remaining ADR 0105 item waits on.** One file set:
-`crates/nvs-server/src/serve.rs`, `crates/nvs-host/src/isolate.rs`, `crates/nvs-runtime/src/host.rs`.
-Item 1 unblocks 2 and 3 and nothing else in the goal touches it.
+**The body's supply path, end to end.** One file set: `crates/nvs-server/src/serve.rs`,
+`crates/nvs-cli/src/serve.rs`, `crates/nvs-runtime/src/ctx.rs`, `crates/nvs-stdlib/src/request.rs`.
 
-- [ ] **The service future is real and the isolate runs as a peer task** — the enabling change, at
-      `crates/nvs-server/src/serve.rs:479`, whose comment states the deadlock and the way out.
-      `Isolate::start` already spawns a task (`crates/nvs-host/src/isolate.rs:414`); what parks is
-      `Started::join`'s loop at `crates/nvs-host/src/isolate.rs:348`, so `Running`
-      (`crates/nvs-runtime/src/host.rs:342`) needs a non-parking "is it done" beside `join`, and the
-      service closure becomes an `async move` that answers `Pending` until it is. **The care is in
-      cancellation, not in the happy path**: ADR 0072 § 4 says control does not leave with work still
-      running, and today `Started::join` is what cancels the child and keeps parking until it has —
-      a dropped service future must do the same or the rule is quietly gone.
-- [ ] **The door supplies the body** — `crates/nvs-cli/src/serve.rs:312`'s carrier gets a
-      `RequestBody` over `hyper`'s `Incoming`, pulled under `nvs_host::block_on`, and the same at
-      `crates/nvs-server/src/serve.rs:1142`'s test door. ADR 0105 § 5's `upload_total` is counted
-      here, on the wire, because that section says the server enforces it and a `Content-Length`
-      already over it is refused before dispatch. The case that matters is a body larger than one
-      socket read arriving in full.
-- [ ] **`Core\Request::body()` and `bodyStream()`** — spec § 15, ADR 0105 § 3's three ways to
-      consume, reading through `crates/nvs-runtime/src/ctx.rs:4334`'s `inbound_mut` from
-      `crates/nvs-stdlib/src/request.rs:378`'s shape. § 8's exclusivity with `files()` is a flag on
-      the carrier, not a second reader.
+- [ ] **The service future supplies the body, and the door attaches it** — a `RequestBody` over
+      `hyper`'s `Incoming` at `crates/nvs-cli/src/serve.rs:304`, whose comment at
+      `crates/nvs-cli/src/serve.rs:312` states what is owed. **The `Incoming` may not travel to the
+      isolate**: it is polled with the connection's `Context`, and the isolate is a different task —
+      so the reader is a shared cell plus a wake pair, and the connection's side of it goes into the
+      wait at `crates/nvs-server/src/serve.rs:555`, which stops being "is the peer finished" and
+      becomes "is it finished, and does it want a chunk". The isolate's pull parks its own task
+      (`nvs_runtime::RequestBody`'s doc at `crates/nvs-runtime/src/ctx.rs:4556` is the rule);
+      `Ctx::set_body` at `crates/nvs-runtime/src/ctx.rs:4486` is where it lands. ADR 0105 § 5's two
+      caps are the supplier's to enforce, since it is the only thing counting bytes.
+- [ ] **`Core\Request::body()` and `bodyStream()`** — spec § 15 and ADR 0105 § 3's three ways to read
+      one, over the seam item 1 lands. `crates/nvs-stdlib/src/request.rs:163` is the row block and its
+      module doc at `crates/nvs-stdlib/src/request.rs:13` already names all three members.
+- [ ] **`Core\Request::files()`, and `examples/upload.nvs` runs** — ADR 0105's lazily yielded parts,
+      the acceptance check this goal has been failing on: `parts=2 / field=title / file=report.pdf /
+      saved 4096 bytes / no temp file`. The example states the whole contract in its own header
+      (`examples/upload.nvs:7`) and the rows go beside item 2's at
+      `crates/nvs-stdlib/src/request.rs:163`. Its load-bearing case is bounded resident memory against a body far
+      larger than any in-memory bound (`docs/plan/m7.md`'s *Verify*), so the part reader may not
+      accumulate any more than the supplier may.
 
 ## Backlog
 
-- `files()`, the lazy iterator — ADR 0105 §§ 1 and 2, and the failing `examples/upload.nvs` check.
-- `[limits] request_body` and `upload_total` are not rows in `nvs-config` yet — ADR 0105 § 5.
-- The door's `501` still has no end-to-end case — `crates/nvs-stdlib/src/request.rs`'s `//!`.
-- `Core\Request` answers seven of spec § 15's fifteen — that module's `//!` owns the rest.
-- ADR 0102's route table and `Core\Request::route()` — `docs/plan/m7.md`.
+- ADR 0097 § 6's forwarded-header walk — one line to change, named at `crates/nvs-server/src/serve.rs`'s
+  `scheme` (ADR 0097 § 6).
+- ADR 0083's WebSocket upgrade over `ConnectionIo::into_stream` (`crates/nvs-server/src/io.rs`).
+- Stage 9's state-bleed suite across the isolate boundary (`docs/plan/m7.md`).
+- `docs/agent/loop-goal.toml`'s `[context]` gaps above, which only a session that hits them can add.

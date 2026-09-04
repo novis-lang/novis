@@ -7119,8 +7119,20 @@ sibling in the same namespace unqualified.
   `poll_read`. It is not a large-body problem: `poll_read` has not been asked for body bytes yet the
   first time the service is polled, so the smallest body deadlocks too. Reading ADR 0138 does not
   warn you — that ADR is about driving *one* future and says nothing about the request body. The way
-  out is a service future that answers `Pending` while the isolate runs as a peer task, at which
-  point `want`'s two-way signalling drives itself.
+  out has landed: the service **is** a future that answers `Pending` while the isolate runs as a peer
+  task, so a pull may park the *isolate*. What may still never park is the connection's own task —
+  anything written in the service itself, or in `serve_connection` around it.
+- **A request that parks makes `hyper` skip its post-response read, and what breaks is the keep-alive
+  clock rather than the response.** `Conn::maybe_notify` (`proto/h1/conn.rs`) reads the socket once
+  after a response to decide whether to loop again, and it returns early when `is_read_blocked()` —
+  which is set by any earlier `Pending` from the IO adapter, and a service that answers `Pending`
+  guarantees one, because `hyper` speculates about the next pipelined head while the request runs. So
+  `crate::io`'s "a read in the `Write` phase is the end of that response" never fires: the connection
+  parks under the *write* wait instead of `keepalive`, and the symptom is a test that hangs for its
+  client's patience rather than a wrong response. The fix is one `cx.waker().wake_by_ref()` from the
+  service once the answer exists, which costs one extra poll and makes `hyper` read again with the
+  dispatcher idle. Debugging it takes timestamps: the trace reads identically without them, because
+  the post-response read *does* eventually happen — ten seconds later, when the client's FIN arrives.
 
 ## Divergences and refusals already pinned
 
