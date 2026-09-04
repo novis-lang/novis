@@ -2,7 +2,7 @@
 Every reader `Core\Request` has refuses rather than answering empty in a program that is answering no request -- ADR 0012 § 7, spec § 15
 --FILE--
 <?nvs
-// Agreement, asked of all six readers: what decides the answer is whether a
+// Agreement, asked of all seven readers: what decides the answer is whether a
 // request arrived, and nothing about which member was called. A conformance
 // case is a program with no request in front of it -- which is exactly the
 // situation ADR 0012 § 7 is about, and the same one a scheduled script and a
@@ -11,6 +11,14 @@ uint $refused = 0;
 try {
     Core\Request::method();
 } catch (LogicError $verb) {
+    $refused = $refused + 1;
+}
+// The verb's second reader is on the same terms as its first: `isHead` reads
+// the same token `method` does, so a program with no request has no `false`
+// either -- "the peer did not write HEAD" is a fact only a request can carry.
+try {
+    Core\Request::isHead();
+} catch (LogicError $head) {
     $refused = $refused + 1;
 }
 try {
@@ -41,7 +49,7 @@ try {
 } catch (LogicError $crumb) {
     $refused = $refused + 1;
 }
-echo "refused ", $refused, " of 6\n";
+echo "refused ", $refused, " of 7\n";
 
 // The sentence names the member that was read, so a handler that wrapped six
 // questions learns which one it was standing on -- and it says why the answer
@@ -53,5 +61,5 @@ try {
     echo $why->message, "\n";
 }
 --EXPECT--
-refused 6 of 6
+refused 7 of 7
 Core\Request::path(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts

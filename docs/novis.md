@@ -15758,11 +15758,12 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: method, path, query, header, headers, cookie
+Keywords: method, isHead, path, query, header, headers, cookie
 
 | Member | Signature |
 |---|---|
 | [`Core\Request::method`](#core-core-request-method) | `method(): Core\Http\Method` |
+| [`Core\Request::isHead`](#core-core-request-ishead) | `isHead(): bool` |
 | [`Core\Request::path`](#core-core-request-path) | `path(): tainted string` |
 | [`Core\Request::query`](#core-core-request-query) | `query(string $name): mixed` |
 | [`Core\Request::header`](#core-core-request-header) | `header(string $name): ?tainted string` |
@@ -15781,6 +15782,19 @@ The verb this request carries, as one of `Core\Http\Method`'s eight cases — wi
 **Returns** `Core\Http\Method` — The matching `Core\Http\Method` case. Never `Head`, by the rule above.
 
 **Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker or a test — or the verb it carries is outside the eight `Core\Http\Method` names, which the server refuses with a `501` before a program runs.
+
+<a id="core-core-request-ishead"></a>
+#### `Core\Request::isHead`
+
+```nvs skip
+Core\Request::isHead(): bool
+```
+
+Whether the peer wrote `HEAD`, which `method` reports as `Get` — the one difference between the two, for a handler that would rather not build a body nothing will read.
+
+**Returns** `bool` — `true` when the request line carried `HEAD`, `false` for every other verb.
+
+**Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker or a test.
 
 <a id="core-core-request-path"></a>
 #### `Core\Request::path`

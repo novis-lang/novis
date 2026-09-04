@@ -28,7 +28,6 @@
 §15 Request::clientIp
 §15 Request::files
 §15 Request::host
-§15 Request::isHead
 §15 Request::mount
 §15 Request::route
 §15 Request::scheme

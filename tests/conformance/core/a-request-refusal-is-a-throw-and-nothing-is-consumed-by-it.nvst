@@ -42,7 +42,20 @@ try {
     $after = $after + 1;
 }
 echo "a later read still refused ", $after, " time\n";
+
+// Four throws in, the verb's second reader is still refusing: `isHead` reads
+// the same token `method` did at the top of this program, and a member that
+// answered `false` here would be reporting that the peer sent something other
+// than `HEAD` -- which is a fact about a request there is none of.
+uint $verb = 0;
+try {
+    Core\Request::isHead();
+} catch (LogicError $fourth) {
+    $verb = $verb + 1;
+}
+echo "the verb's second reader still refused ", $verb, " time\n";
 --EXPECT--
 the program took 2 steps past the throw
 the same read refused 2 times
 a later read still refused 1 time
+the verb's second reader still refused 1 time

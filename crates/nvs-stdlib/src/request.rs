@@ -4,20 +4,21 @@
 //!
 //! # What is here, and what is not
 //!
-//! Six of
+//! Seven of
 //! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15's
-//! fifteen members: `method`, `path` and `query` — the request *line* — and
-//! `header`, `headers` and `cookie`, the fields that arrived with it. Those six
-//! are what a request has before anything has been read off its **body**.
-//! `body`, `bodyStream`, `files`, `clientIp`, `scheme`, `host`, `mount`,
-//! `route` and `isHead` are known gaps of this module rather than of § 15, and
-//! each waits on a different thing: `files`/`body`/`bodyStream` on
+//! fifteen members: `method`, `isHead`, `path` and `query` — the request *line*,
+//! and the one fact reporting a `HEAD` as a `Get` would otherwise lose — and
+//! `header`, `headers` and `cookie`, the fields that arrived with it. Those
+//! seven are what a request has before anything has been read off its **body**.
+//! `body`, `bodyStream`, `files`, `clientIp`, `scheme`, `host`, `mount` and
+//! `route` are known gaps of this module rather than of § 15, and each waits on
+//! a different thing: `files`/`body`/`bodyStream` on
 //! [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
 //! streaming reader, `route`/`mount` on the match `nvs_server` makes once
-//! before the handler, `clientIp`/`scheme`/`host` on `[server] trusted_proxies`
-//! and the forwarded-header walk, and `isHead` on the two lines below it. Those
-//! three read a field this module now holds and are still gaps for that reason:
-//! which peer is allowed to have asserted one is not this module's to decide.
+//! before the handler, and `clientIp`/`scheme`/`host` on
+//! `[server] trusted_proxies` and the forwarded-header walk. Those three read a
+//! field this module now holds and are still gaps for that reason: which peer is
+//! allowed to have asserted one is not this module's to decide.
 //!
 //! # There is no request here, and that is a throw
 //!
@@ -53,8 +54,9 @@
 //! `HEAD` answers `Get`, which is § 15's own sentence and not a convenience: a
 //! `Get`-only route table must match a `HEAD` request, because a `HEAD` *is* a
 //! `Get` whose body is dropped. So `Core\Http\Method::Head` is a case
-//! `method()` never answers, and the truth is `isHead`'s to carry — which is
-//! the one gap above that this member's shape creates rather than inherits.
+//! `method()` never answers, and the truth is `isHead`'s to carry — a member
+//! this member's shape creates rather than one § 15 would otherwise need, and
+//! the reason the two are read off the same token in the same file.
 //!
 //! # One field, or every one of them
 //!
@@ -168,6 +170,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&METHOD_DOC),
         },
         CoreMethod {
+            name: "isHead",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_request_is_head",
+            doc: Some(&IS_HEAD_DOC),
+        },
+        CoreMethod {
             name: "path",
             names: &[],
             params: &[],
@@ -240,6 +251,19 @@ const METHOD_DOC: MethodDoc = MethodDoc {
                job worker or a test — or the verb it carries is outside the eight \
                `Core\\Http\\Method` names, which the server refuses with a `501` before a \
                program runs.",
+    }],
+};
+
+/// `Core\Request::isHead`'s reference card — ADR 0117.
+const IS_HEAD_DOC: MethodDoc = MethodDoc {
+    short: "Whether the peer wrote `HEAD`, which `method` reports as `Get` — the one difference \
+            between the two, for a handler that would rather not build a body nothing will read.",
+    params: &[],
+    ret: "`true` when the request line carried `HEAD`, `false` for every other verb.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not answering a request — a CLI program, a scheduled script, a job \
+               worker or a test.",
     }],
 };
 
@@ -334,6 +358,7 @@ const COOKIE_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_request_method" => (nvs_core_request_method as *const ()).cast(),
+        "nvs_core_request_is_head" => (nvs_core_request_is_head as *const ()).cast(),
         "nvs_core_request_path" => (nvs_core_request_path as *const ()).cast(),
         "nvs_core_request_query" => (nvs_core_request_query as *const ()).cast(),
         "nvs_core_request_header" => (nvs_core_request_header as *const ()).cast(),
@@ -361,6 +386,23 @@ fn inbound_of<'a>(ctx: &'a Ctx, member: &str) -> Result<&'a Inbound, Fault> {
             ),
         )
     })
+}
+
+/// Whether `verb` names one of [`crate::router::METHOD`]'s eight cases at all —
+/// the question the *door* asks, before an isolate exists.
+///
+/// ADR 0097 § 2's server refuses a token outside the roster with a `501`
+/// (`nvs_server::Reply::not_implemented`), which is what makes
+/// [`nvs_core_request_method`]'s closed answer total in practice: the throw it
+/// still carries is for the program that reached it another way. This predicate
+/// is the roster's one home answering a second question about itself, and
+/// deliberately not a copy of the list in the crate that accepts connections.
+///
+/// `HEAD` is known, on [`method_ordinal`]'s own row: RFC 9110 requires it and
+/// ADR 0097 § 7 runs it as a `GET`.
+#[must_use]
+pub fn is_known_verb(verb: &str) -> bool {
+    method_ordinal(verb).is_some()
 }
 
 /// Which of [`crate::router::METHOD`]'s eight cases a verb is, by its ordinal,
@@ -536,6 +578,26 @@ nvs_runtime::nvs_helper! {
             ));
         };
         Ok(Value::int(ordinal))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::isHead(): bool` — ADR 0097 § 7's other half, and the only
+    /// member that can tell a `HEAD` request from the `Get` [`method`] reports.
+    ///
+    /// A byte comparison against the token the peer wrote rather than a second
+    /// reading of the roster: [`method_ordinal`] answers `Get`'s ordinal for
+    /// `HEAD` deliberately, so by the time a verb is a case the difference is
+    /// gone. `HEAD` is a case-sensitive token like every other (RFC 9110 § 9.1),
+    /// and a lower-cased one never reaches here — the door refuses it with a
+    /// `501` ([`is_known_verb`]).
+    ///
+    /// The server discards the body of a `HEAD` answer either way, so nothing a
+    /// program does with this changes what the peer receives. What it saves is
+    /// the work of producing a body that will be thrown away, which for a
+    /// handler that renders a page is the whole request.
+    fn nvs_core_request_is_head(ctx, _args: [0]) {
+        Ok(Value::bool(inbound_of(ctx, "isHead")?.method() == "HEAD"))
     }
 }
 

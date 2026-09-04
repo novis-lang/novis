@@ -267,7 +267,12 @@ mod ratelimit;
 mod reflect;
 pub mod regex;
 pub mod registry;
-mod request;
+// `pub` for [`request::is_known_verb`] alone: ADR 0097 § 2's door refuses a verb outside
+// `Core\Http\Method`'s eight with a `501` before an isolate exists, and the roster is this
+// module's — a second copy of it in the crate that accepts connections would be a second
+// answer. The members themselves are reached the way every other class's are, through
+// [`registry`].
+pub mod request;
 mod response;
 pub mod router;
 pub mod script;
