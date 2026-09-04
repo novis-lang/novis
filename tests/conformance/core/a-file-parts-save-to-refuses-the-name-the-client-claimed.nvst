@@ -1,0 +1,24 @@
+--TEST--
+`Core\Request\Part::saveTo`'s path is a sink and `filename()` is the client's claim, so the one line every upload traversal has been written on does not compile — ADR 0105 §§ 2 and 4, ADR 0024 § 1
+--FILE--
+<?nvs
+// ADR 0105 § 4 makes `saveTo` a delegation to `Core\IO::writeStream`, and this
+// is the whole of what that buys: `writeStream`'s path is already an ADR 0024
+// path sink, with no exemption for a name that arrived by way of an upload, so
+// a destination the part chose for itself is refused at the call rather than
+// checked somewhere inside it.
+//
+// What is refused here is `move_uploaded_file($tmp, $dir . $_FILES['x']['name'])`
+// -- one line, reading as obviously correct, and the traversal. `filename()` is
+// `tainted string` because a peer wrote it, the parameter is `string`, and
+// `Core\IO::within` is the only way across.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    $part->saveTo($part->filename());
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:13:19
+%A
+error: aborting due to 1 error

@@ -423,7 +423,12 @@ const READ_TEXT_OPTIONS: &[CoreOption] = &[CoreOption {
 /// is charged to no such limit. So a caller who means a limit is the only one
 /// who can say what it is, and one who says nothing has said unbounded rather
 /// than inherited a number.
-const WRITE_STREAM_OPTIONS: &[CoreOption] = &[
+///
+/// **`Core\Request\Part::saveTo` is this same bag**, by naming this constant
+/// rather than declaring a second one beside it: ADR 0105 § 4 makes that member
+/// a delegation to this one, and two spellings of one default are two things
+/// that can disagree.
+pub(crate) const WRITE_STREAM_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "max",
         ty: CoreTy::Uint,
@@ -2743,13 +2748,18 @@ nvs_runtime::nvs_helper! {
                 args[3].tag_byte()
             ))
         })?;
-        stream_to_disk(ctx, path, args[1], max, overwrite)?;
+        stream_to_disk(ctx, path, args[1], max, overwrite, WRITE_STREAM)?;
         Ok(Value::null())
     }
 }
 
 /// `Core\IO::writeStream`'s member name, in one place: five refusals name it
 /// and one of them is raised from a closure two frames down.
+///
+/// It is *handed* to [`stream_to_disk`] rather than read there, because
+/// `Core\Request\Part::saveTo` drives the same function under ADR 0105 § 4's
+/// delegation and a program that called `saveTo` must not be told about a
+/// member it never named.
 const WRITE_STREAM: &str = "Core\\IO::writeStream";
 
 /// ADR 0105 § 4's member: the door, the drive, and the two rules the ADR gives
@@ -2782,6 +2792,15 @@ const WRITE_STREAM: &str = "Core\\IO::writeStream";
 /// `create_new` closes that window in the kernel, and the door's own docs say
 /// so.
 ///
+/// **`what` is the member the *program* called** — [`WRITE_STREAM`] here, and
+/// `Core\Request\Part::saveTo` where ADR 0105 § 4's delegation drives it. Every
+/// refusal below quotes it, so the delegation is as invisible in a message as
+/// the ADR makes it in the language.
+///
+/// **`src` is borrowed, not consumed.** `for_each` retains the cursor it drives
+/// and releases that reference itself, so the reference the caller handed in is
+/// still the caller's when this returns — by either arm.
+///
 /// # Errors
 ///
 /// The door's catchable `RuntimeError` when `fs.write` does not cover `path`,
@@ -2789,17 +2808,18 @@ const WRITE_STREAM: &str = "Core\\IO::writeStream";
 /// [`nvs_runtime::capability::io_failure`]'s `IOError` when the create or a
 /// write fails. Whatever the source's own `advance`/`current` threw reaches
 /// the caller unchanged.
-fn stream_to_disk(
+pub(crate) fn stream_to_disk(
     ctx: &mut nvs_runtime::Ctx,
     path: &Path,
     src: Value,
     max: u64,
     overwrite: bool,
+    what: &'static str,
 ) -> Result<(), Fault> {
-    let mut file = nvs_runtime::capability::create(ctx, path, overwrite, WRITE_STREAM)?;
+    let mut file = nvs_runtime::capability::create(ctx, path, overwrite, what)?;
     let mut written = 0_u64;
     let mut write = |chunk: Value| {
-        let outcome = write_chunk(&mut file, &mut written, max, chunk, path);
+        let outcome = write_chunk(&mut file, &mut written, max, chunk, path, what);
         #[expect(
             unsafe_code,
             reason = "`for_each`'s sink owns every value handed to it, on the \
@@ -2811,13 +2831,13 @@ fn stream_to_disk(
         }
         outcome
     };
-    let result = nvs_runtime::sequence::for_each(ctx, src, WRITE_STREAM, &mut write);
+    let result = nvs_runtime::sequence::for_each(ctx, src, what, &mut write);
     // Before the removal below, and explicitly: Windows refuses to unlink a
     // file that is still open, so a handle left alive until the end of the
     // function would turn the cleanup into a no-op on one platform only.
     drop(file);
     if let Err(fault) = result {
-        let _ = nvs_runtime::capability::remove_file(ctx, path, WRITE_STREAM);
+        let _ = nvs_runtime::capability::remove_file(ctx, path, what);
         return Err(fault);
     }
     Ok(())
@@ -2843,12 +2863,13 @@ fn write_chunk<W: Write>(
     max: u64,
     chunk: Value,
     path: &Path,
+    what: &'static str,
 ) -> Result<(), Fault> {
     // Unreachable from source: the row's parameter is an `Iterable<bytes>`, so
     // `E0401` refuses a source of anything else at the call site.
     let octets = chunk.as_bytes().ok_or_else(|| {
         Fault::fatal(format!(
-            "{WRITE_STREAM} expected {:?} from its src, got tag {}",
+            "{what} expected {:?} from its src, got tag {}",
             Tag::Bytes,
             chunk.tag_byte()
         ))
@@ -2856,13 +2877,13 @@ fn write_chunk<W: Write>(
     let total = written.saturating_add(octets.len() as u64);
     if total > max {
         return Err(Fault::thrown(format!(
-            "{WRITE_STREAM}: {} would pass the `max` of {max} bytes at {total}",
+            "{what}: {} would pass the `max` of {max} bytes at {total}",
             path.display()
         )));
     }
     *written = total;
     file.write_all(octets)
-        .map_err(|err| nvs_runtime::capability::io_failure(WRITE_STREAM, path, &err))
+        .map_err(|err| nvs_runtime::capability::io_failure(what, path, &err))
 }
 
 nvs_runtime::nvs_helper! {
@@ -3432,7 +3453,7 @@ mod tests {
         std::fs::write(&path, b"already here").expect("the file the write must not replace");
         let src = source(&[b"one", b"two"]);
 
-        let refused = stream_to_disk(&mut ctx, &path, src, u64::MAX, false)
+        let refused = stream_to_disk(&mut ctx, &path, src, u64::MAX, false, WRITE_STREAM)
             .expect_err("the default refuses a destination that already exists");
         let Fault::Thrown(_, message) = refused else {
             panic!("a destination that is already there is catchable, not a fatal");
@@ -3449,7 +3470,7 @@ mod tests {
 
         // The same call with the rule turned off, which is what makes the
         // refusal above a *default* rather than the only thing this member does.
-        stream_to_disk(&mut ctx, &path, src, u64::MAX, true)
+        stream_to_disk(&mut ctx, &path, src, u64::MAX, true, WRITE_STREAM)
             .expect("`overwrite: true` replaces what is there");
         assert_eq!(
             std::fs::read(&path).expect("the file"),
@@ -3472,7 +3493,7 @@ mod tests {
         let path = scratch("partial.bin");
         let src = source(&[b"aaaa", b"bbbb", b"cccc"]);
 
-        let refused = stream_to_disk(&mut ctx, &path, src, 10, false)
+        let refused = stream_to_disk(&mut ctx, &path, src, 10, false, WRITE_STREAM)
             .expect_err("twelve bytes do not fit under a ceiling of ten");
         let Fault::Thrown(_, message) = refused else {
             panic!("passing `max` is the program's own limit and so is catchable");
@@ -3490,7 +3511,8 @@ mod tests {
         // And the removal is the failure path and not something the member
         // does every time: the same stream under a ceiling that fits is on
         // disk afterwards, whole.
-        stream_to_disk(&mut ctx, &path, src, 12, false).expect("twelve bytes fit under twelve");
+        stream_to_disk(&mut ctx, &path, src, 12, false, WRITE_STREAM)
+            .expect("twelve bytes fit under twelve");
         assert_eq!(
             std::fs::read(&path).expect("the file"),
             b"aaaabbbbcccc",

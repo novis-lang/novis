@@ -700,6 +700,25 @@ pub(crate) const PART: CoreClass = CoreClass {
             symbol: "nvs_core_request_part_read_all",
             doc: Some(&READ_ALL_DOC),
         },
+        CoreMethod {
+            name: "saveTo",
+            names: &["path"],
+            // The path is a sink and `filename()` is `tainted`, which is § 2's
+            // whole point standing where it bites: the one place an upload
+            // could choose where it lands is the one place the qualifier
+            // refuses, and `Core\IO::within` is the launderer. The options are
+            // `Core\IO::writeStream`'s own bag rather than a copy of it —
+            // § 4 makes this member that one's delegation, and a default
+            // written twice is a default that can disagree with itself.
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Options(crate::io::WRITE_STREAM_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_request_part_save_to",
+            doc: Some(&SAVE_TO_DOC),
+        },
     ],
     slots: &["name", "filename", "contentType", "ordinal"],
     constants: &[],
@@ -814,6 +833,58 @@ const READ_ALL_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Request\Part::saveTo`'s reference card — ADR 0117.
+const SAVE_TO_DOC: MethodDoc = MethodDoc {
+    short: "Writes this part straight to `$path`, holding one chunk at a time — the path 99.9% of \
+            uploads take, replacing `move_uploaded_file` of a temporary file the host chose. Needs \
+            the `fs.write` capability for the path, and the part's own `filename()` is `tainted`, \
+            so it reaches this only through `Core\\IO::within`.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "Where the part is to land. It must not already exist unless `overwrite` says \
+                   otherwise.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "max",
+            desc: "The most bytes to accept from this part. Unbounded when it is not given, \
+                   because nothing else bounds a file on disk — unlike `readAll`, which is \
+                   holding what it reads and so inherits `[limits] request_body`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "overwrite",
+            desc: "Whether an existing file may be replaced. `false` by default, because the \
+                   destination is usually built from a name the client claimed.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. A failure part-way through removes the partial file before it throws, so no \
+          later reader finds a truncated upload the program believes it received whole.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, or the walk has moved on to a later \
+                   part and this one's bytes are gone.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.write` for this path, or the part ran \
+                   past `max` bytes.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "Something is already at the path and `overwrite` is `false`, the operating \
+                   system refused the create or a write, or the connection failed under the body.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "What arrived is not the multipart body the request declared.",
+        },
+    ],
+};
+
 /// `Core\Request\Part::content`'s answer, as [`CoreTy::Instance`] spells it.
 pub(crate) const PART_CONTENT_NAME: &str = r"Core\Request\PartContent";
 
@@ -876,6 +947,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         }
         "nvs_core_request_part_content" => (nvs_core_request_part_content as *const ()).cast(),
         "nvs_core_request_part_read_all" => (nvs_core_request_part_read_all as *const ()).cast(),
+        "nvs_core_request_part_save_to" => (nvs_core_request_part_save_to as *const ()).cast(),
         PART_CONTENT_ITERATE_SYMBOL => (nvs_core_request_part_content_iterate as *const ()).cast(),
         PART_CONTENT_ADVANCE_SYMBOL => (nvs_core_request_part_content_advance as *const ()).cast(),
         PART_CONTENT_CURRENT_SYMBOL => (nvs_core_request_part_content_current as *const ()).cast(),
@@ -2108,6 +2180,81 @@ fn part_read_all(
     }
 }
 
+/// `Core\Request\Part::saveTo`'s member name, in one place: it is what
+/// [`crate::io::stream_to_disk`] quotes in every refusal it raises on this
+/// member's behalf.
+const SAVE_TO: &str = r"Core\Request\Part::saveTo";
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request\Part::saveTo(string $path, {max?, overwrite?}): void` —
+    /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+    /// § 4, and the path 99.9% of uploads take.
+    ///
+    /// **A delegation, not an implementation.** § 4 says `Core\IO::writeStream`
+    /// is where a stream reaches disk and that this member delegates to it, so
+    /// what is here is the walk `content()` already answers with, handed to
+    /// [`crate::io::stream_to_disk`] under the same `{max?, overwrite?}` bag.
+    /// The two rules § 4 gives that member — `overwrite` defaulting to `false`,
+    /// and a failure removing the partial file — are therefore this member's
+    /// too without being restated anywhere: they are one implementation with
+    /// two doors, which is the ADR's own argument for writing it that way.
+    ///
+    /// **The identity check happens before the file is created.**
+    /// [`part_parse`] refuses a part the walk has moved past, and it runs first
+    /// so that a stale part leaves nothing on disk — `stream_to_disk` opens the
+    /// destination before it pulls a chunk, and a refusal after that point
+    /// would have to unlink a file the program was right to be refused.
+    ///
+    /// **What it spends:** one chunk, resident — [`PART_CONTENT`]'s figure,
+    /// because this is that walk with a file on the other end of it. `max` is
+    /// unbounded by default for [`crate::io::WRITE_STREAM_OPTIONS`]'s reason
+    /// and not `readAll`'s: nothing is being held, so there is no memory limit
+    /// for a default to inherit from.
+    fn nvs_core_request_part_save_to(ctx, args: [4]) {
+        let ordinal = part_ordinal(args[0], "saveTo")?;
+        // unreachable from source for the reason `readAll`'s two option reads
+        // give: the rows are `CoreTy::Text`, `CoreTy::Uint` and `CoreTy::Bool`,
+        // so `E0401` refuses anything else at the call site and an absent
+        // option arrives as its row's own default.
+        let path = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{SAVE_TO} expected {:?} for its path, got tag {}",
+                Tag::Str,
+                args[1].tag_byte()
+            ))
+        })?;
+        let max = args[2].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{SAVE_TO} expected {:?} for its max, got tag {}",
+                Tag::Uint,
+                args[2].tag_byte()
+            ))
+        })?;
+        let overwrite = args[3].as_bool().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{SAVE_TO} expected {:?} for its overwrite, got tag {}",
+                Tag::Bool,
+                args[3].tag_byte()
+            ))
+        })?;
+        let path = std::path::Path::new(path);
+        part_parse(ctx, ordinal, "saveTo")?;
+        let walk = crate::instance::build(&PART_CONTENT, [Value::null(), Value::uint(ordinal)]);
+        let wrote = crate::io::stream_to_disk(ctx, path, walk, max, overwrite, SAVE_TO);
+        #[expect(
+            unsafe_code,
+            reason = "the walk was built in this frame and `stream_to_disk` \
+                      borrows its source, so this frame owns the one reference \
+                      to it on either arm"
+        )]
+        unsafe {
+            walk.release();
+        }
+        wrote?;
+        Ok(Value::null())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -2119,6 +2266,7 @@ mod tests {
         nvs_core_request_part_content_advance, nvs_core_request_part_content_current,
         nvs_core_request_part_content_iterate, nvs_core_request_part_content_type,
         nvs_core_request_part_filename, nvs_core_request_part_name, nvs_core_request_part_read_all,
+        nvs_core_request_part_save_to,
     };
     use crate::router::METHOD;
     use nvs_runtime::{Ctx, Inbound, RequestBody, Value};
@@ -3210,5 +3358,148 @@ mod tests {
         );
         dropped(part);
         dropped(files);
+    }
+
+    /// A context answering a multipart request **and** granting `fs.write`,
+    /// which is what `saveTo` needs and no other member of this module does.
+    ///
+    /// The grant is everywhere rather than under a root, for
+    /// `crate::io::tests::writing`'s reason: ADR 0118's own suite is where the
+    /// grant decides anything, and a root here would only add a way for these
+    /// cases to fail for a reason they are not about.
+    fn saving(body: Chunks) -> Ctx {
+        let mut ctx = uploading("multipart/form-data; boundary=X", Some(body));
+        ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config: nvs_config::tree::Config {
+                capabilities: Some(nvs_config::tree::Capabilities {
+                    fs: Some(nvs_config::tree::CapFs {
+                        read: None,
+                        write: Some(nvs_config::tree::Setting::Bool(true)),
+                    }),
+                    ..nvs_config::tree::Capabilities::default()
+                }),
+                ..nvs_config::tree::Config::default()
+            },
+            ..nvs_config::Snapshot::default()
+        }));
+        ctx
+    }
+
+    /// A destination one case owns, with anything a previous run left there
+    /// removed.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join("nvs-part-save-to");
+        std::fs::create_dir_all(&dir).expect("a temporary directory the tests own");
+        let path = dir.join(name);
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    /// `saveTo` on `part`, with the four slots the row flattens to.
+    fn save_to(
+        ctx: &mut Ctx,
+        part: Value,
+        path: &std::path::Path,
+        overwrite: bool,
+    ) -> Result<(), i32> {
+        let written = Value::str(nvs_runtime::NvsStr::new(path.to_string_lossy().as_bytes()));
+        let answered = nvs_runtime::call(
+            nvs_core_request_part_save_to,
+            ctx,
+            &[part, written, Value::uint(u64::MAX), Value::bool(overwrite)],
+        );
+        dropped(written);
+        answered.map(|answer| {
+            assert_eq!(
+                answer.tag_byte(),
+                Value::null().tag_byte(),
+                "`saveTo` answers nothing"
+            );
+        })
+    }
+
+    /// ADR 0105 § 4's delegation, from this end of it: the part's bytes reach
+    /// the destination whole, and a second call to the same name is refused
+    /// because `overwrite` defaults to `false`.
+    ///
+    /// The default is asserted here as well as in `crate::io`'s own suite
+    /// because it is a *row* on this side — `saveTo` names
+    /// [`crate::io::WRITE_STREAM_OPTIONS`] rather than declaring a pair, and a
+    /// copy that had drifted would pass over there and fail a program here.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request, so it
+    /// holds no part to write.
+    #[test]
+    fn save_to_writes_the_part_whole_and_defaults_to_not_replacing() {
+        let mut arriving = saving(Chunks::of(UPLOAD));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut arriving, files).expect("the body carries two file parts");
+        let path = scratch("upload.pdf");
+
+        save_to(&mut arriving, part, &path, false).expect("a granted destination is written");
+        assert_eq!(
+            std::fs::read(&path).expect("the file `saveTo` made"),
+            b"%PDF-1.4 and the rest of it".to_vec(),
+            "the part reaches disk whole, in order, and decoded by nothing"
+        );
+
+        assert!(
+            save_to(&mut arriving, part, &path, false).is_err(),
+            "a caller who said nothing about `overwrite` does not replace what is there"
+        );
+        assert_eq!(
+            std::fs::read(&path).expect("the file"),
+            b"%PDF-1.4 and the rest of it".to_vec(),
+            "and the refusal happened before anything was written"
+        );
+
+        dropped(part);
+        dropped(files);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// § 3's identity, on the third consumer: a part the walk has moved past
+    /// refuses, and it refuses **before the destination is created**.
+    ///
+    /// The second half is the one worth a case. `stream_to_disk` opens the file
+    /// before it pulls a chunk, so an identity check made any later would have
+    /// left an empty file at a name the program was right to be refused — a
+    /// destination created by a call that failed is exactly the partial write
+    /// § 4's cleanup exists to prevent, arriving through the door that cleanup
+    /// does not cover.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request, so it
+    /// holds no part to keep past its walk.
+    #[test]
+    fn save_to_refuses_a_part_the_walk_has_moved_past_and_creates_nothing() {
+        let mut arriving = saving(Chunks::of(UPLOAD));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let stale = next_part(&mut arriving, files).expect("the body carries two file parts");
+        let current = next_part(&mut arriving, files).expect("and the walk reaches the second");
+        let path = scratch("stale.bin");
+
+        assert!(
+            save_to(&mut arriving, stale, &path, false).is_err(),
+            "the first part's bytes are gone once the walk has opened the second"
+        );
+        assert!(
+            !path.exists(),
+            "a refused part leaves no destination behind: {}",
+            path.display()
+        );
+
+        save_to(&mut arriving, current, &path, false)
+            .expect("the part the walk is on is still writable");
+        assert!(
+            path.exists(),
+            "and the refusal is the stamp's, not this fixture being unable to write at all"
+        );
+
+        dropped(current);
+        dropped(stale);
+        dropped(files);
+        let _ = std::fs::remove_file(&path);
     }
 }

@@ -15938,7 +15938,7 @@ Keywords:
 <a id="core-core-request-part"></a>
 ### `Core\Request\Part`
 
-Keywords: name, filename, contentType, content, readAll
+Keywords: name, filename, contentType, content, readAll, saveTo
 
 | Member | Signature |
 |---|---|
@@ -15947,6 +15947,7 @@ Keywords: name, filename, contentType, content, readAll
 | [`Core\Request\Part->contentType`](#core-core-request-part-contenttype) | `contentType(): tainted string` |
 | [`Core\Request\Part->content`](#core-core-request-part-content) | `content(): Core\Request\PartContent` |
 | [`Core\Request\Part->readAll`](#core-core-request-part-readall) | `readAll({max?: uint}): tainted bytes` |
+| [`Core\Request\Part->saveTo`](#core-core-request-part-saveto) | `saveTo(string $path, {max?: uint, overwrite?: bool}): void` |
 
 <a id="core-core-request-part-name"></a>
 #### `Core\Request\Part->name`
@@ -16010,6 +16011,25 @@ This part's whole content, pulled to its end into one value — the reading for 
 **Returns** `tainted bytes` — Every byte of this part, in order, `tainted` and decoded by nothing. Empty for a part that carried none, which is a part the peer sent and not an absent one.
 
 **Throws** `LogicError` — This program is not answering a request, the walk has moved on to a later part, or `max` is larger than this request may hold at all.; `RuntimeError` — The part is larger than the bound in force. The bytes over it are never held: the refusal happens at the chunk that would cross it, and `content()` is the reading for a part that does not fit.; `IOError` — The connection failed under the body, or the peer stopped short of the closing boundary.; `ParseError` — What arrived is not the multipart body the request declared.
+
+<a id="core-core-request-part-saveto"></a>
+#### `Core\Request\Part->saveTo`
+
+```nvs skip
+$part->saveTo(string $path, {max?: uint, overwrite?: bool}): void
+```
+
+Writes this part straight to `$path`, holding one chunk at a time — the path 99.9% of uploads take, replacing `move_uploaded_file` of a temporary file the host chose. Needs the `fs.write` capability for the path, and the part's own `filename()` is `tainted`, so it reaches this only through `Core\IO::within`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | Where the part is to land. It must not already exist unless `overwrite` says otherwise. |
+| `{max: …}` | `uint` (default `18446744073709551615`) | The most bytes to accept from this part. Unbounded when it is not given, because nothing else bounds a file on disk — unlike `readAll`, which is holding what it reads and so inherits `[limits] request_body`. |
+| `{overwrite: …}` | `bool` (default `false`) | Whether an existing file may be replaced. `false` by default, because the destination is usually built from a name the client claimed. |
+
+**Returns** `void` — Nothing. A failure part-way through removes the partial file before it throws, so no later reader finds a truncated upload the program believes it received whole.
+
+**Throws** `LogicError` — This program is not answering a request, or the walk has moved on to a later part and this one's bytes are gone.; `RuntimeError` — The configuration does not grant `fs.write` for this path, or the part ran past `max` bytes.; `IOError` — Something is already at the path and `overwrite` is `false`, the operating system refused the create or a write, or the connection failed under the body.; `ParseError` — What arrived is not the multipart body the request declared.
 
 <a id="core-core-request-partcontent"></a>
 ### `Core\Request\PartContent`

@@ -1,0 +1,28 @@
+--TEST--
+`Core\Request\Part::saveTo` takes `Core\IO::writeStream`'s own `{max?, overwrite?}` and nothing else, so a size written as text and an option the bag does not declare are both refused — ADR 0105 § 4, ADR 0063 R2
+--FILE--
+<?nvs
+// The delegation is visible in the bag: `saveTo` names `writeStream`'s options
+// rather than declaring a pair of its own, so the two cannot drift and there is
+// one place `overwrite` defaults to `false`.
+//
+// Asked at both of its edges, as `readAll`'s is. ADR 0105 § 3 writes a bound in
+// prose as `max: "50M"`; the argument is a count of bytes, because a size in
+// text is a second parser in front of a number. And the bag is closed: a
+// misspelt option is refused rather than ignored, which is what keeps a program
+// from believing it raised a ceiling it left at the default.
+//
+// `temp:` is the one worth naming. PHP's upload had a temporary file and this
+// member is the reason there is none -- so the option a reader might reach for
+// out of habit is not merely undeclared, it is the thing ADR 0105 removed.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    $part->saveTo("/tmp/report.pdf", {max: "50M"});
+    $part->saveTo("/tmp/report.pdf", {temp: true});
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `uint`, found `string`
+   --> case.nvs:16:44
+%A
+error: aborting due to 2 errors

@@ -1,0 +1,29 @@
+--TEST--
+`Core\Request\Part::saveTo` accepts a laundered destination under every spelling of its bag and still refuses the claimed one, so naming an option is not a way through the sink — ADR 0105 §§ 2 and 4, ADR 0024 § 1
+--FILE--
+<?nvs
+// The accepting side of the boundary the case beside this one refuses at, which
+// is what makes either half mean anything: three of these four calls compile,
+// so what `saveTo` takes is exactly a laundered path and not merely "not this
+// one". Both options are optional, either may be named alone, and the launderer
+// may stand in the argument.
+//
+// The fourth is the same claim with `overwrite` named beside it. It is refused,
+// because an option says what to do with the destination and never what the
+// destination is allowed to be -- the qualifier is the parameter's and nothing
+// written in the bag reaches it.
+string $dir = Core\IO::temporaryDir();
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    string $safe = Core\IO::within($dir, "upload.bin");
+    $part->saveTo($safe);
+    $part->saveTo($safe, {overwrite: true});
+    $part->saveTo(Core\IO::within($dir, "second.bin"), {overwrite: true, max: 4096});
+    $part->saveTo($part->filename(), {overwrite: true});
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:18:19
+%A
+error: aborting due to 1 error
