@@ -5291,6 +5291,14 @@ is why" — is this file.
   `dropped` called *directly* from the test body means the driver is the over-releaser. Read the
   last four lines of a `Value`-taking test helper before calling it — whether it releases what it
   was handed is the whole question, and `#[expect(unsafe_code, reason = …)]` is where it says so.
+- **Editing the comments of an `--EXPECTF-ERROR--` case moves the `-->` line number, and the diff you
+  get back shows two identical-looking error lines.** Three lines added to the prose above the code in
+  `a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst` turned `case.nvs:15:36`
+  into `case.nvs:18:36`, and the failure prints the expected and actual blocks in full — whose first
+  lines *matched* — so it reads as a mismatch in the message rather than in the caret. The number is
+  counted from the first line after `--FILE--`, `<?nvs` included. When a case's expectation changes at
+  all, re-run it with `python tools/try.py <case>` and copy the whole location line rather than the
+  part that changed; the two-minute `verify.py` leg is the expensive way to learn this.
 
 ## Splitting a file that got too big
 
@@ -7329,6 +7337,17 @@ sibling in the same namespace unqualified.
   ADR 0102's routes, ADR 0084's jobs or a later table needs is that shape again. Check for the
   sibling before designing the edge: the cost of missing it is a dependency edge in a review rather
   than a copy nobody argues with.
+- **Widening a member's declared type in `nvs_stdlib::registry` moves four expectations, and not one
+  of them names the constant you edited.** Adding `decimal` and `Core\Uuid` to `router.rs`'s
+  `CAPTURE` union changed a rendering pinned in `crates/nvs-types/src/core_lib.rs`'s tainted-answer
+  roster — which fails as a nineteen-row *set* diff you have to read twice to see one row of — in the
+  `--EXPECTF-ERROR--` of two cases under `tests/conformance/core/`, and in the **generated**
+  `docs/novis.md`, which `python tools/reference.py` rewrites from `nvs meta --json` and which
+  `verify.py` checks. One `grep -rn` for the old rendering across `crates docs tests` finds all four
+  before the build does. And the rendered order is not the declaration order — `[TaintedStr, Int,
+  Uint, Decimal, Instance]` prints as `uint|int|decimal|tainted string|Core\Uuid`, and a nullable one
+  puts `null` third rather than first or last — so the new expectation is worth *running* for rather
+  than reasoning about: `python tools/try.py <case>` prints the real one in one call.
 
 ## Divergences and refusals already pinned
 
