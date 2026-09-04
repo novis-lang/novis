@@ -59,7 +59,7 @@
 > arithmetic against the memory budget, `503` before an isolate exists; § 8's accept backs off, §
 > 10's mount holds no policy, § 5's drain answers the probe and `isDraining()`; `Core\Response` has
 > seven members and `Core\Request` seven with `isHead`; the door writes the carrier, a request is a
-> peer task, and owes a body; every response carries ADR 0074 § 1's secure set; `E0801` refuses
+> peer task, and pulls its body; every response carries ADR 0074 § 1's secure set; `E0801` refuses
 > `echo` beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance
 > 1479, differential 256, migration 100%; valgrind green.
 >

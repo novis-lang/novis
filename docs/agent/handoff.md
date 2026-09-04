@@ -2,54 +2,55 @@
 
 ## State
 
-**Goal 6, Stage 5: the service future is real, and a request runs as a peer task.**
-`nvs_server::serve_connection`'s service is an `async move` that starts the isolate
-(`Isolate::start`), answers `Pending` while `Running::finished` is false, and joins only once it is
-true — so the connection's own task stays free to go round `hyper`'s dispatcher loop, which is where
-a body's bytes will come from. `Running` gained that non-parking question and `abandon` beside
-`join`; `Peer`'s drop (`crates/nvs-server/src/serve.rs:368`) is ADR 0072 § 4 on the path a join never
-reaches, and `Started::abandon` is the one call that may not wait — `nvs_runtime::Teardown` is how it
-tells.
+**Goal 6, Stage 5: the body's supply path is live at the Rust seam.** `nvs_server::body`
+(`crates/nvs-server/src/body.rs`) splits an arrived body into two halves over one `Rc` cell with a
+wake pair: `Supply` keeps `hyper`'s `Incoming` on the connection and is pumped from inside the
+service future's poll, `Pull` is the `nvs_runtime::RequestBody` the isolate parks on. The door
+attaches the pull to `Inbound` and hands `Supply` back in `Reply::Run`'s second field, because an
+`Incoming` may only be polled with the connection's own context. Nothing is read before a program
+asks, and one chunk is in flight at a time — the module doc is the whole argument.
 
-**Nothing supplies a body yet, and that is now the only thing in the way.** The shape objection is
-gone: a pull may park the *isolate*, and the connection's next poll delivers. What is missing is the
-reader over `hyper`'s `Incoming`, which is item 1 below. `Inbound::has_body` is false on every request
-this server serves until then, so `examples/upload.nvs` — the failing acceptance check — stays failing
-through items 1 and 2.
+**Two lib tests pin it** (`crates/nvs-server/src/serve.rs:1381`): a body written in two halves 50 ms
+apart reaches the program whole, which can only happen across a park, and a bodiless request reaches
+it carrying none. `upload_total` is `nvs_server::body::UPLOAD_TOTAL` — ADR 0105 § 5's default as a
+constant until `[limits]` carries the row — refused before dispatch as `Reply::too_large()` where a
+`Content-Length` declares it, and at the pull where a chunked body crosses it.
 
-**`[context]` gaps, unchanged:** `adrs` selects no section of ADR 0105 (items 1-3 need §§ 3, 5, 6 and
-its *Verification*) and no § 1 of ADR 0138; spec § 15 has no `spec` selector.
+**No Novis program can read the body yet**, so `examples/upload.nvs` — the failing acceptance check —
+stays failing through the group below. A body a program never reads is never drained either, so that
+connection ends rather than keeping alive; `serve_connection`'s docs own why that is the fail-closed
+direction.
+
+**`[context]` gaps:** `adrs` selects no § 3 of ADR 0105 (every item below needs it) and no § 1 of
+ADR 0138; spec § 15 has no `spec` selector, and it is `docs/spec/01-core-library.md:1053-1075`.
 
 ## Next group
 
-**The body's supply path, end to end.** One file set: `crates/nvs-server/src/serve.rs`,
-`crates/nvs-cli/src/serve.rs`, `crates/nvs-runtime/src/ctx.rs`, `crates/nvs-stdlib/src/request.rs`.
+**The three ways to read a body, in `Core\Request`.** One file set:
+`crates/nvs-stdlib/src/request.rs`, `crates/nvs-runtime/src/ctx.rs`, `tests/conformance/core/`.
 
-- [ ] **The service future supplies the body, and the door attaches it** — a `RequestBody` over
-      `hyper`'s `Incoming` at `crates/nvs-cli/src/serve.rs:304`, whose comment at
-      `crates/nvs-cli/src/serve.rs:312` states what is owed. **The `Incoming` may not travel to the
-      isolate**: it is polled with the connection's `Context`, and the isolate is a different task —
-      so the reader is a shared cell plus a wake pair, and the connection's side of it goes into the
-      wait at `crates/nvs-server/src/serve.rs:555`, which stops being "is the peer finished" and
-      becomes "is it finished, and does it want a chunk". The isolate's pull parks its own task
-      (`nvs_runtime::RequestBody`'s doc at `crates/nvs-runtime/src/ctx.rs:4556` is the rule);
-      `Ctx::set_body` at `crates/nvs-runtime/src/ctx.rs:4486` is where it lands. ADR 0105 § 5's two
-      caps are the supplier's to enforce, since it is the only thing counting bytes.
-- [ ] **`Core\Request::body()` and `bodyStream()`** — spec § 15 and ADR 0105 § 3's three ways to read
-      one, over the seam item 1 lands. `crates/nvs-stdlib/src/request.rs:163` is the row block and its
-      module doc at `crates/nvs-stdlib/src/request.rs:13` already names all three members.
-- [ ] **`Core\Request::files()`, and `examples/upload.nvs` runs** — ADR 0105's lazily yielded parts,
-      the acceptance check this goal has been failing on: `parts=2 / field=title / file=report.pdf /
-      saved 4096 bytes / no temp file`. The example states the whole contract in its own header
-      (`examples/upload.nvs:7`) and the rows go beside item 2's at
-      `crates/nvs-stdlib/src/request.rs:163`. Its load-bearing case is bounded resident memory against a body far
-      larger than any in-memory bound (`docs/plan/m7.md`'s *Verify*), so the part reader may not
-      accumulate any more than the supplier may.
+- [ ] **`Core\Request::body()`** — ADR 0105 § 3's first way and spec § 15
+      (`docs/spec/01-core-library.md:1053`): pull to the end into one string, bounded by
+      `request_body` (8M) rather than `upload_total`, and throw where it is crossed. The five edits
+      are the row at `crates/nvs-stdlib/src/request.rs:218`, the card at
+      `crates/nvs-stdlib/src/request.rs:337`, the `address` arm at
+      `crates/nvs-stdlib/src/request.rs:358` and a helper beside
+      `crates/nvs-stdlib/src/request.rs:699`; the reader is `Ctx::body` at
+      `crates/nvs-runtime/src/ctx.rs:4498`, whose `&mut` borrow is § 8's exclusivity.
+- [ ] **`Core\Request::bodyStream(): Iterable<bytes>`** — the same pull as chunks rather than one
+      string, so nothing is bounded and nothing is resident past a chunk
+      (`docs/spec/01-core-library.md:1068`). It shares the row/card/address roster above at
+      `crates/nvs-stdlib/src/request.rs:218`, and the chunk contract it has to keep is
+      `crates/nvs-runtime/src/ctx.rs:4540`.
+- [ ] **`Core\Request::files()`, and `examples/upload.nvs` runs** — ADR 0105's lazily yielded parts
+      over the same pull, at `crates/nvs-stdlib/src/request.rs:218`, with the multipart boundary
+      found across chunks (`crates/nvs-runtime/src/ctx.rs:4571` is why it may not assume one arrives
+      whole). This is the acceptance check.
 
 ## Backlog
 
-- ADR 0097 § 6's forwarded-header walk — one line to change, named at `crates/nvs-server/src/serve.rs`'s
-  `scheme` (ADR 0097 § 6).
-- ADR 0083's WebSocket upgrade over `ConnectionIo::into_stream` (`crates/nvs-server/src/io.rs`).
-- Stage 9's state-bleed suite across the isolate boundary (`docs/plan/m7.md`).
-- `docs/agent/loop-goal.toml`'s `[context]` gaps above, which only a session that hits them can add.
+- `[limits] request_body` / `upload_total` as real `nvs_config` rows, replacing
+  `crates/nvs-server/src/body.rs`'s constant — ADR 0105 § 5.
+- ADR 0097 § 6's forwarded-header walk; `crates/nvs-server/src/serve.rs`'s `scheme` is its one line.
+- ADR 0102's route table and `Core\Request::route()` — docs/plan/m7.md.
+- ADR 0083's WebSocket isolate over `tungstenite` — docs/plan/m7.md.
