@@ -15757,7 +15757,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-response"></a>
 ### `Core\Response`
 
-Keywords: json, text, bytes, setStatus, setHeader, redirect
+Keywords: json, text, bytes, setStatus, setHeader, redirect, addCookie
 
 | Member | Signature |
 |---|---|
@@ -15767,6 +15767,7 @@ Keywords: json, text, bytes, setStatus, setHeader, redirect
 | [`Core\Response::setStatus`](#core-core-response-setstatus) | `setStatus(uint $code): void` |
 | [`Core\Response::setHeader`](#core-core-response-setheader) | `setHeader(string $name, string $value): void` |
 | [`Core\Response::redirect`](#core-core-response-redirect) | `redirect(string $url, Core\Response\Redirect $status = Core\Response\Redirect::SeeOther): void` |
+| [`Core\Response::addCookie`](#core-core-response-addcookie) | `addCookie(string $name, string $value, {secure?: bool, httpOnly?: bool, sameSite?: Core\Response\SameSite, path?: string, domain?: string, maxAge?: Core\Time\Duration}): void` |
 
 <a id="core-core-response-json"></a>
 #### `Core\Response::json`
@@ -15870,6 +15871,30 @@ Answers by sending the peer to `$url`, declaring the redirect status and the `Lo
 **Returns** `void` — Nothing, and no byte of body. The last call on one response is the one that answers, and a request that failed answers `500` carrying neither the status nor the header.
 
 **Throws** `LogicError` — `$url` is empty, or holds a byte outside printable ASCII — a newline included, which would end the header line and begin one the program never wrote.
+
+<a id="core-core-response-addcookie"></a>
+#### `Core\Response::addCookie`
+
+```nvs skip
+Core\Response::addCookie(string $name, string $value, {secure?: bool, httpOnly?: bool, sameSite?: Core\Response\SameSite, path?: string, domain?: string, maxAge?: Core\Time\Duration}): void
+```
+
+Adds one `Set-Cookie` to this response, every option it leaves out taken from `[http.cookies]` — so a cookie written with no options is `Secure; HttpOnly; SameSite=Lax; Path=/`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The cookie's name, matched byte for byte on the way back with no substitution anywhere. A `__Host-` or `__Secure-` prefix is enforced rather than documented: the first requires `Secure` and `Path=/` and forbids `Domain`, the second requires `Secure`, and a cookie that does not conform is refused on write. |
+| `$value` | `string` (sink) | The value, as the bytes RFC 6265 admits — printable ASCII without a space, a comma, a semicolon, a backslash or a quote, since each of those ends the value and begins something the program did not write. |
+| `{secure: …}` | `bool` (default `null`) | Whether the cookie is sent over HTTPS alone. Defaults to `[http.cookies] secure`, which is `true` with nothing configured. |
+| `{httpOnly: …}` | `bool` (default `null`) | Whether the cookie is hidden from script. Defaults to `[http.cookies] http_only`, which is `true` with nothing configured — a cookie that genuinely needs to be readable says so here, in one field, visibly. |
+| `{sameSite: …}` | `Core\Response\SameSite` (default `null`) | Which cross-site requests carry it. Defaults to `[http.cookies] same_site`, which is `Lax` with nothing configured. `None` without `Secure` is refused, for the reason the same pair is refused at boot: every browser drops it. |
+| `{path: …}` | `string` (default `null`, sink) | The path prefix the cookie is sent under. Defaults to `[http.cookies] path`, which is `/` with nothing configured. |
+| `{domain: …}` | `string` (default `null`, sink) | The domain the cookie is sent to. Omitted by default, which is the narrower of the two meanings — this host and no subdomain — and `[http.cookies]` deliberately configures no default for it. |
+| `{maxAge: …}` | `Core\Time\Duration` (default `null`) | How long the cookie lives. Omitted by default, which is a session cookie. `0s` is the spelling that deletes one; a negative duration is refused rather than read as that second spelling. |
+
+**Returns** `void` — Nothing. Each call adds a cookie — two calls write two `Set-Cookie` lines, and a name written twice is sent twice rather than collapsed.
+
+**Throws** `LogicError` — `$name` is not a cookie name, or does not conform to the `__Host-`/`__Secure-` prefix it carries; `$value`, `path` or `domain` holds a byte that would end the attribute and begin one the program never wrote; `sameSite` is `None` without `secure`; or `maxAge` is negative.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
@@ -18426,6 +18451,17 @@ Which redirect a response is. The three cases are the redirect statuses whose me
 | `Core\Response\Redirect::Temporary` | `307` — repeat this request, method and body intact, at the new address this time only. Nothing is cached and nothing is renamed. |
 | `Core\Response\Redirect::Permanent` | `308` — repeat this request, method and body intact, and the new address is the one from now on. Caches and crawlers are entitled to remember it. |
 
+<a id="enum-core-response-samesite"></a>
+#### `Core\Response\SameSite`
+
+Which cross-site requests carry a cookie. The three cases are the attribute's own, and the default is `Lax` because a cookie that travels on a cross-site subrequest is what CSRF is made of.
+
+| Case | Meaning |
+|---|---|
+| `Core\Response\SameSite::Lax` | Sent with a top-level navigation to this site and with nothing else — not with an image, a form post or a `fetch` from somewhere else. The default, configured or not. |
+| `Core\Response\SameSite::Strict` | Never sent cross-site at all, a navigation included. A visitor arriving from a link therefore arrives logged out, which is the cost that makes this the deliberate choice rather than the default. |
+| `Core\Response\SameSite::None` | Sent cross-site. Requires `Secure`, and is refused without it here and at boot alike, because a browser drops the pair rather than honouring it. |
+
 <a id="enum-core-cli-stream"></a>
 #### `Core\Cli\Stream`
 
@@ -20398,6 +20434,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `headers_sent` | dropped | there is no moment at which the headers escaped and a program must start guarding: the server writes a response the handler returned. The one ordering error it was used to avoid — writing a header after a body — is a compile error ([01 § 15](spec/01-core-library.md)) |
 | `header_register_callback` | dropped | a hook the engine runs just before flushing, to correct headers written from somewhere else. Nothing writes headers from somewhere else |
 | `http_response_code` | member | `Core\Response::setStatus`. Its getter half is a read-back the handler does not need, since it chose the status |
+| `setcookie` | member | `Core\Response::addCookie`, one options shape instead of eight positional arguments, defaulted from `[http.cookies]` ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)) |
 | `setrawcookie` | dropped | it differs from `setcookie` only by skipping the URL-encoding, and encoding a cookie's value is `addCookie`'s job rather than a second function's — no operation is reachable two ways ([ADR 0063](adr/0063-core-api-conventions.md)) |
 | `http_get_last_response_headers` | dropped | it reports the headers of the last fetch a **stream wrapper** made — `$http_response_header` under a function name. There are no stream wrappers ([ADR 0052](adr/0052-closed-doors.md)), and an outbound response is the value `Core\Http\Client` returns ([01 § 16](spec/01-core-library.md)) |
 | `http_clear_last_response_headers` | dropped | same; there is no hidden slot to clear |
