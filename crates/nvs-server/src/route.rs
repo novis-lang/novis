@@ -37,10 +37,14 @@
 //! decision and a seam, not an omission here: what this module owns is which
 //! requests the check covers, and that is landed.
 //!
-//! **Known gap 2: nothing exports the label yet.** ADR 0076's exporter does not
-//! exist, so [`label`] has no caller in the tree; it is written here because
-//! the *value* is the part that rule interlocks with ADR 0077 over — a name out
-//! of the compile-time table and never the request's path — and because
+//! **Known gap 2: the label has a consumer and no caller.**
+//! [`crate::metrics::Registry::request`] is what ADR 0076 § 1's `route` label
+//! reaches — the two request series carry it, and that member's doc owns what an
+//! unmatched request's label is — but no core owns a registry yet, because § 8's
+//! two exporters are not in this crate's graph and nothing would read one. So
+//! [`label`] still has no caller, and it is written here for the reason it
+//! always was: the *value* is the part that rule interlocks with ADR 0077 over —
+//! a name out of the compile-time table and never the request's path — and
 //! deriving it anywhere else would be the second match § 1 removes.
 //!
 //! # Where it sits among the door's other decisions

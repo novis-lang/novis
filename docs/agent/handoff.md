@@ -2,60 +2,64 @@
 
 ## State
 
-**Goal 6, M7, stage 6 — the exporter is what is left of it.** The stage-6 acceptance failure is
-closed and it was a filing bug, not work: `no_probe_is_added_to_the_measured_path` asserts ADR 0076
-§ 1's "no probe site is added to the per-statement/per-call path", which is an effect on *emitted
-code*, and `crates/nvs-server/Cargo.toml` names neither `nvs-codegen` nor `nvs-ir`. The check moved
-to `-p nvs-codegen` in both copies of the goal file and the test landed beside ADR 0018's own probe
-fixtures. `the_default_metric_series_are_exported` stays where it is — the registry is the server's.
+**Goal 6, M7, stage 6 — the registry landed and the exporter is what is left.** The stage-6
+acceptance failure is closed: `the_default_metric_series_are_exported` runs in
+`crates/nvs-server/src/metrics.rs`, which is ADR 0076 §§ 5 and 7's per-core registry — § 1's nine
+families fixed to their kind and labels before anything writes one, § 7's `max_series` refusing a
+*new* series and never evicting an old one, and the two request series carrying § 1's `route` label.
+That module's own doc is the authority on all of it; nothing here restates it.
 
-**ADR 0076 § 6's two blocks are read at boot.** `crates/nvs-config/src/export.rs` is the roster and
-the refusal, reached from `crates/nvs-config/src/resolve.rs:340` with every other merged-tree check.
-Both blocks were already deserialized (`crates/nvs-config/src/tree.rs:737`, `:751`) and already
-`System` in the registry; what was missing was that nothing refused a value. `E0627` is a written
-`exporter` neither block spells — metrics take a scrape or a push, a trace only the push, and the
-asymmetry is § 6's own — and `E0628` is a `[trace] sample` outside `0.0`–`1.0`, which the item did
-not name and which is in for the reason the module doc gives: nothing downstream can tell `5` from a
-deployment that meant it. `propagate` still has no reader, as § 6 leaves it.
+**`[metrics]` resolves in `nvs-config`.** `nvs_config::Metering` (`crates/nvs-config/src/export.rs`)
+is the exporter in force plus § 6's own `max_series = 10000` default, beside the refusal that was
+already there — `crate::server`'s `Capacity` is the precedent. `exporter = false`, an unwritten key
+and a missing block all resolve to `None`, and `Registry::of` then builds nothing at all.
 
-**`[context] adrs` gained `0076 §§ 1, 6, 7`** in `docs/agent/loop-goal.toml` and in
-`docs/agent/goals/6-server.toml`. The pack printed no part of ADR 0076 while the whole open group is
-that ADR, and three calls went on fetching § 1, § 6 and § 8 by hand.
+**Nothing scrapes or pushes yet, and that is one gap with two faces.** ADR 0076 § 8's two exporters
+are not in this crate's graph, so no core owns a registry and `crates/nvs-server/src/route.rs`'s
+`label` still has no caller — its known gap 2 now says so precisely. The decision the next session
+owes first: `opentelemetry-otlp` and `metrics-exporter-prometheus` both bring a tokio *runtime*
+(`rt`, `net`, `time`), and this crate compiles tokio as `features = ["sync"]` on purpose
+(`crates/nvs-server/src/lib.rs:86`). `nvs_host::block_on` drives one connection future per
+coroutine; whether it can drive a `tonic` client that spawns its own tasks is the question, and the
+cheap answer if it cannot is that the scrape path needs no client at all — a `hyper` server on
+`[metrics] listen`, which this crate already has, formats `Registry::series` and pushes nothing.
+
+**`[context] adrs` needs `0076 §§ 3, 4, 5, 8`.** The pack carries §§ 1, 6, 7; § 5 and § 7 are what
+the item cited, § 3 fixes a name to one kind, § 4 is the `route` label's whole rule and § 8 is the
+next slice — four `sed` slices to fetch what the item's own ADR already governs.
 
 ## Next group
 
-**ADR 0076's registry and its series**, over a new `crates/nvs-server/src/metrics.rs`,
-`crates/nvs-server/src/lib.rs` and `crates/nvs-config/src/export.rs`. In this order — nothing can be
-registered before the thing that bounds it exists.
+**ADR 0076's exporter**, over `crates/nvs-server/Cargo.toml`, `crates/nvs-server/src/metrics.rs`,
+`crates/nvs-server/src/serve.rs` and `crates/nvs-server/src/route.rs`. The first decides what the
+second can be.
 
-- [ ] **The per-core registry, with § 7's `max_series` bound** (ADR 0076 §§ 5, 7) — a new
-      `crates/nvs-server/src/metrics.rs`, declared in the module list at
-      `crates/nvs-server/src/lib.rs:98`. The bound is `crates/nvs-config/src/tree.rs:745`'s
-      `max_series`, per core, and § 7 is *refuse the new, never evict the old*: a recreated counter
-      reads as a process restart to every backend and corrupts `rate()` silently. The exporter
-      selection is already resolved — `crates/nvs-config/src/export.rs:36`'s `Exporter`, with
-      `false` meaning no registry is built at all.
-- [ ] **§ 1's nine default series, and the `route` label reaching them** (ADR 0076 §§ 1, 4) — this
-      is what `the_default_metric_series_are_exported` in the stage-6 `-p nvs-server` check names.
-      The label is the *declared route name* and never a path; the door already took the match and
-      `crates/nvs-server/src/route.rs:129`'s `label` hands it back. § 4 refuses a `tainted` label
-      value, which is a `nvs-types` qualifier the server cannot see — check which half of that is
-      this crate's before writing it, the way the moved check above had to be checked.
-- [ ] **§ 8's two dependencies, feature-gated** (ADR 0076 § 8) — the selection they hang off is
-      `crates/nvs-config/src/export.rs:36`'s `Exporter`, and the feature is declared beside the
-      module list at `crates/nvs-server/src/lib.rs:93`: `metrics-exporter-prometheus` for
-      the scrape and `opentelemetry`/`opentelemetry-otlp` for the push, defaulting on in the server
-      distribution only, so an ADR 0048 single-file executable carries neither. Pre-authorized under
-      ADR 0051 § 4; take it last, since the registry above is what they export.
+- [ ] **§ 8's two dependencies, feature-gated — and what an executor-less crate can take of them**
+      (ADR 0076 §§ 6, 8) — `crates/nvs-server/Cargo.toml:12` for the graph and
+      `crates/nvs-server/src/metrics.rs:52` for the paragraph that records the answer. § 6 makes
+      the exporter Native and feature-gated, defaulting on in the server distribution and absent
+      from an ADR 0048 single-file build. Decide the scrape path and the push path separately: the
+      scrape is a `hyper` service over `Registry::series` and needs no new dependency, the push is
+      where tokio's runtime arrives. Pre-authorized under the goal's § *Standing decisions*; record
+      it in the module doc, not a new ADR.
+- [ ] **A core owns one registry, and the door records each response into it** (ADR 0076 §§ 1, 5) —
+      `crates/nvs-server/src/serve.rs:916` is where a core's loop starts,
+      `crates/nvs-server/src/metrics.rs:371` is the type it would hold and
+      `crates/nvs-server/src/metrics.rs:526` is the one call the response path makes, whose third
+      argument is `crates/nvs-server/src/route.rs:133`. § 5's "per core" is why it is a `&mut` on
+      the core's own loop and not anything shared; a `RefCell` in a thread-local is the shape, since
+      every connection on that core is a coroutine on that one thread. Closing this closes route.rs's
+      known gap 2, and the ceiling on the whole group is that `serve.rs` is large — read it at the
+      anchor.
 
 ## Backlog
 
-- `an_after_response_tree_outlives_its_connection`, filed `-p nvs-host` — still open; ADR 0072 § 6.
-- `a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease` — ADR 0073 *Verification*'s M8
-  bullet; needs a compare-and-set the shared tier does not have.
-- `Core\Log`'s record gaining `trace_id`/`span_id` whenever a trace is active — ADR 0076 § 6's last
-  paragraph, and the whole of what makes a log line jump to a trace.
-- Raw/unparsed body access for an arbitrary content-type — ADR 0024 *Revisiting*, narrowed by
-  `docs/plan/m7.md`; a decided-and-recorded call in `Core\Request`'s module doc.
-- `[trace] propagate` has no reader: ADR 0076 § 6 sends `traceparent` on outbound
-  `Core\Http\Client` calls, and nothing does.
+- `Core\Metrics`'s three members, Tier 0 and always present — ADR 0076 § 3, rows in
+  `crates/nvs-stdlib/src/registry.rs`; § 4's `tainted` refusal on the `labels` value is the half
+  that needs `nvs-types`.
+- Seven of § 1's nine series have no writer — the query, GC, spawn and memory numbers come from
+  ADR 0041 §§ 1-3's event kinds, which is where the wiring is specified.
+- `Core\Log`'s JSON-Lines record gains `trace_id` and `span_id` — ADR 0076 § 6, ADR 0020 § 6.
+- `[trace] propagate` still has no reader, as § 6 leaves it — `crates/nvs-config/src/tree.rs:757`.
+- ADR 0073's fleet-scoped lease is M8's, not this goal's — ADR 0073 *Verification*, and the stage-6
+  check's own comment in `docs/agent/loop-goal.toml` carries the triage.
